@@ -19704,6 +19704,41 @@ export default function MarketingAdminPage() {
     "Pick the strongest route for the current audience goal, adapt the pack into channel-native copy, identify missing content assets, and return a practical launch sequence with email review plus manual handoff notes for non-email channels.",
   ].join("\n"), [contentTemplateAudienceFilter, contentTemplateCategoryFilter, contentTemplateChannelFilter, contentTemplateSearch, templatePathfinderRoutes]);
   const leadTemplatePathfinderRoute = templatePathfinderRoutes[0] ?? null;
+  const recommendedContentLaunchKitAudiences = recommendedContentLaunchKit
+    ? "audiences" in recommendedContentLaunchKit
+      ? recommendedContentLaunchKit.audiences
+      : Array.from(new Set(recommendedContentLaunchKit.templates.map((template) => template.audienceType)))
+    : [];
+  const recommendedContentLaunchKitDecisionBriefText = recommendedContentLaunchKit ? [
+    "VYVA recommended launch kit decision brief",
+    `Generated: ${new Date().toISOString()}`,
+    `Recommended kit: ${recommendedContentLaunchKit.pack.title}`,
+    `Focus: ${recommendedContentLaunchKit.pack.focus}`,
+    `Readiness: ${readinessLabel(recommendedContentLaunchKit.state)}`,
+    `Channels: ${formatChannelList(recommendedContentLaunchKit.channels)}`,
+    `Audiences: ${recommendedContentLaunchKitAudiences.map((audience) => audience.toUpperCase()).join(", ") || "Not specified"}`,
+    `Templates: ${recommendedContentLaunchKit.templates.length}`,
+    recommendedContentLaunchKitPreview
+      ? `Reach preview: ${recommendedContentLaunchKitPreview.reachableContacts} reachable contacts; ${recommendedContentLaunchKitPreview.newAssets} new assets; ${recommendedContentLaunchKitPreview.reusableAssets} reusable assets; ${recommendedContentLaunchKitPreview.emailRoutes} email routes; ${recommendedContentLaunchKitPreview.manualRoutes} manual routes.`
+      : "Reach preview: not available.",
+    "",
+    "Why this kit:",
+    ...(recommendedContentLaunchKitReasons.length
+      ? recommendedContentLaunchKitReasons.map((reason) => `- ${reason}`)
+      : ["- It is the strongest available pack for the current campaign studio/audience context."]),
+    "",
+    "Template sequence:",
+    ...(recommendedContentLaunchKit.pack.sequence.length
+      ? recommendedContentLaunchKit.pack.sequence.map((step, index) => `${index + 1}. ${channelLabel[step.channel]} - ${step.title}: ${step.detail}`)
+      : recommendedContentLaunchKit.templates.slice(0, 8).map((template, index) => `${index + 1}. ${channelLabel[template.channel]} - ${template.title}: ${template.description}`)),
+    "",
+    "Recommended admin decision:",
+    "- Use Open studio when copy, audience, or channel fit needs adjustment first.",
+    "- Use Create launch kit when the pack, route, and audience are already acceptable.",
+    "- Use Show templates when the admin wants to inspect or swap individual assets.",
+    "",
+    "AI task: Validate whether this is the right launch kit for the current marketing goal. Return a yes/no recommendation, what to edit before launch, which channels need manual handoff, and the shortest path to a publishable campaign.",
+  ].join("\n") : "";
   const contentTemplateCommandQueue = [
     {
       key: "recommended-kit",
@@ -23883,6 +23918,44 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the brief and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyRecommendedLaunchKitDecisionBrief() {
+    const label = "Recommended launch kit decision brief";
+    if (!recommendedContentLaunchKitDecisionBriefText.trim()) {
+      const feedback = "No recommended launch kit decision brief is available yet.";
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(recommendedContentLaunchKitDecisionBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = recommendedContentLaunchKitDecisionBriefText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -38797,6 +38870,15 @@ export default function MarketingAdminPage() {
                         data-testid="button-marketing-recommended-launch-kit-copy-ai"
                       >
                         <Sparkles size={14} /> Copy AI command
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void copyRecommendedLaunchKitDecisionBrief()}
+                        disabled={!recommendedContentLaunchKitDecisionBriefText.trim()}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-black text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                        data-testid="button-marketing-recommended-launch-kit-copy-decision"
+                      >
+                        <ClipboardList size={14} /> Copy decision brief
                       </button>
                       <button
                         type="button"

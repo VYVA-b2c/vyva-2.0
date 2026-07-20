@@ -3125,6 +3125,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("Recommended launch kit");
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("starter templates");
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
+    expect(screen.getByTestId("button-marketing-recommended-launch-kit-copy-decision")).toHaveTextContent("Copy decision brief");
+    fireEvent.click(screen.getByTestId("button-marketing-recommended-launch-kit-copy-decision"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA recommended launch kit decision brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recommended admin decision"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Reach preview:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Validate whether this is the right launch kit"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Recommended launch kit decision brief copied.");
     expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Activate families");
     expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Build provider referrals");
     expect(screen.getByTestId("button-marketing-template-pathfinder-copy-brief")).toHaveTextContent("Copy AI brief");
