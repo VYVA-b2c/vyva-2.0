@@ -117,6 +117,8 @@ const sharedPrivacyTelemetryEvidence = [
   sharedLaunchTelemetry,
   sharedLaunchTelemetryTest,
   "src/components/voice-canvas/canvasPlatform.test.tsx",
+  "scripts/validate-voice-canvas-analytics-evidence.ts",
+  "src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts",
 ] as const;
 const sharedFeatureEndpointEvidence = [
   "scripts/collect-voice-canvas-feature-endpoint-evidence.ts",

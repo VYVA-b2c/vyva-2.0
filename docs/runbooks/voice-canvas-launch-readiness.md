@@ -71,6 +71,14 @@ Use the shared launch telemetry counter/listener only as an aggregate monitor. I
 
 For analytics signal rows, the evidence note must include dated source-event, positive aggregate count, allowed-envelope evidence, and a concrete analytics artifact/query/dashboard/log reference for the specific launch signal. Generic analytics-review notes do not satisfy launch sign-off.
 
+After exporting a sanitized staging analytics sample, validate it before copying evidence into the matrix:
+
+```bash
+npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json
+```
+
+The input JSON may be an array of Canvas telemetry envelopes or an object with `samples` or `events` and optional `counts`. Every sample must contain only `name`, `step`, `input`, `attempt`, `restored`, and optional `revision`. The validator requires a positive observed sample count for started, resumed, abandoned, blocked, confirmed, and completed; optional declared aggregate counts must also be positive. It writes only aggregate validation results and never copies raw sample rows, unexpected field names, addresses, transcripts, entered text, dates, names, medication details, provider details, shopping details, or account identifiers into its output. Existing validation artifacts are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
+
 ## Real-device QA pass
 
 Run this pass for each flow: ride, appointment, refill, shopping, provider reply, and task hub resume.
@@ -160,7 +168,7 @@ npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts
 Replace `YYYY-MM-DD` with the QA run date. The validator preserves existing output files by default. Use a new run-specific path for each QA pass; pass `--force` only when intentionally replacing an artifact.
 
 ```bash
-npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts
+npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts
 ```
 
 If this gate fails, do not enable the feature.
@@ -170,7 +178,7 @@ If this gate fails, do not enable the feature.
 Run the focused component/readiness suite:
 
 ```bash
-npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
+npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/validateVoiceCanvasAnalyticsEvidenceCommand.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
 ```
 
 Run the browser readiness specs:

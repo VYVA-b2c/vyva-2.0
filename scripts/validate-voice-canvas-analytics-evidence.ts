@@ -1,0 +1,282 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import {
+  CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
+} from "../src/components/voice-canvas/canvasLaunchReadiness";
+import {
+  CANVAS_LAUNCH_SIGNALS,
+  canvasLaunchTelemetrySampleFromEnvelope,
+  emptyCanvasLaunchTelemetryCounts,
+  isCanvasTelemetryEnvelope,
+  type CanvasLaunchTelemetryCounts,
+} from "../src/components/voice-canvas/canvasLaunchTelemetry";
+import type { CanvasLaunchSignal } from "../src/components/voice-canvas/canvasPlatform";
+
+interface AnalyticsEvidenceSummary {
+  inputPath: string;
+  readyForLaunchEvidence: boolean;
+  requiredSignals: readonly CanvasLaunchSignal[];
+  allowedEnvelopeFields: readonly string[];
+  sampleCount: number;
+  sampleLaunchSignalCounts: CanvasLaunchTelemetryCounts;
+  declaredCounts: Partial<CanvasLaunchTelemetryCounts> | null;
+  problemCount: number;
+  problems: string[];
+}
+
+const args = process.argv.slice(2);
+const allowedEnvelopeFields = [...CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS];
+const allowedTopLevelKeys = [
+  "generatedAt",
+  "source",
+  "counts",
+  "samples",
+  "events",
+] as const;
+
+function readArgValue(name: string): string | undefined {
+  const prefix = `${name}=`;
+  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length).trim();
+}
+
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(
+    [
+      "Validate a sanitized Voice Canvas analytics evidence artifact.",
+      "",
+      "Usage:",
+      "  npm run canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
+      "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json",
+      "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
+      "",
+      "The input JSON may be an array of Canvas telemetry envelopes, or an object with samples/events and optional counts.",
+      "Every sample must contain only: name, step, input, attempt, restored, revision.",
+      "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
+      "The command writes only aggregate validation results and never copies raw sample rows into its output.",
+      "Use --output=<path> with --json to also save the validation summary to a file.",
+      "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
+    ].join("\n"),
+  );
+  process.exit(0);
+}
+
+const jsonOutput = args.includes("--json");
+const forceOutput = args.includes("--force");
+const inputPathArg =
+  readArgValue("--input") ?? args.find((arg) => !arg.startsWith("-"));
+const outputPathArg = readArgValue("--output");
+
+if (!inputPathArg) {
+  console.error("Expected --input=<analytics evidence JSON path>.");
+  process.exit(1);
+}
+
+if (outputPathArg === "") {
+  console.error("Expected --output=<path>.");
+  process.exit(1);
+}
+
+if (outputPathArg && !jsonOutput) {
+  console.error("Use --output only with --json.");
+  process.exit(1);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseJsonFile(inputPath: string): unknown {
+  try {
+    return JSON.parse(readFileSync(inputPath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Could not read analytics evidence JSON: ${message}`);
+    process.exit(1);
+  }
+}
+
+function normalizeSamples(artifact: unknown): unknown[] {
+  if (Array.isArray(artifact)) return artifact;
+  if (!isRecord(artifact)) return [];
+
+  const samples: unknown[] = [];
+  if (Array.isArray(artifact.samples)) samples.push(...artifact.samples);
+  if (Array.isArray(artifact.events)) samples.push(...artifact.events);
+  return samples;
+}
+
+function extractDeclaredCounts(
+  artifact: unknown,
+  problems: string[],
+): Partial<CanvasLaunchTelemetryCounts> | null {
+  if (!isRecord(artifact) || artifact.counts === undefined) return null;
+  if (!isRecord(artifact.counts)) {
+    problems.push("Counts must be an object when provided.");
+    return null;
+  }
+
+  const counts: Partial<CanvasLaunchTelemetryCounts> = {};
+  const unexpectedCountKeyCount = Object.keys(artifact.counts).filter(
+    (key) => !CANVAS_LAUNCH_SIGNALS.includes(key as CanvasLaunchSignal),
+  ).length;
+  if (unexpectedCountKeyCount > 0) {
+    problems.push(
+      `Counts included ${unexpectedCountKeyCount} key(s) outside the launch signal set.`,
+    );
+  }
+
+  for (const signal of CANVAS_LAUNCH_SIGNALS) {
+    const value = artifact.counts[signal];
+    if (value === undefined) continue;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      problems.push(`${signal}: declared count must be a finite number.`);
+      continue;
+    }
+    counts[signal] = value;
+  }
+
+  return counts;
+}
+
+function topLevelProblems(artifact: unknown): string[] {
+  if (Array.isArray(artifact)) return [];
+  if (!isRecord(artifact)) {
+    return ["Analytics evidence must be a JSON array or object."];
+  }
+
+  const unexpectedTopLevelKeyCount = Object.keys(artifact).filter(
+    (key) => !allowedTopLevelKeys.includes(key as (typeof allowedTopLevelKeys)[number]),
+  ).length;
+
+  if (unexpectedTopLevelKeyCount === 0) return [];
+  return [
+    `Evidence artifact included ${unexpectedTopLevelKeyCount} top-level key(s) outside the allowed schema.`,
+  ];
+}
+
+function sampleEnvelopeProblems(
+  sample: unknown,
+  index: number,
+): { problems: string[]; signal: CanvasLaunchSignal | null } {
+  const problems: string[] = [];
+  if (!isRecord(sample)) {
+    return {
+      problems: [`Sample ${index + 1} must be a JSON object.`],
+      signal: null,
+    };
+  }
+
+  const unexpectedFieldCount = Object.keys(sample).filter(
+    (key) => !allowedEnvelopeFields.includes(key),
+  ).length;
+
+  if (unexpectedFieldCount > 0) {
+    problems.push(
+      `Sample ${index + 1} included ${unexpectedFieldCount} field(s) outside the allowed telemetry envelope.`,
+    );
+  }
+
+  if (!isCanvasTelemetryEnvelope(sample)) {
+    problems.push(`Sample ${index + 1} is not a valid Canvas telemetry envelope.`);
+    return { problems, signal: null };
+  }
+
+  const launchSample = canvasLaunchTelemetrySampleFromEnvelope(sample);
+  return { problems, signal: launchSample?.signal ?? null };
+}
+
+function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary {
+  const artifact = parseJsonFile(inputPath);
+  const relativeInputPath = path.relative(process.cwd(), inputPath);
+  const problems = topLevelProblems(artifact);
+  const declaredCounts = extractDeclaredCounts(artifact, problems);
+  const samples = normalizeSamples(artifact);
+  const sampleLaunchSignalCounts = emptyCanvasLaunchTelemetryCounts();
+
+  if (samples.length === 0) {
+    problems.push(
+      "Analytics evidence must include sanitized sample envelopes in samples, events, or the top-level array.",
+    );
+  }
+
+  samples.forEach((sample, index) => {
+    const result = sampleEnvelopeProblems(sample, index);
+    problems.push(...result.problems);
+    if (result.signal) {
+      sampleLaunchSignalCounts[result.signal] += 1;
+    }
+  });
+
+  for (const signal of CANVAS_LAUNCH_SIGNALS) {
+    const sampleCount = sampleLaunchSignalCounts[signal];
+    if (sampleCount <= 0) {
+      problems.push(`${signal}: sample evidence must include a positive observed count.`);
+    }
+
+    if (declaredCounts) {
+      const declaredCount = declaredCounts[signal];
+      if (declaredCount === undefined || declaredCount <= 0) {
+        problems.push(`${signal}: declared aggregate count must be positive.`);
+      }
+    }
+  }
+
+  return {
+    inputPath: relativeInputPath,
+    readyForLaunchEvidence: problems.length === 0,
+    requiredSignals: CANVAS_LAUNCH_SIGNALS,
+    allowedEnvelopeFields,
+    sampleCount: samples.length,
+    sampleLaunchSignalCounts,
+    declaredCounts,
+    problemCount: problems.length,
+    problems,
+  };
+}
+
+function writeJsonOutput(outputPathArg: string, jsonSummary: string) {
+  const outputPath = path.resolve(process.cwd(), outputPathArg);
+  if (existsSync(outputPath) && !forceOutput) {
+    console.error(
+      `Output file already exists. Use a run-specific path or pass --force to overwrite: ${path.relative(process.cwd(), outputPath)}`,
+    );
+    process.exit(1);
+  }
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${jsonSummary}\n`);
+}
+
+function printTextSummary(summary: AnalyticsEvidenceSummary) {
+  console.log(`Voice Canvas analytics evidence: ${summary.inputPath}`);
+  console.log(
+    `Ready for launch evidence: ${summary.readyForLaunchEvidence ? "yes" : "no"}`,
+  );
+  console.log(`Samples checked: ${summary.sampleCount}`);
+  console.log("Observed launch signal sample counts:");
+  for (const signal of CANVAS_LAUNCH_SIGNALS) {
+    console.log(`- ${signal}: ${summary.sampleLaunchSignalCounts[signal]}`);
+  }
+
+  if (summary.problems.length > 0) {
+    console.error("Analytics evidence is not ready:");
+    for (const problem of summary.problems) {
+      console.error(`- ${problem}`);
+    }
+  }
+}
+
+const inputPath = path.resolve(process.cwd(), inputPathArg);
+const summary = validateAnalyticsEvidence(inputPath);
+const exitCode = summary.readyForLaunchEvidence ? 0 : 1;
+
+if (jsonOutput) {
+  const jsonSummary = JSON.stringify(summary, null, 2);
+  if (outputPathArg) {
+    writeJsonOutput(outputPathArg, jsonSummary);
+  }
+  console.log(jsonSummary);
+} else {
+  printTextSummary(summary);
+}
+
+process.exitCode = exitCode;

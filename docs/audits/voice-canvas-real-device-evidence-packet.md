@@ -23,8 +23,8 @@ This packet is not launch approval. The QA matrix remains the launch gate, and `
 | Feature endpoint artifacts | `voice-canvas/endpoints/<YYYY-MM-DD>/feature-endpoints-enabled.json`, `voice-canvas/endpoints/<YYYY-MM-DD>/feature-endpoints-rollback-disabled.json`, and `<flow>-malformed-missing-rollback-trace` | Feature endpoint and rollback checks | Pending |
 | Task hub resume artifacts | `voice-canvas/task-hub/<YYYY-MM-DD>/resume-fallback-no-side-effects` | Task hub destination fallback checks | Pending |
 | Copy and accessibility artifacts | `voice-canvas/accessibility/<YYYY-MM-DD>/copy-focus-screenreader-reduced-motion` | Copy and accessibility read-through | Pending |
-| Analytics signal artifacts | `voice-canvas/analytics/<YYYY-MM-DD>/started-resumed-abandoned-blocked-confirmed-completed-counts` | Analytics signal review | Pending |
-| Analytics privacy artifacts | `voice-canvas/privacy/<YYYY-MM-DD>/allowed-envelope-forbidden-data-absent` | Analytics privacy review | Pending |
+| Analytics signal artifacts | `voice-canvas/analytics/<YYYY-MM-DD>/analytics-evidence.json` and `voice-canvas/analytics/<YYYY-MM-DD>/analytics-validation.json` | Analytics signal review | Pending |
+| Analytics privacy artifacts | `voice-canvas/privacy/<YYYY-MM-DD>/allowed-envelope-forbidden-data-absent` plus `voice-canvas/analytics/<YYYY-MM-DD>/analytics-validation.json` | Analytics privacy review | Pending |
 
 ## Flow packet checklist
 
@@ -51,8 +51,8 @@ Replace bracketed text before copying into the QA matrix.
 | Feature endpoint and rollback | `QA endpoint collector JSON and trace/log artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [endpoint] using server key [server key] showed disabled false/rollout 0, enabled true/rollout 100, malformed-config fail-closed fallback, missing-config fail-closed fallback, and in-session rollback to [named fallback path]; artifacts include only sanitized endpoint/status/cache-control/timing and enabled/rollout payload evidence.` |
 | Task hub destination fallback | `QA task hub artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [task path] resumed when destination Canvas was enabled, fell back to [named existing path] when disabled or rollout 0, and performed no writes and no external actions before confirmation.` |
 | Copy and accessibility | `QA copy/accessibility artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: one clear decision, Spanish long-label readability with no overflow/clipping/truncation, waiting pending/no-action copy, blocked retry/exit copy, completed outcome/no-extra-action copy, keyboard completion or safe exit, focus movement, screen-reader announcements for waiting/blocked/completed, and calm reduced-motion behavior passed.` |
-| Analytics signal | `QA analytics dashboard/query artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [launch signal] source event [source event] produced aggregate signal count [positive number] with only allowed envelope fields.` |
-| Analytics privacy | `QA analytics privacy artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [forbidden data class] was absent and was not recorded, logged, sent, captured, or included; sample contained only allowed envelope fields.` |
+| Analytics signal | `QA analytics dashboard/query and canvas:qa:analytics validation artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [launch signal] source event [source event] produced aggregate signal count [positive number] with only allowed envelope fields; validation confirmed positive observed sample counts for started, resumed, abandoned, blocked, confirmed, and completed.` |
+| Analytics privacy | `QA analytics privacy and canvas:qa:analytics validation artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [forbidden data class] was absent and was not recorded, logged, sent, captured, or included; sample contained only allowed envelope fields.` |
 
 ## Final pre-fill check
 
@@ -65,5 +65,6 @@ Before changing the QA matrix from `pending execution` to `ready for launch`, co
 - enabled and rollback-disabled `canvas:qa:features` artifacts were captured from the deployed URL with distinct run-specific paths;
 - task hub evidence covers local shopping draft, local medication refill draft, pending provider reply task, and stale or blocked task;
 - analytics evidence has positive aggregate counts for started, resumed, abandoned, blocked, confirmed, and completed;
+- `canvas:qa:analytics` validation passed for the sanitized analytics evidence artifact and produced a run-specific validation artifact;
 - privacy evidence names each forbidden data class and confirms it was absent from the telemetry sample;
 - no artifact link exposes personal details.

@@ -29,6 +29,8 @@ Use `npm run --silent canvas:qa:validate -- --allow-pending --json --output=arti
 
 Use `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json` to capture a sanitized deployed endpoint artifact for the current flag state, replacing the date and base URL for the QA run. Capture separate enabled and rollback-disabled artifacts with distinct output paths. The command performs GET requests only, rejects local/private/placeholder hosts by default, preserves existing artifacts unless `--force` is explicit, and records only endpoint/status/cache-control/timing plus `enabled`, `rolloutPercent`, recognized payload keys, and unexpected-key count. It does not record raw response bodies, unexpected field names, transcripts, entered text, addresses, saved-place labels, medication details, provider details, shopping details, account identifiers, or personal data.
 
+Use `npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json` to validate the sanitized analytics evidence artifact before filling analytics signal and privacy rows. The validator requires positive observed sample counts for started, resumed, abandoned, blocked, confirmed, and completed; accepts only the closed telemetry envelope fields `name`, `step`, `input`, `attempt`, `restored`, and optional `revision`; preserves existing output unless `--force` is explicit; and never copies raw sample rows, unexpected field names, addresses, transcripts, entered text, dates, names, medication details, provider details, shopping details, or account identifiers into its output.
+
 For final launch sign-off, run without `--allow-pending` and do not enable Canvas unless it passes:
 
 ```bash
@@ -140,6 +142,8 @@ For final sign-off, each result cell must name the specific behavior checked, no
 
 Confirm production or staging analytics receives the required aggregate launch signals. For final sign-off, source-event cells must match the canonical mapping, result cells must mention the aggregate signal/count reviewed with a positive numeric count, and evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence, plus a concrete analytics artifact/query/dashboard/log reference with a valid non-future `YYYY-MM-DD` date. Evidence must name the launch signal and its canonical source event so generic analytics-review notes are not enough. Evidence must not say forbidden data was recorded, logged, sent, captured, included, stored, retained, or present. A zero count does not prove the signal was observed.
 
+Attach or reference the matching `canvas:qa:analytics` validation artifact when available; it proves the exported samples were closed-envelope only and that all six launch signals had positive observed sample counts.
+
 | Launch signal | Source event verified | Aggregate result | Evidence |
 | --- | --- | --- | --- |
 | Started | Pending | Pending | Pending |
@@ -154,6 +158,8 @@ Confirm production or staging analytics receives the required aggregate launch s
 Confirm production or staging analytics receives only the allowed Canvas telemetry envelope fields: `name`, `step`, `input`, `attempt`, `restored`, and `revision`.
 
 For final sign-off, each result and evidence cell must name the specific forbidden data class for that row. Each result must state that the forbidden data class was absent or was not recorded, logged, sent, captured, or included. A vague result such as "no sensitive data," "no issue found," or "no concern" is not enough, and neither the result nor evidence may also say forbidden data was recorded, logged, sent, captured, included, stored, retained, or present. Each evidence cell must point to dated analytics or telemetry review evidence with a concrete analytics artifact/query/dashboard/log reference, a valid non-future `YYYY-MM-DD` date, and a statement that the sample contained only allowed envelope fields.
+
+The `canvas:qa:analytics` validation artifact can support these rows by proving the sample schema, but the matrix result and evidence still must name each forbidden data class and state it was absent, not recorded, logged, sent, captured, or included.
 
 | Forbidden data class | Result | Evidence |
 | --- | --- | --- |
