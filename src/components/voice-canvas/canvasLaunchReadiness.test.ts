@@ -210,7 +210,9 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("validateVoiceCanvasQaMatrixCommand.test.ts");
     expect(runbook).toContain("collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts");
     expect(runbook).toContain("validateVoiceCanvasAnalyticsEvidenceCommand.test.ts");
+    expect(runbook).toContain("validateVoiceCanvasRunSheetCommand.test.ts");
     expect(runbook).toContain("validateVoiceCanvasEvidencePacketCommand.test.ts");
+    expect(runbook).toContain("preflightVoiceCanvasLaunchReadinessCommand.test.ts");
     expect(runbook).toContain("canvas:qa:features");
     expect(runbook).toContain("canvas:qa:analytics");
     expect(runbook).toContain("canvas:qa:packet");
@@ -319,6 +321,9 @@ describe("Canvas launch readiness manifest", () => {
       "concrete analytics artifact/query/dashboard/log reference",
       "Evidence artifact inventory",
       "sanitized concrete artifacts",
+      "run-sheet validation",
+      "launch preflight artifacts",
+      "JSON validation artifacts",
       "voice-canvas-real-device-run-sheet.md",
       "voice-canvas-real-device-evidence-packet.md",
       "canvas:qa:validate",
@@ -328,6 +333,8 @@ describe("Canvas launch readiness manifest", () => {
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
+      "validateVoiceCanvasRunSheetCommand.test.ts",
+      "preflightVoiceCanvasLaunchReadinessCommand.test.ts",
       "canvas:qa:features",
       "canvas:qa:analytics",
       "canvas:qa:packet",

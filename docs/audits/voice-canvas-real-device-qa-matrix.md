@@ -12,7 +12,7 @@ Keep `Status` as **pending execution** until this matrix is fully filled. For fi
 Environment analytics sink review must point to dated concrete dashboard/query/log/artifact evidence, and initial plus rollback flag-state cells must include dated feature-flag artifact/log evidence proving the enabled and rollout values. This environment artifact/log/dashboard evidence must be concrete; prose-only reviewed or verified environment wording does not satisfy launch sign-off.
 
 ```bash
-npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts
+npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts
 ```
 
 While this matrix is still being filled, run:
@@ -178,7 +178,7 @@ The `canvas:qa:analytics` validation artifact can support these rows by proving 
 
 Use this inventory to map sanitized artifact references back to the matrix rows they prove. Do not attach or link artifacts that include spoken transcripts, entered text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, or other personal details.
 
-For final sign-off, every row must name the covered launch evidence, point to sanitized concrete artifacts such as screenshots, photos, recordings, logs, traces, captures, dashboards, queries, or artifact links, and include a reviewer/date with a valid non-future `YYYY-MM-DD` date. Generic artifact-bucket notes or prose-only reviewed wording do not satisfy launch sign-off.
+For final sign-off, every row must name the covered launch evidence, point to sanitized concrete artifacts such as screenshots, photos, recordings, logs, traces, captures, dashboards, queries, JSON validation artifacts, or artifact links, and include a reviewer/date with a valid non-future `YYYY-MM-DD` date. Generic artifact-bucket notes or prose-only reviewed wording do not satisfy launch sign-off. This inventory must include run-sheet validation and launch preflight artifacts before the matrix is marked ready.
 
 | Artifact set | Coverage | Sanitized artifact reference | Reviewer/date |
 | --- | --- | --- | --- |
