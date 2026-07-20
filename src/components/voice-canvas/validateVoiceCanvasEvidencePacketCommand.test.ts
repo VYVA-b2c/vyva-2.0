@@ -73,6 +73,7 @@ describe("Voice Canvas evidence packet validator command", () => {
     expect(result.stdout).toContain("pass --force only when intentionally");
     expect(result.stdout).toContain("Flow packet rows must keep per-flow safety coverage");
     expect(result.stdout).toContain("Copy-ready evidence note patterns must keep");
+    expect(result.stdout).toContain("The final pre-fill checklist must keep");
     expect(result.stdout).toContain(
       "concrete dated sanitized artifact paths or links",
     );
@@ -296,6 +297,32 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             'Copy-ready evidence note pattern "Required behavior" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects final pre-fill checks that omit required launch gates", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "- `canvas:qa:preflight -- --final` passed with the matrix, packet, enabled endpoint, rollback endpoint, and analytics artifact paths and produced a run-specific launch preflight artifact;",
+        "- final launch review completed;",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Final pre-fill check is missing required launch-readiness checklist coverage.",
           ]),
         );
       },

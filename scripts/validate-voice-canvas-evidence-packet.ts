@@ -390,6 +390,43 @@ const evidenceNotePatternRequirements: Record<
   ],
 };
 
+const finalPrefillChecklistRequirements: readonly (readonly string[])[] = [
+  ["sanitized"],
+  ["artifact"],
+  ["reviewer/date", "reviewer", "date"],
+  ["phone"],
+  ["tablet"],
+  ["desktop", "laptop"],
+  ["voice"],
+  ["touch"],
+  ["keyboard"],
+  ["rollback"],
+  ["fallback"],
+  ["canvas:qa:features"],
+  ["deployed url"],
+  ["task hub"],
+  ["local shopping"],
+  ["local medication"],
+  ["pending provider"],
+  ["stale", "blocked"],
+  ["canvas:qa:packet"],
+  ["evidence-packet-summary.json"],
+  ["analytics"],
+  ["started"],
+  ["resumed"],
+  ["abandoned"],
+  ["blocked"],
+  ["confirmed"],
+  ["completed"],
+  ["canvas:qa:analytics"],
+  ["canvas:qa:preflight"],
+  ["--final"],
+  ["privacy"],
+  ["forbidden data"],
+  ["absent"],
+  ["personal details"],
+] as const;
+
 const unsafeReferencePatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
@@ -461,6 +498,25 @@ function parseMarkdownTables(markdown: string): MarkdownTable[] {
   }
 
   return tables;
+}
+
+function sectionContent(markdown: string, section: string): string {
+  const lines = markdown.split(/\r?\n/);
+  const collected: string[] = [];
+  let inSection = false;
+
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      if (inSection) break;
+      inSection = heading[1].trim() === section;
+      continue;
+    }
+
+    if (inSection) collected.push(line);
+  }
+
+  return collected.join("\n");
 }
 
 function summarizePendingCellsBySection(
@@ -577,6 +633,16 @@ function evaluateEvidencePacket(markdown: string) {
     if (!sections.has(section)) {
       problems.push(`Missing required evidence packet section: ${section}.`);
     }
+  }
+
+  const finalPrefillContent = sectionContent(markdown, "Final pre-fill check");
+  if (
+    finalPrefillContent &&
+    !hasAllCoverageTerms(finalPrefillContent, finalPrefillChecklistRequirements)
+  ) {
+    problems.push(
+      "Final pre-fill check is missing required launch-readiness checklist coverage.",
+    );
   }
 
   const inventoryTable = findTable(tables, "Evidence packet inventory");
@@ -772,6 +838,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "Flow packet rows must keep per-flow safety coverage for device classes, interaction modes, review, explicit confirmation, no pre-confirmation side effects, duplicate prevention, stale response handling, and fallback rollback.",
       "Copy-ready evidence note patterns must keep reference, reviewer/date, privacy, no-side-effect, rollback, accessibility, and analytics wording needed by the final QA matrix.",
+      "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, analytics, preflight, and privacy checks.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, or preflight evidence.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
