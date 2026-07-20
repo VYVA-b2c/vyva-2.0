@@ -113,7 +113,7 @@ describe("Voice Canvas real-use evidence helper command", () => {
     );
     expect(result.stdout).toContain("real physical phone, tablet, desktop/laptop");
     expect(result.stdout).toContain("voice, touch, and keyboard");
-    expect(result.stdout).toContain("deployed non-local QA run URL");
+    expect(result.stdout).toContain("deployed HTTPS non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(unsafeDatePlaceholder);
@@ -254,11 +254,11 @@ describe("Voice Canvas real-use evidence helper command", () => {
       },
     ));
 
-  it("rejects placeholder QA run URLs as not real deployed evidence", () =>
+  it("rejects non-HTTPS QA run URLs as not real deployed evidence", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(
         "QA run URL: https://staging.vyva.app",
-        "QA run URL: https://preview.example",
+        "QA run URL: http://staging.vyva.app",
       ),
       (inputPath) => {
         const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
@@ -266,7 +266,7 @@ describe("Voice Canvas real-use evidence helper command", () => {
         expect(result.status).toBe(1);
         const summary = JSON.parse(result.stdout);
         expect(summary.problems).toContain(
-          "Real-use evidence QA run URL must be a deployed non-local http(s) URL.",
+          "Real-use evidence QA run URL must be a deployed HTTPS non-local URL.",
         );
       },
     ));

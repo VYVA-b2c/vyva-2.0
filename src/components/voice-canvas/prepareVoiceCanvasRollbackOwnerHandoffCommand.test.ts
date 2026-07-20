@@ -128,7 +128,7 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
     expect(result.stdout).toContain("rollback trigger");
     expect(result.stdout).toContain("endpoint/fallback/open-session evidence");
     expect(result.stdout).toContain("no remaining placeholders");
-    expect(result.stdout).toContain("deployed non-local QA run URL");
+    expect(result.stdout).toContain("deployed HTTPS non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -240,11 +240,11 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
       expect(summary.problems).toEqual([]);
     }));
 
-  it("rejects local QA run URLs as not real deployed rollback owner evidence", () =>
+  it("rejects non-HTTPS QA run URLs as not real deployed rollback owner evidence", () =>
     withTempMarkdownFile(
       validRollbackOwnerHandoffArtifact().replace(
         "QA run URL: https://staging.vyva.app",
-        "QA run URL: http://localhost:5173",
+        "QA run URL: http://staging.vyva.app",
       ),
       (inputPath) => {
         const result = runRollbackOwnerHelper([`--input=${inputPath}`, "--json"]);
@@ -252,7 +252,7 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
         expect(result.status).toBe(1);
         const summary = JSON.parse(result.stdout) as { problems: string[] };
         expect(summary.problems).toContain(
-          "Rollback owner handoff QA run URL must be a deployed non-local http(s) URL.",
+          "Rollback owner handoff QA run URL must be a deployed HTTPS non-local URL.",
         );
       },
     ));

@@ -58,7 +58,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The template is intentionally not launch approval until every launch flow has real physical phone, tablet, desktop/laptop, voice, touch, and keyboard evidence from the deployed QA run.",
       "Each row must include dated sanitized screenshot, photo, recording, log, capture, or artifact proof, completion or safe-exit proof, and no write/no external action before explicit confirmation.",
       "Do not add addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, screenshots with personal data, raw endpoint bodies, unexpected payload field names, or personal data.",
-      "Validation requires a deployed non-local QA run URL, a non-future reviewed date generated within the last 7 days, no remaining placeholders, every launch flow, real physical device wording, concrete sanitized artifact references, and no emulator/responsive-mode evidence.",
+      "Validation requires a deployed HTTPS non-local QA run URL, a non-future reviewed date generated within the last 7 days, no remaining placeholders, every launch flow, real physical device wording, concrete sanitized artifact references, and no emulator/responsive-mode evidence.",
       "Use --output=<path> with --template to save the Markdown artifact, or with --json to save the validation summary.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "This helper never calls feature endpoints, analytics, bookings, calls, messages, navigation, or application data writes.",
@@ -103,7 +103,7 @@ function realUseEvidenceTemplate(): string {
     "",
     `Reviewed on: [${artifactDatePlaceholder}]`,
     "Reviewer: [reviewer]",
-    "QA run URL: [deployed staging or production-like URL]",
+    "QA run URL: [deployed HTTPS staging or production-like URL]",
     "Commit/build: [commit SHA or deployed build]",
     "Privacy boundary: [sanitized artifact references only; no personal details]",
     "",
@@ -199,7 +199,7 @@ function isDeployedQaRunUrl(value: string | null): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    if (!["http:", "https:"].includes(url.protocol)) return false;
+    if (url.protocol !== "https:") return false;
     if (
       host === "localhost" ||
       host === "0.0.0.0" ||
@@ -346,7 +346,7 @@ function validateRealUseEvidence(inputPathArg: string): RealUseEvidenceSummary {
     }
   }
   if (!isDeployedQaRunUrl(lineValue(content, "QA run URL"))) {
-    problems.push("Real-use evidence QA run URL must be a deployed non-local http(s) URL.");
+    problems.push("Real-use evidence QA run URL must be a deployed HTTPS non-local URL.");
   }
 
   for (const pattern of unsafeFilledArtifactPatterns) {

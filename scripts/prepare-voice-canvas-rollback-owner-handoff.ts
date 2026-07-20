@@ -35,10 +35,10 @@ if (args.includes("--help") || args.includes("-h")) {
       "",
       "Use --template to print the handoff artifact shape for Operations/rollback owner sign-off.",
       "Use --input=<path> to validate a filled rollback owner handoff artifact.",
-      "The template is intentionally not launch approval until a deployed non-local QA run URL, real rollback owner, backup owner, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness are filled from the launch run.",
+      "The template is intentionally not launch approval until a deployed HTTPS non-local QA run URL, real rollback owner, backup owner, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness are filled from the launch run.",
       "The generated template includes only feature names, endpoints, server keys, and named fallback paths from the launch manifest.",
       "Do not add addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, or personal data.",
-      "Validation requires a deployed non-local QA run URL, a non-future reviewed date generated within the last 7 days, no remaining placeholders, all launch feature endpoints/server keys/fallbacks, and concrete endpoint/fallback/open-session/no-side-effect proof wording.",
+      "Validation requires a deployed HTTPS non-local QA run URL, a non-future reviewed date generated within the last 7 days, no remaining placeholders, all launch feature endpoints/server keys/fallbacks, and concrete endpoint/fallback/open-session/no-side-effect proof wording.",
       "Use --output=<path> with --template to save the Markdown artifact, or with --json to save the validation summary.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "This helper never calls feature endpoints, analytics, bookings, calls, messages, navigation, or application data writes.",
@@ -83,7 +83,7 @@ function rollbackOwnerHandoffTemplate(): string {
     "",
     `Reviewed on: [${artifactDatePlaceholder}]`,
     "Reviewer: [reviewer]",
-    "QA run URL: [deployed non-local QA run URL]",
+    "QA run URL: [deployed HTTPS non-local QA run URL]",
     "Operations/rollback owner: [owner name or team handle]",
     "Backup owner: [backup owner name or team handle]",
     "Decision window: [start/end time or launch-monitoring window]",
@@ -158,7 +158,7 @@ function isDeployedQaRunUrl(value: string | null): boolean {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    if (!["http:", "https:"].includes(url.protocol)) return false;
+    if (url.protocol !== "https:") return false;
     if (
       host === "localhost" ||
       host === "0.0.0.0" ||
@@ -235,7 +235,7 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
     }
   }
   if (!isDeployedQaRunUrl(lineValue(content, "QA run URL"))) {
-    problems.push("Rollback owner handoff QA run URL must be a deployed non-local http(s) URL.");
+    problems.push("Rollback owner handoff QA run URL must be a deployed HTTPS non-local URL.");
   }
 
   for (const requiredEvidence of [

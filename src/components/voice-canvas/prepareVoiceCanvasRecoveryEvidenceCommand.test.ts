@@ -98,7 +98,7 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
     expect(result.stdout).toContain("start/resume");
     expect(result.stdout).toContain("duplicate prevention");
     expect(result.stdout).toContain("stale-response evidence");
-    expect(result.stdout).toContain("deployed non-local QA run URL");
+    expect(result.stdout).toContain("deployed HTTPS non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
   });
@@ -221,11 +221,11 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
       },
     ));
 
-  it("rejects local QA run URLs as not real deployed evidence", () =>
+  it("rejects non-HTTPS QA run URLs as not real deployed evidence", () =>
     withTempRecoveryFile(
       validRecoveryEvidenceArtifact().replace(
         "QA run URL: https://staging.vyva.app",
-        "QA run URL: http://localhost:5173",
+        "QA run URL: http://staging.vyva.app",
       ),
       (inputPath) => {
         const result = runRecoveryEvidence([`--input=${inputPath}`, "--json"]);
@@ -234,7 +234,7 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
         const summary = JSON.parse(result.stdout) as { problems: string[] };
         expect(summary.problems).toEqual(
           expect.arrayContaining([
-            "Recovery behavior evidence QA run URL must be a deployed non-local http(s) URL.",
+            "Recovery behavior evidence QA run URL must be a deployed HTTPS non-local URL.",
           ]),
         );
       },

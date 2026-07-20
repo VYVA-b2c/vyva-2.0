@@ -98,7 +98,7 @@ describe("Voice Canvas copy clarity evidence helper command", () => {
     expect(result.stdout).toContain("senior-friendly copy");
     expect(result.stdout).toContain("what-happens-next clarity");
     expect(result.stdout).toContain("no remaining placeholders");
-    expect(result.stdout).toContain("deployed non-local QA run URL");
+    expect(result.stdout).toContain("deployed HTTPS non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
   });
@@ -226,11 +226,11 @@ describe("Voice Canvas copy clarity evidence helper command", () => {
       },
     ));
 
-  it("rejects local QA run URLs as not real deployed copy evidence", () =>
+  it("rejects non-HTTPS QA run URLs as not real deployed copy evidence", () =>
     withTempCopyFile(
       validCopyEvidenceArtifact().replace(
         "QA run URL: https://staging.vyva.app",
-        "QA run URL: http://127.0.0.1:5173",
+        "QA run URL: http://staging.vyva.app",
       ),
       (inputPath) => {
         const result = runCopyEvidence([`--input=${inputPath}`, "--json"]);
@@ -239,7 +239,7 @@ describe("Voice Canvas copy clarity evidence helper command", () => {
         const summary = JSON.parse(result.stdout) as { problems: string[] };
         expect(summary.problems).toEqual(
           expect.arrayContaining([
-            "Copy clarity evidence QA run URL must be a deployed non-local http(s) URL.",
+            "Copy clarity evidence QA run URL must be a deployed HTTPS non-local URL.",
           ]),
         );
       },
