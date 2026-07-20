@@ -18,7 +18,7 @@ test("shopping Canvas prepares only after confirmation and captures launch scree
   for (const [name, width, height] of launchViewports) {
     await page.setViewportSize({ width, height });
     await page.goto(
-      `/shopping-delivery-canvas.html${name === "desktop" ? "" : `?viewport=${name}`}`,
+      `/shopping-delivery-canvas.html?evidence=sanitized${name === "desktop" ? "" : `&viewport=${name}`}`,
     );
     await expect(
       page.getByRole("heading", { name: /Revisa antes de confirmar/ }),
@@ -53,7 +53,9 @@ test("provider reply Canvas supports Spanish long-label responsive launch screen
 }) => {
   for (const [name, width, height] of launchViewports) {
     await page.setViewportSize({ width, height });
-    await page.goto("/provider-reply-canvas.html?locale=es&scene=review");
+    await page.goto(
+      "/provider-reply-canvas.html?locale=es&scene=review&evidence=sanitized",
+    );
     await expect(
       page.getByRole("heading", { name: /Revisa antes de guardar/ }),
     ).toBeVisible();

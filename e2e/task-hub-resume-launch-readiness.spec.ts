@@ -19,8 +19,8 @@ function shoppingDraftState() {
     revision: 3,
     draft: {
       retailerId: "saved-market",
-      retailerName: "Saved Market",
-      items: [{ id: "item-1", name: "Soup", quantity: "4 cans" }],
+      retailerName: "Saved source",
+      items: [{ id: "item-1", name: "Prepared line A", quantity: "Quantity hidden" }],
       itemName: "",
       itemQuantity: "",
       fulfillment: "delivery",
@@ -138,13 +138,13 @@ test("task hub opens a pending provider reply path without pre-confirmation writ
     pending: [{
       id: "reply-1",
       use_case: "book_appointment",
-      provider_name: "Harbour Clinic",
-      action_summary: "Ask Harbour Clinic for an appointment.",
+      provider_name: "Saved care option",
+      action_summary: "Review the saved care task.",
       action_payload: {
         provider_task_status: "action_needed",
         provider_reply_status: "needs_more_info",
-        provider_reply: "Please confirm your insurance plan.",
-        provider_response_summary: "Harbour Clinic needs your insurance plan.",
+        provider_reply: "Please confirm one missing detail.",
+        provider_response_summary: "The saved care task needs one detail.",
         provider_reply_decisions: [{
           action: "answer_provider",
           status: "draft_ready",
@@ -162,7 +162,7 @@ test("task hub opens a pending provider reply path without pre-confirmation writ
   await page.goto("/task-hub-resume-canvas.html?task=pending%3Areply-1");
 
   await expect(page.getByTestId("concierge-task-provider-reply")).toContainText(
-    "Please confirm your insurance plan.",
+    "Please confirm one missing detail.",
   );
   await page.getByTestId("button-concierge-task-primary-action").click();
 
@@ -184,9 +184,9 @@ test("task hub detail exit and responsive long labels stay safe", async ({
     pending: [{
       id: "long-shopping-1",
       use_case: "shopping_request",
-      provider_name: "A very patient neighborhood grocery and prepared meals shop",
+      provider_name: "Saved task source with a long translated label",
       action_summary:
-        "Waiting for a very long translated shopping request label that should remain readable and not force a broken layout.",
+        "Waiting for a very long translated task label that should remain readable and not force a broken layout.",
       action_payload: {
         flow_reference: "FLOW_SHOPPING_SUPPORT",
         live_handoff_status: "sent_or_called",
