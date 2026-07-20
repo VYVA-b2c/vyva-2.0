@@ -191,6 +191,16 @@ function stringField(
   return typeof value === "string" ? value : "unknown";
 }
 
+function stringArrayField(
+  summary: Record<string, unknown> | null,
+  field: string,
+): string[] {
+  const value = summary?.[field];
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -594,6 +604,7 @@ const summary = {
     readyForQaRunSheet: booleanField(runSheetRun.summary, "readyForQaRunSheet"),
     incompleteCellCount: numericField(runSheetRun.summary, "incompleteCellCount"),
     problemCount: numericField(runSheetRun.summary, "problemCount"),
+    problems: stringArrayField(runSheetRun.summary, "problems"),
     pendingSections: runSheetRun.summary?.pendingSections ?? [],
     message: stringField(runSheetRun.summary, "message"),
   },
@@ -605,6 +616,7 @@ const summary = {
     incompleteCellCount: numericField(matrixRun.summary, "incompleteCellCount"),
     failingCellCount: numericField(matrixRun.summary, "failingCellCount"),
     problemCount: numericField(matrixRun.summary, "problemCount"),
+    problems: stringArrayField(matrixRun.summary, "problems"),
     pendingSections: matrixRun.summary?.pendingSections ?? [],
     message: stringField(matrixRun.summary, "message"),
   },
@@ -617,6 +629,7 @@ const summary = {
     ),
     incompleteCellCount: numericField(packetRun.summary, "incompleteCellCount"),
     problemCount: numericField(packetRun.summary, "problemCount"),
+    problems: stringArrayField(packetRun.summary, "problems"),
     pendingSections: packetRun.summary?.pendingSections ?? [],
     message: stringField(packetRun.summary, "message"),
   },
@@ -629,6 +642,7 @@ const summary = {
     ),
     sampleCount: numericField(analyticsRun?.summary ?? null, "sampleCount"),
     problemCount: numericField(analyticsRun?.summary ?? null, "problemCount"),
+    problems: stringArrayField(analyticsRun?.summary ?? null, "problems"),
     coveredFlows: analyticsRun?.summary?.coveredFlows ?? [],
     sampleLaunchSignalCounts:
       analyticsRun?.summary?.sampleLaunchSignalCounts ?? null,
@@ -640,6 +654,7 @@ const summary = {
       readyForLaunchEvidence: enabledFeatures.readyForLaunchEvidence,
       endpointCount: enabledFeatures.endpointCount,
       problemCount: enabledFeatures.problemCount,
+      problems: enabledFeatures.problems,
     },
     rollback: {
       provided: rollbackFeatures.provided,
@@ -647,6 +662,7 @@ const summary = {
       readyForLaunchEvidence: rollbackFeatures.readyForLaunchEvidence,
       endpointCount: rollbackFeatures.endpointCount,
       problemCount: rollbackFeatures.problemCount,
+      problems: rollbackFeatures.problems,
     },
   },
   nextActions,

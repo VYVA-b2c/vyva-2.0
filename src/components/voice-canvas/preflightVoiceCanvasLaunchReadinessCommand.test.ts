@@ -275,22 +275,26 @@ describe("Voice Canvas launch readiness preflight command", () => {
         incompleteCellCount: number;
         failingCellCount: number;
         problemCount: number;
+        problems: string[];
       };
       runSheet: {
         state: string;
         incompleteCellCount: number;
         problemCount: number;
+        problems: string[];
       };
       evidencePacket: {
         state: string;
         incompleteCellCount: number;
         problemCount: number;
+        problems: string[];
       };
       analyticsEvidence: {
         provided: boolean;
         readyForLaunchEvidence: boolean;
         sampleCount: number;
         problemCount: number;
+        problems: string[];
         coveredFlows: string[];
       };
       featureEndpointEvidence: {
@@ -299,12 +303,14 @@ describe("Voice Canvas launch readiness preflight command", () => {
           readyForLaunchEvidence: boolean;
           endpointCount: number;
           problemCount: number;
+          problems: string[];
         };
         rollback: {
           provided: boolean;
           readyForLaunchEvidence: boolean;
           endpointCount: number;
           problemCount: number;
+          problems: string[];
         };
       };
       nextActions: string[];
@@ -318,36 +324,42 @@ describe("Voice Canvas launch readiness preflight command", () => {
       state: "pending",
       incompleteCellCount: 260,
       problemCount: 0,
+      problems: [],
     });
     expect(summary.matrix).toMatchObject({
       state: "pending",
       incompleteCellCount: 286,
       failingCellCount: 0,
       problemCount: 0,
+      problems: [],
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
       incompleteCellCount: 11,
       problemCount: 0,
+      problems: [],
     });
-      expect(summary.analyticsEvidence).toMatchObject({
-        provided: false,
-        readyForLaunchEvidence: false,
-        sampleCount: 0,
-        problemCount: 0,
-        coveredFlows: [],
-      });
+    expect(summary.analyticsEvidence).toMatchObject({
+      provided: false,
+      readyForLaunchEvidence: false,
+      sampleCount: 0,
+      problemCount: 0,
+      problems: [],
+      coveredFlows: [],
+    });
     expect(summary.featureEndpointEvidence.enabled).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
       endpointCount: 0,
       problemCount: 0,
+      problems: [],
     });
     expect(summary.featureEndpointEvidence.rollback).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
       endpointCount: 0,
       problemCount: 0,
+      problems: [],
     });
     expect(summary.nextActions).toEqual(
       expect.arrayContaining([
@@ -473,8 +485,16 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
         const summary = JSON.parse(result.stdout) as {
           featureEndpointEvidence: {
-            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
-            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
+            rollback: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
           };
           nextActions: string[];
         };
@@ -487,6 +507,20 @@ describe("Voice Canvas launch readiness preflight command", () => {
         );
         expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
         expect(summary.featureEndpointEvidence.rollback.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.enabled.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining(
+              "enabled endpoint evidence must report rolloutPercent 100",
+            ),
+          ]),
+        );
+        expect(summary.featureEndpointEvidence.rollback.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining(
+              "rollback endpoint evidence must report enabled false",
+            ),
+          ]),
+        );
         expect(summary.nextActions).toContain(
           "Fix enabled feature endpoint evidence before launch sign-off.",
         );
@@ -813,6 +847,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
             provided: boolean;
             readyForLaunchEvidence: boolean;
             problemCount: number;
+            problems: string[];
           };
           nextActions: string[];
         };
@@ -822,6 +857,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
           readyForLaunchEvidence: false,
         });
         expect(summary.analyticsEvidence.problemCount).toBeGreaterThan(0);
+        expect(summary.analyticsEvidence.problems.join("\n")).toContain(
+          "outside the allowed telemetry envelope",
+        );
         expect(summary.nextActions).toContain(
           "Fix sanitized analytics evidence before launch sign-off.",
         );
