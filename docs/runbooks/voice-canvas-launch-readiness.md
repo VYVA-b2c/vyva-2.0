@@ -145,7 +145,7 @@ Validate the filled copy artifact before copying copy/accessibility proof into t
 npm run --silent canvas:qa:copy -- --input=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity-validation.json
 ```
 
-The filled artifact must prove every launch flow uses warm plain senior-friendly restrained copy, presents one clear decision at a time, explains what happens next for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handles long translated Spanish labels without overflow on mobile, tablet, and desktop, moves focus meaningfully, announces waiting/blocked/completed states to screen readers, and respects reduced motion. Use sanitized dated copy review, screenshot, capture, accessibility, or a11y artifact references only.
+The filled artifact must use a deployed non-local QA run URL and prove every launch flow uses warm plain senior-friendly restrained copy, presents one clear decision at a time, explains what happens next for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handles long translated Spanish labels without overflow on mobile, tablet, and desktop, moves focus meaningfully, announces waiting/blocked/completed states to screen readers, and respects reduced motion. Use sanitized dated copy review, screenshot, capture, accessibility, or a11y artifact references only.
 
 ## Recovery behavior evidence
 
@@ -185,7 +185,7 @@ Prepare the entry surface evidence artifact from the manifest-filled copy-safe t
 npm run --silent canvas:qa:entry-surfaces -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md
 ```
 
-Fill it only with deployed QA proof that every canonical launch surface for every flow was exercised, including dated sanitized screenshot, log, recording, capture, photo, or artifact references. Each surface row must prove no write and no external action happened before explicit confirmation.
+Fill it only with a deployed non-local QA run URL and deployed QA proof that every canonical launch surface for every flow was exercised, including dated sanitized screenshot, log, recording, capture, photo, or artifact references. Each surface row must prove no write and no external action happened before explicit confirmation.
 
 Validate the filled entry surface artifact before copying its proof into the evidence packet and matrix:
 

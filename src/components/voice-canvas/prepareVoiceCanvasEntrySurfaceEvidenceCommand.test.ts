@@ -112,6 +112,7 @@ describe("Voice Canvas entry surface evidence helper command", () => {
     );
     expect(result.stdout).toContain("canonical launch surface");
     expect(result.stdout).toContain("no write and no external action");
+    expect(result.stdout).toContain("deployed non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -311,6 +312,23 @@ describe("Voice Canvas entry surface evidence helper command", () => {
         );
         expect(summary.problems.join("\n")).toContain(
           "reviewer/date must include a non-future YYYY-MM-DD date no older than 7 days",
+        );
+      },
+    ));
+
+  it("rejects placeholder QA run URLs as not real deployed entry-surface evidence", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: https://canvas.example",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Entry surface evidence QA run URL must be a deployed non-local http(s) URL.",
         );
       },
     ));
