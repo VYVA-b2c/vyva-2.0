@@ -8759,6 +8759,53 @@ function campaignRowReadinessActionLabel(readiness: CampaignRowReadiness) {
   return "Open setup";
 }
 
+function campaignRowNextActionBrief(
+  campaign: Campaign,
+  readiness: CampaignRowReadiness,
+  targetAudience: MarketingAudience | null,
+  metricSummary: CampaignMetricSummary | undefined,
+  manualResults: ManualPublishResult[],
+) {
+  const channelLines = campaign.channels.length
+    ? campaign.channels.map((channel) => {
+      const contentRef = channel.contentAssetId || "no linked content";
+      const scheduled = channel.scheduledAt ? `; scheduled ${formatDate(channel.scheduledAt)}` : "";
+      return `- ${channelLabel[channel.channel]}: ${contentRef}; status ${channel.status}${scheduled}`;
+    })
+    : ["- No channels yet."];
+  const metricLine = metricSummary && metricSummary.metricCount > 0
+    ? `${metricSummary.sent} sent, ${metricSummary.delivered} delivered, ${metricSummary.opened} opened, ${metricSummary.clicked} clicked across ${metricSummary.metricCount} snapshot${metricSummary.metricCount === 1 ? "" : "s"}.`
+    : "No imported performance metrics yet.";
+  const manualLine = manualResults.length
+    ? `${manualResults.length} manual publish result${manualResults.length === 1 ? "" : "s"} tracked.`
+    : "No manual publishing results tracked yet.";
+  const nextAction = campaignRowReadinessActionLabel(readiness);
+
+  return [
+    "VYVA campaign next-action brief",
+    `Campaign: ${campaign.name}`,
+    `Status: ${campaign.status}`,
+    `Audience: ${campaign.audienceType.toUpperCase()}${targetAudience ? ` / list ${targetAudience.name} (${targetAudience.mappedMemberCount}/${targetAudience.memberCount} mapped)` : " / all eligible contacts"}`,
+    `Schedule: ${campaign.scheduleStartsAt ? formatDate(campaign.scheduleStartsAt) : "not scheduled"}`,
+    `Recipients: ${campaign.recipientCount}`,
+    `Objective: ${campaign.objective || "No objective yet."}`,
+    "",
+    "Readiness:",
+    `${readiness.label} (${readiness.readyCount}/${readiness.totalCount}) - ${readiness.detail}`,
+    `Recommended next action: ${nextAction}`,
+    "",
+    "Channels:",
+    ...channelLines,
+    "",
+    "Performance:",
+    metricLine,
+    manualLine,
+    "",
+    "AI task:",
+    "Turn this campaign row into the next safest admin action. Return the exact fix or launch step, the copy/content risk to check, the audience/consent guardrail, and the shortest operator instruction for the campaign owner.",
+  ].join("\n");
+}
+
 function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: MarketingAudience | null) {
   const metadata = { ...recordValue(existingMetadata) };
   for (const key of ["targetAudience", "targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id", "audienceList"]) {
@@ -39051,7 +39098,37 @@ function CampaignTable({
   actionsDisabled?: boolean;
   confirmingDeleteId?: string | null;
 }) {
+  const [copiedBriefCampaignId, setCopiedBriefCampaignId] = useState<string | null>(null);
   const showActions = Boolean(onEdit || onDuplicate || onDelete);
+  async function copyCampaignRowNextActionBrief(
+    campaign: Campaign,
+    readiness: CampaignRowReadiness,
+    targetAudience: MarketingAudience | null,
+    metricSummary: CampaignMetricSummary | undefined,
+    manualResults: ManualPublishResult[],
+  ) {
+    const text = campaignRowNextActionBrief(campaign, readiness, targetAudience, metricSummary, manualResults);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+      setCopiedBriefCampaignId(campaign.id);
+    } catch {
+      setCopiedBriefCampaignId(null);
+    }
+  }
+
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
@@ -39180,6 +39257,23 @@ function CampaignTable({
                     >
                       {rowNextActionLabel}
                     </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void copyCampaignRowNextActionBrief(campaign, rowReadiness, targetAudience, metricSummary, manualResults);
+                    }}
+                    disabled={actionsDisabled}
+                    className="mt-2 inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 text-xs font-black text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                    data-testid={`button-marketing-campaign-row-copy-next-brief-${campaign.id}`}
+                  >
+                    <Sparkles size={12} /> Copy AI next step
+                  </button>
+                  {copiedBriefCampaignId === campaign.id ? (
+                    <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid={`marketing-campaign-row-copy-next-brief-feedback-${campaign.id}`}>
+                      AI next-step brief copied.
+                    </p>
                   ) : null}
                 </div>
               </td>

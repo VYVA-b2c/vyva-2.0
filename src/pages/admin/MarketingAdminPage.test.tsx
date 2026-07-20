@@ -982,6 +982,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
     expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("Review consent");
     expect(screen.getByTestId("marketing-campaign-row-readiness-campaign-1")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-row-copy-next-brief-campaign-1"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign next-action brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign: Caregiver welcome"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Recommended next action: Review consent"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task:"));
+    expect(screen.getByTestId("marketing-campaign-row-copy-next-brief-feedback-campaign-1")).toHaveTextContent("AI next-step brief copied.");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
 
