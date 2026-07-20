@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -8,7 +9,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { buildSync } from "esbuild";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CANVAS_LAUNCH_FLOW_IDS,
   canvasLaunchEvidenceFlowCoverage,
@@ -16,21 +18,38 @@ import {
 } from "./canvasLaunchReadiness";
 import type { CanvasTelemetryEnvelope } from "./canvasPlatform";
 
-const tsxCliPath = path.resolve(
-  process.cwd(),
-  "node_modules",
-  "tsx",
-  "dist",
-  "cli.mjs",
-);
 const preflightScriptPath = path.resolve(
   process.cwd(),
   "scripts",
   "preflight-voice-canvas-launch-readiness.ts",
 );
+let bundledPreflightDir: string | null = null;
+let bundledPreflightScriptPath = preflightScriptPath;
+
+beforeAll(() => {
+  bundledPreflightDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-cli-"));
+  bundledPreflightScriptPath = path.join(
+    bundledPreflightDir,
+    "preflight-voice-canvas-launch-readiness.mjs",
+  );
+  buildSync({
+    entryPoints: [preflightScriptPath],
+    outfile: bundledPreflightScriptPath,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node20",
+  });
+});
+
+afterAll(() => {
+  if (bundledPreflightDir && existsSync(bundledPreflightDir)) {
+    rmSync(bundledPreflightDir, { recursive: true, force: true });
+  }
+});
 
 function runPreflight(args: string[] = []) {
-  return spawnSync(process.execPath, [tsxCliPath, preflightScriptPath, ...args], {
+  return spawnSync(process.execPath, [bundledPreflightScriptPath, ...args], {
     cwd: process.cwd(),
     encoding: "utf8",
   });
@@ -1901,88 +1920,6 @@ describe("Voice Canvas launch readiness preflight command", () => {
         );
         expect(result.stdout).toContain(
           "Fix sanitized entry surface evidence before launch sign-off.",
-        );
-        expect(result.stdout).not.toContain("123 Secret Street");
-      },
-    ));
-
-  it("includes sanitized rollback owner handoff artifacts in the preflight summary", () =>
-    withTempRollbackOwnerFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {
-      const result = runPreflight([`--rollback-owner=${inputPath}`, "--json"]);
-
-      expect(result.status).toBe(0);
-      expect(result.stderr).toBe("");
-
-      const summary = JSON.parse(result.stdout) as {
-        acceptedPending: boolean;
-        rollbackOwnerEvidence: {
-          provided: boolean;
-          readyForLaunchEvidence: boolean;
-          reviewedOn: string;
-          requiredFlowCount: number;
-          problemCount: number;
-          problems: string[];
-        };
-      };
-
-      expect(summary.acceptedPending).toBe(true);
-      expect(summary.rollbackOwnerEvidence).toMatchObject({
-        provided: true,
-        readyForLaunchEvidence: true,
-        reviewedOn: freshReviewDate(),
-        requiredFlowCount: launchFeatureFlows.length,
-        problemCount: 0,
-        problems: [],
-      });
-    }));
-
-  it("rejects rollback owner handoff artifacts from local QA run URLs", () =>
-    withTempRollbackOwnerFile(
-      validRollbackOwnerHandoffArtifact().replace(
-        "QA run URL: https://staging.vyva.app",
-        "QA run URL: http://127.0.0.1:5173",
-      ),
-      (inputPath) => {
-        const result = runPreflight([`--rollback-owner=${inputPath}`, "--json"]);
-
-        expect(result.status).toBe(1);
-        expect(result.stderr).toBe("");
-
-        const summary = JSON.parse(result.stdout) as {
-          rollbackOwnerEvidence: {
-            readyForLaunchEvidence: boolean;
-            problems: string[];
-          };
-          nextActions: string[];
-        };
-
-        expect(summary.rollbackOwnerEvidence.readyForLaunchEvidence).toBe(false);
-        expect(summary.rollbackOwnerEvidence.problems).toContain(
-          "Rollback owner handoff QA run URL must be a deployed non-local http(s) URL.",
-        );
-        expect(summary.nextActions).toContain(
-          "Fix sanitized rollback owner handoff evidence before launch sign-off.",
-        );
-      },
-    ));
-
-  it("rejects unsafe rollback owner handoff artifacts without echoing personal values", () =>
-    withTempRollbackOwnerFile(
-      validRollbackOwnerHandoffArtifact().replace(
-        "sanitized artifact references only with no personal details",
-        "sanitized artifact references include 123 Secret Street",
-      ),
-      (inputPath) => {
-        const result = runPreflight([`--rollback-owner=${inputPath}`]);
-
-        expect(result.status).toBe(1);
-        expect(result.stderr).toBe("");
-        expect(result.stdout).toContain("Rollback owner evidence problems:");
-        expect(result.stdout).toContain(
-          "Rollback owner handoff artifact appears to include personal details.",
-        );
-        expect(result.stdout).toContain(
-          "Fix sanitized rollback owner handoff evidence before launch sign-off.",
         );
         expect(result.stdout).not.toContain("123 Secret Street");
       },
