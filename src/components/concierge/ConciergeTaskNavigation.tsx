@@ -20,7 +20,7 @@ function providerStatusLabel(status: ConciergeProviderTaskStatus, isSpanish: boo
   const labels: Record<ConciergeProviderTaskStatus, [string, string]> = {
     waiting: ["Waiting", "Esperando"],
     reply_received: ["Reply received", "Respuesta recibida"],
-    action_needed: ["Action needed", "Accion necesaria"],
+    action_needed: ["Needs your answer", "Necesita tu respuesta"],
     done: ["Done", "Hecho"],
   };
   return labels[status][isSpanish ? 1 : 0];

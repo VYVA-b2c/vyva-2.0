@@ -7056,7 +7056,7 @@ describe("ConciergeScreen route prefill", () => {
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,
     }));
-    expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Action needed");
+    expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Needs your answer");
     expect(screen.getByTestId("panel-concierge-provider-reply")).toHaveTextContent("Which insurance plan do you use?");
   });
 
@@ -7137,7 +7137,7 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     const panel = await screen.findByTestId("panel-concierge-provider-reply");
-    expect(panel).toHaveTextContent("Action needed");
+    expect(panel).toHaveTextContent("Needs your answer");
     expect(panel).toHaveTextContent("Policy or member number");
     expect(screen.queryByTestId("input-provider-reply-resolution-phone_number")).not.toBeInTheDocument();
     expect(screen.queryByTestId("input-provider-reply-resolution-insurance_plan")).not.toBeInTheDocument();
