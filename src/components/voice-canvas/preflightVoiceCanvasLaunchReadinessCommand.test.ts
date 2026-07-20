@@ -271,6 +271,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Fill the sanitized evidence packet artifact references and reviewer/date cells with fresh explicit reviewed, verified, validated, approved, or sign-off wording.",
     );
     expect(result.stdout).toContain(
+      "Fill rollback owner handoff artifacts and Operations/rollback owner sign-off evidence before launch.",
+    );
+    expect(result.stdout).toContain(
       "Execute fresh real-device and deployed rollback QA, then fill the QA matrix.",
     );
     expect(result.stdout).toContain(

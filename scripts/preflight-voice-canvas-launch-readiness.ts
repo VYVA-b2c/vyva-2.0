@@ -579,6 +579,11 @@ function messagesForNextAction(
       "Fill the sanitized evidence packet artifact references and reviewer/date cells with fresh explicit reviewed, verified, validated, approved, or sign-off wording.",
     );
   }
+  if (finalGate && (packetIncomplete > 0 || matrixIncomplete > 0)) {
+    messages.push(
+      "Fill rollback owner handoff artifacts and Operations/rollback owner sign-off evidence before launch.",
+    );
+  }
   if (matrixIncomplete > 0) {
     messages.push("Execute fresh real-device and deployed rollback QA, then fill the QA matrix.");
   }

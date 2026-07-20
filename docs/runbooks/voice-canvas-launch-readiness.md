@@ -175,6 +175,8 @@ Keep `docs/audits/voice-canvas-real-device-qa-matrix.md` marked **pending execut
 
 For environment rows, analytics sink review and initial/rollback flag state cells must include dated concrete environment artifact/log/dashboard evidence, including dashboard/query/log proof for analytics and feature-flag artifact/log proof for rollout states. Prose-only reviewed/verified wording does not satisfy launch sign-off.
 
+The evidence artifact inventory must also include rollback owner handoff artifacts before launch, with sanitized owner/backup, decision-window, rollback-trigger, endpoint/fallback/open-session, privacy-boundary, and fallback-readiness proof.
+
 For privacy rows, the result and evidence must name the specific forbidden data class being reviewed, and the evidence must point to a concrete analytics artifact/query/dashboard/log reference. Generic no-sensitive-data wording or prose-only analytics-review wording does not satisfy launch sign-off.
 
 For device coverage rows, the evidence note must name real phone, tablet, and desktop/laptop coverage plus a real-device screenshot, photo, or artifact reference that does not include transcripts, entered text, addresses, or personal details. Generic device-evidence prose or generic screenshot evidence does not satisfy launch sign-off.
@@ -221,7 +223,7 @@ While the matrix is still pending execution, use the non-launching structure che
 npm run canvas:qa:validate -- --allow-pending
 ```
 
-The structure check is not a launch approval. While the matrix remains pending, the final command without `--allow-pending` is expected to fail. The validator prints pending cells by section so QA can fill the environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, artifact inventory, and sign-off evidence systematically.
+The structure check is not a launch approval. While the matrix remains pending, the final command without `--allow-pending` is expected to fail. The validator prints pending cells by section so QA can fill the environment, device, interaction, behavior, endpoint, task hub, rollback owner handoff, copy/accessibility, analytics, privacy, artifact inventory, and sign-off evidence systematically.
 
 For a machine-readable QA artifact, add `--json`:
 
