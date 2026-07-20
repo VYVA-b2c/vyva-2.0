@@ -19,6 +19,7 @@
     "concierge:email-pilot:check": "tsx scripts/concierge-email-pilot-check.ts",
     "canvas:qa:analytics": "tsx scripts/validate-voice-canvas-analytics-evidence.ts",
     "canvas:qa:features": "tsx scripts/collect-voice-canvas-feature-endpoint-evidence.ts",
+    "canvas:qa:packet": "tsx scripts/validate-voice-canvas-evidence-packet.ts",
     "canvas:qa:validate": "tsx scripts/validate-voice-canvas-qa-matrix.ts",
     "db:migrate": "cross-env DATABASE_URL=file:./dev.db prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260624120000_init_brain_wellbeing/migration.sql && cross-env DATABASE_URL=file:./dev.db prisma generate --schema prisma/schema.prisma",
     "db:seed": "cross-env DATABASE_URL=file:./dev.db prisma db seed --schema prisma/schema.prisma",

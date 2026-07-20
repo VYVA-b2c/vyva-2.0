@@ -4,6 +4,14 @@ Use this packet after executing `docs/audits/voice-canvas-real-device-run-sheet.
 
 This packet is not launch approval. The QA matrix remains the launch gate, and `npm run canvas:qa:validate` must pass without `--allow-pending` before Canvas is enabled for real users.
 
+Validate this packet before copying evidence into the QA matrix:
+
+```bash
+npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json
+```
+
+Use `--allow-pending` while gathering artifacts and omit it for the final packet gate. The validator reports pending packet cells by section, checks required inventory/flow/evidence-note rows, preserves existing output unless `--force` is explicit, and rejects unsafe artifact references without copying raw artifact-reference values into output.
+
 ## Privacy rules for every artifact
 
 - Do not capture spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, phone numbers, emails, or other personal details.
@@ -64,6 +72,7 @@ Before changing the QA matrix from `pending execution` to `ready for launch`, co
 - rollback evidence names the actual fallback path for each feature-flagged flow;
 - enabled and rollback-disabled `canvas:qa:features` artifacts were captured from the deployed URL with distinct run-specific paths;
 - task hub evidence covers local shopping draft, local medication refill draft, pending provider reply task, and stale or blocked task;
+- `canvas:qa:packet` validation passed and produced a run-specific `evidence-packet-summary.json` artifact before evidence was copied into the QA matrix;
 - analytics evidence has positive aggregate counts for started, resumed, abandoned, blocked, confirmed, and completed;
 - `canvas:qa:analytics` validation passed for the sanitized analytics evidence artifact and produced a run-specific validation artifact;
 - privacy evidence names each forbidden data class and confirms it was absent from the telemetry sample;

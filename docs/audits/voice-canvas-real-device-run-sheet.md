@@ -100,6 +100,14 @@ npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-D
 
 The analytics evidence JSON must use only synthetic QA telemetry samples and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data. The validator output is an aggregate validation artifact only; it does not copy raw sample rows.
 
+Validate the evidence packet before copying packet notes into the final matrix:
+
+```bash
+npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json
+```
+
+Use a distinct run-specific output path and do not overwrite an earlier artifact. Omit `--allow-pending` for the final packet gate after every packet inventory row has a sanitized artifact reference and reviewer/date.
+
 ## Run-sheet closeout
 
 Before filling the final QA matrix:
@@ -109,5 +117,6 @@ Before filling the final QA matrix:
 - Every launch blocker has either been patched and retested or the feature remains disabled.
 - `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json` and a distinct rollback-disabled endpoint artifact have been captured from the deployed URL without overwriting an earlier artifact.
 - `npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json` has passed for the sanitized analytics evidence artifact without overwriting an earlier artifact.
+- `npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json` has been captured as a packet artifact while evidence is still pending, using the QA run date in the output path and not overwriting an earlier artifact.
 - `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json` has been captured as a QA artifact while the matrix is still pending, using the QA run date in the output path and not overwriting an earlier artifact.
 - `npm run canvas:qa:validate` passes only after the matrix is complete and marked `ready for launch`.

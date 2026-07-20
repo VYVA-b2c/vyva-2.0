@@ -1,0 +1,439 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
+const defaultPacketPath = "docs/audits/voice-canvas-real-device-evidence-packet.md";
+const args = process.argv.slice(2);
+
+interface PendingSectionSummary {
+  section: string;
+  pendingCells: number;
+  rowsWithPending: number;
+}
+
+interface MarkdownTable {
+  section: string;
+  headers: string[];
+  rows: string[][];
+}
+
+const requiredSections = [
+  "Privacy rules for every artifact",
+  "Evidence packet inventory",
+  "Flow packet checklist",
+  "Copy-ready evidence note patterns",
+  "Final pre-fill check",
+] as const;
+
+const requiredInventoryArtifactSets = [
+  "Environment and flag artifacts",
+  "Real-device screenshots or photos",
+  "Interaction recordings or logs",
+  "Behavior recovery artifacts",
+  "Feature endpoint artifacts",
+  "Task hub resume artifacts",
+  "Copy and accessibility artifacts",
+  "Analytics signal artifacts",
+  "Analytics privacy artifacts",
+] as const;
+
+const requiredFlowPackets = [
+  "Ride Voice Canvas",
+  "Appointment Voice Canvas",
+  "Medication Refill Voice Canvas",
+  "Shopping Delivery Voice Canvas",
+  "Provider Reply Voice Canvas",
+  "Concierge Task Hub Resume",
+] as const;
+
+const requiredEvidenceNotePatterns = [
+  "Device coverage",
+  "Interaction mode coverage",
+  "Required behavior",
+  "Feature endpoint and rollback",
+  "Task hub destination fallback",
+  "Copy and accessibility",
+  "Analytics signal",
+  "Analytics privacy",
+] as const;
+
+const unsafeReferencePatterns: readonly RegExp[] = [
+  /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /\b(?:\+?\d[\s().-]*){10,}\b/,
+  /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|medication name|provider name|reply text|account id|user id|patient id)\b/i,
+];
+
+function normalizeCell(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function isPendingCell(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return (
+    normalized === "" ||
+    normalized === "pending" ||
+    normalized === "tbd" ||
+    normalized === "todo" ||
+    normalized === "fixme"
+  );
+}
+
+function parseMarkdownTableRow(line: string): string[] | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
+  if (/^\|\s*:?-/.test(trimmed)) return null;
+  return trimmed
+    .slice(1, -1)
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  return /^\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?$/.test(line.trim());
+}
+
+function parseMarkdownTables(markdown: string): MarkdownTable[] {
+  const tables: MarkdownTable[] = [];
+  let currentSection = "Document";
+  let activeTable: MarkdownTable | null = null;
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      currentSection = heading[1].trim();
+      activeTable = null;
+      continue;
+    }
+
+    if (isMarkdownTableSeparator(line)) continue;
+
+    const row = parseMarkdownTableRow(line);
+    if (!row) {
+      activeTable = null;
+      continue;
+    }
+
+    if (!activeTable) {
+      activeTable = {
+        section: currentSection,
+        headers: row,
+        rows: [],
+      };
+      tables.push(activeTable);
+      continue;
+    }
+
+    activeTable.rows.push(row);
+  }
+
+  return tables;
+}
+
+function summarizePendingCellsBySection(
+  tables: readonly MarkdownTable[],
+): PendingSectionSummary[] {
+  const summaries = new Map<string, PendingSectionSummary>();
+
+  for (const table of tables) {
+    for (const row of table.rows) {
+      const pendingCells = row.filter((cell) => isPendingCell(cell)).length;
+      if (pendingCells === 0) continue;
+
+      const summary =
+        summaries.get(table.section) ??
+        ({
+          section: table.section,
+          pendingCells: 0,
+          rowsWithPending: 0,
+        } satisfies PendingSectionSummary);
+      summary.pendingCells += pendingCells;
+      summary.rowsWithPending += 1;
+      summaries.set(table.section, summary);
+    }
+  }
+
+  return [...summaries.values()];
+}
+
+function findTable(
+  tables: readonly MarkdownTable[],
+  section: string,
+): MarkdownTable | undefined {
+  return tables.find((table) => table.section === section);
+}
+
+function hasRequiredRow(table: MarkdownTable | undefined, value: string): boolean {
+  return Boolean(table?.rows.some((row) => normalizeCell(row[0] ?? "") === value));
+}
+
+function cellIndex(table: MarkdownTable, header: string): number {
+  return table.headers.findIndex(
+    (candidate) => normalizeCell(candidate).toLowerCase() === header.toLowerCase(),
+  );
+}
+
+function hasValidReviewerDate(value: string): boolean {
+  const normalized = normalizeCell(value);
+  const dateMatch = normalized.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (!dateMatch) return false;
+
+  const date = new Date(`${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  const todayUtc = new Date(
+    Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
+  );
+  if (date > todayUtc) return false;
+
+  const reviewerPart = normalized.replace(dateMatch[0], "").replace(/[/-]/g, "").trim();
+  return reviewerPart.length >= 2;
+}
+
+function artifactReferenceHasPlaceholder(value: string): boolean {
+  return /\bYYYY-MM-DD\b|<[^>]+>|\[[^\]]+\]/.test(value);
+}
+
+function artifactReferenceLooksUnsafe(value: string): boolean {
+  return unsafeReferencePatterns.some((pattern) => pattern.test(value));
+}
+
+function evaluateEvidencePacket(markdown: string) {
+  const problems: string[] = [];
+  const tables = parseMarkdownTables(markdown);
+  const sections = new Set(
+    markdown
+      .split(/\r?\n/)
+      .map((line) => line.match(/^##\s+(.+?)\s*$/)?.[1]?.trim())
+      .filter(Boolean) as string[],
+  );
+
+  for (const section of requiredSections) {
+    if (!sections.has(section)) {
+      problems.push(`Missing required evidence packet section: ${section}.`);
+    }
+  }
+
+  const inventoryTable = findTable(tables, "Evidence packet inventory");
+  for (const artifactSet of requiredInventoryArtifactSets) {
+    if (!hasRequiredRow(inventoryTable, artifactSet)) {
+      problems.push(`Missing evidence packet inventory row: ${artifactSet}.`);
+    }
+  }
+
+  const flowTable = findTable(tables, "Flow packet checklist");
+  for (const flow of requiredFlowPackets) {
+    if (!hasRequiredRow(flowTable, flow)) {
+      problems.push(`Missing flow packet checklist row: ${flow}.`);
+    }
+  }
+
+  const notePatternTable = findTable(tables, "Copy-ready evidence note patterns");
+  for (const pattern of requiredEvidenceNotePatterns) {
+    if (!hasRequiredRow(notePatternTable, pattern)) {
+      problems.push(`Missing copy-ready evidence note pattern row: ${pattern}.`);
+    }
+  }
+
+  if (inventoryTable) {
+    const referenceIndex = cellIndex(inventoryTable, "Suggested sanitized reference");
+    const reviewerIndex = cellIndex(inventoryTable, "Reviewer/date");
+    if (referenceIndex === -1) {
+      problems.push(
+        "Evidence packet inventory is missing the Suggested sanitized reference column.",
+      );
+    }
+    if (reviewerIndex === -1) {
+      problems.push("Evidence packet inventory is missing the Reviewer/date column.");
+    }
+
+    for (const row of inventoryTable.rows) {
+      const artifactSet = normalizeCell(row[0] ?? "Unknown artifact set");
+      const reference =
+        referenceIndex >= 0 ? normalizeCell(row[referenceIndex] ?? "") : "";
+      const reviewerDate =
+        reviewerIndex >= 0 ? normalizeCell(row[reviewerIndex] ?? "") : "";
+
+      if (reference && !isPendingCell(reference) && artifactReferenceLooksUnsafe(reference)) {
+        problems.push(
+          `Evidence packet inventory row "${artifactSet}" has an artifact reference that appears to include personal or raw captured data.`,
+        );
+      }
+
+      if (
+        reference &&
+        !isPendingCell(reference) &&
+        !isPendingCell(reviewerDate) &&
+        artifactReferenceHasPlaceholder(reference)
+      ) {
+        problems.push(
+          `Evidence packet inventory row "${artifactSet}" still uses a placeholder artifact reference.`,
+        );
+      }
+
+      if (
+        reviewerDate &&
+        !isPendingCell(reviewerDate) &&
+        !hasValidReviewerDate(reviewerDate)
+      ) {
+        problems.push(
+          `Evidence packet inventory row "${artifactSet}" needs a reviewer and non-future YYYY-MM-DD date.`,
+        );
+      }
+    }
+  }
+
+  const pendingSections = summarizePendingCellsBySection(tables);
+  const incompleteCellCount = pendingSections.reduce(
+    (total, section) => total + section.pendingCells,
+    0,
+  );
+  const readyForLaunchEvidencePacket =
+    problems.length === 0 && incompleteCellCount === 0;
+
+  return {
+    readyForLaunchEvidencePacket,
+    state: readyForLaunchEvidencePacket
+      ? "ready"
+      : problems.length > 0
+        ? "invalid"
+        : "pending",
+    incompleteCellCount,
+    pendingSections,
+    problemCount: problems.length,
+    problems,
+  };
+}
+
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(
+    [
+      "Validate the Voice Canvas real-device evidence packet before filling the QA matrix.",
+      "",
+      "Usage:",
+      "  npm run canvas:qa:packet",
+      "  npm run canvas:qa:packet -- --allow-pending",
+      "  npm run --silent canvas:qa:packet -- --allow-pending --json",
+      "  npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
+      "  npm run canvas:qa:packet -- docs/audits/voice-canvas-real-device-evidence-packet.md",
+      "",
+      "The command exits non-zero unless the packet has no pending cells and no structural or privacy-safety problems.",
+      "Use --allow-pending for in-progress review of the committed packet template.",
+      "Use --json to emit machine-readable summary output for QA artifacts or CI.",
+      "Use --output=<path> with --json to also save the summary to a file.",
+      "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
+      "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
+    ].join("\n"),
+  );
+  process.exit(0);
+}
+
+const allowPending = args.includes("--allow-pending");
+const jsonOutput = args.includes("--json");
+const forceOutput = args.includes("--force");
+const outputArg = args.find((arg) => arg.startsWith("--output="));
+const outputPathArg = outputArg?.slice("--output=".length).trim();
+if (outputArg && !outputPathArg) {
+  console.error("Expected --output=<path>.");
+  process.exit(1);
+}
+if (outputPathArg && !jsonOutput) {
+  console.error("Use --output only with --json.");
+  process.exit(1);
+}
+
+const packetArg = args.find((arg) => !arg.startsWith("-"));
+const packetPath = path.resolve(process.cwd(), packetArg ?? defaultPacketPath);
+const packet = readFileSync(packetPath, "utf8");
+const result = evaluateEvidencePacket(packet);
+const relativePacketPath = path.relative(process.cwd(), packetPath);
+const acceptedPending =
+  allowPending && result.state === "pending" && result.problemCount === 0;
+
+function failureMessage(): string {
+  if (result.problemCount > 0) return "Evidence packet is not ready.";
+  if (result.state === "pending") {
+    return "Evidence packet is still pending. Fill artifact references and reviewer/date cells before final matrix sign-off.";
+  }
+  return "Evidence packet is not ready.";
+}
+
+const exitCode = result.readyForLaunchEvidencePacket || acceptedPending ? 0 : 1;
+
+if (jsonOutput) {
+  const jsonSummary = JSON.stringify(
+    {
+      packetPath: relativePacketPath,
+      state: result.state,
+      readyForLaunchEvidencePacket: result.readyForLaunchEvidencePacket,
+      incompleteCellCount: result.incompleteCellCount,
+      pendingSections: result.pendingSections,
+      problemCount: result.problemCount,
+      problems: result.problems,
+      allowPending,
+      acceptedPending,
+      message: result.readyForLaunchEvidencePacket
+        ? "Evidence packet is ready for QA matrix sign-off."
+        : acceptedPending
+          ? "Evidence packet is still pending, but its structure is valid."
+          : failureMessage(),
+    },
+    null,
+    2,
+  );
+
+  if (outputPathArg) {
+    const outputPath = path.resolve(process.cwd(), outputPathArg);
+    if (existsSync(outputPath) && !forceOutput) {
+      console.error(
+        `Output file already exists. Use a run-specific path or pass --force to overwrite: ${path.relative(process.cwd(), outputPath)}`,
+      );
+      process.exit(1);
+    }
+    mkdirSync(path.dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, `${jsonSummary}\n`);
+  }
+
+  console.log(jsonSummary);
+  process.exit(exitCode);
+}
+
+console.log(`Canvas evidence packet: ${relativePacketPath}`);
+console.log(`State: ${result.state}`);
+console.log(
+  `Ready for QA matrix sign-off: ${result.readyForLaunchEvidencePacket ? "yes" : "no"}`,
+);
+console.log(`Incomplete cells: ${result.incompleteCellCount}`);
+
+if (result.pendingSections.length > 0) {
+  console.log("Pending cells by section:");
+  for (const summary of result.pendingSections) {
+    console.log(
+      `- ${summary.section}: ${summary.pendingCells} pending cell(s) across ${summary.rowsWithPending} row(s)`,
+    );
+  }
+}
+
+if (result.readyForLaunchEvidencePacket) {
+  console.log("Evidence packet is ready for QA matrix sign-off.");
+  process.exit(0);
+}
+
+if (acceptedPending) {
+  console.log("Evidence packet is still pending, but its structure is valid.");
+  process.exit(0);
+}
+
+if (result.problemCount > 0) {
+  console.error("Evidence packet is not ready:");
+  for (const problem of result.problems) {
+    console.error(`- ${problem}`);
+  }
+} else if (result.state === "pending") {
+  console.error(
+    "Evidence packet is still pending. Fill artifact references and reviewer/date cells before final matrix sign-off.",
+  );
+} else {
+  console.error("Evidence packet is not ready.");
+}
+
+process.exit(1);
