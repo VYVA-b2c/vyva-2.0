@@ -1644,6 +1644,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("1 matched");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("1 reachable");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("2/4 publish steps ready");
+    expect(screen.getByTestId("marketing-ai-command-recommended-next")).toHaveTextContent("Recommended next");
+    expect(screen.getByTestId("marketing-ai-command-recommended-next")).toHaveTextContent("Review consent first");
+    expect(screen.getByTestId("button-marketing-ai-command-recommended-next")).toHaveTextContent("Review consent");
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-rationale"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA AI recommendation rationale"));
@@ -1745,7 +1748,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
 
     expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 consent review");
-    fireEvent.click(screen.getByTestId("button-marketing-ai-command-review-consent"));
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-recommended-next"));
 
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Work queue: 1 selected");

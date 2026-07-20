@@ -27682,6 +27682,44 @@ export default function MarketingAdminPage() {
       angleLabel: campaignStudioAngleOptions.find((item) => item.id === match.angleId)?.label ?? match.angleId,
     };
   }, [audiences, contacts, marketingDashboardAiCommand, sendCapabilityByChannel, templatePackRecommendationsForPlay]);
+  const marketingDashboardAiRecommendedNextStep = useMemo(() => {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) return null;
+    if (plan.audienceQuality.needsReview > 0) {
+      return {
+        key: "consent",
+        title: "Review consent first",
+        detail: `${plan.audienceQuality.needsReview} matched contact${plan.audienceQuality.needsReview === 1 ? "" : "s"} need consent review before this campaign can be safely used.`,
+        actionLabel: "Review consent",
+        state: "needs_action" as CampaignReadinessState,
+      };
+    }
+    if (plan.audienceQuality.noSelectedRoute > 0) {
+      return {
+        key: "routes",
+        title: "Fix missing routes",
+        detail: `${plan.audienceQuality.noSelectedRoute} matched contact${plan.audienceQuality.noSelectedRoute === 1 ? "" : "s"} cannot be reached on the selected channels.`,
+        actionLabel: "Fix routes",
+        state: "needs_action" as CampaignReadinessState,
+      };
+    }
+    if (!plan.packMatch) {
+      return {
+        key: "studio",
+        title: "Customize templates",
+        detail: "No complete template pack is matched yet. Open the studio to tune channels, copy, schedule, and assets before creating records.",
+        actionLabel: "Open studio",
+        state: "planning" as CampaignReadinessState,
+      };
+    }
+    return {
+      key: "kit",
+      title: "Create the launch kit",
+      detail: `Save campaign records, ${plan.selectedChannels.length} route${plan.selectedChannels.length === 1 ? "" : "s"}, reusable content, and recipient snapshots.`,
+      actionLabel: "Create kit",
+      state: plan.reachableContacts > 0 ? "ready" as CampaignReadinessState : "blocked" as CampaignReadinessState,
+    };
+  }, [marketingDashboardAiCommandPlan]);
   const marketingDashboardAiCommandBriefText = useMemo(() => {
     const plan = marketingDashboardAiCommandPlan;
     if (!plan) return "";
@@ -27932,6 +27970,41 @@ export default function MarketingAdminPage() {
     } finally {
       setAudienceSaving(false);
     }
+  }
+
+  function runMarketingDashboardAiRecommendedNextStep() {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) {
+      const feedback = "Type a campaign goal first so VYVA can choose the next step.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    if (plan.audienceQuality.needsReview > 0) {
+      openMarketingDashboardAiAudienceReview("consent");
+      return;
+    }
+
+    if (plan.audienceQuality.noSelectedRoute > 0) {
+      openMarketingDashboardAiAudienceReview("route");
+      return;
+    }
+
+    if (!plan.packMatch) {
+      applyCampaignIntentBriefText(marketingDashboardAiCommand.trim(), "brief", {
+        channel: plan.primaryChannel,
+        selectedChannels: plan.selectedChannels,
+        targetAudienceId: plan.match.targetAudience?.id ?? "",
+      });
+      setActiveTab("dashboard");
+      setCampaignStudioFeedback(`AI command opened in Smart campaign studio. Tune templates for ${formatChannelList(plan.selectedChannels)}, then create the launch kit.`);
+      setMarketingDashboardAiCommandFeedback("Opened Smart campaign studio to customize templates before creating the kit.");
+      setMessage("Opened Smart campaign studio from the AI recommendation.");
+      return;
+    }
+
+    void createMarketingDashboardAiLaunchKit();
   }
 
   async function createMarketingDashboardAiLaunchKit() {
@@ -28894,6 +28967,26 @@ export default function MarketingAdminPage() {
                                   <Copy size={12} /> Copy rationale
                                 </button>
                               </div>
+                              {marketingDashboardAiRecommendedNextStep ? (
+                                <div className={`mt-2 rounded-lg border bg-white p-2 ${readinessClass(marketingDashboardAiRecommendedNextStep.state)}`} data-testid="marketing-ai-command-recommended-next">
+                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Recommended next</p>
+                                      <p className="mt-1 text-xs font-black text-[#241133]">{marketingDashboardAiRecommendedNextStep.title}</p>
+                                      <p className="mt-1 text-[11px] font-bold leading-relaxed text-[#5b4a46]">{marketingDashboardAiRecommendedNextStep.detail}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={runMarketingDashboardAiRecommendedNextStep}
+                                      disabled={contentSaving || campaignSaving || marketingDashboardAiCreatingKit}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-purple-700 px-2.5 text-[11px] font-black text-white transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                      data-testid="button-marketing-ai-command-recommended-next"
+                                    >
+                                      <Zap size={12} /> {marketingDashboardAiRecommendedNextStep.actionLabel}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : null}
                               <div className="mt-2 grid gap-1.5 text-[11px] font-black text-[#5b4a46] sm:grid-cols-3">
                                 <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-violet-100">
                                   {marketingDashboardAiCommandPlan.audienceQuality.total} matched
