@@ -76,6 +76,8 @@ Shopping Delivery and Provider Reply now have dedicated rollout/rollback runbook
 
 Per-flow rollout runbooks now include a copy-safe rollback owner handoff template and privacy-safe incident triage wording, requiring owner/backup, decision window, rollback trigger, sanitized endpoint/fallback/open-session evidence, and forbidden-data boundaries before launch.
 
+Final Operations/rollback-owner sign-off validation now rejects generic rollback approval unless the note names owner and backup, decision window, rollback trigger, enable-false or rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, and privacy boundary evidence.
+
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.
 
 Device coverage evidence now requires dated real phone, tablet, and desktop/laptop coverage plus screenshot, photo, or artifact evidence with no transcripts, entered text, addresses, or personal details; generic prose-only device evidence, generic screenshot evidence, and sensitive artifact evidence are rejected.

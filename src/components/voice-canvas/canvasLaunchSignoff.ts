@@ -264,8 +264,16 @@ const launchSignoffRoleNoteRequirements: Record<
   "Operations/rollback owner": [
     ["rollback"],
     ["owner"],
-    ["disable", "disabled", "rollout 0", "0%"],
+    ["backup"],
+    ["decision"],
+    ["trigger"],
+    ["disable", "disabled", "enable false", "rollout 0", "0%"],
     ["fallback"],
+    ["sanitized"],
+    ["endpoint"],
+    ["open-session", "open session"],
+    ["closed", "hidden"],
+    ["privacy", "boundary"],
   ],
 };
 
