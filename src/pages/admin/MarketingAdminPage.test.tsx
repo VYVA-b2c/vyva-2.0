@@ -2169,6 +2169,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Snapshot scheduled recipients");
     expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Fix campaign creative gap");
     expect(screen.getByTestId("marketing-publishing-queue")).toHaveTextContent("Prepare manual channel handoff");
+    fireEvent.click(screen.getByTestId("button-marketing-publishing-queue-copy-run-sheet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA publishing queue run sheet"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Queue status: 4 actions"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign: Birthday Wishes"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Treat WhatsApp, social, phone, print, and event routes as manual handoffs"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task:"));
+    expect(screen.getByTestId("marketing-publishing-queue-feedback")).toHaveTextContent("Publishing queue run sheet copied.");
     fireEvent.click(screen.getByTestId("button-marketing-publishing-queue-recipient-consent"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending");

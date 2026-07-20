@@ -28800,6 +28800,42 @@ export default function MarketingAdminPage() {
     "- Snapshot recipients before live email approval.",
     "- Track manual publishing outcomes back to the campaign history.",
   ].join("\n");
+  const publishingQueueRunSheetText = [
+    "VYVA publishing queue run sheet",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    `Queue status: ${publishingQueueItems.length ? `${publishingQueueItems.length} action${publishingQueueItems.length === 1 ? "" : "s"}` : "clear"}`,
+    `Launch decision: ${marketingLaunchDecisionTitle} (${readinessLabel(marketingLaunchDecisionState)})`,
+    "",
+    "Queue counts:",
+    `- Due email sends ready: ${dueReadyEmailCampaigns.length}`,
+    `- Scheduled email sends ready: ${scheduledReadyEmailCampaigns.length}`,
+    `- Campaigns needing consent review: ${emailCampaignsNeedingConsent.length}`,
+    `- Campaigns needing recipient snapshots: ${recipientSnapshotQueueCampaign ? 1 : 0}`,
+    `- Campaigns with manual/offline channel handoffs: ${manualHandoffCampaigns.length}`,
+    `- Campaign creative gaps: ${campaignMissingChannelContent ? 1 : 0}`,
+    "",
+    "Worklist:",
+    ...(publishingQueueItems.length ? publishingQueueItems.map((item, index) => [
+      `${index + 1}. ${item.title}`,
+      `   Campaign: ${item.campaign.name}`,
+      `   Status: ${readinessLabel(item.state)}`,
+      `   Timing: ${item.timingLabel}`,
+      `   Channels: ${item.channelLabels || "No channel"}`,
+      `   Audience: ${item.audienceLabel}`,
+      `   Why: ${item.detail}`,
+      `   Next action: ${item.actionLabel}`,
+    ].join("\n")) : ["No campaign needs immediate publishing work. Create the next launch from AI command, templates, or performance insights."]),
+    "",
+    "Operator guardrails:",
+    "- Do not send email until content, recipients, consent, and final confirmation are reviewed.",
+    "- Snapshot recipients before approval when a scheduled campaign has no saved recipients.",
+    "- Treat WhatsApp, social, phone, print, and event routes as manual handoffs unless provider controls are explicitly enabled.",
+    "- Log manual publishing URLs, reply outcomes, blockers, and follow-up owners back on the campaign.",
+    "",
+    "AI task:",
+    "Turn this queue into a concise operator plan for today: what to do first, which campaign to open, which blockers to resolve, and what follow-up note to record after each channel is published.",
+  ].join("\n");
   const actionCenterTemplatePack = bestCampaignStudioTemplatePack
     ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
     ?? null;
@@ -31180,10 +31216,25 @@ export default function MarketingAdminPage() {
                         Due sends, consent blocks, recipient snapshots, creative gaps, and manual handoffs in one operating view.
                       </p>
                     </div>
-                    <Pill className={publishingQueueItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : publishingQueueItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : publishingQueueItems.length ? "bg-emerald-50 text-emerald-800" : "bg-white text-[#7d6b65]"}>
-                      {publishingQueueItems.length ? `${publishingQueueItems.length} queued` : "Clear"}
-                    </Pill>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill className={publishingQueueItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : publishingQueueItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : publishingQueueItems.length ? "bg-emerald-50 text-emerald-800" : "bg-white text-[#7d6b65]"}>
+                        {publishingQueueItems.length ? `${publishingQueueItems.length} queued` : "Clear"}
+                      </Pill>
+                      <button
+                        type="button"
+                        onClick={() => void copyCampaignHandoffText("Publishing queue run sheet", publishingQueueRunSheetText)}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 hover:bg-purple-50"
+                        data-testid="button-marketing-publishing-queue-copy-run-sheet"
+                      >
+                        <Copy size={13} /> Copy run sheet
+                      </button>
+                    </div>
                   </div>
+                  {campaignHandoffCopyFeedback ? (
+                    <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-publishing-queue-feedback">
+                      {campaignHandoffCopyFeedback}
+                    </p>
+                  ) : null}
                   {publishingQueueItems.length ? (
                     <div className="mt-3 grid gap-2">
                       {publishingQueueItems.map((item) => {
