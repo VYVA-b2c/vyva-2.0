@@ -12548,6 +12548,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         home_access_or_safety_notes: homeServiceIntakeAnswers.access_notes?.trim() || null,
         photo_name: homeServiceCanvasPhotoName || null,
         photo_ready: Boolean(homeServiceCanvasPhoto),
+        no_external_action_without_confirmation: true,
         ...(visitAddress ? {
           home_address: visitAddress,
           home_address_source: homeServiceAddressSource || "session",
@@ -15485,6 +15486,16 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     t,
   ]);
 
+  useEffect(() => {
+    if (!appointmentCanvasMode || appointmentCanvasStep !== "provider" || !hasSavedMedicalProvider) return;
+    requestAppointmentCanvasOptions(true);
+  }, [
+    appointmentCanvasMode,
+    appointmentCanvasStep,
+    hasSavedMedicalProvider,
+    requestAppointmentCanvasOptions,
+  ]);
+
   const activeAppointmentCanvasSceneRef = useVoiceCanvasController({
     owner: "concierge_appointment",
     enabled: appointmentCanvasMode,
@@ -15721,6 +15732,16 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       onError: () => advanceHomeServiceCanvas("error"),
     });
   }, [advanceHomeServiceCanvas, isSpanish, saveHomeServiceDraft]);
+
+  useEffect(() => {
+    if (!homeServiceCanvasMode || homeServiceCanvasStep !== "provider" || !hasSavedHomeServiceProvider) return;
+    finalizeHomeServiceCanvasProvider("saved");
+  }, [
+    finalizeHomeServiceCanvasProvider,
+    hasSavedHomeServiceProvider,
+    homeServiceCanvasMode,
+    homeServiceCanvasStep,
+  ]);
 
   useEffect(() => {
     const handleHomeServiceCanvasResponse = async (event: Event) => {
