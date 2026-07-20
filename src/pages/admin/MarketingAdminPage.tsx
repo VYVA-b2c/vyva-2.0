@@ -27704,6 +27704,41 @@ export default function MarketingAdminPage() {
     ].join("\n");
   }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
 
+  function marketingDashboardAiRouteBriefText(channel: Channel) {
+    const plan = marketingDashboardAiCommandPlan;
+    const route = plan?.channelRoutes.find((item) => item.channel === channel);
+    if (!plan || !route) return "";
+
+    const timing = campaignStudioLaunchTimingByChannel[channel];
+    const audienceName = plan.match.targetAudience?.name ?? `${plan.match.play.audienceType.toUpperCase()} contacts`;
+    const packLine = plan.packMatch
+      ? `${plan.packMatch.pack.title} (${plan.packMatch.templates.filter((template) => template.channel === channel).length} ${channelLabel[channel]} template${plan.packMatch.templates.filter((template) => template.channel === channel).length === 1 ? "" : "s"})`
+      : "Use the closest saved template or create a fresh asset.";
+    const actionLabel = route.mode === "VYVA send" ? "Email send review" : `${channelLabel[channel]} publishing handoff`;
+
+    return [
+      `VYVA ${actionLabel}`,
+      "",
+      `Command: ${marketingDashboardAiCommand.trim()}`,
+      `Campaign play: ${plan.match.play.label}`,
+      `Objective: ${plan.match.play.objective}`,
+      `Audience: ${audienceName}`,
+      `Channel: ${channelLabel[channel]}`,
+      `Mode: ${route.mode}`,
+      `Reach: ${route.reachableContacts} reachable contact${route.reachableContacts === 1 ? "" : "s"}`,
+      `Template source: ${packLine}`,
+      `Suggested timing: ${timing.title}`,
+      `Owner: ${timing.owner}`,
+      `Action: ${timing.action}`,
+      "",
+      "Publishing checklist",
+      `- Review the ${channelLabel[channel]} copy/template before publishing.`,
+      "- Keep the CTA and consent language consistent with the campaign.",
+      "- Save the published URL, reply outcome, or manual send note back on the campaign.",
+      "- Add a relationship follow-up owner when someone replies, books, opts out, or needs a different contact route.",
+    ].join("\n");
+  }
+
   function applyMarketingAiOutcomeStarter(starter: MarketingAiOutcomeStarter) {
     setMarketingDashboardAiCommand(starter.command);
     setMarketingDashboardAiCommandFeedback(`Outcome loaded: ${starter.title}. Review the AI plan, then create a kit or customize the route.`);
@@ -27790,6 +27825,42 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = marketingDashboardAiCommandBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyMarketingDashboardAiRouteBrief(channel: Channel) {
+    const label = `${channelLabel[channel]} route brief`;
+    const text = marketingDashboardAiRouteBriefText(channel);
+    if (!text.trim()) {
+      const feedback = `${label} is not ready yet. Type a campaign goal first.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = text;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -28625,7 +28696,7 @@ export default function MarketingAdminPage() {
                               {marketingDashboardAiCommandPlan.channelRoutes.map((route) => (
                                 <div
                                   key={route.channel}
-                                  className="grid gap-2 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-[#5b4a46] ring-1 ring-[#eadfd5] sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+                                  className="grid gap-2 rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-[#5b4a46] ring-1 ring-[#eadfd5] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]"
                                   data-testid={`marketing-ai-command-route-${route.channel}`}
                                 >
                                   <Pill className={channelClass(route.channel)}>{channelLabel[route.channel]}</Pill>
@@ -28635,6 +28706,16 @@ export default function MarketingAdminPage() {
                                     <span>{route.reachableContacts} reachable</span>
                                     <span>{route.templateCount} templates</span>
                                   </span>
+                                  {route.mode !== "VYVA send" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyMarketingDashboardAiRouteBrief(route.channel)}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-black text-amber-900 transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-amber-100"
+                                      data-testid={`button-marketing-ai-command-copy-route-${route.channel}`}
+                                    >
+                                      <Copy size={12} /> Copy handoff
+                                    </button>
+                                  ) : null}
                                 </div>
                               ))}
                             </div>

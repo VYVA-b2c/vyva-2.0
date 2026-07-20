@@ -1632,6 +1632,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("Launch route preview");
     expect(screen.getByTestId("marketing-ai-command-route-email")).toHaveTextContent("VYVA send");
     expect(screen.getByTestId("marketing-ai-command-route-linkedin")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("button-marketing-ai-command-copy-route-linkedin")).toHaveTextContent("Copy handoff");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-route-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA LinkedIn publishing handoff"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Owner: Partner owner"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Save the published URL, reply outcome, or manual send note back on the campaign."));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("LinkedIn route brief copied.");
     expect(screen.getByTestId("marketing-ai-command-publish-path")).toHaveTextContent("Path to publish");
     expect(screen.getByTestId("marketing-ai-command-publish-path-templates")).toHaveTextContent("Template pack matched");
     expect(screen.getByTestId("marketing-ai-command-publish-path-records")).toHaveTextContent("Create campaign kit");
