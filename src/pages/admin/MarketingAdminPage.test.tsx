@@ -2388,6 +2388,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("shows scheduled and unscheduled campaigns in the calendar and opens campaign details", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -2404,6 +2410,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-ai-planner")).toHaveTextContent("Send due email now");
     expect(screen.getByTestId("marketing-calendar-ai-planner")).toHaveTextContent("Fix content gap");
     expect(screen.getByTestId("marketing-calendar-ai-planner")).toHaveTextContent("Prepare manual handoff");
+    expect(screen.getByTestId("marketing-calendar-publish-run-sheet")).toHaveTextContent("Daily publish run sheet");
+    const publishRunSheet = screen.getByTestId("textarea-marketing-calendar-publish-run-sheet") as HTMLTextAreaElement;
+    expect(publishRunSheet.value).toContain("VYVA daily publishing run sheet");
+    expect(publishRunSheet.value).toContain("Due email campaigns:");
+    expect(publishRunSheet.value).toContain("Caregiver welcome: 1 recipient");
+    expect(publishRunSheet.value).toContain("Manual handoffs:");
+    expect(publishRunSheet.value).toContain("Partner outreach");
+    fireEvent.click(screen.getByTestId("button-marketing-calendar-copy-run-sheet"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA daily publishing run sheet"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Operating rule: email can be sent from VYVA after review"));
+    expect(screen.getByTestId("marketing-calendar-publish-run-sheet-feedback")).toHaveTextContent("Daily publishing run sheet copied.");
     expect(screen.getByTestId("button-marketing-calendar-ai-plan-content-gap")).toHaveTextContent("Before scheduling");
     expect(screen.getByTestId("button-marketing-calendar-ai-plan-content-gap")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent("1 scheduled");

@@ -38874,6 +38874,7 @@ function MarketingCalendarView({
   onEditContent?: (contentAsset: ContentAsset) => void;
   confirmingDeleteId?: string | null;
 }) {
+  const [publishRunSheetFeedback, setPublishRunSheetFeedback] = useState("");
   const scheduledCampaigns = [...campaigns]
     .filter((campaign) => campaign.scheduleStartsAt)
     .sort((a, b) => new Date(a.scheduleStartsAt ?? 0).getTime() - new Date(b.scheduleStartsAt ?? 0).getTime());
@@ -39008,6 +39009,65 @@ function MarketingCalendarView({
       onSelect: () => onEdit(manualHandoffCampaigns[0]),
     }] : []),
   ].slice(0, 5);
+  const publishRunSheetText = [
+    "VYVA daily publishing run sheet",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    "Priority moves:",
+    calendarPlannerItems.length
+      ? calendarPlannerItems.map((item, index) => (
+        `${index + 1}. ${item.title} - ${item.campaign.name}\n`
+        + `   State: ${readinessLabel(item.state)}\n`
+        + `   Window: ${item.windowLabel}\n`
+        + `   Channels: ${formatChannelList(item.channels.length ? item.channels : item.campaign.channels.map((channel) => channel.channel))}\n`
+        + `   Action: ${item.detail}`
+      )).join("\n\n")
+      : "No urgent publishing moves are queued.",
+    "",
+    "Due email campaigns:",
+    dueEmailCampaigns.length
+      ? dueEmailCampaigns.map((campaign) => `- ${campaign.name}: ${campaign.recipientCount} recipient${campaign.recipientCount === 1 ? "" : "s"}; review and send from campaign details.`).join("\n")
+      : "- None due with saved recipients and linked email content.",
+    "",
+    "Manual handoffs:",
+    manualHandoffCampaigns.length
+      ? manualHandoffCampaigns.map((campaign) => {
+        const manualChannels = campaign.channels
+          .filter((channel) => channel.channel !== "email" && channelHasCalendarContent(channel))
+          .map((channel) => channel.channel);
+        return `- ${campaign.name}: ${formatChannelList(manualChannels)}; copy channel handoff, publish manually, then track the outcome.`;
+      }).join("\n")
+      : "- No social/offline handoffs with linked content.",
+    "",
+    "Before publishing:",
+    missingContentCampaigns.length ? `- Fix content gaps: ${missingContentCampaigns.map((campaign) => campaign.name).join(", ")}.` : "- No visible campaign content gaps.",
+    scheduledCampaignsWithoutRecipients.length ? `- Snapshot recipients: ${scheduledCampaignsWithoutRecipients.map((campaign) => campaign.name).join(", ")}.` : "- No scheduled campaigns are missing saved recipients.",
+    unscheduledReadyCampaigns.length ? `- Schedule ready drafts: ${unscheduledReadyCampaigns.map((campaign) => campaign.name).join(", ")}.` : "- No unscheduled ready drafts.",
+    "",
+    "Operating rule: email can be sent from VYVA after review; social, phone, print, event, SMS, and WhatsApp remain manual or planning handoffs unless their provider route is explicitly enabled.",
+  ].join("\n");
+
+  async function copyPublishRunSheet() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publishRunSheetText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = publishRunSheetText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+      setPublishRunSheetFeedback("Daily publishing run sheet copied.");
+    } catch {
+      setPublishRunSheetFeedback("Could not copy the daily publishing run sheet. Select the brief and copy it manually.");
+    }
+  }
 
   if (!campaigns.length) return <EmptyState text="No campaigns match the filters." />;
 
@@ -39042,6 +39102,37 @@ function MarketingCalendarView({
           <Pill className={calendarPlannerItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : calendarPlannerItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
             {calendarPlannerItems.length ? `${calendarPlannerItems.length} moves` : "Clear"}
           </Pill>
+        </div>
+        <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-calendar-publish-run-sheet">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Daily publish run sheet</p>
+              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                One operator brief for due emails, manual handoffs, schedule gaps, recipient snapshots, and content blockers.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void copyPublishRunSheet()}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+              disabled={!calendarPlannerItems.length}
+              data-testid="button-marketing-calendar-copy-run-sheet"
+            >
+              <Copy size={13} /> Copy run sheet
+            </button>
+          </div>
+          <textarea
+            className="mt-3 min-h-[160px] w-full rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 py-2 font-mono text-xs font-bold leading-relaxed text-[#4c3f3a] outline-none"
+            value={publishRunSheetText}
+            readOnly
+            aria-label="Daily publishing run sheet"
+            data-testid="textarea-marketing-calendar-publish-run-sheet"
+          />
+          {publishRunSheetFeedback ? (
+            <p className={`mt-2 rounded-xl px-3 py-2 text-xs font-black ${publishRunSheetFeedback.includes("Could not") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-calendar-publish-run-sheet-feedback">
+              {publishRunSheetFeedback}
+            </p>
+          ) : null}
         </div>
         {calendarPlannerItems.length ? (
           <div className="mt-3 grid gap-3 xl:grid-cols-5">
