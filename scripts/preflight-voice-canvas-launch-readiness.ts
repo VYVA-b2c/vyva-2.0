@@ -303,6 +303,14 @@ function validateFeatureEndpointArtifact(
     problems.push("Feature endpoint artifact scope does not match the launch-readiness goal.");
   }
 
+  const expectedArtifactState =
+    mode === "enabled" ? "enabled" : "rollback-disabled";
+  if (isRecord(artifact) && artifact.expectedState !== expectedArtifactState) {
+    problems.push(
+      `Feature endpoint artifact expectedState must be ${expectedArtifactState}.`,
+    );
+  }
+
   const readyForQaEvidence = isRecord(artifact)
     ? artifact.readyForQaEvidence
     : undefined;

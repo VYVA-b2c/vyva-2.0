@@ -304,6 +304,7 @@ describe("Canvas launch readiness manifest", () => {
       "endpoint payload evidence",
       "endpoint artifact/log/trace evidence",
       "exact endpoint, server key, named fallback path",
+      "matching expected-state label",
       "what is pending",
       "No external action before explicit confirmation",
       "Duplicate/stale guard",
@@ -331,8 +332,10 @@ describe("Canvas launch readiness manifest", () => {
       "--json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
-      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
-      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+      "enabled true/rollout 100 for the enabled artifact",
+      "enabled false/rollout 0 for the rollback-disabled artifact",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
       "validateVoiceCanvasRunSheetCommand.test.ts",
@@ -437,7 +440,7 @@ describe("Canvas launch readiness manifest", () => {
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
     );
     expect(runSheet).toContain(
-      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
     );
     expect(runSheet).toContain(
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
@@ -485,8 +488,10 @@ describe("Canvas launch readiness manifest", () => {
       "Analytics launch signals are present",
       "Analytics privacy is preserved",
       "only `name`, `step`, `input`, `attempt`, `restored`, and `revision`",
-      "records only sanitized endpoint status, cache-control, timing, `enabled`, `rolloutPercent`, recognized payload keys, and unexpected-key count",
-      "Launch evidence must show `Cache-Control: no-store` and an integer `rolloutPercent` from 0 through 100",
+      "records only sanitized endpoint status, cache-control, timing, expected state, `enabled`, `rolloutPercent`, recognized payload keys, and unexpected-key count",
+      "expected state",
+      "Launch evidence must show `Cache-Control: no-store`",
+      "integer `rolloutPercent` from 0 through 100",
       "does not copy raw sample rows",
       "completed may use completed or terminal pending source samples",
     ]) {

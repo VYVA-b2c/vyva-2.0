@@ -32,6 +32,7 @@ interface EndpointEvidenceSummary {
   generatedAt: string;
   baseUrl: string;
   scope: string;
+  expectedState: ExpectedEndpointState | null;
   endpointCount: number;
   readyForQaEvidence: boolean;
   featureEndpoints: EndpointEvidence[];
@@ -41,6 +42,8 @@ interface EndpointEvidenceSummary {
 
 const args = process.argv.slice(2);
 const expectedPayloadKeys = ["enabled", "rolloutPercent"] as const;
+const expectedEndpointStates = ["enabled", "rollback-disabled"] as const;
+type ExpectedEndpointState = (typeof expectedEndpointStates)[number];
 
 function readArgValue(name: string): string | undefined {
   const prefix = `${name}=`;
@@ -55,11 +58,14 @@ if (args.includes("--help") || args.includes("-h")) {
       "Usage:",
       "  npm run canvas:qa:features -- --base-url=https://staging.vyva.app",
       "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json",
-      "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json",
+      "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+      "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
       "",
       "The command performs GET requests only and never writes application data.",
       "By default, local/private/example hosts are rejected so staging evidence is not confused with local smoke testing.",
       "Use --allow-local only for local command tests or developer smoke checks.",
+      "Use --expected-state=enabled for enabled true/rollout 100 launch evidence.",
+      "Use --expected-state=rollback-disabled for disabled false/rollout 0 rollback evidence.",
       "Use --json to emit machine-readable endpoint evidence for QA artifacts.",
       "Use --output=<path> with --json to also save the evidence to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
@@ -73,6 +79,7 @@ const jsonOutput = args.includes("--json");
 const allowLocal = args.includes("--allow-local");
 const forceOutput = args.includes("--force");
 const outputPathArg = readArgValue("--output");
+const expectedStateArg = readArgValue("--expected-state");
 
 if (!baseUrlArg) {
   console.error("Expected --base-url=<deployed app URL>.");
@@ -86,6 +93,16 @@ if (outputPathArg === "") {
 
 if (outputPathArg && !jsonOutput) {
   console.error("Use --output only with --json.");
+  process.exit(1);
+}
+
+function parseExpectedState(value: string | undefined): ExpectedEndpointState | null {
+  if (!value) return null;
+  if (expectedEndpointStates.includes(value as ExpectedEndpointState)) {
+    return value as ExpectedEndpointState;
+  }
+
+  console.error("Expected --expected-state to be enabled or rollback-disabled.");
   process.exit(1);
 }
 
@@ -188,6 +205,7 @@ async function fetchTextWithTimeout(
 async function collectEndpointEvidence(
   baseUrl: URL,
   flow: FeatureFlaggedCanvasFlow,
+  expectedState: ExpectedEndpointState | null,
 ): Promise<EndpointEvidence> {
   const featureFlag = flow.featureFlag;
   const url = new URL(featureFlag.endpoint, baseUrl);
@@ -250,6 +268,20 @@ async function collectEndpointEvidence(
       );
     }
 
+    if (expectedState === "enabled") {
+      if (enabled !== true || rolloutPercent !== 100) {
+        problems.push(
+          "Expected enabled launch evidence to show enabled true and rolloutPercent 100.",
+        );
+      }
+    } else if (expectedState === "rollback-disabled") {
+      if (enabled !== false || rolloutPercent !== 0) {
+        problems.push(
+          "Expected rollback-disabled launch evidence to show enabled false and rolloutPercent 0.",
+        );
+      }
+    }
+
     return {
       id: flow.id,
       label: flow.label,
@@ -301,6 +333,7 @@ function buildSummary(baseUrl: URL, featureEndpoints: EndpointEvidence[]): Endpo
     generatedAt: new Date().toISOString(),
     baseUrl: baseUrl.origin,
     scope: "VYVA Canvas Launch Readiness + Real-Use QA v1",
+    expectedState,
     endpointCount: featureEndpoints.length,
     readyForQaEvidence: problems.length === 0,
     featureEndpoints,
@@ -318,6 +351,7 @@ function writeJsonOutput(outputPathArg: string, jsonSummary: string) {
 function printTextSummary(summary: EndpointEvidenceSummary) {
   console.log("Voice Canvas feature endpoint evidence");
   console.log(`Base URL: ${summary.baseUrl}`);
+  console.log(`Expected state: ${summary.expectedState ?? "not specified"}`);
   console.log(`Endpoints checked: ${summary.endpointCount}`);
   console.log(`Ready for QA evidence: ${summary.readyForQaEvidence ? "yes" : "no"}`);
 
@@ -342,6 +376,7 @@ function printTextSummary(summary: EndpointEvidenceSummary) {
   }
 }
 
+const expectedState = parseExpectedState(expectedStateArg);
 const baseUrl = parseBaseUrl(baseUrlArg);
 if (outputPathArg) {
   const outputPath = path.resolve(process.cwd(), outputPathArg);
@@ -354,7 +389,9 @@ if (outputPathArg) {
 }
 
 const evidence = await Promise.all(
-  featureFlaggedFlows().map((flow) => collectEndpointEvidence(baseUrl, flow)),
+  featureFlaggedFlows().map((flow) =>
+    collectEndpointEvidence(baseUrl, flow, expectedState),
+  ),
 );
 const summary = buildSummary(baseUrl, evidence);
 const exitCode = summary.readyForQaEvidence ? 0 : 1;

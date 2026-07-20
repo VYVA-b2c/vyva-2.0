@@ -32,20 +32,20 @@ Start at internal-only, then 5%, 25%, 50%, and 100% only after reviewing scene-o
 Before the real-device pass, capture a sanitized deployed endpoint artifact for the enabled rollout state:
 
 ```bash
-npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json
+npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json
 ```
 
 Then apply rollback flags and capture a second disabled/rollout-0 artifact with a distinct path:
 
 ```bash
-npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json
+npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json
 ```
 
 Replace `YYYY-MM-DD` with the QA run date and replace `https://staging.vyva.app` with the deployed staging or production-like origin being tested. The command performs GET requests only. It rejects localhost, private-network, `.local`, `.test`, `.example`, and placeholder hosts unless `--allow-local` is explicitly passed for developer smoke checks, so real launch evidence cannot be accidentally captured from a local app. Existing output files are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
 
-The artifact stores only the launch-scoped endpoint, server key, HTTP status, `cache-control`, elapsed time, `enabled`, `rolloutPercent`, recognized payload keys, and an unexpected-key count. It does not store raw endpoint response bodies, unexpected field names, transcripts, entered text, addresses, saved-place labels, medication details, provider details, shopping details, account identifiers, or other personal data.
+The artifact stores only the launch-scoped endpoint, server key, expected state, HTTP status, `cache-control`, elapsed time, `enabled`, `rolloutPercent`, recognized payload keys, and an unexpected-key count. `--expected-state=enabled` requires enabled true and rollout 100. `--expected-state=rollback-disabled` requires enabled false and rollout 0. It does not store raw endpoint response bodies, unexpected field names, transcripts, entered text, addresses, saved-place labels, medication details, provider details, shopping details, account identifiers, or other personal data.
 
-The final `canvas:qa:preflight -- --final` gate revalidates endpoint artifacts before launch sign-off. It rejects hand-made or developer-smoke artifacts that do not include the launch-readiness scope, a non-future ISO `generatedAt` timestamp, a deployed non-local `baseUrl`, and per-flow endpoint URLs that match the tested deployed origin.
+The final `canvas:qa:preflight -- --final` gate revalidates endpoint artifacts before launch sign-off. It rejects hand-made or developer-smoke artifacts that do not include the launch-readiness scope, the matching expected-state label, a non-future ISO `generatedAt` timestamp, a deployed non-local `baseUrl`, and per-flow endpoint URLs that match the tested deployed origin.
 
 Use the enabled and rollback-disabled artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
 

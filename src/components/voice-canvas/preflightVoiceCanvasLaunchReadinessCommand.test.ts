@@ -106,6 +106,7 @@ function validFeatureEndpointArtifact(mode: "enabled" | "rollback") {
     generatedAt: "2026-07-20T00:00:00.000Z",
     baseUrl: "https://staging.vyva.app",
     scope: "VYVA Canvas Launch Readiness + Real-Use QA v1",
+    expectedState: mode === "enabled" ? "enabled" : "rollback-disabled",
     endpointCount: launchFeatureFlows.length,
     readyForQaEvidence: true,
     problemCount: 0,
@@ -446,6 +447,51 @@ describe("Voice Canvas launch readiness preflight command", () => {
         featureEndpoints: validFeatureEndpointArtifact("rollback").featureEndpoints.map(
           (endpoint, index) => (index === 0 ? { ...endpoint, enabled: true } : endpoint),
         ),
+      },
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.rollback.problemCount).toBeGreaterThan(0);
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+        expect(summary.nextActions).toContain(
+          "Fix rollback-disabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
+  it("rejects endpoint artifacts captured without the matching expected-state label", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        expectedState: "rollback-disabled",
+      },
+      {
+        ...validFeatureEndpointArtifact("rollback"),
+        expectedState: null,
       },
       ({ enabledPath, rollbackPath }) => {
         const result = runPreflight([

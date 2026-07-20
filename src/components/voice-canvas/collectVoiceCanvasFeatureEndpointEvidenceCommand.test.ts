@@ -76,6 +76,20 @@ function healthyEndpointResponses() {
   );
 }
 
+function endpointResponsesForState(state: "enabled" | "rollback-disabled") {
+  return new Map<string, MockEndpointResponse>(
+    launchFeatureFlows.map((flow) => [
+      flow.featureFlag!.endpoint,
+      {
+        body:
+          state === "enabled"
+            ? { enabled: true, rolloutPercent: 100 }
+            : { enabled: false, rolloutPercent: 0 },
+      },
+    ]),
+  );
+}
+
 async function startFeatureServer(responses: Map<string, MockEndpointResponse>) {
   const server = createServer((request, response) => {
     const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
@@ -115,13 +129,30 @@ describe("Voice Canvas feature endpoint evidence command", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
-      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
     );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
+    );
+    expect(result.stdout).toContain("Use --expected-state=enabled");
     expect(result.stdout).toContain("GET requests only");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
       `--output=artifacts/voice-canvas/${unsafeDatePlaceholder}-feature-endpoints.json`,
+    );
+  });
+
+  it("rejects unknown expected endpoint states", async () => {
+    const result = await runCollector([
+      "--base-url=https://staging.vyva.app",
+      "--expected-state=maybe",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "Expected --expected-state to be enabled or rollback-disabled.",
     );
   });
 
@@ -198,6 +229,93 @@ describe("Voice Canvas feature endpoint evidence command", () => {
         ]);
         expect(endpoint.unexpectedPayloadKeyCount, endpoint.label).toBe(0);
       }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("passes when enabled launch evidence shows enabled true and rollout 100", async () => {
+    const server = await startFeatureServer(endpointResponsesForState("enabled"));
+
+    try {
+      const result = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--expected-state=enabled",
+        "--json",
+      ]);
+
+      expect(result.status).toBe(0);
+      const summary = JSON.parse(result.stdout) as {
+        expectedState: string;
+        readyForQaEvidence: boolean;
+        featureEndpoints: Array<{ enabled: boolean; rolloutPercent: number }>;
+      };
+      expect(summary.expectedState).toBe("enabled");
+      expect(summary.readyForQaEvidence).toBe(true);
+      for (const endpoint of summary.featureEndpoints) {
+        expect(endpoint).toMatchObject({ enabled: true, rolloutPercent: 100 });
+      }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("passes when rollback evidence shows enabled false and rollout 0", async () => {
+    const server = await startFeatureServer(
+      endpointResponsesForState("rollback-disabled"),
+    );
+
+    try {
+      const result = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--expected-state=rollback-disabled",
+        "--json",
+      ]);
+
+      expect(result.status).toBe(0);
+      const summary = JSON.parse(result.stdout) as {
+        expectedState: string;
+        readyForQaEvidence: boolean;
+        featureEndpoints: Array<{ enabled: boolean; rolloutPercent: number }>;
+      };
+      expect(summary.expectedState).toBe("rollback-disabled");
+      expect(summary.readyForQaEvidence).toBe(true);
+      for (const endpoint of summary.featureEndpoints) {
+        expect(endpoint).toMatchObject({ enabled: false, rolloutPercent: 0 });
+      }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects launch endpoint evidence captured in the wrong expected state", async () => {
+    const server = await startFeatureServer(
+      endpointResponsesForState("rollback-disabled"),
+    );
+
+    try {
+      const result = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--expected-state=enabled",
+        "--json",
+      ]);
+
+      expect(result.status).toBe(1);
+      const summary = JSON.parse(result.stdout) as {
+        readyForQaEvidence: boolean;
+        problems: string[];
+      };
+      expect(summary.readyForQaEvidence).toBe(false);
+      expect(summary.problems).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            "Expected enabled launch evidence to show enabled true and rolloutPercent 100.",
+          ),
+        ]),
+      );
     } finally {
       await server.close();
     }
