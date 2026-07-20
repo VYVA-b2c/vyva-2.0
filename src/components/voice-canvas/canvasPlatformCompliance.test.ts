@@ -153,7 +153,7 @@ describe("Canvas platform cross-flow compliance", () => {
       expect(source).toContain("voice-canvas-real-device-run-sheet.md");
       expect(source).toContain("voice-canvas-real-device-evidence-packet.md");
       expect(source).toContain("voice-canvas-real-device-qa-matrix.md");
-      expect(source).toContain("canvas:qa:preflight -- --final");
+      expect(source).toContain("canvas:qa:preflight -- --final --date=YYYY-MM-DD");
       expect(source).toContain("same-date launch evidence bundle");
       expect(source).toContain("run plan");
       expect(source).toContain("enabled and rollback-disabled endpoint artifacts");

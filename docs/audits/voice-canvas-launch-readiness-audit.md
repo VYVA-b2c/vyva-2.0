@@ -149,7 +149,7 @@ Run-sheet, evidence-packet, QA-matrix, and combined preflight validators now sur
 - Launch preflight pending-section output:
   - `npm run test -- src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts`
   - Result: 19 tests passed on commit `24d9d945` after adding human-readable pending-section output for the run sheet, QA matrix, and evidence packet.
-  - `npm run canvas:qa:preflight -- --final`
+  - `npm run canvas:qa:preflight -- --final --date=YYYY-MM-DD`
   - Result: correctly failed final launch mode because real-device evidence, endpoint artifacts, analytics evidence, evidence packet rows, and QA matrix rows remain pending; output listed the pending sections so QA can complete them systematically.
 - Sanitized browser launch screenshots:
   - `npm run test:e2e -- e2e/appointment-canvas-production-readiness.spec.ts e2e/medication-refill-canvas-production-readiness.spec.ts e2e/canvas-launch-readiness.spec.ts e2e/task-hub-resume-launch-readiness.spec.ts`
@@ -163,7 +163,7 @@ Run-sheet, evidence-packet, QA-matrix, and combined preflight validators now sur
 - Validator next-evidence-area guidance:
   - `npm run test -- src/components/voice-canvas/validateVoiceCanvasRunSheetCommand.test.ts src/components/voice-canvas/validateVoiceCanvasEvidencePacketCommand.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/preflightVoiceCanvasLaunchReadinessCommand.test.ts`
   - Result: 58 tests passed after adding next-pending-section JSON and human-readable output to the run-sheet, packet, matrix, and combined preflight validators.
-  - `npm run canvas:qa:preflight -- --final`
+  - `npm run canvas:qa:preflight -- --final --date=YYYY-MM-DD`
   - Result: correctly failed final launch mode and surfaced the largest pending sections: run-sheet per-flow behavior pass, QA-matrix required behavior checklist, and evidence-packet inventory.
 - Pending matrix validation command:
   - `npm run canvas:qa:validate -- --allow-pending`

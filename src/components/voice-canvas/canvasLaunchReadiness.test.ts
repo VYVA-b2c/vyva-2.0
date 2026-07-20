@@ -272,6 +272,7 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("canvas:qa:analytics");
     expect(runbook).toContain("canvas:qa:packet");
     expect(runbook).toContain("canvas:qa:rollback-owner");
+    expect(runbook).toContain("canvas:qa:preflight -- --final --date=YYYY-MM-DD");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-enabled.json");
     expect(runbook).toContain("YYYY-MM-DD-launch-evidence-run.json");
     expect(runbook).toContain("canonical per-flow entry surfaces");
