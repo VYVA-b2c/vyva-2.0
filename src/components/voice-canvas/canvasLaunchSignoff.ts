@@ -108,6 +108,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   failingCellCount: number;
   missingRequiredMatrixRows: string[];
   invalidEnvironmentFields: string[];
+  invalidEntrySurfaceRows: string[];
   invalidDeviceCoverageRows: string[];
   invalidInteractionModeRows: string[];
   invalidBehaviorRows: string[];
@@ -655,6 +656,132 @@ function invalidEnvironmentRows(sections: Map<string, string[][]>): string[] {
       !isMeaningfulEnvironmentValue(field, value)
     );
   });
+}
+
+function entrySurfaceWordGroups(
+  surfaces: readonly string[],
+): readonly (readonly string[])[] {
+  return surfaces.map((surface) => [surface.toLowerCase()]);
+}
+
+function hasEntrySurfaceResultLanguage(
+  value: string,
+  surfaces: readonly string[],
+): boolean {
+  return (
+    hasAllWordGroups(value, entrySurfaceWordGroups(surfaces)) &&
+    hasAllWordGroups(value, [
+      ["entry", "surface", "opened", "started", "launched", "handoff", "resume"],
+      ["verified", "exercised", "completed", "safe exit", "safely exited"],
+    ]) &&
+    !hasNegativeEvidenceLanguage(value) &&
+    !hasNegativeInteractionOutcomeLanguage(value)
+  );
+}
+
+function hasEntrySurfaceEvidenceLanguage(
+  value: string,
+  surfaces: readonly string[],
+): boolean {
+  return (
+    hasDatedEvidenceLanguage(value, [
+      "qa",
+      "reviewer",
+      "evidence",
+      "screenshot",
+      "log",
+      "artifact",
+      "recording",
+    ]) &&
+    hasConcreteEvidenceArtifactLanguage(value) &&
+    hasAllWordGroups(value, entrySurfaceWordGroups(surfaces)) &&
+    !hasNegativeEvidenceLanguage(value) &&
+    !hasNegativeInteractionOutcomeLanguage(value)
+  );
+}
+
+function hasEntrySurfaceReviewerDateLanguage(value: string): boolean {
+  return (
+    hasFreshNonFutureIsoDateCellFromText(value) &&
+    !hasFutureIsoDateCellFromText(value) &&
+    hasAnyWord(value, [
+      "reviewed",
+      "verified",
+      "validated",
+      "approved",
+      "sign-off",
+      "signed off",
+    ])
+  );
+}
+
+function invalidEntrySurfaceRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Entry surface coverage") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    const row = rows.get(flow.label);
+    if (!row) continue;
+
+    const requiredSurfaces = row[1] ?? "";
+    const result = row[2] ?? "";
+    const evidence = row[3] ?? "";
+    const reviewerDate = row[4] ?? "";
+
+    if (
+      !isPlaceholderCell(requiredSurfaces) &&
+      !hasAllWordGroups(requiredSurfaces, entrySurfaceWordGroups(flow.surfaces))
+    ) {
+      problems.push(
+        `${flow.label}: required entry surfaces must name every canonical launch surface`,
+      );
+    }
+
+    if (
+      !isPlaceholderCell(result) &&
+      !isFailingQaCell(result) &&
+      !hasEntrySurfaceResultLanguage(result, flow.surfaces)
+    ) {
+      problems.push(
+        `${flow.label}: entry surface result must prove every canonical launch surface was exercised`,
+      );
+    }
+
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      !hasEntrySurfaceEvidenceLanguage(evidence, flow.surfaces)
+    ) {
+      problems.push(
+        `${flow.label}: entry surface evidence must include dated screenshot/log/artifact proof for every canonical launch surface`,
+      );
+    }
+
+    if (
+      !isPlaceholderCell(evidence) &&
+      !isFailingQaCell(evidence) &&
+      hasSensitiveDataLeakageLanguage(evidence)
+    ) {
+      problems.push(
+        `${flow.label}: entry surface evidence artifacts must not include transcripts, entered text, addresses, or personal details`,
+      );
+    }
+
+    if (
+      !isPlaceholderCell(reviewerDate) &&
+      !hasEntrySurfaceReviewerDateLanguage(reviewerDate)
+    ) {
+      problems.push(
+        `${flow.label}: entry surface reviewer/date must include explicit review wording and a fresh non-future YYYY-MM-DD date`,
+      );
+    }
+  }
+
+  return problems;
 }
 
 const deviceCoverageRequirements = [
@@ -2613,6 +2740,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
       "Environment record",
       CANVAS_REAL_DEVICE_QA_REQUIRED_ENVIRONMENT_FIELDS,
     ),
+    ...missingRowsInSection(
+      sections,
+      "Entry surface coverage",
+      requiredFlowLabels,
+    ),
     ...missingRowsInSection(sections, "Device coverage", requiredFlowLabels),
     ...missingRowsInSection(
       sections,
@@ -2656,6 +2788,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     ),
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
+  const invalidEntrySurfaceChecks = invalidEntrySurfaceRows(sections);
   const invalidDeviceCoverageChecks = invalidDeviceCoverageRows(sections);
   const invalidInteractionModeChecks = invalidInteractionModeRows(sections);
   const invalidBehaviorChecks = invalidBehaviorRows(sections);
@@ -2697,6 +2830,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
     if (invalidEnvironmentFields.length > 0) {
       problems.push(
         `Matrix has environment field(s) without launch-specific evidence: ${invalidEnvironmentFields.join(", ")}.`,
+      );
+    }
+    if (invalidEntrySurfaceChecks.length > 0) {
+      problems.push(
+        `Matrix has entry-surface coverage row issue(s): ${invalidEntrySurfaceChecks.join(", ")}.`,
       );
     }
     if (invalidDeviceCoverageChecks.length > 0) {
@@ -2792,6 +2930,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     failingCellCount,
     missingRequiredMatrixRows,
     invalidEnvironmentFields,
+    invalidEntrySurfaceRows: invalidEntrySurfaceChecks,
     invalidDeviceCoverageRows: invalidDeviceCoverageChecks,
     invalidInteractionModeRows: invalidInteractionModeChecks,
     invalidBehaviorRows: invalidBehaviorChecks,

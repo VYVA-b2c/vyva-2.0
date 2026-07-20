@@ -45,6 +45,24 @@ const BEHAVIOR_CHECKLIST_PROSE_EVIDENCE =
 const PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR =
   "Provider Reply Voice Canvas: behavior evidence must include dated artifact coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects";
 
+const RIDE_ENTRY_SURFACE_ROW =
+  "| Ride Voice Canvas | voice handoff; /concierge; task hub pending resume | QA verified entry surfaces voice handoff, /concierge, and task hub pending resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: voice handoff, /concierge, and task hub pending resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const APPOINTMENT_ENTRY_SURFACE_ROW =
+  "| Appointment Voice Canvas | voice handoff; /concierge; task hub provider setup resume | QA verified entry surfaces voice handoff, /concierge, and task hub provider setup resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: voice handoff, /concierge, and task hub provider setup resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const REFILL_ENTRY_SURFACE_ROW =
+  "| Medication Refill Voice Canvas | /meds/adherence-report; voice refill action; task hub local resume | QA verified entry surfaces /meds/adherence-report, voice refill action, and task hub local resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /meds/adherence-report, voice refill action, and task hub local resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const SHOPPING_ENTRY_SURFACE_ROW =
+  "| Shopping Delivery Voice Canvas | /concierge/shopping; shopping voice capture; task hub local resume | QA verified entry surfaces /concierge/shopping, shopping voice capture, and task hub local resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /concierge/shopping, shopping voice capture, and task hub local resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const PROVIDER_REPLY_ENTRY_SURFACE_ROW =
+  "| Provider Reply Voice Canvas | /concierge task detail; provider reply panel; task hub pending resume | QA verified entry surfaces /concierge task detail, provider reply panel, and task hub pending resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /concierge task detail, provider reply panel, and task hub pending resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const TASK_HUB_ENTRY_SURFACE_ROW =
+  "| Concierge Task Hub Resume | /concierge/tasks; /concierge/tasks/:taskKey; home resume card | QA verified entry surfaces /concierge/tasks, /concierge/tasks/:taskKey, and home resume card exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /concierge/tasks, /concierge/tasks/:taskKey, and home resume card exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
 const ARTIFACT_INVENTORY_ENVIRONMENT_ROW =
   "| Environment and flag artifacts | Environment feature flag analytics sink enabled rollout and disabled rollback evidence | Sanitized environment feature flag artifact log link plus analytics dashboard query with no personal details | QA reviewer verified on 2026-07-19 |";
 
@@ -186,8 +204,12 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
               fillBehaviorChecklistRows(
                 fillInteractionModeRows(
                   fillDeviceCoverageRows(
-                    fillEnvironmentRecord(
-                      fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+                    fillEntrySurfaceRows(
+                      fillEnvironmentRecord(
+                        fillRequiredSignoffs(
+                          replacePendingEvidence(markReady(markdown)),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -198,6 +220,27 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
       ),
     ),
   );
+}
+
+function fillEntrySurfaceRows(markdown: string): string {
+  let filled = markdown;
+  for (const [flow, row] of [
+    ["Ride Voice Canvas", RIDE_ENTRY_SURFACE_ROW],
+    ["Appointment Voice Canvas", APPOINTMENT_ENTRY_SURFACE_ROW],
+    ["Medication Refill Voice Canvas", REFILL_ENTRY_SURFACE_ROW],
+    ["Shopping Delivery Voice Canvas", SHOPPING_ENTRY_SURFACE_ROW],
+    ["Provider Reply Voice Canvas", PROVIDER_REPLY_ENTRY_SURFACE_ROW],
+    ["Concierge Task Hub Resume", TASK_HUB_ENTRY_SURFACE_ROW],
+  ] as const) {
+    filled = replaceSectionTableRow(
+      filled,
+      "Entry surface coverage",
+      flow,
+      4,
+      row,
+    );
+  }
+  return filled;
 }
 
 function fillArtifactInventoryRows(markdown: string): string {
@@ -363,6 +406,19 @@ function replaceSectionTableRow(
   return markdown.replace(pattern, (_match, prefix: string) => `${prefix}${row}`);
 }
 
+function removeSectionTableRow(
+  markdown: string,
+  section: string,
+  firstCell: string,
+  remainingCellCount: number,
+): string {
+  const pattern = new RegExp(
+    `(^##\\s+${escapeRegExp(section)}\\s*$[\\s\\S]*?)^\\| ${escapeRegExp(firstCell)}${" \\| [^|]*".repeat(remainingCellCount)} \\|\\r?\\n`,
+    "m",
+  );
+  return markdown.replace(pattern, (_match, prefix: string) => prefix);
+}
+
 const launchFlowLabels = [
   "Ride Voice Canvas",
   "Appointment Voice Canvas",
@@ -522,6 +578,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidEntrySurfaceRows).toEqual([]);
     expect(result.invalidDeviceCoverageRows).toEqual([]);
     expect(result.invalidInteractionModeRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);
@@ -670,6 +727,27 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch matrices with generic entry-surface evidence", () => {
+    const completed = completedMatrix().replace(
+      RIDE_ENTRY_SURFACE_ROW,
+      "| Ride Voice Canvas | voice handoff; /concierge; task hub pending resume | QA verified main entry surface exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: voice handoff exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEntrySurfaceRows).toEqual([
+      "Ride Voice Canvas: entry surface result must prove every canonical launch surface was exercised",
+      "Ride Voice Canvas: entry surface evidence must include dated screenshot/log/artifact proof for every canonical launch surface",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("entry-surface coverage row issue"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch sign-offs with non-role-specific notes", () => {
     const completed = completedMatrix().replace(
       PRODUCT_SIGNOFF_ROW,
@@ -709,9 +787,11 @@ describe("Canvas real-device QA sign-off", () => {
   });
 
   it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
-    const completed = removeFirstTableRow(
+    const completed = removeSectionTableRow(
       completedMatrix(),
+      "Device coverage",
       "Ride Voice Canvas",
+      4,
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -3120,6 +3200,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.failingCellCount).toBe(0);
     expect(result.missingRequiredMatrixRows).toEqual([]);
     expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidEntrySurfaceRows).toEqual([]);
     expect(result.invalidDeviceCoverageRows).toEqual([]);
     expect(result.invalidInteractionModeRows).toEqual([]);
     expect(result.invalidBehaviorRows).toEqual([]);

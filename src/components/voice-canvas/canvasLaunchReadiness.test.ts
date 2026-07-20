@@ -349,6 +349,9 @@ describe("Canvas launch readiness manifest", () => {
 
     for (const flow of canvasLaunchReadinessFlows) {
       expect(matrix, flow.label).toContain(flow.label);
+      for (const surface of flow.surfaces) {
+        expect(matrix, `${flow.label}:${surface}`).toContain(surface);
+      }
       if (flow.featureFlag) {
         expect(matrix).toContain(flow.featureFlag.endpoint);
         expect(matrix).toContain(flow.featureFlag.serverFeatureKey);
@@ -356,6 +359,10 @@ describe("Canvas launch readiness manifest", () => {
     }
 
     for (const requiredCheck of [
+      "Entry surface coverage",
+      "Required entry surfaces",
+      "every canonical launch surface",
+      "Generic “main entry,” “normal flow,” or single-surface evidence is not enough",
       "Refresh/reconnect",
       "entered information",
       "Task hub destination fallback checks",

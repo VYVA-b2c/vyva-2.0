@@ -55,6 +55,9 @@ describe("Voice Canvas QA matrix validator command", () => {
       "- Environment record: 8 pending cell(s) across 8 row(s)",
     );
     expect(result.stdout).toContain(
+      "- Entry surface coverage: 18 pending cell(s) across 6 row(s)",
+    );
+    expect(result.stdout).toContain(
       "- Required behavior checklist: 78 pending cell(s) across 6 row(s)",
     );
     expect(result.stdout).toContain(
@@ -77,6 +80,9 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(result.stdout).toContain("Pending cells by section:");
     expect(result.stdout).toContain(
       "- Evidence artifact inventory: 39 pending cell(s) across 13 row(s)",
+    );
+    expect(result.stdout).toContain(
+      "- Entry surface coverage: 18 pending cell(s) across 6 row(s)",
     );
     expect(result.stdout).toContain(
       "Next evidence area: Required behavior checklist (78 pending cell(s) across 6 row(s))",
@@ -120,7 +126,7 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(summary.status).toBe("pending execution");
     expect(summary.state).toBe("pending");
     expect(summary.readyForLaunch).toBe(false);
-    expect(summary.incompleteCellCount).toBe(292);
+    expect(summary.incompleteCellCount).toBe(310);
     expect(summary.failingCellCount).toBe(0);
     expect(summary.problemCount).toBe(0);
     expect(summary.problems).toEqual([]);
@@ -132,6 +138,11 @@ describe("Voice Canvas QA matrix validator command", () => {
           section: "Environment record",
           pendingCells: 8,
           rowsWithPending: 8,
+        },
+        {
+          section: "Entry surface coverage",
+          pendingCells: 18,
+          rowsWithPending: 6,
         },
         {
           section: "Required behavior checklist",
@@ -177,6 +188,10 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(summary.acceptedPending).toBe(false);
     expect(summary.pendingSections).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          section: "Entry surface coverage",
+          pendingCells: 18,
+        }),
         expect.objectContaining({
           section: "Evidence artifact inventory",
           pendingCells: 39,
