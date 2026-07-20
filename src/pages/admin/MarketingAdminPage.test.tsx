@@ -2830,9 +2830,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-smart-template-shortcut-relationship-follow-up")).toHaveTextContent("Post-webinar relationship follow-up");
     expect(screen.getByTestId("button-marketing-smart-template-shortcut-relationship-follow-up")).toHaveTextContent("Open pack");
     expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Customize");
+    expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Copy AI command");
     expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Create kit");
     expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Spain local activation");
     expect(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Open pack");
+    fireEvent.click(screen.getByTestId("button-marketing-smart-template-shortcut-ai-local-spain"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template pack AI command"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Pack: Spain local activation"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Spain local activation AI command copied.");
     fireEvent.click(screen.getByTestId("button-marketing-smart-template-shortcut-local-spain"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Smart shortcut selected: Local Spain activation. Showing Spain local activation template pack.");
     expect(screen.getByTestId("marketing-template-pack-spain-local-activation")).toHaveTextContent("Viewing");

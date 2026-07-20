@@ -37176,6 +37176,15 @@ export default function MarketingAdminPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => void copyTemplatePackAiCommand(primary.pack, primary.templates)}
+                            disabled={contentSaving || primary.templates.length === 0}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-black text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:bg-[#f1e8f5] disabled:text-[#9d8ba3]"
+                            data-testid={`button-marketing-smart-template-shortcut-ai-${shortcut.key}`}
+                          >
+                            <Sparkles size={13} /> Copy AI command
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => void createCampaignPlanFromTemplatePack(primary.pack, primary.templates, primary.heroTemplate)}
                             disabled={contentSaving || campaignSaving || primary.templates.length === 0}
                             className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
