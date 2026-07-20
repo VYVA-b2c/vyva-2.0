@@ -136,6 +136,23 @@ Behavior recovery evidence, reviewed on [YYYY-MM-DD] by [reviewer], artifact [sa
 | Analytics launch signals are present | Started, resumed, abandoned, blocked, confirmed, and completed have positive aggregate counts; completed may use completed or terminal pending source samples | Pending | Pending |
 | Analytics privacy is preserved | Telemetry includes only `name`, `step`, `input`, `attempt`, `restored`, and `revision`, with forbidden data classes absent | Pending | Pending |
 
+Use this copy/accessibility evidence template before filling the copy/accessibility rows in this run sheet, the evidence packet, or the QA matrix. Replace bracketed placeholders only. Do not include transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.
+
+```text
+Copy/accessibility evidence, reviewed on [YYYY-MM-DD] by [reviewer], artifact [sanitized reference]:
+- Flow/device/input: [flow] / [phone|tablet|desktop] / [voice|touch|keyboard]
+- One clear decision: the scene shows one decision or safe exit at a time
+- Spanish long labels: labels are readable or legible with no horizontal overflow, clipping, or truncation
+- Waiting state: copy explains what is pending or in progress and what has not happened yet
+- Blocked state: copy explains what information is needed and offers retry plus exit or cancel
+- Completed state: copy explains the outcome without implying an extra action
+- Keyboard: user can complete the flow or safely exit using only the keyboard
+- Focus movement: scene change moves focus to the new scene heading or primary control
+- Screen-reader announcements: waiting, blocked, and completed states are announced
+- Reduced motion: reduced-motion mode remains calm and usable and does not rely on animation for meaning
+- Privacy check: artifact contains no transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data
+```
+
 After exporting sanitized staging analytics evidence, validate it before filling the analytics rows:
 
 ```bash

@@ -54,6 +54,13 @@ const requiredBehaviorColumns = [
   "Reviewer/date",
 ] as const;
 
+const requiredCopyAccessibilityAnalyticsColumns = [
+  "Check",
+  "Expected result",
+  "Evidence reference",
+  "Reviewer/date",
+] as const;
+
 const requiredEnvironmentRows = [
   "Staging or production-like URL is deployed and non-local",
   "Build or commit SHA matches the tested deployment",
@@ -458,6 +465,13 @@ function evaluateRunSheet(markdown: string) {
   }
 
   const copyTable = findTable(tables, "Copy, accessibility, and analytics pass");
+  if (copyTable) {
+    for (const column of requiredCopyAccessibilityAnalyticsColumns) {
+      if (!copyTable.headers.some((header) => normalizeCell(header) === column)) {
+        problems.push(`Missing copy/accessibility/analytics column: ${column}.`);
+      }
+    }
+  }
   for (const row of requiredCopyAccessibilityAnalyticsRows) {
     if (!hasRequiredRow(copyTable, row)) {
       problems.push(`Missing copy/accessibility/analytics row: ${row}.`);

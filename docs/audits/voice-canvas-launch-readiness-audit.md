@@ -70,6 +70,8 @@ Screen-reader copy/accessibility evidence now requires waiting, blocked, and com
 
 Copy/accessibility evidence now requires the evidence note to name the checked outcome, such as one clear decision for each flow, Spanish long-label readability without overflow, waiting pending/no-action copy, blocked retry/exit copy, completed outcome/no-extra-action copy, keyboard completion or safe exit for each flow, focus movement, or calm usable reduced-motion behavior; generic screenshot-only evidence is rejected.
 
+Copy/accessibility evidence handoff now includes a copy-safe template in both the real-device run sheet and evidence packet, requiring one clear decision, Spanish long-label readability, waiting/blocked/completed copy, keyboard, focus, screen-reader, reduced-motion, and artifact-privacy observations before QA copies evidence into the launch matrix.
+
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.
 
 Device coverage evidence now requires dated real phone, tablet, and desktop/laptop coverage plus screenshot, photo, or artifact evidence with no transcripts, entered text, addresses, or personal details; generic prose-only device evidence, generic screenshot evidence, and sensitive artifact evidence are rejected.

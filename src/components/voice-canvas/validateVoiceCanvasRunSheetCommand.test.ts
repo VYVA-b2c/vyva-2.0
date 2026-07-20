@@ -314,6 +314,30 @@ describe("Voice Canvas run sheet validator command", () => {
       },
     ));
 
+  it("rejects run sheets that omit required copy/accessibility evidence columns", () =>
+    withTempRunSheet(
+      completedRunSheet().replace(
+        "| Check | Expected result | Evidence reference | Reviewer/date |",
+        "| Check | Expected result | Evidence | Reviewer/date |",
+      ),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toContain(
+          "Missing copy/accessibility/analytics column: Evidence reference.",
+        );
+      },
+    ));
+
   it("saves validation JSON while preserving existing artifacts by default", () =>
     withTempRunSheet(completedRunSheet(), (tempRunSheetPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-runsheet-out-"));
