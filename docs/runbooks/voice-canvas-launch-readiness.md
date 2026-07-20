@@ -63,9 +63,9 @@ Canonical launch signals are derived from the closed event shape:
 | Abandoned | `abandoned` |
 | Blocked | `failed`, `urgent_help_shown`, or a blocked scene view |
 | Confirmed | `confirmation_submitted` |
-| Completed | `completed` |
+| Completed | `completed`, or terminal Shopping `pending` result |
 
-`saved` is intentionally not treated as completed. Provider reply uses one confirmation to save the reply and a separate confirmation to mark the task complete.
+`saved` is intentionally not treated as completed. Provider reply uses one confirmation to save the reply and a separate confirmation to mark the task complete. Shopping may end in a terminal `pending` success state when a prepared request is waiting in the task system; that terminal `pending` event counts as a completed Canvas launch signal because the user-visible Canvas flow reached its result.
 
 Use the shared launch telemetry counter/listener only as an aggregate monitor. It may count `started`, `resumed`, `abandoned`, `blocked`, `confirmed`, and `completed`, and its samples must stay limited to the allowed envelope fields above.
 
@@ -77,7 +77,7 @@ After exporting a sanitized staging analytics sample, validate it before copying
 npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json
 ```
 
-The input JSON may be an array of Canvas telemetry envelopes or an object with `samples` or `events` and optional `counts`. Every sample must contain only `name`, `step`, `input`, `attempt`, `restored`, and optional `revision`. The validator requires a positive observed sample count for started, resumed, abandoned, blocked, confirmed, and completed; optional declared aggregate counts must also be positive. It writes only aggregate validation results and never copies raw sample rows, unexpected field names, addresses, transcripts, entered text, dates, names, medication details, provider details, shopping details, or account identifiers into its output. Existing validation artifacts are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
+The input JSON may be an array of Canvas telemetry envelopes or an object with `samples` or `events` and optional `counts`. Every sample must contain only `name`, `step`, `input`, `attempt`, `restored`, and optional `revision`. The validator requires a positive observed sample count for started, resumed, abandoned, blocked, confirmed, and completed; `completed` may be proven by `completed` or terminal `pending` samples. Optional declared aggregate counts must also be positive. It writes only aggregate validation results and never copies raw sample rows, unexpected field names, addresses, transcripts, entered text, dates, names, medication details, provider details, shopping details, or account identifiers into its output. Existing validation artifacts are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
 
 ## Real-device QA pass
 

@@ -120,6 +120,7 @@ export function canvasLaunchSignalForTelemetry(
   if (event.name === "confirmation_submitted" || event.name === "confirmed")
     return "confirmed";
   if (event.name === "completed") return "completed";
+  if (event.name === "pending" && event.step === "pending") return "completed";
   if (event.name === "failed" || event.name === "urgent_help_shown")
     return "blocked";
   if (event.name === "scene_viewed") {

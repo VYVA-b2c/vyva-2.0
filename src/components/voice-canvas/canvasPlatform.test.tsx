@@ -34,6 +34,7 @@ describe("Canvas platform outcomes", () => {
     [{ name: "abandoned", step: "listening", restored: false }, "abandoned"],
     [{ name: "confirmation_submitted", step: "review", restored: false }, "confirmed"],
     [{ name: "completed", step: "completed", restored: false }, "completed"],
+    [{ name: "pending", step: "pending", restored: false }, "completed"],
     [{ name: "failed", step: "blocked", restored: false }, "blocked"],
     [{ name: "urgent_help_shown", step: "urgent", restored: false }, "blocked"],
   ] as const)("maps %s to the %s launch signal", (event, signal) => {
@@ -48,6 +49,13 @@ describe("Canvas platform outcomes", () => {
     expect(canvasLaunchSignalForTelemetry({
       name: "saved",
       step: "saved",
+      input: "system",
+      attempt: 1,
+      restored: false,
+    })).toBeUndefined();
+    expect(canvasLaunchSignalForTelemetry({
+      name: "pending",
+      step: "pending_detail",
       input: "system",
       attempt: 1,
       restored: false,

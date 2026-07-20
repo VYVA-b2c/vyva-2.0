@@ -49,6 +49,7 @@ describe("Canvas launch telemetry aggregation", () => {
     counter.record(launchEvent({ name: "failed", step: "blocked", input: "system" }));
     counter.record(launchEvent({ name: "confirmation_submitted", step: "review" }));
     counter.record(launchEvent({ name: "completed", step: "completed", input: "system" }));
+    counter.record(launchEvent({ name: "pending", step: "pending", input: "system" }));
     counter.record(launchEvent({ name: "saved", step: "completed", input: "system" }));
 
     expect(counter.snapshot().counts).toEqual({
@@ -57,7 +58,7 @@ describe("Canvas launch telemetry aggregation", () => {
       abandoned: 1,
       blocked: 1,
       confirmed: 1,
-      completed: 1,
+      completed: 2,
     });
   });
 

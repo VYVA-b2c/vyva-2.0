@@ -2694,6 +2694,18 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
+  it("accepts terminal pending as a completed launch analytics source", () => {
+    const completed = completedMatrix().replace(
+      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields |",
+      "| Completed | terminal pending source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed terminal pending source event aggregate signal count 4 observed with only allowed envelope fields |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
+    expect(result.readyForLaunch).toBe(true);
+  });
+
   it("rejects analytics signal evidence that includes sensitive data leakage", () => {
     const completed = completedMatrix().replace(
       "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields |",

@@ -89,7 +89,7 @@ Use one row per flow and device family if the artifacts differ by device.
 | Focus moves meaningfully | Focus moves to the new scene heading or primary control when scenes change | Pending | Pending |
 | Screen-reader announcements fire | Waiting, blocked, and completed states are announced | Pending | Pending |
 | Reduced-motion mode remains calm | Reduced motion is usable and does not rely on animation for meaning | Pending | Pending |
-| Analytics launch signals are present | Started, resumed, abandoned, blocked, confirmed, and completed have positive aggregate counts | Pending | Pending |
+| Analytics launch signals are present | Started, resumed, abandoned, blocked, confirmed, and completed have positive aggregate counts; completed may use completed or terminal pending source samples | Pending | Pending |
 | Analytics privacy is preserved | Telemetry includes only `name`, `step`, `input`, `attempt`, `restored`, and `revision`, with forbidden data classes absent | Pending | Pending |
 
 After exporting sanitized staging analytics evidence, validate it before filling the analytics rows:

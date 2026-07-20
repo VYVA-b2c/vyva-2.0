@@ -88,7 +88,7 @@ export const CANVAS_LAUNCH_SIGNAL_EVENTS: Record<
   abandoned: ["abandoned"],
   blocked: ["failed", "urgent_help_shown", "scene_viewed"],
   confirmed: ["confirmation_submitted", "confirmed"],
-  completed: ["completed"],
+  completed: ["completed", "pending"],
 };
 
 export interface CanvasLaunchFeatureFlag {

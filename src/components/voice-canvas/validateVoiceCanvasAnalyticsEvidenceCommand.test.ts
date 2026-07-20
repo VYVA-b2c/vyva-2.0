@@ -69,8 +69,8 @@ function validSamples(): CanvasTelemetryEnvelope[] {
       restored: false,
     },
     {
-      name: "completed",
-      step: "completed",
+      name: "pending",
+      step: "pending",
       input: "system",
       attempt: 1,
       restored: false,
@@ -113,6 +113,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
+    );
+    expect(result.stdout).toContain(
+      "Completed can be proven by completed samples or terminal pending samples.",
     );
     expect(result.stdout).toContain("never copies raw sample rows");
     expect(result.stdout).toContain("pass --force only when intentionally");

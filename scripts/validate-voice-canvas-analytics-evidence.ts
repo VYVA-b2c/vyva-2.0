@@ -52,6 +52,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The input JSON may be an array of Canvas telemetry envelopes, or an object with samples/events and optional counts.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
+      "Completed can be proven by completed samples or terminal pending samples.",
       "The command writes only aggregate validation results and never copies raw sample rows into its output.",
       "Use --output=<path> with --json to also save the validation summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",

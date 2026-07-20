@@ -2076,7 +2076,7 @@ function analyticsSignalSourceIsSpecific(
     case "Confirmed":
       return hasAnyWord(value, ["confirmation_submitted"]);
     case "Completed":
-      return hasAnyWord(value, ["completed"]);
+      return hasAnyWord(value, ["completed", "terminal pending", "pending terminal"]);
   }
 }
 

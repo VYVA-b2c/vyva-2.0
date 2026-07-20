@@ -107,6 +107,10 @@ describe("Canvas launch readiness manifest", () => {
       "resumed",
       "started",
     ]);
+    expect(CANVAS_LAUNCH_SIGNAL_EVENTS.completed).toEqual([
+      "completed",
+      "pending",
+    ]);
 
     const serializedAllowedFields = JSON.stringify(
       CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
@@ -302,6 +306,7 @@ describe("Canvas launch readiness manifest", () => {
       "recognized payload keys",
       "unexpected-key count",
       "positive observed sample counts",
+      "completed may be proven by `completed` or terminal `pending` samples",
       "never copies raw sample rows",
       "validateVoiceCanvasQaMatrixCommand.test.ts",
       "Addresses or saved-place labels",
@@ -369,6 +374,7 @@ describe("Canvas launch readiness manifest", () => {
       "`canvas:qa:analytics` validation passed",
       "analytics-validation.json",
       "positive observed sample counts for started, resumed, abandoned, blocked, confirmed, and completed",
+      "completed proven by completed or terminal pending samples",
     ]) {
       expect(packet).toContain(requiredCopy);
     }
@@ -436,6 +442,7 @@ describe("Canvas launch readiness manifest", () => {
       "only `name`, `step`, `input`, `attempt`, `restored`, and `revision`",
       "records only sanitized endpoint status plus `enabled` and `rolloutPercent`",
       "does not copy raw sample rows",
+      "completed may use completed or terminal pending source samples",
     ]) {
       expect(runSheet).toContain(requiredRunSheetCoverage);
     }
