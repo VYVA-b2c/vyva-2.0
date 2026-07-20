@@ -4,6 +4,14 @@ Use this run sheet during staging or production-like real-device QA before filli
 
 This file is not launch approval. It is the tester-facing execution sheet. Record sanitized artifacts in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then copy final passing evidence into the QA matrix and run `npm run canvas:qa:validate` without `--allow-pending`.
 
+Before starting a QA run, capture a read-only preflight snapshot:
+
+```bash
+npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json
+```
+
+Use the QA run date in the output path. The preflight delegates to the matrix and evidence-packet validators, preserves existing artifacts unless `--force` is explicit, and does not call feature endpoints, analytics, bookings, calls, messages, navigation, or data writes. After all evidence is filled, run `npm run canvas:qa:preflight -- --final` as the combined final local gate.
+
 ## Privacy and safety guardrails
 
 - Use synthetic QA accounts and synthetic task details.
@@ -119,4 +127,5 @@ Before filling the final QA matrix:
 - `npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json` has passed for the sanitized analytics evidence artifact without overwriting an earlier artifact.
 - `npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json` has been captured as a packet artifact while evidence is still pending, using the QA run date in the output path and not overwriting an earlier artifact.
 - `npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json` has been captured as a QA artifact while the matrix is still pending, using the QA run date in the output path and not overwriting an earlier artifact.
+- `npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json` has been captured before QA starts, and `npm run canvas:qa:preflight -- --final` passes after the packet and matrix are complete.
 - `npm run canvas:qa:validate` passes only after the matrix is complete and marked `ready for launch`.
