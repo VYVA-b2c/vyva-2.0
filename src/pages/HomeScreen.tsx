@@ -51,6 +51,7 @@ import {
 } from "@/lib/showVyvaReviewHistory";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import {
+  conciergeCanvasExplainability,
   conciergeCanvasStateLabel,
   deriveConciergeCanvasState,
   type ConciergeCanvasStateSummary,
@@ -1302,6 +1303,11 @@ const HomeScreen = () => {
     ? conciergeHomeCanvasState(activeConciergeHomeTask)
     : null;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
+  const activeConciergeCanvasCopy = activeConciergeCanvasState
+    ? conciergeCanvasExplainability(activeConciergeCanvasState, language === "es", {
+        providerName: activeConciergeProviderText,
+      })
+    : null;
   const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
     ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, language)
     : "";
@@ -1397,6 +1403,7 @@ const HomeScreen = () => {
     }
   }, [contextualFastHelpImpressionFingerprint, contextualFastHelpRanking, profile?.profileId]);
   const homeMasterFastHelpActionsWithStatus = contextualHomeMasterFastHelpActions;
+  const conciergeCompletedCanvasCopy = conciergeCanvasExplainability("completed", language === "es");
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div
       data-testid="card-home-concierge-resume"
@@ -1420,12 +1427,20 @@ const HomeScreen = () => {
               ? `${activeConciergeShowVyvaSourceText} · ${activeConciergeTaskText}`
               : activeConciergeWaitingText}
           </span>
-          {activeConciergeCanvasState && activeConciergeCanvasState.state !== "completed" ? (
+          {activeConciergeCanvasCopy ? (
+            <span
+              className="mt-1 block line-clamp-2 font-body text-[12px] font-bold leading-tight text-[#115E59]"
+              data-testid="text-home-concierge-state-explanation"
+            >
+              {activeConciergeCanvasCopy.stateExplanation}
+            </span>
+          ) : null}
+          {activeConciergeCanvasCopy && activeConciergeCanvasState?.state !== "completed" ? (
             <span
               className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#0F766E]"
               data-testid="text-home-concierge-safety-rule"
             >
-              {t("home.conciergeResume.safetyRule", "Nothing happens before you confirm.")}
+              {activeConciergeCanvasCopy.safetyRule}
             </span>
           ) : null}
           {activeConciergeShowVyvaSummary ? (
@@ -1499,6 +1514,9 @@ const HomeScreen = () => {
         </span>
         <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
           {conciergeCompletedHomeProvider(reusableConciergeHomeTask, t)}
+        </span>
+        <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#115E59]" data-testid="text-home-concierge-reuse-explanation">
+          {conciergeCompletedCanvasCopy.stateExplanation}
         </span>
       </span>
       <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] min-[390px]:inline-flex">

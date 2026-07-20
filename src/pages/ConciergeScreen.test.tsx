@@ -395,9 +395,10 @@ describe("ConciergeScreen task navigation", () => {
     renderScreen(["/concierge"], "home");
 
     expect(await screen.findByTestId("concierge-home-task-status")).toHaveTextContent("Needs input");
+    expect(screen.getByTestId("concierge-home-task-explanation")).toHaveTextContent("VYVA needs your decision to continue.");
     expect(screen.getByTestId("concierge-home-active-task")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getAllByTestId("concierge-home-active-task")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Respond" }));
     expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/tasks/pending%3Apending-reply");
   });
 
@@ -5742,6 +5743,8 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
     expect(screen.getByTestId("badge-concierge-canvas-state-ride-1")).toHaveTextContent("Confirm first");
+    expect(screen.getByTestId("panel-concierge-canvas-explainability-ride-1")).toHaveTextContent("Confirm only if you want VYVA to move ahead with the ride.");
+    expect(screen.getByTestId("panel-concierge-canvas-explainability-ride-1")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm");
 
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));
@@ -6321,6 +6324,8 @@ describe("ConciergeScreen route prefill", () => {
     });
     expect(screen.getByTestId("section-concierge-active-task")).toHaveTextContent("Taxi option prepared.");
     expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Ride");
+    expect(screen.getByTestId("badge-concierge-completed-state-session-ride")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("text-concierge-completed-explanation-session-ride")).toHaveTextContent("saved");
     expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Radio Taxi");
     expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Cost: EUR18");
     expect(screen.getByTestId("card-concierge-completed-session-otc")).toHaveTextContent("OTC pharmacy");
