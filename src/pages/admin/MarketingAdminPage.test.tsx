@@ -3116,7 +3116,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-pack-local-event-operations")).toHaveTextContent("9 templates");
     expect(screen.getByTestId("marketing-template-pack-local-event-operations")).toHaveTextContent("AI pack prompt");
     expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("Offline and direct outreach");
-    expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("4 templates");
+    expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("8 templates");
     expect(screen.getByTestId("marketing-template-pack-offline-direct-outreach")).toHaveTextContent("AI pack prompt");
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-local-event-relationship"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Local event relationship template pack");
@@ -3167,8 +3167,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Phone partner follow-up script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Community flyer copy");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local event host handoff brief");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Neighbourhood host WhatsApp confirmation");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Visit day SMS reminder");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Local partner check-in call script");
+    expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Counter card QR copy");
     expect(screen.getByTestId("marketing-content-template-gallery")).not.toHaveTextContent("Caregiver welcome email");
     expect(screen.getByTestId("marketing-template-pack-sequence-offline-direct-outreach")).toHaveTextContent("Print handoff");
+    expect(screen.getByTestId("marketing-template-pack-sequence-offline-direct-outreach")).toHaveTextContent("Host confirmation");
+    expect(screen.getByTestId("marketing-template-pack-sequence-offline-direct-outreach")).toHaveTextContent("Visit-day reminder");
     expect(screen.getByTestId("marketing-template-pack-sequence-offline-direct-outreach")).toHaveTextContent("Host handoff");
 
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-studio-offline-direct-outreach"));
@@ -3177,6 +3183,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Template pack loaded: Offline and direct outreach");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Print / direct mail");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Phone call");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("WhatsApp");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("SMS");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
     expect(screen.getByTestId("marketing-campaign-studio-publish-queue-phone")).toHaveTextContent("Call queue or concierge handoff");
