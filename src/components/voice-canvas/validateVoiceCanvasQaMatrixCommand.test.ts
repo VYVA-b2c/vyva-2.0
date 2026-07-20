@@ -29,6 +29,16 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Status: pending execution");
     expect(result.stdout).toContain("Ready for launch: no");
+    expect(result.stdout).toContain("Pending cells by section:");
+    expect(result.stdout).toContain(
+      "- Environment record: 8 pending cell(s) across 8 row(s)",
+    );
+    expect(result.stdout).toContain(
+      "- Required behavior checklist: 78 pending cell(s) across 6 row(s)",
+    );
+    expect(result.stdout).toContain(
+      "- Final sign-off: 16 pending cell(s) across 4 row(s)",
+    );
     expect(result.stdout).toContain(
       "Matrix is still pending execution, but its structure is valid.",
     );
@@ -40,6 +50,10 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Status: pending execution");
     expect(result.stdout).toContain("Ready for launch: no");
+    expect(result.stdout).toContain("Pending cells by section:");
+    expect(result.stdout).toContain(
+      "- Evidence artifact inventory: 27 pending cell(s) across 9 row(s)",
+    );
     expect(result.stderr).toContain(
       "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
     );

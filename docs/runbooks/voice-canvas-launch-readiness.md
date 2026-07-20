@@ -129,7 +129,7 @@ While the matrix is still pending execution, use the non-launching structure che
 npm run canvas:qa:validate -- --allow-pending
 ```
 
-The structure check is not a launch approval. While the matrix remains pending, the final command without `--allow-pending` is expected to fail.
+The structure check is not a launch approval. While the matrix remains pending, the final command without `--allow-pending` is expected to fail. The validator prints pending cells by section so QA can fill the environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, artifact inventory, and sign-off evidence systematically.
 
 ```bash
 npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts

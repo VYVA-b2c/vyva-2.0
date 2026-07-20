@@ -21,6 +21,8 @@ While this matrix is still being filled, run:
 npm run canvas:qa:validate -- --allow-pending
 ```
 
+The pending-mode validator prints incomplete cells by section, so use that output to confirm each evidence area is being filled before the final launch gate.
+
 For final launch sign-off, run without `--allow-pending` and do not enable Canvas unless it passes:
 
 ```bash
