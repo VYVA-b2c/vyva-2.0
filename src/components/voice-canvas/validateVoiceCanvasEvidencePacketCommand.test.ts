@@ -71,6 +71,9 @@ describe("Voice Canvas evidence packet validator command", () => {
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
     );
     expect(result.stdout).toContain("pass --force only when intentionally");
+    expect(result.stdout).toContain(
+      "concrete dated sanitized artifact paths or links",
+    );
     expect(result.stdout).toContain("never copy raw artifact-reference values");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -188,6 +191,32 @@ describe("Voice Canvas evidence packet validator command", () => {
         const serialized = JSON.stringify(summary);
         expect(serialized).not.toContain("123 Secret Street");
         expect(serialized).not.toContain("transcript");
+      },
+    ));
+
+  it("rejects generic artifact references that do not point to dated artifacts", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "voice-canvas/interactions/2026-07-19/ride-voice-touch-keyboard",
+        "QA reviewed interaction evidence",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Interaction recordings or logs" needs a concrete dated sanitized artifact reference or link.',
+          ]),
+        );
       },
     ));
 

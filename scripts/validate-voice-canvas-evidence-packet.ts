@@ -198,6 +198,23 @@ function artifactReferenceLooksUnsafe(value: string): boolean {
   return unsafeReferencePatterns.some((pattern) => pattern.test(value));
 }
 
+function artifactReferenceLooksConcrete(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  const hasDate = /\b\d{4}-\d{2}-\d{2}\b/.test(normalized);
+  const hasArtifactPathOrLink =
+    /\b(?:https?:\/\/|voice-canvas\/|artifacts\/|dashboard|query|log|trace|capture|recording|screenshot|photo|json|artifact|link)\b/.test(
+      normalized,
+    );
+  const hasOnlyGenericReviewLanguage =
+    /\b(reviewed|verified|checked|captured|evidence|artifact)\b/.test(normalized) &&
+    !/[/.]/.test(normalized) &&
+    !/\b(?:dashboard|query|log|trace|capture|recording|screenshot|photo|json|link)\b/.test(
+      normalized,
+    );
+
+  return hasDate && hasArtifactPathOrLink && !hasOnlyGenericReviewLanguage;
+}
+
 function evaluateEvidencePacket(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -272,6 +289,18 @@ function evaluateEvidencePacket(markdown: string) {
       }
 
       if (
+        reference &&
+        !isPendingCell(reference) &&
+        !artifactReferenceHasPlaceholder(reference) &&
+        !artifactReferenceLooksUnsafe(reference) &&
+        !artifactReferenceLooksConcrete(reference)
+      ) {
+        problems.push(
+          `Evidence packet inventory row "${artifactSet}" needs a concrete dated sanitized artifact reference or link.`,
+        );
+      }
+
+      if (
         reviewerDate &&
         !isPendingCell(reviewerDate) &&
         !hasValidReviewerDate(reviewerDate)
@@ -322,6 +351,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
+      "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
     ].join("\n"),
   );
