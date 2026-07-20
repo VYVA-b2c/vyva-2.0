@@ -12821,6 +12821,36 @@ export default function MarketingAdminPage() {
     const state: CampaignReadinessState = mode === "gap" ? "needs_action" : topSuggestion ? "planning" : "ready";
     return { batch, totalMissing, batchMissing, batchChannels, batchAudiences, topSuggestion, state, mode };
   }, [contentTemplateExpansionSuggestions, contentTemplateGapSuggestions]);
+  const contentTemplateGapAutopilotBriefText = useMemo(() => {
+    const modeLabel = contentTemplateGapAutopilot.mode === "gap" ? "coverage gap" : "library expansion";
+    const batchLines = contentTemplateGapAutopilot.batch.map((suggestion, index) => (
+      `${index + 1}. ${suggestion.title} - ${channelLabel[suggestion.channel]} / ${suggestion.audienceType.toUpperCase()} / ${suggestion.existingCount}/${suggestion.coverageTarget}${contentTemplateGapAutopilot.mode === "expansion" ? "+" : ""} coverage\n`
+      + `   Prompt: ${suggestion.aiPrompt}\n`
+      + `   Starter: ${suggestion.subject || suggestion.body}\n`
+      + `   CTA: ${suggestion.ctaLabel || "None"}${suggestion.ctaUrl ? ` -> ${suggestion.ctaUrl}` : ""}`
+    ));
+    return [
+      "VYVA template coverage AI pack brief",
+      `Mode: ${modeLabel}`,
+      `Goal: ${contentTemplateGapAutopilot.mode === "gap"
+        ? `Fill ${contentTemplateGapAutopilot.batchMissing} missing reusable template slots without duplicating existing angles.`
+        : "Create fresh reusable campaign starters beyond the minimum coverage target."}`,
+      `Channels: ${formatChannelList(contentTemplateGapAutopilot.batchChannels) || "None"}`,
+      `Audiences: ${contentTemplateGapAutopilot.batchAudiences.map((audience) => audience.toUpperCase()).join(", ") || "None"}`,
+      contentTemplateGapAutopilot.topSuggestion ? `First priority: ${contentTemplateGapAutopilot.topSuggestion.title}` : "First priority: none",
+      "",
+      "Draft requirements:",
+      "- Keep every draft VYVA-specific, practical, and ready for admin review.",
+      "- Include a clear CTA, design direction, and reusable channel-specific copy.",
+      "- Preserve consent-safe wording; do not invent individual contact facts.",
+      "- For social/offline channels, make the handoff human-readable because provider dispatch is manual.",
+      "",
+      "Draft queue:",
+      batchLines.length ? batchLines.join("\n\n") : "No template gaps or expansion ideas are currently queued.",
+      "",
+      "Next operator action: generate the pack, review the first opened draft, then turn the best assets into a campaign route.",
+    ].join("\n");
+  }, [contentTemplateGapAutopilot]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -21445,6 +21475,37 @@ export default function MarketingAdminPage() {
       setMessage(feedback);
     } catch {
       const feedback = `Could not copy ${label}. Select the visual kit and copy it manually.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyTemplateGapAutopilotBrief() {
+    const label = "Template coverage AI pack brief";
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contentTemplateGapAutopilotBriefText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contentTemplateGapAutopilotBriefText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setContentActionFeedback(feedback);
+      setContentFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the brief and copy it manually.`;
       setContentActionFeedback(feedback);
       setContentFeedback(feedback);
       setMessage(feedback);
@@ -35083,6 +35144,32 @@ export default function MarketingAdminPage() {
                           ))}
                         </div>
                       ) : null}
+                      <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-template-gap-autopilot-brief">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">AI pack brief</p>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                              Copy this into AI or review it before generating the next pack so the drafts stay on strategy.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyTemplateGapAutopilotBrief()}
+                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            disabled={!contentTemplateGapAutopilot.batch.length || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                            data-testid="button-marketing-template-gap-autopilot-copy-brief"
+                          >
+                            <Copy size={13} /> Copy brief
+                          </button>
+                        </div>
+                        <textarea
+                          className={`${textareaClass} mt-3 min-h-[150px] font-mono text-xs`}
+                          value={contentTemplateGapAutopilotBriefText}
+                          readOnly
+                          aria-label="Template coverage AI pack brief"
+                          data-testid="textarea-marketing-template-gap-autopilot-brief"
+                        />
+                      </div>
                     </div>
                     <div className="grid gap-2">
                       <button

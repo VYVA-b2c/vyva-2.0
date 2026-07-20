@@ -2657,7 +2657,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Home care agency intro call script");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence intro email");
     expect(screen.getByTestId("marketing-content-template-gallery")).toHaveTextContent("Care home residence director call script");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("159 templates");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Template gallery");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("ready-to-adapt VYVA templates");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("email-card");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("Welcome to VYVA, {{first_name}}");
     expect(screen.getByTestId("marketing-content-template-visual-preview-caregiver-email-welcome")).toHaveTextContent("CTA: Open care dashboard");
@@ -3291,6 +3292,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-template-gap-autopilot")).toHaveTextContent("Next batch: 4 AI drafts");
     expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("Local event");
     expect(screen.getByTestId("marketing-template-gap-autopilot-batch")).toHaveTextContent("4/3+");
+    expect(screen.getByTestId("marketing-template-gap-autopilot-brief")).toHaveTextContent("AI pack brief");
+    const templateGapBrief = screen.getByTestId("textarea-marketing-template-gap-autopilot-brief") as HTMLTextAreaElement;
+    expect(templateGapBrief.value).toContain("VYVA template coverage AI pack brief");
+    expect(templateGapBrief.value).toContain("Mode: library expansion");
+    expect(templateGapBrief.value).toContain("Draft requirements:");
+    expect(templateGapBrief.value).toContain("Local event");
+    fireEvent.click(screen.getByTestId("button-marketing-template-gap-autopilot-copy-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template coverage AI pack brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Next operator action: generate the pack"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Template coverage AI pack brief copied.");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).toHaveTextContent("Generate next pack");
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-generate")).not.toBeDisabled();
     expect(screen.getByTestId("button-marketing-template-gap-autopilot-studio")).toHaveTextContent("Open next expansion in studio");
