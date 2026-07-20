@@ -103,7 +103,7 @@ function launchEvidenceCommandsForRun(
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --recovery=${paths.recoveryEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --date=${runDate} --json --output=${paths.launchPreflight}`,
   ];
 }
 
@@ -135,7 +135,7 @@ function validLaunchRunPlan(
       "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
       "Review senior-friendly copy for one clear decision, readable long Spanish labels, waiting/blocked/completed announcements, focus movement, reduced motion, and what-happens-next clarity.",
       "Copy only sanitized artifact references into the evidence packet and QA matrix.",
-      "Run final preflight with the same run-date artifact paths.",
+      "Run final preflight with the same run-date artifact paths through --date.",
     ],
     privacyBoundary: [
       "No addresses, saved-place labels, transcripts, typed text, medication details, provider details, shopping details, contact details, account identifiers, raw endpoint bodies, or personal data.",
@@ -609,12 +609,55 @@ function withLaunchRunPlanArtifact<T>(
   }
 }
 
+function withStandardLaunchBundleArtifacts<T>(
+  runDate: string,
+  callback: () => T,
+): T {
+  const paths = artifactPathsForRunDate(runDate);
+  const artifacts: Record<string, string> = {
+    [paths.launchRunPlan]: `${JSON.stringify(validLaunchRunPlan(runDate), null, 2)}\n`,
+    [paths.enabledEndpoints]: `${JSON.stringify(validFeatureEndpointArtifact("enabled"), null, 2)}\n`,
+    [paths.rollbackEndpoints]: `${JSON.stringify(validFeatureEndpointArtifact("rollback"), null, 2)}\n`,
+    [paths.analyticsEvidence]: `${JSON.stringify(validAnalyticsEvidence(), null, 2)}\n`,
+    [paths.copyEvidence]: validCopyEvidenceArtifact(),
+    [paths.recoveryEvidence]: validRecoveryEvidenceArtifact(),
+    [paths.realUseEvidence]: validRealUseEvidenceArtifact(),
+    [paths.entrySurfaces]: validEntrySurfaceEvidenceArtifact(),
+    [paths.rollbackOwnerHandoff]: validRollbackOwnerHandoffArtifact(),
+  };
+  const previous = new Map<string, string | null>();
+
+  for (const relativePath of Object.keys(artifacts)) {
+    const absolutePath = path.resolve(process.cwd(), relativePath);
+    previous.set(
+      relativePath,
+      existsSync(absolutePath) ? readFileSync(absolutePath, "utf8") : null,
+    );
+    mkdirSync(path.dirname(absolutePath), { recursive: true });
+    writeFileSync(absolutePath, artifacts[relativePath]);
+  }
+
+  try {
+    return callback();
+  } finally {
+    for (const [relativePath, originalContent] of previous) {
+      const absolutePath = path.resolve(process.cwd(), relativePath);
+      if (originalContent === null) {
+        rmSync(absolutePath, { force: true });
+      } else {
+        writeFileSync(absolutePath, originalContent);
+      }
+    }
+  }
+}
+
 describe("Voice Canvas launch readiness preflight command", () => {
   it("prints a copy-safe preflight runbook", () => {
     const result = runPreflight(["--help"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("npm run canvas:qa:preflight -- --final");
+    expect(result.stdout).toContain("npm run canvas:qa:preflight -- --final --date=YYYY-MM-DD");
     expect(result.stdout).toContain(
       "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
     );
@@ -644,6 +687,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
+    );
+    expect(result.stdout).toContain(
+      "Pass --date=YYYY-MM-DD to validate the standard same-date launch evidence bundle without hand-assembling every artifact path.",
     );
     expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
@@ -856,7 +902,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ),
     );
     expect(result.stdout).toContain(
-      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --date=YYYY-MM-DD --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
   });
 
@@ -870,6 +916,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       readyForLaunch: boolean;
       finalGate: boolean;
       acceptedPending: boolean;
+      launchBundleDate: string;
       matrix: {
         state: string;
         incompleteCellCount: number;
@@ -983,6 +1030,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(summary.readyForLaunch).toBe(false);
     expect(summary.finalGate).toBe(false);
     expect(summary.acceptedPending).toBe(true);
+    expect(summary.launchBundleDate).toBe("not provided");
     expect(summary.runSheet).toMatchObject({
       state: "pending",
       incompleteCellCount: 260,
@@ -1114,11 +1162,94 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
-      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --date=YYYY-MM-DD --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     ]);
     expect(summary.message).toBe(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
     );
+  });
+
+  it("resolves the standard same-date launch evidence bundle with --date", () => {
+    const runDate = freshReviewDate();
+
+    withStandardLaunchBundleArtifacts(runDate, () => {
+      const result = runPreflight([`--date=${runDate}`, "--json"]);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        launchBundleDate: string;
+        launchRunPlan: {
+          provided: boolean;
+          readyForLaunchEvidence: boolean;
+          runDate: string;
+          commandCount: number;
+        };
+        featureEndpointEvidence: {
+          enabled: { provided: boolean; readyForLaunchEvidence: boolean };
+          rollback: { provided: boolean; readyForLaunchEvidence: boolean };
+        };
+        analyticsEvidence: { provided: boolean; readyForLaunchEvidence: boolean };
+        copyEvidence: { provided: boolean; readyForLaunchEvidence: boolean };
+        recoveryEvidence: { provided: boolean; readyForLaunchEvidence: boolean };
+        realUseEvidence: { provided: boolean; readyForLaunchEvidence: boolean };
+        entrySurfaceEvidence: { provided: boolean; readyForLaunchEvidence: boolean };
+        rollbackOwnerEvidence: { provided: boolean; readyForLaunchEvidence: boolean };
+        externalEvidenceDateConsistency: {
+          checked: boolean;
+          ready: boolean;
+          runDate: string;
+          problemCount: number;
+        };
+      };
+
+      expect(summary.launchBundleDate).toBe(runDate);
+      expect(summary.launchRunPlan).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+        runDate,
+        commandCount: 20,
+      });
+      expect(summary.featureEndpointEvidence.enabled).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.featureEndpointEvidence.rollback).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.analyticsEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.copyEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.recoveryEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.realUseEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.entrySurfaceEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.rollbackOwnerEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+      });
+      expect(summary.externalEvidenceDateConsistency).toMatchObject({
+        checked: true,
+        ready: true,
+        runDate,
+        problemCount: 0,
+      });
+    });
   });
 
   it("includes sanitized analytics evidence in the preflight summary", () =>
@@ -2381,6 +2512,32 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Use --output only with --json.");
+  });
+
+  it("rejects empty and invalid launch bundle dates", () => {
+    const emptyResult = runPreflight(["--date="]);
+    const malformedResult = runPreflight(["--date=not-a-date"]);
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const futureResult = runPreflight([`--date=${futureDate}`]);
+    const staleDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const staleResult = runPreflight([`--date=${staleDate}`]);
+
+    expect(emptyResult.status).toBe(1);
+    expect(emptyResult.stderr).toContain("Expected --date=YYYY-MM-DD.");
+    expect(malformedResult.status).toBe(1);
+    expect(malformedResult.stderr).toContain(
+      "Expected --date to be a valid non-future YYYY-MM-DD.",
+    );
+    expect(futureResult.status).toBe(1);
+    expect(futureResult.stderr).toContain(
+      "Expected --date to be a valid non-future YYYY-MM-DD.",
+    );
+    expect(staleResult.status).toBe(1);
+    expect(staleResult.stderr).toContain("Expected --date to be no older than 7 days.");
   });
 
   it("rejects empty analytics artifact paths", () => {

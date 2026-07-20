@@ -149,6 +149,6 @@ Before changing the QA matrix from `pending execution` to `ready for launch`, co
 - `canvas:qa:recovery` validation passed for the sanitized recovery behavior evidence artifact and produced a run-specific validation artifact before behavior recovery proof was copied into the packet or QA matrix;
 - `canvas:qa:real-use` validation passed for the sanitized real-use device and interaction evidence artifact and produced a run-specific validation artifact before device or interaction proof was copied into the packet or QA matrix;
 - `canvas:qa:entry-surfaces` validation passed for the sanitized entry-surface artifact and produced a run-specific validation artifact before entry-surface proof was copied into the packet or QA matrix;
-- `canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;
+- `canvas:qa:preflight -- --final --date=YYYY-MM-DD` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;
 - privacy evidence names each forbidden data class and confirms it was absent from the telemetry sample;
 - no artifact link exposes personal details.

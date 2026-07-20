@@ -172,7 +172,7 @@ function launchCommands(runDate: string, baseUrl: string, requestHeaderEnvRefs: 
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --recovery=${paths.recoveryEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --date=${runDate} --json --output=${paths.launchPreflight}`,
   ];
 }
 
@@ -228,7 +228,7 @@ const checklist = [
   "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
   "Review senior-friendly copy for one clear decision, readable long Spanish labels, waiting/blocked/completed announcements, focus movement, reduced motion, and what-happens-next clarity.",
   "Copy only sanitized artifact references into the evidence packet and QA matrix.",
-  "Run final preflight with the same run-date artifact paths.",
+  "Run final preflight with the same run-date artifact paths through --date.",
 ];
 const privacyBoundary = [
   "No addresses, saved-place labels, transcripts, typed text, medication details, provider details, shopping details, contact details, account identifiers, raw endpoint bodies, or personal data.",

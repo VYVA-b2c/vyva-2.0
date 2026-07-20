@@ -495,7 +495,7 @@ const finalPrefillChecklistRequirements: readonly (readonly string[])[] = [
   ["canvas:qa:packet"],
   ["evidence-packet-summary.json"],
   ["run plan", "launch-evidence-run"],
-  ["--run-plan"],
+  ["--date"],
   ["analytics"],
   ["coveredflows"],
   ["started"],

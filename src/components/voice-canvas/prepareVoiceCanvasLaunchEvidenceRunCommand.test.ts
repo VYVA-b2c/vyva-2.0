@@ -117,7 +117,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "qa gates voice_touch_keyboard, mobile_tablet_desktop",
     );
     expect(result.stdout).toContain("feature /api/config/features/ride-voice-canvas");
-    expect(result.stdout).toContain("Run final preflight with the same run-date artifact paths.");
+    expect(result.stdout).toContain("Run final preflight with the same run-date artifact paths through --date.");
     expect(result.stdout).not.toContain("YYYY-MM-DD");
   });
 
@@ -173,22 +173,22 @@ describe("Voice Canvas launch evidence run helper command", () => {
       `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/${runDate}-launch-evidence-run.json`,
     );
     expect(summary.commands.join("\n")).toContain(
-      `--features-enabled=artifacts/voice-canvas/${runDate}-feature-endpoints-enabled.json`,
+      `artifacts/voice-canvas/${runDate}-feature-endpoints-enabled.json`,
     );
     expect(summary.commands.join("\n")).toContain(
-      `--copy=artifacts/voice-canvas/${runDate}-copy-clarity.md`,
+      `artifacts/voice-canvas/${runDate}-copy-clarity.md`,
     );
     expect(summary.commands.join("\n")).toContain(
-      `--recovery=artifacts/voice-canvas/${runDate}-recovery-behavior.md`,
+      `artifacts/voice-canvas/${runDate}-recovery-behavior.md`,
     );
     expect(summary.commands.join("\n")).toContain(
-      `--real-use=artifacts/voice-canvas/${runDate}-real-use-coverage.md`,
+      `artifacts/voice-canvas/${runDate}-real-use-coverage.md`,
     );
     expect(summary.commands.join("\n")).toContain(
-      `--entry-surfaces=artifacts/voice-canvas/${runDate}-entry-surfaces.md`,
+      `artifacts/voice-canvas/${runDate}-entry-surfaces.md`,
     );
     expect(summary.commands.join("\n")).toContain(
-      `--final --run-plan=artifacts/voice-canvas/${runDate}-launch-evidence-run.json`,
+      `--final --date=${runDate}`,
     );
     expect(summary.flowCoverage.map((flow) => flow.id)).toEqual([
       "ride",
