@@ -205,6 +205,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function printProblemDetails(label: string, problems: string[]): void {
+  if (problems.length === 0) return;
+
+  console.log(`${label} problems:`);
+  for (const problem of problems) {
+    console.log(`- ${problem}`);
+  }
+}
+
 function isLocalOrPlaceholderHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
 
@@ -710,6 +719,18 @@ console.log(
 );
 console.log(
   `Feature endpoints rollback: ${summary.featureEndpointEvidence.rollback.provided ? (summary.featureEndpointEvidence.rollback.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; endpoints ${summary.featureEndpointEvidence.rollback.endpointCount}; problems ${summary.featureEndpointEvidence.rollback.problemCount}`,
+);
+printProblemDetails("Run sheet", summary.runSheet.problems);
+printProblemDetails("QA matrix", summary.matrix.problems);
+printProblemDetails("Evidence packet", summary.evidencePacket.problems);
+printProblemDetails("Analytics evidence", summary.analyticsEvidence.problems);
+printProblemDetails(
+  "Feature endpoints enabled",
+  summary.featureEndpointEvidence.enabled.problems,
+);
+printProblemDetails(
+  "Feature endpoints rollback",
+  summary.featureEndpointEvidence.rollback.problems,
 );
 console.log("Next action:");
 for (const action of nextActions) {

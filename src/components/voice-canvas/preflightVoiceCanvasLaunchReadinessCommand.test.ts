@@ -871,6 +871,36 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("prints sanitized problem details in human-readable preflight output", () =>
+    withTempAnalyticsFile(
+      {
+        ...validAnalyticsEvidence(),
+        samples: [
+          {
+            ...validAnalyticsSamples()[0],
+            pickupAddress: "123 Secret Street",
+            transcript: "private spoken detail",
+          },
+          ...validAnalyticsSamples().slice(1),
+        ],
+      },
+      (inputPath) => {
+        const result = runPreflight([`--analytics=${inputPath}`]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("Analytics evidence problems:");
+        expect(result.stdout).toContain("outside the allowed telemetry envelope");
+        expect(result.stdout).toContain(
+          "Fix sanitized analytics evidence before launch sign-off.",
+        );
+        expect(result.stdout).not.toContain("123 Secret Street");
+        expect(result.stdout).not.toContain("private spoken detail");
+        expect(result.stdout).not.toContain("pickupAddress");
+        expect(result.stdout).not.toContain("transcript");
+      },
+    ));
+
   it("saves JSON summaries while preserving existing artifacts by default", () => {
     const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-"));
     const outputPath = path.join(tempDir, "launch-preflight.json");
