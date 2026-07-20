@@ -656,8 +656,8 @@ describe("Voice Canvas launch readiness preflight command", () => {
     const result = runPreflight(["--help"]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("npm run canvas:qa:preflight -- --final");
     expect(result.stdout).toContain("npm run canvas:qa:preflight -- --final --date=YYYY-MM-DD");
+    expect(result.stdout).not.toContain("  npm run canvas:qa:preflight -- --final\n");
     expect(result.stdout).toContain(
       "npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
     );
@@ -693,6 +693,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Pass --date=YYYY-MM-DD to validate the standard same-date launch evidence bundle without hand-assembling every artifact path.",
+    );
+    expect(result.stdout).toContain(
+      "Use --final --date=YYYY-MM-DD for launch sign-off; plain --final is only for custom explicit artifact-path diagnostics.",
     );
     expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
@@ -792,6 +795,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Final gate mode: yes");
     expect(result.stdout).toContain("Ready for launch: no");
+    expect(result.stdout).toContain(
+      "For final launch sign-off, rerun with --date=YYYY-MM-DD so the same-date evidence bundle cannot accidentally omit required artifacts.",
+    );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
     );
