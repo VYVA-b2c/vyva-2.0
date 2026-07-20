@@ -230,11 +230,23 @@ async function collectEndpointEvidence(
 
     if (typeof rolloutPercent !== "number" || !Number.isFinite(rolloutPercent)) {
       problems.push("Endpoint payload must include numeric rolloutPercent.");
+    } else if (
+      !Number.isInteger(rolloutPercent) ||
+      rolloutPercent < 0 ||
+      rolloutPercent > 100
+    ) {
+      problems.push("Endpoint rolloutPercent must be an integer between 0 and 100.");
     }
 
     if (unexpectedPayloadKeyCount > 0) {
       problems.push(
         `Endpoint payload included ${unexpectedPayloadKeyCount} unexpected key(s); expected only enabled and rolloutPercent.`,
+      );
+    }
+
+    if (!response.cacheControl?.toLowerCase().includes("no-store")) {
+      problems.push(
+        "Endpoint must include Cache-Control no-store so rollback evidence cannot be stale.",
       );
     }
 

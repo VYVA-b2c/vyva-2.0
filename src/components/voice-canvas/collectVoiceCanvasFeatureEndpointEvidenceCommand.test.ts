@@ -332,4 +332,72 @@ describe("Voice Canvas feature endpoint evidence command", () => {
       await server.close();
     }
   });
+
+  it("rejects rollout percentages outside the launch feature flag range", async () => {
+    const responses = healthyEndpointResponses();
+    responses.set(launchFeatureFlows[0].featureFlag!.endpoint, {
+      body: { enabled: true, rolloutPercent: 150 },
+    });
+    responses.set(launchFeatureFlows[1].featureFlag!.endpoint, {
+      body: { enabled: true, rolloutPercent: 12.5 },
+    });
+    const server = await startFeatureServer(responses);
+
+    try {
+      const result = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--json",
+      ]);
+
+      expect(result.status).toBe(1);
+      const summary = JSON.parse(result.stdout) as {
+        readyForQaEvidence: boolean;
+        problems: string[];
+      };
+      expect(summary.readyForQaEvidence).toBe(false);
+      expect(summary.problems).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            "Endpoint rolloutPercent must be an integer between 0 and 100.",
+          ),
+        ]),
+      );
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects cacheable feature endpoint evidence that could make rollback stale", async () => {
+    const responses = healthyEndpointResponses();
+    responses.set(launchFeatureFlows[0].featureFlag!.endpoint, {
+      body: { enabled: true, rolloutPercent: 100 },
+      cacheControl: "public, max-age=300",
+    });
+    const server = await startFeatureServer(responses);
+
+    try {
+      const result = await runCollector([
+        `--base-url=${server.baseUrl}`,
+        "--allow-local",
+        "--json",
+      ]);
+
+      expect(result.status).toBe(1);
+      const summary = JSON.parse(result.stdout) as {
+        readyForQaEvidence: boolean;
+        problems: string[];
+      };
+      expect(summary.readyForQaEvidence).toBe(false);
+      expect(summary.problems).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(
+            "Endpoint must include Cache-Control no-store so rollback evidence cannot be stale.",
+          ),
+        ]),
+      );
+    } finally {
+      await server.close();
+    }
+  });
 });
