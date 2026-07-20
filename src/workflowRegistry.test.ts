@@ -16,6 +16,7 @@ import {
   workflowActionLevelForReference,
   workflowActionForEntryPoint,
   workflowActionsForTarget,
+  workflowFlowMatrixRows,
   workflowEntryPointsFor,
   workflowEntryPointsForSurface,
 } from "../shared/workflowRegistry";
@@ -227,6 +228,31 @@ describe("cross-app workflow registry", () => {
     expect(WORKFLOW_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.workflows.total);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.medicationResearch);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.learningReadAloud);
+  });
+
+  it("builds a cross-pillar flow matrix with setup, fallback, options, receipts, and resume behavior", () => {
+    const rows = workflowFlowMatrixRows();
+
+    expect(rows).toHaveLength(WORKFLOW_DEFINITIONS.length);
+    for (const row of rows) {
+      expect(row.currentStatusLabel).toMatch(/Ready|Partial|UI only|Blocked/);
+      expect(row.requiredSetup.length).toBeGreaterThan(0);
+      expect(row.missingSetupFallback.length).toBeGreaterThan(0);
+      expect(row.findOptionsPath.length).toBeGreaterThan(0);
+      expect(row.confirmationRule.length).toBeGreaterThan(0);
+      expect(row.receiptMoment.length).toBeGreaterThan(0);
+      expect(row.resumeBehavior.length).toBeGreaterThan(0);
+    }
+
+    const ride = rows.find((row) => row.reference === CONCIERGE_FLOW_REFERENCES.transportBooking);
+    expect(ride?.requiredSetup).toContain("saved transport");
+    expect(ride?.missingSetupFallback).toContain("add usual provider");
+    expect(ride?.findOptionsPath).toContain("proximity");
+    expect(ride?.receiptMoment).toContain("receipt");
+    expect(ride?.resumeBehavior).toContain("pending task");
+
+    const learning = rows.find((row) => row.reference === APP_WORKFLOW_REFERENCES.learningTodayLesson);
+    expect(learning?.findOptionsPath).toContain("in-app options");
   });
 
   it("surfaces the next incomplete implementation candidates from the registry", () => {

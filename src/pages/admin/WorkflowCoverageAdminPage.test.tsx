@@ -6,6 +6,7 @@ import {
   APP_WORKFLOW_REFERENCES,
   WORKFLOW_DEFINITIONS,
 } from "../../../shared/workflowRegistry";
+import { CONCIERGE_FLOW_REFERENCES } from "../../../shared/conciergeFlowRegistry";
 import WorkflowCoverageAdminPage from "./WorkflowCoverageAdminPage";
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -100,8 +101,14 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(screen.getByRole("region", { name: "Action level summary" })).toBeInTheDocument();
     expect(screen.getAllByText("External action").length).toBeGreaterThan(0);
     expect(screen.getByText(/Check provider or tool readiness/i)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cross-pillar flow matrix" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter by coverage"), { target: { value: "all" } });
+    const rideMatrix = screen.getByTestId(`workflow-matrix-row-${CONCIERGE_FLOW_REFERENCES.transportBooking}`);
+    expect(within(rideMatrix).getByText(/saved transport/i)).toBeInTheDocument();
+    expect(within(rideMatrix).getByText(/add usual provider/i)).toBeInTheDocument();
+    expect(within(rideMatrix).getByText(/pending task/i)).toBeInTheDocument();
+
     const visualScan = screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.visualScan}`);
     const visualScanWorkflow = WORKFLOW_DEFINITIONS.find((workflow) => workflow.reference === APP_WORKFLOW_REFERENCES.visualScan);
     expect(within(visualScan).getByText("Visual scan")).toBeInTheDocument();

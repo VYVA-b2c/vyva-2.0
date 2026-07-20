@@ -14,9 +14,12 @@ import {
   type WorkflowCoverageState,
   type WorkflowDefinition,
   type WorkflowDomain,
+  type WorkflowFlowMatrixRow,
+  type WorkflowFlowStatus,
   type WorkflowReference,
   getWorkflowCoverageSummary,
   nextWorkflowImplementationCandidates,
+  workflowFlowMatrixRows,
   workflowActionsForTarget,
   workflowCoverageState,
 } from "../../../shared/workflowRegistry";
@@ -69,6 +72,13 @@ const ACTION_LEVEL_CLASS: Record<WorkflowActionLevel, string> = {
   admin: "border-slate-200 bg-slate-50 text-slate-700",
 };
 
+const FLOW_STATUS_CLASS: Record<WorkflowFlowStatus, string> = {
+  ready: "border-emerald-100 bg-emerald-50 text-emerald-800",
+  partial: "border-amber-100 bg-amber-50 text-amber-800",
+  ui_only: "border-blue-100 bg-blue-50 text-blue-800",
+  blocked: "border-red-100 bg-red-50 text-red-700",
+};
+
 function coverageIcon(state: WorkflowCoverageState) {
   if (state === "complete") return <CheckCircle2 size={16} aria-hidden="true" />;
   if (state === "partial") return <AlertTriangle size={16} aria-hidden="true" />;
@@ -81,6 +91,10 @@ function coverageClass(state: WorkflowCoverageState) {
 
 function actionLevelClass(level: WorkflowActionLevel) {
   return ACTION_LEVEL_CLASS[level];
+}
+
+function flowStatusClass(status: WorkflowFlowStatus) {
+  return FLOW_STATUS_CLASS[status];
 }
 
 function domainLabel(domain: WorkflowDomain) {
@@ -236,6 +250,68 @@ function WorkflowRow({
   );
 }
 
+function MatrixCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#9c8a82]">{label}</p>
+      <p className="mt-1 text-sm font-bold leading-snug text-[#2f2135]">{value}</p>
+    </div>
+  );
+}
+
+function FlowMatrixTable({ rows }: { rows: WorkflowFlowMatrixRow[] }) {
+  if (rows.length === 0) {
+    return <p className="mt-4 rounded-xl bg-[#fbf8f5] p-4 text-sm font-bold text-[#7d6b65]">No matrix rows match the current filters.</p>;
+  }
+
+  return (
+    <div className="mt-4 overflow-x-auto" data-testid="workflow-flow-matrix">
+      <table className="w-full min-w-[1180px] text-left align-top text-sm">
+        <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+          <tr>
+            <th className="px-3 py-2">Flow</th>
+            <th className="px-3 py-2">Entry points</th>
+            <th className="px-3 py-2">Required setup</th>
+            <th className="px-3 py-2">Missing setup</th>
+            <th className="px-3 py-2">Find options</th>
+            <th className="px-3 py-2">Confirm / receipt / resume</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.reference} className="border-t border-[#f0e7df]" data-testid={`workflow-matrix-row-${row.reference}`}>
+              <td className="max-w-[220px] px-3 py-3">
+                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${flowStatusClass(row.currentStatus)}`}>
+                  {row.currentStatusLabel}
+                </span>
+                <p className="mt-2 font-black text-[#2f2135]">{row.title}</p>
+                <code className="mt-1 block text-xs font-bold text-[#8b7a73]">{row.reference}</code>
+              </td>
+              <td className="max-w-[220px] px-3 py-3">
+                <p className="font-bold text-[#2f2135]">{row.entryPoints.length} mapped</p>
+                <p className="mt-1 text-xs font-semibold leading-snug text-[#7d6b65]">
+                  {row.entryPoints.slice(0, 3).map((entry) => entry.label).join(", ")}
+                  {row.entryPoints.length > 3 ? "..." : ""}
+                </p>
+              </td>
+              <td className="max-w-[220px] px-3 py-3 font-bold leading-snug text-[#2f2135]">{row.requiredSetup}</td>
+              <td className="max-w-[260px] px-3 py-3 font-bold leading-snug text-[#2f2135]">{row.missingSetupFallback}</td>
+              <td className="max-w-[260px] px-3 py-3 font-bold leading-snug text-[#2f2135]">{row.findOptionsPath}</td>
+              <td className="min-w-[320px] px-3 py-3">
+                <div className="grid gap-3">
+                  <MatrixCell label="Confirmation" value={row.confirmationRule} />
+                  <MatrixCell label="Receipt" value={row.receiptMoment} />
+                  <MatrixCell label="Resume" value={row.resumeBehavior} />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function WorkflowCoverageAdminPage() {
   const [domainFilter, setDomainFilter] = useState<DomainFilter>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("incomplete");
@@ -243,6 +319,7 @@ export default function WorkflowCoverageAdminPage() {
   const [query, setQuery] = useState("");
   const summary = useMemo(() => getWorkflowCoverageSummary(), []);
   const nextCandidates = useMemo(() => nextWorkflowImplementationCandidates(6), []);
+  const matrixRows = useMemo(() => workflowFlowMatrixRows(), []);
   const { data: fastHelpOutcomes, isLoading: fastHelpLoading } = useQuery<HomeFastHelpOutcomeAggregate>({
     queryKey: ["/api/admin/home/fast-help-outcomes?days=30"],
     retry: false,
@@ -280,6 +357,13 @@ export default function WorkflowCoverageAdminPage() {
       return groups;
     }, {} as Record<WorkflowDomain, typeof workflows>);
   }, [workflows]);
+
+  const visibleMatrixRows = useMemo(() => {
+    const byReference = new Map(matrixRows.map((row) => [row.reference, row]));
+    return workflows
+      .map(({ workflow }) => byReference.get(workflow.reference))
+      .filter((row): row is WorkflowFlowMatrixRow => Boolean(row));
+  }, [matrixRows, workflows]);
 
   const clearFilters = () => {
     setDomainFilter("all");
@@ -460,6 +544,22 @@ export default function WorkflowCoverageAdminPage() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Cross-pillar flow matrix">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Cross-pillar matrix</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Setup, options, confirmation, receipt, resume</h2>
+              <p className="mt-1 max-w-3xl text-sm font-semibold text-[#7d6b65]">
+                One row per workflow, derived from the shared registry so Concierge patterns can be reused across Health, Meds, Safe Home, Community, Learning, and Games.
+              </p>
+            </div>
+            <span className="rounded-full border border-[#eadfd5] bg-[#fffaf4] px-3 py-1.5 text-xs font-black text-[#7d6b65]">
+              {visibleMatrixRows.length} rows
+            </span>
+          </div>
+          <FlowMatrixTable rows={visibleMatrixRows} />
         </section>
 
         <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm">
