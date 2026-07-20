@@ -268,7 +268,7 @@ describe("Canvas launch readiness manifest", () => {
       "canvas:qa:validate",
       "--json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json",
-      "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas-qa-summary.json",
+      "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json",
       "validateVoiceCanvasQaMatrixCommand.test.ts",
       "Addresses or saved-place labels",
       "Medication names, strengths, quantities, or symptoms",
@@ -345,8 +345,9 @@ describe("Canvas launch readiness manifest", () => {
     expect(runSheet).toContain("record a launch blocker");
     expect(runSheet).toContain("npm run canvas:qa:validate");
     expect(runSheet).toContain(
-      "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas-qa-summary.json",
+      "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json",
     );
+    expect(runSheet).toContain("did not overwrite an earlier artifact");
 
     for (const flow of canvasLaunchReadinessFlows) {
       expect(runSheet, flow.label).toContain(flow.label);

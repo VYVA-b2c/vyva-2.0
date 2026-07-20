@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   CANVAS_REAL_DEVICE_QA_PENDING_STATUS,
@@ -82,13 +82,14 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:validate",
       "  npm run canvas:qa:validate -- --allow-pending",
       "  npm run --silent canvas:qa:validate -- --allow-pending --json",
-      "  npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas-qa-summary.json",
+      "  npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/<YYYY-MM-DD>-qa-summary.json",
       "  npm run canvas:qa:validate -- docs/audits/voice-canvas-real-device-qa-matrix.md",
       "",
       "The command exits non-zero unless the matrix is ready for launch.",
       "Use --allow-pending for in-progress review of the committed pending matrix.",
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
+      "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
     ].join("\n"),
   );
   process.exit(0);
@@ -96,6 +97,7 @@ if (args.includes("--help") || args.includes("-h")) {
 
 const allowPending = args.includes("--allow-pending");
 const jsonOutput = args.includes("--json");
+const forceOutput = args.includes("--force");
 const outputArg = args.find((arg) => arg.startsWith("--output="));
 const outputPathArg = outputArg?.slice("--output=".length).trim();
 if (outputArg && !outputPathArg) {
@@ -152,6 +154,12 @@ if (jsonOutput) {
   );
   if (outputPathArg) {
     const outputPath = path.resolve(process.cwd(), outputPathArg);
+    if (existsSync(outputPath) && !forceOutput) {
+      console.error(
+        `Output file already exists. Use a run-specific path or pass --force to overwrite: ${path.relative(process.cwd(), outputPath)}`,
+      );
+      process.exit(1);
+    }
     mkdirSync(path.dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, `${jsonSummary}\n`);
   }

@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -184,5 +190,53 @@ describe("Voice Canvas QA matrix validator command", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Use --output only with --json.");
+  });
+
+  it("preserves existing QA artifact files unless force is explicit", () => {
+    const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-qa-"));
+    const outputPath = path.join(tempDir, "qa-summary.json");
+    writeFileSync(outputPath, '{"existing":true}\n');
+
+    try {
+      const result = runValidator([
+        "--allow-pending",
+        "--json",
+        `--output=${outputPath}`,
+      ]);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Output file already exists.");
+      expect(JSON.parse(readFileSync(outputPath, "utf8"))).toEqual({
+        existing: true,
+      });
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("overwrites an existing QA artifact only when force is explicit", () => {
+    const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-qa-"));
+    const outputPath = path.join(tempDir, "qa-summary.json");
+    writeFileSync(outputPath, '{"existing":true}\n');
+
+    try {
+      const result = runValidator([
+        "--allow-pending",
+        "--json",
+        "--force",
+        `--output=${outputPath}`,
+      ]);
+
+      expect(result.status).toBe(0);
+
+      const fileSummary = JSON.parse(readFileSync(outputPath, "utf8")) as {
+        status: string;
+        acceptedPending: boolean;
+      };
+      expect(fileSummary.status).toBe("pending execution");
+      expect(fileSummary.acceptedPending).toBe(true);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
