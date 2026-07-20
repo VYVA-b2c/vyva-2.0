@@ -64,6 +64,17 @@ it("restores an interrupted scene and draft from session storage",()=>{
   sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",dateChoice:"2026-07-19",time:"14:00"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();expect(screen.getByDisplayValue("14:00")).toBeInTheDocument();click("Back");expect(screen.getByDisplayValue("99 Garden Road")).toBeInTheDocument();
 });
 
+it("emits privacy-safe resumed telemetry for a restored draft",()=>{
+  const events:unknown[]=[];
+  sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",dateChoice:"2026-07-19",time:"14:00"}}));
+  render(<RideVoiceCanvas {...props({onTelemetry:event=>events.push(event)})}/>);
+  expect(events).toContainEqual(expect.objectContaining({name:"scene_viewed",step:"dateTime",restored:true,input:"system",attempt:0}));
+  const serialized=JSON.stringify(events);
+  expect(serialized).not.toContain("99 Garden Road");
+  expect(serialized).not.toContain("14:00");
+  expect(serialized).not.toContain("2026-07-19");
+});
+
 it("does not restore an in-flight external request after reconnect",()=>{
   sessionStorage.setItem("ride-test",JSON.stringify({step:"waiting",requestId:4,draft:{placeId:"home",destination:"12 Garden Lane",dateChoice:"2026-07-18",time:"10:30"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"How can I help?"})).toBeInTheDocument();
 });

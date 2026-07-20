@@ -133,6 +133,18 @@ describe("Canvas launch readiness manifest", () => {
     expect(shoppingFlow?.qaEvidence.privacy_safe_analytics).toContain(
       "src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx",
     );
+    const rideFlow = canvasLaunchReadinessFlows.find(
+      (flow) => flow.id === "ride",
+    );
+    expect(rideFlow?.qaEvidence.privacy_safe_analytics).toContain(
+      "src/components/voice-canvas/RideVoiceCanvas.test.tsx",
+    );
+    const appointmentFlow = canvasLaunchReadinessFlows.find(
+      (flow) => flow.id === "appointment",
+    );
+    expect(appointmentFlow?.qaEvidence.privacy_safe_analytics).toContain(
+      "src/components/voice-canvas/AppointmentVoiceCanvas.test.tsx",
+    );
 
     expect(CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS).toEqual(
       expect.arrayContaining([

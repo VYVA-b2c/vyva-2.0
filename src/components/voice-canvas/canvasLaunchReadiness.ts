@@ -180,6 +180,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/rideCanvasTelemetry.ts",
+        "src/components/voice-canvas/RideVoiceCanvas.test.tsx",
         ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [
@@ -240,6 +241,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/appointmentCanvasTelemetry.ts",
+        "src/components/voice-canvas/AppointmentVoiceCanvas.test.tsx",
         ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [
