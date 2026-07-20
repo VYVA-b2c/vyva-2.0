@@ -45,6 +45,33 @@ const BEHAVIOR_CHECKLIST_PROSE_EVIDENCE =
 const PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR =
   "Provider Reply Voice Canvas: behavior evidence must include dated artifact coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects";
 
+const ARTIFACT_INVENTORY_ENVIRONMENT_ROW =
+  "| Environment and flag artifacts | Environment feature flag analytics sink enabled rollout and disabled rollback evidence | Sanitized environment feature flag artifact log link plus analytics dashboard query with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_DEVICE_ROW =
+  "| Real-device screenshots or photos | Real phone tablet desktop screenshot and photo evidence | Sanitized screenshot and photo artifact links for real phone tablet desktop with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_INTERACTION_ROW =
+  "| Interaction recordings or logs | Voice touch keyboard completion and safe exit recordings or logs | Sanitized recording and log artifact links for voice touch keyboard completion and safe exit with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_BEHAVIOR_ROW =
+  "| Behavior recovery artifacts | Resume restore reconnect refresh browser back interruption cancel exit behavior recovery evidence | Sanitized behavior recovery screenshot log artifact links for resume reconnect browser back interruption cancel exit with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_FEATURE_ROW =
+  "| Feature endpoint artifacts | Endpoint payload rollback fallback feature checks | Sanitized endpoint payload trace and log artifact links for rollback and fallback with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_TASK_HUB_ROW =
+  "| Task hub resume artifacts | Task hub resume fallback no write and no external action evidence | Sanitized task hub resume fallback log artifact links showing no write and no external action with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_COPY_ROW =
+  "| Copy and accessibility artifacts | Copy accessibility screen-reader focus Spanish long label evidence | Sanitized copy accessibility screenshot and screen-reader artifact links for focus and Spanish long label evidence with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_SIGNAL_ROW =
+  "| Analytics signal artifacts | Analytics signal started resumed abandoned blocked confirmed completed evidence | Sanitized analytics dashboard query artifact links for started resumed abandoned blocked confirmed completed signals with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_PRIVACY_ROW =
+  "| Analytics privacy artifacts | Analytics privacy allowed envelope forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact links showing allowed envelope and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |";
+
 function behaviorChecklistRow(
   flow: string,
   evidence = BEHAVIOR_CHECKLIST_EVIDENCE,
@@ -138,16 +165,18 @@ function fillEnvironmentRecord(markdown: string): string {
 }
 
 function completedMatrix(markdown = realDeviceQaMatrix()): string {
-  return fillPrivacyReviewRows(
-    fillAnalyticsSignalRows(
-      fillFeatureFlagRows(
-        fillTaskHubDestinationRows(
-          fillCopyAccessibilityRows(
-            fillBehaviorChecklistRows(
-              fillInteractionModeRows(
-                fillDeviceCoverageRows(
-                  fillEnvironmentRecord(
-                    fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+  return fillArtifactInventoryRows(
+    fillPrivacyReviewRows(
+      fillAnalyticsSignalRows(
+        fillFeatureFlagRows(
+          fillTaskHubDestinationRows(
+            fillCopyAccessibilityRows(
+              fillBehaviorChecklistRows(
+                fillInteractionModeRows(
+                  fillDeviceCoverageRows(
+                    fillEnvironmentRecord(
+                      fillRequiredSignoffs(replacePendingEvidence(markReady(markdown))),
+                    ),
                   ),
                 ),
               ),
@@ -157,6 +186,46 @@ function completedMatrix(markdown = realDeviceQaMatrix()): string {
       ),
     ),
   );
+}
+
+function fillArtifactInventoryRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Environment and flag artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_ENVIRONMENT_ROW,
+    )
+    .replace(
+      /^\| Real-device screenshots or photos \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_DEVICE_ROW,
+    )
+    .replace(
+      /^\| Interaction recordings or logs \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_INTERACTION_ROW,
+    )
+    .replace(
+      /^\| Behavior recovery artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_BEHAVIOR_ROW,
+    )
+    .replace(
+      /^\| Feature endpoint artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_FEATURE_ROW,
+    )
+    .replace(
+      /^\| Task hub resume artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_TASK_HUB_ROW,
+    )
+    .replace(
+      /^\| Copy and accessibility artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_COPY_ROW,
+    )
+    .replace(
+      /^\| Analytics signal artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_SIGNAL_ROW,
+    )
+    .replace(
+      /^\| Analytics privacy artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_PRIVACY_ROW,
+    );
 }
 
 function fillTaskHubDestinationRows(markdown: string): string {
@@ -433,6 +502,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
+    expect(result.invalidArtifactInventoryRows).toEqual([]);
     expect(result.problems).toEqual([]);
   });
 
@@ -651,6 +721,42 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.missingRequiredMatrixRows).toEqual([
       "Task hub destination fallback checks: Local shopping draft",
     ]);
+  });
+
+  it("rejects ready-for-launch matrices missing an evidence artifact inventory row", () => {
+    const completed = removeFirstTableRow(
+      completedMatrix(),
+      "Real-device screenshots or photos",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Evidence artifact inventory: Real-device screenshots or photos",
+    ]);
+  });
+
+  it("rejects evidence artifact inventory rows without sanitized concrete references", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_DEVICE_ROW,
+      "| Real-device screenshots or photos | Device screenshots reviewed | Screenshots reviewed by QA | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Real-device screenshots or photos: coverage must name the launch evidence it proves",
+      "Real-device screenshots or photos: reference must name sanitized concrete artifacts with no personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
   });
 
   it("rejects ready-for-launch matrices with feature endpoint drift", () => {
@@ -2828,6 +2934,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
+    expect(result.invalidArtifactInventoryRows).toEqual([]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining("failing or not-ready QA cell"),
@@ -2852,6 +2959,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidCopyAccessibilityRows).toEqual([]);
     expect(result.invalidAnalyticsSignalRows).toEqual([]);
     expect(result.invalidPrivacyRows).toEqual([]);
+    expect(result.invalidArtifactInventoryRows).toEqual([]);
     expect(result.missingRequiredSignoffRoles).toEqual([]);
     expect(result.incompleteRequiredSignoffRoles).toEqual([]);
     expect(result.invalidRequiredSignoffDateRoles).toEqual([]);

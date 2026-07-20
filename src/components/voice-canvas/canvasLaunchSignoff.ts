@@ -78,6 +78,21 @@ export const CANVAS_REAL_DEVICE_QA_REQUIRED_TASK_HUB_DESTINATION_ROWS = [
 export type CanvasRealDeviceQaTaskHubDestinationRow =
   (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_TASK_HUB_DESTINATION_ROWS)[number];
 
+export const CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS = [
+  "Environment and flag artifacts",
+  "Real-device screenshots or photos",
+  "Interaction recordings or logs",
+  "Behavior recovery artifacts",
+  "Feature endpoint artifacts",
+  "Task hub resume artifacts",
+  "Copy and accessibility artifacts",
+  "Analytics signal artifacts",
+  "Analytics privacy artifacts",
+] as const;
+
+export type CanvasRealDeviceQaArtifactInventoryRow =
+  (typeof CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS)[number];
+
 export type CanvasRealDeviceQaMatrixState = "pending" | "ready" | "invalid";
 
 export interface CanvasRealDeviceQaMatrixEvaluation {
@@ -96,6 +111,7 @@ export interface CanvasRealDeviceQaMatrixEvaluation {
   invalidCopyAccessibilityRows: string[];
   invalidAnalyticsSignalRows: string[];
   invalidPrivacyRows: string[];
+  invalidArtifactInventoryRows: string[];
   missingRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   incompleteRequiredSignoffRoles: CanvasRealDeviceQaSignoffRole[];
   invalidRequiredSignoffDateRoles: CanvasRealDeviceQaSignoffRole[];
@@ -2242,6 +2258,134 @@ function invalidPrivacyReviewRows(sections: Map<string, string[][]>): string[] {
   return problems;
 }
 
+const artifactInventoryRequirements: Record<
+  CanvasRealDeviceQaArtifactInventoryRow,
+  readonly (readonly string[])[]
+> = {
+  "Environment and flag artifacts": [
+    ["environment"],
+    ["flag", "feature flag"],
+    ["analytics sink", "sink"],
+    ["enabled"],
+    ["disabled", "rollback"],
+  ],
+  "Real-device screenshots or photos": [
+    ["phone", "mobile"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["screenshot", "photo", "image", "artifact"],
+  ],
+  "Interaction recordings or logs": [
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["complete", "completed", "completion", "safe exit", "safely exited"],
+  ],
+  "Behavior recovery artifacts": [
+    ["resume", "restored", "restore"],
+    ["reconnect", "refresh"],
+    ["browser back", "back"],
+    ["interruption", "interrupt"],
+    ["cancel", "exit"],
+  ],
+  "Feature endpoint artifacts": [
+    ["endpoint"],
+    ["payload"],
+    ["rollback"],
+    ["fallback"],
+  ],
+  "Task hub resume artifacts": [
+    ["task hub"],
+    ["resume"],
+    ["fallback"],
+    ["no write", "without write"],
+    ["no external action", "without external action"],
+  ],
+  "Copy and accessibility artifacts": [
+    ["copy"],
+    ["accessibility", "screen-reader", "screen reader"],
+    ["focus"],
+    ["long label", "long labels", "spanish"],
+  ],
+  "Analytics signal artifacts": [
+    ["analytics", "telemetry"],
+    ["started"],
+    ["resumed"],
+    ["abandoned"],
+    ["blocked"],
+    ["confirmed"],
+    ["completed"],
+  ],
+  "Analytics privacy artifacts": [
+    ["analytics", "telemetry"],
+    ["privacy"],
+    ["allowed envelope", "allowed fields", "closed envelope"],
+    ["forbidden data", "sensitive data"],
+    ["absent", "not recorded", "redacted"],
+  ],
+};
+
+function hasConcreteArtifactInventoryReference(value: string): boolean {
+  return (
+    hasConcreteEvidenceArtifactLanguage(value) ||
+    hasConcreteAnalyticsArtifactLanguage(value) ||
+    hasConcreteEnvironmentArtifactLanguage(value)
+  );
+}
+
+function hasArtifactInventoryReviewerDate(value: string): boolean {
+  return (
+    hasNonFutureIsoDateCellFromText(value) &&
+    !hasFutureIsoDateCellFromText(value) &&
+    hasAnyWord(value, ["qa", "reviewer", "reviewed", "captured", "verified"])
+  );
+}
+
+function invalidArtifactInventoryRows(sections: Map<string, string[][]>): string[] {
+  const rows = new Map(
+    (sections.get("Evidence artifact inventory") ?? [])
+      .slice(1)
+      .map((row) => [row[0], row] as const),
+  );
+  const problems: string[] = [];
+
+  for (const artifactSet of CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS) {
+    const row = rows.get(artifactSet);
+    if (!row) continue;
+    const [, coverage = "", reference = "", reviewerDate = ""] = row;
+    if (
+      isPlaceholderCell(coverage) ||
+      isPlaceholderCell(reference) ||
+      isPlaceholderCell(reviewerDate)
+    ) {
+      continue;
+    }
+    if (
+      !hasAllWordGroups(coverage, artifactInventoryRequirements[artifactSet]) ||
+      hasNegativeEvidenceLanguage(coverage)
+    ) {
+      problems.push(`${artifactSet}: coverage must name the launch evidence it proves`);
+    }
+    if (
+      !hasConcreteArtifactInventoryReference(reference) ||
+      !hasNoSensitiveDataLanguage(reference) ||
+      hasSensitiveDataLeakageLanguage(reference) ||
+      hasNegativeEvidenceLanguage(reference)
+    ) {
+      problems.push(
+        `${artifactSet}: reference must name sanitized concrete artifacts with no personal details`,
+      );
+    }
+    if (!hasArtifactInventoryReviewerDate(reviewerDate)) {
+      problems.push(
+        `${artifactSet}: reviewer/date must include QA or reviewer evidence with a non-future YYYY-MM-DD date`,
+      );
+    }
+  }
+
+  return problems;
+}
+
 export function evaluateCanvasRealDeviceQaMatrix(
   markdown: string,
 ): CanvasRealDeviceQaMatrixEvaluation {
@@ -2350,6 +2494,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
       "Analytics privacy review",
       CANVAS_REAL_DEVICE_QA_REQUIRED_PRIVACY_CLASSES,
     ),
+    ...missingRowsInSection(
+      sections,
+      "Evidence artifact inventory",
+      CANVAS_REAL_DEVICE_QA_REQUIRED_ARTIFACT_INVENTORY_ROWS,
+    ),
   ];
   const invalidEnvironmentFields = invalidEnvironmentRows(sections);
   const invalidDeviceCoverageChecks = invalidDeviceCoverageRows(sections);
@@ -2360,6 +2509,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
   const invalidCopyAccessibilityChecks = invalidCopyAccessibilityRows(sections);
   const invalidAnalyticsSignalChecks = invalidAnalyticsSignalRows(sections);
   const invalidPrivacyChecks = invalidPrivacyReviewRows(sections);
+  const invalidArtifactInventoryChecks = invalidArtifactInventoryRows(sections);
 
   const problems: string[] = [];
   if (!status) {
@@ -2434,6 +2584,11 @@ export function evaluateCanvasRealDeviceQaMatrix(
         `Matrix has analytics privacy row issue(s): ${invalidPrivacyChecks.join(", ")}.`,
       );
     }
+    if (invalidArtifactInventoryChecks.length > 0) {
+      problems.push(
+        `Matrix has evidence artifact inventory row issue(s): ${invalidArtifactInventoryChecks.join(", ")}.`,
+      );
+    }
     if (missingRequiredSignoffRoles.length > 0) {
       problems.push(
         `Matrix is missing required sign-off role(s): ${missingRequiredSignoffRoles.join(", ")}.`,
@@ -2490,6 +2645,7 @@ export function evaluateCanvasRealDeviceQaMatrix(
     invalidCopyAccessibilityRows: invalidCopyAccessibilityChecks,
     invalidAnalyticsSignalRows: invalidAnalyticsSignalChecks,
     invalidPrivacyRows: invalidPrivacyChecks,
+    invalidArtifactInventoryRows: invalidArtifactInventoryChecks,
     missingRequiredSignoffRoles,
     incompleteRequiredSignoffRoles,
     invalidRequiredSignoffDateRoles,

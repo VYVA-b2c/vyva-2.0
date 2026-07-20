@@ -251,6 +251,8 @@ describe("Canvas launch readiness manifest", () => {
       "specific forbidden data class",
       "dated source-event, positive aggregate count, and allowed-envelope evidence",
       "concrete analytics artifact/query/dashboard/log reference",
+      "Evidence artifact inventory",
+      "sanitized concrete artifacts",
       "Addresses or saved-place labels",
       "Medication names, strengths, quantities, or symptoms",
       "Provider names, reply text, notes, references, phone numbers, or emails",
