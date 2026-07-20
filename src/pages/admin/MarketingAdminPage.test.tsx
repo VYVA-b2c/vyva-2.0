@@ -1616,6 +1616,17 @@ describe("MarketingAdminPage", () => {
     renderPage();
 
     expect(await screen.findByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
+    expect(screen.getByTestId("marketing-ai-outcome-starters")).toHaveTextContent("Grow partners");
+    expect(screen.getByTestId("marketing-ai-outcome-starters")).toHaveTextContent("Activate families");
+    expect(screen.getByTestId("marketing-ai-outcome-starters")).toHaveTextContent("Fill a local event");
+    expect(screen.getByTestId("marketing-ai-outcome-starters")).toHaveTextContent("Improve what worked");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-outcome-starter-grow-partners"));
+    expect(screen.getByTestId("textarea-marketing-ai-command")).toHaveValue("Create a B2B partner growth campaign for local clinics, pharmacies, care agencies, and residences using email, LinkedIn, WhatsApp, phone, print, and one relationship follow-up owner.");
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("Outcome loaded: Grow partners.");
+    expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("AI understood");
+    expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("LinkedIn");
+
     fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
     expect(screen.getByTestId("marketing-ai-command-plan")).toHaveTextContent("AI understood");
     expect(screen.getByTestId("marketing-ai-command-route-preview")).toHaveTextContent("Launch route preview");

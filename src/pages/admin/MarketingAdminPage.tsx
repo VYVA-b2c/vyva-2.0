@@ -115,6 +115,13 @@ type MarketingSavedView = {
   icon: LucideIcon;
   className: string;
 };
+type MarketingAiOutcomeStarter = {
+  key: string;
+  title: string;
+  detail: string;
+  command: string;
+  channels: Channel[];
+};
 
 const CAMPAIGN_STUDIO_ROUTE_FAMILIES: Array<{ key: string; title: string; detail: string; channels: Channel[] }> = [
   { key: "email", title: "Email", detail: "Send-ready campaign route through VYVA when content and recipients are ready.", channels: ["email"] },
@@ -27478,6 +27485,36 @@ export default function MarketingAdminPage() {
     ?? campaignPerformanceInsights.find((insight) => insight.state === "ready")
     ?? campaignPerformanceInsights[0]
     ?? null;
+  const marketingAiOutcomeStarters: MarketingAiOutcomeStarter[] = [
+    {
+      key: "grow-partners",
+      title: "Grow partners",
+      detail: "Clinic, pharmacy, agency, residence, or local professional outreach.",
+      command: "Create a B2B partner growth campaign for local clinics, pharmacies, care agencies, and residences using email, LinkedIn, WhatsApp, phone, print, and one relationship follow-up owner.",
+      channels: ["email", "linkedin", "whatsapp", "phone", "print"],
+    },
+    {
+      key: "activate-families",
+      title: "Activate families",
+      detail: "Move new or quiet B2C contacts toward one useful VYVA routine.",
+      command: "Create a B2C family activation campaign that gets quiet or new family contacts to complete one useful VYVA routine using email, WhatsApp, SMS, and one consent-safe follow-up step.",
+      channels: ["email", "whatsapp", "sms"],
+    },
+    {
+      key: "local-event",
+      title: "Fill a local event",
+      detail: "Neighbourhood event, RSVP, host handoff, and post-event follow-up.",
+      command: "Create a local event campaign for families and partners in Madrid using email, WhatsApp, Facebook, Instagram, print, event handoff, RSVP tracking, and a post-event relationship follow-up.",
+      channels: ["email", "whatsapp", "facebook", "instagram", "print", "event"],
+    },
+    {
+      key: "learn-and-improve",
+      title: "Improve what worked",
+      detail: "Turn performance signals into the next campaign test.",
+      command: "Create a performance follow-up campaign from the strongest recent engagement signal. Improve the winning copy, fix the weakest CTA, reuse the best template pack, and include one measurable next step.",
+      channels: ["email", "linkedin", "whatsapp"],
+    },
+  ];
   const marketingDashboardAiCommandSuggestions = [
     ...(topCampaignRecommendation ? [{
       key: "best-smart-pick",
@@ -27666,6 +27703,12 @@ export default function MarketingAdminPage() {
       "- Track replies, handoff outcomes, and relationship follow-up back on the campaign.",
     ].join("\n");
   }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
+
+  function applyMarketingAiOutcomeStarter(starter: MarketingAiOutcomeStarter) {
+    setMarketingDashboardAiCommand(starter.command);
+    setMarketingDashboardAiCommandFeedback(`Outcome loaded: ${starter.title}. Review the AI plan, then create a kit or customize the route.`);
+    setMessage(`AI outcome starter loaded: ${starter.title}. VYVA is mapping ${formatChannelList(starter.channels)} into a campaign plan.`);
+  }
 
   function openMarketingDashboardAiTemplatePack(mode: "content" | "studio") {
     const plan = marketingDashboardAiCommandPlan;
@@ -28491,6 +28534,22 @@ export default function MarketingAdminPage() {
                           </p>
                         </div>
                         <Pill className="bg-white text-violet-800"><Sparkles size={13} className="mr-1" /> Smart match</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-ai-outcome-starters">
+                        {marketingAiOutcomeStarters.map((starter) => (
+                          <button
+                            key={starter.key}
+                            type="button"
+                            onClick={() => applyMarketingAiOutcomeStarter(starter)}
+                            className="rounded-xl border border-violet-100 bg-white px-3 py-2 text-left shadow-sm transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                            data-testid={`button-marketing-ai-outcome-starter-${starter.key}`}
+                          >
+                            <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-violet-700">Goal starter</span>
+                            <span className="mt-1 block text-sm font-black text-[#241133]">{starter.title}</span>
+                            <span className="mt-1 block text-[11px] font-bold leading-relaxed text-[#6b5b54]">{starter.detail}</span>
+                            <span className="mt-2 block text-[11px] font-black text-purple-700">{formatChannelList(starter.channels)}</span>
+                          </button>
+                        ))}
                       </div>
                       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
                         <textarea
