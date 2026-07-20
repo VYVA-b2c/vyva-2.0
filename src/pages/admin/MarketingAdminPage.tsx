@@ -37284,10 +37284,26 @@ export default function MarketingAdminPage() {
                       Shortcuts for turning the large library into campaign assets: create the recommended kit, customize it, generate the next AI pack, open the best route, or apply the best-fit template.
                     </p>
                   </div>
-                  <Pill className={contentTemplateCommandQueue.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : contentTemplateCommandQueue.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
-                    {contentTemplateCommandQueue.filter((item) => !item.disabled).length} ready
-                  </Pill>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Pill className={contentTemplateCommandQueue.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : contentTemplateCommandQueue.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                      {contentTemplateCommandQueue.filter((item) => !item.disabled).length} ready
+                    </Pill>
+                    <button
+                      type="button"
+                      onClick={() => void copyTemplateGapAutopilotBrief()}
+                      disabled={!contentTemplateGapAutopilot.batch.length || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId)}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                      data-testid="button-marketing-template-command-copy-production-brief"
+                    >
+                      <Copy size={13} /> Copy production brief
+                    </button>
+                  </div>
                 </div>
+                {contentActionFeedback.includes("Template coverage AI pack brief") ? (
+                  <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-template-command-feedback">
+                    {contentActionFeedback}
+                  </p>
+                ) : null}
                 <div className="mt-3 grid gap-3 xl:grid-cols-5">
                   {contentTemplateCommandQueue.map((item) => (
                     <button

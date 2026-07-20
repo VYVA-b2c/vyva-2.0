@@ -2835,6 +2835,14 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
+    expect(screen.getByTestId("marketing-template-command-queue")).toHaveTextContent("Best next template moves");
+    expect(screen.getByTestId("button-marketing-template-command-copy-production-brief")).toHaveTextContent("Copy production brief");
+    fireEvent.click(screen.getByTestId("button-marketing-template-command-copy-production-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA template coverage AI pack brief"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Draft queue:"));
+    expect(screen.getByTestId("marketing-template-command-feedback")).toHaveTextContent("Template coverage AI pack brief copied.");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Pack playbook");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Use Caregiver invite acceptance email first");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
