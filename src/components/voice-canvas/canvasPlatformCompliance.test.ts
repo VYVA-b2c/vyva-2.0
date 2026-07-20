@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { initialRideCanvasState, isRestorableRideState } from "./rideCanvasMachine";
 import { initialAppointmentCanvasState, isRestorableAppointmentState } from "./appointmentCanvasMachine";
@@ -52,5 +54,36 @@ describe("Canvas platform cross-flow compliance", () => {
     ["provider reply", isRestorableProviderReplyCanvasState, initialProviderReplyCanvasState],
   ])("%s never restores a waiting request", (_flow, isRestorable, initial) => {
     expect(isRestorable({ ...initial, step: "waiting" })).toBe(false);
+  });
+
+  it("keeps browser launch screenshot evidence on sanitized fixtures", () => {
+    const screenshotSpecs = [
+      "e2e/voice-canvas-production-readiness.spec.ts",
+      "e2e/appointment-canvas-production-readiness.spec.ts",
+      "e2e/medication-refill-canvas-production-readiness.spec.ts",
+      "e2e/canvas-launch-readiness.spec.ts",
+      "e2e/task-hub-resume-launch-readiness.spec.ts",
+    ];
+
+    for (const specPath of screenshotSpecs) {
+      const source = readFileSync(path.resolve(process.cwd(), specPath), "utf8");
+      expect(source, `${specPath} should write launch screenshot artifacts`).toMatch(
+        /page\.screenshot\(\{[\s\S]*?src\/dev\/voice-canvas\//,
+      );
+
+      if (specPath.includes("task-hub")) {
+        expect(source).toContain("Saved source");
+        expect(source).toContain("Prepared line A");
+        expect(source).toContain("Saved care option");
+        expect(source).toContain("Please confirm one missing detail");
+        expect(source).toContain("Saved task source with a long translated label");
+        continue;
+      }
+
+      expect(
+        source,
+        `${specPath} screenshot capture must use sanitized evidence mode`,
+      ).toContain("evidence=sanitized");
+    }
   });
 });
