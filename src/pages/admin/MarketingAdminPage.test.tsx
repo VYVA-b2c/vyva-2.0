@@ -1498,6 +1498,7 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByRole("heading", { name: "Marketing" });
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Email launch");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("AI command center");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Publish today");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Channel command");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Performance follow-up");
@@ -1512,6 +1513,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByLabelText("Audience filter")).toHaveValue("b2b");
     expect(screen.getByTestId("input-marketing-search")).toHaveValue("partner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-ai"));
+    expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("textarea-marketing-ai-command")).toHaveValue("Create a multi-channel VYVA campaign for the highest-priority audience using email, WhatsApp, LinkedIn, and one manual follow-up route.");
+    expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("AI understood");
+    expect(screen.getByText("Saved view: AI command center. Describe the campaign you want and let VYVA map audience, channels, templates, and publishing steps.")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("Saved view: AI command center.");
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-consent"));
     expect(screen.getByTestId("marketing-contacts-tab")).toBeInTheDocument();

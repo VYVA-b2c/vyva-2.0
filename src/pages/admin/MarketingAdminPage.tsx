@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "publish" | "channels" | "performance" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "ai" | "publish" | "channels" | "performance" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12209,6 +12209,16 @@ export default function MarketingAdminPage() {
       setActiveTab("dashboard");
       setChannelFilter("email");
       setMessage("Saved view: email launch cockpit. Review due sends, recipient snapshots, and final send controls.");
+      return;
+    }
+    if (viewKey === "ai") {
+      setActiveTab("dashboard");
+      setSearch("");
+      setChannelFilter("all");
+      setAudienceFilter("all");
+      setMarketingDashboardAiCommand("Create a multi-channel VYVA campaign for the highest-priority audience using email, WhatsApp, LinkedIn, and one manual follow-up route.");
+      setMarketingDashboardAiCommandFeedback("Saved view: AI command center. Start from a plain-language campaign request, then create the kit, open templates, or customize the route.");
+      setMessage("Saved view: AI command center. Describe the campaign you want and let VYVA map audience, channels, templates, and publishing steps.");
       return;
     }
     if (viewKey === "publish") {
@@ -27962,6 +27972,14 @@ export default function MarketingAdminPage() {
           : `${publishingQueueItems.length} queued`,
       icon: Send,
       className: "border-emerald-100 bg-emerald-50 text-emerald-950",
+    },
+    {
+      key: "ai",
+      title: "AI command center",
+      detail: "Describe the campaign once, then map audience, channels, templates, copy, and publishing steps.",
+      countLabel: `${marketingDashboardAiCommandSuggestions.length} prompts`,
+      icon: Zap,
+      className: "border-violet-100 bg-violet-50 text-violet-950",
     },
     {
       key: "publish",
