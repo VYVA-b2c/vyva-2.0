@@ -29592,6 +29592,60 @@ export default function MarketingAdminPage() {
                     })}
                   </div>
                 </div>
+                <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm" data-testid="marketing-cockpit-daily-plan">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Today&apos;s operating plan</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Run marketing in this order</h3>
+                      <p className="mt-1 max-w-3xl text-xs font-bold leading-relaxed text-[#6b5b54]">
+                        A short command path across Source, audience, creative, launch, and relationship work. Copy it for handoff or click any step to jump straight into the work area.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void copyMarketingOperatorBrief()}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white shadow-sm transition hover:bg-purple-800 focus:outline-none focus:ring-4 focus:ring-purple-100"
+                      data-testid="button-marketing-cockpit-copy-operator-brief"
+                    >
+                      <Copy size={14} aria-hidden="true" /> Copy work order
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-2 xl:grid-cols-3">
+                    {marketingWorkflowCoachItems.slice(0, 6).map((item, index) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          disabled={item.disabled}
+                          className={`grid min-h-[112px] grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-xl border bg-white p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                          data-testid={`button-marketing-cockpit-plan-${item.key}`}
+                        >
+                          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                            <Icon size={16} aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-800">Step {index + 1}</span>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </span>
+                            <span className="mt-1 block text-sm font-black text-[#241133]">{item.title}</span>
+                            <span className="mt-1 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                            <span className="mt-2 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                              {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {marketingOperatorBriefFeedback ? (
+                    <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-black ${marketingOperatorBriefFeedback.includes("Could not") || marketingOperatorBriefFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-cockpit-operator-feedback">
+                      {marketingOperatorBriefFeedback}
+                    </p>
+                  ) : null}
+                </div>
                 <div className="mt-4 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-white to-amber-50 p-4 shadow-sm" data-testid="marketing-ai-command-launcher">
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                     <div>

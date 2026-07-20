@@ -901,6 +901,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("CTA opportunity");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
+    expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Today's operating plan");
+    expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Run marketing in this order");
+    expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Step 1");
+    expect(screen.getByTestId("button-marketing-cockpit-copy-operator-brief")).toHaveTextContent("Copy work order");
+    fireEvent.click(screen.getByTestId("button-marketing-cockpit-copy-operator-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing daily operator brief"));
+    });
+    expect(screen.getByTestId("marketing-cockpit-operator-feedback")).toHaveTextContent("Daily operator brief copied.");
     expect(screen.getByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
     expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Relationship queue");
     expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Performance follow-up");
