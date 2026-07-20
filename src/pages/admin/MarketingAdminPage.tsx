@@ -19350,6 +19350,72 @@ export default function MarketingAdminPage() {
       },
     },
   ];
+  const contentTemplateLaunchRunway = [
+    {
+      key: "pick",
+      step: "1",
+      title: "Pick the best pack",
+      detail: recommendedContentLaunchKit
+        ? `${recommendedContentLaunchKit.pack.title} is currently the strongest launch kit.`
+        : "Choose a curated pack or use Pathfinder before creating assets.",
+      state: recommendedContentLaunchKit ? "ready" as CampaignReadinessState : "needs_action" as CampaignReadinessState,
+      actionLabel: "Open pack",
+      disabled: !recommendedContentLaunchKit,
+      onSelect: () => {
+        if (!recommendedContentLaunchKit) return;
+        setContentTemplatePackFilter(recommendedContentLaunchKit.pack.id);
+        setContentTemplateSearch("");
+        setContentTemplateChannelFilter("all");
+        setContentTemplateAudienceFilter("all");
+        setContentTemplateCategoryFilter("all");
+        setContentActionFeedback(`Showing launch runway pack: ${recommendedContentLaunchKit.pack.title}.`);
+      },
+    },
+    {
+      key: "coverage",
+      step: "2",
+      title: "Fill weak channels",
+      detail: contentTemplateGapAutopilot.batch.length
+        ? `${contentTemplateGapAutopilot.batch.length} AI template draft${contentTemplateGapAutopilot.batch.length === 1 ? "" : "s"} queued for the next gap.`
+        : "Template coverage is strong enough for the current scan.",
+      state: contentTemplateGapAutopilot.batch.length ? contentTemplateGapAutopilot.state : "ready" as CampaignReadinessState,
+      actionLabel: contentTemplateGapAutopilot.batch.length ? "Generate pack" : "Coverage ready",
+      disabled: !contentTemplateGapAutopilot.batch.length || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId),
+      onSelect: () => void generateTemplateGapPack(),
+    },
+    {
+      key: "customize",
+      step: "3",
+      title: "Customize with AI",
+      detail: recommendedContentLaunchKit
+        ? `Load ${formatChannelList(recommendedContentLaunchKit.channels)} into studio with copy, visual direction, and handoff notes.`
+        : "Pick a pack first so studio can inherit the right route.",
+      state: recommendedContentLaunchKit ? "planning" as CampaignReadinessState : "blocked" as CampaignReadinessState,
+      actionLabel: "Open studio",
+      disabled: !recommendedContentLaunchKit || contentSaving,
+      onSelect: () => {
+        if (recommendedContentLaunchKit) {
+          loadContentTemplatePackInStudio(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.heroTemplate, recommendedContentLaunchKit.channels);
+        }
+      },
+    },
+    {
+      key: "create",
+      step: "4",
+      title: "Create launch kit",
+      detail: recommendedContentLaunchKit
+        ? `Create ${recommendedContentLaunchKit.templates.length} reusable assets, routes, snapshots, and launch packet metadata.`
+        : "No complete kit is ready to create yet.",
+      state: recommendedContentLaunchKit?.state ?? "blocked" as CampaignReadinessState,
+      actionLabel: "Create kit",
+      disabled: !recommendedContentLaunchKit || contentSaving || campaignSaving || recommendedContentLaunchKit.templates.length === 0,
+      onSelect: () => {
+        if (recommendedContentLaunchKit) {
+          void createCampaignPlanFromTemplatePack(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.templates, recommendedContentLaunchKit.heroTemplate);
+        }
+      },
+    },
+  ];
   const campaignStudioLaunchPathItems: CampaignStudioLaunchPathItem[] = [
     {
       key: "goal",
@@ -37538,6 +37604,40 @@ export default function MarketingAdminPage() {
                         {item.actionLabel} {!item.disabled ? <ExternalLink size={12} aria-hidden="true" /> : null}
                       </span>
                     </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm" data-testid="marketing-template-launch-runway">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Template launch runway</p>
+                    <h3 className="mt-1 font-serif text-2xl text-[#241133]">From template library to publishable campaign</h3>
+                    <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed text-[#5d6b61]">
+                      Use this four-step path when the template library feels too large: pick, fill gaps, customize, then create the launch kit.
+                    </p>
+                  </div>
+                  <Pill className="bg-white text-emerald-800">{contentTemplateLaunchRunway.filter((item) => item.state === "ready").length}/4 ready</Pill>
+                </div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                  {contentTemplateLaunchRunway.map((item) => (
+                    <article key={item.key} className={`flex min-h-[210px] flex-col rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-template-launch-runway-${item.key}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-sm font-black text-emerald-800 shadow-sm">{item.step}</span>
+                        <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                      </div>
+                      <p className="mt-3 text-sm font-black text-[#241133]">{item.title}</p>
+                      <p className="mt-2 flex-1 text-xs font-bold leading-relaxed text-[#5d6b61]">{item.detail}</p>
+                      <button
+                        type="button"
+                        onClick={item.onSelect}
+                        disabled={item.disabled}
+                        className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                        data-testid={`button-marketing-template-launch-runway-${item.key}`}
+                      >
+                        <ExternalLink size={13} /> {item.actionLabel}
+                      </button>
+                    </article>
                   ))}
                 </div>
               </div>

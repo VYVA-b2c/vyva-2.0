@@ -2869,6 +2869,14 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Draft queue:"));
     expect(screen.getByTestId("marketing-template-command-feedback")).toHaveTextContent("Template coverage AI pack brief copied.");
+    expect(screen.getByTestId("marketing-template-launch-runway")).toHaveTextContent("From template library to publishable campaign");
+    expect(screen.getByTestId("marketing-template-launch-runway-pick")).toHaveTextContent("Pick the best pack");
+    expect(screen.getByTestId("marketing-template-launch-runway-coverage")).toHaveTextContent("Fill weak channels");
+    expect(screen.getByTestId("marketing-template-launch-runway-customize")).toHaveTextContent("Customize with AI");
+    expect(screen.getByTestId("marketing-template-launch-runway-create")).toHaveTextContent("Create launch kit");
+    expect(screen.getByTestId("button-marketing-template-launch-runway-pick")).toHaveTextContent("Open pack");
+    fireEvent.click(screen.getByTestId("button-marketing-template-launch-runway-pick"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing launch runway pack:");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Pack playbook");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("Use Caregiver invite acceptance email first");
     expect(screen.getByTestId("marketing-template-pack-playbook-caregiver-invite-activation")).toHaveTextContent("7 steps");
