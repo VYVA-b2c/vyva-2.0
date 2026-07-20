@@ -73,7 +73,7 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(result.stdout).toContain("Ready for launch: no");
     expect(result.stdout).toContain("Pending cells by section:");
     expect(result.stdout).toContain(
-      "- Evidence artifact inventory: 27 pending cell(s) across 9 row(s)",
+      "- Evidence artifact inventory: 30 pending cell(s) across 10 row(s)",
     );
     expect(result.stderr).toContain(
       "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
@@ -109,7 +109,7 @@ describe("Voice Canvas QA matrix validator command", () => {
     expect(summary.status).toBe("pending execution");
     expect(summary.state).toBe("pending");
     expect(summary.readyForLaunch).toBe(false);
-    expect(summary.incompleteCellCount).toBe(280);
+    expect(summary.incompleteCellCount).toBe(283);
     expect(summary.failingCellCount).toBe(0);
     expect(summary.problemCount).toBe(0);
     expect(summary.problems).toEqual([]);
@@ -158,7 +158,7 @@ describe("Voice Canvas QA matrix validator command", () => {
       expect.arrayContaining([
         expect.objectContaining({
           section: "Evidence artifact inventory",
-          pendingCells: 27,
+          pendingCells: 30,
         }),
       ]),
     );

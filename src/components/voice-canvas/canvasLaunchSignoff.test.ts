@@ -72,6 +72,9 @@ const ARTIFACT_INVENTORY_SIGNAL_ROW =
 const ARTIFACT_INVENTORY_PRIVACY_ROW =
   "| Analytics privacy artifacts | Analytics privacy allowed envelope forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact links showing allowed envelope and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |";
 
+const ARTIFACT_INVENTORY_PREFLIGHT_ROW =
+  "| Launch preflight artifacts | Launch preflight matrix packet endpoint analytics evidence | Sanitized launch preflight JSON artifact link for matrix packet endpoint analytics gate with no personal details | QA reviewer verified on 2026-07-19 |";
+
 function behaviorChecklistRow(
   flow: string,
   evidence = BEHAVIOR_CHECKLIST_EVIDENCE,
@@ -225,6 +228,10 @@ function fillArtifactInventoryRows(markdown: string): string {
     .replace(
       /^\| Analytics privacy artifacts \| .* \| .* \| .* \|$/m,
       ARTIFACT_INVENTORY_PRIVACY_ROW,
+    )
+    .replace(
+      /^\| Launch preflight artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_PREFLIGHT_ROW,
     );
 }
 

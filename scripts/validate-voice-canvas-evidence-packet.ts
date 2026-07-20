@@ -34,6 +34,7 @@ const requiredInventoryArtifactSets = [
   "Copy and accessibility artifacts",
   "Analytics signal artifacts",
   "Analytics privacy artifacts",
+  "Launch preflight artifacts",
 ] as const;
 
 const requiredFlowPackets = [

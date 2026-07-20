@@ -190,10 +190,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain("Final gate mode: no");
     expect(result.stdout).toContain("Ready for launch: no");
     expect(result.stdout).toContain(
-      "QA matrix: pending; incomplete 280; failing/not-ready 0; problems 0",
+      "QA matrix: pending; incomplete 283; failing/not-ready 0; problems 0",
     );
     expect(result.stdout).toContain(
-      "Evidence packet: pending; incomplete 9; problems 0",
+      "Evidence packet: pending; incomplete 10; problems 0",
     );
     expect(result.stdout).toContain(
       "Analytics evidence: not provided; samples 0; problems 0",
@@ -285,13 +285,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(summary.acceptedPending).toBe(true);
     expect(summary.matrix).toMatchObject({
       state: "pending",
-      incompleteCellCount: 280,
+      incompleteCellCount: 283,
       failingCellCount: 0,
       problemCount: 0,
     });
     expect(summary.evidencePacket).toMatchObject({
       state: "pending",
-      incompleteCellCount: 9,
+      incompleteCellCount: 10,
       problemCount: 0,
     });
     expect(summary.analyticsEvidence).toMatchObject({
