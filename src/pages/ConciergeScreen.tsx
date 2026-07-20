@@ -7647,6 +7647,133 @@ function DryRunOutcomePanel({
   );
 }
 
+type MissingProviderChoicePanelProps = {
+  title: string;
+  body: string;
+  addLabel: string;
+  findLabel: string;
+  helperLabel: string;
+  addDetail?: string;
+  findDetail?: string;
+  helperDetail?: string;
+  onAddProvider: () => void;
+  onFindOptions: () => void;
+  onAskHelper: () => void;
+  isFinding?: boolean;
+  findDisabled?: boolean;
+  testId: string;
+  addTestId?: string;
+  findTestId?: string;
+  helperTestId?: string;
+  isSpanish: boolean;
+};
+
+function MissingProviderChoicePanel({
+  title,
+  body,
+  addLabel,
+  findLabel,
+  helperLabel,
+  addDetail,
+  findDetail,
+  helperDetail,
+  onAddProvider,
+  onFindOptions,
+  onAskHelper,
+  isFinding = false,
+  findDisabled = false,
+  testId,
+  addTestId,
+  findTestId,
+  helperTestId,
+  isSpanish,
+}: MissingProviderChoicePanelProps) {
+  const choices: Array<{
+    key: string;
+    label: string;
+    detail?: string;
+    Icon: LucideIcon;
+    onClick: () => void;
+    testId: string;
+    disabled?: boolean;
+    busy?: boolean;
+  }> = [
+    {
+      key: "add",
+      label: addLabel,
+      detail: addDetail,
+      Icon: ShieldCheck,
+      onClick: onAddProvider,
+      testId: addTestId ?? `${testId}-add-provider`,
+    },
+    {
+      key: "find",
+      label: findLabel,
+      detail: findDetail,
+      Icon: Search,
+      onClick: onFindOptions,
+      testId: findTestId ?? `${testId}-find-options`,
+      disabled: findDisabled || isFinding,
+      busy: isFinding,
+    },
+    {
+      key: "helper",
+      label: helperLabel,
+      detail: helperDetail,
+      Icon: HeartHandshake,
+      onClick: onAskHelper,
+      testId: helperTestId ?? `${testId}-ask-helper`,
+    },
+  ];
+
+  return (
+    <div className="rounded-[22px] border border-[#FCD34D] bg-[#FFFBEB] p-4" data-testid={testId}>
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B45309]">
+          <ShieldCheck size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {title}
+          </p>
+          <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+            {body}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {choices.map(({ key, label, detail, Icon, onClick, testId: buttonTestId, disabled, busy }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            data-testid={buttonTestId}
+            className="vyva-tap flex min-h-[76px] items-start gap-3 rounded-[18px] border border-[#FCD34D] bg-white px-3 py-3 text-left font-body shadow-sm disabled:opacity-60"
+          >
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF7ED] text-[#B45309]">
+              {busy ? <Loader2 size={17} className="animate-spin" /> : <Icon size={17} />}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-black leading-tight text-vyva-text-1">{label}</span>
+              {detail ? (
+                <span className="mt-1 block text-[11px] font-bold leading-snug text-vyva-text-2">{detail}</span>
+              ) : null}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-3 rounded-full bg-white px-3 py-2 text-center font-body text-[12px] font-black text-[#92400E]">
+        {isSpanish
+          ? "Nada se llama, reserva, envia ni comparte hasta que confirmes."
+          : "Nothing is called, booked, sent, or shared until you confirm."}
+      </p>
+    </div>
+  );
+}
+
 function PendingExternalConfirmationModal({
   request,
   review,
@@ -10373,6 +10500,18 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     isSpanish,
     navigate,
   ]);
+  const openProviderSetupHelper = useCallback((setupReason: string, resume?: Record<string, unknown>) => {
+    navigate("/onboarding/careteam", {
+      state: {
+        returnTo: "/concierge",
+        setupReason,
+        conciergeResume: resume ?? null,
+        notice: isSpanish
+          ? "Anade una persona de confianza para ayudarte a configurar este proveedor."
+          : "Add someone trusted who can help set up this provider.",
+      },
+    });
+  }, [isSpanish, navigate]);
   const canSaveOtcOutcome = Boolean(otcPreparedResult?.pendingId)
     && (
       otcOutcomeForm.availability.trim().length > 0
@@ -12515,6 +12654,28 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     setObjectiveProofOpen(false);
     resetProviderShortlistState();
     setOffersQuery(query);
+  }
+
+  function findTransportProviderOptions() {
+    openProviderSearchPanel(
+      "transport",
+      transportDestination.trim()
+        ? (isSpanish
+          ? `Transporte de confianza cerca para ir a ${transportDestination.trim()}`
+          : `Trusted transport nearby to ${transportDestination.trim()}`)
+        : (isSpanish ? "Taxi o transporte de confianza cerca" : "Trusted taxi or transport nearby"),
+    );
+  }
+
+  function findOtcPharmacyOptions() {
+    openProviderSearchPanel(
+      "pharmacy",
+      otcItemText.trim()
+        ? (isSpanish
+          ? `Farmacia cercana para productos sin receta: ${otcItemText.trim()}`
+          : `Nearby pharmacy for over-the-counter items: ${otcItemText.trim()}`)
+        : (isSpanish ? "Farmacia cercana para productos sin receta" : "Nearby pharmacy for over-the-counter items"),
+    );
   }
 
   function toggleProviderSearchCriterion(key: ProviderSearchCriterionKey) {
@@ -17365,32 +17526,32 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
 
           {!hasSavedPharmacy ? (
             <div className="space-y-3 p-4 lg:p-5">
-              <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFFCF8] p-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF7ED] text-[#B45309]">
-                    <ShieldCheck size={19} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                      {isSpanish ? "Servicio no activo todavia" : "Service not active yet"}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-                      {isSpanish
-                        ? "Para OTC, primero guarda una farmacia preferida. Despues VYVA puede preparar entrega o recogida."
-                        : "For OTC help, save a preferred pharmacy first. Then VYVA can prepare delivery or pickup."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={openOtcPharmacyProviderSetup}
-                className="vyva-tap inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-5 font-body text-[16px] font-black text-white"
-                data-testid="button-otc-pharmacy-setup"
-              >
-                <PencilLine size={17} />
-                {isSpanish ? "Guardar farmacia" : "Save pharmacy"}
-              </button>
+              <MissingProviderChoicePanel
+                title={isSpanish ? "Servicio no activo todavia" : "Service not active yet"}
+                body={isSpanish
+                  ? "Para OTC, elige como quieres preparar una farmacia antes de pedir entrega o recogida."
+                  : "For OTC help, choose how to prepare a pharmacy before delivery or pickup."}
+                addLabel={isSpanish ? "Anadir mi farmacia" : "Add my usual pharmacy"}
+                addDetail={isSpanish ? "Guardar para usarla primero" : "Save it for next time"}
+                findLabel={isSpanish ? "Buscar opciones" : "Find options nearby"}
+                findDetail={isSpanish ? "Revisar farmacias cercanas" : "Review nearby pharmacies"}
+                helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
+                helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+                onAddProvider={openOtcPharmacyProviderSetup}
+                onFindOptions={findOtcPharmacyOptions}
+                onAskHelper={() => openProviderSetupHelper("Ask trusted helper to set up a pharmacy", {
+                  kind: "otc_pharmacy",
+                  itemText: otcItemText.trim(),
+                  fulfillmentPreference: otcFulfillmentPreference,
+                  requestedTime: otcRequestedTime.trim() || "today",
+                  notes: otcNotes.trim(),
+                })}
+                testId="panel-otc-missing-provider"
+                addTestId="button-otc-pharmacy-setup"
+                findTestId="button-otc-pharmacy-find-options"
+                helperTestId="button-otc-pharmacy-ask-helper"
+                isSpanish={isSpanish}
+              />
             </div>
           ) : (
             <div className="space-y-3 p-4 lg:p-5">
@@ -17744,17 +17905,38 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                         : (isSpanish ? "Sin proveedor de confianza elegido. Anade o elige uno para continuar." : "No trusted provider selected. Add or choose one to continue.")}
                     </p>
                   </div>
-                  {!hasSavedTransportProvider ? (
-                    <button
-                      type="button"
-                      data-testid="button-transport-provider-setup"
-                      onClick={openTransportProviderSetup}
-                      className="ml-auto flex-shrink-0 rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1.5 font-body text-[12px] font-black text-[#047857]"
-                    >
-                      {isSpanish ? "Guardar" : "Save"}
-                    </button>
-                  ) : null}
                 </div>
+
+                {!hasSavedTransportProvider ? (
+                  <div className="mt-3">
+                    <MissingProviderChoicePanel
+                      title={isSpanish ? "Elige como continuar" : "Choose how to continue"}
+                      body={isSpanish
+                        ? "Puedes guardar tu transporte habitual, buscar opciones cercanas o pedir ayuda para configurarlo."
+                        : "You can save your usual transport, find nearby options, or ask someone trusted to help set it up."}
+                      addLabel={isSpanish ? "Anadir mi transporte" : "Add my usual provider"}
+                      addDetail={isSpanish ? "Taxi o transporte preferido" : "Taxi or preferred ride"}
+                      findLabel={isSpanish ? "Buscar opciones" : "Find options nearby"}
+                      findDetail={isSpanish ? "Comparar antes de contactar" : "Compare before contact"}
+                      helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
+                      helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+                      onAddProvider={openTransportProviderSetup}
+                      onFindOptions={findTransportProviderOptions}
+                      onAskHelper={() => openProviderSetupHelper("Ask trusted helper to set up transport", {
+                        kind: "transport",
+                        pickup: transportPickup.trim() || savedTransportPickupLabel,
+                        destination: transportDestination.trim(),
+                        time: transportTime.trim() || "now",
+                        mobilityNeeds: transportMobilityNeeds,
+                      })}
+                      testId="panel-transport-missing-provider"
+                      addTestId="button-transport-provider-setup"
+                      findTestId="button-transport-provider-find-options"
+                      helperTestId="button-transport-provider-ask-helper"
+                      isSpanish={isSpanish}
+                    />
+                  </div>
+                ) : null}
 
                 <ActionReadinessPanel
                   readiness={transportToolReadiness}
@@ -19833,41 +20015,37 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             )}
 
             {appointmentRequest && appointmentOptions.length === 0 && (
-              <div className="mt-3 rounded-[20px] border border-[#FCD34D] bg-[#FFFBEB] p-4">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B45309]">
-                    <Search size={17} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-[15px] font-black text-vyva-text-1">
-                      {noSavedProviderTitle}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-                      {noSavedProviderBody || (isSpanish ? "VYVA puede buscar opciones antes de contactar." : "VYVA can look for options before contacting anyone.")}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDiscoverAppointmentOptions}
-                  disabled={discoverAppointmentOptionsMutation.isPending}
-                  data-testid="button-appointment-discover-options"
-                  className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-3`}
-                >
-                  {discoverAppointmentOptionsMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
-                  {appointmentDiscoverLabel}
-                </button>
-                {isMedicalAppointmentWithoutProvider ? (
-                  <button
-                    type="button"
-                    onClick={openMedicalProviderSetup}
-                    data-testid="button-appointment-provider-setup"
-                    className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} mt-2 border-[#FCD34D] text-[#92400E]`}
-                  >
-                    <ShieldCheck size={16} className="mr-2" />
-                    {isSpanish ? "Anadir o elegir medico o clinica" : "Add or choose doctor or clinic"}
-                  </button>
-                ) : null}
+              <div className="mt-3">
+                <MissingProviderChoicePanel
+                  title={noSavedProviderTitle}
+                  body={noSavedProviderBody || (isSpanish ? "VYVA puede buscar opciones antes de contactar." : "VYVA can look for options before contacting anyone.")}
+                  addLabel={isHomeServiceAppointment
+                    ? (isSpanish ? "Anadir mi proveedor" : "Add my usual provider")
+                    : (isSpanish ? "Anadir mi clinica" : "Add my usual provider")}
+                  addDetail={isHomeServiceAppointment
+                    ? (isSpanish ? "Servicio en casa de confianza" : "Trusted home service")
+                    : (isSpanish ? "Medico o clinica de confianza" : "Doctor or clinic")}
+                  findLabel={appointmentDiscoverLabel}
+                  findDetail={isSpanish ? "Revisar opciones primero" : "Review options first"}
+                  helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
+                  helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+                  onAddProvider={isHomeServiceAppointment ? openHomeServiceProviderSetup : openMedicalProviderSetup}
+                  onFindOptions={handleDiscoverAppointmentOptions}
+                  onAskHelper={() => openProviderSetupHelper(isHomeServiceAppointment
+                    ? "Ask trusted helper to set up a home service provider"
+                    : "Ask trusted helper to set up a doctor or clinic", {
+                      kind: isHomeServiceAppointment ? "home_service" : "medical_appointment",
+                      appointmentType: appointmentRequest.appointment_type,
+                      note: appointmentNote.trim(),
+                      requestedTime: appointmentCanvasRequestedTime.trim(),
+                    })}
+                  isFinding={discoverAppointmentOptionsMutation.isPending}
+                  testId="panel-appointment-missing-provider"
+                  addTestId="button-appointment-provider-setup"
+                  findTestId="button-appointment-discover-options"
+                  helperTestId="button-appointment-ask-helper"
+                  isSpanish={isSpanish}
+                />
                 {appointmentNotice && appointmentOptions.length === 0 && (!isHomeServiceWithoutProvider || appointmentDiscovery) && (
                   <button
                     type="button"
@@ -20766,26 +20944,32 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                             : "There are not enough verifiable options right now.")}
                         </p>
                         {providerSearchMode && (
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                            <Button
-                              type="button"
-                              onClick={handleProviderManualSearch}
-                              className="h-[44px] rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold hover:bg-vyva-purple/90"
-                              data-testid="button-provider-search-manual"
-                            >
-                              <Search size={15} className="mr-2" />
-                              {isSpanish ? "Que VYVA busque" : "Ask VYVA to search"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={openProviderSearchSetup}
-                              className="h-[44px] rounded-full border-[#BFE7E1] bg-[#F0FDFA] px-4 font-body text-[13px] font-bold text-[#0F766E]"
-                              data-testid="button-provider-search-setup"
-                            >
-                              <PencilLine size={15} className="mr-2" />
-                              {isSpanish ? "Anadir o elegir proveedor" : "Add or choose provider"}
-                            </Button>
+                          <div className="mt-3">
+                            <MissingProviderChoicePanel
+                              title={isSpanish ? "Elige como continuar" : "Choose how to continue"}
+                              body={isSpanish
+                                ? "Puedes guardar tu proveedor habitual, pedir a VYVA que busque opciones o pedir ayuda para configurarlo."
+                                : "You can save your usual provider, ask VYVA to search for options, or ask someone trusted to help set it up."}
+                              addLabel={isSpanish ? "Anadir mi proveedor" : "Add my usual provider"}
+                              addDetail={isSpanish ? "Guardarlo para usarlo primero" : "Save it for next time"}
+                              findLabel={isSpanish ? "Que VYVA busque" : "Ask VYVA to search"}
+                              findDetail={isSpanish ? "Con criterios seguros" : "With safe criteria"}
+                              helperLabel={isSpanish ? "Pedir ayuda" : "Ask someone to help"}
+                              helperDetail={isSpanish ? "Familia o cuidador" : "Family or caregiver setup"}
+                              onAddProvider={openProviderSearchSetup}
+                              onFindOptions={handleProviderManualSearch}
+                              onAskHelper={() => openProviderSetupHelper("Ask trusted helper to set up provider search", {
+                                kind: "provider_search",
+                                mode: providerSearchMode,
+                                query: offersQuery.trim(),
+                                criteria: providerSearchCriteria,
+                              })}
+                              testId="panel-provider-search-missing-provider"
+                              addTestId="button-provider-search-setup"
+                              findTestId="button-provider-search-manual"
+                              helperTestId="button-provider-search-ask-helper"
+                              isSpanish={isSpanish}
+                            />
                           </div>
                         )}
                       </div>
