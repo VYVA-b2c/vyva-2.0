@@ -63,6 +63,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "",
       "The command performs GET requests only and never writes application data.",
       "By default, local/private/example hosts are rejected so staging evidence is not confused with local smoke testing.",
+      "Launch evidence must use HTTPS unless --allow-local is explicitly passed for developer smoke checks.",
       "Use --allow-local only for local command tests or developer smoke checks.",
       "Use --expected-state=enabled for enabled true/rollout 100 launch evidence.",
       "Use --expected-state=rollback-disabled for disabled false/rollout 0 rollback evidence.",
@@ -128,6 +129,13 @@ function parseBaseUrl(value: string): URL {
   if (!allowLocal && isLocalOrPlaceholderHost(parsed.hostname)) {
     console.error(
       "Refusing to collect launch evidence from a local, private, or placeholder host. Use --allow-local only for developer smoke checks.",
+    );
+    process.exit(1);
+  }
+
+  if (!allowLocal && parsed.protocol !== "https:") {
+    console.error(
+      "Expected launch evidence --base-url to use https. Use --allow-local only for developer smoke checks.",
     );
     process.exit(1);
   }

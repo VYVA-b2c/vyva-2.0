@@ -552,7 +552,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
         const summary = JSON.parse(result.stdout) as {
           featureEndpointEvidence: {
-            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+            };
             rollback: { readyForLaunchEvidence: boolean; problemCount: number };
           };
           nextActions: string[];
@@ -637,13 +640,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
     withTempFeatureEndpointFiles(
       {
         ...validFeatureEndpointArtifact("enabled"),
-        baseUrl: "http://localhost:5173",
+        baseUrl: "http://staging.vyva.app",
         generatedAt: "not-a-timestamp",
         scope: "developer smoke check",
         featureEndpoints: validFeatureEndpointArtifact("enabled").featureEndpoints.map(
           (endpoint) => ({
             ...endpoint,
-            url: endpoint.url.replace("https://staging.vyva.app", "http://localhost:5173"),
+            url: endpoint.url.replace("https://staging.vyva.app", "http://staging.vyva.app"),
           }),
         ),
       },
@@ -675,7 +678,11 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
         const summary = JSON.parse(result.stdout) as {
           featureEndpointEvidence: {
-            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
             rollback: { readyForLaunchEvidence: boolean; problemCount: number };
           };
           nextActions: string[];
@@ -688,6 +695,11 @@ describe("Voice Canvas launch readiness preflight command", () => {
           false,
         );
         expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.enabled.problems).toEqual(
+          expect.arrayContaining([
+            "Feature endpoint artifact must include a deployed HTTPS non-local baseUrl origin.",
+          ]),
+        );
         expect(summary.featureEndpointEvidence.rollback.problemCount).toBeGreaterThan(0);
         expect(summary.nextActions).toContain(
           "Fix enabled feature endpoint evidence before launch sign-off.",

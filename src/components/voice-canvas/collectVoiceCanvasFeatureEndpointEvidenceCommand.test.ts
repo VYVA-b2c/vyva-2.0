@@ -136,6 +136,7 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     );
     expect(result.stdout).toContain("Use --expected-state=enabled");
     expect(result.stdout).toContain("GET requests only");
+    expect(result.stdout).toContain("Launch evidence must use HTTPS");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -172,6 +173,18 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
       "Refusing to collect launch evidence from a local, private, or placeholder host.",
+    );
+  });
+
+  it("rejects non-HTTPS launch evidence outside explicit local smoke mode", async () => {
+    const result = await runCollector([
+      "--base-url=http://staging.vyva.app",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "Expected launch evidence --base-url to use https.",
     );
   });
 

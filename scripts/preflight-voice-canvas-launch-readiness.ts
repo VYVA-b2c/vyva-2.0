@@ -248,7 +248,7 @@ function parseDeployedOrigin(value: unknown): URL | null {
 
   try {
     const parsed = new URL(value);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (parsed.protocol !== "https:") return null;
     if (parsed.username || parsed.password || parsed.search || parsed.hash) return null;
     if (isLocalOrPlaceholderHost(parsed.hostname)) return null;
     return new URL(parsed.origin);
@@ -306,7 +306,7 @@ function validateFeatureEndpointArtifact(
   const deployedOrigin = parseDeployedOrigin(isRecord(artifact) ? artifact.baseUrl : null);
   if (!deployedOrigin) {
     problems.push(
-      "Feature endpoint artifact must include a deployed non-local baseUrl origin.",
+      "Feature endpoint artifact must include a deployed HTTPS non-local baseUrl origin.",
     );
   }
 
