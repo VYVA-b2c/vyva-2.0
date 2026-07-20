@@ -1768,7 +1768,10 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("No trusted provider selected.");
-    expect(screen.getByTestId("button-appointment-provider-setup")).toHaveTextContent("Add or choose doctor or clinic");
+    expect(screen.getByTestId("panel-appointment-missing-provider")).toHaveTextContent("Add my usual provider");
+    expect(screen.getByTestId("button-appointment-provider-setup")).toHaveTextContent("Doctor or clinic");
+    expect(screen.getByTestId("button-appointment-discover-options")).toHaveTextContent("Look for options");
+    expect(screen.getByTestId("button-appointment-ask-helper")).toHaveTextContent("Ask someone to help");
     fireEvent.click(screen.getByTestId("button-appointment-provider-setup"));
 
     await waitFor(() => {
@@ -3450,8 +3453,10 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-offers-search"));
 
     expect(await screen.findByText("No verified provider matched those needs.")).toBeVisible();
+    expect(screen.getByTestId("panel-provider-search-missing-provider")).toHaveTextContent("Choose how to continue");
     expect(screen.getByTestId("button-provider-search-manual")).toHaveTextContent("Ask VYVA to search");
-    expect(screen.getByTestId("button-provider-search-setup")).toHaveTextContent("Add or choose provider");
+    expect(screen.getByTestId("button-provider-search-setup")).toHaveTextContent("Add my usual provider");
+    expect(screen.getByTestId("button-provider-search-ask-helper")).toHaveTextContent("Ask someone to help");
 
     fireEvent.click(screen.getByTestId("button-provider-search-setup"));
 
@@ -4455,6 +4460,9 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No trusted provider selected");
       expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Current path: VYVA review");
     });
+    expect(screen.getByTestId("panel-transport-missing-provider")).toHaveTextContent("Add my usual provider");
+    expect(screen.getByTestId("button-transport-provider-find-options")).toHaveTextContent("Find options nearby");
+    expect(screen.getByTestId("button-transport-provider-ask-helper")).toHaveTextContent("Ask someone to help");
     expect(screen.getByTestId("button-transport-find-options")).toHaveTextContent("Add or choose transport");
     fireEvent.click(screen.getByTestId("button-transport-find-options"));
 
@@ -4462,6 +4470,26 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
       expect(screen.getByTestId("route-state")).toHaveTextContent("Add or choose a saved transport provider");
       expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.transportBooking);
+    });
+  });
+
+  it("routes missing provider helper setup to care team onboarding", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showBookRideFastHelp());
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-transport-missing-provider")).toHaveTextContent("Ask someone to help");
+    });
+    fireEvent.click(screen.getByTestId("button-transport-provider-ask-helper"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/careteam");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("Ask trusted helper to set up transport");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("transport");
     });
   });
 
@@ -4475,6 +4503,9 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Save a pharmacy first");
     expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Service not active yet");
+    expect(screen.getByTestId("panel-otc-missing-provider")).toHaveTextContent("Add my usual pharmacy");
+    expect(screen.getByTestId("button-otc-pharmacy-find-options")).toHaveTextContent("Find options nearby");
+    expect(screen.getByTestId("button-otc-pharmacy-ask-helper")).toHaveTextContent("Ask someone to help");
     fireEvent.click(screen.getByTestId("button-otc-pharmacy-setup"));
 
     await waitFor(() => {
