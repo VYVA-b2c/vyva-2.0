@@ -124,6 +124,7 @@ interface FeatureEndpointArtifactValidation {
 const featureFlaggedFlows = canvasLaunchReadinessFlows.filter(
   (flow) => flow.featureFlag,
 );
+const expectedEndpointEvidenceScope = "VYVA Canvas Launch Readiness + Real-Use QA v1";
 
 function runValidator(
   scriptPath: string,
@@ -184,6 +185,55 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isLocalOrPlaceholderHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  if (
+    host === "localhost" ||
+    host === "::1" ||
+    host === "0.0.0.0" ||
+    host === "example.com" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".test") ||
+    host.endsWith(".example")
+  ) {
+    return true;
+  }
+
+  if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) {
+    return true;
+  }
+
+  const private172 = host.match(/^172\.(\d{1,2})\./);
+  if (private172) {
+    const secondOctet = Number(private172[1]);
+    if (secondOctet >= 16 && secondOctet <= 31) return true;
+  }
+
+  return false;
+}
+
+function parseDeployedOrigin(value: unknown): URL | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+    if (isLocalOrPlaceholderHost(parsed.hostname)) return null;
+    return new URL(parsed.origin);
+  } catch {
+    return null;
+  }
+}
+
+function hasValidGeneratedAt(value: unknown): boolean {
+  if (typeof value !== "string" || value.trim() === "") return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
+}
+
 function validateFeatureEndpointArtifact(
   artifactPathArg: string | undefined,
   mode: "enabled" | "rollback",
@@ -220,6 +270,24 @@ function validateFeatureEndpointArtifact(
     problems.push("Feature endpoint artifact must include featureEndpoints array.");
   }
 
+  const deployedOrigin = parseDeployedOrigin(isRecord(artifact) ? artifact.baseUrl : null);
+  if (!deployedOrigin) {
+    problems.push(
+      "Feature endpoint artifact must include a deployed non-local baseUrl origin.",
+    );
+  }
+
+  if (!hasValidGeneratedAt(isRecord(artifact) ? artifact.generatedAt : null)) {
+    problems.push("Feature endpoint artifact must include generatedAt as an ISO timestamp.");
+  }
+
+  if (
+    isRecord(artifact) &&
+    artifact.scope !== expectedEndpointEvidenceScope
+  ) {
+    problems.push("Feature endpoint artifact scope does not match the launch-readiness goal.");
+  }
+
   const readyForQaEvidence = isRecord(artifact)
     ? artifact.readyForQaEvidence
     : undefined;
@@ -248,6 +316,22 @@ function validateFeatureEndpointArtifact(
     }
     if (row.serverFeatureKey !== flow.featureFlag?.serverFeatureKey) {
       problems.push(`${flow.label}: server feature key does not match launch manifest.`);
+    }
+    if (deployedOrigin) {
+      try {
+        const rowUrl = new URL(String(row.url));
+        const expectedUrl = new URL(flow.featureFlag!.endpoint, deployedOrigin);
+        if (rowUrl.origin !== deployedOrigin.origin || rowUrl.pathname !== expectedUrl.pathname) {
+          problems.push(
+            `${flow.label}: endpoint URL does not match the deployed baseUrl and launch endpoint.`,
+          );
+        }
+        if (rowUrl.search || rowUrl.hash || rowUrl.username || rowUrl.password) {
+          problems.push(`${flow.label}: endpoint URL must not include credentials, query, or hash.`);
+        }
+      } catch {
+        problems.push(`${flow.label}: endpoint URL must be a valid deployed URL.`);
+      }
     }
     if (row.ok !== true || row.status !== 200) {
       problems.push(`${flow.label}: endpoint evidence must be ok with HTTP 200.`);

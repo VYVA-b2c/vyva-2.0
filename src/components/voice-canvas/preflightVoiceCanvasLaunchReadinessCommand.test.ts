@@ -456,6 +456,71 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("rejects endpoint artifacts that are not deployed launch evidence", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        baseUrl: "http://localhost:5173",
+        generatedAt: "not-a-timestamp",
+        scope: "developer smoke check",
+        featureEndpoints: validFeatureEndpointArtifact("enabled").featureEndpoints.map(
+          (endpoint) => ({
+            ...endpoint,
+            url: endpoint.url.replace("https://staging.vyva.app", "http://localhost:5173"),
+          }),
+        ),
+      },
+      {
+        ...validFeatureEndpointArtifact("rollback"),
+        baseUrl: "https://staging.vyva.app",
+        featureEndpoints: validFeatureEndpointArtifact("rollback").featureEndpoints.map(
+          (endpoint, index) =>
+            index === 0
+              ? {
+                  ...endpoint,
+                  url: endpoint.url.replace(
+                    "https://staging.vyva.app",
+                    "https://other-staging.vyva.app",
+                  ),
+                }
+              : endpoint,
+        ),
+      },
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.rollback.problemCount).toBeGreaterThan(0);
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+        expect(summary.nextActions).toContain(
+          "Fix rollback-disabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
   it("fails unsafe analytics evidence without echoing personal fields or values", () =>
     withTempAnalyticsFile(
       {

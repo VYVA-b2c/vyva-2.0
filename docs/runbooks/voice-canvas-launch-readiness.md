@@ -39,6 +39,8 @@ Replace `YYYY-MM-DD` with the QA run date and replace `https://staging.vyva.app`
 
 The artifact stores only the launch-scoped endpoint, server key, HTTP status, `cache-control`, elapsed time, `enabled`, `rolloutPercent`, recognized payload keys, and an unexpected-key count. It does not store raw endpoint response bodies, unexpected field names, transcripts, entered text, addresses, saved-place labels, medication details, provider details, shopping details, account identifiers, or other personal data.
 
+The final `canvas:qa:preflight -- --final` gate revalidates endpoint artifacts before launch sign-off. It rejects hand-made or developer-smoke artifacts that do not include the launch-readiness scope, an ISO `generatedAt` timestamp, a deployed non-local `baseUrl`, and per-flow endpoint URLs that match the tested deployed origin.
+
 Capture separate artifacts for the initial enabled rollout state and the rollback disabled/rollout-0 state, using distinct paths such as `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json` and `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. Use those artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
 
 ## Privacy-safe analytics
