@@ -1448,6 +1448,7 @@ function hasFeatureFlagEvidenceNoteLanguage(
     normalized.includes(endpoint.toLowerCase()) &&
     normalized.includes(serverFeatureKey.toLowerCase()) &&
     hasNamedFeatureFallbackPath(value, fallback) &&
+    hasEndpointAuthMetadataProofLanguage(value) &&
     hasAllWordGroups(value, [
       ["endpoint"],
       ["server key", "server feature key", "feature key"],
@@ -1460,6 +1461,30 @@ function hasFeatureFlagEvidenceNoteLanguage(
       ["fallback"],
     ])
   );
+}
+
+function hasEndpointAuthMetadataProofLanguage(value: string): boolean {
+  return hasAllWordGroups(value, [
+    ["auth metadata", "authentication metadata"],
+    ["matching", "matches", "matched"],
+    ["run plan", "launch-evidence-run"],
+    [
+      "no credential",
+      "no credentials",
+      "without credential",
+      "without credentials",
+      "credential references absent",
+      "credentials absent",
+      "no secret",
+      "no secrets",
+      "without secret",
+      "without secrets",
+      "no token",
+      "without token",
+      "no header value",
+      "without header value",
+    ],
+  ]);
 }
 
 function hasFeatureEndpointSensitiveArtifactLeakageLanguage(value: string): boolean {
@@ -2349,6 +2374,24 @@ const artifactInventoryRequirements: Record<
   "Feature endpoint artifacts": [
     ["endpoint"],
     ["payload"],
+    ["auth metadata", "authentication metadata"],
+    ["run plan", "launch-evidence-run"],
+    [
+      "no credential",
+      "no credentials",
+      "without credential",
+      "without credentials",
+      "credential references absent",
+      "credentials absent",
+      "no secret",
+      "no secrets",
+      "without secret",
+      "without secrets",
+      "no token",
+      "without token",
+      "no header value",
+      "without header value",
+    ],
     ["rollback"],
     ["fallback"],
   ],
@@ -2455,6 +2498,14 @@ function invalidArtifactInventoryRows(sections: Map<string, string[][]>): string
       hasNegativeEvidenceLanguage(coverage)
     ) {
       problems.push(`${artifactSet}: coverage must name the launch evidence it proves`);
+    }
+    if (
+      artifactSet === "Feature endpoint artifacts" &&
+      !hasEndpointAuthMetadataProofLanguage(`${coverage} ${reference}`)
+    ) {
+      problems.push(
+        `${artifactSet}: coverage/reference must include auth metadata matching the launch run plan and no credential references`,
+      );
     }
     if (
       !hasConcreteArtifactInventoryReference(reference) ||

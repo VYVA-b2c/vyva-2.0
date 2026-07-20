@@ -58,7 +58,7 @@ const ARTIFACT_INVENTORY_BEHAVIOR_ROW =
   "| Behavior recovery artifacts | Resume restore reconnect refresh browser back interruption cancel exit behavior recovery evidence | Sanitized behavior recovery screenshot log artifact links for resume reconnect browser back interruption cancel exit with no personal details | QA reviewer verified on 2026-07-19 |";
 
 const ARTIFACT_INVENTORY_FEATURE_ROW =
-  "| Feature endpoint artifacts | Endpoint payload rollback fallback feature checks | Sanitized endpoint payload trace and log artifact links for rollback and fallback with no personal details | QA reviewer verified on 2026-07-19 |";
+  "| Feature endpoint artifacts | Endpoint payload auth metadata matching launch run plan with no credential references rollback fallback feature checks | Sanitized endpoint payload trace and log artifact links for auth metadata matching launch run plan, rollback, and fallback with no credential references and no personal details | QA reviewer verified on 2026-07-19 |";
 
 const ARTIFACT_INVENTORY_TASK_HUB_ROW =
   "| Task hub resume artifacts | Task hub resume fallback no write and no external action evidence | Sanitized task hub resume fallback log artifact links showing no write and no external action with no personal details | QA reviewer verified on 2026-07-19 |";
@@ -373,19 +373,19 @@ const launchFlowLabels = [
 ] as const;
 
 const genericFeatureEndpointEvidence =
-  "QA feature endpoint payload evidence for malformed config, missing config, disabled false rollout 0, enabled true rollout 100, rollback, and fallback reviewed on 2026-07-19";
+  "QA feature endpoint payload evidence for auth metadata matching launch run plan with no credential references, malformed config, missing config, disabled false rollout 0, enabled true rollout 100, rollback, and fallback reviewed on 2026-07-19";
 
 const featureEndpointEvidenceByFlow = {
   ride:
-    "QA endpoint log artifact and trace link for /api/config/features/ride-voice-canvas server key ride payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing Concierge transport panel fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/ride-voice-canvas server key ride payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing Concierge transport panel fallback shown",
   appointment:
-    "QA endpoint log artifact and trace link for /api/config/features/appointment-voice-canvas server key appointment payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing appointment panel fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/appointment-voice-canvas server key appointment payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing appointment panel fallback shown",
   medicationRefill:
-    "QA endpoint log artifact and trace link for /api/config/features/medication-refill-voice-canvas server key medicationRefill payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing medication refill shopping/support path fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/medication-refill-voice-canvas server key medicationRefill payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing medication refill shopping/support path fallback shown",
   shoppingDelivery:
-    "QA endpoint log artifact and trace link for /api/config/features/shopping-delivery-voice-canvas server key shoppingDelivery payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing shopping guide and recommendations fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/shopping-delivery-voice-canvas server key shoppingDelivery payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing shopping guide and recommendations fallback shown",
   providerReply:
-    "QA endpoint log artifact and trace link for /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown",
+    "QA endpoint log artifact and trace link for /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown",
 } as const;
 
 const providerReplyFeatureEndpointEvidence =
@@ -807,6 +807,27 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects feature endpoint artifact inventory rows without auth metadata proof", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_FEATURE_ROW,
+      "| Feature endpoint artifacts | Endpoint payload rollback fallback feature checks | Sanitized endpoint payload trace and log artifact links for rollback and fallback with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Feature endpoint artifacts: coverage must name the launch evidence it proves",
+      "Feature endpoint artifacts: coverage/reference must include auth metadata matching the launch run plan and no credential references",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
   it("rejects evidence artifact inventory references with literal personal data", () => {
     const completed = completedMatrix().replace(
       ARTIFACT_INVENTORY_PRIVACY_ROW,
@@ -1089,6 +1110,21 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = completedMatrix().replace(
       `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
       "Existing provider reply panel fallback shown | QA endpoint /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
+  it("rejects feature flag evidence notes that omit endpoint auth metadata proof", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      "Existing provider reply panel fallback shown | QA endpoint log artifact and trace link for /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
