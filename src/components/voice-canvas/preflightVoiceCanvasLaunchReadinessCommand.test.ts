@@ -935,6 +935,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         ? {
             ...flow,
             surfaces: ["/wrong-entry"],
+            qaGates: flow.qaGates.slice(1),
             fallback: "Wrong fallback panel",
             featureFlag: flow.featureFlag
               ? {
@@ -971,6 +972,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         expect(summary.launchRunPlan.problems).toEqual(
           expect.arrayContaining([
             "Ride Voice Canvas: launch evidence run plan must include the canonical entry surfaces.",
+            "Ride Voice Canvas: launch evidence run plan must include the canonical real-use QA gates.",
             "Ride Voice Canvas: launch evidence run plan fallback must match the launch manifest.",
             "Ride Voice Canvas: launch evidence run plan telemetry event must match the launch manifest.",
             "Ride Voice Canvas: launch evidence run plan feature flag details must match the launch manifest.",

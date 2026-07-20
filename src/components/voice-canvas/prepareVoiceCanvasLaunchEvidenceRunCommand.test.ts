@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { CANVAS_LAUNCH_QA_GATES } from "./canvasLaunchReadiness";
 
 const tsxCliPath = path.resolve(
   process.cwd(),
@@ -88,6 +89,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(result.stdout).toContain(
       "Ride Voice Canvas; surfaces voice handoff, /concierge, task hub pending resume",
     );
+    expect(result.stdout).toContain(
+      "qa gates voice_touch_keyboard, mobile_tablet_desktop",
+    );
     expect(result.stdout).toContain("feature /api/config/features/ride-voice-canvas");
     expect(result.stdout).toContain("Run final preflight with the same run-date artifact paths.");
     expect(result.stdout).not.toContain("YYYY-MM-DD");
@@ -114,6 +118,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
         id: string;
         label: string;
         surfaces: string[];
+        qaGates: string[];
         fallback: string;
         featureFlag: {
           endpoint: string;
@@ -161,6 +166,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
       id: "ride",
       label: "Ride Voice Canvas",
       surfaces: ["voice handoff", "/concierge", "task hub pending resume"],
+      qaGates: [...CANVAS_LAUNCH_QA_GATES],
       fallback: "Existing Concierge transport panel",
       featureFlag: {
         endpoint: "/api/config/features/ride-voice-canvas",

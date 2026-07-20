@@ -980,6 +980,11 @@ function validateLaunchRunPlanArtifact(
         `${flow.label}: launch evidence run plan must include the canonical entry surfaces.`,
       );
     }
+    if (!stringArraysEqual(stringArrayField(row, "qaGates"), flow.qaGates)) {
+      problems.push(
+        `${flow.label}: launch evidence run plan must include the canonical real-use QA gates.`,
+      );
+    }
     if (row.fallback !== flow.fallback) {
       problems.push(
         `${flow.label}: launch evidence run plan fallback must match the launch manifest.`,

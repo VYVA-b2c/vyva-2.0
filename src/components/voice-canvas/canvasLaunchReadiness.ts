@@ -112,6 +112,7 @@ export interface CanvasLaunchEvidenceFlowCoverage {
   id: CanvasLaunchFlowId;
   label: string;
   surfaces: readonly string[];
+  qaGates: readonly CanvasLaunchQaGate[];
   fallback: string;
   featureFlag: Pick<
     CanvasLaunchFeatureFlag,
@@ -536,6 +537,7 @@ export function canvasLaunchEvidenceFlowCoverage(): CanvasLaunchEvidenceFlowCove
     id: flow.id,
     label: flow.label,
     surfaces: [...flow.surfaces],
+    qaGates: [...CANVAS_LAUNCH_QA_GATES],
     fallback: flow.featureFlag?.fallback ?? "destination flow fallback",
     featureFlag: flow.featureFlag
       ? {

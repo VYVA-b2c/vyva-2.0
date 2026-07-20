@@ -268,6 +268,7 @@ for (const flow of summary.flowCoverage) {
     [
       `- ${flow.label}`,
       `surfaces ${flow.surfaces.join(", ")}`,
+      `qa gates ${flow.qaGates.join(", ")}`,
       `fallback ${flow.fallback}`,
       `feature ${flow.featureFlag?.endpoint ?? "none"}`,
       `telemetry ${flow.telemetryEvent ?? "none"}`,
