@@ -72,6 +72,7 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
     expect(result.stdout).toContain("pass --force only when intentionally");
     expect(result.stdout).toContain("Flow packet rows must keep per-flow safety coverage");
+    expect(result.stdout).toContain("Copy-ready evidence note patterns must keep");
     expect(result.stdout).toContain(
       "concrete dated sanitized artifact paths or links",
     );
@@ -269,6 +270,32 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             'Flow packet checklist row "Ride Voice Canvas" does not include the required launch-safety coverage.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects copy-ready evidence note patterns that omit launch-safety wording", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "with no write, no resubmission, and no external action before explicit confirmation; duplicate confirmation was prevented and stale response was ignored",
+        "before explicit confirmation; duplicate confirmation was prevented and stale response was ignored",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Required behavior" is missing required launch evidence wording.',
           ]),
         );
       },

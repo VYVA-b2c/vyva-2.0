@@ -255,6 +255,141 @@ const requiredEvidenceNotePatterns = [
   "Analytics privacy",
 ] as const;
 
+type RequiredEvidenceNotePattern =
+  (typeof requiredEvidenceNotePatterns)[number];
+
+const evidenceNotePatternRequirements: Record<
+  RequiredEvidenceNotePattern,
+  readonly (readonly string[])[]
+> = {
+  "Device coverage": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["transcripts"],
+    ["entered text"],
+    ["addresses"],
+    ["personal details"],
+  ],
+  "Interaction mode coverage": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["completed", "safely exited"],
+    ["transcripts"],
+    ["entered text"],
+    ["addresses"],
+    ["personal details"],
+  ],
+  "Required behavior": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["start/resume"],
+    ["app exit/reopen"],
+    ["refresh/reconnect"],
+    ["voice interruption"],
+    ["browser back"],
+    ["cancel/exit"],
+    ["retry/exit"],
+    ["no write"],
+    ["no resubmission"],
+    ["no external action"],
+    ["explicit confirmation"],
+    ["duplicate"],
+    ["stale"],
+  ],
+  "Feature endpoint and rollback": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["endpoint"],
+    ["server key"],
+    ["disabled"],
+    ["false"],
+    ["rollout 0"],
+    ["enabled"],
+    ["true"],
+    ["rollout 100"],
+    ["malformed"],
+    ["missing"],
+    ["fail-closed"],
+    ["rollback"],
+    ["fallback"],
+    ["sanitized"],
+  ],
+  "Task hub destination fallback": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["task path"],
+    ["resumed"],
+    ["destination"],
+    ["enabled"],
+    ["fell back"],
+    ["existing"],
+    ["disabled"],
+    ["rollout 0"],
+    ["no writes"],
+    ["no external actions"],
+    ["confirmation"],
+  ],
+  "Copy and accessibility": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["one clear decision"],
+    ["spanish"],
+    ["long-label"],
+    ["overflow"],
+    ["clipping"],
+    ["truncation"],
+    ["waiting"],
+    ["blocked"],
+    ["completed"],
+    ["keyboard"],
+    ["focus"],
+    ["screen-reader"],
+    ["reduced-motion"],
+  ],
+  "Analytics signal": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["launch signal"],
+    ["source event"],
+    ["aggregate"],
+    ["positive"],
+    ["allowed envelope"],
+    ["started"],
+    ["resumed"],
+    ["abandoned"],
+    ["blocked"],
+    ["confirmed"],
+    ["completed"],
+    ["terminal pending"],
+  ],
+  "Analytics privacy": [
+    ["reference"],
+    ["reviewed"],
+    ["reviewer"],
+    ["forbidden data class"],
+    ["absent"],
+    ["not recorded"],
+    ["logged"],
+    ["sent"],
+    ["captured"],
+    ["included"],
+    ["allowed envelope"],
+  ],
+};
+
 const unsafeReferencePatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
@@ -423,6 +558,11 @@ function hasAllCoverageTerms(
   );
 }
 
+function hasDatePlaceholderOrConcreteDate(value: string): boolean {
+  const normalized = normalizeCell(value);
+  return /\[(?:YYYY-MM-DD|\d{4}-\d{2}-\d{2})\]/.test(normalized);
+}
+
 function evaluateEvidencePacket(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -481,6 +621,33 @@ function evaluateEvidencePacket(markdown: string) {
   for (const pattern of requiredEvidenceNotePatterns) {
     if (!hasRequiredRow(notePatternTable, pattern)) {
       problems.push(`Missing copy-ready evidence note pattern row: ${pattern}.`);
+    }
+  }
+  if (notePatternTable) {
+    const patternIndex = cellIndex(notePatternTable, "Evidence note pattern");
+    if (patternIndex === -1) {
+      problems.push(
+        "Copy-ready evidence note patterns is missing the Evidence note pattern column.",
+      );
+    } else {
+      for (const pattern of requiredEvidenceNotePatterns) {
+        const row = notePatternTable.rows.find(
+          (candidate) => normalizeCell(candidate[0] ?? "") === pattern,
+        );
+        if (!row) continue;
+
+        const notePattern = normalizeCell(row[patternIndex] ?? "");
+        if (
+          notePattern &&
+          !isPendingCell(notePattern) &&
+          (!hasDatePlaceholderOrConcreteDate(notePattern) ||
+            !hasAllCoverageTerms(notePattern, evidenceNotePatternRequirements[pattern]))
+        ) {
+          problems.push(
+            `Copy-ready evidence note pattern "${pattern}" is missing required launch evidence wording.`,
+          );
+        }
+      }
     }
   }
 
@@ -604,6 +771,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "Flow packet rows must keep per-flow safety coverage for device classes, interaction modes, review, explicit confirmation, no pre-confirmation side effects, duplicate prevention, stale response handling, and fallback rollback.",
+      "Copy-ready evidence note patterns must keep reference, reviewer/date, privacy, no-side-effect, rollback, accessibility, and analytics wording needed by the final QA matrix.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, or preflight evidence.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
