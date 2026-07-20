@@ -267,6 +267,7 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("canvas:qa:features");
     expect(runbook).toContain("canvas:qa:analytics");
     expect(runbook).toContain("canvas:qa:packet");
+    expect(runbook).toContain("canvas:qa:rollback-owner");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-enabled.json");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-rollback-disabled.json");
     expect(runbook).toContain("YYYY-MM-DD-analytics-validation.json");
@@ -283,6 +284,7 @@ describe("Canvas launch readiness manifest", () => {
     expect(audit).toContain("scripts/collect-voice-canvas-feature-endpoint-evidence.ts");
     expect(audit).toContain("scripts/validate-voice-canvas-analytics-evidence.ts");
     expect(audit).toContain("scripts/validate-voice-canvas-evidence-packet.ts");
+    expect(audit).toContain("scripts/prepare-voice-canvas-rollback-owner-handoff.ts");
     expect(audit).toContain("provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint");
   });
 
@@ -302,6 +304,9 @@ describe("Canvas launch readiness manifest", () => {
     );
     expect(packageJson.scripts["canvas:qa:packet"]).toBe(
       "tsx scripts/validate-voice-canvas-evidence-packet.ts",
+    );
+    expect(packageJson.scripts["canvas:qa:rollback-owner"]).toBe(
+      "tsx scripts/prepare-voice-canvas-rollback-owner-handoff.ts",
     );
   });
 
@@ -403,6 +408,7 @@ describe("Canvas launch readiness manifest", () => {
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
       "enabled true/rollout 100 for the enabled artifact",
       "enabled false/rollout 0 for the rollback-disabled artifact",
+      "npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "coveredFlows for ride, appointment, refill, shopping, provider_reply, and task_hub_resume",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
@@ -463,6 +469,7 @@ describe("Canvas launch readiness manifest", () => {
       "Rollback owner handoff artifacts",
       "owner/backup, decision window, rollback trigger, sanitized endpoint/fallback/open-session evidence, and privacy boundary",
       "Operations/rollback owner and backup owner, decision window, rollback trigger",
+      "npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md",
       "Copy and accessibility artifacts",
       "Analytics signal artifacts",
       "Analytics privacy artifacts",

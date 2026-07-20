@@ -14,6 +14,8 @@ Use `--allow-pending` while gathering artifacts and omit it for the final packet
 
 For analytics evidence, use `npm run --silent canvas:qa:analytics -- --template` as a copy-safe starting shape when needed. The template is intentionally incomplete and must be filled with real staging or production-like aggregate evidence before `canvas:qa:analytics` validation can pass.
 
+For rollback-owner handoff evidence, use `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` as a copy-safe starting artifact. The template must be filled with real owner/backup, decision-window, rollback-trigger, rollback-action, endpoint/fallback/open-session evidence, privacy-boundary, and fallback-readiness proof before final Operations sign-off.
+
 ## Privacy rules for every artifact
 
 - Do not capture spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, phone numbers, emails, or other personal details.

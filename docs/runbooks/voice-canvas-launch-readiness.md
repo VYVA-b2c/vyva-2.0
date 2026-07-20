@@ -123,6 +123,14 @@ The template is copy-safe but not launch evidence. Replace the placeholder times
 
 The input JSON must be an object with `generatedAt`, `source`, `coveredFlows`, `samples` or `events`, and optional `counts`. `generatedAt` must be a non-future ISO timestamp generated within the last 7 days, `source` must identify staging, production, or a concrete analytics dashboard/query/export/log artifact so launch sign-off cannot rely on anonymous event arrays, local smoke fixtures, or stale exports, and `coveredFlows` must list every launch flow ID: `ride`, `appointment`, `refill`, `shopping`, `provider_reply`, and `task_hub_resume`. Every sample must contain only `name`, `step`, `input`, `attempt`, `restored`, and optional `revision`. The validator requires a positive observed sample count for started, resumed, abandoned, blocked, confirmed, and completed; `completed` may be proven by `completed` or terminal `pending` samples. Optional declared aggregate counts must also be positive. It writes only aggregate validation results and never copies raw sample rows, unexpected field names, addresses, transcripts, entered text, dates, names, medication details, provider details, shopping details, or account identifiers into its output. Existing validation artifacts are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
 
+Prepare the rollback owner handoff artifact from the manifest-filled copy-safe template:
+
+```bash
+npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md
+```
+
+Fill it only with the real launch owner/backup, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness. Do not add personal data.
+
 ## Evidence packet validation
 
 After filling `docs/audits/voice-canvas-real-device-evidence-packet.md` and before copying evidence into the final QA matrix, validate the packet:
@@ -209,7 +217,7 @@ For final sign-off rows, notes must be concrete and role-specific: Product cover
 
 Per-flow rollback runbooks include a copy-safe rollback owner handoff template. Before enabling any percentage rollout, fill that handoff in the launch record with owner/backup, decision window, trigger, rollback action, sanitized endpoint/fallback/open-session evidence, and privacy boundary. Do not launch with an unnamed rollback owner.
 
-Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md` before filling the Operations/rollback owner final sign-off. It requires owner and backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
+Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md` and the `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` helper before filling the Operations/rollback owner final sign-off. It requires owner and backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
 
 Run the sign-off gate after filling the matrix:
 

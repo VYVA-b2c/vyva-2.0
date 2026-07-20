@@ -82,6 +82,8 @@ Final Operations/rollback-owner sign-off validation now rejects generic rollback
 
 Evidence packet and QA matrix artifact inventories now include a required rollback owner handoff artifact row, so Operations sign-off evidence has a concrete sanitized artifact reference instead of living only in final-note prose.
 
+`scripts/prepare-voice-canvas-rollback-owner-handoff.ts` now exposes `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md`, giving Operations a manifest-filled, copy-safe Markdown artifact shape for owner/backup, decision-window, rollback-trigger, endpoint/fallback/open-session, privacy-boundary, and fallback-readiness proof without collecting application data.
+
 Evidence packet copy-ready note patterns now include the Operations rollback-owner handoff, and packet validation rejects patterns that omit backup owner, decision window, rollback trigger, enable-false/rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed/hidden behavior, privacy boundary, or fallback readiness.
 
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.

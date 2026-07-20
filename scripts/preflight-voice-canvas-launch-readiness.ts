@@ -600,6 +600,7 @@ function launchEvidenceCommands(): string[] {
   const rollbackEndpointArtifact = `${artifactPrefix}-feature-endpoints-rollback-disabled.json`;
   const analyticsEvidenceArtifact = `${artifactPrefix}-analytics-evidence.json`;
   const analyticsValidationArtifact = `${artifactPrefix}-analytics-validation.json`;
+  const rollbackOwnerHandoffArtifact = `${artifactPrefix}-rollback-owner-handoff.md`;
   const runSheetSummaryArtifact = `${artifactPrefix}-run-sheet-summary.json`;
   const qaSummaryArtifact = `${artifactPrefix}-qa-summary.json`;
   const packetSummaryArtifact = `${artifactPrefix}-evidence-packet-summary.json`;
@@ -611,6 +612,7 @@ function launchEvidenceCommands(): string[] {
     "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${analyticsEvidenceArtifact} --json --output=${analyticsValidationArtifact}`,
+    `npm run --silent canvas:qa:rollback-owner -- --template --output=${rollbackOwnerHandoffArtifact}`,
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${runSheetSummaryArtifact}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${qaSummaryArtifact}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${packetSummaryArtifact}`,
