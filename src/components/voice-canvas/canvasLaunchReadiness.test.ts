@@ -17,6 +17,8 @@ function evidenceFile(reference: string) {
 
 const launchRunbookPath = "docs/runbooks/voice-canvas-launch-readiness.md";
 const launchAuditPath = "docs/audits/voice-canvas-launch-readiness-audit.md";
+const realDeviceRunSheetPath =
+  "docs/audits/voice-canvas-real-device-run-sheet.md";
 const evidencePacketPath =
   "docs/audits/voice-canvas-real-device-evidence-packet.md";
 const realDeviceQaMatrixPath =
@@ -179,11 +181,13 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("Immediate rollback");
     expect(runbook).toContain("No booking, call, message");
     expect(runbook).toContain("voice-canvas-launch-readiness-audit.md");
+    expect(runbook).toContain("voice-canvas-real-device-run-sheet.md");
     expect(runbook).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(runbook).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(runbook).toContain("canvasLaunchSignoff.test.ts");
     expect(runbook).toContain("validateVoiceCanvasQaMatrixCommand.test.ts");
     expect(audit).toContain("manual real-device/deployed rollback QA still required");
+    expect(audit).toContain("voice-canvas-real-device-run-sheet.md");
     expect(audit).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(audit).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(audit).toContain("canvasLaunchSignoff.test.ts");
@@ -259,6 +263,7 @@ describe("Canvas launch readiness manifest", () => {
       "concrete analytics artifact/query/dashboard/log reference",
       "Evidence artifact inventory",
       "sanitized concrete artifacts",
+      "voice-canvas-real-device-run-sheet.md",
       "voice-canvas-real-device-evidence-packet.md",
       "canvas:qa:validate",
       "--json",
@@ -324,6 +329,59 @@ describe("Canvas launch readiness manifest", () => {
       "absent and was not recorded, logged, sent, captured, or included",
     ]) {
       expect(packet).toContain(requiredCopy);
+    }
+  });
+
+  it("provides a per-flow real-device run sheet for staging QA execution", () => {
+    const runSheet = readFileSync(
+      path.resolve(process.cwd(), realDeviceRunSheetPath),
+      "utf8",
+    );
+
+    expect(runSheet).toContain("This file is not launch approval");
+    expect(runSheet).toContain("Use synthetic QA accounts");
+    expect(runSheet).toContain("Do not write spoken transcripts");
+    expect(runSheet).toContain("record a launch blocker");
+    expect(runSheet).toContain("npm run canvas:qa:validate");
+    expect(runSheet).toContain(
+      "npm run --silent canvas:qa:validate -- --allow-pending --json",
+    );
+
+    for (const flow of canvasLaunchReadinessFlows) {
+      expect(runSheet, flow.label).toContain(flow.label);
+      for (const surface of flow.surfaces) {
+        expect(runSheet, `${flow.label}:${surface}`).toContain(surface);
+      }
+      if (flow.featureFlag) {
+        expect(runSheet, flow.featureFlag.fallback).toContain(
+          flow.featureFlag.fallback,
+        );
+      }
+    }
+
+    for (const requiredRunSheetCoverage of [
+      "real phone, real tablet, and real desktop/laptop",
+      "Voice/touch/keyboard",
+      "Start/resume restored work",
+      "App exit/reopen restored draft",
+      "Refresh/reconnect restored work",
+      "Voice interruption recovered work",
+      "Browser back preserved or returned safely",
+      "Cancel/exit left safely",
+      "Duplicate prevented and stale response ignored",
+      "Recoverable failure offered retry and exit",
+      "No external action before explicit confirmation",
+      "Explicit confirmation accepted once",
+      "In-session flag rollback closes or hides Canvas",
+      "Existing fallback path appears",
+      "No write or external action during rollback",
+      "Spanish long labels remain readable",
+      "Screen-reader announcements fire",
+      "Analytics launch signals are present",
+      "Analytics privacy is preserved",
+      "only `name`, `step`, `input`, `attempt`, `restored`, and `revision`",
+    ]) {
+      expect(runSheet).toContain(requiredRunSheetCoverage);
     }
   });
 });

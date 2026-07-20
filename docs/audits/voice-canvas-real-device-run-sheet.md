@@ -1,0 +1,95 @@
+# Voice Canvas real-device QA run sheet
+
+Use this run sheet during staging or production-like real-device QA before filling `docs/audits/voice-canvas-real-device-qa-matrix.md`.
+
+This file is not launch approval. It is the tester-facing execution sheet. Record sanitized artifacts in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then copy final passing evidence into the QA matrix and run `npm run canvas:qa:validate` without `--allow-pending`.
+
+## Privacy and safety guardrails
+
+- Use synthetic QA accounts and synthetic task details.
+- Do not write spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, phone numbers, emails, account identifiers, or personal details into this run sheet.
+- Capture only sanitized screenshots, cropped photos, redacted logs, endpoint traces, analytics dashboard/query artifacts, and reviewer notes.
+- Stop and record a launch blocker if any flow performs a booking, call, message, navigation, order, refill request, provider reply, task completion, data write, or other external action before explicit final confirmation.
+- Stop and record a launch blocker if feature-flag rollback does not restore the existing fallback path.
+
+## Environment preflight
+
+| Check | Expected result | Artifact/reference | Reviewer/date |
+| --- | --- | --- | --- |
+| Staging or production-like URL is deployed and non-local | Deployed URL opens on real phone, tablet, and desktop/laptop | Pending | Pending |
+| Build or commit SHA matches the tested deployment | Commit/build is recorded before QA starts | Pending | Pending |
+| Live voice session is available | Voice provider/session is live and not mocked | Pending | Pending |
+| Initial feature flags are enabled for tested flows | Enabled true and rollout 100 are visible in flag artifact/log | Pending | Pending |
+| Rollback feature flags are available | Disabled false and rollout 0 can be applied and verified | Pending | Pending |
+| Analytics sink is available | Started, resumed, abandoned, blocked, confirmed, completed aggregate counts can be reviewed without sensitive fields | Pending | Pending |
+
+## Flow execution checklist
+
+For each flow below, test on a real phone, real tablet, and real desktop/laptop. Complete or safely exit with touch, keyboard, and voice where supported.
+
+| Flow | Entry surface | Main path to exercise | Existing fallback path | Required sanitized artifacts |
+| --- | --- | --- | --- | --- |
+| Ride Voice Canvas | voice handoff, `/concierge`, task hub pending resume | Saved place or new address, date/time, review, explicit confirmation, waiting, completed or blocked | Existing Concierge transport panel | Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query |
+| Appointment Voice Canvas | voice handoff, `/concierge`, task hub provider setup resume | Appointment choice, date/time, review, explicit confirmation, waiting, completed or blocked | Existing appointment panel | Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query |
+| Medication Refill Voice Canvas | `/meds/adherence-report`, voice refill action, task hub local resume | Refill details, review, explicit confirmation, waiting, completed or blocked | Existing medication refill shopping/support path | Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query |
+| Shopping Delivery Voice Canvas | `/concierge/shopping`, shopping voice capture, task hub local resume | Shopping request, review, explicit confirmation, waiting, completed or blocked | Existing shopping guide and recommendations | Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query |
+| Provider Reply Voice Canvas | /concierge task detail, provider reply panel, task hub pending resume | Reply draft, review, explicit confirmation, waiting, saved or completed or blocked | Existing provider reply panel | Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query |
+| Concierge Task Hub Resume | `/concierge/tasks`, `/concierge/tasks/:taskKey`, home resume card | Local shopping draft, local medication refill draft, pending provider reply task, stale or blocked task resume | Safe existing destination path for the underlying task | Task hub resume artifacts; destination fallback artifacts; no-write and no-external-action evidence |
+
+## Per-flow behavior pass
+
+Use one row per flow and device family if the artifacts differ by device.
+
+| Flow | Device | Interaction mode | Start/resume restored work | App exit/reopen restored draft | Refresh/reconnect restored work | Voice interruption recovered work | Browser back preserved or returned safely | Cancel/exit left safely | Duplicate prevented and stale response ignored | Recoverable failure offered retry and exit | Evidence reference | Reviewer/date |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ride Voice Canvas | Phone | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Ride Voice Canvas | Tablet | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Ride Voice Canvas | Desktop/laptop | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Phone | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Tablet | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Desktop/laptop | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Phone | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Tablet | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Desktop/laptop | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Phone | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Tablet | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Desktop/laptop | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Phone | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Tablet | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Desktop/laptop | Voice/touch/keyboard | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Phone | Voice/touch/keyboard where supported | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Tablet | Voice/touch/keyboard where supported | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Desktop/laptop | Voice/touch/keyboard where supported | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+
+## Confirmation and rollback pass
+
+| Flow | No external action before explicit confirmation | Explicit confirmation accepted once | Waiting state explains what is pending and what has not happened | Completed or blocked result explains what happens next | In-session flag rollback closes or hides Canvas | Existing fallback path appears | No write or external action during rollback | Evidence reference | Reviewer/date |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ride Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Appointment Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Medication Refill Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Shopping Delivery Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Provider Reply Voice Canvas | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| Concierge Task Hub Resume | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+
+## Copy, accessibility, and analytics pass
+
+| Check | Expected result | Evidence reference | Reviewer/date |
+| --- | --- | --- | --- |
+| English copy uses one clear decision at a time | Every flow has one clear decision and a clear exit path | Pending | Pending |
+| Spanish long labels remain readable | Labels remain readable or legible with no horizontal overflow, clipping, or truncation | Pending | Pending |
+| Focus moves meaningfully | Focus moves to the new scene heading or primary control when scenes change | Pending | Pending |
+| Screen-reader announcements fire | Waiting, blocked, and completed states are announced | Pending | Pending |
+| Reduced-motion mode remains calm | Reduced motion is usable and does not rely on animation for meaning | Pending | Pending |
+| Analytics launch signals are present | Started, resumed, abandoned, blocked, confirmed, and completed have positive aggregate counts | Pending | Pending |
+| Analytics privacy is preserved | Telemetry includes only `name`, `step`, `input`, `attempt`, `restored`, and `revision`, with forbidden data classes absent | Pending | Pending |
+
+## Run-sheet closeout
+
+Before filling the final QA matrix:
+
+- Every `Pending` cell above has a passing result, sanitized artifact reference, and reviewer/date.
+- Every artifact reference also appears in `docs/audits/voice-canvas-real-device-evidence-packet.md`.
+- Every launch blocker has either been patched and retested or the feature remains disabled.
+- `npm run --silent canvas:qa:validate -- --allow-pending --json` has been captured as a QA artifact while the matrix is still pending.
+- `npm run canvas:qa:validate` passes only after the matrix is complete and marked `ready for launch`.

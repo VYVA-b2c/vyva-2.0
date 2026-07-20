@@ -1,6 +1,6 @@
 # Voice Canvas real-device evidence packet
 
-Use this packet before filling `docs/audits/voice-canvas-real-device-qa-matrix.md`. It gives QA one sanitized place to name artifacts, dates, reviewers, and the matrix rows each artifact proves.
+Use this packet after executing `docs/audits/voice-canvas-real-device-run-sheet.md` and before filling `docs/audits/voice-canvas-real-device-qa-matrix.md`. It gives QA one sanitized place to name artifacts, dates, reviewers, and the matrix rows each artifact proves.
 
 This packet is not launch approval. The QA matrix remains the launch gate, and `npm run canvas:qa:validate` must pass without `--allow-pending` before Canvas is enabled for real users.
 
