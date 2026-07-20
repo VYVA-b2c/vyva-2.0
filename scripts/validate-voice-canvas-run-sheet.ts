@@ -3,6 +3,7 @@ import path from "node:path";
 
 const defaultRunSheetPath = "docs/audits/voice-canvas-real-device-run-sheet.md";
 const args = process.argv.slice(2);
+const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 interface PendingSectionSummary {
   section: string;
@@ -171,6 +172,32 @@ function isGenericCompletedCell(value: string): boolean {
   );
 }
 
+function parseIsoDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+    ? parsed
+    : null;
+}
+
+function hasStaleOrFutureEvidenceDate(value: string): boolean {
+  const dates = normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+  if (dates.length === 0) return false;
+
+  const now = new Date();
+  const todayUtc = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+  );
+
+  return dates.some((dateValue) => {
+    const date = parseIsoDate(dateValue);
+    if (!date) return true;
+    if (date > todayUtc) return true;
+    return todayUtc.getTime() - date.getTime() > maxLaunchEvidenceAgeMs;
+  });
+}
+
 const literalPersonalDataPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
@@ -324,6 +351,25 @@ function countLiteralPersonalDataCells(tables: readonly MarkdownTable[]): number
   );
 }
 
+function countStaleOrFutureEvidenceDateCells(tables: readonly MarkdownTable[]): number {
+  return tables.reduce(
+    (total, table) =>
+      total +
+      table.rows.reduce(
+        (rowTotal, row) =>
+          rowTotal +
+          row
+            .slice(1)
+            .filter(
+              (cell) =>
+                !isPendingCell(cell) && hasStaleOrFutureEvidenceDate(cell),
+            ).length,
+        0,
+      ),
+    0,
+  );
+}
+
 function evaluateRunSheet(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -402,6 +448,13 @@ function evaluateRunSheet(markdown: string) {
       `Run sheet contains ${genericCompletedCellCount} filled cell(s) with generic pass text; record specific sanitized evidence instead.`,
     );
   }
+  const staleOrFutureEvidenceDateCellCount =
+    countStaleOrFutureEvidenceDateCells(tables);
+  if (staleOrFutureEvidenceDateCellCount > 0) {
+    problems.push(
+      `Run sheet contains ${staleOrFutureEvidenceDateCellCount} filled cell(s) with stale, future, or invalid evidence dates; use non-future YYYY-MM-DD dates no older than 7 days.`,
+    );
+  }
   const literalPersonalDataCellCount = countLiteralPersonalDataCells(tables);
   if (literalPersonalDataCellCount > 0) {
     problems.push(
@@ -436,6 +489,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --allow-pending for in-progress review of the committed run-sheet template.",
       "It protects privacy guardrails, environment preflight, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout checks.",
       "Filled result cells must name specific sanitized evidence or behavior; generic pass/done/OK text is rejected.",
+      "Filled dated evidence cells must use non-future YYYY-MM-DD dates no older than 7 days.",
       "Filled cells must not include literal personal data such as street-address-shaped text, email addresses, or phone numbers.",
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",

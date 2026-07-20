@@ -509,15 +509,15 @@ function messagesForNextAction(
     messages.push("Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.");
   }
   if (runSheetIncomplete > 0) {
-    messages.push("Execute the real-device run sheet and record sanitized evidence before final launch sign-off.");
+    messages.push("Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.");
   }
   if (packetIncomplete > 0) {
     messages.push(
-      "Fill the sanitized evidence packet artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording.",
+      "Fill the sanitized evidence packet artifact references and reviewer/date cells with fresh explicit reviewed, verified, validated, approved, or sign-off wording.",
     );
   }
   if (matrixIncomplete > 0) {
-    messages.push("Execute real-device and deployed rollback QA, then fill the QA matrix.");
+    messages.push("Execute fresh real-device and deployed rollback QA, then fill the QA matrix.");
   }
   if (messages.length === 0) {
     messages.push("Run final launch sign-off and keep rollback owners ready before enabling wider rollout.");

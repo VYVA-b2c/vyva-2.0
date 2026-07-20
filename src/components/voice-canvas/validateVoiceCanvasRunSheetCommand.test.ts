@@ -76,6 +76,7 @@ describe("Voice Canvas run sheet validator command", () => {
     expect(result.stdout).toContain("privacy guardrails");
     expect(result.stdout).toContain("flow/device rows");
     expect(result.stdout).toContain("generic pass/done/OK text is rejected");
+    expect(result.stdout).toContain("no older than 7 days");
     expect(result.stdout).toContain("street-address-shaped text");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -159,6 +160,32 @@ describe("Voice Canvas run sheet validator command", () => {
       expect(summary.incompleteCellCount).toBe(0);
       expect(summary.problems).toEqual([]);
     }));
+
+  it("rejects completed run sheets with stale evidence dates", () =>
+    withTempRunSheet(
+      completedRunSheet().replaceAll("2026-07-19", "2000-01-01"),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForQaRunSheet: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForQaRunSheet).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining("stale, future, or invalid evidence dates"),
+            expect.stringContaining("no older than 7 days"),
+          ]),
+        );
+      },
+    ));
 
   it("rejects run sheets with literal personal data without echoing values", () =>
     withTempRunSheet(

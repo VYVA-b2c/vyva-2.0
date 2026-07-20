@@ -16,7 +16,7 @@ Use the QA run date in the output path. The preflight delegates to the run-sheet
 
 - Use synthetic QA accounts and synthetic task details.
 - Do not write spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, phone numbers, emails, account identifiers, or personal details into this run sheet.
-- Capture only sanitized screenshots, cropped photos, redacted logs, endpoint traces, analytics dashboard/query artifacts, and reviewer notes.
+- Capture only sanitized screenshots, cropped photos, redacted logs, endpoint traces, analytics dashboard/query artifacts, and reviewer notes dated within the last 7 days.
 - Stop and record a launch blocker if any flow performs a booking, call, message, navigation, order, refill request, provider reply, task completion, data write, or other external action before explicit final confirmation.
 - Stop and record a launch blocker if feature-flag rollback does not restore the existing fallback path.
 
@@ -114,13 +114,13 @@ Validate the evidence packet before copying packet notes into the final matrix:
 npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json
 ```
 
-Use a distinct run-specific output path and do not overwrite an earlier artifact. Omit `--allow-pending` for the final packet gate after every packet inventory row has a sanitized artifact reference and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording.
+Use a distinct run-specific output path and do not overwrite an earlier artifact. Omit `--allow-pending` for the final packet gate after every packet inventory row has a sanitized artifact reference and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording dated within the last 7 days.
 
 ## Run-sheet closeout
 
 Before filling the final QA matrix:
 
-- Every `Pending` cell above has a passing result, sanitized artifact reference, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording. Do not use generic closeout notes such as `pass`, `done`, or `OK`, and do not include street-address-shaped text, phone numbers, emails, or other personal details.
+- Every `Pending` cell above has a passing result, sanitized artifact reference, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording dated within the last 7 days. Do not use generic closeout notes such as `pass`, `done`, or `OK`, and do not include street-address-shaped text, phone numbers, emails, or other personal details.
 - Every artifact reference also appears in `docs/audits/voice-canvas-real-device-evidence-packet.md`.
 - Every launch blocker has either been patched and retested or the feature remains disabled.
 - `npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json` and a distinct `--expected-state=rollback-disabled` endpoint artifact have been captured from the deployed URL without overwriting an earlier artifact.

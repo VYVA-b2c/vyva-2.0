@@ -224,10 +224,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Feature endpoints rollback: not provided; endpoints 0; problems 0",
     );
     expect(result.stdout).toContain(
-      "Execute the real-device run sheet and record sanitized evidence before final launch sign-off.",
+      "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
     );
     expect(result.stdout).toContain(
-      "Execute real-device and deployed rollback QA, then fill the QA matrix.",
+      "Execute fresh real-device and deployed rollback QA, then fill the QA matrix.",
     );
     expect(result.stdout).toContain(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
@@ -241,13 +241,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain("Final gate mode: yes");
     expect(result.stdout).toContain("Ready for launch: no");
     expect(result.stdout).toContain(
-      "Execute the real-device run sheet and record sanitized evidence before final launch sign-off.",
+      "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
     );
     expect(result.stdout).toContain(
-      "Fill the sanitized evidence packet artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording.",
+      "Fill the sanitized evidence packet artifact references and reviewer/date cells with fresh explicit reviewed, verified, validated, approved, or sign-off wording.",
     );
     expect(result.stdout).toContain(
-      "Execute real-device and deployed rollback QA, then fill the QA matrix.",
+      "Execute fresh real-device and deployed rollback QA, then fill the QA matrix.",
     );
     expect(result.stdout).toContain(
       "Provide --features-enabled=<path> for the enabled feature endpoint collector artifact before final launch sign-off.",
@@ -351,9 +351,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.nextActions).toEqual(
       expect.arrayContaining([
-        "Execute the real-device run sheet and record sanitized evidence before final launch sign-off.",
-        "Fill the sanitized evidence packet artifact references and reviewer/date cells with explicit reviewed, verified, validated, approved, or sign-off wording.",
-        "Execute real-device and deployed rollback QA, then fill the QA matrix.",
+        "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
+        "Fill the sanitized evidence packet artifact references and reviewer/date cells with fresh explicit reviewed, verified, validated, approved, or sign-off wording.",
+        "Execute fresh real-device and deployed rollback QA, then fill the QA matrix.",
       ]),
     );
     expect(summary.message).toBe(
