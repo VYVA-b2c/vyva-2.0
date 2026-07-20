@@ -4310,6 +4310,21 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign launch AI brief copied.");
     });
+    expect(screen.getByTestId("marketing-campaign-planner-preflight")).toHaveTextContent("Preflight guardrails");
+    expect(screen.getByTestId("marketing-campaign-planner-preflight-consent")).toHaveTextContent("No opted-in direct-route recipient yet");
+    expect(screen.getByTestId("marketing-campaign-planner-preflight-claims")).toHaveTextContent("No obvious high-risk clinical claim wording");
+    expect(screen.getByTestId("marketing-campaign-planner-preflight-unsubscribe")).toHaveTextContent("Confirm unsubscribe/stop handling before Email");
+    expect(screen.getByTestId("marketing-campaign-planner-preflight-handoff")).toHaveTextContent("LinkedIn need manual owner");
+    const preflightPacket = screen.getByTestId("textarea-marketing-campaign-planner-preflight") as HTMLTextAreaElement;
+    expect(preflightPacket.value).toContain("VYVA campaign preflight and compliance packet");
+    expect(preflightPacket.value).toContain("Direct sends require opted-in contacts");
+    expect(preflightPacket.value).toContain("AI task: Review this campaign for consent");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-planner-preflight"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign preflight and compliance packet"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Do not publish medical, emergency, or guaranteed outcome claims."));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign preflight packet copied.");
+    });
     fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-audience-reach-brief"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign audience reach brief"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Audience/list: Partners"));

@@ -20476,7 +20476,99 @@ export default function MarketingAdminPage() {
     campaignPlannerCopilotAction.detail,
     campaignPlannerCopilotAction.title,
     selectedCampaignDraftContentByChannel,
-    selectedCampaignDraftTargetAudience,
+      selectedCampaignDraftTargetAudience,
+  ]);
+  const campaignPlannerPreflightItems = useMemo<CampaignReadinessItem[]>(() => {
+    const directChannels = campaignDraftSelectedChannels.filter((channel) => ["email", "whatsapp", "sms"].includes(channel));
+    const manualChannels = campaignDraftSelectedChannels.filter((channel) => channel !== "email");
+    const selectedCopy = campaignDraftSelectedChannels
+      .map((channel) => {
+        const asset = selectedCampaignDraftContentByChannel.get(channel);
+        return [asset?.title, asset?.subject, asset?.body, asset?.htmlBody].filter(Boolean).join(" ");
+      })
+      .join(" ")
+      .toLowerCase();
+    const claimWords = ["cure", "diagnose", "guarantee", "prevent", "medical advice", "emergency monitoring"];
+    const flaggedClaims = claimWords.filter((word) => selectedCopy.includes(word));
+    const hasDirectOptedIn = campaignDraftEligibleRecipientPreview.some((contact) => (
+      contact.consentStatus === "opted_in"
+      && directChannels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    ));
+    const optedOutReachable = campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus === "opted_out").length;
+
+    return [
+      {
+        key: "consent",
+        title: "Consent route",
+        state: directChannels.length === 0
+          ? "planning"
+          : optedOutReachable > 0
+            ? "blocked"
+            : hasDirectOptedIn ? "ready" : "needs_action",
+        detail: directChannels.length === 0
+          ? "No direct-send route selected; manual channels still need source/platform permission checks."
+          : optedOutReachable > 0
+            ? `${optedOutReachable} reachable contact${optedOutReachable === 1 ? "" : "s"} are opted out and must be excluded before direct sending.`
+            : hasDirectOptedIn
+              ? "At least one opted-in contact is reachable through a direct route."
+              : "No opted-in direct-route recipient yet; review consent before email, WhatsApp, or SMS.",
+      },
+      {
+        key: "claims",
+        title: "Claims and safety",
+        state: flaggedClaims.length ? "needs_action" : "ready",
+        detail: flaggedClaims.length
+          ? `Review wording that may imply clinical claims: ${flaggedClaims.join(", ")}.`
+          : "No obvious high-risk clinical claim wording found in linked copy.",
+      },
+      {
+        key: "unsubscribe",
+        title: "Opt-out handling",
+        state: directChannels.includes("email") || directChannels.includes("sms") ? "needs_action" : "planning",
+        detail: directChannels.includes("email") || directChannels.includes("sms")
+          ? `Confirm unsubscribe/stop handling before ${formatChannelList(directChannels.filter((channel) => channel === "email" || channel === "sms"))}.`
+          : "No email/SMS route selected; keep reply preferences visible for manual channels.",
+      },
+      {
+        key: "handoff",
+        title: "Manual handoff",
+        state: manualChannels.length ? "planning" : "ready",
+        detail: manualChannels.length
+          ? `${formatChannelList(manualChannels)} need manual owner, publish URL/result capture, and follow-up tracking.`
+          : "No manual publishing routes selected.",
+      },
+    ];
+  }, [
+    campaignDraftEligibleRecipientPreview,
+    campaignDraftSelectedChannels,
+    selectedCampaignDraftContentByChannel,
+  ]);
+  const campaignPlannerPreflightText = useMemo(() => [
+    "VYVA campaign preflight and compliance packet",
+    "",
+    `Campaign: ${campaignDraft.name.trim() || "Untitled campaign"}`,
+    `Audience: ${campaignDraft.audienceType.toUpperCase()}`,
+    `Channels: ${formatChannelList(campaignDraftSelectedChannels)}`,
+    `Recipients: ${campaignDraft.snapshotRecipients ? `${campaignDraftRecipientPreview.length} snapshotted` : `${campaignDraftEligibleRecipientPreview.length} eligible, snapshot off`}`,
+    "",
+    "Checks:",
+    ...campaignPlannerPreflightItems.map((item) => `- ${item.title}: ${readinessLabel(item.state)} - ${item.detail}`),
+    "",
+    "Operator rules:",
+    "- Direct sends require opted-in contacts and an explicit send review.",
+    "- Do not publish medical, emergency, or guaranteed outcome claims.",
+    "- Social, phone, print, and event routes must be published manually and tracked back on the campaign.",
+    "- Record replies, clicks, attendance, and promised follow-up owner after launch.",
+    "",
+    "AI task: Review this campaign for consent, claims, opt-out handling, manual handoff gaps, and the safest publish path. Return exact fixes before launch plus a short approval checklist.",
+  ].join("\n"), [
+    campaignDraft.audienceType,
+    campaignDraft.name,
+    campaignDraft.snapshotRecipients,
+    campaignDraftEligibleRecipientPreview.length,
+    campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
+    campaignPlannerPreflightItems,
   ]);
 
   const campaignRecipientSnapshotChannels = useMemo(() => campaignChannelsWithPrimary(campaignEditDraft), [campaignEditDraft]);
@@ -34691,6 +34783,45 @@ export default function MarketingAdminPage() {
                       value={campaignPlannerLaunchBriefText}
                       data-testid="textarea-marketing-campaign-planner-launch-brief"
                     />
+                  </div>
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 shadow-sm" data-testid="marketing-campaign-planner-preflight">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-800">Preflight guardrails</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Check consent, claims, opt-outs, and manual handoffs</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                          Use this before launch so direct sends, public posts, and offline routes do not drift away from the campaign record.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyCampaignStudioOfflineHandoff("Campaign preflight packet", campaignPlannerPreflightText)}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white hover:bg-purple-800"
+                        data-testid="button-marketing-copy-campaign-planner-preflight"
+                      >
+                        <Copy size={15} /> Copy preflight
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-planner-preflight-items">
+                      {campaignPlannerPreflightItems.map((item) => (
+                        <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-planner-preflight-${item.key}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">{item.title}</p>
+                            <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                          </div>
+                          <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <details className="mt-3 rounded-xl border border-amber-100 bg-white px-3 py-2">
+                      <summary className="cursor-pointer text-xs font-black text-amber-800">Preflight prompt</summary>
+                      <textarea
+                        readOnly
+                        className={`${textareaClass} mt-2 min-h-[150px] bg-white text-xs`}
+                        value={campaignPlannerPreflightText}
+                        data-testid="textarea-marketing-campaign-planner-preflight"
+                      />
+                    </details>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
