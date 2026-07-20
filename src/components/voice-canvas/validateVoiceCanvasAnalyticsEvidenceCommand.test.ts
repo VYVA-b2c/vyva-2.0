@@ -211,9 +211,33 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(summary.readyForLaunchEvidence).toBe(false);
         expect(summary.problems).toEqual(
           expect.arrayContaining([
-            "Analytics evidence must include generatedAt as an ISO timestamp.",
+            "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
             "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
           ]),
+        );
+      },
+    ));
+
+  it("rejects future-dated analytics evidence metadata", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        generatedAt: "2999-01-01T00:00:00.000Z",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problems).toContain(
+          "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
         );
       },
     ));

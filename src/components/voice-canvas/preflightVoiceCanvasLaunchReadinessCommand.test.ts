@@ -521,6 +521,44 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("rejects future-dated endpoint artifacts", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        generatedAt: "2999-01-01T00:00:00.000Z",
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          true,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
   it("fails unsafe analytics evidence without echoing personal fields or values", () =>
     withTempAnalyticsFile(
       {

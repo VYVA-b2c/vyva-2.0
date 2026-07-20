@@ -155,8 +155,10 @@ function topLevelProblems(artifact: unknown): string[] {
     );
   }
 
-  if (!hasValidGeneratedAt(artifact.generatedAt)) {
-    problems.push("Analytics evidence must include generatedAt as an ISO timestamp.");
+  if (!hasValidNonFutureGeneratedAt(artifact.generatedAt)) {
+    problems.push(
+      "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
+    );
   }
 
   if (!hasConcreteAnalyticsSource(artifact.source)) {
@@ -168,10 +170,14 @@ function topLevelProblems(artifact: unknown): string[] {
   return problems;
 }
 
-function hasValidGeneratedAt(value: unknown): boolean {
+function hasValidNonFutureGeneratedAt(value: unknown): boolean {
   if (typeof value !== "string" || value.trim() === "") return false;
   const parsed = new Date(value);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString() === value &&
+    parsed.getTime() <= Date.now()
+  );
 }
 
 function hasConcreteAnalyticsSource(value: unknown): boolean {

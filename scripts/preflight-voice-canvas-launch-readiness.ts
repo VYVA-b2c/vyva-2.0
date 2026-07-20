@@ -228,10 +228,14 @@ function parseDeployedOrigin(value: unknown): URL | null {
   }
 }
 
-function hasValidGeneratedAt(value: unknown): boolean {
+function hasValidNonFutureGeneratedAt(value: unknown): boolean {
   if (typeof value !== "string" || value.trim() === "") return false;
   const parsed = new Date(value);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString() === value &&
+    parsed.getTime() <= Date.now()
+  );
 }
 
 function validateFeatureEndpointArtifact(
@@ -277,8 +281,10 @@ function validateFeatureEndpointArtifact(
     );
   }
 
-  if (!hasValidGeneratedAt(isRecord(artifact) ? artifact.generatedAt : null)) {
-    problems.push("Feature endpoint artifact must include generatedAt as an ISO timestamp.");
+  if (!hasValidNonFutureGeneratedAt(isRecord(artifact) ? artifact.generatedAt : null)) {
+    problems.push(
+      "Feature endpoint artifact must include generatedAt as a non-future ISO timestamp.",
+    );
   }
 
   if (
