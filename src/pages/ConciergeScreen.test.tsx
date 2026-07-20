@@ -5723,15 +5723,15 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "upcoming");
     const checklist = screen.getByTestId("panel-concierge-flow-checklist");
-    expect(checklist).toHaveTextContent("Ready check");
-    expect(checklist).toHaveTextContent("Nothing is sent, called, or booked without your OK.");
-    expect(checklist).toHaveTextContent("Details");
+    expect(checklist).toHaveTextContent("Clear path");
+    expect(checklist).toHaveTextContent("Only missing info.");
+    expect(checklist).toHaveTextContent("Missing");
     expect(checklist).toHaveTextContent("Ready");
     expect(checklist).toHaveTextContent("Provider");
     expect(checklist).toHaveTextContent("Radio Taxi");
-    expect(checklist).toHaveTextContent("Contact");
+    expect(checklist).toHaveTextContent("Action");
     expect(checklist).toHaveTextContent("Phone call");
-    expect(checklist).toHaveTextContent("Confirm");
+    expect(checklist).toHaveTextContent("Your OK");
     expect(checklist).toHaveTextContent("Call and save result");
     expect(screen.getByTestId("button-concierge-checklist-details")).toHaveTextContent("Review");
     expect(screen.getByTestId("button-concierge-checklist-provider")).toHaveTextContent("Change");
@@ -6165,7 +6165,7 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     const checklist = await screen.findByTestId("panel-concierge-flow-checklist");
-    expect(checklist).toHaveTextContent("Choose first");
+    expect(checklist).toHaveTextContent("Choose or add");
     expect(checklist).toHaveTextContent("Choose provider");
     expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("Add");
     fireEvent.click(screen.getByTestId("button-concierge-checklist-confirm"));

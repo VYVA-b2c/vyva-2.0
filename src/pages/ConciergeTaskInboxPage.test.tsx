@@ -170,7 +170,8 @@ describe("ConciergeTaskInboxPage", () => {
 
     expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Shopping Canvas");
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Ready to confirm");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Review");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
     expect(screen.getByTestId("button-concierge-task-primary-action")).toHaveTextContent("Review and confirm");
 
     apiFetchMock.mockClear();
@@ -197,7 +198,8 @@ describe("ConciergeTaskInboxPage", () => {
 
     expect(await screen.findByTestId("concierge-task-continuation")).toHaveTextContent("Refill Canvas");
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Draft");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Quantity");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
 
     apiFetchMock.mockClear();
     fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
@@ -214,7 +216,8 @@ describe("ConciergeTaskInboxPage", () => {
     expect(await screen.findByTestId("concierge-task-detail")).toBeInTheDocument();
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Provider reply");
     expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Needs information");
-    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Reply");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Task type");
+    expect(screen.getByTestId("concierge-task-continuation")).toHaveTextContent("Status");
     expect(screen.getByTestId("concierge-task-provider-reply")).toHaveTextContent("Please confirm your insurance plan.");
     expect(screen.getByTestId("concierge-task-decision")).toHaveTextContent("Prepared an answer for the clinic.");
     expect(screen.getByTestId("concierge-task-more-details")).not.toHaveAttribute("open");
