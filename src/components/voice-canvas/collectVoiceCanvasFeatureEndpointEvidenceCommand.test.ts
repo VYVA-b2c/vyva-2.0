@@ -129,6 +129,12 @@ describe("Voice Canvas feature endpoint evidence command", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:features -- --trace-template",
+    );
+    expect(result.stdout).toContain(
+      "manifest-filled manual evidence template",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
     );
     expect(result.stdout).toContain(
@@ -142,6 +148,41 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     expect(result.stdout).not.toContain(
       `--output=artifacts/voice-canvas/${unsafeDatePlaceholder}-feature-endpoints.json`,
     );
+  });
+
+  it("prints a manifest-filled manual trace template without requiring a base URL", async () => {
+    const result = await runCollector(["--trace-template"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain(
+      "Voice Canvas feature endpoint manual trace template",
+    );
+    expect(result.stdout).toContain(
+      "malformed-config and missing-config evidence",
+    );
+    expect(result.stdout).toContain("fail-closed disabled false/rollout 0");
+    expect(result.stdout).toContain("no raw response body");
+    expect(result.stdout).toContain("unexpected field names");
+
+    for (const flow of launchFeatureFlows) {
+      expect(result.stdout, flow.label).toContain(`## ${flow.label}`);
+      expect(result.stdout, flow.featureFlag!.endpoint).toContain(
+        `- Endpoint: ${flow.featureFlag!.endpoint}`,
+      );
+      expect(result.stdout, flow.featureFlag!.serverFeatureKey).toContain(
+        `- Server key: ${flow.featureFlag!.serverFeatureKey}`,
+      );
+      expect(result.stdout, flow.featureFlag!.fallback).toContain(
+        `and ${flow.featureFlag!.fallback} visible`,
+      );
+    }
+
+    expect(result.stdout).not.toContain("123 Secret Street");
+    expect(result.stdout).not.toContain("private spoken detail");
+    expect(result.stdout).not.toContain("raw endpoint body");
+    const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
+    expect(result.stdout).not.toContain(unsafeDatePlaceholder);
   });
 
   it("rejects unknown expected endpoint states", async () => {

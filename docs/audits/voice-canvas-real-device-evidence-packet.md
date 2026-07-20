@@ -40,7 +40,7 @@ For analytics evidence, use `npm run --silent canvas:qa:analytics -- --template`
 
 ## Feature endpoint manual trace template
 
-Use this copy-safe shape for malformed-config and missing-config evidence that cannot be collected by `canvas:qa:features`. Replace bracketed placeholders only. Do not include raw response bodies, environment variable values, screenshots with personal data, unexpected payload field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.
+Use `npm run --silent canvas:qa:features -- --trace-template` to print a manifest-filled copy-safe shape for malformed-config and missing-config evidence that cannot be collected by `canvas:qa:features`. Replace bracketed placeholders only. Do not include raw response bodies, environment variable values, screenshots with personal data, unexpected payload field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.
 
 ```text
 Feature endpoint manual trace evidence, reviewed on [YYYY-MM-DD] by [reviewer]:

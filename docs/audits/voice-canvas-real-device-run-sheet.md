@@ -39,7 +39,13 @@ npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --exp
 
 Replace `YYYY-MM-DD` with the QA run date and replace the base URL with the tested staging or production-like origin. Capture a second artifact after rollback using `--expected-state=rollback-disabled` and a distinct path such as `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. The collector performs GET requests only, rejects local/private/placeholder hosts by default, preserves existing files unless `--force` is explicit, and records only sanitized endpoint status, cache-control, timing, expected state, `enabled`, `rolloutPercent`, recognized payload keys, and unexpected-key count. Launch evidence must show `Cache-Control: no-store`, enabled true/rollout 100 for the enabled artifact, enabled false/rollout 0 for the rollback-disabled artifact, and an integer `rolloutPercent` from 0 through 100.
 
-Malformed-config and missing-config fail-closed behavior still require a sanitized manual deployment log, trace, or environment artifact. Use this copy-safe shape for the evidence note; replace bracketed placeholders only, and do not paste raw response bodies, environment variable values, screenshots with personal data, or unexpected payload field names:
+Malformed-config and missing-config fail-closed behavior still require a sanitized manual deployment log, trace, or environment artifact. Print a manifest-filled template first:
+
+```bash
+npm run --silent canvas:qa:features -- --trace-template
+```
+
+Use this copy-safe shape from the command output for the evidence note; replace bracketed placeholders only, and do not paste raw response bodies, environment variable values, screenshots with personal data, or unexpected payload field names:
 
 ```text
 Feature endpoint manual trace evidence, reviewed on [YYYY-MM-DD] by [reviewer]:

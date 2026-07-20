@@ -56,11 +56,13 @@ if (args.includes("--help") || args.includes("-h")) {
       "Collect sanitized Voice Canvas feature endpoint evidence from a deployed environment.",
       "",
       "Usage:",
+      "  npm run --silent canvas:qa:features -- --trace-template",
       "  npm run canvas:qa:features -- --base-url=https://staging.vyva.app",
       "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json",
       "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=enabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
       "  npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --expected-state=rollback-disabled --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
       "",
+      "Use --trace-template to print a manifest-filled manual evidence template for malformed-config and missing-config fail-closed traces.",
       "The command performs GET requests only and never writes application data.",
       "By default, local/private/example hosts are rejected so staging evidence is not confused with local smoke testing.",
       "Launch evidence must use HTTPS unless --allow-local is explicitly passed for developer smoke checks.",
@@ -79,8 +81,42 @@ const baseUrlArg = readArgValue("--base-url");
 const jsonOutput = args.includes("--json");
 const allowLocal = args.includes("--allow-local");
 const forceOutput = args.includes("--force");
+const traceTemplateOutput = args.includes("--trace-template");
 const outputPathArg = readArgValue("--output");
 const expectedStateArg = readArgValue("--expected-state");
+
+function featureEndpointTraceTemplate(): string {
+  const lines = [
+    "Voice Canvas feature endpoint manual trace template",
+    "",
+    "Use this copy-safe template for malformed-config and missing-config evidence that cannot be collected by canvas:qa:features.",
+    "Replace bracketed placeholders only. Do not paste raw response bodies, environment variable values, screenshots with personal data, unexpected payload field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data.",
+  ];
+
+  for (const flow of featureFlaggedFlows()) {
+    lines.push(
+      "",
+      `## ${flow.label}`,
+      "",
+      "Feature endpoint manual trace evidence, reviewed on [YYYY-MM-DD] by [reviewer]:",
+      `- Flow: ${flow.label}`,
+      `- Endpoint: ${flow.featureFlag.endpoint}`,
+      `- Server key: ${flow.featureFlag.serverFeatureKey}`,
+      "- Malformed config artifact: [sanitized deployment log/trace/artifact reference]",
+      "- Missing config artifact: [sanitized deployment log/trace/artifact reference]",
+      `- Observed malformed-config behavior: fail-closed disabled false/rollout 0 and ${flow.featureFlag.fallback} visible`,
+      `- Observed missing-config behavior: fail-closed disabled false/rollout 0 and ${flow.featureFlag.fallback} visible`,
+      "- Privacy check: artifact contains no raw response body, unexpected field names, transcripts, entered text, addresses, medication details, provider details, shopping details, account identifiers, or personal data",
+    );
+  }
+
+  return lines.join("\n");
+}
+
+if (traceTemplateOutput) {
+  console.log(`${featureEndpointTraceTemplate()}\n`);
+  process.exit(0);
+}
 
 if (!baseUrlArg) {
   console.error("Expected --base-url=<deployed app URL>.");

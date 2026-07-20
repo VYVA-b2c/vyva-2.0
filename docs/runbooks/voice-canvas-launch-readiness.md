@@ -49,7 +49,13 @@ The final `canvas:qa:preflight -- --final` gate revalidates endpoint artifacts b
 
 Use the enabled and rollback-disabled artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
 
-For the required malformed-config and missing-config trace, use this copy-safe manual evidence shape. Replace bracketed placeholders with artifact references and affirmative observations only; do not paste raw response bodies, environment variable values, screenshots with personal data, or unexpected payload field names:
+For the required malformed-config and missing-config trace, print a manifest-filled copy-safe manual evidence template:
+
+```bash
+npm run --silent canvas:qa:features -- --trace-template
+```
+
+Use this evidence shape from the command output. Replace bracketed placeholders with artifact references and affirmative observations only; do not paste raw response bodies, environment variable values, screenshots with personal data, or unexpected payload field names:
 
 ```text
 Feature endpoint manual trace evidence, reviewed on [YYYY-MM-DD] by [reviewer]:

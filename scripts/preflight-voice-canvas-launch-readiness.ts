@@ -603,6 +603,7 @@ function launchEvidenceCommands(): string[] {
   return [
     `npm run --silent canvas:qa:features -- --base-url=${evidenceBaseUrlPlaceholder} --expected-state=enabled --json --output=${enabledEndpointArtifact}`,
     `npm run --silent canvas:qa:features -- --base-url=${evidenceBaseUrlPlaceholder} --expected-state=rollback-disabled --json --output=${rollbackEndpointArtifact}`,
+    "npm run --silent canvas:qa:features -- --trace-template",
     "npm run --silent canvas:qa:analytics -- --template",
     `npm run --silent canvas:qa:analytics -- --input=${analyticsEvidenceArtifact} --json --output=${analyticsValidationArtifact}`,
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${runSheetSummaryArtifact}`,
