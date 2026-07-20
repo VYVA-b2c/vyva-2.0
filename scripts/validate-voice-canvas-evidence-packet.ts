@@ -453,7 +453,7 @@ const unsafeReferencePatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\b(?:\+?\d[\s().-]*){10,}\b/,
-  /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|medication name|provider name|reply text|account id|user id|patient id)\b/i,
+  /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|ride details|route details|pickup details|dropoff details|destination details|appointment date|appointment time|date\/time details|medication name|medication details|provider name|provider details|provider contact|reply text|reply body|shopping item|shopping details|item name|retailer name|price|fee|contact details|account id|user id|profile id|patient id)\b/i,
 ];
 
 function normalizeCell(value: string): string {
@@ -612,7 +612,10 @@ function artifactReferenceHasPlaceholder(value: string): boolean {
 }
 
 function artifactReferenceLooksUnsafe(value: string): boolean {
-  return unsafeReferencePatterns.some((pattern) => pattern.test(value));
+  const filenameFriendlyValue = value.replace(/[-_]+/g, " ");
+  return unsafeReferencePatterns.some(
+    (pattern) => pattern.test(value) || pattern.test(filenameFriendlyValue),
+  );
 }
 
 function artifactReferenceLooksConcrete(value: string): boolean {

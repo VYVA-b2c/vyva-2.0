@@ -201,6 +201,38 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects artifact references that name broader private launch details", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "voice-canvas/analytics/2026-07-19/analytics-evidence.json",
+        "voice-canvas/analytics/2026-07-19/shopping-item-details-retailer-name-route-details-profile-id",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Analytics signal artifacts" has an artifact reference that appears to include personal or raw captured data.',
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("shopping-item-details");
+        expect(serialized).not.toContain("retailer-name");
+        expect(serialized).not.toContain("route-details");
+        expect(serialized).not.toContain("profile-id");
+      },
+    ));
+
   it("rejects generic artifact references that do not point to dated artifacts", () =>
     withTempPacket(
       completedPacket().replace(
