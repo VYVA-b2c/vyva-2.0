@@ -2127,6 +2127,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-quality-cta")).toHaveTextContent("Book intro");
     expect(screen.getByTestId("marketing-content-quality-personalization")).toHaveTextContent("2 supported merge fields");
 
+    fireEvent.click(screen.getByTestId("button-marketing-content-copy-improvement-queue"));
+
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content draft improvement queue")));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Fix these first:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Design/media: Planning"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("{{company_name}}"));
+    expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Content improvement queue copied.");
+
     fireEvent.click(screen.getByTestId("button-marketing-content-copy-personalization-brief"));
 
     await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content personalization AI brief")));

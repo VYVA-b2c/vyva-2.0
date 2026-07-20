@@ -16053,6 +16053,37 @@ export default function MarketingAdminPage() {
     "",
     "AI task: Make this asset more publish-ready for its channel. Keep claims non-clinical, preserve consent-safe language, include one clear CTA, keep only supported merge tokens, and return improved copy plus visual or handoff notes where useful.",
   ].join("\n");
+  const contentDraftImprovementQueueItems = contentDraftQualityItems
+    .filter((item) => item.state !== "ready")
+    .map((item) => `${item.title}: ${readinessLabel(item.state)} - ${item.detail}`);
+  const contentDraftImprovementQueueText = [
+    "VYVA content draft improvement queue",
+    `Asset: ${contentDraft.title.trim() || "Untitled draft"}`,
+    `Channel: ${channelLabel[contentDraft.channel]}`,
+    `Language: ${contentDraft.language.trim() || "Not set"}`,
+    `Overall state: ${readinessLabel(contentDraftQualityState)} (${contentDraftQualityReadyCount}/${contentDraftQualityItems.length} ready)`,
+    `Reachable sample: ${contentDraftReachableContacts.length} contact${contentDraftReachableContacts.length === 1 ? "" : "s"}`,
+    "",
+    "Fix these first:",
+    ...(contentDraftImprovementQueueItems.length ? contentDraftImprovementQueueItems.map((item, index) => `${index + 1}. ${item}`) : ["1. No urgent fixes. Do a final brand and consent read before publishing."]),
+    "",
+    "Supported personalization:",
+    ...(contentDraftPersonalizationCoverage.length
+      ? contentDraftPersonalizationCoverage.map((item) => `- {{${item.token}}}: ${item.available}/${item.total} contacts have a value`)
+      : ["- No merge tokens currently used."]),
+    "",
+    "Recommended safe additions:",
+    ...(contentDraftRecommendedTokens.length
+      ? contentDraftRecommendedTokens.map((item) => `- {{${item.key}}}: ${item.detail}`)
+      : ["- No extra merge fields recommended for the current audience view."]),
+    "",
+    "Draft to improve:",
+    `Subject: ${contentDraft.subject.trim() || "No subject yet."}`,
+    `Body: ${contentDraftCopyText || "No body copy yet."}`,
+    `CTA: ${contentDraft.ctaLabel.trim() || "No CTA label"}${contentDraft.ctaUrl.trim() ? ` -> ${contentDraft.ctaUrl.trim()}` : ""}`,
+    "",
+    "AI task: Return a corrected version that resolves the fix list in order. Keep the same channel, use only supported merge tokens, make the CTA explicit, include design/media notes when needed, and mark any remaining blocker the admin must solve manually.",
+  ].join("\n");
   const selectedContentUsage = useMemo(
     () => selectedContent ? contentUsageById.get(selectedContent.id) ?? [] : [],
     [contentUsageById, selectedContent],
@@ -23528,6 +23559,28 @@ export default function MarketingAdminPage() {
       setContentFeedback("Content quality AI brief copied.");
     } catch (error) {
       setContentFeedback(error instanceof Error ? error.message : "Content quality brief could not be copied.");
+    }
+  }
+
+  async function copyContentDraftImprovementQueue() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(contentDraftImprovementQueueText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = contentDraftImprovementQueueText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard copy failed.");
+      }
+      setContentFeedback("Content improvement queue copied.");
+    } catch (error) {
+      setContentFeedback(error instanceof Error ? error.message : "Content improvement queue could not be copied.");
     }
   }
 
@@ -39810,15 +39863,26 @@ export default function MarketingAdminPage() {
                           Checks copy, channel fit, CTA, personalization, and design/media before the asset is saved or reused in a campaign.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void copyContentDraftQualityBrief()}
-                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                        disabled={contentSaving}
-                        data-testid="button-marketing-content-copy-quality-brief"
-                      >
-                        <Sparkles size={13} /> Copy quality brief
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void copyContentDraftImprovementQueue()}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#241133] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          disabled={contentSaving}
+                          data-testid="button-marketing-content-copy-improvement-queue"
+                        >
+                          <ClipboardList size={13} /> Copy fix queue
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyContentDraftQualityBrief()}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          disabled={contentSaving}
+                          data-testid="button-marketing-content-copy-quality-brief"
+                        >
+                          <Sparkles size={13} /> Copy quality brief
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5" data-testid="marketing-content-quality-items">
                       {contentDraftQualityItems.map((item) => (
