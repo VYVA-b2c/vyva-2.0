@@ -482,6 +482,64 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("rejects endpoint artifacts with extra out-of-scope rows", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        endpointCount: launchFeatureFlows.length + 1,
+        featureEndpoints: [
+          ...validFeatureEndpointArtifact("enabled").featureEndpoints,
+          {
+            id: "unscoped-admin-feature",
+            label: "Unscoped admin feature",
+            endpoint: "/api/config/features/unscoped-admin-feature",
+            serverFeatureKey: "unscopedAdmin",
+            fallback: "Unexpected admin panel",
+            url: "https://staging.vyva.app/api/config/features/unscoped-admin-feature",
+            ok: true,
+            status: 200,
+            cacheControl: "no-store",
+            elapsedMs: 25,
+            enabled: true,
+            rolloutPercent: 100,
+            payloadKeys: ["enabled", "rolloutPercent"],
+            unexpectedPayloadKeyCount: 0,
+            problems: [],
+          },
+        ],
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          true,
+        );
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
   it("rejects endpoint artifacts that are not deployed launch evidence", () =>
     withTempFeatureEndpointFiles(
       {

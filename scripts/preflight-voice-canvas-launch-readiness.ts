@@ -313,9 +313,35 @@ function validateFeatureEndpointArtifact(
   const expectedEnabled = mode === "enabled";
   const expectedRollout = mode === "enabled" ? 100 : 0;
   const endpointRows = Array.isArray(endpoints) ? endpoints : [];
+  const expectedEndpointIds = new Set(featureFlaggedFlows.map((flow) => flow.id));
+  if (endpointRows.length !== featureFlaggedFlows.length) {
+    problems.push(
+      "Feature endpoint artifact must include exactly the launch-scoped feature endpoints.",
+    );
+  }
+  if (
+    isRecord(artifact) &&
+    artifact.endpointCount !== featureFlaggedFlows.length
+  ) {
+    problems.push(
+      "Feature endpoint artifact endpointCount must match the launch-scoped feature endpoint count.",
+    );
+  }
+
   const rowsById = new Map<string, Record<string, unknown>>();
   for (const row of endpointRows) {
-    if (!isRecord(row) || typeof row.id !== "string") continue;
+    if (!isRecord(row) || typeof row.id !== "string") {
+      problems.push("Feature endpoint artifact contains an invalid endpoint row.");
+      continue;
+    }
+    if (!expectedEndpointIds.has(row.id)) {
+      problems.push("Feature endpoint artifact contains an out-of-scope endpoint row.");
+      continue;
+    }
+    if (rowsById.has(row.id)) {
+      problems.push(`${row.id}: duplicate feature endpoint evidence row.`);
+      continue;
+    }
     rowsById.set(row.id, row);
   }
 
