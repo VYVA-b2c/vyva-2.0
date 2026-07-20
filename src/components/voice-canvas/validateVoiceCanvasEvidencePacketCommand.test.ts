@@ -72,6 +72,9 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
     expect(result.stdout).toContain("pass --force only when intentionally");
     expect(result.stdout).toContain("Flow packet rows must keep per-flow safety coverage");
+    expect(result.stdout).toContain(
+      "canonical entry surfaces, canonical path states, fallback paths, and sanitized artifact categories",
+    );
     expect(result.stdout).toContain("Copy-ready evidence note patterns must keep");
     expect(result.stdout).toContain("The final pre-fill checklist must keep");
     expect(result.stdout).toContain("run-sheet validation");
@@ -371,6 +374,35 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             'Flow packet checklist row "Ride Voice Canvas" does not include the required launch-safety coverage.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects flow packet rows that omit canonical execution details", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "Entry surfaces: voice handoff, /concierge, and task hub pending resume; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review, explicit confirmation, waiting, completed or saved result, and blocked result; no booking, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel; sanitized artifact categories: device screenshots/photos, voice/touch/keyboard interaction logs, endpoint rollback, analytics signal, and privacy query",
+        "Entry surfaces: voice handoff only; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review and explicit confirmation; no booking, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Generic fallback panel; sanitized artifact categories: screenshot only",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Ride Voice Canvas: flow packet checklist must name every canonical launch entry surface.",
+            "Ride Voice Canvas: flow packet checklist must name the canonical launch path to exercise.",
+            "Ride Voice Canvas: flow packet checklist must name the expected fallback path.",
+            "Ride Voice Canvas: flow packet checklist must name the required sanitized artifact categories.",
           ]),
         );
       },

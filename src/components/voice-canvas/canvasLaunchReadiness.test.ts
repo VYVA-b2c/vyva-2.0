@@ -506,14 +506,24 @@ describe("Canvas launch readiness manifest", () => {
 
     for (const flow of canvasLaunchReadinessFlows) {
       expect(packet, flow.label).toContain(flow.label);
+      for (const surface of flow.surfaces) {
+        expect(packet, `${flow.label}:${surface}`).toContain(surface);
+      }
       if (flow.featureFlag) {
         expect(packet, flow.featureFlag.fallback).toContain(
           flow.featureFlag.fallback,
         );
+      } else {
+        expect(packet, flow.label).toContain("safe existing destination path");
       }
     }
 
     for (const requiredCopy of [
+      "Entry surfaces:",
+      "waiting, completed or saved result, and blocked result",
+      "sanitized artifact categories: device screenshots/photos",
+      "endpoint rollback, analytics signal, and privacy query",
+      "sanitized artifact categories: task hub resume, destination fallback, no-write, and no-external-action artifacts",
       "real phone, tablet, and desktop/laptop",
       "voice, touch, and keyboard",
       "no write, no resubmission, and no external action before explicit confirmation",

@@ -155,7 +155,7 @@ After filling `docs/audits/voice-canvas-real-device-evidence-packet.md` and befo
 npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json
 ```
 
-Use `--allow-pending` while the packet is still being filled, and omit it for the final packet gate. The validator checks that required artifact inventory, flow packet, and copy-ready evidence pattern rows remain present; reports pending packet cells by section; preserves existing output unless `--force` is explicit; and rejects unsafe artifact references without copying raw artifact-reference values into output.
+Use `--allow-pending` while the packet is still being filled, and omit it for the final packet gate. The validator checks that required artifact inventory, flow packet, and copy-ready evidence pattern rows remain present; requires flow packet rows to keep canonical launch entry surfaces, canonical path states, fallback paths, and sanitized artifact categories aligned with the launch manifest; reports pending packet cells by section; preserves existing output unless `--force` is explicit; and rejects unsafe artifact references without copying raw artifact-reference values into output.
 
 ## Real-device QA pass
 

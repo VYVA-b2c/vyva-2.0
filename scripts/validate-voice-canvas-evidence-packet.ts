@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { canvasLaunchReadinessFlows } from "../src/components/voice-canvas/canvasLaunchReadiness";
 
 const defaultPacketPath = "docs/audits/voice-canvas-real-device-evidence-packet.md";
 const args = process.argv.slice(2);
@@ -701,6 +702,87 @@ function hasAllCoverageTerms(
   );
 }
 
+function flowPacketArtifactRequirements(
+  flowId: string,
+): readonly (readonly string[])[] {
+  if (flowId === "task_hub_resume") {
+    return [
+      ["task hub resume"],
+      ["destination fallback"],
+      ["no write", "no-write"],
+      ["no external action", "no-external-action"],
+    ];
+  }
+
+  return [
+    ["device screenshots", "device screenshot", "photos"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["endpoint rollback"],
+    ["analytics signal"],
+    ["privacy query"],
+  ];
+}
+
+function invalidFlowPacketCanonicalDetails(
+  flowTable: MarkdownTable | undefined,
+): string[] {
+  if (!flowTable) return [];
+  const problems: string[] = [];
+  const coverageIndex = cellIndex(flowTable, "Required packet coverage");
+  if (coverageIndex === -1) return problems;
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    const row = flowTable.rows.find(
+      (candidate) => normalizeCell(candidate[0] ?? "") === flow.label,
+    );
+    if (!row) continue;
+
+    const coverage = normalizeCell(row[coverageIndex] ?? "");
+    if (!coverage || isPendingCell(coverage)) continue;
+
+    if (!hasAllCoverageTerms(coverage, flow.surfaces.map((surface) => [surface]))) {
+      problems.push(
+        `${flow.label}: flow packet checklist must name every canonical launch entry surface.`,
+      );
+    }
+
+    const canonicalPathRequirements = flow.featureFlag
+      ? [
+          ["explicit confirmation"],
+          ["waiting"],
+          ["completed", "saved"],
+          ["blocked"],
+        ]
+      : [
+          ["resume"],
+          ["stale", "blocked"],
+        ];
+    if (!hasAllCoverageTerms(coverage, canonicalPathRequirements)) {
+      problems.push(
+        `${flow.label}: flow packet checklist must name the canonical launch path to exercise.`,
+      );
+    }
+
+    const expectedFallback =
+      flow.featureFlag?.fallback ?? "safe existing destination path";
+    if (!hasAllCoverageTerms(coverage, [[expectedFallback]])) {
+      problems.push(
+        `${flow.label}: flow packet checklist must name the expected fallback path.`,
+      );
+    }
+
+    if (!hasAllCoverageTerms(coverage, flowPacketArtifactRequirements(flow.id))) {
+      problems.push(
+        `${flow.label}: flow packet checklist must name the required sanitized artifact categories.`,
+      );
+    }
+  }
+
+  return problems;
+}
+
 function hasDatePlaceholderOrConcreteDate(value: string): boolean {
   const normalized = normalizeCell(value);
   return /\[(?:YYYY-MM-DD|\d{4}-\d{2}-\d{2})\]/.test(normalized);
@@ -768,6 +850,7 @@ function evaluateEvidencePacket(markdown: string) {
         }
       }
     }
+    problems.push(...invalidFlowPacketCanonicalDetails(flowTable));
   }
 
   const notePatternTable = findTable(tables, "Copy-ready evidence note patterns");
@@ -923,7 +1006,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
-      "Flow packet rows must keep per-flow safety coverage for device classes, interaction modes, review, explicit confirmation, no pre-confirmation side effects, duplicate prevention, stale response handling, and fallback rollback.",
+      "Flow packet rows must keep per-flow safety coverage for device classes, interaction modes, review, explicit confirmation, no pre-confirmation side effects, duplicate prevention, stale response handling, fallback rollback, canonical entry surfaces, canonical path states, fallback paths, and sanitized artifact categories.",
       "Copy-ready evidence note patterns must keep reference, reviewer/date, privacy, no-side-effect, rollback, accessibility, and analytics wording needed by the final QA matrix.",
       "The final pre-fill checklist must keep the required artifact, device, interaction, rollback, endpoint, task hub, run-sheet validation, analytics, preflight, and privacy checks.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
