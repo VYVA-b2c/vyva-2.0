@@ -14340,6 +14340,49 @@ export default function MarketingAdminPage() {
         return rank(b) - rank(a) || b.count - a.count || a.title.localeCompare(b.title);
       })[0] ?? null;
   }, [contactRelationshipWorkQueues]);
+  const contactRelationshipPriorityContacts = useMemo(() => {
+    const queue = contactRelationshipPriorityQueue;
+    if (!queue) return [];
+
+    const contactScore = (contact: MarketingContact) => {
+      const reachable = queue.channels.some((channel) => Boolean(recipientForChannel(contact, channel)));
+      const consentReady = contact.consentStatus === "opted_in";
+      const consentNeedsReview = contact.consentStatus === "pending" || contact.consentStatus === "unknown";
+      const segmented = Boolean(contact.language || contact.category || contact.vertical || contact.market || contact.tags.length > 0 || contact.lists.length > 0);
+      const hasOrgContext = Boolean(contact.companyName || contact.roleLabel);
+      return (reachable ? 40 : 0)
+        + (consentReady ? 30 : consentNeedsReview ? 14 : 0)
+        + (segmented ? 18 : 0)
+        + (hasOrgContext ? 8 : 0);
+    };
+
+    return queue.contacts
+      .slice()
+      .sort((a, b) => contactScore(b) - contactScore(a) || (a.fullName || a.email || a.phoneNumber || "").localeCompare(b.fullName || b.email || b.phoneNumber || ""))
+      .slice(0, 4)
+      .map((contact) => {
+        const reachableChannels = queue.channels.filter((channel) => Boolean(recipientForChannel(contact, channel)));
+        const segmented = Boolean(contact.language || contact.category || contact.vertical || contact.market || contact.tags.length > 0 || contact.lists.length > 0);
+        const nextStep = contact.consentStatus !== "opted_in"
+          ? `Review consent: ${contact.consentStatus}`
+          : reachableChannels.length === 0
+            ? "Add a reachable channel"
+            : !segmented
+              ? "Add segment context"
+              : queue.studioLabel;
+        const context = [contact.companyName, contact.roleLabel, contact.market, contact.vertical, contact.category]
+          .filter(Boolean)
+          .join(" / ");
+        return {
+          contact,
+          score: contactScore(contact),
+          reachableChannels,
+          segmented,
+          nextStep,
+          context,
+        };
+      });
+  }, [contactRelationshipPriorityQueue]);
   const contactRelationshipCadenceLanes = useMemo<ContactRelationshipCadenceLane[]>(() => {
     const queueByKey = new Map(contactRelationshipWorkQueues.map((queue) => [queue.key, queue]));
     const consentQueue = queueByKey.get("consent-cleanup") ?? null;
@@ -39785,6 +39828,63 @@ export default function MarketingAdminPage() {
                     </div>
                   );
                 })() : null}
+                {contactRelationshipPriorityQueue && contactRelationshipPriorityContacts.length ? (
+                  <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 shadow-sm" data-testid="marketing-contact-priority-shortlist">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Priority contacts</p>
+                        <p className="mt-1 text-sm font-black text-[#241133]">Start with these people from {contactRelationshipPriorityQueue.title}.</p>
+                      </div>
+                      <Pill className="bg-white text-emerald-800">{contactRelationshipPriorityContacts.length} suggested</Pill>
+                    </div>
+                    <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                      {contactRelationshipPriorityContacts.map((item) => {
+                        const contact = item.contact;
+                        const contactLabel = contact.fullName || contact.email || contact.phoneNumber || contact.whatsappNumber || "Unnamed contact";
+                        return (
+                          <article key={contact.id} className="flex min-h-[220px] flex-col rounded-xl border border-emerald-100 bg-white p-3 shadow-sm" data-testid={`marketing-contact-priority-shortlist-${contact.id}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <Pill className={contact.consentStatus === "opted_in" ? "bg-emerald-50 text-emerald-800" : contact.consentStatus === "opted_out" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}>
+                                {contact.consentStatus}
+                              </Pill>
+                              <Pill className="bg-purple-50 text-purple-800">{item.score}% fit</Pill>
+                            </div>
+                            <p className="mt-3 text-sm font-black text-[#241133]">{contactLabel}</p>
+                            <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.context || contact.email || contact.phoneNumber || "No segment context yet."}</p>
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {item.reachableChannels.length ? item.reachableChannels.map((channel) => (
+                                <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                              )) : <Pill className="bg-amber-50 text-amber-900">No route</Pill>}
+                              <Pill className={item.segmented ? "bg-blue-50 text-blue-800" : "bg-amber-50 text-amber-900"}>
+                                {item.segmented ? "Segmented" : "Needs segment"}
+                              </Pill>
+                            </div>
+                            <p className="mt-3 flex-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold leading-relaxed text-emerald-900">{item.nextStep}</p>
+                            <div className="mt-3 grid gap-2">
+                              <button
+                                type="button"
+                                onClick={() => selectRelationshipContact(contact)}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-50"
+                                data-testid={`button-marketing-contact-priority-shortlist-inspect-${contact.id}`}
+                              >
+                                <Eye size={13} /> Inspect
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue)}
+                                disabled={contactRelationshipPriorityQueue.count === 0}
+                                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                data-testid={`button-marketing-contact-priority-shortlist-play-${contact.id}`}
+                              >
+                                <Sparkles size={13} /> Build play
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm" data-testid="marketing-contact-operating-path">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>

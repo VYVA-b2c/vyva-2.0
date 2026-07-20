@@ -1163,6 +1163,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("1 partner");
     expect(screen.getByTestId("marketing-contact-priority-move")).toHaveTextContent("Sample: Hassan Partner");
     expect(screen.getByTestId("button-marketing-contact-priority-studio")).toHaveTextContent("Open partner play");
+    expect(screen.getByTestId("marketing-contact-priority-shortlist")).toHaveTextContent("Priority contacts");
+    expect(screen.getByTestId("marketing-contact-priority-shortlist")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contact-priority-shortlist")).toHaveTextContent("Review consent: pending");
+    expect(screen.getByTestId("button-marketing-contact-priority-shortlist-inspect-contact-2")).toHaveTextContent("Inspect");
+    expect(screen.getByTestId("button-marketing-contact-priority-shortlist-play-contact-2")).toHaveTextContent("Build play");
+    fireEvent.click(screen.getByTestId("button-marketing-contact-priority-shortlist-inspect-contact-2"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent('Viewing relationship for "Hassan Partner".');
+    expect(screen.getByTestId("marketing-contact-relationship-panel")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contact-operating-path")).toHaveTextContent("Daily relationship path");
     expect(screen.getByTestId("marketing-contact-operating-path-consent")).toHaveTextContent("Clean consent");
     expect(screen.getByTestId("marketing-contact-operating-path-segment")).toHaveTextContent("Sharpen segments");
