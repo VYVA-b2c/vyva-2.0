@@ -7554,6 +7554,13 @@ describe("MarketingAdminPage", () => {
     expect(audienceQueue.getByText("1")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-readiness-overview-audience")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-campaign-readiness-overview-audience")).toHaveTextContent("needs opted-in consent");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-1")).toHaveTextContent("Confidence");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-1")).toHaveTextContent("60%");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-1")).toHaveTextContent("Review first");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-1")).toHaveTextContent("Consent");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-2")).toHaveTextContent("40%");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-2")).toHaveTextContent("Needs work");
+    expect(screen.getByTestId("marketing-campaign-row-confidence-campaign-2")).toHaveTextContent("Missing LinkedIn");
 
     fireEvent.click(screen.getByTestId("button-marketing-campaign-readiness-copy-brief"));
     await waitFor(() => {

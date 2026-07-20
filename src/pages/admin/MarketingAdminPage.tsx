@@ -225,6 +225,13 @@ type CampaignRowPublishPathStep = {
   detail: string;
 };
 
+type CampaignRowConfidence = {
+  score: number;
+  label: string;
+  state: CampaignReadinessState;
+  reasons: string[];
+};
+
 type ContentUsage = {
   key: string;
   kind: "campaign" | "journey";
@@ -9180,6 +9187,37 @@ function campaignRowPublishPath(campaign: Campaign, contentById: ReadonlyMap<str
           : "Blocked",
     },
   ];
+}
+
+function campaignRowConfidence(readiness: CampaignRowReadiness, publishPath: CampaignRowPublishPathStep[]): CampaignRowConfidence {
+  const score = Math.min(100, Math.max(0, publishPath.reduce((total, step) => {
+    if (step.state === "ready") return total + 25;
+    if (step.state === "planning") return total + 15;
+    if (step.state === "needs_action") return total + 5;
+    return total;
+  }, 0)));
+  const blockers = publishPath
+    .filter((step) => step.state === "blocked" || step.state === "needs_action")
+    .map((step) => `${step.label}: ${step.detail}`);
+  const planning = publishPath
+    .filter((step) => step.state === "planning")
+    .map((step) => `${step.label}: ${step.detail}`);
+  const reasons = Array.from(new Set([
+    readiness.detail,
+    ...blockers,
+    ...planning,
+  ].filter(Boolean))).slice(0, 3);
+
+  if (score >= 85) {
+    return { score, label: "High confidence", state: "ready", reasons: reasons.length ? reasons : ["Ready for final review and publish."] };
+  }
+  if (score >= 60) {
+    return { score, label: "Review first", state: "needs_action", reasons };
+  }
+  if (score >= 35) {
+    return { score, label: "Needs work", state: readiness.state === "blocked" ? "blocked" : "needs_action", reasons };
+  }
+  return { score, label: "Blocked", state: "blocked", reasons };
 }
 
 function campaignRowReadinessActionLabel(readiness: CampaignRowReadiness) {
@@ -43499,6 +43537,7 @@ function CampaignTable({
             const manualResults = manualPublishResultsFromMetadata(campaign.metadata);
             const rowReadiness = campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId);
             const publishPath = campaignRowPublishPath(campaign, contentById, audiences, contactByCampaignRecipientId);
+            const rowConfidence = campaignRowConfidence(rowReadiness, publishPath);
             const rowNextActionLabel = campaignRowReadinessActionLabel(rowReadiness);
             return (
             <tr
@@ -43588,6 +43627,16 @@ function CampaignTable({
                     <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
                   </div>
                   <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                  <div className="mt-2 rounded-lg border border-white/70 bg-white px-2 py-1.5" data-testid={`marketing-campaign-row-confidence-${campaign.id}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-[#6b5b54]">Confidence</span>
+                      <Pill className={readinessPillClass(rowConfidence.state)}>{rowConfidence.score}%</Pill>
+                    </div>
+                    <p className="mt-1 text-xs font-black text-[#241133]">{rowConfidence.label}</p>
+                    {rowConfidence.reasons.length ? (
+                      <p className="mt-1 line-clamp-2 text-[11px] font-bold leading-relaxed text-[#6b5b54]">{rowConfidence.reasons.join(" | ")}</p>
+                    ) : null}
+                  </div>
                   <div className="mt-2 grid gap-1.5" data-testid={`marketing-campaign-row-publish-path-${campaign.id}`}>
                     {publishPath.map((step) => (
                       <div key={step.key} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1">
