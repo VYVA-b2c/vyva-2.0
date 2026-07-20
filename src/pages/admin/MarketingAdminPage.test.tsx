@@ -2037,7 +2037,24 @@ describe("MarketingAdminPage", () => {
   });
 
   it("turns imported campaign performance into editable experiment drafts", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
+
     renderPage();
+
+    expect(await screen.findByTestId("marketing-performance-learning-brief")).toHaveTextContent("Reuse what worked, fix what leaked");
+    expect(screen.getByTestId("marketing-performance-learning-repeat")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-performance-learning-change")).toHaveTextContent("Change before scaling");
+    expect(screen.getByTestId("marketing-performance-learning-protect")).toHaveTextContent("No issues visible");
+
+    fireEvent.click(screen.getByTestId("button-marketing-copy-performance-learning"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign performance learning brief"));
+    });
+    expect(screen.getByTestId("marketing-performance-learning-feedback")).toHaveTextContent("Performance learning brief copied.");
 
     expect(await screen.findByTestId("marketing-experiment-planner")).toHaveTextContent("Draft a CTA experiment");
     expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("9% click rate");

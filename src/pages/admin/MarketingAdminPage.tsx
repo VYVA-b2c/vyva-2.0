@@ -966,6 +966,10 @@ type CampaignPerformanceInsight = CampaignReadinessItem & {
   onSelect: () => void;
 };
 
+type CampaignPerformanceLearningCard = CampaignReadinessItem & {
+  value: string;
+};
+
 type CampaignExperimentSuggestion = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -12480,6 +12484,7 @@ export default function MarketingAdminPage() {
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [campaignHandoffCopyFeedback, setCampaignHandoffCopyFeedback] = useState("");
+  const [campaignPerformanceLearningFeedback, setCampaignPerformanceLearningFeedback] = useState("");
   const [marketingOperatorBriefFeedback, setMarketingOperatorBriefFeedback] = useState("");
   const [marketingChannelBoardFeedback, setMarketingChannelBoardFeedback] = useState("");
   const [manualPublishDraft, setManualPublishDraft] = useState<ManualPublishTrackerDraft>(() => emptyManualPublishTrackerDraft());
@@ -13226,6 +13231,116 @@ export default function MarketingAdminPage() {
 
     return suggestions.slice(0, 3);
   }, [visibleCampaignMetrics, campaignById, contentById]);
+
+  const campaignPerformanceLearning = useMemo(() => {
+    const grouped = new Map<string, MarketingCampaignMetric[]>();
+    for (const metric of visibleCampaignMetrics) {
+      if (!metric.campaignId) continue;
+      grouped.set(metric.campaignId, [...(grouped.get(metric.campaignId) ?? []), metric]);
+    }
+    const rows = Array.from(grouped.entries())
+      .map(([campaignId, metrics]) => {
+        const campaign = campaignById.get(campaignId) ?? null;
+        if (!campaign) return null;
+        const summary = summarizeCampaignMetrics(metrics);
+        const reached = summary.delivered || summary.sent;
+        return {
+          campaign,
+          summary,
+          reached,
+          openRate: metricRate(summary.opened, reached),
+          clickRate: metricRate(summary.clicked, summary.opened),
+          issueCount: summary.bounced + summary.unsubscribed,
+          channelLabel: formatChannelList(campaign.channels.map((channel) => channel.channel)),
+        };
+      })
+      .filter((item): item is {
+        campaign: Campaign;
+        summary: CampaignMetricSummary;
+        reached: number;
+        openRate: number;
+        clickRate: number;
+        issueCount: number;
+        channelLabel: string;
+      } => Boolean(item));
+
+    const best = [...rows].sort((a, b) => (
+      b.openRate - a.openRate
+      || b.summary.clicked - a.summary.clicked
+      || b.reached - a.reached
+    ))[0] ?? null;
+    const weakCta = [...rows]
+      .filter((item) => item.summary.opened > 0)
+      .sort((a, b) => a.clickRate - b.clickRate || b.summary.opened - a.summary.opened)[0] ?? null;
+    const issue = [...rows]
+      .filter((item) => item.issueCount > 0)
+      .sort((a, b) => b.issueCount - a.issueCount)[0] ?? null;
+
+    const cards: CampaignPerformanceLearningCard[] = [
+      best ? {
+        key: "repeat",
+        title: "Repeat this pattern",
+        value: `${metricRateLabel(best.summary.opened, best.reached)} open rate`,
+        detail: `${best.campaign.name} is the strongest visible signal. Reuse its audience fit, ${best.channelLabel || "channel"} route, subject angle, and CTA shape before inventing a new campaign from scratch.`,
+        state: best.summary.clicked > 0 ? "ready" : "planning",
+      } : null,
+      weakCta ? {
+        key: "change",
+        title: "Change before scaling",
+        value: `${metricRateLabel(weakCta.summary.clicked, weakCta.summary.opened)} click rate`,
+        detail: `${weakCta.campaign.name} got attention but needs a sharper next step. Test one CTA, one destination, and one proof point before sending to a larger audience.`,
+        state: weakCta.clickRate < 12 ? "needs_action" : "planning",
+      } : null,
+      issue ? {
+        key: "avoid",
+        title: "Avoid repeating",
+        value: `${issue.issueCount} consent/delivery issue${issue.issueCount === 1 ? "" : "s"}`,
+        detail: `${issue.campaign.name} should not be used as a scale pattern until bounced or unsubscribed contacts are reviewed.`,
+        state: "blocked",
+      } : {
+        key: "protect",
+        title: "Protect deliverability",
+        value: "No issues visible",
+        detail: "No bounces or unsubscribes are visible in the current performance set. Keep consent checks and recipient snapshots in the launch flow.",
+        state: "ready",
+      },
+    ].filter((item): item is CampaignPerformanceLearningCard => Boolean(item));
+
+    const brief = [
+      "VYVA campaign performance learning brief",
+      `Generated: ${formatDate(new Date().toISOString())}`,
+      "",
+      best ? [
+        "Winning pattern to reuse:",
+        `- Campaign: ${best.campaign.name}`,
+        `- Audience: ${best.campaign.audienceType.toUpperCase()}`,
+        `- Route: ${best.channelLabel || "No route"}`,
+        `- Signal: ${metricRateLabel(best.summary.opened, best.reached)} open rate, ${best.summary.clicked} click${best.summary.clicked === 1 ? "" : "s"}, ${best.summary.replied} repl${best.summary.replied === 1 ? "y" : "ies"}`,
+        `- Repeat: reuse the audience promise, subject angle, proof style, and one clear CTA in the next campaign.`,
+      ].join("\n") : "Winning pattern to reuse:\n- No campaign metrics are visible yet.",
+      "",
+      weakCta ? [
+        "Change before scaling:",
+        `- Campaign: ${weakCta.campaign.name}`,
+        `- Signal: ${metricRateLabel(weakCta.summary.clicked, weakCta.summary.opened)} click rate from ${weakCta.summary.opened} open${weakCta.summary.opened === 1 ? "" : "s"}`,
+        "- Action: write one CTA variant with one destination and one reason to act now.",
+      ].join("\n") : "Change before scaling:\n- No CTA weakness is visible yet.",
+      "",
+      issue ? [
+        "Avoid repeating until cleaned:",
+        `- Campaign: ${issue.campaign.name}`,
+        `- Issue: ${issue.issueCount} bounce/unsubscribe signal${issue.issueCount === 1 ? "" : "s"}`,
+        "- Action: review consent and contact quality before using this audience again.",
+      ].join("\n") : "Avoid repeating until cleaned:\n- No bounce or unsubscribe issue is visible in the current performance set.",
+      "",
+      "Next AI command:",
+      best
+        ? `Create a follow-up campaign based on "${best.campaign.name}" using the same winning angle, but improve the CTA from the weakest campaign and keep consent-safe recipient checks.`
+        : "Create the next campaign only after at least one performance snapshot or manual outcome is logged.",
+    ].join("\n");
+
+    return { cards, brief };
+  }, [campaignById, visibleCampaignMetrics]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
@@ -22266,7 +22381,7 @@ export default function MarketingAdminPage() {
       const feedback = `${label} is empty.`;
       setCampaignHandoffCopyFeedback(feedback);
       setMessage(feedback);
-      return;
+      return false;
     }
 
     try {
@@ -22288,15 +22403,22 @@ export default function MarketingAdminPage() {
       const feedback = `${label} copied.`;
       setCampaignHandoffCopyFeedback(feedback);
       setMessage(feedback);
+      return true;
     } catch {
       const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
       setCampaignHandoffCopyFeedback(feedback);
       setMessage(feedback);
+      return false;
     }
   }
 
   async function copyCampaignHandoffBrief(channel: Channel, brief: string) {
     await copyCampaignHandoffText(`${channelLabel[channel]} handoff brief`, brief);
+  }
+
+  async function copyCampaignPerformanceLearningBrief() {
+    const copied = await copyCampaignHandoffText("Performance learning brief", campaignPerformanceLearning.brief);
+    setCampaignPerformanceLearningFeedback(copied ? "Performance learning brief copied." : "Could not copy the performance learning brief.");
   }
 
   async function copyCampaignStudioOfflineHandoff(label: string, text: string) {
@@ -31436,6 +31558,44 @@ export default function MarketingAdminPage() {
                         );
                       })}
                     </div>
+                    {campaignPerformanceLearning.cards.length ? (
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4" data-testid="marketing-performance-learning-brief">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Learning loop</p>
+                            <h3 className="mt-1 text-lg font-black text-[#241133]">Reuse what worked, fix what leaked</h3>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f6f62]">
+                              Converts imported performance rows into a repeat/change/avoid brief for the next campaign.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignPerformanceLearningBrief()}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-50"
+                            data-testid="button-marketing-copy-performance-learning"
+                          >
+                            <Copy size={13} aria-hidden="true" /> Copy learning brief
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          {campaignPerformanceLearning.cards.map((item) => (
+                            <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-performance-learning-${item.key}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-2 text-xl font-black text-[#241133]">{item.value}</p>
+                              <p className="mt-2 text-xs font-bold leading-relaxed text-[#5b4a46]">{item.detail}</p>
+                            </article>
+                          ))}
+                        </div>
+                        {campaignPerformanceLearningFeedback ? (
+                          <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-performance-learning-feedback">
+                            {campaignPerformanceLearningFeedback}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {campaignExperimentSuggestions.length ? (
                       <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4" data-testid="marketing-experiment-planner">
                         <div className="flex flex-wrap items-start justify-between gap-3">
