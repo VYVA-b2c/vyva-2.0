@@ -3867,6 +3867,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("checkbox-marketing-campaign-snapshot")).toBeChecked();
     expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-preview")).toHaveTextContent("Audience reach preview");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-summary")).toHaveTextContent("1 reachable contact before save");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-preview")).toHaveTextContent("Partners is the selected list");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-channels")).toHaveTextContent("LinkedIn: 1");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-channels")).toHaveTextContent("Email: 1");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-consent")).toHaveTextContent("0 opted in");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-consent")).toHaveTextContent("1 need review");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-snapshot")).toHaveTextContent("1 on save");
+    expect(screen.getByTestId("marketing-campaign-audience-reach-samples")).toHaveTextContent("Hassan Partner");
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
     expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");
@@ -3892,6 +3901,13 @@ describe("MarketingAdminPage", () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Channels: LinkedIn and Email"));
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign launch AI brief copied.");
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-audience-reach-brief"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign audience reach brief"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Audience/list: Partners"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("- LinkedIn: 1 reachable"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign audience reach brief copied.");
     });
   });
 

@@ -18592,6 +18592,54 @@ export default function MarketingAdminPage() {
     () => campaignDraft.snapshotRecipients ? campaignDraftEligibleRecipientPreview : [],
     [campaignDraft.snapshotRecipients, campaignDraftEligibleRecipientPreview],
   );
+  const campaignDraftReachByChannel = useMemo(() => campaignDraftSelectedChannels.map((channel) => ({
+    channel,
+    count: campaignDraftEligibleRecipientPreview.filter((contact) => Boolean(recipientForChannel(contact, channel))).length,
+  })), [campaignDraftEligibleRecipientPreview, campaignDraftSelectedChannels]);
+  const campaignDraftConsentReach = useMemo(() => ({
+    optedIn: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus === "opted_in").length,
+    needsReview: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
+    optedOut: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus === "opted_out").length,
+  }), [campaignDraftEligibleRecipientPreview]);
+  const campaignDraftReachPreviewState: CampaignReadinessState = campaignDraftEligibleRecipientPreview.length === 0
+    ? "blocked"
+    : campaignDraftConsentReach.optedIn > 0 ? "ready" : "needs_action";
+  const campaignDraftAudienceReachBriefText = useMemo(() => {
+    const targetAudienceLabel = selectedCampaignDraftTargetAudience
+      ? `${selectedCampaignDraftTargetAudience.name} (${selectedCampaignDraftTargetAudience.mappedMemberCount}/${selectedCampaignDraftTargetAudience.memberCount} mapped)`
+      : `All eligible ${campaignDraft.audienceType.toUpperCase()} contacts`;
+    const channelLines = campaignDraftReachByChannel.map((item) => `- ${channelLabel[item.channel]}: ${item.count} reachable`).join("\n");
+    const sampleLines = campaignDraftEligibleRecipientPreview.slice(0, 5).map((contact) => (
+      `- ${contact.fullName || contact.email || contact.phoneNumber || contact.id}: ${contact.consentStatus}; ${campaignDraftSelectedChannels.filter((channel) => recipientForChannel(contact, channel)).map((channel) => channelLabel[channel]).join(", ") || "no selected route"}`
+    ));
+    return [
+      "VYVA campaign audience reach brief",
+      `Campaign: ${campaignDraft.name.trim() || "Untitled campaign"}`,
+      `Audience/list: ${targetAudienceLabel}`,
+      `Channels: ${formatChannelList(campaignDraftSelectedChannels)}`,
+      `Reachable contacts: ${campaignDraftEligibleRecipientPreview.length}`,
+      `Consent: ${campaignDraftConsentReach.optedIn} opted in, ${campaignDraftConsentReach.needsReview} need review, ${campaignDraftConsentReach.optedOut} opted out`,
+      `Snapshot mode: ${campaignDraft.snapshotRecipients ? `${campaignDraftRecipientPreview.length} will be snapshotted on save` : "off"}`,
+      "",
+      "Reach by channel:",
+      channelLines || "- No channels selected",
+      "",
+      "Sample contacts:",
+      ...(sampleLines.length ? sampleLines : ["- No matching contacts"]),
+      "",
+      "AI task: Review this audience before campaign creation. Return consent risks, channel gaps, contacts to exclude or fix, and the safest next action.",
+    ].join("\n");
+  }, [
+    campaignDraft.audienceType,
+    campaignDraft.name,
+    campaignDraft.snapshotRecipients,
+    campaignDraftConsentReach,
+    campaignDraftEligibleRecipientPreview,
+    campaignDraftReachByChannel,
+    campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
+    selectedCampaignDraftTargetAudience,
+  ]);
   const campaignDraftReadinessItems = useMemo<CampaignReadinessItem[]>(() => {
     const channelCapability = sendCapabilityByChannel.get(campaignDraft.channel);
     const emailSendEnabled = campaignDraft.channel === "email" && channelCapability?.sendCapability === "enabled" && !channelCapability.locked;
@@ -31857,6 +31905,79 @@ export default function MarketingAdminPage() {
                           <p className="mt-2 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                  <div className={`rounded-xl border p-4 shadow-sm ${readinessClass(campaignDraftReachPreviewState)}`} data-testid="marketing-campaign-audience-reach-preview">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] opacity-70">Audience reach preview</p>
+                        <h3 className="mt-1 text-base font-black" data-testid="marketing-campaign-audience-reach-summary">
+                          {campaignDraftEligibleRecipientPreview.length} reachable contact{campaignDraftEligibleRecipientPreview.length === 1 ? "" : "s"} before save
+                        </h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed opacity-85">
+                          {selectedCampaignDraftTargetAudience
+                            ? `${selectedCampaignDraftTargetAudience.name} is the selected list; ${selectedCampaignDraftTargetAudience.mappedMemberCount}/${selectedCampaignDraftTargetAudience.memberCount} imported members are mapped to VYVA contacts.`
+                            : `Using all eligible ${campaignDraft.audienceType.toUpperCase()} contacts that match the selected channels and filter.`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyCampaignStudioOfflineHandoff("Campaign audience reach brief", campaignDraftAudienceReachBriefText)}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 hover:bg-purple-50"
+                        data-testid="button-marketing-copy-campaign-audience-reach-brief"
+                      >
+                        <Copy size={15} /> Copy audience brief
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-lg border border-white/70 bg-white/85 p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">Audience/list</p>
+                        <p className="mt-2 text-sm font-black">{selectedCampaignDraftTargetAudience?.name ?? `All ${campaignDraft.audienceType.toUpperCase()} contacts`}</p>
+                        <p className="mt-1 text-xs font-bold opacity-80">
+                          {selectedCampaignDraftTargetAudience
+                            ? `${selectedCampaignDraftTargetAudience.mappedMemberCount}/${selectedCampaignDraftTargetAudience.memberCount} mapped`
+                            : "No specific list selected"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/70 bg-white/85 p-3" data-testid="marketing-campaign-audience-reach-channels">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">Channels</p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {campaignDraftReachByChannel.map((item) => (
+                            <Pill key={item.channel} className={channelClass(item.channel)}>
+                              {channelLabel[item.channel]}: {item.count}
+                            </Pill>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-white/70 bg-white/85 p-3" data-testid="marketing-campaign-audience-reach-consent">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">Consent</p>
+                        <p className="mt-2 text-sm font-black">{campaignDraftConsentReach.optedIn} opted in</p>
+                        <p className="mt-1 text-xs font-bold opacity-80">
+                          {campaignDraftConsentReach.needsReview} need review, {campaignDraftConsentReach.optedOut} opted out
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/70 bg-white/85 p-3" data-testid="marketing-campaign-audience-reach-snapshot">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">Snapshot</p>
+                        <p className="mt-2 text-sm font-black">
+                          {campaignDraft.snapshotRecipients ? `${campaignDraftRecipientPreview.length} on save` : "Off"}
+                        </p>
+                        <p className="mt-1 text-xs font-bold opacity-80">
+                          {campaignDraft.snapshotRecipients ? "Saved with the campaign record" : "Can be enabled before save"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-lg border border-white/70 bg-white/85 p-3" data-testid="marketing-campaign-audience-reach-samples">
+                      <p className="text-xs font-black uppercase tracking-[0.1em] opacity-70">Sample matching contacts</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {campaignDraftEligibleRecipientPreview.slice(0, 5).map((contact) => (
+                          <Pill key={contact.id} className={statusClass(contact.consentStatus)}>
+                            {contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}
+                          </Pill>
+                        ))}
+                        {!campaignDraftEligibleRecipientPreview.length ? (
+                          <span className="text-xs font-bold opacity-80">No matching contacts yet.</span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                   <div className="rounded-xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-planner-ai-copywriter">
