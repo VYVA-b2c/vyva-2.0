@@ -3875,6 +3875,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-planner-copilot")).toHaveTextContent("Campaign copilot");
     expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Start from the best campaign");
     expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Load best starter");
+    expect(screen.getByTestId("marketing-campaign-planner-action-queue")).toHaveTextContent("Launch action queue");
+    expect(screen.getByTestId("marketing-campaign-planner-action-queue-name")).toHaveTextContent("Name the campaign");
+    expect(screen.getByTestId("button-marketing-campaign-planner-action-queue-name")).toHaveTextContent("Name campaign");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-planner-copilot-action"));
 
     expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("B2B partner introduction");
@@ -3896,6 +3899,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-decision-title")).toHaveTextContent("Review consent before send");
     expect(screen.getByTestId("marketing-campaign-launch-decision-detail")).toHaveTextContent("do not treat this as send-ready");
     expect(screen.getByTestId("button-marketing-campaign-launch-decision")).toHaveTextContent("Review audience");
+    expect(screen.getByTestId("marketing-campaign-planner-action-queue")).toHaveTextContent("What to do before this campaign goes live");
+    expect(screen.getByTestId("marketing-campaign-planner-action-queue-consent")).toHaveTextContent("Review consent before send");
+    expect(screen.getByTestId("marketing-campaign-planner-action-queue-consent")).toHaveTextContent("1 reachable contact need consent review");
+    expect(screen.getByTestId("marketing-campaign-planner-action-queue-create")).toHaveTextContent("Review consent before send");
+    expect(screen.getByTestId("button-marketing-campaign-planner-action-queue-create")).toHaveTextContent("Review audience");
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Start a partner conversation");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Starter loaded: Partner outreach with Partner post");
     expect(screen.getByTestId("marketing-campaign-draft-readiness")).toHaveTextContent("Ready to add");

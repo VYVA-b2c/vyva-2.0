@@ -1461,6 +1461,11 @@ type CampaignPlannerGuideStep = CampaignReadinessItem & {
   value: string;
 };
 
+type CampaignPlannerActionQueueItem = CampaignReadinessItem & {
+  actionLabel: string;
+  kind: CampaignPlannerGuideActionKind;
+};
+
 type CampaignPlannerLaunchDecision = CampaignReadinessItem & {
   actionLabel: string;
   kind: CampaignPlannerGuideActionKind;
@@ -19085,6 +19090,85 @@ export default function MarketingAdminPage() {
     campaignDraftRecipientPreview.length,
     selectedCampaignDraftContent,
   ]);
+  const campaignPlannerActionQueue = useMemo<CampaignPlannerActionQueueItem[]>(() => {
+    const queue: CampaignPlannerActionQueueItem[] = [];
+    if (!campaignDraft.name.trim()) {
+      queue.push({
+        key: "name",
+        title: "Name the campaign",
+        detail: "A clear working name keeps saved drafts, handoffs, and reporting readable.",
+        state: "blocked",
+        actionLabel: "Name campaign",
+        kind: "focus_name",
+      });
+    }
+    if (campaignDraftMissingContentChannels.length > 0) {
+      queue.push({
+        key: "content",
+        title: "Create route content",
+        detail: `Add or draft content for ${formatChannelList(campaignDraftMissingContentChannels)} before this becomes launch-ready.`,
+        state: "needs_action",
+        actionLabel: `Create ${campaignDraftMissingContentChannels.length} asset${campaignDraftMissingContentChannels.length === 1 ? "" : "s"}`,
+        kind: "create_content",
+      });
+    }
+    if (campaignDraftEligibleRecipientPreview.length === 0) {
+      queue.push({
+        key: "audience",
+        title: "Fix audience reach",
+        detail: "Choose a list, broaden the audience, or add reachable contacts for the selected channel pack.",
+        state: "blocked",
+        actionLabel: "Review audience",
+        kind: "focus_audience",
+      });
+    } else if (campaignDraftConsentReach.needsReview > 0) {
+      queue.push({
+        key: "consent",
+        title: "Review consent before send",
+        detail: `${campaignDraftConsentReach.needsReview} reachable contact${campaignDraftConsentReach.needsReview === 1 ? "" : "s"} need consent review; keep non-email routes as manual handoff until confirmed.`,
+        state: campaignDraftConsentReach.optedIn > 0 ? "planning" : "needs_action",
+        actionLabel: "Review audience",
+        kind: "focus_audience",
+      });
+    }
+    if (!campaignDraft.snapshotRecipients && campaignDraftEligibleRecipientPreview.length > 0) {
+      queue.push({
+        key: "snapshot",
+        title: "Snapshot this audience",
+        detail: `${campaignDraftEligibleRecipientPreview.length} eligible contact${campaignDraftEligibleRecipientPreview.length === 1 ? "" : "s"} can be saved with the campaign for an auditable launch list.`,
+        state: "planning",
+        actionLabel: "Snapshot audience",
+        kind: "snapshot_recipients",
+      });
+    }
+    if (!campaignDraft.scheduleStartsAt) {
+      queue.push({
+        key: "schedule",
+        title: "Choose draft or scheduled",
+        detail: "Leave blank to keep this as a draft, or add timing if the campaign needs calendar visibility.",
+        state: "planning",
+        actionLabel: "Review timing",
+        kind: "focus_schedule",
+      });
+    }
+    queue.push({
+      key: "create",
+      title: campaignPlannerLaunchDecision.title,
+      detail: campaignPlannerLaunchDecision.detail,
+      state: campaignPlannerLaunchDecision.state,
+      actionLabel: campaignPlannerLaunchDecision.kind === "save" ? "Add campaign" : campaignPlannerLaunchDecision.actionLabel,
+      kind: campaignPlannerLaunchDecision.kind,
+    });
+    return queue.slice(0, 6);
+  }, [
+    campaignDraft.name,
+    campaignDraft.scheduleStartsAt,
+    campaignDraft.snapshotRecipients,
+    campaignDraftConsentReach,
+    campaignDraftEligibleRecipientPreview.length,
+    campaignDraftMissingContentChannels,
+    campaignPlannerLaunchDecision,
+  ]);
   const campaignPlannerAiBrief = useMemo(() => [
     campaignDraft.name,
     campaignDraft.objective,
@@ -32080,6 +32164,51 @@ export default function MarketingAdminPage() {
                           </button>
                         )}
                       </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm" data-testid="marketing-campaign-planner-action-queue">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Launch action queue</p>
+                        <h3 className="mt-1 text-lg font-black text-[#241133]">What to do before this campaign goes live</h3>
+                        <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">The planner turns content, audience, consent, snapshot, and timing checks into direct actions.</p>
+                      </div>
+                      <Pill className="bg-purple-50 text-purple-800">{campaignPlannerActionQueue.length} action{campaignPlannerActionQueue.length === 1 ? "" : "s"}</Pill>
+                    </div>
+                    <div className="mt-3 grid gap-2 xl:grid-cols-3">
+                      {campaignPlannerActionQueue.map((item) => (
+                        <article key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-planner-action-queue-${item.key}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="font-black">{item.title}</h4>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-1 text-xs font-bold leading-relaxed opacity-85">{item.detail}</p>
+                            </div>
+                            {item.kind === "save" ? (
+                              <button
+                                type="submit"
+                                disabled={campaignSaving || contentSaving}
+                                className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                                data-testid={`button-marketing-campaign-planner-action-queue-${item.key}`}
+                              >
+                                <Plus size={13} /> {campaignSaving ? "Creating..." : item.actionLabel}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => runCampaignPlannerGuideAction(item.kind)}
+                                disabled={campaignSaving || contentSaving}
+                                className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                data-testid={`button-marketing-campaign-planner-action-queue-${item.key}`}
+                              >
+                                <Sparkles size={13} /> {contentSaving ? "Working..." : item.actionLabel}
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   </div>
                   <div className={`rounded-xl border p-4 shadow-sm ${readinessClass(campaignPlannerCopilotAction.state)}`} data-testid="marketing-campaign-planner-copilot">
