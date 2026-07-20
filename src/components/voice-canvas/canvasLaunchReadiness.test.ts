@@ -127,6 +127,12 @@ describe("Canvas launch readiness manifest", () => {
         ]),
       );
     }
+    const shoppingFlow = canvasLaunchReadinessFlows.find(
+      (flow) => flow.id === "shopping",
+    );
+    expect(shoppingFlow?.qaEvidence.privacy_safe_analytics).toContain(
+      "src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx",
+    );
 
     expect(CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS).toEqual(
       expect.arrayContaining([

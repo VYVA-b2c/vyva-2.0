@@ -369,6 +369,7 @@ export const canvasLaunchReadinessFlows: readonly CanvasLaunchReadinessFlow[] = 
       ],
       privacy_safe_analytics: [
         "src/components/voice-canvas/shoppingCanvasTelemetry.ts",
+        "src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx",
         ...sharedPrivacyTelemetryEvidence,
       ],
       rollback_notes: [sharedLaunchRunbook, sharedLaunchAudit],
