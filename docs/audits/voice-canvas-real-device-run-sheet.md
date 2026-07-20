@@ -165,9 +165,9 @@ If the analytics evidence file is being assembled by hand from aggregate QA evid
 npm run --silent canvas:qa:analytics -- --template
 ```
 
-The template is intentionally not launch-ready. Replace the placeholder timestamp, source, zero counts, and empty sample array with real staging or production-like aggregate evidence before validation.
+The template is intentionally not launch-ready. Replace the placeholder timestamp, deployed `qaRunUrl`, source, zero counts, and empty sample array with real deployed QA, staging, or production-like aggregate evidence before validation.
 
-The analytics evidence JSON must include aggregate `coveredFlows` for `ride`, `appointment`, `refill`, `shopping`, `provider_reply`, and `task_hub_resume`; use only synthetic QA telemetry samples; and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data in allowed fields or values. The validator output is an aggregate validation artifact only; it does not copy raw sample rows, unexpected values, or unsafe allowed values.
+The analytics evidence JSON must include a deployed non-local `qaRunUrl`, aggregate `coveredFlows` for `ride`, `appointment`, `refill`, `shopping`, `provider_reply`, and `task_hub_resume`, and sanitized QA-account telemetry samples captured from that deployed run. It must not use synthetic, fixture, seeded, mock, sample-only, or local analytics source metadata, and must not include transcripts, entered text, addresses, dates, names, medication details, provider details, shopping details, contact details, account identifiers, or personal data in allowed fields or values. The validator output is an aggregate validation artifact only; it does not copy raw sample rows, unexpected values, or unsafe allowed values.
 
 Validate the evidence packet before copying packet notes into the final matrix:
 

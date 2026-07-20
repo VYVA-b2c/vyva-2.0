@@ -89,7 +89,7 @@ function validEvidence() {
   return {
     generatedAt: freshGeneratedAt(),
     qaRunUrl: "https://staging.vyva.app",
-    source: "staging synthetic QA analytics export",
+    source: "real deployed QA staging analytics dashboard export artifact",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
       started: 2,
@@ -133,7 +133,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
       "Completed can be proven by completed samples or terminal pending samples.",
     );
     expect(result.stdout).toContain(
-      "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+      "The source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
     );
     expect(result.stdout).toContain(
       "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
@@ -360,7 +360,33 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
-            "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+            "Analytics evidence source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+          ]),
+        );
+      },
+    ));
+
+  it("rejects synthetic analytics source metadata", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        source: "staging synthetic QA analytics export",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Analytics evidence source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
           ]),
         );
       },

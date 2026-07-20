@@ -221,7 +221,7 @@ function validAnalyticsEvidence() {
   return {
     generatedAt: freshGeneratedAt(),
     qaRunUrl: "https://staging.vyva.app",
-    source: "staging synthetic QA analytics export",
+    source: "real deployed QA staging analytics dashboard export artifact",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
     counts: {
       started: 2,

@@ -64,11 +64,11 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json",
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "",
-      "Use --template to print a privacy-safe JSON skeleton. The template is intentionally not launch-ready until generatedAt, qaRunUrl, source, counts, and sanitized sample envelopes are filled from real staging or production-like aggregate evidence.",
+      "Use --template to print a privacy-safe JSON skeleton. The template is intentionally not launch-ready until generatedAt, qaRunUrl, source, counts, and sanitized sample envelopes are filled from real deployed QA, staging, or production-like aggregate evidence.",
       "The input JSON must be an object with generatedAt, qaRunUrl, source, samples/events, and optional counts.",
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
       "qaRunUrl must be the deployed non-local QA run URL that produced the aggregate evidence.",
-      "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+      "The source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
       "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
@@ -267,7 +267,7 @@ function topLevelProblems(artifact: unknown): string[] {
     );
   } else if (!hasConcreteAnalyticsSource(artifact.source)) {
     problems.push(
-      "Analytics evidence source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
+      "Analytics evidence source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
     );
   }
 
@@ -328,7 +328,11 @@ function hasConcreteAnalyticsSource(value: unknown): boolean {
   if (typeof value !== "string") return false;
   const normalized = value.toLowerCase().trim();
   if (normalized.length < 8) return false;
-  if (/\b(localhost|local only|developer smoke|mock|fixture|fake)\b/.test(normalized)) {
+  if (
+    /\b(localhost|local only|developer smoke|mock|fixture|fake|synthetic|sample only|sample-only|seeded)\b/.test(
+      normalized,
+    )
+  ) {
     return false;
   }
   return /\b(staging|production|prod|dashboard|query|export|log|artifact)\b/.test(
