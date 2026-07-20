@@ -186,13 +186,31 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(runbook).toContain("canvasLaunchSignoff.test.ts");
     expect(runbook).toContain("validateVoiceCanvasQaMatrixCommand.test.ts");
+    expect(runbook).toContain("collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts");
+    expect(runbook).toContain("canvas:qa:features");
+    expect(runbook).toContain("YYYY-MM-DD-feature-endpoints.json");
     expect(audit).toContain("manual real-device/deployed rollback QA still required");
     expect(audit).toContain("voice-canvas-real-device-run-sheet.md");
     expect(audit).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(audit).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(audit).toContain("canvasLaunchSignoff.test.ts");
     expect(audit).toContain("validateVoiceCanvasQaMatrixCommand.test.ts");
+    expect(audit).toContain("collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts");
+    expect(audit).toContain("scripts/collect-voice-canvas-feature-endpoint-evidence.ts");
     expect(audit).toContain("provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint");
+  });
+
+  it("exposes launch QA commands through package scripts", () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
+    ) as { scripts: Record<string, string> };
+
+    expect(packageJson.scripts["canvas:qa:validate"]).toBe(
+      "tsx scripts/validate-voice-canvas-qa-matrix.ts",
+    );
+    expect(packageJson.scripts["canvas:qa:features"]).toBe(
+      "tsx scripts/collect-voice-canvas-feature-endpoint-evidence.ts",
+    );
   });
 
   it("keeps the real-device sign-off matrix aligned with launch scope", () => {
@@ -269,6 +287,10 @@ describe("Canvas launch readiness manifest", () => {
       "--json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json",
+      "canvas:qa:features",
+      "recognized payload keys",
+      "unexpected-key count",
       "validateVoiceCanvasQaMatrixCommand.test.ts",
       "Addresses or saved-place labels",
       "Medication names, strengths, quantities, or symptoms",
@@ -328,6 +350,10 @@ describe("Canvas launch readiness manifest", () => {
       "only allowed envelope fields",
       "forbidden data class",
       "absent and was not recorded, logged, sent, captured, or included",
+      "feature-endpoints-enabled.json",
+      "feature-endpoints-rollback-disabled.json",
+      "enabled and rollback-disabled `canvas:qa:features` artifacts",
+      "sanitized endpoint/status/cache-control/timing and enabled/rollout payload evidence",
     ]) {
       expect(packet).toContain(requiredCopy);
     }
@@ -347,6 +373,10 @@ describe("Canvas launch readiness manifest", () => {
     expect(runSheet).toContain(
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
     );
+    expect(runSheet).toContain(
+      "npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json",
+    );
+    expect(runSheet).toContain("feature-endpoints-rollback-disabled.json");
     expect(runSheet).toContain("not overwriting an earlier artifact");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(runSheet).not.toContain(
@@ -386,6 +416,7 @@ describe("Canvas launch readiness manifest", () => {
       "Analytics launch signals are present",
       "Analytics privacy is preserved",
       "only `name`, `step`, `input`, `attempt`, `restored`, and `revision`",
+      "records only sanitized endpoint status plus `enabled` and `rolloutPercent`",
     ]) {
       expect(runSheet).toContain(requiredRunSheetCoverage);
     }

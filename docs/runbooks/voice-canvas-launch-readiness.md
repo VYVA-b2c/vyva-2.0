@@ -27,6 +27,20 @@ Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-au
 
 Start at internal-only, then 5%, 25%, 50%, and 100% only after reviewing scene-only completion, abandonment, retry, blocked, and failure counts.
 
+## Feature endpoint evidence collection
+
+Before the real-device pass, capture a sanitized deployed endpoint artifact for the current flag state:
+
+```bash
+npm run --silent canvas:qa:features -- --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints.json
+```
+
+Replace `YYYY-MM-DD` with the QA run date and replace `https://staging.vyva.app` with the deployed staging or production-like origin being tested. The command performs GET requests only. It rejects localhost, private-network, `.local`, `.test`, `.example`, and placeholder hosts unless `--allow-local` is explicitly passed for developer smoke checks, so real launch evidence cannot be accidentally captured from a local app. Existing output files are preserved by default; pass `--force` only when intentionally replacing a run-specific artifact.
+
+The artifact stores only the launch-scoped endpoint, server key, HTTP status, `cache-control`, elapsed time, `enabled`, `rolloutPercent`, recognized payload keys, and an unexpected-key count. It does not store raw endpoint response bodies, unexpected field names, transcripts, entered text, addresses, saved-place labels, medication details, provider details, shopping details, account identifiers, or other personal data.
+
+Capture separate artifacts for the initial enabled rollout state and the rollback disabled/rollout-0 state, using distinct paths such as `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json` and `artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json`. Use those artifacts in the environment flag rows and feature endpoint rows of the QA matrix. Malformed-config and missing-config fail-closed behavior still require the matching deployment log, trace, or environment artifact.
+
 ## Privacy-safe analytics
 
 Allowed Canvas telemetry fields are only:
@@ -146,7 +160,7 @@ npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts
 Replace `YYYY-MM-DD` with the QA run date. The validator preserves existing output files by default. Use a new run-specific path for each QA pass; pass `--force` only when intentionally replacing an artifact.
 
 ```bash
-npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts
+npm run test -- src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts
 ```
 
 If this gate fails, do not enable the feature.
@@ -156,7 +170,7 @@ If this gate fails, do not enable the feature.
 Run the focused component/readiness suite:
 
 ```bash
-npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
+npm run test -- server/lib/canvasFeatureFlags.test.ts src/components/voice-canvas/canvasPlatform.test.tsx src/components/voice-canvas/canvasPlatformCompliance.test.ts src/components/voice-canvas/canvasLaunchTelemetry.test.ts src/components/voice-canvas/canvasLaunchReadiness.test.ts src/components/voice-canvas/canvasLaunchSignoff.test.ts src/components/voice-canvas/validateVoiceCanvasQaMatrixCommand.test.ts src/components/voice-canvas/collectVoiceCanvasFeatureEndpointEvidenceCommand.test.ts src/components/voice-canvas/providerReplyCanvasRollout.test.ts src/components/voice-canvas/ShoppingVoiceCanvas.test.tsx src/components/voice-canvas/ProviderReplyVoiceCanvas.test.tsx src/pages/ConciergeShoppingScreen.test.tsx src/pages/ConciergeTaskInboxPage.test.tsx src/pages/AdherenceReportScreen.actions.test.tsx
 ```
 
 Run the browser readiness specs:
