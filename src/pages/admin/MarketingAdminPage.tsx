@@ -27783,6 +27783,46 @@ export default function MarketingAdminPage() {
     setMessage(`Opened ${packMatch.pack.title} templates from the AI campaign command.`);
   }
 
+  function openMarketingDashboardAiAudienceReview(kind: "consent" | "route") {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) {
+      const feedback = "Type a campaign goal first so VYVA can find the audience blockers.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    const reviewContacts = kind === "consent"
+      ? plan.matchingContacts.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out")
+      : plan.matchingContacts.filter((contact) => !plan.selectedChannels.some((channel) => contactReachableForChannel(contact, channel)));
+    const label = kind === "consent" ? "consent review" : "missing route";
+    if (reviewContacts.length === 0) {
+      const feedback = `No ${label} contacts found for this AI campaign plan.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setActiveTab("contacts");
+    setContactView("contacts");
+    setContactWorkQueueContactIds(reviewContacts.map((contact) => contact.id));
+    setSelectedRelationshipContactId(reviewContacts[0]?.id ?? null);
+    setSearch("");
+    setAudienceFilter("all");
+    setContactSourceFilter("all");
+    setContactConsentFilter("all");
+    setContactLanguageFilter("all");
+    setContactCategoryFilter("all");
+    setContactVerticalFilter("all");
+    setContactMarketFilter("all");
+    setContactListFilter("all");
+    setConfirmingContactDeleteId(null);
+    const feedback = `Showing ${reviewContacts.length} ${label} contact${reviewContacts.length === 1 ? "" : "s"} from the AI campaign plan.`;
+    setContactFeedback(feedback);
+    setMarketingDashboardAiCommandFeedback(feedback);
+    setMessage(feedback);
+  }
+
   async function createMarketingDashboardAiLaunchKit() {
     const plan = marketingDashboardAiCommandPlan;
     const packMatch = plan?.packMatch ?? null;
@@ -28708,6 +28748,30 @@ export default function MarketingAdminPage() {
                                   {marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute} no route
                                 </Pill>
                               </div>
+                              {marketingDashboardAiCommandPlan.audienceQuality.needsReview || marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {marketingDashboardAiCommandPlan.audienceQuality.needsReview ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openMarketingDashboardAiAudienceReview("consent")}
+                                      className="inline-flex min-h-8 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-black text-amber-900 transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-amber-100"
+                                      data-testid="button-marketing-ai-command-review-consent"
+                                    >
+                                      Review consent
+                                    </button>
+                                  ) : null}
+                                  {marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openMarketingDashboardAiAudienceReview("route")}
+                                      className="inline-flex min-h-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-2.5 text-[11px] font-black text-red-800 transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-red-100"
+                                      data-testid="button-marketing-ai-command-review-routes"
+                                    >
+                                      Fix routes
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]" data-testid="marketing-ai-command-audience-channel-coverage">
                                 {marketingDashboardAiCommandPlan.audienceQuality.routeCoverage.map((item) => (
                                   <Pill key={item.channel} className={channelClass(item.channel)}>

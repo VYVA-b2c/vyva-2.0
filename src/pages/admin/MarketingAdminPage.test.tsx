@@ -1725,6 +1725,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.queryByTestId("marketing-ai-command-created-kit")).not.toBeInTheDocument();
   });
 
+  it("opens AI command audience blockers in the contacts work queue", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-ai-command-launcher");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
+
+    expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 consent review");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-review-consent"));
+
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Work queue: 1 selected");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contacts-table")).not.toHaveTextContent("Karim Assad");
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Showing 1 consent review contact from the AI campaign plan.");
+  });
+
   it("prepares an editable replacement draft for missing Source content references", async () => {
     renderPage({}, { content: [...content, missingLovableContent] });
 
