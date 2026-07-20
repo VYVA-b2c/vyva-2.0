@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { canvasLaunchReadinessFlows } from "../src/components/voice-canvas/canvasLaunchReadiness";
 
 const args = process.argv.slice(2);
 const jsonOutput = args.includes("--json");
@@ -15,6 +16,16 @@ const matrixPathArg = args
 const packetPathArg = args
   .find((arg) => arg.startsWith("--packet="))
   ?.slice("--packet=".length)
+  .trim();
+const featureEnabledArg = args.find((arg) => arg.startsWith("--features-enabled="));
+const featureEnabledPathArg = featureEnabledArg
+  ?.slice("--features-enabled=".length)
+  .trim();
+const featureRollbackArg = args.find((arg) =>
+  arg.startsWith("--features-rollback="),
+);
+const featureRollbackPathArg = featureRollbackArg
+  ?.slice("--features-rollback=".length)
   .trim();
 const analyticsArg = args.find((arg) => arg.startsWith("--analytics="));
 const analyticsPathArg = args
@@ -56,11 +67,13 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:preflight -- --json",
       "  npm run --silent canvas:qa:preflight -- --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
       "  npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
+      "  npm run canvas:qa:preflight -- --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
       "  npm run canvas:qa:preflight -- --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
       "",
       "Default mode accepts a structurally valid pending matrix and packet so QA can capture an in-progress launch artifact.",
+      "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts.",
       "Pass --analytics=<path> to validate sanitized analytics evidence in the same aggregate-only snapshot.",
-      "Use --final after real-device evidence is filled; it exits non-zero unless both gates are ready and analytics evidence is supplied.",
+      "Use --final after real-device evidence is filled; it exits non-zero unless the matrix, packet, enabled endpoint artifact, rollback endpoint artifact, and analytics evidence are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
@@ -72,6 +85,14 @@ if (args.includes("--help") || args.includes("-h")) {
 
 if (outputArg && !outputPathArg) {
   console.error("Expected --output=<path>.");
+  process.exit(1);
+}
+if (featureEnabledArg && !featureEnabledPathArg) {
+  console.error("Expected --features-enabled=<path>.");
+  process.exit(1);
+}
+if (featureRollbackArg && !featureRollbackPathArg) {
+  console.error("Expected --features-rollback=<path>.");
   process.exit(1);
 }
 if (analyticsArg && !analyticsPathArg) {
@@ -89,6 +110,20 @@ interface ValidatorRun {
   stderr: string;
   summary: Record<string, unknown> | null;
 }
+
+interface FeatureEndpointArtifactValidation {
+  provided: boolean;
+  path: string;
+  readyForLaunchEvidence: boolean;
+  mode: "enabled" | "rollback";
+  endpointCount: number;
+  problemCount: number;
+  problems: string[];
+}
+
+const featureFlaggedFlows = canvasLaunchReadinessFlows.filter(
+  (flow) => flow.featureFlag,
+);
 
 function runValidator(
   scriptPath: string,
@@ -145,10 +180,119 @@ function stringField(
   return typeof value === "string" ? value : "unknown";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateFeatureEndpointArtifact(
+  artifactPathArg: string | undefined,
+  mode: "enabled" | "rollback",
+): FeatureEndpointArtifactValidation {
+  if (!artifactPathArg) {
+    return {
+      provided: false,
+      path: "unknown",
+      readyForLaunchEvidence: false,
+      mode,
+      endpointCount: 0,
+      problemCount: 0,
+      problems: [],
+    };
+  }
+
+  const artifactPath = path.resolve(process.cwd(), artifactPathArg);
+  const relativePath = path.relative(process.cwd(), artifactPath);
+  const problems: string[] = [];
+  let artifact: unknown = null;
+
+  try {
+    artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
+  } catch {
+    problems.push("Feature endpoint artifact could not be read as JSON.");
+  }
+
+  if (!isRecord(artifact)) {
+    problems.push("Feature endpoint artifact must be a JSON object.");
+  }
+
+  const endpoints = isRecord(artifact) ? artifact.featureEndpoints : null;
+  if (!Array.isArray(endpoints)) {
+    problems.push("Feature endpoint artifact must include featureEndpoints array.");
+  }
+
+  const readyForQaEvidence = isRecord(artifact)
+    ? artifact.readyForQaEvidence
+    : undefined;
+  if (readyForQaEvidence !== true) {
+    problems.push("Feature endpoint artifact must have readyForQaEvidence true.");
+  }
+
+  const expectedEnabled = mode === "enabled";
+  const expectedRollout = mode === "enabled" ? 100 : 0;
+  const endpointRows = Array.isArray(endpoints) ? endpoints : [];
+  const rowsById = new Map<string, Record<string, unknown>>();
+  for (const row of endpointRows) {
+    if (!isRecord(row) || typeof row.id !== "string") continue;
+    rowsById.set(row.id, row);
+  }
+
+  for (const flow of featureFlaggedFlows) {
+    const row = rowsById.get(flow.id);
+    if (!row) {
+      problems.push(`${flow.label}: feature endpoint evidence row is missing.`);
+      continue;
+    }
+
+    if (row.endpoint !== flow.featureFlag?.endpoint) {
+      problems.push(`${flow.label}: endpoint path does not match launch manifest.`);
+    }
+    if (row.serverFeatureKey !== flow.featureFlag?.serverFeatureKey) {
+      problems.push(`${flow.label}: server feature key does not match launch manifest.`);
+    }
+    if (row.ok !== true || row.status !== 200) {
+      problems.push(`${flow.label}: endpoint evidence must be ok with HTTP 200.`);
+    }
+    if (row.enabled !== expectedEnabled) {
+      problems.push(
+        `${flow.label}: ${mode} endpoint evidence must report enabled ${String(expectedEnabled)}.`,
+      );
+    }
+    if (row.rolloutPercent !== expectedRollout) {
+      problems.push(
+        `${flow.label}: ${mode} endpoint evidence must report rolloutPercent ${expectedRollout}.`,
+      );
+    }
+    if (row.unexpectedPayloadKeyCount !== 0) {
+      problems.push(`${flow.label}: endpoint evidence included unexpected payload keys.`);
+    }
+    const payloadKeys = row.payloadKeys;
+    if (
+      !Array.isArray(payloadKeys) ||
+      payloadKeys.length !== 2 ||
+      !payloadKeys.includes("enabled") ||
+      !payloadKeys.includes("rolloutPercent")
+    ) {
+      problems.push(`${flow.label}: endpoint evidence must include only enabled and rolloutPercent payload keys.`);
+    }
+  }
+
+  return {
+    provided: true,
+    path: relativePath,
+    readyForLaunchEvidence: problems.length === 0,
+    mode,
+    endpointCount: endpointRows.length,
+    problemCount: problems.length,
+    problems,
+  };
+}
+
 function messagesForNextAction(
   matrixRun: ValidatorRun,
   packetRun: ValidatorRun,
   analyticsRun: ValidatorRun | null,
+  enabledFeatures: FeatureEndpointArtifactValidation,
+  rollbackFeatures: FeatureEndpointArtifactValidation,
 ): string[] {
   const messages: string[] = [];
   const matrixProblems = numericField(matrixRun.summary, "problemCount");
@@ -175,6 +319,18 @@ function messagesForNextAction(
   }
   if (analyticsProblems > 0) {
     messages.push("Fix sanitized analytics evidence before launch sign-off.");
+  }
+  if (enabledFeatures.problemCount > 0) {
+    messages.push("Fix enabled feature endpoint evidence before launch sign-off.");
+  }
+  if (rollbackFeatures.problemCount > 0) {
+    messages.push("Fix rollback-disabled feature endpoint evidence before launch sign-off.");
+  }
+  if (finalGate && !enabledFeatures.provided) {
+    messages.push("Provide --features-enabled=<path> for the enabled feature endpoint collector artifact before final launch sign-off.");
+  }
+  if (finalGate && !rollbackFeatures.provided) {
+    messages.push("Provide --features-rollback=<path> for the rollback-disabled feature endpoint collector artifact before final launch sign-off.");
   }
   if (finalGate && !analyticsRun) {
     messages.push("Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.");
@@ -203,9 +359,19 @@ const analyticsRun = analyticsPathArg
       allowPending: false,
     })
   : null;
+const enabledFeatures = validateFeatureEndpointArtifact(
+  featureEnabledPathArg,
+  "enabled",
+);
+const rollbackFeatures = validateFeatureEndpointArtifact(
+  featureRollbackPathArg,
+  "rollback",
+);
 const readyForLaunch =
   booleanField(matrixRun.summary, "readyForLaunch") &&
   booleanField(packetRun.summary, "readyForLaunchEvidencePacket") &&
+  enabledFeatures.readyForLaunchEvidence &&
+  rollbackFeatures.readyForLaunchEvidence &&
   booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence");
 const structuralProblems =
   !matrixRun.summary ||
@@ -214,6 +380,8 @@ const structuralProblems =
   numericField(matrixRun.summary, "problemCount") > 0 ||
   numericField(matrixRun.summary, "failingCellCount") > 0 ||
   numericField(packetRun.summary, "problemCount") > 0 ||
+  enabledFeatures.problemCount > 0 ||
+  rollbackFeatures.problemCount > 0 ||
   numericField(analyticsRun?.summary ?? null, "problemCount") > 0;
 const acceptedPending =
   !finalGate &&
@@ -222,7 +390,13 @@ const acceptedPending =
   packetRun.status === 0 &&
   !readyForLaunch;
 const exitCode = readyForLaunch || acceptedPending ? 0 : 1;
-const nextActions = messagesForNextAction(matrixRun, packetRun, analyticsRun);
+const nextActions = messagesForNextAction(
+  matrixRun,
+  packetRun,
+  analyticsRun,
+  enabledFeatures,
+  rollbackFeatures,
+);
 
 const summary = {
   readyForLaunch,
@@ -263,6 +437,22 @@ const summary = {
     sampleLaunchSignalCounts:
       analyticsRun?.summary?.sampleLaunchSignalCounts ?? null,
   },
+  featureEndpointEvidence: {
+    enabled: {
+      provided: enabledFeatures.provided,
+      path: enabledFeatures.path,
+      readyForLaunchEvidence: enabledFeatures.readyForLaunchEvidence,
+      endpointCount: enabledFeatures.endpointCount,
+      problemCount: enabledFeatures.problemCount,
+    },
+    rollback: {
+      provided: rollbackFeatures.provided,
+      path: rollbackFeatures.path,
+      readyForLaunchEvidence: rollbackFeatures.readyForLaunchEvidence,
+      endpointCount: rollbackFeatures.endpointCount,
+      problemCount: rollbackFeatures.problemCount,
+    },
+  },
   nextActions,
   message: readyForLaunch
     ? "Voice Canvas launch evidence gates are ready."
@@ -299,6 +489,12 @@ console.log(
 );
 console.log(
   `Analytics evidence: ${summary.analyticsEvidence.provided ? (summary.analyticsEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; samples ${summary.analyticsEvidence.sampleCount}; problems ${summary.analyticsEvidence.problemCount}`,
+);
+console.log(
+  `Feature endpoints enabled: ${summary.featureEndpointEvidence.enabled.provided ? (summary.featureEndpointEvidence.enabled.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; endpoints ${summary.featureEndpointEvidence.enabled.endpointCount}; problems ${summary.featureEndpointEvidence.enabled.problemCount}`,
+);
+console.log(
+  `Feature endpoints rollback: ${summary.featureEndpointEvidence.rollback.provided ? (summary.featureEndpointEvidence.rollback.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; endpoints ${summary.featureEndpointEvidence.rollback.endpointCount}; problems ${summary.featureEndpointEvidence.rollback.problemCount}`,
 );
 console.log("Next action:");
 for (const action of nextActions) {

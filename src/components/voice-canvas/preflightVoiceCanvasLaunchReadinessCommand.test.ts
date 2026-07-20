@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { canvasLaunchReadinessFlows } from "./canvasLaunchReadiness";
 import type { CanvasTelemetryEnvelope } from "./canvasPlatform";
 
 const tsxCliPath = path.resolve(
@@ -29,6 +30,10 @@ function runPreflight(args: string[] = []) {
     encoding: "utf8",
   });
 }
+
+const launchFeatureFlows = canvasLaunchReadinessFlows.filter(
+  (flow) => flow.featureFlag,
+);
 
 function validAnalyticsSamples(): CanvasTelemetryEnvelope[] {
   return [
@@ -93,6 +98,38 @@ function validAnalyticsEvidence() {
   };
 }
 
+function validFeatureEndpointArtifact(mode: "enabled" | "rollback") {
+  const enabled = mode === "enabled";
+  const rolloutPercent = mode === "enabled" ? 100 : 0;
+
+  return {
+    generatedAt: "2026-07-20T00:00:00.000Z",
+    baseUrl: "https://staging.vyva.app",
+    scope: "VYVA Canvas Launch Readiness + Real-Use QA v1",
+    endpointCount: launchFeatureFlows.length,
+    readyForQaEvidence: true,
+    problemCount: 0,
+    problems: [],
+    featureEndpoints: launchFeatureFlows.map((flow) => ({
+      id: flow.id,
+      label: flow.label,
+      endpoint: flow.featureFlag!.endpoint,
+      serverFeatureKey: flow.featureFlag!.serverFeatureKey,
+      fallback: flow.featureFlag!.fallback,
+      url: `https://staging.vyva.app${flow.featureFlag!.endpoint}`,
+      ok: true,
+      status: 200,
+      cacheControl: "no-store",
+      elapsedMs: 25,
+      enabled,
+      rolloutPercent,
+      payloadKeys: ["enabled", "rolloutPercent"],
+      unexpectedPayloadKeyCount: 0,
+      problems: [],
+    })),
+  };
+}
+
 function withTempAnalyticsFile<T>(
   value: unknown,
   callback: (inputPath: string) => T,
@@ -103,6 +140,24 @@ function withTempAnalyticsFile<T>(
 
   try {
     return callback(inputPath);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function withTempFeatureEndpointFiles<T>(
+  enabledArtifact: unknown,
+  rollbackArtifact: unknown,
+  callback: (paths: { enabledPath: string; rollbackPath: string }) => T,
+): T {
+  const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-features-"));
+  const enabledPath = path.join(tempDir, "feature-endpoints-enabled.json");
+  const rollbackPath = path.join(tempDir, "feature-endpoints-rollback-disabled.json");
+  writeFileSync(enabledPath, `${JSON.stringify(enabledArtifact, null, 2)}\n`);
+  writeFileSync(rollbackPath, `${JSON.stringify(rollbackArtifact, null, 2)}\n`);
+
+  try {
+    return callback({ enabledPath, rollbackPath });
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -119,6 +174,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
+    );
+    expect(result.stdout).toContain(
+      "npm run canvas:qa:preflight -- --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
     );
     expect(result.stdout).toContain("This preflight is read-only");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
@@ -141,6 +199,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Analytics evidence: not provided; samples 0; problems 0",
     );
     expect(result.stdout).toContain(
+      "Feature endpoints enabled: not provided; endpoints 0; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "Feature endpoints rollback: not provided; endpoints 0; problems 0",
+    );
+    expect(result.stdout).toContain(
       "Execute real-device and deployed rollback QA, then fill the QA matrix.",
     );
     expect(result.stdout).toContain(
@@ -159,6 +223,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Execute real-device and deployed rollback QA, then fill the QA matrix.",
+    );
+    expect(result.stdout).toContain(
+      "Provide --features-enabled=<path> for the enabled feature endpoint collector artifact before final launch sign-off.",
+    );
+    expect(result.stdout).toContain(
+      "Provide --features-rollback=<path> for the rollback-disabled feature endpoint collector artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain(
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
@@ -192,6 +262,20 @@ describe("Voice Canvas launch readiness preflight command", () => {
         sampleCount: number;
         problemCount: number;
       };
+      featureEndpointEvidence: {
+        enabled: {
+          provided: boolean;
+          readyForLaunchEvidence: boolean;
+          endpointCount: number;
+          problemCount: number;
+        };
+        rollback: {
+          provided: boolean;
+          readyForLaunchEvidence: boolean;
+          endpointCount: number;
+          problemCount: number;
+        };
+      };
       nextActions: string[];
       message: string;
     };
@@ -214,6 +298,18 @@ describe("Voice Canvas launch readiness preflight command", () => {
       provided: false,
       readyForLaunchEvidence: false,
       sampleCount: 0,
+      problemCount: 0,
+    });
+    expect(summary.featureEndpointEvidence.enabled).toMatchObject({
+      provided: false,
+      readyForLaunchEvidence: false,
+      endpointCount: 0,
+      problemCount: 0,
+    });
+    expect(summary.featureEndpointEvidence.rollback).toMatchObject({
+      provided: false,
+      readyForLaunchEvidence: false,
+      endpointCount: 0,
       problemCount: 0,
     });
     expect(summary.nextActions).toEqual(
@@ -261,6 +357,104 @@ describe("Voice Canvas launch readiness preflight command", () => {
         completed: 1,
       });
     }));
+
+  it("includes sanitized feature endpoint artifacts in the preflight summary", () =>
+    withTempFeatureEndpointFiles(
+      validFeatureEndpointArtifact("enabled"),
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          acceptedPending: boolean;
+          featureEndpointEvidence: {
+            enabled: {
+              provided: boolean;
+              readyForLaunchEvidence: boolean;
+              endpointCount: number;
+              problemCount: number;
+            };
+            rollback: {
+              provided: boolean;
+              readyForLaunchEvidence: boolean;
+              endpointCount: number;
+              problemCount: number;
+            };
+          };
+        };
+
+        expect(summary.acceptedPending).toBe(true);
+        expect(summary.featureEndpointEvidence.enabled).toMatchObject({
+          provided: true,
+          readyForLaunchEvidence: true,
+          endpointCount: launchFeatureFlows.length,
+          problemCount: 0,
+        });
+        expect(summary.featureEndpointEvidence.rollback).toMatchObject({
+          provided: true,
+          readyForLaunchEvidence: true,
+          endpointCount: launchFeatureFlows.length,
+          problemCount: 0,
+        });
+      },
+    ));
+
+  it("rejects endpoint artifacts that do not prove enabled and rollback states", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        featureEndpoints: validFeatureEndpointArtifact("enabled").featureEndpoints.map(
+          (endpoint, index) =>
+            index === 0 ? { ...endpoint, rolloutPercent: 50 } : endpoint,
+        ),
+      },
+      {
+        ...validFeatureEndpointArtifact("rollback"),
+        featureEndpoints: validFeatureEndpointArtifact("rollback").featureEndpoints.map(
+          (endpoint, index) => (index === 0 ? { ...endpoint, enabled: true } : endpoint),
+        ),
+      },
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.rollback.problemCount).toBeGreaterThan(0);
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+        expect(summary.nextActions).toContain(
+          "Fix rollback-disabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
 
   it("fails unsafe analytics evidence without echoing personal fields or values", () =>
     withTempAnalyticsFile(
@@ -356,5 +550,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Expected --analytics=<path>.");
+  });
+
+  it("rejects empty feature endpoint artifact paths", () => {
+    const enabledResult = runPreflight(["--features-enabled="]);
+    const rollbackResult = runPreflight(["--features-rollback="]);
+
+    expect(enabledResult.status).toBe(1);
+    expect(enabledResult.stderr).toContain("Expected --features-enabled=<path>.");
+    expect(rollbackResult.status).toBe(1);
+    expect(rollbackResult.stderr).toContain("Expected --features-rollback=<path>.");
   });
 });
