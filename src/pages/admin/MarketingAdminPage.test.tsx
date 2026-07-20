@@ -910,6 +910,16 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing daily operator brief"));
     });
     expect(screen.getByTestId("marketing-cockpit-operator-feedback")).toHaveTextContent("Daily operator brief copied.");
+    expect(screen.getByTestId("marketing-launch-decision-board")).toHaveTextContent("Launch decision");
+    expect(screen.getByTestId("marketing-launch-decision-board")).toHaveTextContent("Fix creative before launch");
+    expect(screen.getByTestId("marketing-launch-decision-counts")).toHaveTextContent("Creative gaps");
+    expect(screen.getByTestId("button-marketing-launch-decision-copy")).toHaveTextContent("Copy decision");
+    fireEvent.click(screen.getByTestId("button-marketing-launch-decision-copy"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing launch decision"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Today counts:"));
+    expect(screen.getByTestId("marketing-launch-decision-feedback")).toHaveTextContent("Marketing launch decision copied.");
     expect(screen.getByTestId("marketing-ai-command-launcher")).toHaveTextContent("AI campaign command");
     expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Relationship queue");
     expect(screen.getByTestId("marketing-ai-command-suggestions")).toHaveTextContent("Performance follow-up");

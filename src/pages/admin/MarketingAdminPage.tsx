@@ -27820,6 +27820,86 @@ export default function MarketingAdminPage() {
       },
     }] : []),
   ].slice(0, 5);
+  const marketingLaunchDecisionState: CampaignReadinessState = campaignMissingChannelContent
+    ? "blocked"
+    : firstConsentReviewCampaign || recipientSnapshotQueueCampaign
+      ? "needs_action"
+      : firstDueReadyEmailCampaign || firstScheduledReadyEmailCampaign
+        ? "ready"
+        : firstManualHandoffCampaign
+          ? "planning"
+          : "ready";
+  const marketingLaunchDecisionTitle = campaignMissingChannelContent
+    ? "Fix creative before launch"
+    : firstConsentReviewCampaign
+      ? "Review consent before email"
+      : recipientSnapshotQueueCampaign
+        ? "Snapshot recipients before sending"
+        : firstDueReadyEmailCampaign
+          ? "Email is due for final review"
+          : firstScheduledReadyEmailCampaign
+            ? "Scheduled email is ready"
+            : firstManualHandoffCampaign
+              ? "Manual channels need handoff"
+              : "No urgent launch work";
+  const marketingLaunchDecisionDetail = campaignMissingChannelContent
+    ? `"${campaignMissingChannelContent.name}" needs ${campaignMissingChannelContentLabels || "channel"} content before it can publish cleanly.`
+    : firstConsentReviewCampaign
+      ? `"${firstConsentReviewCampaign.name}" has saved email recipients who need opted-in consent before sending.`
+      : recipientSnapshotQueueCampaign
+        ? `"${recipientSnapshotQueueCampaign.name}" has content but needs a saved recipient snapshot for audit and send safety.`
+        : firstDueReadyEmailCampaign
+          ? `"${firstDueReadyEmailCampaign.name}" is due now with ${firstDueReadyEmailCampaign.recipientCount} saved opted-in recipient${firstDueReadyEmailCampaign.recipientCount === 1 ? "" : "s"}.`
+          : firstScheduledReadyEmailCampaign
+            ? `"${firstScheduledReadyEmailCampaign.name}" has email content and saved recipients for its schedule.`
+            : firstManualHandoffCampaign
+              ? `"${firstManualHandoffCampaign.name}" has non-email routes ready for manual publishing and result tracking.`
+              : "The publishing queue is clear. Use the campaign studio or templates to prepare the next launch.";
+  const marketingLaunchDecisionActionLabel = campaignMissingChannelContent
+    ? "Fix creative"
+    : firstConsentReviewCampaign
+      ? "Review consent"
+      : recipientSnapshotQueueCampaign
+        ? "Open snapshot"
+        : firstDueReadyEmailCampaign
+          ? "Open send review"
+          : firstScheduledReadyEmailCampaign
+            ? "Open schedule"
+            : firstManualHandoffCampaign
+              ? "Open handoff"
+              : "Open studio";
+  const marketingLaunchDecisionCampaign = campaignMissingChannelContent
+    ?? firstConsentReviewCampaign
+    ?? recipientSnapshotQueueCampaign
+    ?? firstDueReadyEmailCampaign
+    ?? firstScheduledReadyEmailCampaign
+    ?? firstManualHandoffCampaign
+    ?? null;
+  const marketingLaunchDecisionText = [
+    "VYVA marketing launch decision",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    `Decision: ${marketingLaunchDecisionTitle}`,
+    `Status: ${readinessLabel(marketingLaunchDecisionState)}`,
+    `Reason: ${marketingLaunchDecisionDetail}`,
+    "",
+    "Today counts:",
+    `- Due email sends ready: ${dueReadyEmailCampaigns.length}`,
+    `- Scheduled email sends ready: ${scheduledReadyEmailCampaigns.length}`,
+    `- Campaigns needing consent review: ${emailCampaignsNeedingConsent.length}`,
+    `- Campaigns needing recipient snapshots: ${recipientSnapshotQueueCampaign ? 1 : 0}`,
+    `- Campaigns with manual/offline channel handoffs: ${manualHandoffCampaigns.length}`,
+    `- Campaign creative gaps: ${campaignMissingChannelContent ? 1 : 0}`,
+    "",
+    "Next action:",
+    `${marketingLaunchDecisionActionLabel}${marketingLaunchDecisionCampaign ? ` - ${marketingLaunchDecisionCampaign.name}` : ""}.`,
+    "",
+    "Guardrails:",
+    "- Email sends still require explicit final confirmation.",
+    "- WhatsApp, social, phone, print, and event routes are manual handoffs unless provider controls are enabled.",
+    "- Snapshot recipients before live email approval.",
+    "- Track manual publishing outcomes back to the campaign history.",
+  ].join("\n");
   const actionCenterTemplatePack = bestCampaignStudioTemplatePack
     ?? contentTemplatePacksWithStats.find(({ templates }) => templates.length > 0)
     ?? null;
@@ -30128,6 +30208,70 @@ export default function MarketingAdminPage() {
                   </div>
                 </div>
                 <div className="mb-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-publishing-queue">
+                  <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(marketingLaunchDecisionState)}`} data-testid="marketing-launch-decision-board">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">Launch decision</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-black">{marketingLaunchDecisionTitle}</h3>
+                          <Pill className={readinessPillClass(marketingLaunchDecisionState)}>{readinessLabel(marketingLaunchDecisionState)}</Pill>
+                        </div>
+                        <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed opacity-85">{marketingLaunchDecisionDetail}</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5" data-testid="marketing-launch-decision-counts">
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Due email</p>
+                            <p className="mt-1 text-lg font-black">{dueReadyEmailCampaigns.length}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Snapshots</p>
+                            <p className="mt-1 text-lg font-black">{recipientSnapshotQueueCampaign ? 1 : 0}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Consent</p>
+                            <p className="mt-1 text-lg font-black">{emailCampaignsNeedingConsent.length}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Handoffs</p>
+                            <p className="mt-1 text-lg font-black">{manualHandoffCampaigns.length}</p>
+                          </div>
+                          <div className="rounded-xl border border-white/70 bg-white/80 p-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Creative gaps</p>
+                            <p className="mt-1 text-lg font-black">{campaignMissingChannelContent ? 1 : 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap justify-start gap-2 xl:min-w-[220px] xl:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (marketingLaunchDecisionCampaign) {
+                              openCampaignForNextAction(marketingLaunchDecisionCampaign);
+                              return;
+                            }
+                            setActiveTab("dashboard");
+                            setMessage("Use Smart campaign studio to choose a playbook, generate AI copy, and create a campaign.");
+                          }}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white hover:bg-purple-800"
+                          data-testid="button-marketing-launch-decision-open"
+                        >
+                          <Zap size={15} /> {marketingLaunchDecisionActionLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignHandoffText("Marketing launch decision", marketingLaunchDecisionText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-800 hover:bg-purple-50"
+                          data-testid="button-marketing-launch-decision-copy"
+                        >
+                          <Copy size={15} /> Copy decision
+                        </button>
+                      </div>
+                    </div>
+                    {campaignHandoffCopyFeedback ? (
+                      <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-launch-decision-feedback">
+                        {campaignHandoffCopyFeedback}
+                      </p>
+                    ) : null}
+                  </div>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Publishing queue</p>
