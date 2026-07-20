@@ -37,6 +37,71 @@ const requiredInventoryArtifactSets = [
   "Launch preflight artifacts",
 ] as const;
 
+type RequiredInventoryArtifactSet =
+  (typeof requiredInventoryArtifactSets)[number];
+
+const inventoryCoverageRequirements: Record<
+  RequiredInventoryArtifactSet,
+  readonly (readonly string[])[]
+> = {
+  "Environment and flag artifacts": [
+    ["environment"],
+    ["feature"],
+    ["rollback"],
+  ],
+  "Real-device screenshots or photos": [
+    ["device"],
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+  ],
+  "Interaction recordings or logs": [
+    ["interaction"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+  ],
+  "Behavior recovery artifacts": [
+    ["behavior"],
+    ["resume"],
+    ["refresh", "reconnect"],
+    ["back"],
+    ["cancel"],
+    ["retry"],
+    ["duplicate", "stale"],
+    ["side effect", "side effects"],
+  ],
+  "Feature endpoint artifacts": [
+    ["feature"],
+    ["endpoint"],
+    ["rollback"],
+  ],
+  "Task hub resume artifacts": [
+    ["task hub"],
+    ["destination"],
+    ["fallback"],
+  ],
+  "Copy and accessibility artifacts": [
+    ["copy"],
+    ["accessibility"],
+  ],
+  "Analytics signal artifacts": [
+    ["analytics"],
+    ["signal"],
+  ],
+  "Analytics privacy artifacts": [
+    ["analytics"],
+    ["privacy"],
+  ],
+  "Launch preflight artifacts": [
+    ["final"],
+    ["matrix"],
+    ["packet"],
+    ["endpoint"],
+    ["analytics"],
+  ],
+};
+
 const requiredFlowPackets = [
   "Ride Voice Canvas",
   "Appointment Voice Canvas",
@@ -215,6 +280,16 @@ function artifactReferenceLooksConcrete(value: string): boolean {
   return hasDate && hasArtifactPathOrLink && !hasOnlyGenericReviewLanguage;
 }
 
+function hasAllCoverageTerms(
+  value: string,
+  requirements: readonly (readonly string[])[],
+): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  return requirements.every((terms) =>
+    terms.some((term) => normalized.includes(term.toLowerCase())),
+  );
+}
+
 function evaluateEvidencePacket(markdown: string) {
   const problems: string[] = [];
   const tables = parseMarkdownTables(markdown);
@@ -254,10 +329,16 @@ function evaluateEvidencePacket(markdown: string) {
 
   if (inventoryTable) {
     const referenceIndex = cellIndex(inventoryTable, "Suggested sanitized reference");
+    const coverageIndex = cellIndex(inventoryTable, "Matrix rows it should prove");
     const reviewerIndex = cellIndex(inventoryTable, "Reviewer/date");
     if (referenceIndex === -1) {
       problems.push(
         "Evidence packet inventory is missing the Suggested sanitized reference column.",
+      );
+    }
+    if (coverageIndex === -1) {
+      problems.push(
+        "Evidence packet inventory is missing the Matrix rows it should prove column.",
       );
     }
     if (reviewerIndex === -1) {
@@ -268,8 +349,22 @@ function evaluateEvidencePacket(markdown: string) {
       const artifactSet = normalizeCell(row[0] ?? "Unknown artifact set");
       const reference =
         referenceIndex >= 0 ? normalizeCell(row[referenceIndex] ?? "") : "";
+      const coverage = coverageIndex >= 0 ? normalizeCell(row[coverageIndex] ?? "") : "";
       const reviewerDate =
         reviewerIndex >= 0 ? normalizeCell(row[reviewerIndex] ?? "") : "";
+
+      const coverageRequirements =
+        inventoryCoverageRequirements[artifactSet as RequiredInventoryArtifactSet];
+      if (
+        coverageRequirements &&
+        coverage &&
+        !isPendingCell(coverage) &&
+        !hasAllCoverageTerms(coverage, coverageRequirements)
+      ) {
+        problems.push(
+          `Evidence packet inventory row "${artifactSet}" does not map the artifact to the required launch evidence coverage.`,
+        );
+      }
 
       if (reference && !isPendingCell(reference) && artifactReferenceLooksUnsafe(reference)) {
         problems.push(
@@ -352,6 +447,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
+      "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, or preflight evidence.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
     ].join("\n"),
   );

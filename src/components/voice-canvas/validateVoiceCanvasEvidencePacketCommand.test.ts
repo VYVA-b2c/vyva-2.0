@@ -74,6 +74,7 @@ describe("Voice Canvas evidence packet validator command", () => {
     expect(result.stdout).toContain(
       "concrete dated sanitized artifact paths or links",
     );
+    expect(result.stdout).toContain("Inventory coverage cells must map");
     expect(result.stdout).toContain("never copy raw artifact-reference values");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -215,6 +216,32 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             'Evidence packet inventory row "Interaction recordings or logs" needs a concrete dated sanitized artifact reference or link.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects inventory rows that do not map artifacts to required launch coverage", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "Interaction mode coverage for voice, touch, and keyboard",
+        "Launch evidence reviewed",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Interaction recordings or logs" does not map the artifact to the required launch evidence coverage.',
           ]),
         );
       },
