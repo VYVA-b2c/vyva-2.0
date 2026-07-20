@@ -5,7 +5,11 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import {
   WORKFLOW_DEFINITIONS,
+  WORKFLOW_ACTION_LEVEL_LABELS,
+  WORKFLOW_ACTION_LEVELS,
+  WORKFLOW_ACTION_LEVEL_RULES,
   WORKFLOW_DOMAINS,
+  type WorkflowActionLevel,
   type WorkflowActionLookup,
   type WorkflowCoverageState,
   type WorkflowDefinition,
@@ -20,6 +24,7 @@ import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../.
 
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
+type ActionLevelFilter = "all" | WorkflowActionLevel;
 
 const DOMAIN_LABELS: Record<WorkflowDomain, string> = {
   home: "Home",
@@ -55,6 +60,14 @@ const COVERAGE_CLASS: Record<WorkflowCoverageState, string> = {
   missing: "border-red-100 bg-red-50 text-red-700",
 };
 
+const ACTION_LEVEL_CLASS: Record<WorkflowActionLevel, string> = {
+  light: "border-sky-100 bg-sky-50 text-sky-800",
+  guided: "border-violet-100 bg-violet-50 text-violet-800",
+  external_action: "border-amber-100 bg-amber-50 text-amber-800",
+  setup: "border-teal-100 bg-teal-50 text-teal-800",
+  admin: "border-slate-200 bg-slate-50 text-slate-700",
+};
+
 function coverageIcon(state: WorkflowCoverageState) {
   if (state === "complete") return <CheckCircle2 size={16} aria-hidden="true" />;
   if (state === "partial") return <AlertTriangle size={16} aria-hidden="true" />;
@@ -63,6 +76,10 @@ function coverageIcon(state: WorkflowCoverageState) {
 
 function coverageClass(state: WorkflowCoverageState) {
   return COVERAGE_CLASS[state];
+}
+
+function actionLevelClass(level: WorkflowActionLevel) {
+  return ACTION_LEVEL_CLASS[level];
 }
 
 function domainLabel(domain: WorkflowDomain) {
@@ -75,6 +92,7 @@ function workflowNeedle(workflow: WorkflowDefinition, actions: WorkflowActionLoo
     workflow.summary,
     workflow.domain,
     workflow.status,
+    workflow.actionLevel,
     workflow.nextStep,
     workflow.confirmationRule,
     workflow.completionState,
@@ -156,6 +174,7 @@ function WorkflowRow({
   actions: WorkflowActionLookup[];
 }) {
   const state = workflowCoverageState(workflow.status);
+  const level = actions[0]?.actionLevel ?? "guided";
 
   return (
     <article
@@ -171,6 +190,12 @@ function WorkflowRow({
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${coverageClass(state)}`}>
               {coverageIcon(state)}
               {COVERAGE_LABELS[state]}
+            </span>
+            <span
+              className={`rounded-full border px-2.5 py-1 text-xs font-black ${actionLevelClass(level)}`}
+              title={WORKFLOW_ACTION_LEVEL_RULES[level]}
+            >
+              {WORKFLOW_ACTION_LEVEL_LABELS[level]}
             </span>
           </div>
           <h3 className="mt-2 font-serif text-2xl leading-tight text-[#2f2135]">{workflow.title}</h3>
@@ -207,6 +232,7 @@ function WorkflowRow({
 export default function WorkflowCoverageAdminPage() {
   const [domainFilter, setDomainFilter] = useState<DomainFilter>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("incomplete");
+  const [actionLevelFilter, setActionLevelFilter] = useState<ActionLevelFilter>("all");
   const [query, setQuery] = useState("");
   const summary = useMemo(() => getWorkflowCoverageSummary(), []);
   const nextCandidates = useMemo(() => nextWorkflowImplementationCandidates(6), []);
@@ -227,6 +253,7 @@ export default function WorkflowCoverageAdminPage() {
       .filter((item) => {
         if (domainFilter !== "all" && item.workflow.domain !== domainFilter) return false;
         if (!matchesCoverageFilter(item.state, coverageFilter)) return false;
+        if (actionLevelFilter !== "all" && item.actions.every((action) => action.actionLevel !== actionLevelFilter)) return false;
         if (!needle) return true;
         return workflowNeedle(item.workflow, item.actions).includes(needle);
       })
@@ -238,7 +265,7 @@ export default function WorkflowCoverageAdminPage() {
         }
         return left.workflow.title.localeCompare(right.workflow.title);
       });
-  }, [coverageFilter, domainFilter, query]);
+  }, [actionLevelFilter, coverageFilter, domainFilter, query]);
 
   const groupedWorkflows = useMemo(() => {
     return workflows.reduce<Record<WorkflowDomain, typeof workflows>>((groups, item) => {
@@ -250,6 +277,7 @@ export default function WorkflowCoverageAdminPage() {
   const clearFilters = () => {
     setDomainFilter("all");
     setCoverageFilter("incomplete");
+    setActionLevelFilter("all");
     setQuery("");
   };
 
@@ -268,6 +296,16 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section className="mt-3 grid gap-3 md:grid-cols-5" aria-label="Action level summary">
+          {WORKFLOW_ACTION_LEVELS.map((level) => (
+            <div key={level} className={`rounded-[14px] border p-4 shadow-sm ${actionLevelClass(level)}`}>
+              <p className="text-xs font-black uppercase tracking-[0.14em] opacity-80">{WORKFLOW_ACTION_LEVEL_LABELS[level]}</p>
+              <p className="mt-2 text-3xl font-black">{summary.byActionLevel[level]}</p>
+              <p className="mt-1 text-xs font-bold opacity-85">{WORKFLOW_ACTION_LEVEL_RULES[level]}</p>
+            </div>
+          ))}
         </section>
 
         <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Fast Help ranking insights">
@@ -460,6 +498,19 @@ export default function WorkflowCoverageAdminPage() {
                   <option value="complete">Complete</option>
                   <option value="partial">Partial</option>
                   <option value="missing">Missing</option>
+                </select>
+              </label>
+              <label className="inline-flex min-h-11 items-center rounded-xl border border-[#eadfd5] bg-white px-3">
+                <span className="sr-only">Filter by action level</span>
+                <select
+                  value={actionLevelFilter}
+                  onChange={(event) => setActionLevelFilter(event.target.value as ActionLevelFilter)}
+                  className="bg-transparent text-sm font-black text-[#2f2135] outline-none"
+                >
+                  <option value="all">All levels</option>
+                  {WORKFLOW_ACTION_LEVELS.map((level) => (
+                    <option key={level} value={level}>{WORKFLOW_ACTION_LEVEL_LABELS[level]}</option>
+                  ))}
                 </select>
               </label>
               <button

@@ -97,6 +97,9 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(screen.getByText("Aggregate action IDs only; no health or profile content")).toBeInTheDocument();
     expect(screen.getByText("personalized-v1")).toBeInTheDocument();
     expect(screen.getByText("Ready to compare")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Action level summary" })).toBeInTheDocument();
+    expect(screen.getAllByText("External action").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Check provider or tool readiness/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter by coverage"), { target: { value: "all" } });
     const visualScan = screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.visualScan}`);
@@ -120,5 +123,13 @@ describe("WorkflowCoverageAdminPage", () => {
     fireEvent.change(screen.getByLabelText("Search workflows"), { target: { value: "pubmed" } });
     expect(within(screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.medicationResearch}`)).getByText(medicationWorkflow?.title ?? "")).toBeInTheDocument();
     expect(screen.queryByText("Home remedy questions")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filter by action level"), { target: { value: "setup" } });
+    expect(screen.queryByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.medicationResearch}`)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.trustedProviders}`)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search workflows"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Filter by domain"), { target: { value: "all" } });
+    expect(screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.trustedProviders}`)).toBeInTheDocument();
   });
 });

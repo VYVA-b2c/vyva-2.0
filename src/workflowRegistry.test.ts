@@ -3,6 +3,7 @@ import { CONCIERGE_FLOW_REFERENCES } from "../shared/conciergeFlowRegistry";
 import {
   APP_WORKFLOW_REFERENCES,
   WORKFLOW_DEFINITIONS,
+  WORKFLOW_ACTION_LEVELS,
   WORKFLOW_ENTRY_POINTS,
   WORKFLOW_STATUSES,
   deduplicateWorkflowReferences,
@@ -12,6 +13,7 @@ import {
   nextWorkflowImplementationCandidates,
   resolveWorkflowAction,
   validateWorkflowRegistry,
+  workflowActionLevelForReference,
   workflowActionForEntryPoint,
   workflowActionsForTarget,
   workflowEntryPointsFor,
@@ -169,7 +171,19 @@ describe("cross-app workflow registry", () => {
       expect(action.suggestedFlow.length).toBeGreaterThan(0);
       expect(action.nextStep.length).toBeGreaterThan(0);
       expect(action.completionState.length).toBeGreaterThan(0);
+      expect(WORKFLOW_ACTION_LEVELS).toContain(action.actionLevel);
+      expect(action.actionLevelLabel.length).toBeGreaterThan(0);
+      expect(action.actionLevelRule.length).toBeGreaterThan(0);
     });
+  });
+
+  it("classifies workflows by reusable action level", () => {
+    expect(workflowActionLevelForReference(APP_WORKFLOW_REFERENCES.homeHub)).toBe("light");
+    expect(workflowActionLevelForReference(APP_WORKFLOW_REFERENCES.gameScentMemory)).toBe("light");
+    expect(workflowActionLevelForReference(APP_WORKFLOW_REFERENCES.symptomCheck)).toBe("guided");
+    expect(workflowActionLevelForReference(APP_WORKFLOW_REFERENCES.trustedProviders)).toBe("setup");
+    expect(workflowActionLevelForReference(APP_WORKFLOW_REFERENCES.doctorNextStep)).toBe("external_action");
+    expect(workflowActionLevelForReference(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe("external_action");
   });
 
   it("resolves precise targets and refuses ambiguous matches", () => {
@@ -205,6 +219,11 @@ describe("cross-app workflow registry", () => {
     expect(summary.byDomain.concierge.total).toBeGreaterThan(0);
     expect(summary.bySurface.fast_help.total).toBeGreaterThan(0);
     expect(summary.bySurface.game_action.total).toBeGreaterThan(0);
+    expect(WORKFLOW_ACTION_LEVELS.reduce((total, level) => total + summary.byActionLevel[level], 0)).toBe(summary.workflows.total);
+    expect(summary.byActionLevel.light).toBeGreaterThan(0);
+    expect(summary.byActionLevel.guided).toBeGreaterThan(0);
+    expect(summary.byActionLevel.external_action).toBeGreaterThan(0);
+    expect(summary.byActionLevel.setup).toBeGreaterThan(0);
     expect(WORKFLOW_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.workflows.total);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.medicationResearch);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.learningReadAloud);
