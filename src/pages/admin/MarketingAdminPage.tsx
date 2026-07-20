@@ -13255,6 +13255,7 @@ export default function MarketingAdminPage() {
     if (b.templateCount !== a.templateCount) return b.templateCount - a.templateCount;
     return a.mode.title.localeCompare(b.mode.title);
   }), [audiences, contacts, contentTemplatePacksWithStats]);
+  const campaignLaunchTopInsight = campaignLaunchModeInsights[0] ?? null;
   const visibleContentTemplates = useMemo(() => contentTemplateGallery.filter((template) => {
     const matchesText = matchesSearch(contentTemplateSearch, [
       template.id,
@@ -30745,6 +30746,48 @@ export default function MarketingAdminPage() {
                           </div>
                           <Pill className="bg-white text-emerald-800">{campaignLaunchModeInsights.length} paths scored</Pill>
                         </div>
+                        {campaignLaunchTopInsight ? (
+                          <div className="mt-3 grid gap-3 rounded-xl border border-emerald-200 bg-white p-3 xl:grid-cols-[minmax(0,1fr)_auto]" data-testid="marketing-campaign-launch-ai-explainer">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Pill className="bg-emerald-50 text-emerald-800">Best next path</Pill>
+                                <Pill className={readinessPillClass(campaignLaunchTopInsight.state)}>{readinessLabel(campaignLaunchTopInsight.state)}</Pill>
+                              </div>
+                              <h4 className="mt-2 text-base font-black text-[#241133]" data-testid="marketing-campaign-launch-ai-explainer-title">
+                                {campaignLaunchTopInsight.mode.title}
+                              </h4>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#5d6b61]" data-testid="marketing-campaign-launch-ai-explainer-detail">
+                                VYVA recommends this because it has {campaignLaunchTopInsight.reachableContacts} reachable contact{campaignLaunchTopInsight.reachableContacts === 1 ? "" : "s"}, {campaignLaunchTopInsight.templateCount} starter template{campaignLaunchTopInsight.templateCount === 1 ? "" : "s"}, and {campaignLaunchTopInsight.routeCount} prepared route{campaignLaunchTopInsight.routeCount === 1 ? "" : "s"}.
+                              </p>
+                              <div className="mt-3 grid gap-2 md:grid-cols-4" data-testid="marketing-campaign-launch-ai-explainer-signals">
+                                <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-2">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Audience</p>
+                                  <p className="mt-1 text-xs font-black text-[#244437]">{campaignLaunchTopInsight.targetAudience?.name ?? "All eligible contacts"}</p>
+                                </div>
+                                <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-2">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Channels</p>
+                                  <p className="mt-1 text-xs font-black text-[#244437]">{formatChannelList(campaignLaunchTopInsight.selectedChannels)}</p>
+                                </div>
+                                <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-2">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Creates</p>
+                                  <p className="mt-1 text-xs font-black text-[#244437]">{campaignLaunchTopInsight.mode.creates}</p>
+                                </div>
+                                <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-2">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-900">Next click</p>
+                                  <p className="mt-1 text-xs font-black text-[#244437]">{campaignLaunchTopInsight.mode.nextStep}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => applyCampaignLaunchMode(campaignLaunchTopInsight.mode)}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl bg-emerald-700 px-4 text-sm font-black text-white hover:bg-emerald-800"
+                              data-testid="button-marketing-campaign-launch-ai-explainer"
+                            >
+                              <Rocket size={15} /> Start with this
+                            </button>
+                          </div>
+                        ) : null}
                         <div className="mt-3 grid gap-2 xl:grid-cols-3">
                           {campaignLaunchModeInsights.slice(0, 3).map((insight, index) => (
                             <article

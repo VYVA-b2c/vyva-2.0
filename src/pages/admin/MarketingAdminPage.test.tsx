@@ -5899,6 +5899,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-launch-mode-pack-community-partner-launch")).toHaveTextContent("6 starter templates");
     expect(screen.getByTestId("marketing-campaign-launch-ai-recommendations")).toHaveTextContent("AI recommended path");
     expect(screen.getByTestId("marketing-campaign-launch-ai-recommendations")).toHaveTextContent("Ranked from your reachable contacts");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-explainer")).toHaveTextContent("Best next path");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-explainer-title")).toHaveTextContent("Full-channel launch packet");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-explainer-detail")).toHaveTextContent("starter templates");
+    expect(screen.getByTestId("marketing-campaign-launch-ai-explainer-signals")).toHaveTextContent("Next click");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-ai-explainer"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Full-channel launch packet with Full-channel launch announcement template pack.");
     expect(screen.getByTestId("marketing-campaign-launch-ai-recommendation-full-channel-launch")).toHaveTextContent("Full-channel launch packet");
     expect(screen.getByTestId("marketing-campaign-launch-ai-recommendation-full-channel-launch")).toHaveTextContent("10 starter templates");
     fireEvent.click(screen.getByTestId("button-marketing-campaign-launch-ai-recommendation-full-channel-launch"));
