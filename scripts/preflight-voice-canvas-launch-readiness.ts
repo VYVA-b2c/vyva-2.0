@@ -172,6 +172,7 @@ interface LaunchRunPlanValidation {
   requestHeaderCount: number;
   commandCount: number;
   flowCount: number;
+  canonicalFlowCoverage: ReturnType<typeof canvasLaunchEvidenceFlowCoverage>;
   problemCount: number;
   problems: string[];
 }
@@ -855,6 +856,7 @@ function validateLaunchRunPlanArtifact(
       requestHeaderCount: 0,
       commandCount: 0,
       flowCount: 0,
+      canonicalFlowCoverage: [],
       problemCount: 0,
       problems: [],
     };
@@ -1014,6 +1016,7 @@ function validateLaunchRunPlanArtifact(
     requestHeaderCount: requestHeaderEnvRefs.length,
     commandCount: commands.length,
     flowCount: flowCoverage.length,
+    canonicalFlowCoverage: expectedFlowCoverage,
     problemCount: problems.length,
     problems,
   };
@@ -1409,6 +1412,7 @@ const summary = {
     requestHeaderCount: runPlan.requestHeaderCount,
     commandCount: runPlan.commandCount,
     flowCount: runPlan.flowCount,
+    canonicalFlowCoverage: runPlan.canonicalFlowCoverage,
     problemCount: runPlan.problemCount,
     problems: runPlan.problems,
   },

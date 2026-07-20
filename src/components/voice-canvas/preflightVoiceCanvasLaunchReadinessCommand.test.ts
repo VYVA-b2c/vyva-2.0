@@ -608,6 +608,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         baseUrl: string;
         commandCount: number;
         flowCount: number;
+        canonicalFlowCoverage: ReturnType<typeof canvasLaunchEvidenceFlowCoverage>;
         problemCount: number;
         problems: string[];
       };
@@ -704,6 +705,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       requestHeaderCount: 0,
       commandCount: 0,
       flowCount: 0,
+      canonicalFlowCoverage: [],
       problemCount: 0,
       problems: [],
     });
@@ -831,6 +833,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
             requestHeaderCount: number;
             commandCount: number;
             flowCount: number;
+            canonicalFlowCoverage: ReturnType<typeof canvasLaunchEvidenceFlowCoverage>;
             problemCount: number;
             problems: string[];
           };
@@ -845,8 +848,23 @@ describe("Voice Canvas launch readiness preflight command", () => {
           requestHeaderCount: 0,
           commandCount: 12,
           flowCount: canvasLaunchReadinessFlows.length,
+          canonicalFlowCoverage: canvasLaunchEvidenceFlowCoverage(),
           problemCount: 0,
           problems: [],
+        });
+        expect(summary.launchRunPlan.canonicalFlowCoverage[0]).toMatchObject({
+          id: "ride",
+          surfaces: ["voice handoff", "/concierge", "task hub pending resume"],
+          qaGates: expect.arrayContaining([
+            "voice_touch_keyboard",
+            "privacy_safe_analytics",
+          ]),
+          fallback: "Existing Concierge transport panel",
+          featureFlag: {
+            endpoint: "/api/config/features/ride-voice-canvas",
+            serverFeatureKey: "ride",
+          },
+          telemetryEvent: "vyva:ride-canvas-telemetry",
         });
       },
     );

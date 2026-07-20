@@ -276,6 +276,7 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("real-use QA gates");
     expect(runbook).toContain("feature endpoints/server keys");
     expect(runbook).toContain("telemetry events");
+    expect(runbook).toContain("canonicalFlowCoverage");
     expect(runbook).toContain("YYYY-MM-DD-feature-endpoints-rollback-disabled.json");
     expect(runbook).toContain("YYYY-MM-DD-analytics-validation.json");
     expect(runbook).toContain("YYYY-MM-DD-rollback-owner-validation.json");
@@ -297,6 +298,7 @@ describe("Canvas launch readiness manifest", () => {
     expect(audit).toContain("real-use QA gates");
     expect(audit).toContain("feature endpoints/server keys");
     expect(audit).toContain("telemetry events");
+    expect(audit).toContain("canonicalFlowCoverage");
     expect(audit).toContain("provider-reply Canvas had client-side rollout wiring but no matching server feature endpoint");
   });
 
