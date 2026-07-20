@@ -52,7 +52,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "The template is intentionally not launch approval until every launch flow has start/resume, app exit/reopen, refresh/reconnect, voice interruption, browser back, cancel/exit, retry/failure, duplicate prevention, and stale-response evidence from the deployed QA run.",
       "Each row must include entered-information preservation where relevant, no write, no resubmission, no external action, and dated sanitized screenshot, log, capture, recording, or artifact proof.",
       "Do not add addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, screenshots with personal data, raw endpoint bodies, unexpected payload field names, or personal data.",
-      "Validation requires a non-future reviewed date generated within the last 7 days, no remaining placeholders, every launch flow, affirmative recovery wording, duplicate prevention plus stale-response ignoring, concrete sanitized artifact references, and no failed/unavailable evidence.",
+      "Validation requires a deployed non-local QA run URL, a non-future reviewed date generated within the last 7 days, no remaining placeholders, every launch flow, affirmative recovery wording, duplicate prevention plus stale-response ignoring, concrete sanitized artifact references, and no failed/unavailable evidence.",
       "Use --output=<path> with --template to save the Markdown artifact, or with --json to save the validation summary.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
       "This helper never calls feature endpoints, analytics, bookings, calls, messages, navigation, or application data writes.",
@@ -158,11 +158,48 @@ function hasAllWordGroups(
 }
 
 function lineHasFilledValue(content: string, label: string): boolean {
+  const value = lineValue(content, label);
+  return Boolean(value);
+}
+
+function lineValue(content: string, label: string): string | null {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = content.match(new RegExp(`^${escapedLabel}:\\s*(.+)$`, "im"));
-  if (!match) return false;
+  if (!match) return null;
   const value = match[1].trim();
-  return value.length > 0 && !value.includes("[") && !value.includes("]");
+  return value.length > 0 && !value.includes("[") && !value.includes("]")
+    ? value
+    : null;
+}
+
+function isDeployedQaRunUrl(value: string | null): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+    if (
+      host === "localhost" ||
+      host === "0.0.0.0" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      host.endsWith(".test") ||
+      host.endsWith(".example") ||
+      host.includes("mock")
+    ) {
+      return false;
+    }
+    if (/^10\./.test(host) || /^192\.168\./.test(host)) return false;
+    const private172 = host.match(/^172\.(\d{1,2})\./);
+    if (private172) {
+      const secondOctet = Number(private172[1]);
+      if (secondOctet >= 16 && secondOctet <= 31) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function splitMarkdownRow(line: string): string[] {
@@ -276,6 +313,9 @@ function validateRecoveryEvidence(inputPathArg: string): RecoveryEvidenceSummary
     if (!lineHasFilledValue(content, requiredLine)) {
       problems.push(`Recovery behavior evidence artifact must fill ${requiredLine}.`);
     }
+  }
+  if (!isDeployedQaRunUrl(lineValue(content, "QA run URL"))) {
+    problems.push("Recovery behavior evidence QA run URL must be a deployed non-local http(s) URL.");
   }
 
   for (const pattern of unsafeFilledArtifactPatterns) {

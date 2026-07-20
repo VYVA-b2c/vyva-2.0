@@ -113,6 +113,7 @@ describe("Voice Canvas real-use evidence helper command", () => {
     );
     expect(result.stdout).toContain("real physical phone, tablet, desktop/laptop");
     expect(result.stdout).toContain("voice, touch, and keyboard");
+    expect(result.stdout).toContain("deployed non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(unsafeDatePlaceholder);
@@ -249,6 +250,23 @@ describe("Voice Canvas real-use evidence helper command", () => {
         );
         expect(summary.problems.join("\n")).toContain(
           "device reviewer/date must include a non-future YYYY-MM-DD date no older than 7 days",
+        );
+      },
+    ));
+
+  it("rejects placeholder QA run URLs as not real deployed evidence", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: https://preview.example",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Real-use evidence QA run URL must be a deployed non-local http(s) URL.",
         );
       },
     ));

@@ -161,7 +161,7 @@ Validate the filled recovery artifact before copying resume, refresh, back, reco
 npm run --silent canvas:qa:recovery -- --input=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior-validation.json
 ```
 
-The filled artifact must prove every launch flow can start or resume with current work restored, survive app exit/reopen, refresh/reconnect, voice interruption, browser back, cancel/exit, recoverable failure retry with an exit or cancel path, duplicate confirmation/action attempts, and stale responses without writes, resubmissions, or external actions. Use sanitized dated recovery screenshots, logs, recordings, captures, or artifact references only.
+The filled artifact must use a deployed non-local QA run URL and prove every launch flow can start or resume with current work restored, survive app exit/reopen, refresh/reconnect, voice interruption, browser back, cancel/exit, recoverable failure retry with an exit or cancel path, duplicate confirmation/action attempts, and stale responses without writes, resubmissions, or external actions. Use sanitized dated recovery screenshots, logs, recordings, captures, or artifact references only.
 
 ## Real-use device and interaction evidence
 
@@ -171,7 +171,7 @@ Prepare the real-use device and interaction evidence artifact from the manifest-
 npm run --silent canvas:qa:real-use -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md
 ```
 
-Fill it only with deployed QA proof that every launch flow completed or safely exited on real physical phone/mobile, tablet, and desktop/laptop sessions plus voice, touch, and keyboard paths. Each row must include dated sanitized screenshot, photo, recording, log, capture, or artifact references plus no-write/no-external-action proof before explicit confirmation.
+Fill it only with a deployed non-local QA run URL and deployed QA proof that every launch flow completed or safely exited on real physical phone/mobile, tablet, and desktop/laptop sessions plus voice, touch, and keyboard paths. Each row must include dated sanitized screenshot, photo, recording, log, capture, or artifact references plus no-write/no-external-action proof before explicit confirmation.
 
 Validate the filled real-use artifact before copying device and interaction proof into the evidence packet and matrix:
 

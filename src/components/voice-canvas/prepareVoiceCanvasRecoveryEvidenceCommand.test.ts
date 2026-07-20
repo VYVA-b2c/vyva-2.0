@@ -98,6 +98,7 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
     expect(result.stdout).toContain("start/resume");
     expect(result.stdout).toContain("duplicate prevention");
     expect(result.stdout).toContain("stale-response evidence");
+    expect(result.stdout).toContain("deployed non-local QA run URL");
     expect(result.stdout).toContain("This helper never calls feature endpoints");
     expect(result.stdout).not.toContain("<YYYY-MM-DD>");
   });
@@ -215,6 +216,25 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             "Recovery behavior evidence reviewed date must be no older than 7 days.",
+          ]),
+        );
+      },
+    ));
+
+  it("rejects local QA run URLs as not real deployed evidence", () =>
+    withTempRecoveryFile(
+      validRecoveryEvidenceArtifact().replace(
+        "QA run URL: https://staging.vyva.app",
+        "QA run URL: http://localhost:5173",
+      ),
+      (inputPath) => {
+        const result = runRecoveryEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Recovery behavior evidence QA run URL must be a deployed non-local http(s) URL.",
           ]),
         );
       },
