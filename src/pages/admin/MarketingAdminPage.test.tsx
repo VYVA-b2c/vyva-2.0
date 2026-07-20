@@ -5629,6 +5629,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Creative variant applied: Soft invite.");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("A gentle invite:");
     expect(screen.getByTestId("marketing-campaign-studio-preview")).toHaveTextContent("CTA: I want the details");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-board")).toHaveTextContent("Channel copy board");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-copy-board")).toHaveTextContent("Publishable copy for every selected route");
+    expect(screen.getByTestId("marketing-campaign-studio-copy-board-linkedin")).toHaveTextContent("LinkedIn copy block");
+    expect(screen.getByTestId("marketing-campaign-studio-copy-board-linkedin")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-studio-copy-board-linkedin")).toHaveTextContent("Publish manually in LinkedIn");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-copy-linkedin"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn campaign copy block"));
+    });
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("LinkedIn copy block copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-copy-board"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign channel copy board"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Publishing note: Publish manually in LinkedIn"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign channel copy board copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-direction")).toHaveTextContent("Creative direction board");
     expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("LinkedIn creative direction");
     expect(screen.getByTestId("marketing-campaign-studio-creative-direction-linkedin")).toHaveTextContent("Visual:");
@@ -6460,6 +6476,23 @@ describe("MarketingAdminPage", () => {
               recipientCount: 1,
             }),
           ],
+          channelCopyBoard: expect.objectContaining({
+            text: expect.stringContaining("VYVA campaign channel copy board"),
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                channel: "linkedin",
+                title: "LinkedIn copy block",
+                sampleContact: "Hassan Partner",
+                publishNote: expect.stringContaining("Publish manually in LinkedIn"),
+                text: expect.stringContaining("LinkedIn campaign copy block"),
+              }),
+              expect.objectContaining({
+                channel: "email",
+                title: "Email copy block",
+                text: expect.stringContaining("Email campaign copy block"),
+              }),
+            ]),
+          }),
           segmentPersonalization: expect.objectContaining({
             text: expect.stringContaining("VYVA campaign segment personalization matrix"),
             items: expect.arrayContaining([

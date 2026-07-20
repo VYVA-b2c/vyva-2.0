@@ -991,6 +991,18 @@ type CampaignStudioTemplateProductionItem = {
   text: string;
 };
 
+type CampaignStudioChannelCopyItem = {
+  channel: Channel;
+  title: string;
+  sampleContact: string;
+  subject: string;
+  bodyPreview: string;
+  cta: string;
+  publishNote: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignStudioApprovalPackItem = {
   key: string;
   title: string;
@@ -15599,6 +15611,72 @@ export default function MarketingAdminPage() {
     "",
     ...campaignStudioTrackingLinks.map((item) => `- ${channelLabel[item.channel]}: ${item.url || "Add CTA URL first"} (${item.route})`),
   ].join("\n");
+  const campaignStudioChannelCopyItems: CampaignStudioChannelCopyItem[] = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
+    const channelRecipients = campaignStudioRecipientPreviewByChannel.get(channel) ?? [];
+    const sampleContact = channelRecipients[0]?.contact ?? campaignStudioPersonalizationContact;
+    const sampleLabel = sampleContact?.fullName || sampleContact?.email || sampleContact?.phoneNumber || "Representative contact";
+    const subject = sampleContact
+      ? personalizePreview(draft.subject || draft.contentTitle || campaignStudioGenerated.campaignName, sampleContact)
+      : draft.subject || draft.contentTitle || campaignStudioGenerated.campaignName;
+    const body = sampleContact ? personalizePreview(draft.body, sampleContact) : draft.body;
+    const trackingLink = campaignStudioTrackingLinks.find((item) => item.channel === channel)?.url ?? "";
+    const cta = draft.ctaLabel.trim()
+      ? `${draft.ctaLabel}${trackingLink ? ` - ${trackingLink}` : draft.ctaUrl.trim() ? ` - ${draft.ctaUrl.trim()}` : ""}`
+      : trackingLink || "No CTA set";
+    const publishNote = channel === "email"
+      ? "Create the campaign, review recipients, then send email explicitly from campaign details."
+      : channel === "whatsapp"
+        ? "Copy this into the approved WhatsApp workflow and record replies or opt-outs."
+        : channel === "sms"
+          ? "Keep it short, copy into the approved SMS workflow, and log batch outcomes."
+          : channel === "phone"
+            ? "Use this as the opening call script and log the relationship outcome."
+            : channel === "print"
+              ? "Use the hook, body, and CTA as the flyer/poster copy with a QR or short link."
+              : channel === "event"
+                ? "Use this as the event host script or local listing copy."
+                : `Publish manually in ${channelLabel[channel]} and record the post URL plus replies.`;
+    const state: CampaignReadinessState = !body.trim()
+      ? "blocked"
+      : recipients > 0 || channel === "print" || channel === "event"
+        ? "ready"
+        : "needs_action";
+    const text = [
+      `${channelLabel[channel]} campaign copy block`,
+      `Campaign: ${campaignStudioGenerated.campaignName}`,
+      `Audience: ${campaignStudioOfflineAudienceName}`,
+      `Sample: ${sampleLabel}`,
+      `Recipient snapshot: ${recipients}`,
+      `Status: ${readinessLabel(state)}`,
+      "",
+      `Subject / hook: ${subject}`,
+      "",
+      "Body / caption:",
+      body || "No copy yet.",
+      "",
+      `CTA: ${cta}`,
+      "",
+      `Publishing note: ${publishNote}`,
+    ].join("\n");
+    return {
+      channel,
+      title: `${channelLabel[channel]} copy block`,
+      sampleContact: sampleLabel,
+      subject,
+      bodyPreview: firstMeaningfulPreviewLine(body),
+      cta,
+      publishNote,
+      state,
+      text,
+    };
+  });
+  const campaignStudioChannelCopyBoardText = [
+    "VYVA campaign channel copy board",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Channels: ${formatChannelList(campaignStudioSelectedChannels)}`,
+    "",
+    ...campaignStudioChannelCopyItems.map((item) => item.text),
+  ].join("\n\n---\n\n");
   const campaignStudioTestPreviewItems = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
     const channelRecipients = campaignStudioRecipientPreviewByChannel.get(channel) ?? [];
     const sampleContact = channelRecipients[0] ?? campaignStudioPersonalizationContact;
@@ -17582,6 +17660,21 @@ export default function MarketingAdminPage() {
       recipients: item.recipients,
       recipientCount: item.recipients,
     })),
+    channelCopyBoard: {
+      text: campaignStudioChannelCopyBoardText,
+      items: campaignStudioChannelCopyItems.map((item) => ({
+        channel: item.channel,
+        channelLabel: channelLabel[item.channel],
+        title: item.title,
+        sampleContact: item.sampleContact,
+        subject: item.subject,
+        bodyPreview: item.bodyPreview,
+        cta: item.cta,
+        publishNote: item.publishNote,
+        state: item.state,
+        text: item.text,
+      })),
+    },
     segmentPersonalization: {
       text: campaignStudioSegmentPersonalizationText,
       items: campaignStudioSegmentPersonalizationItems.map((item) => ({
@@ -30118,6 +30211,52 @@ export default function MarketingAdminPage() {
                         <Pill className="bg-white text-[#5b4a46]">{campaignStudioRecipientPreview.length} eligible recipients</Pill>
                       </div>
                       {campaignStudioGenerated.note ? <p className="mt-2 text-xs font-bold text-amber-800">{campaignStudioGenerated.note}</p> : null}
+                    </div>
+
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4" data-testid="marketing-campaign-studio-channel-copy-board">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Channel copy board</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Publishable copy for every selected route</h3>
+                          <p className="mt-1 text-xs font-bold text-[#6b5b54]">
+                            Each route gets a personalized sample, CTA, and publishing note so email, social, WhatsApp, SMS, print, events, and calls are easier to execute.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign channel copy board", campaignStudioChannelCopyBoardText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-800 hover:bg-purple-50"
+                          data-testid="button-marketing-campaign-studio-copy-channel-copy-board"
+                        >
+                          <Copy size={14} /> Copy all copy
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-channel-copy-items">
+                        {campaignStudioChannelCopyItems.map((item) => (
+                          <article key={item.channel} className={`flex min-h-[300px] flex-col rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-copy-board-${item.channel}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
+                            <div className="mt-3 grid gap-2 rounded-lg bg-purple-50/70 p-2 text-xs font-bold leading-relaxed text-[#5f5169]">
+                              <p><span className="font-black text-[#241133]">Sample:</span> {item.sampleContact}</p>
+                              <p><span className="font-black text-[#241133]">Hook:</span> {item.subject}</p>
+                              <p><span className="font-black text-[#241133]">CTA:</span> {item.cta}</p>
+                            </div>
+                            <p className="mt-3 line-clamp-3 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.bodyPreview || "No body copy yet."}</p>
+                            <p className="mt-3 rounded-lg bg-white/80 p-2 text-xs font-black leading-relaxed text-purple-800">{item.publishNote}</p>
+                            <button
+                              type="button"
+                              onClick={() => void copyCampaignStudioOfflineHandoff(`${channelLabel[item.channel]} copy block`, item.text)}
+                              className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-sm font-black text-white hover:bg-purple-800"
+                              data-testid={`button-marketing-campaign-studio-copy-channel-copy-${item.channel}`}
+                            >
+                              <Copy size={14} /> Copy {channelLabel[item.channel]}
+                            </button>
+                          </article>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-purple-200 bg-white p-4" data-testid="marketing-campaign-studio-creative-variants">
