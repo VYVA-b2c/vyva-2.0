@@ -1741,6 +1741,45 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Showing 1 consent review contact from the AI campaign plan.");
   });
 
+  it("saves the AI command matched contacts as a reusable audience", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-ai-command-launcher");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-suggestion-partner-webinar"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-save-audience"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences", expect.objectContaining({ method: "POST" }));
+    });
+    const audiencePostCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/audiences" && init?.method === "POST");
+    const body = JSON.parse(String(audiencePostCall?.[1]?.body ?? "{}"));
+    expect(body).toMatchObject({
+      name: "AI: Partner webinar",
+      listType: "static",
+      source: "vyva_ai_campaign_command",
+      contactExternalIds: ["lovable-contact-2"],
+      rules: {
+        source: "ai_campaign_command",
+        playId: "partner-webinar",
+        playLabel: "Partner webinar",
+        audienceType: "b2b",
+        channels: ["email", "linkedin"],
+        targetAudienceId: "audience-1",
+        targetAudienceName: "Partners",
+      },
+      metadata: {
+        created_from: "ai_campaign_command",
+        playId: "partner-webinar",
+        channels: ["email", "linkedin"],
+        reachableContacts: 1,
+      },
+    });
+    expect(body.metadata.audienceQuality).toMatchObject({ total: 1, needsReview: 1 });
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lists");
+    expect(screen.getByTestId("marketing-audience-editor-feedback")).toHaveTextContent('Saved AI audience "AI: Partner webinar" with 1 member.');
+  });
+
   it("prepares an editable replacement draft for missing Source content references", async () => {
     renderPage({}, { content: [...content, missingLovableContent] });
 

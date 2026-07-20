@@ -27823,6 +27823,78 @@ export default function MarketingAdminPage() {
     setMessage(feedback);
   }
 
+  async function saveMarketingDashboardAiAudience() {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) {
+      const feedback = "Type a campaign goal first so VYVA can save the matched audience.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    const contactExternalIds = Array.from(new Set(plan.matchingContacts.map(contactAudienceMemberId).filter(Boolean)));
+    if (contactExternalIds.length === 0) {
+      const feedback = "No matched contacts found for this AI campaign plan.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    setAudienceSaving(true);
+    setMarketingDashboardAiCommandFeedback("Saving AI-matched audience...");
+    try {
+      const audienceName = `AI: ${plan.match.play.label}`;
+      const result = await api<{ audience: MarketingAudience }>("/api/admin/marketing/audiences", {
+        method: "POST",
+        body: JSON.stringify({
+          name: audienceName,
+          listType: "static",
+          description: `${contactExternalIds.length} AI-matched contact${contactExternalIds.length === 1 ? "" : "s"} for ${plan.match.play.objective}`,
+          rules: {
+            source: "ai_campaign_command",
+            command: marketingDashboardAiCommand.trim(),
+            playId: plan.match.play.id,
+            playLabel: plan.match.play.label,
+            audienceType: plan.match.play.audienceType,
+            channels: plan.selectedChannels,
+            targetAudienceId: plan.match.targetAudience?.id ?? null,
+            targetAudienceName: plan.match.targetAudience?.name ?? null,
+          },
+          contactExternalIds,
+          source: "vyva_ai_campaign_command",
+          metadata: {
+            created_from: "ai_campaign_command",
+            command: marketingDashboardAiCommand.trim(),
+            playId: plan.match.play.id,
+            channels: plan.selectedChannels,
+            reachableContacts: plan.reachableContacts,
+            audienceQuality: plan.audienceQuality,
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      });
+      setAudiences((current) => [result.audience, ...current.filter((audience) => audience.id !== result.audience.id)]);
+      setActiveTab("contacts");
+      setContactView("lists");
+      setEditingAudienceId(result.audience.id);
+      setAudienceEditDraft(audienceEditDraftFromAudience(result.audience));
+      setConfirmingAudienceDeleteId(null);
+      const feedback = `Saved AI audience "${result.audience.name}" with ${contactExternalIds.length} member${contactExternalIds.length === 1 ? "" : "s"}.`;
+      setAudienceFeedback(feedback);
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      scrollToContentPanel(audienceEditorPanelRef);
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "AI audience could not be saved.";
+      setAudienceFeedback(errorMessage);
+      setMarketingDashboardAiCommandFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
+  }
+
   async function createMarketingDashboardAiLaunchKit() {
     const plan = marketingDashboardAiCommandPlan;
     const packMatch = plan?.packMatch ?? null;
@@ -28748,8 +28820,19 @@ export default function MarketingAdminPage() {
                                   {marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute} no route
                                 </Pill>
                               </div>
-                              {marketingDashboardAiCommandPlan.audienceQuality.needsReview || marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute ? (
+                              {marketingDashboardAiCommandPlan.audienceQuality.total || marketingDashboardAiCommandPlan.audienceQuality.needsReview || marketingDashboardAiCommandPlan.audienceQuality.noSelectedRoute ? (
                                 <div className="mt-2 flex flex-wrap gap-2">
+                                  {marketingDashboardAiCommandPlan.audienceQuality.total ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveMarketingDashboardAiAudience()}
+                                      disabled={audienceSaving}
+                                      className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 text-[11px] font-black text-purple-800 transition hover:bg-white focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                      data-testid="button-marketing-ai-command-save-audience"
+                                    >
+                                      <Save size={12} /> Save AI audience
+                                    </button>
+                                  ) : null}
                                   {marketingDashboardAiCommandPlan.audienceQuality.needsReview ? (
                                     <button
                                       type="button"
