@@ -56,10 +56,12 @@ if (args.includes("--help") || args.includes("-h")) {
       "Validate a sanitized Voice Canvas analytics evidence artifact.",
       "",
       "Usage:",
+      "  npm run --silent canvas:qa:analytics -- --template",
       "  npm run canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json",
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "",
+      "Use --template to print a privacy-safe JSON skeleton. The template is intentionally not launch-ready until generatedAt, source, counts, and sanitized sample envelopes are filled from real staging or production-like aggregate evidence.",
       "The input JSON must be an object with generatedAt, source, samples/events, and optional counts.",
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
       "The source must identify staging, production, or a concrete analytics dashboard/query/export/log artifact.",
@@ -78,9 +80,32 @@ if (args.includes("--help") || args.includes("-h")) {
 
 const jsonOutput = args.includes("--json");
 const forceOutput = args.includes("--force");
+const templateOutput = args.includes("--template");
 const inputPathArg =
   readArgValue("--input") ?? args.find((arg) => !arg.startsWith("-"));
 const outputPathArg = readArgValue("--output");
+
+function analyticsEvidenceTemplate() {
+  return {
+    generatedAt: "REPLACE_WITH_NON_FUTURE_ISO_TIMESTAMP_WITHIN_7_DAYS",
+    source: "REPLACE_WITH_STAGING_DASHBOARD_QUERY_OR_EXPORT_REFERENCE",
+    coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
+    counts: {
+      started: 0,
+      resumed: 0,
+      abandoned: 0,
+      blocked: 0,
+      confirmed: 0,
+      completed: 0,
+    },
+    samples: [],
+  };
+}
+
+if (templateOutput) {
+  console.log(`${JSON.stringify(analyticsEvidenceTemplate(), null, 2)}\n`);
+  process.exit(0);
+}
 
 if (!inputPathArg) {
   console.error("Expected --input=<analytics evidence JSON path>.");

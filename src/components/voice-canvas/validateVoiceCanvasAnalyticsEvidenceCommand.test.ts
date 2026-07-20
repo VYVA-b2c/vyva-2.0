@@ -120,6 +120,12 @@ describe("Voice Canvas analytics evidence validator command", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:analytics -- --template",
+    );
+    expect(result.stdout).toContain(
+      "The template is intentionally not launch-ready",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
     );
     expect(result.stdout).toContain(
@@ -143,6 +149,73 @@ describe("Voice Canvas analytics evidence validator command", () => {
     expect(result.stdout).not.toContain(
       `--input=artifacts/voice-canvas/${unsafeDatePlaceholder}-analytics-evidence.json`,
     );
+  });
+
+  it("prints a privacy-safe analytics evidence template that is not launch-ready", () => {
+    const templateResult = runValidator(["--template"]);
+
+    expect(templateResult.status).toBe(0);
+    expect(templateResult.stderr).toBe("");
+
+    const template = JSON.parse(templateResult.stdout) as {
+      generatedAt: string;
+      source: string;
+      coveredFlows: string[];
+      counts: Record<string, number>;
+      samples: unknown[];
+    };
+
+    expect(template).toEqual({
+      generatedAt: "REPLACE_WITH_NON_FUTURE_ISO_TIMESTAMP_WITHIN_7_DAYS",
+      source: "REPLACE_WITH_STAGING_DASHBOARD_QUERY_OR_EXPORT_REFERENCE",
+      coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
+      counts: {
+        started: 0,
+        resumed: 0,
+        abandoned: 0,
+        blocked: 0,
+        confirmed: 0,
+        completed: 0,
+      },
+      samples: [],
+    });
+
+    const serialized = JSON.stringify(template);
+    for (const forbiddenDetail of [
+      "address",
+      "transcript",
+      "medication",
+      "providerName",
+      "replyText",
+      "shopping item",
+      "phone",
+      "email",
+      "account id",
+      "profile id",
+    ]) {
+      expect(serialized.toLowerCase()).not.toContain(
+        forbiddenDetail.toLowerCase(),
+      );
+    }
+
+    withTempJsonFile(template, (inputPath) => {
+      const validationResult = runValidator([`--input=${inputPath}`, "--json"]);
+      const summary = JSON.parse(validationResult.stdout) as {
+        readyForLaunchEvidence: boolean;
+        problems: string[];
+      };
+
+      expect(validationResult.status).toBe(1);
+      expect(summary.readyForLaunchEvidence).toBe(false);
+      expect(summary.problems).toEqual(
+        expect.arrayContaining([
+          "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
+          "Analytics evidence must include sanitized sample envelopes in samples, events, or the top-level array.",
+          "started: declared aggregate count must be positive.",
+          "completed: sample evidence must include a positive observed count.",
+        ]),
+      );
+    });
   });
 
   it("requires an input artifact path", () => {

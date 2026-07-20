@@ -12,6 +12,8 @@ npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/v
 
 Use `--allow-pending` while gathering artifacts and omit it for the final packet gate. The validator reports pending packet cells by section, checks required inventory/flow/evidence-note rows, preserves existing output unless `--force` is explicit, and rejects unsafe artifact references without copying raw artifact-reference values into output.
 
+For analytics evidence, use `npm run --silent canvas:qa:analytics -- --template` as a copy-safe starting shape when needed. The template is intentionally incomplete and must be filled with real staging or production-like aggregate evidence before `canvas:qa:analytics` validation can pass.
+
 ## Privacy rules for every artifact
 
 - Do not capture spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, phone numbers, emails, or other personal details.
