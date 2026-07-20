@@ -952,6 +952,17 @@ type CampaignStudioBrandReviewItem = {
   text: string;
 };
 
+type CampaignStudioProductionLoadItem = {
+  channel: Channel;
+  title: string;
+  owner: string;
+  estimateMinutes: number;
+  requirement: string;
+  blocker: string;
+  state: CampaignReadinessState;
+  text: string;
+};
+
 type CampaignStudioApprovalPackItem = {
   key: string;
   title: string;
@@ -16043,6 +16054,104 @@ export default function MarketingAdminPage() {
     "",
     "Reviewer instruction: approve only when the campaign is clear, consent-safe, readable, visually consistent, and has a named owner for follow-up.",
   ].join("\n");
+  const campaignStudioProductionLoadItems: CampaignStudioProductionLoadItem[] = campaignStudioSelectedChannels.map((channel) => {
+    const draft = campaignStudioChannelDrafts.find((candidate) => candidate.channel === channel)?.draft ?? campaignStudioGenerated;
+    const recipientCount = campaignStudioRecipientPreviewByChannel.get(channel)?.length ?? 0;
+    const hasCopy = Boolean((draft.body || campaignStudioGenerated.body).trim());
+    const estimateMinutes = channel === "event"
+      ? 90
+      : channel === "print"
+        ? 45
+        : channel === "phone"
+          ? 30
+          : channel === "email"
+            ? 25
+            : channel === "sms" || channel === "whatsapp"
+              ? 15
+              : 20;
+    const owner = channel === "email"
+      ? campaignStudioOwnerName
+      : channel === "phone"
+        ? "Care or outreach caller"
+        : channel === "event"
+          ? "Event lead"
+          : channel === "print"
+            ? "Design / venue owner"
+            : channel === "sms" || channel === "whatsapp"
+              ? "Manual messaging owner"
+              : "Social publishing owner";
+    const requirement = channel === "email"
+      ? "Review subject/body, approve recipients, then send from VYVA."
+      : channel === "phone"
+        ? "Prepare opener, call list, and outcome notes before calls start."
+        : channel === "event"
+          ? "Confirm venue/time, host notes, attendance capture, and follow-up owner."
+          : channel === "print"
+            ? "Prepare readable layout, QR/link, print file, and placement owner."
+            : channel === "sms" || channel === "whatsapp"
+              ? "Prepare short copy, manual send owner, reply capture, and opt-out handling."
+              : "Prepare post copy, image/asset, publish owner, URL capture, and reply follow-up.";
+    const blocker = !hasCopy
+      ? "Missing channel copy"
+      : recipientCount === 0
+        ? "No reachable recipients"
+        : channel === "event" && !campaignStudioSchedule
+          ? "Pick an event or publish window"
+          : "";
+    const state: CampaignReadinessState = blocker
+      ? blocker === "Pick an event or publish window" ? "needs_action" : "blocked"
+      : channel === "email"
+        ? "ready"
+        : "planning";
+    const text = [
+      `${channelLabel[channel]} production task`,
+      `Campaign: ${campaignStudioGenerated.campaignName}`,
+      `Owner: ${owner}`,
+      `Estimated effort: ${estimateMinutes} minutes`,
+      `Recipients/routes: ${recipientCount}`,
+      `Requirement: ${requirement}`,
+      blocker ? `Blocker: ${blocker}` : "Blocker: none",
+      `State: ${readinessLabel(state)}`,
+    ].join("\n");
+
+    return {
+      channel,
+      title: `${channelLabel[channel]} production task`,
+      owner,
+      estimateMinutes,
+      requirement,
+      blocker,
+      state,
+      text,
+    };
+  });
+  const campaignStudioProductionLoadTotalMinutes = campaignStudioProductionLoadItems.reduce((total, item) => total + item.estimateMinutes, 0);
+  const campaignStudioProductionLoadState: CampaignReadinessState = campaignStudioProductionLoadItems.some((item) => item.state === "blocked")
+    ? "blocked"
+    : campaignStudioProductionLoadItems.some((item) => item.state === "needs_action") || campaignStudioProductionLoadTotalMinutes > 180
+      ? "needs_action"
+      : campaignStudioProductionLoadItems.some((item) => item.state === "planning")
+        ? "planning"
+        : "ready";
+  const campaignStudioProductionLoadSummary = campaignStudioProductionLoadState === "blocked"
+    ? "Blocked tasks"
+    : campaignStudioProductionLoadState === "needs_action"
+      ? "Needs scheduling"
+      : campaignStudioProductionLoadState === "planning"
+        ? "Manual work planned"
+        : "Ready workload";
+  const campaignStudioProductionLoadText = [
+    "VYVA campaign production workload",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    `Total estimated effort: ${campaignStudioProductionLoadTotalMinutes} minutes`,
+    `Owner: ${campaignStudioOwnerName}`,
+    `Overall: ${readinessLabel(campaignStudioProductionLoadState)}`,
+    "",
+    ...campaignStudioProductionLoadItems.map((item) => item.text),
+    "",
+    "Operator instruction: confirm every owner, route, creative asset, and tracking note before launch.",
+  ].join("\n\n---\n\n");
   const campaignStudioCreativeQualityItems: CampaignCreativeQualityItem[] = [
     {
       key: "subject",
@@ -17253,6 +17362,23 @@ export default function MarketingAdminPage() {
         text: item.text,
       })),
       text: campaignStudioBrandReviewText,
+    },
+    productionLoad: {
+      state: campaignStudioProductionLoadState,
+      summary: campaignStudioProductionLoadSummary,
+      totalMinutes: campaignStudioProductionLoadTotalMinutes,
+      items: campaignStudioProductionLoadItems.map((item) => ({
+        channel: item.channel,
+        channelLabel: channelLabel[item.channel],
+        title: item.title,
+        owner: item.owner,
+        estimateMinutes: item.estimateMinutes,
+        requirement: item.requirement,
+        blocker: item.blocker,
+        state: item.state,
+        text: item.text,
+      })),
+      text: campaignStudioProductionLoadText,
     },
     followUpPlays: campaignStudioFollowUpPlays.map((item) => ({
       key: item.key,
@@ -29694,6 +29820,51 @@ export default function MarketingAdminPage() {
                             </div>
                             <p className="mt-2 text-sm font-black text-[#241133]">{item.value}</p>
                             <p className="mt-2 line-clamp-4 text-xs font-bold leading-relaxed text-[#66506b]">{item.detail}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4" data-testid="marketing-campaign-studio-production-load">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-800">Production workload</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know the effort before launch</h3>
+                          <p className="mt-1 text-xs font-bold text-[#6d5742]">
+                            Converts the selected routes into owners, effort, requirements, and blockers so campaigns do not stall after approval.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill className={readinessPillClass(campaignStudioProductionLoadState)}>{campaignStudioProductionLoadSummary}</Pill>
+                          <Pill className="bg-white text-amber-900">{campaignStudioProductionLoadTotalMinutes} min</Pill>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign production workload", campaignStudioProductionLoadText)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-sm font-black text-amber-900 hover:bg-amber-50"
+                            data-testid="button-marketing-campaign-studio-copy-production-load"
+                          >
+                            <Copy size={14} /> Copy workload
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-production-load-items">
+                        {campaignStudioProductionLoadItems.map((item) => (
+                          <article
+                            key={item.channel}
+                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
+                            data-testid={`marketing-campaign-studio-production-load-${item.channel}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                            </div>
+                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
+                            <div className="mt-3 grid gap-2 rounded-lg bg-amber-50/70 p-2 text-xs font-bold text-[#5f4b37]">
+                              <p><span className="font-black text-[#241133]">Owner:</span> {item.owner}</p>
+                              <p><span className="font-black text-[#241133]">Effort:</span> {item.estimateMinutes} min</p>
+                              <p><span className="font-black text-[#241133]">Needs:</span> {item.requirement}</p>
+                              <p><span className="font-black text-[#241133]">Blocker:</span> {item.blocker || "None"}</p>
+                            </div>
                           </article>
                         ))}
                       </div>

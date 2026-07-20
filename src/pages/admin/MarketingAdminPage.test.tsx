@@ -5640,6 +5640,17 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Reviewer instruction"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign brand review board copied.");
+    expect(screen.getByTestId("marketing-campaign-studio-production-load")).toHaveTextContent("Production workload");
+    expect(screen.getByTestId("marketing-campaign-studio-production-load")).toHaveTextContent("20 min");
+    expect(screen.getByTestId("marketing-campaign-studio-production-load")).toHaveTextContent("Manual work planned");
+    expect(screen.getByTestId("marketing-campaign-studio-production-load-linkedin")).toHaveTextContent("Social publishing owner");
+    expect(screen.getByTestId("marketing-campaign-studio-production-load-linkedin")).toHaveTextContent("Planning");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-production-load"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign production workload"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn production task"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign production workload copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-subject")).toHaveTextContent("Opening hook");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality-cta")).toHaveTextContent("Ready");
@@ -6458,6 +6469,26 @@ describe("MarketingAdminPage", () => {
               expect.objectContaining({
                 key: "handoff",
                 title: "Production handoff",
+              }),
+            ]),
+          }),
+          productionLoad: expect.objectContaining({
+            state: "planning",
+            summary: "Manual work planned",
+            totalMinutes: 45,
+            text: expect.stringContaining("VYVA campaign production workload"),
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                channel: "linkedin",
+                owner: "Social publishing owner",
+                estimateMinutes: 20,
+                text: expect.stringContaining("LinkedIn production task"),
+              }),
+              expect.objectContaining({
+                channel: "email",
+                owner: "Partner owner",
+                estimateMinutes: 25,
+                text: expect.stringContaining("Email production task"),
               }),
             ]),
           }),
