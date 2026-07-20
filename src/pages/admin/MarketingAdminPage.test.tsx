@@ -1500,6 +1500,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Email launch");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Publish today");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Channel command");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Performance follow-up");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Relationship queue");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Audience builder");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Consent review");
@@ -1529,6 +1530,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-channel-publishing-board")).toHaveTextContent("Email");
     expect(screen.getByTestId("marketing-channel-publishing-board-feedback")).toHaveTextContent("Saved view: channel command.");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-performance"));
+    expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Best engagement");
+    expect(screen.getByText("Saved view: performance follow-up. Review engagement signals, winners, weak spots, and campaigns that need a next action.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-relationships"));
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");

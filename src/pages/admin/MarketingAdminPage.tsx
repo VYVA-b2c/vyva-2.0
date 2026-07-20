@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "publish" | "channels" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "publish" | "channels" | "performance" | "relationships" | "audiences" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12221,6 +12221,14 @@ export default function MarketingAdminPage() {
       setActiveTab("dashboard");
       setMarketingChannelBoardFeedback("Saved view: channel command. Review each route for VYVA send, manual handoff, content gaps, and tracking.");
       setMessage("Saved view: channel command. Use the channel board to decide what sends, what gets handed off, and what still needs content.");
+      return;
+    }
+    if (viewKey === "performance") {
+      setActiveTab("dashboard");
+      setSearch("");
+      setChannelFilter("all");
+      setAudienceFilter("all");
+      setMessage("Saved view: performance follow-up. Review engagement signals, winners, weak spots, and campaigns that need a next action.");
       return;
     }
     if (viewKey === "relationships") {
@@ -27931,6 +27939,8 @@ export default function MarketingAdminPage() {
   const savedViewPublishCount = dueReadyEmailCampaigns.length
     + (scheduledEmailCampaignWithoutRecipients ? 1 : 0)
     + manualHandoffCampaigns.length;
+  const savedViewPerformanceCount = new Set(campaignMetrics.map((metric) => metric.campaignId).filter(Boolean)).size
+    || campaignMetrics.length;
   const savedViewRelationshipCount = contactRelationshipPriorityQueue?.count ?? contactRelationshipWorkQueues.reduce((total, queue) => total + queue.count, 0);
   const savedViewChannelGapCount = campaigns.reduce((total, campaign) => (
     total + campaign.channels.filter((route) => !channelHasUsableContent(route)).length
@@ -27976,6 +27986,18 @@ export default function MarketingAdminPage() {
       className: savedViewChannelGapCount
         ? "border-red-100 bg-red-50 text-red-950"
         : "border-sky-100 bg-sky-50 text-sky-950",
+    },
+    {
+      key: "performance",
+      title: "Performance follow-up",
+      detail: "Engagement signals, winning copy, weak spots, and next actions after campaigns run.",
+      countLabel: savedViewPerformanceCount
+        ? `${savedViewPerformanceCount} signals`
+        : "no data",
+      icon: Activity,
+      className: savedViewPerformanceCount
+        ? "border-cyan-100 bg-cyan-50 text-cyan-950"
+        : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46]",
     },
     {
       key: "relationships",
