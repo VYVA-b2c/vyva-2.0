@@ -111,6 +111,139 @@ const requiredFlowPackets = [
   "Concierge Task Hub Resume",
 ] as const;
 
+type RequiredFlowPacket = (typeof requiredFlowPackets)[number];
+
+const flowPacketCoverageRequirements: Record<
+  RequiredFlowPacket,
+  readonly (readonly string[])[]
+> = {
+  "Ride Voice Canvas": [
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["saved-place", "saved place", "address"],
+    ["review"],
+    ["explicit confirmation"],
+    ["no booking"],
+    ["call"],
+    ["message"],
+    ["navigation"],
+    ["write"],
+    ["duplicate"],
+    ["stale"],
+    ["rollback"],
+    ["existing"],
+    ["transport"],
+  ],
+  "Appointment Voice Canvas": [
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["date/time", "date", "time"],
+    ["review"],
+    ["explicit confirmation"],
+    ["no booking"],
+    ["call"],
+    ["message"],
+    ["navigation"],
+    ["write"],
+    ["duplicate"],
+    ["stale"],
+    ["rollback"],
+    ["existing"],
+    ["appointment"],
+  ],
+  "Medication Refill Voice Canvas": [
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["refill"],
+    ["medication"],
+    ["review"],
+    ["explicit confirmation"],
+    ["no refill request"],
+    ["call"],
+    ["message"],
+    ["navigation"],
+    ["write"],
+    ["duplicate"],
+    ["stale"],
+    ["rollback"],
+    ["existing"],
+  ],
+  "Shopping Delivery Voice Canvas": [
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["shopping"],
+    ["item"],
+    ["retailer"],
+    ["review"],
+    ["explicit confirmation"],
+    ["no order"],
+    ["call"],
+    ["message"],
+    ["navigation"],
+    ["write"],
+    ["duplicate"],
+    ["stale"],
+    ["rollback"],
+    ["existing"],
+  ],
+  "Provider Reply Voice Canvas": [
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["provider"],
+    ["reply"],
+    ["review"],
+    ["explicit confirmation"],
+    ["no reply"],
+    ["call"],
+    ["message"],
+    ["navigation"],
+    ["completion"],
+    ["write"],
+    ["duplicate"],
+    ["stale"],
+    ["rollback"],
+    ["existing"],
+  ],
+  "Concierge Task Hub Resume": [
+    ["phone"],
+    ["tablet"],
+    ["desktop", "laptop"],
+    ["voice"],
+    ["touch"],
+    ["keyboard"],
+    ["local shopping"],
+    ["local medication"],
+    ["pending provider"],
+    ["stale", "blocked"],
+    ["destination"],
+    ["fallback"],
+    ["existing"],
+    ["no writes"],
+    ["external actions"],
+    ["confirmation"],
+  ],
+};
+
 const requiredEvidenceNotePatterns = [
   "Device coverage",
   "Interaction mode coverage",
@@ -319,6 +452,30 @@ function evaluateEvidencePacket(markdown: string) {
       problems.push(`Missing flow packet checklist row: ${flow}.`);
     }
   }
+  if (flowTable) {
+    const coverageIndex = cellIndex(flowTable, "Required packet coverage");
+    if (coverageIndex === -1) {
+      problems.push("Flow packet checklist is missing the Required packet coverage column.");
+    } else {
+      for (const flow of requiredFlowPackets) {
+        const row = flowTable.rows.find(
+          (candidate) => normalizeCell(candidate[0] ?? "") === flow,
+        );
+        if (!row) continue;
+
+        const coverage = normalizeCell(row[coverageIndex] ?? "");
+        if (
+          coverage &&
+          !isPendingCell(coverage) &&
+          !hasAllCoverageTerms(coverage, flowPacketCoverageRequirements[flow])
+        ) {
+          problems.push(
+            `Flow packet checklist row "${flow}" does not include the required launch-safety coverage.`,
+          );
+        }
+      }
+    }
+  }
 
   const notePatternTable = findTable(tables, "Copy-ready evidence note patterns");
   for (const pattern of requiredEvidenceNotePatterns) {
@@ -446,6 +603,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
+      "Flow packet rows must keep per-flow safety coverage for device classes, interaction modes, review, explicit confirmation, no pre-confirmation side effects, duplicate prevention, stale response handling, and fallback rollback.",
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Inventory coverage cells must map each artifact set to the required environment, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, or preflight evidence.",
       "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",

@@ -71,6 +71,7 @@ describe("Voice Canvas evidence packet validator command", () => {
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
     );
     expect(result.stdout).toContain("pass --force only when intentionally");
+    expect(result.stdout).toContain("Flow packet rows must keep per-flow safety coverage");
     expect(result.stdout).toContain(
       "concrete dated sanitized artifact paths or links",
     );
@@ -242,6 +243,32 @@ describe("Voice Canvas evidence packet validator command", () => {
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             'Evidence packet inventory row "Interaction recordings or logs" does not map the artifact to the required launch evidence coverage.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects flow packet rows that omit launch-safety coverage", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel",
+        "flag rollback to Existing Concierge transport panel",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Flow packet checklist row "Ride Voice Canvas" does not include the required launch-safety coverage.',
           ]),
         );
       },
