@@ -783,8 +783,14 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("text-home-concierge-reuse-explanation")).toHaveTextContent("saved");
     expect(card).toHaveTextContent("Use last ride again");
     expect(card).toHaveTextContent("Radio Taxi");
+    expect(screen.getByTestId("text-home-concierge-receipt-status")).toHaveTextContent("Receipt: Completed");
 
-    fireEvent.click(card);
+    fireEvent.click(screen.getByTestId("button-home-concierge-show-receipt"));
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("Ride saved with Radio Taxi.");
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("You can review this receipt");
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("City Clinic");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-use-template"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
       state: {

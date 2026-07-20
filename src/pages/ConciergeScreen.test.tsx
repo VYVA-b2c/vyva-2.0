@@ -6336,6 +6336,10 @@ describe("ConciergeScreen route prefill", () => {
     const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
     expect(receipt).toHaveTextContent("Receipt");
     expect(receipt).toHaveTextContent("Ride saved with Radio Taxi.");
+    expect(within(receipt).getByTestId("panel-concierge-receipt-status")).toHaveTextContent("Current status");
+    expect(within(receipt).getByTestId("panel-concierge-receipt-status")).toHaveTextContent("Completed");
+    expect(within(receipt).getByTestId("panel-concierge-receipt-next-step")).toHaveTextContent("What happens next");
+    expect(within(receipt).getByTestId("panel-concierge-receipt-next-step")).toHaveTextContent("You can review this receipt");
     expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Result");
     expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Completed");
     expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Reference");

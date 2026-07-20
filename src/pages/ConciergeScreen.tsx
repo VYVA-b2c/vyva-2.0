@@ -188,6 +188,7 @@ import {
   conciergeCanvasPrimaryActionDisplayLabel,
   deriveConciergeCanvasState,
 } from "../../shared/conciergeCanvasState";
+import { buildConciergeConfirmationReceipt } from "../../shared/conciergeConfirmationReceipt";
 import {
   CONCIERGE_DRY_RUN_TEST_MODE,
   isConciergeDryRunPayload,
@@ -4654,6 +4655,14 @@ function completedSessionReceiptDetails(
   isSpanish: boolean,
   locale = "es",
 ): Array<{ label: string; value: string }> {
+  const receipt = buildConciergeConfirmationReceipt({
+    useCase: session.use_case,
+    providerName: session.provider_name,
+    outcome: session.outcome,
+    outcomeSummary: session.outcome_summary,
+    completedAt: session.completed_at,
+    payload: session.outcome_payload,
+  }, isSpanish);
   const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
   const executionMode = payloadString(session.outcome_payload, ["execution_mode"]);
   const executionModeLabel = executionMode === "live"
@@ -4677,11 +4686,13 @@ function completedSessionReceiptDetails(
     },
     {
       label: isSpanish ? "Resultado" : "Result",
-      value: completedSessionOutcomeLabel(session, isSpanish),
+      value: receipt.statusLabel,
     },
     {
       label: isSpanish ? "Proveedor" : "Provider",
-      value: completedSessionProvider(session, isSpanish),
+      value: receipt.subjectLabel === (isSpanish ? "Con quien" : "With")
+        ? receipt.subjectValue
+        : completedSessionProvider(session, isSpanish),
     },
     {
       label: isSpanish ? "Completado" : "Completed",
@@ -14841,6 +14852,16 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const selectedCompletedSession = selectedCompletedSessionId
     ? completedSessions.find((session) => session.id === selectedCompletedSessionId) ?? null
     : null;
+  const selectedCompletedSessionReceipt = selectedCompletedSession
+    ? buildConciergeConfirmationReceipt({
+        useCase: selectedCompletedSession.use_case,
+        providerName: selectedCompletedSession.provider_name,
+        outcome: selectedCompletedSession.outcome,
+        outcomeSummary: selectedCompletedSession.outcome_summary,
+        completedAt: selectedCompletedSession.completed_at,
+        payload: selectedCompletedSession.outcome_payload,
+      }, isSpanish)
+    : null;
   const selectedCompletedSessionContactLink = selectedCompletedSession
     ? completedSessionContactLink(selectedCompletedSession, isSpanish)
     : null;
@@ -19040,12 +19061,12 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         />
       ) : null}
 
-      {selectedCompletedSession && (
+      {selectedCompletedSession && selectedCompletedSessionReceipt && (
         <PurpleModal
           Icon={CircleCheck}
           kicker={isSpanish ? "Recibo" : "Receipt"}
-          title={completedSessionFlowLabel(selectedCompletedSession, locale)}
-          subtitle={selectedCompletedSession.outcome_summary || (isSpanish ? "Tarea completada por VYVA." : "Task completed by VYVA.")}
+          title={selectedCompletedSessionReceipt.flowLabel}
+          subtitle={selectedCompletedSessionReceipt.whatVyvaDid}
           titleId="concierge-completed-receipt-title"
           onClose={() => setSelectedCompletedSessionId(null)}
           closeLabel={isSpanish ? "Cerrar" : "Close"}
@@ -19058,7 +19079,34 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               {isSpanish ? "Que hizo VYVA" : "What VYVA did"}
             </p>
             <p className="mt-2 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
-              {selectedCompletedSession.outcome_summary || (isSpanish ? "VYVA completo esta gestion." : "VYVA completed this task.")}
+              {selectedCompletedSessionReceipt.whatVyvaDid}
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="rounded-[16px] bg-white px-3 py-2">
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                  {selectedCompletedSessionReceipt.subjectLabel}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-black text-vyva-text-1">
+                  {selectedCompletedSessionReceipt.subjectValue}
+                </p>
+              </div>
+              <div className="rounded-[16px] bg-white px-3 py-2" data-testid="panel-concierge-receipt-status">
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                  {isSpanish ? "Estado actual" : "Current status"}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-black text-vyva-text-1">
+                  {selectedCompletedSessionReceipt.statusLabel}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[22px] border border-[#E9D5FF] bg-white p-4" data-testid="panel-concierge-receipt-next-step">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+              {isSpanish ? "Que pasa ahora" : "What happens next"}
+            </p>
+            <p className="mt-2 font-body text-[14px] font-bold leading-relaxed text-vyva-text-1">
+              {selectedCompletedSessionReceipt.nextStep}
             </p>
           </div>
 
