@@ -6906,6 +6906,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-operator-brief-reach")).toHaveTextContent("1 saved");
     expect(screen.getByTestId("marketing-campaign-operator-brief-creative")).toHaveTextContent("2/2 linked");
     expect(screen.getByTestId("marketing-campaign-operator-brief-channels")).toHaveTextContent("Email can send in VYVA; LinkedIn stay as manual handoff.");
+    expect(screen.getByTestId("marketing-campaign-operator-next-action")).toHaveTextContent("Operator next action");
+    expect(screen.getByTestId("marketing-campaign-operator-next-action")).toHaveTextContent("Launch email");
+    expect(screen.getByTestId("marketing-campaign-operator-next-action")).toHaveTextContent("1 saved email recipient needs opted-in consent before sending.");
+    expect(screen.getByTestId("marketing-campaign-operator-next-action-summary")).toHaveTextContent("Email + manual");
+    expect(screen.getByTestId("marketing-campaign-operator-next-action-summary")).toHaveTextContent("1 email route + 1 manual route");
+    expect(screen.getByTestId("button-marketing-campaign-operator-next-action")).toHaveTextContent("Send campaign email");
     expect(screen.getByTestId("marketing-campaign-copilot")).toHaveTextContent("Campaign copilot");
     expect(screen.getByTestId("marketing-campaign-copilot")).toHaveTextContent("One guided step before launch");
     expect(screen.getByTestId("marketing-campaign-copilot-action-consent")).toHaveTextContent("Review recipient consent");
@@ -7030,7 +7036,7 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign channel runbook"));
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Working order:"));
-    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn: Needs action - LinkedIn handoff workflow"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn: Blocked - LinkedIn handoff workflow"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Operator note: keep non-email publishing manual"));
     expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign channel runbook copied.");
     expect(screen.getByTestId("button-marketing-campaign-channel-workflow-primary-linkedin")).toHaveTextContent("Track result");

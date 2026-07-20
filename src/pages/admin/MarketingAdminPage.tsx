@@ -25013,6 +25013,31 @@ export default function MarketingAdminPage() {
   const campaignNextLaunchStep = campaignLaunchSequenceSteps.find((item) => item.state !== "ready")
     ?? campaignLaunchSequenceSteps[campaignLaunchSequenceSteps.length - 1]
     ?? null;
+  const campaignOperatorNextActionTitle = campaignNextLaunchStep?.title ?? "Review campaign";
+  const campaignOperatorNextActionDetail = campaignNextLaunchStep?.detail ?? "Open the campaign, review its channels, then decide whether to send, hand off, or keep drafting.";
+  const campaignOperatorPrimaryActionLabel = campaignNextLaunchStep?.actionLabel ?? "Review";
+  const campaignOperatorModeLabel = draftEmailChannel && planningOnlyCampaignChannels.length
+    ? "Email + manual"
+    : draftEmailChannel
+      ? "Email send"
+      : planningOnlyCampaignChannels.length
+        ? "Manual handoff"
+        : "Planning";
+  const campaignOperatorRouteSummary = [
+    draftEmailChannel ? "1 email route" : "",
+    planningOnlyCampaignChannels.length ? `${planningOnlyCampaignChannels.length} manual route${planningOnlyCampaignChannels.length === 1 ? "" : "s"}` : "",
+  ].filter(Boolean).join(" + ") || "No channels";
+  const campaignOperatorBlockerText = campaignBlockedCount > 0
+    ? campaignReadinessItems
+      .filter((item) => item.state === "blocked")
+      .map((item) => item.detail)
+      .join(" ")
+    : campaignNeedsActionCount > 0
+      ? campaignReadinessItems
+        .filter((item) => item.state === "needs_action")
+        .map((item) => item.detail)
+        .join(" ")
+      : "No blockers. Review, test, and publish when ready.";
   const campaignDetailActionItems: CampaignDetailActionItem[] = editingCampaign ? [
     ...(campaignNextLaunchStep ? [{
       key: `launch-${campaignNextLaunchStep.key}`,
@@ -31821,6 +31846,43 @@ export default function MarketingAdminPage() {
                         {editingCampaign.lovableExternalId ? (
                           <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Source ID: {editingCampaign.lovableExternalId}</p>
                         ) : null}
+                        <div className={`mt-3 rounded-xl border p-3 ${readinessClass(campaignNextLaunchStep?.state ?? "planning")}`} data-testid="marketing-campaign-operator-next-action">
+                          <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_auto] xl:items-center">
+                            <div className="min-w-0">
+                              <p className="text-xs font-black uppercase tracking-[0.12em] opacity-75">Operator next action</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <h4 className="text-lg font-black">{campaignOperatorNextActionTitle}</h4>
+                                <Pill className={readinessPillClass(campaignNextLaunchStep?.state ?? "planning")}>
+                                  {campaignReadinessSummary}
+                                </Pill>
+                              </div>
+                              <p className="mt-1 text-sm font-bold leading-relaxed opacity-85">{campaignOperatorNextActionDetail}</p>
+                            </div>
+                            <div className="grid gap-2 text-xs font-bold opacity-90 sm:grid-cols-3 xl:grid-cols-1" data-testid="marketing-campaign-operator-next-action-summary">
+                              <div className="rounded-lg border border-white/70 bg-white/80 px-3 py-2">
+                                <span className="block uppercase tracking-[0.12em] opacity-70">Mode</span>
+                                <span className="mt-1 block text-sm font-black">{campaignOperatorModeLabel}</span>
+                              </div>
+                              <div className="rounded-lg border border-white/70 bg-white/80 px-3 py-2">
+                                <span className="block uppercase tracking-[0.12em] opacity-70">Routes</span>
+                                <span className="mt-1 block text-sm font-black">{campaignOperatorRouteSummary}</span>
+                              </div>
+                              <div className="rounded-lg border border-white/70 bg-white/80 px-3 py-2">
+                                <span className="block uppercase tracking-[0.12em] opacity-70">Watch</span>
+                                <span className="mt-1 block text-sm font-black line-clamp-2">{campaignOperatorBlockerText}</span>
+                              </div>
+                            </div>
+                            <button
+                              type={campaignNextLaunchStep?.buttonType ?? "button"}
+                              disabled={campaignNextLaunchStep?.disabled}
+                              onClick={campaignNextLaunchStep?.buttonType === "submit" ? undefined : campaignNextLaunchStep?.onSelect}
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#241133] px-4 text-sm font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid="button-marketing-campaign-operator-next-action"
+                            >
+                              {campaignOperatorPrimaryActionLabel}
+                            </button>
+                          </div>
+                        </div>
                         {campaignOperatorBriefItems.length ? (
                           <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-operator-brief">
                             {campaignOperatorBriefItems.map((item) => (
