@@ -6,6 +6,8 @@ import {
   CROSS_APP_WORKFLOW_COMPLETION_AUDIT,
   CROSS_APP_WORKFLOW_COMPLETION_STATUSES,
   CROSS_APP_WORKFLOW_NEXT_IMPLEMENTATION_ORDER,
+  actionLevelsForCrossAppWorkflowAuditEntry,
+  dominantActionLevelForCrossAppWorkflowAuditEntry,
   crossAppWorkflowAuditEntriesForStatus,
   validateCrossAppWorkflowCompletionAudit,
 } from "../shared/crossAppWorkflowCompletionAudit";
@@ -107,6 +109,16 @@ describe("cross-app workflow completion audit", () => {
       ]),
     );
     expect(booking?.rule).toContain("final confirmation");
+  });
+
+  it("derives action levels from the shared workflow registry", () => {
+    const home = CROSS_APP_WORKFLOW_COMPLETION_AUDIT.find((entry) => entry.id === "home.main-cards");
+    const fastHelp = CROSS_APP_WORKFLOW_COMPLETION_AUDIT.find((entry) => entry.id === "home.fast-help");
+    const providerSetup = CROSS_APP_WORKFLOW_COMPLETION_AUDIT.find((entry) => entry.id === "providers.trusted-setup");
+
+    expect(home ? actionLevelsForCrossAppWorkflowAuditEntry(home) : []).toEqual(["light", "external_action"]);
+    expect(fastHelp ? dominantActionLevelForCrossAppWorkflowAuditEntry(fastHelp) : null).toBe("external_action");
+    expect(providerSetup ? dominantActionLevelForCrossAppWorkflowAuditEntry(providerSetup) : null).toBe("setup");
   });
 
   it("names the next implementation priorities in order", () => {

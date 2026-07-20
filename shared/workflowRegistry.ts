@@ -129,6 +129,32 @@ export const WORKFLOW_STATUSES: WorkflowStatus[] = ["ready", "partial", "planned
 
 export type WorkflowCoverageState = "complete" | "partial" | "missing";
 
+export type WorkflowActionLevel = "light" | "guided" | "external_action" | "setup" | "admin";
+
+export const WORKFLOW_ACTION_LEVELS: WorkflowActionLevel[] = [
+  "light",
+  "guided",
+  "external_action",
+  "setup",
+  "admin",
+];
+
+export const WORKFLOW_ACTION_LEVEL_LABELS: Record<WorkflowActionLevel, string> = {
+  light: "Light",
+  guided: "Guided",
+  external_action: "External action",
+  setup: "Setup",
+  admin: "Admin",
+};
+
+export const WORKFLOW_ACTION_LEVEL_RULES: Record<WorkflowActionLevel, string> = {
+  light: "Open, save, complete, or resume inside VYVA without extra intake.",
+  guided: "Ask missing details, prepare a summary, or review sensitive context before saving.",
+  external_action: "Check provider or tool readiness, prepare the action, ask final confirmation, then capture outcome and receipt.",
+  setup: "Collect user, caregiver, provider, consent, or tool readiness details that enable future flows.",
+  admin: "Internal content or operations workflow, not a direct senior-facing action.",
+};
+
 export type WorkflowFallback =
   | "ask_user"
   | "open_setup"
@@ -150,6 +176,7 @@ export interface WorkflowDefinition {
   primaryRoute?: string;
   relatedConciergeFlow?: ConciergeFlowReference;
   nextStep?: string;
+  actionLevel?: WorkflowActionLevel;
 }
 
 export interface WorkflowEntryPoint {
@@ -179,6 +206,9 @@ export interface WorkflowActionLookup {
   confirmationRule: string;
   fallbackIfMissing: WorkflowFallback[];
   relatedConciergeFlow?: ConciergeFlowReference;
+  actionLevel: WorkflowActionLevel;
+  actionLevelLabel: string;
+  actionLevelRule: string;
 }
 
 export interface WorkflowActionTarget {
@@ -203,6 +233,7 @@ export interface WorkflowCoverageSummary {
   byDomain: Record<WorkflowDomain, WorkflowCoverageCounts>;
   bySurface: Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
   byStatus: Record<WorkflowStatus, number>;
+  byActionLevel: Record<WorkflowActionLevel, number>;
   partialWorkflows: WorkflowReference[];
   missingWorkflows: WorkflowReference[];
 }
@@ -1011,6 +1042,56 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
   },
 ];
 
+const LIGHT_WORKFLOW_REFERENCES = new Set<WorkflowReference>([
+  APP_WORKFLOW_REFERENCES.homeHub,
+  APP_WORKFLOW_REFERENCES.healthHub,
+  APP_WORKFLOW_REFERENCES.mindMemoryHub,
+  APP_WORKFLOW_REFERENCES.memoryGames,
+  APP_WORKFLOW_REFERENCES.attentionTraining,
+  APP_WORKFLOW_REFERENCES.executiveFunction,
+  APP_WORKFLOW_REFERENCES.sharpenSenses,
+  APP_WORKFLOW_REFERENCES.relaxBreathe,
+  APP_WORKFLOW_REFERENCES.learningPlan,
+  APP_WORKFLOW_REFERENCES.learningTodayLesson,
+  APP_WORKFLOW_REFERENCES.learningReadAloud,
+  APP_WORKFLOW_REFERENCES.learningSaveForLater,
+  APP_WORKFLOW_REFERENCES.communityHub,
+  APP_WORKFLOW_REFERENCES.socialRoomList,
+  APP_WORKFLOW_REFERENCES.socialRoomEnter,
+  APP_WORKFLOW_REFERENCES.musicReact,
+  APP_WORKFLOW_REFERENCES.vitalsTracking,
+  APP_WORKFLOW_REFERENCES.medicationPlan,
+  APP_WORKFLOW_REFERENCES.medicationAdherence,
+  APP_WORKFLOW_REFERENCES.healthPrevention,
+  APP_WORKFLOW_REFERENCES.healthReports,
+  APP_WORKFLOW_REFERENCES.gameMemoryMatch,
+  APP_WORKFLOW_REFERENCES.gameSequenceMemory,
+  APP_WORKFLOW_REFERENCES.gameWordRecall,
+  APP_WORKFLOW_REFERENCES.gameNumberMemory,
+  APP_WORKFLOW_REFERENCES.gameRoutineMemory,
+  APP_WORKFLOW_REFERENCES.gameAssociationMemory,
+  APP_WORKFLOW_REFERENCES.gameStoryRecall,
+  APP_WORKFLOW_REFERENCES.gameRememberLater,
+  APP_WORKFLOW_REFERENCES.gameCuriousMinds,
+  APP_WORKFLOW_REFERENCES.gameDualTaskWalk,
+  APP_WORKFLOW_REFERENCES.gameRhythmTap,
+  APP_WORKFLOW_REFERENCES.gameNumberTrails,
+  APP_WORKFLOW_REFERENCES.gameCategorySort,
+  APP_WORKFLOW_REFERENCES.gameFaceName,
+  APP_WORKFLOW_REFERENCES.gameSpatialNavigator,
+  APP_WORKFLOW_REFERENCES.gameListenClosely,
+  APP_WORKFLOW_REFERENCES.gameBreathGarden,
+  APP_WORKFLOW_REFERENCES.gameScentMemory,
+]);
+
+const SETUP_WORKFLOW_REFERENCES = new Set<WorkflowReference>([
+  APP_WORKFLOW_REFERENCES.trustedProviders,
+]);
+
+const EXTERNAL_ACTION_WORKFLOW_REFERENCES = new Set<WorkflowReference>([
+  APP_WORKFLOW_REFERENCES.doctorNextStep,
+]);
+
 export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "home.route.root", workflow: APP_WORKFLOW_REFERENCES.homeHub, surface: "main_card", source: "AppRoutes", label: "Home", route: "/", suggestedFlow: "Open the main home hub." },
   { id: "home.card.health", workflow: APP_WORKFLOW_REFERENCES.healthHub, surface: "main_card", source: "HomeScreen", label: "My Health", route: "/health", suggestedFlow: "Open Health Plan hub." },
@@ -1239,8 +1320,26 @@ function emptyStatusCounts(): Record<WorkflowStatus, number> {
   return Object.fromEntries(WORKFLOW_STATUSES.map((status) => [status, 0])) as Record<WorkflowStatus, number>;
 }
 
+function emptyActionLevelCounts(): Record<WorkflowActionLevel, number> {
+  return Object.fromEntries(WORKFLOW_ACTION_LEVELS.map((level) => [level, 0])) as Record<WorkflowActionLevel, number>;
+}
+
+export function workflowActionLevelForDefinition(workflow: WorkflowDefinition): WorkflowActionLevel {
+  if (workflow.actionLevel) return workflow.actionLevel;
+  if (workflow.domain === "concierge") return "external_action";
+  if (workflow.domain === "profile" || SETUP_WORKFLOW_REFERENCES.has(workflow.reference)) return "setup";
+  if (EXTERNAL_ACTION_WORKFLOW_REFERENCES.has(workflow.reference) || workflow.relatedConciergeFlow) return "external_action";
+  if (LIGHT_WORKFLOW_REFERENCES.has(workflow.reference) || workflow.domain === "game") return "light";
+  return "guided";
+}
+
+export function workflowActionLevelForReference(reference: WorkflowReference): WorkflowActionLevel {
+  return workflowActionLevelForDefinition(getWorkflowDefinition(reference));
+}
+
 function toWorkflowActionLookup(entry: WorkflowEntryPoint): WorkflowActionLookup {
   const workflow = getWorkflowDefinition(entry.workflow);
+  const actionLevel = workflowActionLevelForDefinition(workflow);
   return {
     entryPointId: entry.id,
     workflowReference: workflow.reference,
@@ -1258,6 +1357,9 @@ function toWorkflowActionLookup(entry: WorkflowEntryPoint): WorkflowActionLookup
     confirmationRule: workflow.confirmationRule,
     fallbackIfMissing: workflow.fallbackIfMissing,
     relatedConciergeFlow: workflow.relatedConciergeFlow,
+    actionLevel,
+    actionLevelLabel: WORKFLOW_ACTION_LEVEL_LABELS[actionLevel],
+    actionLevelRule: WORKFLOW_ACTION_LEVEL_RULES[actionLevel],
   };
 }
 
@@ -1290,14 +1392,17 @@ export function getWorkflowCoverageSummary(): WorkflowCoverageSummary {
   const byDomain = emptyDomainCoverage();
   const bySurface = emptySurfaceCoverage();
   const byStatus = emptyStatusCounts();
+  const byActionLevel = emptyActionLevelCounts();
   const partialWorkflows: WorkflowReference[] = [];
   const missingWorkflows: WorkflowReference[] = [];
 
   WORKFLOW_DEFINITIONS.forEach((workflow) => {
     const state = workflowCoverageState(workflow.status);
+    const actionLevel = workflowActionLevelForDefinition(workflow);
     addCoverageCount(workflows, state);
     addCoverageCount(byDomain[workflow.domain], state);
     byStatus[workflow.status] += 1;
+    byActionLevel[actionLevel] += 1;
     if (state === "partial") partialWorkflows.push(workflow.reference);
     if (state === "missing") missingWorkflows.push(workflow.reference);
   });
@@ -1315,6 +1420,7 @@ export function getWorkflowCoverageSummary(): WorkflowCoverageSummary {
     byDomain,
     bySurface,
     byStatus,
+    byActionLevel,
     partialWorkflows,
     missingWorkflows,
   };

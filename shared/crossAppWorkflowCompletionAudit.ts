@@ -1,5 +1,11 @@
 import { CONCIERGE_FLOW_REFERENCES } from "./conciergeFlowRegistry";
-import { APP_WORKFLOW_REFERENCES, type WorkflowReference } from "./workflowRegistry";
+import {
+  APP_WORKFLOW_REFERENCES,
+  WORKFLOW_ACTION_LEVELS,
+  workflowActionLevelForReference,
+  type WorkflowActionLevel,
+  type WorkflowReference,
+} from "./workflowRegistry";
 
 export const CROSS_APP_WORKFLOW_COMPLETION_STATUSES = [
   "complete",
@@ -577,4 +583,22 @@ export function crossAppWorkflowAuditEntriesForStatus(
   status: CrossAppWorkflowCompletionStatus,
 ): CrossAppWorkflowAuditEntry[] {
   return CROSS_APP_WORKFLOW_COMPLETION_AUDIT.filter((entry) => entry.status === status);
+}
+
+export function actionLevelsForCrossAppWorkflowAuditEntry(
+  entry: CrossAppWorkflowAuditEntry,
+): WorkflowActionLevel[] {
+  const levels = entry.references.map(workflowActionLevelForReference);
+  return WORKFLOW_ACTION_LEVELS.filter((level) => levels.includes(level));
+}
+
+export function dominantActionLevelForCrossAppWorkflowAuditEntry(
+  entry: CrossAppWorkflowAuditEntry,
+): WorkflowActionLevel {
+  const levels = actionLevelsForCrossAppWorkflowAuditEntry(entry);
+  return levels.find((level) => level === "external_action")
+    ?? levels.find((level) => level === "setup")
+    ?? levels.find((level) => level === "guided")
+    ?? levels.find((level) => level === "admin")
+    ?? "light";
 }
