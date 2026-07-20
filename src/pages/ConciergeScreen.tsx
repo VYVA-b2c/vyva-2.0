@@ -42,6 +42,7 @@ import {
   Home,
   AlertTriangle,
   UserRound,
+  Users,
   Mail,
   MessageCircle,
   type LucideIcon,
@@ -272,6 +273,7 @@ type ConciergeLocationState = {
   conciergeCompletedTemplate?: unknown;
   conciergeProviderAction?: unknown;
   trustedProviderSaved?: unknown;
+  providerSetupHelpRequested?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
   conciergePendingId?: unknown;
@@ -337,6 +339,12 @@ type TrustedProviderSavedRoute = {
   name: string;
   category: ConciergeProviderCategoryId;
   conciergeResume: ConciergeProviderResumeContext | null;
+};
+
+type ProviderSetupHelpRequestedRoute = {
+  setupReason: string;
+  conciergeResume: ConciergeProviderResumeContext | null;
+  helperName?: string;
 };
 
 type RoutePrefillHighlight = {
@@ -590,6 +598,28 @@ function coerceTrustedProviderSavedRoute(value: unknown): TrustedProviderSavedRo
     category: normalizeConciergeProviderCategory(typeof value.category === "string" ? value.category : null),
     conciergeResume: coerceConciergeResumeContext(value.conciergeResume ?? value.resume),
   };
+}
+
+function coerceProviderSetupHelpRequestedRoute(value: unknown): ProviderSetupHelpRequestedRoute | null {
+  if (!isRecord(value)) return null;
+  const setupReason = typeof value.setupReason === "string" ? value.setupReason.trim() : "";
+  const conciergeResume = coerceConciergeResumeContext(value.conciergeResume ?? value.resume);
+  if (!setupReason && !conciergeResume) return null;
+  const helperName = typeof value.helperName === "string" ? value.helperName.trim() : "";
+  return {
+    setupReason,
+    conciergeResume,
+    helperName: helperName || undefined,
+  };
+}
+
+function providerCategoryFromResumeContext(resume: ConciergeProviderResumeContext | null): ConciergeProviderCategoryId {
+  if (!resume) return "other";
+  if (resume.kind === "transport") return "transport";
+  if (resume.kind === "otc_pharmacy") return "pharmacy";
+  if (resume.kind === "medical_appointment") return "doctor_clinic";
+  if (resume.kind === "home_service") return "home_service";
+  return "other";
 }
 
 function routePayloadString(state: ConciergeLocationState, key: string) {
@@ -9603,6 +9633,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     return () => window.clearInterval(timer);
   }, []);
   const lastTrustedProviderSavedKeyRef = useRef<string | null>(null);
+  const lastProviderSetupHelpRequestedKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(() => (
     mode === "task" && (taskEntry?.kind === "appointment" || taskEntry?.kind === "home_service")
@@ -9703,6 +9734,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   ));
   const [routePrefillError, setRoutePrefillError] = useState<string | null>(null);
   const [trustedProviderResume, setTrustedProviderResume] = useState<TrustedProviderSavedRoute | null>(null);
+  const [providerSetupHelpRequest, setProviderSetupHelpRequest] = useState<ProviderSetupHelpRequestedRoute | null>(null);
   const [transportPickup, setTransportPickup] = useState("");
   const [transportDestination, setTransportDestination] = useState("");
   const [transportTime, setTransportTime] = useState("now");
@@ -12399,6 +12431,29 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
+    const setupHelp = coerceProviderSetupHelpRequestedRoute(routeState?.providerSetupHelpRequested);
+    if (!setupHelp) {
+      if (routeState?.providerSetupHelpRequested) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+
+    if (mode === "home") {
+      navigate(conciergeTaskPath(), { replace: true, state: location.state });
+      return;
+    }
+
+    const setupHelpKey = `${setupHelp.setupReason}:${setupHelp.helperName ?? ""}:${JSON.stringify(setupHelp.conciergeResume ?? {})}`;
+    if (lastProviderSetupHelpRequestedKeyRef.current === setupHelpKey) return;
+    lastProviderSetupHelpRequestedKeyRef.current = setupHelpKey;
+    setProviderSetupHelpRequest(setupHelp);
+    setIsRightNowHidden(false);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, mode, navigate]);
+
+  useEffect(() => {
+    const routeState = location.state as ConciergeLocationState;
     const template = coerceConciergeCompletedTemplate(routeState?.conciergeCompletedTemplate);
     if (!template) {
       if (routeState?.conciergeCompletedTemplate) {
@@ -14814,11 +14869,25 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 : (isSpanish ? "VYVA lo usara primero si encaja." : "VYVA will use this first when it fits."),
       }
     : null;
+  const providerSetupHelpRequestMeta = providerSetupHelpRequest
+    ? {
+        categoryLabel: providerSearchCategoryLabel(
+          providerCategoryFromResumeContext(providerSetupHelpRequest.conciergeResume),
+          isSpanish,
+        ),
+        title: isSpanish ? "Ayuda de configuracion solicitada" : "Setup help requested",
+        detail: providerSetupHelpRequest.helperName
+          ? (isSpanish
+            ? `${providerSetupHelpRequest.helperName} puede ayudarte a guardar el proveedor.`
+            : `${providerSetupHelpRequest.helperName} can help save the provider.`)
+          : (isSpanish
+            ? "Cuando la persona de confianza lo configure, VYVA podra continuar desde aqui."
+            : "When your trusted helper sets it up, VYVA can continue from here."),
+      }
+    : null;
 
-  function continueTrustedProviderResume() {
-    if (!trustedProviderResume) return;
-    const { name, category, conciergeResume } = trustedProviderResume;
-    setTrustedProviderResume(null);
+  function continueConciergeProviderResume(resumeRoute: TrustedProviderSavedRoute) {
+    const { name, category, conciergeResume } = resumeRoute;
 
     if (conciergeResume?.kind === "provider_shortlist") {
       const resumeNotice = isSpanish
@@ -14966,6 +15035,24 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     prepareConciergeRequest(isSpanish
       ? `He guardado ${name} como proveedor de confianza (${providerSearchCategoryLabel(category, true)}). Ayudame a usarlo para la solicitud correcta y pideme confirmacion antes de contactar.`
       : `I saved ${name} as a trusted provider (${providerSearchCategoryLabel(category, false)}). Help me use it for the right request and ask me to confirm before contacting.`);
+  }
+
+  function continueTrustedProviderResume() {
+    if (!trustedProviderResume) return;
+    const resumeRoute = trustedProviderResume;
+    setTrustedProviderResume(null);
+    continueConciergeProviderResume(resumeRoute);
+  }
+
+  function continueProviderSetupHelpRequest() {
+    if (!providerSetupHelpRequest) return;
+    const request = providerSetupHelpRequest;
+    setProviderSetupHelpRequest(null);
+    continueConciergeProviderResume({
+      name: isSpanish ? "tu proveedor" : "your provider",
+      category: providerCategoryFromResumeContext(request.conciergeResume),
+      conciergeResume: request.conciergeResume,
+    });
   }
 
   function handleOfferWatch(option: OfferOption) {
@@ -17189,6 +17276,56 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 data-testid="button-provider-resume-dismiss"
               >
                 {isSpanish ? "Ahora no" : "Not now"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {providerSetupHelpRequest && providerSetupHelpRequestMeta && (
+        <section
+          className="order-[13] mt-4 rounded-[26px] border border-[#FED7AA] bg-[#FFF7ED] p-4 shadow-[0_16px_36px_rgba(180,83,9,0.10)]"
+          data-testid="panel-concierge-provider-setup-help"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#B45309] shadow-sm">
+                <Users size={23} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#B45309]">
+                  {isSpanish ? "Esperando ayuda" : "Waiting for help"}
+                </p>
+                <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+                  {providerSetupHelpRequestMeta.title}
+                </h2>
+                <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                  {providerSetupHelpRequestMeta.categoryLabel} - {providerSetupHelpRequestMeta.detail}
+                </p>
+                {providerSetupHelpRequest.setupReason ? (
+                  <p className="mt-2 font-body text-[12px] font-semibold leading-snug text-[#92400E]">
+                    {providerSetupHelpRequest.setupReason}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid gap-2 sm:min-w-[280px] sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={continueProviderSetupHelpRequest}
+                className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#B45309] px-4 font-body text-[14px] font-black text-white"
+                data-testid="button-provider-setup-help-continue"
+              >
+                <Sparkles size={16} aria-hidden="true" />
+                {isSpanish ? "Continuar manual" : "Continue manually"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setProviderSetupHelpRequest(null)}
+                className="vyva-tap inline-flex min-h-[46px] items-center justify-center rounded-full border border-[#FED7AA] bg-white px-4 font-body text-[14px] font-black text-[#92400E]"
+                data-testid="button-provider-setup-help-dismiss"
+              >
+                {isSpanish ? "Ocultar" : "Dismiss"}
               </button>
             </div>
           </div>
