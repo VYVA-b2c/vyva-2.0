@@ -34,6 +34,7 @@ import MasterDashboardLayout, {
 } from "@/components/MasterDashboardLayout";
 import MyMedicines from "@/features/medications/MyMedicines";
 import CheckInteractions from "@/features/medications/CheckInteractions";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -1241,6 +1242,11 @@ const MedsScreen = () => {
         setupFocus: "pharmacy",
         returnTo: "/meds",
         notice: t("meds.dashboard.pharmacySetupNotice", "Add your usual pharmacy. VYVA will bring you back to medicines afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+          setupFocus: "pharmacy",
+          setupReason: t("meds.dashboard.pharmacyHelperReason", "Ask someone you trust to help save your usual pharmacy."),
+        },
       },
     });
   }
@@ -1250,6 +1256,7 @@ const MedsScreen = () => {
       state: {
         returnTo: "/meds",
         providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
           setupFocus: "pharmacy",
           setupReason: t("meds.dashboard.pharmacyHelperReason", "Ask someone you trust to help save your usual pharmacy."),
         },
@@ -1884,6 +1891,8 @@ const MedsScreen = () => {
               <div className="mt-3">
                 <ProviderSetupFallbackPanel
                   testId="panel-meds-pharmacy-setup-fallback"
+                  workflowReference={CONCIERGE_FLOW_REFERENCES.otcPharmacy}
+                  returnTo="/meds"
                   title={t("meds.dashboard.pharmacyFallbackTitle", "Need a pharmacy first?")}
                   description={t("meds.dashboard.pharmacyFallbackDescription", "Save your usual pharmacy, find nearby OTC options, or ask someone you trust to help set it up.")}
                   addLabel={t("meds.dashboard.pharmacyFallbackAdd", "Add my usual pharmacy")}

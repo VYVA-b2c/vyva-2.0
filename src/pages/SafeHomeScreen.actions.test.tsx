@@ -219,6 +219,9 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByTestId("panel-safe-home-contact-setup-fallback-scan-1-add"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"), { timeout: 5_000 });
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/safe-home\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(`"flowReference":"${CONCIERGE_FLOW_REFERENCES.safeHomeSupport}"`);
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"setupFocus\":\"trusted_contact\"");
     expect(savePlanMock).not.toHaveBeenCalled();
   });
 

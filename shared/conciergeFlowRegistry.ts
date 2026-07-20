@@ -71,6 +71,7 @@ export type ConciergeSavedDataKey =
   | "mobility_preferences"
   | "home_address"
   | "contact_channel"
+  | "trusted_contact"
   | "document_or_media";
 export type ConciergeToolRequirement =
   | "phone_call"
@@ -103,7 +104,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     status: "ready",
     providerCategory: "transport",
     setupFocus: "transport",
-    savedData: ["trusted_provider", "mobility_preferences", "home_address"],
+    savedData: ["trusted_provider", "mobility_preferences", "home_address", "contact_channel"],
     tools: ["phone_call", "whatsapp", "booking_link", "operator_review"],
     firstQuestions: ["destination", "pickup", "pickup_time"],
     confirmationRule: "Confirm pickup, destination, time, mobility needs, provider, and price before contacting or booking.",
@@ -154,7 +155,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     levels: ["sub_action", "fast_help", "voice_handoff"],
     status: "ready",
     providerCategory: "food",
-    savedData: [],
+    savedData: ["home_address", "contact_channel"],
     tools: ["operator_review", "web_search"],
     firstQuestions: ["shopping_need", "category_or_item", "priority_or_concern"],
     confirmationRule: "Prepare shopping choices or review notes only; never order, pay, share details, or contact anyone without final user confirmation.",
@@ -189,8 +190,8 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     actionName: "Safe home / safety support",
     levels: ["fast_help", "voice_handoff"],
     status: "ready",
-    savedData: ["home_address", "document_or_media"],
-    tools: ["phone_call", "camera_or_upload", "operator_review"],
+    savedData: ["home_address", "trusted_contact", "document_or_media"],
+    tools: ["phone_call", "camera_or_upload", "web_search", "operator_review"],
     firstQuestions: ["risk_type", "location", "urgency"],
     confirmationRule: "Check immediate safety first, then ask before alerting, calling, uploading, or contacting anyone.",
     nextImplementationStep: "Monitor Safe Home task outcomes and expand direct upload/caregiver integrations.",
