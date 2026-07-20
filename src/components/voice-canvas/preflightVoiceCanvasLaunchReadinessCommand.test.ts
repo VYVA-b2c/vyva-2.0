@@ -57,6 +57,8 @@ function artifactPathsForRunDate(runDate: string) {
     analyticsValidation: `${prefix}-analytics-validation.json`,
     copyEvidence: `${prefix}-copy-clarity.md`,
     copyValidation: `${prefix}-copy-clarity-validation.json`,
+    recoveryEvidence: `${prefix}-recovery-behavior.md`,
+    recoveryValidation: `${prefix}-recovery-behavior-validation.json`,
     realUseEvidence: `${prefix}-real-use-coverage.md`,
     realUseValidation: `${prefix}-real-use-validation.json`,
     entrySurfaces: `${prefix}-entry-surfaces.md`,
@@ -90,6 +92,8 @@ function launchEvidenceCommandsForRun(
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
     `npm run --silent canvas:qa:copy -- --template --output=${paths.copyEvidence}`,
     `npm run --silent canvas:qa:copy -- --input=${paths.copyEvidence} --json --output=${paths.copyValidation}`,
+    `npm run --silent canvas:qa:recovery -- --template --output=${paths.recoveryEvidence}`,
+    `npm run --silent canvas:qa:recovery -- --input=${paths.recoveryEvidence} --json --output=${paths.recoveryValidation}`,
     `npm run --silent canvas:qa:real-use -- --template --output=${paths.realUseEvidence}`,
     `npm run --silent canvas:qa:real-use -- --input=${paths.realUseEvidence} --json --output=${paths.realUseValidation}`,
     `npm run --silent canvas:qa:entry-surfaces -- --template --output=${paths.entrySurfaces}`,
@@ -99,7 +103,7 @@ function launchEvidenceCommandsForRun(
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --recovery=${paths.recoveryEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
   ];
 }
 
@@ -122,6 +126,7 @@ function validLaunchRunPlan(
       "Collect enabled endpoint evidence before rollback evidence.",
       "Fill analytics evidence from aggregate-only staging or production-like telemetry.",
       "Fill copy clarity evidence from senior-friendly copy, what-happens-next, long-label, focus, announcement, and reduced-motion review.",
+      "Fill recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage.",
       "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
       "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
       "Fill rollback owner handoff with owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
@@ -437,6 +442,43 @@ function validCopyEvidenceArtifact(): string {
   return `${lines.join("\n")}\n`;
 }
 
+function validRecoveryEvidenceArtifact(): string {
+  const reviewedOn = freshReviewDate();
+  const lines = [
+    "# Voice Canvas recovery behavior evidence artifact",
+    "",
+    "Use this copy-safe artifact to prove every Canvas launch flow can be left, resumed, interrupted, retried, cancelled, and protected from duplicate or stale responses without side effects.",
+    "",
+    "Do not paste addresses, saved-place labels, spoken transcripts, entered text, medication details, provider details, shopping details, account identifiers, contact details, screenshots with personal data, raw endpoint bodies, unexpected payload field names, or personal data.",
+    "",
+    `Reviewed on: ${reviewedOn}`,
+    "Reviewer: QA Launch Reviewer",
+    "QA run URL: https://staging.vyva.app",
+    "Commit/build: aabbccddeeff",
+    "Privacy boundary: sanitized artifact references only with no personal details",
+    "",
+    "## Recovery behavior checklist",
+    "",
+    "| Flow | Start/resume | App exit/reopen | Refresh/reconnect | Voice interruption | Browser back | Cancel/exit | Retry/failure | Duplicate/stale | Evidence reference | Reviewer/date |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+  ];
+
+  for (const flow of canvasLaunchReadinessFlows) {
+    lines.push(
+      `| ${flow.label} | start and resume restored current work with entered information preserved, no write, no resubmission, and no external action | app exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action | refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action | voice interruption recovered current work with entered information preserved, no write, no resubmission, and no external action | browser back returned safely with entered information preserved, no write, and no external action | cancel and exit left safely with no write and no external action | recoverable failure offered retry and exit with entered information preserved, no write, no resubmission, and no external action | duplicate confirmation prevented and stale response ignored or discarded | artifacts/voice-canvas/${reviewedOn}/${flow.id}-recovery-behavior-resume-reconnect-screenshot-log-recording-capture-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+    );
+  }
+
+  lines.push(
+    "",
+    "## Copy-ready evidence packet note",
+    "",
+    `Recovery behavior reviewed on ${reviewedOn} by QA Launch Reviewer: every launch flow restored start/resume, app exit/reopen, refresh/reconnect, voice interruption, browser back, cancel/exit, retry/failure, duplicate prevention, and stale-response handling with entered information preserved where relevant, no write, no resubmission, no external action, and sanitized dated recovery screenshots/logs/recordings/captures/artifacts only.`,
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
 function withTempAnalyticsFile<T>(
   value: unknown,
   callback: (inputPath: string) => T,
@@ -491,6 +533,21 @@ function withTempCopyFile<T>(
 ): T {
   const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-copy-"));
   const inputPath = path.join(tempDir, "copy-clarity.md");
+  writeFileSync(inputPath, value);
+
+  try {
+    return callback(inputPath);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function withTempRecoveryFile<T>(
+  value: string,
+  callback: (inputPath: string) => T,
+): T {
+  const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-preflight-recovery-"));
+  const inputPath = path.join(tempDir, "recovery-behavior.md");
   writeFileSync(inputPath, value);
 
   try {
@@ -571,6 +628,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md",
     );
     expect(result.stdout).toContain(
+      "npm run canvas:qa:preflight -- --recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md",
+    );
+    expect(result.stdout).toContain(
       "npm run canvas:qa:preflight -- --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
     );
     expect(result.stdout).toContain(
@@ -589,7 +649,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --runsheet=docs/audits/voice-canvas-real-device-run-sheet.md --matrix=docs/audits/voice-canvas-real-device-qa-matrix.md --packet=docs/audits/voice-canvas-real-device-evidence-packet.md",
     );
     expect(result.stdout).toContain(
-      "unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready",
+      "unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, recovery behavior evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready",
     );
     expect(result.stdout).toContain(
       "Final external evidence artifacts must share one QA run date",
@@ -623,6 +683,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
     expect(result.stdout).toContain(
       "Copy clarity evidence: not provided; reviewed unknown; copy rows 0; problems 0",
+    );
+    expect(result.stdout).toContain(
+      "Recovery behavior evidence: not provided; reviewed unknown; recovery rows 0; problems 0",
     );
     expect(result.stdout).toContain(
       "Rollback owner evidence: not provided; reviewed unknown; problems 0",
@@ -708,6 +771,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Provide --copy=<path> for the sanitized copy clarity evidence artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain(
+      "Provide --recovery=<path> for the sanitized recovery behavior evidence artifact before final launch sign-off.",
+    );
+    expect(result.stdout).toContain(
       "Provide --rollback-owner=<path> for the sanitized rollback owner handoff artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain("Run sheet pending sections:");
@@ -757,6 +823,12 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:copy -- --input=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity-validation.json",
     );
     expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:recovery -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md",
+    );
+    expect(result.stdout).toContain(
+      "npm run --silent canvas:qa:recovery -- --input=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior-validation.json",
+    );
+    expect(result.stdout).toContain(
       "npm run --silent canvas:qa:real-use -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
     );
     expect(result.stdout).toContain(
@@ -784,7 +856,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ),
     );
     expect(result.stdout).toContain(
-      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     );
   });
 
@@ -858,6 +930,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
         reviewedOn: string;
         requiredFlowCount: number;
         requiredCopyRowCount: number;
+        problemCount: number;
+        problems: string[];
+      };
+      recoveryEvidence: {
+        provided: boolean;
+        readyForLaunchEvidence: boolean;
+        reviewedOn: string;
+        requiredFlowCount: number;
+        requiredRecoveryRowCount: number;
         problemCount: number;
         problems: string[];
       };
@@ -967,6 +1048,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
       problemCount: 0,
       problems: [],
     });
+    expect(summary.recoveryEvidence).toMatchObject({
+      provided: false,
+      readyForLaunchEvidence: false,
+      reviewedOn: "unknown",
+      requiredFlowCount: 0,
+      requiredRecoveryRowCount: 0,
+      problemCount: 0,
+      problems: [],
+    });
     expect(summary.rollbackOwnerEvidence).toMatchObject({
       provided: false,
       readyForLaunchEvidence: false,
@@ -1013,6 +1103,8 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "npm run --silent canvas:qa:copy -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md",
       "npm run --silent canvas:qa:copy -- --input=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity-validation.json",
+      "npm run --silent canvas:qa:recovery -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md",
+      "npm run --silent canvas:qa:recovery -- --input=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior-validation.json",
       "npm run --silent canvas:qa:real-use -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
       "npm run --silent canvas:qa:real-use -- --input=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-real-use-validation.json",
       "npm run --silent canvas:qa:entry-surfaces -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md",
@@ -1022,7 +1114,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-run-sheet-summary.json",
       "npm run --silent canvas:qa:validate -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-qa-summary.json",
       "npm run --silent canvas:qa:packet -- --allow-pending --json --output=artifacts/voice-canvas/YYYY-MM-DD-evidence-packet-summary.json",
-      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
+      "npm run --silent canvas:qa:preflight -- --final --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md --recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md --rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-preflight.json",
     ]);
     expect(summary.message).toBe(
       "Voice Canvas launch evidence gates are structurally valid but still pending real-device QA.",
@@ -1101,7 +1193,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
           runDate,
           baseUrl: "https://staging.vyva.app",
           requestHeaderCount: 0,
-          commandCount: 18,
+          commandCount: 20,
           flowCount: canvasLaunchReadinessFlows.length,
           canonicalFlowCoverage: canvasLaunchEvidenceFlowCoverage(),
           problemCount: 0,
@@ -1506,6 +1598,60 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("includes sanitized recovery behavior artifacts in the preflight summary", () =>
+    withTempRecoveryFile(validRecoveryEvidenceArtifact(), (inputPath) => {
+      const result = runPreflight([`--recovery=${inputPath}`, "--json"]);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe("");
+
+      const summary = JSON.parse(result.stdout) as {
+        acceptedPending: boolean;
+        recoveryEvidence: {
+          provided: boolean;
+          readyForLaunchEvidence: boolean;
+          reviewedOn: string;
+          requiredFlowCount: number;
+          requiredRecoveryRowCount: number;
+          problemCount: number;
+          problems: string[];
+        };
+      };
+
+      expect(summary.acceptedPending).toBe(true);
+      expect(summary.recoveryEvidence).toMatchObject({
+        provided: true,
+        readyForLaunchEvidence: true,
+        reviewedOn: freshReviewDate(),
+        requiredFlowCount: canvasLaunchReadinessFlows.length,
+        requiredRecoveryRowCount: canvasLaunchReadinessFlows.length,
+        problemCount: 0,
+        problems: [],
+      });
+    }));
+
+  it("rejects unsafe recovery behavior artifacts without echoing personal values", () =>
+    withTempRecoveryFile(
+      validRecoveryEvidenceArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "sanitized artifact references include 123 Secret Street",
+      ),
+      (inputPath) => {
+        const result = runPreflight([`--recovery=${inputPath}`]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("Recovery behavior evidence problems:");
+        expect(result.stdout).toContain(
+          "Recovery behavior evidence artifact appears to include personal details.",
+        );
+        expect(result.stdout).toContain(
+          "Fix sanitized recovery behavior evidence before launch sign-off.",
+        );
+        expect(result.stdout).not.toContain("123 Secret Street");
+      },
+    ));
+
   it("includes sanitized real-use artifacts in the preflight summary", () =>
     withTempRealUseFile(validRealUseEvidenceArtifact(), (inputPath) => {
       const result = runPreflight([`--real-use=${inputPath}`, "--json"]);
@@ -1681,52 +1827,55 @@ describe("Voice Canvas launch readiness preflight command", () => {
       ({ enabledPath, rollbackPath }) =>
         withTempAnalyticsFile(validAnalyticsEvidence(), (analyticsPath) =>
           withTempCopyFile(validCopyEvidenceArtifact(), (copyPath) =>
-            withTempRealUseFile(validRealUseEvidenceArtifact(), (realUsePath) =>
-              withTempEntrySurfaceFile(validEntrySurfaceEvidenceArtifact(), (entrySurfacePath) =>
-                withTempRollbackOwnerFile(
-                  validRollbackOwnerHandoffArtifact(),
-                  (rollbackOwnerPath) => {
-                    const result = runPreflight([
-                      "--final",
-                      `--features-enabled=${enabledPath}`,
-                      `--features-rollback=${rollbackPath}`,
-                      `--analytics=${analyticsPath}`,
-                      `--copy=${copyPath}`,
-                      `--real-use=${realUsePath}`,
-                      `--entry-surfaces=${entrySurfacePath}`,
-                      `--rollback-owner=${rollbackOwnerPath}`,
-                      "--json",
-                    ]);
+            withTempRecoveryFile(validRecoveryEvidenceArtifact(), (recoveryPath) =>
+              withTempRealUseFile(validRealUseEvidenceArtifact(), (realUsePath) =>
+                withTempEntrySurfaceFile(validEntrySurfaceEvidenceArtifact(), (entrySurfacePath) =>
+                  withTempRollbackOwnerFile(
+                    validRollbackOwnerHandoffArtifact(),
+                    (rollbackOwnerPath) => {
+                      const result = runPreflight([
+                        "--final",
+                        `--features-enabled=${enabledPath}`,
+                        `--features-rollback=${rollbackPath}`,
+                        `--analytics=${analyticsPath}`,
+                        `--copy=${copyPath}`,
+                        `--recovery=${recoveryPath}`,
+                        `--real-use=${realUsePath}`,
+                        `--entry-surfaces=${entrySurfacePath}`,
+                        `--rollback-owner=${rollbackOwnerPath}`,
+                        "--json",
+                      ]);
 
-                    expect(result.status).toBe(1);
-                    expect(result.stderr).toBe("");
+                      expect(result.status).toBe(1);
+                      expect(result.stderr).toBe("");
 
-                    const summary = JSON.parse(result.stdout) as {
-                      externalEvidenceDateConsistency: {
-                        ready: boolean;
-                        checked: boolean;
-                        runDate: string;
-                        problemCount: number;
-                        problems: string[];
+                      const summary = JSON.parse(result.stdout) as {
+                        externalEvidenceDateConsistency: {
+                          ready: boolean;
+                          checked: boolean;
+                          runDate: string;
+                          problemCount: number;
+                          problems: string[];
+                        };
+                        nextActions: string[];
                       };
-                      nextActions: string[];
-                    };
 
-                    expect(summary.externalEvidenceDateConsistency).toMatchObject({
-                      ready: false,
-                      checked: true,
-                      runDate: "mixed",
-                      problemCount: 1,
-                    });
-                    expect(
-                      summary.externalEvidenceDateConsistency.problems.join("\n"),
-                    ).toContain(
-                      "External launch evidence must share one QA run date",
-                    );
-                    expect(summary.nextActions).toContain(
-                      "Fix external launch evidence dates so endpoint, analytics, copy clarity, real-use, entry surface, and rollback owner artifacts share one QA run date.",
-                    );
-                  },
+                      expect(summary.externalEvidenceDateConsistency).toMatchObject({
+                        ready: false,
+                        checked: true,
+                        runDate: "mixed",
+                        problemCount: 1,
+                      });
+                      expect(
+                        summary.externalEvidenceDateConsistency.problems.join("\n"),
+                      ).toContain(
+                        "External launch evidence must share one QA run date",
+                      );
+                      expect(summary.nextActions).toContain(
+                        "Fix external launch evidence dates so endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one QA run date.",
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -2246,6 +2395,13 @@ describe("Voice Canvas launch readiness preflight command", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Expected --copy=<path>.");
+  });
+
+  it("rejects empty recovery behavior artifact paths", () => {
+    const result = runPreflight(["--recovery="]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Expected --recovery=<path>.");
   });
 
   it("rejects empty real-use artifact paths", () => {

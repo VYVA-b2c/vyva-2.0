@@ -47,6 +47,10 @@ const copyArg = args.find((arg) => arg.startsWith("--copy="));
 const copyPathArg = copyArg
   ?.slice("--copy=".length)
   .trim();
+const recoveryArg = args.find((arg) => arg.startsWith("--recovery="));
+const recoveryPathArg = recoveryArg
+  ?.slice("--recovery=".length)
+  .trim();
 const realUseArg = args.find((arg) => arg.startsWith("--real-use="));
 const realUsePathArg = realUseArg
   ?.slice("--real-use=".length)
@@ -92,6 +96,11 @@ const copyValidatorPath = path.resolve(
   "scripts",
   "prepare-voice-canvas-copy-evidence.ts",
 );
+const recoveryValidatorPath = path.resolve(
+  process.cwd(),
+  "scripts",
+  "prepare-voice-canvas-recovery-evidence.ts",
+);
 const realUseValidatorPath = path.resolve(
   process.cwd(),
   "scripts",
@@ -122,6 +131,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run canvas:qa:preflight -- --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
       "  npm run canvas:qa:preflight -- --analytics=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json",
       "  npm run canvas:qa:preflight -- --copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md",
+      "  npm run canvas:qa:preflight -- --recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md",
       "  npm run canvas:qa:preflight -- --real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md",
       "  npm run canvas:qa:preflight -- --entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md",
       "  npm run canvas:qa:preflight -- --features-enabled=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-enabled.json --features-rollback=artifacts/voice-canvas/YYYY-MM-DD-feature-endpoints-rollback-disabled.json",
@@ -133,11 +143,12 @@ if (args.includes("--help") || args.includes("-h")) {
       "Pass --features-enabled=<path> and --features-rollback=<path> to validate sanitized endpoint collector artifacts generated within the last 7 days.",
       "Pass --analytics=<path> to validate sanitized analytics evidence generated within the last 7 days in the same aggregate-only snapshot.",
       "Pass --copy=<path> to validate sanitized senior-friendly copy and next-step clarity evidence generated within the last 7 days.",
+      "Pass --recovery=<path> to validate sanitized resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response evidence generated within the last 7 days.",
       "Pass --real-use=<path> to validate sanitized real device and interaction evidence generated within the last 7 days.",
       "Pass --entry-surfaces=<path> to validate sanitized canonical entry surface evidence generated within the last 7 days.",
       "Pass --rollback-owner=<path> to validate the sanitized rollback owner handoff artifact generated within the last 7 days.",
-      "Final external evidence artifacts must share one QA run date across enabled endpoints, rollback endpoints, analytics, copy clarity, real-use evidence, entry surfaces, and rollback owner handoff.",
-      "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready.",
+      "Final external evidence artifacts must share one QA run date across enabled endpoints, rollback endpoints, analytics, copy clarity, recovery behavior, real-use evidence, entry surfaces, and rollback owner handoff.",
+      "Use --final after real-device evidence is filled; it exits non-zero unless the run sheet, matrix, packet, launch run plan, enabled endpoint artifact, rollback endpoint artifact, analytics evidence, copy clarity evidence, recovery behavior evidence, real-use evidence, entry surface evidence, and rollback owner handoff are ready.",
       "Use --json to emit a machine-readable summary for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
@@ -169,6 +180,10 @@ if (analyticsArg && !analyticsPathArg) {
 }
 if (copyArg && !copyPathArg) {
   console.error("Expected --copy=<path>.");
+  process.exit(1);
+}
+if (recoveryArg && !recoveryPathArg) {
+  console.error("Expected --recovery=<path>.");
   process.exit(1);
 }
 if (realUseArg && !realUsePathArg) {
@@ -722,6 +737,8 @@ function artifactPathsForRunDate(runDate: string): Record<string, string> {
     analyticsValidation: `${artifactPrefix}-analytics-validation.json`,
     copyEvidence: `${artifactPrefix}-copy-clarity.md`,
     copyValidation: `${artifactPrefix}-copy-clarity-validation.json`,
+    recoveryEvidence: `${artifactPrefix}-recovery-behavior.md`,
+    recoveryValidation: `${artifactPrefix}-recovery-behavior-validation.json`,
     realUseEvidence: `${artifactPrefix}-real-use-coverage.md`,
     realUseValidation: `${artifactPrefix}-real-use-validation.json`,
     entrySurfaces: `${artifactPrefix}-entry-surfaces.md`,
@@ -887,6 +904,8 @@ function launchEvidenceCommandsForRun(
     `npm run --silent canvas:qa:analytics -- --input=${paths.analyticsEvidence} --json --output=${paths.analyticsValidation}`,
     `npm run --silent canvas:qa:copy -- --template --output=${paths.copyEvidence}`,
     `npm run --silent canvas:qa:copy -- --input=${paths.copyEvidence} --json --output=${paths.copyValidation}`,
+    `npm run --silent canvas:qa:recovery -- --template --output=${paths.recoveryEvidence}`,
+    `npm run --silent canvas:qa:recovery -- --input=${paths.recoveryEvidence} --json --output=${paths.recoveryValidation}`,
     `npm run --silent canvas:qa:real-use -- --template --output=${paths.realUseEvidence}`,
     `npm run --silent canvas:qa:real-use -- --input=${paths.realUseEvidence} --json --output=${paths.realUseValidation}`,
     `npm run --silent canvas:qa:entry-surfaces -- --template --output=${paths.entrySurfaces}`,
@@ -896,7 +915,7 @@ function launchEvidenceCommandsForRun(
     `npm run --silent canvas:qa:runsheet -- --allow-pending --json --output=${paths.runSheetSummary}`,
     `npm run --silent canvas:qa:validate -- --allow-pending --json --output=${paths.qaMatrixSummary}`,
     `npm run --silent canvas:qa:packet -- --allow-pending --json --output=${paths.evidencePacketSummary}`,
-    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
+    `npm run --silent canvas:qa:preflight -- --final --run-plan=${paths.launchRunPlan} --features-enabled=${paths.enabledEndpoints} --features-rollback=${paths.rollbackEndpoints} --analytics=${paths.analyticsEvidence} --copy=${paths.copyEvidence} --recovery=${paths.recoveryEvidence} --real-use=${paths.realUseEvidence} --entry-surfaces=${paths.entrySurfaces} --rollback-owner=${paths.rollbackOwnerHandoff} --json --output=${paths.launchPreflight}`,
   ];
 }
 
@@ -1084,6 +1103,7 @@ function validateExternalEvidenceDateConsistency(
   rollbackFeatures: FeatureEndpointArtifactValidation,
   analyticsRun: ValidatorRun | null,
   copyRun: ValidatorRun | null,
+  recoveryRun: ValidatorRun | null,
   realUseRun: ValidatorRun | null,
   entrySurfacesRun: ValidatorRun | null,
   rollbackOwnerRun: ValidatorRun | null,
@@ -1109,6 +1129,11 @@ function validateExternalEvidenceDateConsistency(
       label: "copy clarity evidence",
       date: evidenceDate(copyRun?.summary?.reviewedOn),
       provided: Boolean(copyRun),
+    },
+    {
+      label: "recovery behavior evidence",
+      date: evidenceDate(recoveryRun?.summary?.reviewedOn),
+      provided: Boolean(recoveryRun),
     },
     {
       label: "real-use evidence",
@@ -1234,6 +1259,7 @@ function messagesForNextAction(
   runPlan: LaunchRunPlanValidation,
   analyticsRun: ValidatorRun | null,
   copyRun: ValidatorRun | null,
+  recoveryRun: ValidatorRun | null,
   realUseRun: ValidatorRun | null,
   entrySurfacesRun: ValidatorRun | null,
   rollbackOwnerRun: ValidatorRun | null,
@@ -1252,6 +1278,7 @@ function messagesForNextAction(
   const packetProblems = numericField(packetRun.summary, "problemCount");
   const analyticsProblems = numericField(analyticsRun?.summary ?? null, "problemCount");
   const copyProblems = numericField(copyRun?.summary ?? null, "problemCount");
+  const recoveryProblems = numericField(recoveryRun?.summary ?? null, "problemCount");
   const realUseProblems = numericField(realUseRun?.summary ?? null, "problemCount");
   const entrySurfacesProblems = numericField(
     entrySurfacesRun?.summary ?? null,
@@ -1292,6 +1319,9 @@ function messagesForNextAction(
   if (copyRun && !copyRun.summary) {
     messages.push("Fix the copy clarity validator output before using the preflight artifact.");
   }
+  if (recoveryRun && !recoveryRun.summary) {
+    messages.push("Fix the recovery behavior validator output before using the preflight artifact.");
+  }
   if (realUseRun && !realUseRun.summary) {
     messages.push("Fix the real-use validator output before using the preflight artifact.");
   }
@@ -1307,6 +1337,9 @@ function messagesForNextAction(
   if (copyProblems > 0) {
     messages.push("Fix sanitized copy clarity evidence before launch sign-off.");
   }
+  if (recoveryProblems > 0) {
+    messages.push("Fix sanitized recovery behavior evidence before launch sign-off.");
+  }
   if (realUseProblems > 0) {
     messages.push("Fix sanitized real-use evidence before launch sign-off.");
   }
@@ -1317,7 +1350,7 @@ function messagesForNextAction(
     messages.push("Fix sanitized rollback owner handoff evidence before launch sign-off.");
   }
   if (externalEvidenceDateConsistency.problemCount > 0) {
-    messages.push("Fix external launch evidence dates so endpoint, analytics, copy clarity, real-use, entry surface, and rollback owner artifacts share one QA run date.");
+    messages.push("Fix external launch evidence dates so endpoint, analytics, copy clarity, recovery behavior, real-use, entry surface, and rollback owner artifacts share one QA run date.");
   }
   if (endpointAuthConsistency.problemCount > 0) {
     messages.push("Fix endpoint evidence authentication metadata so it matches the launch run plan.");
@@ -1342,6 +1375,9 @@ function messagesForNextAction(
   }
   if (finalGate && !copyRun) {
     messages.push("Provide --copy=<path> for the sanitized copy clarity evidence artifact before final launch sign-off.");
+  }
+  if (finalGate && !recoveryRun) {
+    messages.push("Provide --recovery=<path> for the sanitized recovery behavior evidence artifact before final launch sign-off.");
   }
   if (finalGate && !realUseRun) {
     messages.push("Provide --real-use=<path> for the sanitized real-use evidence artifact before final launch sign-off.");
@@ -1402,6 +1438,11 @@ const copyRun = copyPathArg
       allowPending: false,
     })
   : null;
+const recoveryRun = recoveryPathArg
+  ? runValidator(recoveryValidatorPath, `--input=${recoveryPathArg}`, {
+      allowPending: false,
+    })
+  : null;
 const realUseRun = realUsePathArg
   ? runValidator(realUseValidatorPath, `--input=${realUsePathArg}`, {
       allowPending: false,
@@ -1430,6 +1471,7 @@ const externalEvidenceDateConsistency = validateExternalEvidenceDateConsistency(
   rollbackFeatures,
   analyticsRun,
   copyRun,
+  recoveryRun,
   realUseRun,
   entrySurfacesRun,
   rollbackOwnerRun,
@@ -1449,6 +1491,7 @@ const readyForLaunch =
   rollbackFeatures.readyForLaunchEvidence &&
   booleanField(analyticsRun?.summary ?? null, "readyForLaunchEvidence") &&
   booleanField(copyRun?.summary ?? null, "readyForLaunchEvidence") &&
+  booleanField(recoveryRun?.summary ?? null, "readyForLaunchEvidence") &&
   booleanField(realUseRun?.summary ?? null, "readyForLaunchEvidence") &&
   booleanField(entrySurfacesRun?.summary ?? null, "readyForLaunchEvidence") &&
   booleanField(rollbackOwnerRun?.summary ?? null, "readyForLaunchEvidence") &&
@@ -1460,6 +1503,7 @@ const structuralProblems =
   !packetRun.summary ||
   (analyticsRun !== null && !analyticsRun.summary) ||
   (copyRun !== null && !copyRun.summary) ||
+  (recoveryRun !== null && !recoveryRun.summary) ||
   (realUseRun !== null && !realUseRun.summary) ||
   (entrySurfacesRun !== null && !entrySurfacesRun.summary) ||
   (rollbackOwnerRun !== null && !rollbackOwnerRun.summary) ||
@@ -1472,6 +1516,7 @@ const structuralProblems =
   rollbackFeatures.problemCount > 0 ||
   numericField(analyticsRun?.summary ?? null, "problemCount") > 0 ||
   numericField(copyRun?.summary ?? null, "problemCount") > 0 ||
+  numericField(recoveryRun?.summary ?? null, "problemCount") > 0 ||
   numericField(realUseRun?.summary ?? null, "problemCount") > 0 ||
   numericField(entrySurfacesRun?.summary ?? null, "problemCount") > 0 ||
   numericField(rollbackOwnerRun?.summary ?? null, "problemCount") > 0 ||
@@ -1492,6 +1537,7 @@ const nextActions = messagesForNextAction(
   runPlan,
   analyticsRun,
   copyRun,
+  recoveryRun,
   realUseRun,
   entrySurfacesRun,
   rollbackOwnerRun,
@@ -1590,6 +1636,25 @@ const summary = {
     ),
     problemCount: numericField(copyRun?.summary ?? null, "problemCount"),
     problems: stringArrayField(copyRun?.summary ?? null, "problems"),
+  },
+  recoveryEvidence: {
+    provided: Boolean(recoveryPathArg),
+    path: stringField(recoveryRun?.summary ?? null, "inputPath"),
+    readyForLaunchEvidence: booleanField(
+      recoveryRun?.summary ?? null,
+      "readyForLaunchEvidence",
+    ),
+    reviewedOn: stringField(recoveryRun?.summary ?? null, "reviewedOn"),
+    requiredFlowCount: numericField(
+      recoveryRun?.summary ?? null,
+      "requiredFlowCount",
+    ),
+    requiredRecoveryRowCount: numericField(
+      recoveryRun?.summary ?? null,
+      "requiredRecoveryRowCount",
+    ),
+    problemCount: numericField(recoveryRun?.summary ?? null, "problemCount"),
+    problems: stringArrayField(recoveryRun?.summary ?? null, "problems"),
   },
   realUseEvidence: {
     provided: Boolean(realUsePathArg),
@@ -1725,6 +1790,9 @@ console.log(
   `Copy clarity evidence: ${summary.copyEvidence.provided ? (summary.copyEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; reviewed ${summary.copyEvidence.reviewedOn}; copy rows ${summary.copyEvidence.requiredCopyRowCount}; problems ${summary.copyEvidence.problemCount}`,
 );
 console.log(
+  `Recovery behavior evidence: ${summary.recoveryEvidence.provided ? (summary.recoveryEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; reviewed ${summary.recoveryEvidence.reviewedOn}; recovery rows ${summary.recoveryEvidence.requiredRecoveryRowCount}; problems ${summary.recoveryEvidence.problemCount}`,
+);
+console.log(
   `Real-use evidence: ${summary.realUseEvidence.provided ? (summary.realUseEvidence.readyForLaunchEvidence ? "ready" : "not ready") : "not provided"}; reviewed ${summary.realUseEvidence.reviewedOn}; device rows ${summary.realUseEvidence.requiredDeviceRowCount}; interaction rows ${summary.realUseEvidence.requiredInteractionRowCount}; problems ${summary.realUseEvidence.problemCount}`,
 );
 console.log(
@@ -1751,6 +1819,7 @@ printProblemDetails("Evidence packet", summary.evidencePacket.problems);
 printProblemDetails("Launch run plan", summary.launchRunPlan.problems);
 printProblemDetails("Analytics evidence", summary.analyticsEvidence.problems);
 printProblemDetails("Copy clarity evidence", summary.copyEvidence.problems);
+printProblemDetails("Recovery behavior evidence", summary.recoveryEvidence.problems);
 printProblemDetails("Real-use evidence", summary.realUseEvidence.problems);
 printProblemDetails("Entry surface evidence", summary.entrySurfaceEvidence.problems);
 printProblemDetails("Rollback owner evidence", summary.rollbackOwnerEvidence.problems);

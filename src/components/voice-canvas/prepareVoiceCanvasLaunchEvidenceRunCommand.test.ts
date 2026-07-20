@@ -74,6 +74,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
       `artifacts/voice-canvas/${runDate}-copy-clarity.md`,
     );
     expect(result.stdout).toContain(
+      `artifacts/voice-canvas/${runDate}-recovery-behavior.md`,
+    );
+    expect(result.stdout).toContain(
       `artifacts/voice-canvas/${runDate}-real-use-coverage.md`,
     );
     expect(result.stdout).toContain(
@@ -90,6 +93,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
     expect(result.stdout).toContain(
       "Fill copy clarity evidence from senior-friendly copy, what-happens-next, long-label, focus, announcement, and reduced-motion review.",
+    );
+    expect(result.stdout).toContain(
+      "Fill recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage.",
     );
     expect(result.stdout).toContain(
       "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
@@ -162,7 +168,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(Object.values(summary.artifactPaths).every((value) => value.includes(runDate))).toBe(
       true,
     );
-    expect(summary.commands).toHaveLength(18);
+    expect(summary.commands).toHaveLength(20);
     expect(summary.commands[0]).toBe(
       `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/${runDate}-launch-evidence-run.json`,
     );
@@ -171,6 +177,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
     expect(summary.commands.join("\n")).toContain(
       `--copy=artifacts/voice-canvas/${runDate}-copy-clarity.md`,
+    );
+    expect(summary.commands.join("\n")).toContain(
+      `--recovery=artifacts/voice-canvas/${runDate}-recovery-behavior.md`,
     );
     expect(summary.commands.join("\n")).toContain(
       `--real-use=artifacts/voice-canvas/${runDate}-real-use-coverage.md`,
@@ -214,6 +223,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
     expect(summary.checklist.join(" ")).toContain(
       "copy clarity evidence from senior-friendly copy, what-happens-next, long-label",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage",
     );
     expect(summary.checklist.join(" ")).toContain(
       "real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage",

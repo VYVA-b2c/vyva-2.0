@@ -4,7 +4,7 @@ This checklist is the final preflight before enabling Canvas-powered Concierge f
 
 Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-audit.md`. Execute the staging pass with `docs/audits/voice-canvas-real-device-run-sheet.md`, prepare sanitized evidence references in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then record deployed real-device results in `docs/audits/voice-canvas-real-device-qa-matrix.md`. Do not treat the feature as launch-signed-off until that audit shows the deployed/manual checklist is complete.
 
-Before collecting same-day launch artifacts, generate a dated run plan so every endpoint, analytics, copy-clarity, real-use, entry-surface, rollback-owner, run-sheet, QA-matrix, packet, and preflight artifact uses the same `YYYY-MM-DD` prefix:
+Before collecting same-day launch artifacts, generate a dated run plan so every endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, rollback-owner, run-sheet, QA-matrix, packet, and preflight artifact uses the same `YYYY-MM-DD` prefix:
 
 ```bash
 npm run --silent canvas:qa:run -- --date=YYYY-MM-DD --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json
@@ -147,6 +147,22 @@ npm run --silent canvas:qa:copy -- --input=artifacts/voice-canvas/YYYY-MM-DD-cop
 
 The filled artifact must prove every launch flow uses warm plain senior-friendly restrained copy, presents one clear decision at a time, explains what happens next for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handles long translated Spanish labels without overflow on mobile, tablet, and desktop, moves focus meaningfully, announces waiting/blocked/completed states to screen readers, and respects reduced motion. Use sanitized dated copy review, screenshot, capture, accessibility, or a11y artifact references only.
 
+## Recovery behavior evidence
+
+Prepare the recovery behavior evidence artifact from the manifest-filled copy-safe template:
+
+```bash
+npm run --silent canvas:qa:recovery -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md
+```
+
+Validate the filled recovery artifact before copying resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response proof into the evidence packet and matrix:
+
+```bash
+npm run --silent canvas:qa:recovery -- --input=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior-validation.json
+```
+
+The filled artifact must prove every launch flow can start or resume with current work restored, survive app exit/reopen, refresh/reconnect, voice interruption, browser back, cancel/exit, recoverable failure retry with an exit or cancel path, duplicate confirmation/action attempts, and stale responses without writes, resubmissions, or external actions. Use sanitized dated recovery screenshots, logs, recordings, captures, or artifact references only.
+
 ## Real-use device and interaction evidence
 
 Prepare the real-use device and interaction evidence artifact from the manifest-filled copy-safe template:
@@ -191,7 +207,7 @@ Validate the filled handoff before final preflight:
 npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json
 ```
 
-The final `canvas:qa:preflight -- --final` command must include `--run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json`, `--copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md`, `--real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md`, `--entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md`, and `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` so launch sign-off fails if the run plan is missing, drifted from the canonical same-date evidence bundle, omits a canonical flow entry surface, real-use QA gate, fallback path, feature endpoint/server key, or telemetry event, if the copy artifact is missing, invalid, stale, generic, omits senior-friendly/next-step/long-label/focus/screen-reader/reduced-motion proof, or unsafe, if the real-use artifact is missing, invalid, stale, generic, uses emulator/responsive-mode evidence, or unsafe, if the entry-surface artifact is missing, invalid, stale, generic, or unsafe, or if the rollback-owner handoff is missing, still has placeholders, omits a feature endpoint/server key/fallback path, is older than 7 days, or appears to include personal details. The preflight summary includes sanitized `canonicalFlowCoverage` so reviewers can inspect the exact flow/surface/gate map without opening raw QA artifacts. The launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, real-use, entry-surface, and rollback-owner handoff artifacts must share one QA run date.
+The final `canvas:qa:preflight -- --final` command must include `--run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json`, `--copy=artifacts/voice-canvas/YYYY-MM-DD-copy-clarity.md`, `--recovery=artifacts/voice-canvas/YYYY-MM-DD-recovery-behavior.md`, `--real-use=artifacts/voice-canvas/YYYY-MM-DD-real-use-coverage.md`, `--entry-surfaces=artifacts/voice-canvas/YYYY-MM-DD-entry-surfaces.md`, and `--rollback-owner=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` so launch sign-off fails if the run plan is missing, drifted from the canonical same-date evidence bundle, omits a canonical flow entry surface, real-use QA gate, fallback path, feature endpoint/server key, or telemetry event, if the copy artifact is missing, invalid, stale, generic, omits senior-friendly/next-step/long-label/focus/screen-reader/reduced-motion proof, or unsafe, if the recovery artifact is missing, invalid, stale, generic, omits resume/refresh/back/reconnect/interruption/cancel/retry/duplicate/stale-response proof, or unsafe, if the real-use artifact is missing, invalid, stale, generic, uses emulator/responsive-mode evidence, or unsafe, if the entry-surface artifact is missing, invalid, stale, generic, or unsafe, or if the rollback-owner handoff is missing, still has placeholders, omits a feature endpoint/server key/fallback path, is older than 7 days, or appears to include personal details. The preflight summary includes sanitized `canonicalFlowCoverage` so reviewers can inspect the exact flow/surface/gate map without opening raw QA artifacts. The launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback-owner handoff artifacts must share one QA run date.
 
 ## Evidence packet validation
 
