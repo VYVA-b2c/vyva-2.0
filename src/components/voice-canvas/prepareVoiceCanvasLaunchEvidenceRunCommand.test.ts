@@ -71,6 +71,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
       `artifacts/voice-canvas/${runDate}-rollback-owner-handoff.md`,
     );
     expect(result.stdout).toContain(
+      `artifacts/voice-canvas/${runDate}-real-use-coverage.md`,
+    );
+    expect(result.stdout).toContain(
       `artifacts/voice-canvas/${runDate}-entry-surfaces.md`,
     );
     expect(result.stdout).toContain(
@@ -78,6 +81,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
     expect(result.stdout).toContain(
       "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
+    );
+    expect(result.stdout).toContain(
+      "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
     );
     expect(result.stdout).toContain(
       "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
@@ -150,12 +156,15 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(Object.values(summary.artifactPaths).every((value) => value.includes(runDate))).toBe(
       true,
     );
-    expect(summary.commands).toHaveLength(14);
+    expect(summary.commands).toHaveLength(16);
     expect(summary.commands[0]).toBe(
       `npm run --silent canvas:qa:run -- --date=${runDate} --base-url=https://staging.vyva.app --json --output=artifacts/voice-canvas/${runDate}-launch-evidence-run.json`,
     );
     expect(summary.commands.join("\n")).toContain(
       `--features-enabled=artifacts/voice-canvas/${runDate}-feature-endpoints-enabled.json`,
+    );
+    expect(summary.commands.join("\n")).toContain(
+      `--real-use=artifacts/voice-canvas/${runDate}-real-use-coverage.md`,
     );
     expect(summary.commands.join("\n")).toContain(
       `--entry-surfaces=artifacts/voice-canvas/${runDate}-entry-surfaces.md`,
@@ -193,6 +202,9 @@ describe("Voice Canvas launch evidence run helper command", () => {
     });
     expect(summary.checklist.join(" ")).toContain(
       "real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage",
     );
     expect(summary.checklist.join(" ")).toContain(
       "entry surface evidence from every canonical launch surface",

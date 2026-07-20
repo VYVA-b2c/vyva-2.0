@@ -47,6 +47,12 @@ function completedPacket(): string {
     .replace(/<flow>/g, "ride");
 }
 
+const completedRealDeviceInventoryRow =
+  "| Real-device screenshots or photos | `artifacts/voice-canvas/2026-07-19-real-use-coverage.md` and `artifacts/voice-canvas/2026-07-19-real-use-validation.json` | Device coverage for phone, tablet, and desktop/laptop | QA Owner reviewed on 2026-07-19 |";
+
+const completedInteractionInventoryRow =
+  "| Interaction recordings or logs | `artifacts/voice-canvas/2026-07-19-real-use-coverage.md` and `artifacts/voice-canvas/2026-07-19-real-use-validation.json` | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |";
+
 function withTempPacket<T>(
   markdown: string,
   callback: (tempPacketPath: string) => T,
@@ -190,8 +196,8 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects unsafe artifact references without copying sensitive values", () =>
     withTempPacket(
       completedPacket().replace(
-        "voice-canvas/devices/2026-07-19/ride-phone-tablet-desktop",
-        "voice-canvas/devices/2026-07-19/123 Secret Street-transcript",
+        completedRealDeviceInventoryRow,
+        "| Real-device screenshots or photos | `artifacts/voice-canvas/2026-07-19/123 Secret Street-transcript.md` | Device coverage for phone, tablet, and desktop/laptop | QA Owner reviewed on 2026-07-19 |",
       ),
       (tempPacketPath) => {
         const result = runValidator([tempPacketPath, "--json"]);
@@ -252,8 +258,8 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects generic artifact references that do not point to dated artifacts", () =>
     withTempPacket(
       completedPacket().replace(
-        "voice-canvas/interactions/2026-07-19/ride-voice-touch-keyboard",
-        "QA reviewed interaction evidence",
+        completedInteractionInventoryRow,
+        "| Interaction recordings or logs | QA reviewed interaction evidence | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |",
       ),
       (tempPacketPath) => {
         const result = runValidator([tempPacketPath, "--json"]);
@@ -565,7 +571,7 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects final pre-fill checks that omit required launch gates", () =>
     withTempPacket(
       completedPacket().replace(
-        /- `canvas:qa:preflight -- --final --run-plan=artifacts\/voice-canvas\/\d{4}-\d{2}-\d{2}-launch-evidence-run\.json` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, entry-surface, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;/,
+        /- `canvas:qa:preflight -- --final --run-plan=artifacts\/voice-canvas\/\d{4}-\d{2}-\d{2}-launch-evidence-run\.json` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, real-use, entry-surface, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;/,
         "- final launch review completed;",
       ),
       (tempPacketPath) => {
