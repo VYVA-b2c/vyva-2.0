@@ -29,6 +29,7 @@ jobs:
         run: npm run lint
 
       - name: Test
+        timeout-minutes: 30
         run: npm test
 
       - name: Install Playwright browser
