@@ -13114,6 +13114,13 @@ export default function MarketingAdminPage() {
         packIds: ["full-channel-launch-announcement", "press-partner-announcement", "partner-growth"],
         icon: Rocket,
       },
+      {
+        key: "relationship-follow-up",
+        title: "Relationship follow-up",
+        prompt: "Turn webinar attendees, replies, warm partners, or manual outcomes into the next contact path.",
+        packIds: ["post-webinar-relationship-follow-up", "partner-growth", "community-partner-launch", "trust-and-review"],
+        icon: Waypoints,
+      },
     ];
     return shortcutSeeds.map((seed) => {
       type TemplatePackStats = (typeof sortedContentTemplatePacksWithStats)[number];
@@ -37118,7 +37125,7 @@ export default function MarketingAdminPage() {
                     </select>
                   </Field>
                 </div>
-                <div className="mb-4 grid gap-3 xl:grid-cols-4" data-testid="marketing-smart-template-shortcuts">
+                <div className="mb-4 grid gap-3 xl:grid-cols-5" data-testid="marketing-smart-template-shortcuts">
                   {smartContentTemplatePackShortcuts.map((shortcut) => {
                     const Icon = shortcut.icon;
                     const primary = shortcut.primary;

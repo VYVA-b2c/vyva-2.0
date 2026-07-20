@@ -2826,6 +2826,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Family nurture");
     expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Full launch");
+    expect(screen.getByTestId("marketing-smart-template-shortcuts")).toHaveTextContent("Relationship follow-up");
+    expect(screen.getByTestId("marketing-smart-template-shortcut-relationship-follow-up")).toHaveTextContent("Post-webinar relationship follow-up");
+    expect(screen.getByTestId("button-marketing-smart-template-shortcut-relationship-follow-up")).toHaveTextContent("Open pack");
     expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Customize");
     expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Create kit");
     expect(screen.getByTestId("marketing-smart-template-shortcut-local-spain")).toHaveTextContent("Spain local activation");
