@@ -28,6 +28,7 @@ export type ConciergeCanvasActionLabel =
   | "Review"
   | "Confirm"
   | "Continue"
+  | "Respond"
   | "Save"
   | "Try another way";
 
@@ -64,6 +65,19 @@ export type ConciergeCanvasStateSummary = {
   reason: string;
 };
 
+export type ConciergeCanvasExplainabilityContext = {
+  missingDetailLabel?: string | null;
+  providerName?: string | null;
+  channelLabel?: string | null;
+};
+
+export type ConciergeCanvasExplainability = {
+  stateLabel: string;
+  stateExplanation: string;
+  primaryActionLabel: string;
+  safetyRule: string;
+};
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -96,7 +110,7 @@ export function conciergeCanvasPrimaryActionLabel(state: ConciergeCanvasState): 
     case "ready_to_review": return "Review";
     case "awaiting_confirmation": return "Confirm";
     case "in_progress": return "Continue";
-    case "needs_user_input": return "Continue";
+    case "needs_user_input": return "Respond";
     case "completed": return "Save";
     case "failed": return "Try another way";
   }
@@ -109,7 +123,7 @@ export function conciergeCanvasPrimaryActionDisplayLabel(state: ConciergeCanvasS
       case "ready_to_review": return "Revisar";
       case "awaiting_confirmation": return "Confirmar";
       case "in_progress": return "Continuar";
-      case "needs_user_input": return "Continuar";
+      case "needs_user_input": return "Responder";
       case "completed": return "Guardar";
       case "failed": return "Probar otra forma";
     }
@@ -139,6 +153,130 @@ export function conciergeCanvasStateLabel(state: ConciergeCanvasState, isSpanish
     case "completed": return "Completed";
     case "failed": return "Try another way";
   }
+}
+
+function flowSubject(flowKind: ConciergeCanvasFlowKind, isSpanish: boolean): string {
+  if (isSpanish) {
+    switch (flowKind) {
+      case "ride": return "el viaje";
+      case "home_service": return "el servicio";
+      case "otc_pharmacy": return "el pedido";
+      case "shopping": return "la compra";
+      case "provider_reply": return "la respuesta";
+      case "other": return "la tarea";
+    }
+  }
+
+  switch (flowKind) {
+    case "ride": return "the ride";
+    case "home_service": return "the service";
+    case "otc_pharmacy": return "the order";
+    case "shopping": return "the purchase";
+    case "provider_reply": return "the reply";
+    case "other": return "the task";
+  }
+}
+
+function normalizeExplainabilityInput(
+  input: ConciergeCanvasState | ConciergeCanvasStateSummary,
+): ConciergeCanvasStateSummary {
+  if (typeof input !== "string") return input;
+  return {
+    state: input,
+    flowKind: "other",
+    primaryActionLabel: conciergeCanvasPrimaryActionLabel(input),
+    safeExternalActionAllowed: false,
+    requiresUserConfirmationBeforeExternalAction: input !== "completed",
+    reason: "state_only",
+  };
+}
+
+export function conciergeCanvasExplainability(
+  input: ConciergeCanvasState | ConciergeCanvasStateSummary,
+  isSpanish = false,
+  context: ConciergeCanvasExplainabilityContext = {},
+): ConciergeCanvasExplainability {
+  const summary = normalizeExplainabilityInput(input);
+  const subject = flowSubject(summary.flowKind, isSpanish);
+  const provider = text(context.providerName);
+  const channel = text(context.channelLabel);
+  const missing = text(context.missingDetailLabel);
+
+  let stateExplanation: string;
+  if (isSpanish) {
+    switch (summary.state) {
+      case "collecting":
+        stateExplanation = missing
+          ? `VYVA necesita ${missing} para preparar ${subject}.`
+          : `VYVA necesita un dato mas para preparar ${subject}.`;
+        break;
+      case "ready_to_review":
+        stateExplanation = `Revisa el resumen antes de que VYVA avance con ${subject}.`;
+        break;
+      case "awaiting_confirmation":
+        stateExplanation = `Confirma solo si quieres que VYVA avance con ${subject}.`;
+        break;
+      case "in_progress":
+        stateExplanation = provider
+          ? `VYVA esta esperando a ${provider}.`
+          : channel
+            ? `VYVA esta usando ${channel} para avanzar.`
+            : `VYVA esta avanzando con ${subject}.`;
+        break;
+      case "needs_user_input":
+        stateExplanation = provider
+          ? `${provider} necesita una respuesta tuya.`
+          : "VYVA necesita tu decision para continuar.";
+        break;
+      case "completed":
+        stateExplanation = `El resultado de ${subject} esta guardado para consultarlo o reutilizarlo.`;
+        break;
+      case "failed":
+        stateExplanation = `Esta opcion no funciono; VYVA puede probar otra forma.`;
+        break;
+    }
+  } else {
+    switch (summary.state) {
+      case "collecting":
+        stateExplanation = missing
+          ? `VYVA needs ${missing} to prepare ${subject}.`
+          : `VYVA needs one more detail to prepare ${subject}.`;
+        break;
+      case "ready_to_review":
+        stateExplanation = `Check the summary before VYVA moves ahead with ${subject}.`;
+        break;
+      case "awaiting_confirmation":
+        stateExplanation = `Confirm only if you want VYVA to move ahead with ${subject}.`;
+        break;
+      case "in_progress":
+        stateExplanation = provider
+          ? `VYVA is waiting on ${provider}.`
+          : channel
+            ? `VYVA is using ${channel} to move this forward.`
+            : `VYVA is moving ahead with ${subject}.`;
+        break;
+      case "needs_user_input":
+        stateExplanation = provider
+          ? `${provider} needs a decision from you.`
+          : "VYVA needs your decision to continue.";
+        break;
+      case "completed":
+        stateExplanation = `The result for ${subject} is saved so you can review or reuse it.`;
+        break;
+      case "failed":
+        stateExplanation = "This option did not work; VYVA can try another way.";
+        break;
+    }
+  }
+
+  return {
+    stateLabel: conciergeCanvasStateLabel(summary.state, isSpanish),
+    stateExplanation,
+    primaryActionLabel: conciergeCanvasPrimaryActionDisplayLabel(summary.state, isSpanish),
+    safetyRule: isSpanish
+      ? "Nada se llama, envia, reserva ni comparte antes de tu confirmacion."
+      : "Nothing is called, sent, booked, or shared before you confirm.",
+  };
 }
 
 function providerReplyNeedsUserInput(input: ConciergeCanvasStatusInput): boolean {

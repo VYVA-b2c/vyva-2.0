@@ -27,11 +27,12 @@ describe("Concierge task navigation", () => {
 
     expect(screen.getByText("Next step")).toBeInTheDocument();
     expect(screen.getByTestId("concierge-home-task-status")).toHaveTextContent("Needs input");
+    expect(screen.getByTestId("concierge-home-task-explanation")).toHaveTextContent("VYVA needs your decision to continue.");
     expect(screen.queryByText("2 queued")).not.toBeInTheDocument();
     expect(screen.queryByText("Done recently")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "All tasks" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Continue" })).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getAllByRole("button", { name: "Respond" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Respond" }));
     expect(onContinue).toHaveBeenCalledWith(expect.objectContaining({ id: "task-1" }));
   });
 
@@ -52,6 +53,7 @@ describe("Concierge task navigation", () => {
     expect(screen.getByTestId("concierge-task-workspace")).toHaveAttribute("data-task-stage", "confirmation");
     expect(screen.getByText("Confirm")).toHaveAttribute("aria-current", "step");
     expect(screen.getByTestId("concierge-task-canvas-state")).toHaveTextContent("Confirm first");
+    expect(screen.getByTestId("concierge-task-canvas-state")).toHaveTextContent("Confirm only if you want VYVA to move ahead with the task.");
     expect(screen.getByTestId("concierge-task-canvas-state")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("concierge-task-provider-update")).toHaveTextContent("Reply received");
     expect(screen.getByTestId("concierge-task-provider-update")).toHaveTextContent("Tuesday at 10 works.");

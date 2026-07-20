@@ -184,8 +184,8 @@ import type {
   ConciergeExecutionTaskStatus,
 } from "../../shared/conciergeActionExecution";
 import {
+  conciergeCanvasExplainability,
   conciergeCanvasPrimaryActionDisplayLabel,
-  conciergeCanvasStateLabel,
   deriveConciergeCanvasState,
 } from "../../shared/conciergeCanvasState";
 import {
@@ -16868,6 +16868,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const activeActionCanvasPrimaryLabel = activeActionCanvasState
     ? conciergeCanvasPrimaryActionDisplayLabel(activeActionCanvasState.state, isSpanish)
     : "";
+  const activeActionCanvasCopy = activeActionCanvasState
+    ? conciergeCanvasExplainability(activeActionCanvasState, isSpanish, {
+        providerName: activeAction?.provider_name,
+      })
+    : null;
   const homeActiveTask = activeSavedTask
     ? {
         id: activeSavedTask.task.id,
@@ -16879,6 +16884,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           || conciergeTaskEntrySummary(activeSavedTaskEntry, isSpanish),
         providerStatus: activeSavedTask.providerUpdate?.status ?? null,
         canvasState: activeSavedTaskCanvasState?.state ?? null,
+        canvasSummary: activeSavedTaskCanvasState,
       }
     : activeAction
     ? {
@@ -16890,6 +16896,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           || activeTaskProviderLabel(activeAction, isSpanish),
         providerStatus: activeActionProviderUpdate?.status ?? null,
         canvasState: activeActionCanvasState?.state ?? null,
+        canvasSummary: activeActionCanvasState,
       }
     : null;
   return (
@@ -16944,6 +16951,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             summary: activeActionProviderUpdate.summary,
           } : null}
           canvasState={activeActionCanvasState?.state ?? null}
+          canvasSummary={activeActionCanvasState}
           isSpanish={isSpanish}
           onBack={() => navigate("/concierge/tasks")}
           onDelete={persistedTask ? () => {
@@ -18390,13 +18398,13 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 >
                   {statusLabel(activeAction.status, locale)}
                 </span>
-                {activeActionCanvasState ? (
+                {activeActionCanvasCopy ? (
                   <span
                     className="rounded-full border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-1 font-body text-[12px] font-black text-[#0F766E]"
                     data-testid={`badge-concierge-canvas-state-${activeAction.id}`}
-                    title={activeActionCanvasState.reason}
+                    title={activeActionCanvasState?.reason}
                   >
-                    {conciergeCanvasStateLabel(activeActionCanvasState.state, isSpanish)}
+                    {activeActionCanvasCopy.stateLabel}
                   </span>
                 ) : null}
                 <button
@@ -18414,6 +18422,18 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
               {activeActionShowVyvaSummary || activeAction.action_summary}
             </p>
+            {activeActionCanvasCopy ? (
+              <div className="mt-3 rounded-[18px] border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-2" data-testid={`panel-concierge-canvas-explainability-${activeAction.id}`}>
+                <p className="font-body text-[13px] font-bold leading-snug text-[#115E59]">
+                  {activeActionCanvasCopy.stateExplanation}
+                </p>
+                {activeActionCanvasState?.state !== "completed" ? (
+                  <p className="mt-1 font-body text-[12px] font-bold leading-snug text-[#0F766E]">
+                    {activeActionCanvasCopy.safetyRule}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {activeActionProviderShortlist ? (
               <ProviderShortlistFollowUpPanel
@@ -18933,6 +18953,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                 const details = completedSessionDetails(session, isSpanish);
                 const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
                 const sessionIsDryRun = isConciergeDryRunPayload(session.outcome_payload);
+                const completedCanvasCopy = conciergeCanvasExplainability("completed", isSpanish);
 
                 return (
                   <button
@@ -18955,7 +18976,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                             className="rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]"
                             data-testid={`badge-concierge-completed-state-${session.id}`}
                           >
-                            {conciergeCanvasStateLabel("completed", isSpanish)}
+                            {completedCanvasCopy.stateLabel}
                           </span>
                           {completedAt && (
                             <span className="font-body text-[11px] font-bold text-vyva-text-3">
@@ -18976,6 +18997,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
                         </p>
                         <p className="mt-0.5 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
                           {session.outcome_summary || (isSpanish ? "Tarea completada por VYVA." : "Task completed by VYVA.")}
+                        </p>
+                        <p className="mt-1 font-body text-[12px] font-bold leading-snug text-[#115E59]" data-testid={`text-concierge-completed-explanation-${session.id}`}>
+                          {completedCanvasCopy.stateExplanation}
                         </p>
 
                         {details.length > 0 && (

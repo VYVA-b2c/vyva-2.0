@@ -1,10 +1,9 @@
 import { ArrowLeft, ChevronRight, ClipboardCheck, ListTodo, Trash2 } from "lucide-react";
 import type { ConciergeTaskStage } from "@/lib/conciergeTaskNavigation";
 import type { ConciergeProviderTaskStatus } from "../../../shared/conciergeProviderReplies";
-import type { ConciergeCanvasState } from "../../../shared/conciergeCanvasState";
+import type { ConciergeCanvasState, ConciergeCanvasStateSummary } from "../../../shared/conciergeCanvasState";
 import {
-  conciergeCanvasPrimaryActionDisplayLabel,
-  conciergeCanvasStateLabel,
+  conciergeCanvasExplainability,
 } from "../../../shared/conciergeCanvasState";
 
 type HomeTask = {
@@ -14,6 +13,7 @@ type HomeTask = {
   summary: string;
   providerStatus?: ConciergeProviderTaskStatus | null;
   canvasState?: ConciergeCanvasState | null;
+  canvasSummary?: ConciergeCanvasStateSummary | null;
 };
 
 function providerStatusLabel(status: ConciergeProviderTaskStatus, isSpanish: boolean): string {
@@ -46,13 +46,18 @@ export function ConciergeHomeTaskOverview({
   onContinue: (task: HomeTask) => void;
   onOpenInbox: () => void;
 }) {
-  const stateLabel = activeTask?.canvasState
-    ? conciergeCanvasStateLabel(activeTask.canvasState, isSpanish)
+  const canvasCopy = activeTask?.canvasSummary
+    ? conciergeCanvasExplainability(activeTask.canvasSummary, isSpanish)
+    : activeTask?.canvasState
+      ? conciergeCanvasExplainability(activeTask.canvasState, isSpanish)
+      : null;
+  const stateLabel = canvasCopy
+    ? canvasCopy.stateLabel
     : activeTask?.providerStatus
       ? providerStatusLabel(activeTask.providerStatus, isSpanish)
       : "";
-  const actionLabel = activeTask?.canvasState
-    ? conciergeCanvasPrimaryActionDisplayLabel(activeTask.canvasState, isSpanish)
+  const actionLabel = canvasCopy
+    ? canvasCopy.primaryActionLabel
     : taskActionLabel(activeTask?.providerStatus, isSpanish);
 
   return (
@@ -92,6 +97,11 @@ export function ConciergeHomeTaskOverview({
               <p className="mt-1 line-clamp-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                 {activeTask.summary}
               </p>
+              {canvasCopy ? (
+                <p className="mt-1 line-clamp-2 font-body text-[12px] font-bold leading-snug text-[#115E59]" data-testid="concierge-home-task-explanation">
+                  {canvasCopy.stateExplanation}
+                </p>
+              ) : null}
             </div>
           </div>
           <button
@@ -124,6 +134,7 @@ export function ConciergeTaskWorkspaceHeader({
   isDeleting = false,
   providerUpdate,
   canvasState,
+  canvasSummary,
 }: {
   title: string;
   summary: string;
@@ -137,6 +148,7 @@ export function ConciergeTaskWorkspaceHeader({
     summary: string;
   } | null;
   canvasState?: ConciergeCanvasState | null;
+  canvasSummary?: ConciergeCanvasStateSummary | null;
 }) {
   const stages: Array<{ id: ConciergeTaskStage; label: string }> = [
     { id: "details", label: isSpanish ? "Detalles" : "Details" },
@@ -144,6 +156,11 @@ export function ConciergeTaskWorkspaceHeader({
     { id: "confirmation", label: isSpanish ? "Confirmar" : "Confirm" },
   ];
   const activeIndex = stages.findIndex((item) => item.id === stage);
+  const canvasCopy = canvasSummary
+    ? conciergeCanvasExplainability(canvasSummary, isSpanish)
+    : canvasState
+      ? conciergeCanvasExplainability(canvasState, isSpanish)
+      : null;
 
   return (
     <section className="mt-4 border-b border-vyva-border pb-5" data-testid="concierge-task-workspace" data-task-stage={stage}>
@@ -172,15 +189,16 @@ export function ConciergeTaskWorkspaceHeader({
       </div>
       <h1 className="mt-3 font-body text-[28px] font-black leading-tight text-vyva-text-1">{title}</h1>
       <p className="mt-2 max-w-2xl font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{summary}</p>
-      {canvasState ? (
+      {canvasCopy ? (
         <div className="mt-4 rounded-[18px] border border-[#BFE7E1] bg-[#F0FDFA] px-3 py-2" data-testid="concierge-task-canvas-state">
           <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-            {conciergeCanvasStateLabel(canvasState, isSpanish)}
+            {canvasCopy.stateLabel}
           </p>
           <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#115E59]">
-            {isSpanish
-              ? "Nada se llama, envia, reserva ni comparte antes de tu confirmacion."
-              : "Nothing is called, sent, booked, or shared before you confirm."}
+            {canvasCopy.stateExplanation}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold leading-snug text-[#0F766E]">
+            {canvasCopy.safetyRule}
           </p>
         </div>
       ) : null}

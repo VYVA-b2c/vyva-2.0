@@ -410,7 +410,8 @@ describe("Home fast service actions", () => {
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Ready to review");
     expect(nudge).toHaveTextContent("Review your ride");
-    expect(nudge).toHaveTextContent("Nothing happens before you confirm.");
+    expect(screen.getByTestId("text-home-concierge-state-explanation")).toHaveTextContent("Check the summary before VYVA moves ahead with the ride.");
+    expect(nudge).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
     expect(screen.queryByTestId("button-home-concierge-follow-up")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-concierge-got-reply")).not.toBeInTheDocument();
@@ -461,7 +462,7 @@ describe("Home fast service actions", () => {
     const card = screen.getByTestId("card-home-concierge-resume");
     expect(card).toHaveAttribute("data-resume-kind", "form");
     expect(card).toHaveTextContent("Review your admin task");
-    expect(card).toHaveTextContent("Nothing happens before you confirm.");
+    expect(card).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(card).not.toHaveTextContent("Radio Taxi");
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
 
@@ -736,7 +737,7 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your admin task");
-    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Nothing happens before you confirm.");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "form");
     expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
@@ -779,6 +780,7 @@ describe("Home fast service actions", () => {
     const card = screen.getByTestId("card-home-concierge-reuse");
     expect(card).toHaveTextContent("Useful again");
     expect(screen.getByTestId("badge-home-concierge-completed-state")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("text-home-concierge-reuse-explanation")).toHaveTextContent("saved");
     expect(card).toHaveTextContent("Use last ride again");
     expect(card).toHaveTextContent("Radio Taxi");
 

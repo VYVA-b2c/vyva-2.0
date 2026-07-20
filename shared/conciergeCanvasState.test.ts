@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  conciergeCanvasExplainability,
   conciergeCanvasFlowKind,
   deriveConciergeCanvasState,
 } from "./conciergeCanvasState";
@@ -176,7 +177,7 @@ describe("concierge canvas state machine", () => {
     expect(summary).toMatchObject({
       state: "needs_user_input",
       flowKind: "provider_reply",
-      primaryActionLabel: "Continue",
+      primaryActionLabel: "Respond",
       safeExternalActionAllowed: false,
     });
   });
@@ -191,5 +192,46 @@ describe("concierge canvas state machine", () => {
       status: "failed",
       executionTask: task({ lifecycle_status: "failed" }),
     }).primaryActionLabel).toBe("Try another way");
+  });
+
+  it("provides short explainability copy and actions for every user-facing state", () => {
+    const expectations = [
+      ["collecting", "Add detail", "one more detail"],
+      ["ready_to_review", "Review", "Check the summary"],
+      ["awaiting_confirmation", "Confirm", "Confirm only if"],
+      ["in_progress", "Continue", "moving ahead"],
+      ["needs_user_input", "Respond", "needs your decision"],
+      ["completed", "Save", "saved"],
+      ["failed", "Try another way", "try another way"],
+    ] as const;
+
+    expectations.forEach(([state, action, explanation]) => {
+      const copy = conciergeCanvasExplainability(state);
+      expect(copy.stateExplanation).toContain(explanation);
+      expect(copy.primaryActionLabel).toBe(action);
+      expect(copy.safetyRule).toContain("before you confirm");
+    });
+  });
+
+  it("uses flow and provider context without inventing scores or hidden readiness", () => {
+    const ride = conciergeCanvasExplainability({
+      state: "ready_to_review",
+      flowKind: "ride",
+      primaryActionLabel: "Review",
+      safeExternalActionAllowed: false,
+      requiresUserConfirmationBeforeExternalAction: true,
+      reason: "ready_for_review",
+    });
+    expect(ride.stateExplanation).toBe("Check the summary before VYVA moves ahead with the ride.");
+
+    const waiting = conciergeCanvasExplainability({
+      state: "in_progress",
+      flowKind: "home_service",
+      primaryActionLabel: "Continue",
+      safeExternalActionAllowed: true,
+      requiresUserConfirmationBeforeExternalAction: false,
+      reason: "external_step_in_progress",
+    }, false, { providerName: "Saved Plumber" });
+    expect(waiting.stateExplanation).toBe("VYVA is waiting on Saved Plumber.");
   });
 });
