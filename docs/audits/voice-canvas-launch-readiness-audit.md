@@ -74,6 +74,8 @@ Copy/accessibility evidence handoff now includes a copy-safe template in both th
 
 Shopping Delivery and Provider Reply now have dedicated rollout/rollback runbooks matching Ride, Appointment, and Medication Refill, so every feature-flagged Canvas launch flow has a per-flow immediate rollback procedure, sanitized endpoint-evidence command, existing-fallback check, open-session no-side-effect check, failure triage notes, and release checklist.
 
+Per-flow rollout runbooks now include a copy-safe rollback owner handoff template and privacy-safe incident triage wording, requiring owner/backup, decision window, rollback trigger, sanitized endpoint/fallback/open-session evidence, and forbidden-data boundaries before launch.
+
 Privacy review rows now require the result and evidence to name the specific forbidden data class; generic no-sensitive-data wording is rejected.
 
 Device coverage evidence now requires dated real phone, tablet, and desktop/laptop coverage plus screenshot, photo, or artifact evidence with no transcripts, entered text, addresses, or personal details; generic prose-only device evidence, generic screenshot evidence, and sensitive artifact evidence are rejected.

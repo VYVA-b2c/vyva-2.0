@@ -232,6 +232,19 @@ describe("Canvas launch readiness manifest", () => {
         expect(dedicatedRunbook).toContain("without explicit confirmation");
         expect(dedicatedRunbook).toContain("Telemetry contains only");
         expect(dedicatedRunbook).toContain("never");
+        expect(dedicatedRunbook).toContain("## Failure triage");
+        expect(dedicatedRunbook).toContain("## Release checks");
+        expect(dedicatedRunbook).toContain("## Rollback owner handoff");
+        expect(dedicatedRunbook).toContain("Owner/backup");
+        expect(dedicatedRunbook).toContain("Decision time");
+        expect(dedicatedRunbook).toContain("Rollback trigger");
+        expect(dedicatedRunbook).toContain("Rollback action");
+        expect(dedicatedRunbook).toContain("Evidence to capture");
+        expect(dedicatedRunbook).toContain("Privacy boundary");
+        expect(dedicatedRunbook).toContain("sanitized rollback-disabled endpoint artifact");
+        expect(dedicatedRunbook).toContain("open-session Canvas closed/hidden observation");
+        expect(dedicatedRunbook).toContain("privacy-safe event counts and request timing only");
+        expect(dedicatedRunbook).toContain("do not collect entered content");
 
         expect(runbook).toContain(flow.featureFlag.endpoint);
         expect(runbook).toContain(flow.featureFlag.serverFeatureKey);

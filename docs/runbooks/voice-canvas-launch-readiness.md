@@ -205,6 +205,8 @@ For evidence artifact inventory rows, map the sanitized artifact bucket to the e
 
 For final sign-off rows, notes must be concrete and role-specific: Product covers real-use evidence, senior copy, what happens next, and privacy/analytics readiness; Engineering covers rollback, stale/duplicate guards, and feature-flag fallback safety; QA covers the real-device matrix plus voice/touch/keyboard coverage; Operations covers rollback ownership, disabled or rollout-0 behavior, and fallback readiness.
 
+Per-flow rollback runbooks include a copy-safe rollback owner handoff template. Before enabling any percentage rollout, fill that handoff in the launch record with owner/backup, decision window, trigger, rollback action, sanitized endpoint/fallback/open-session evidence, and privacy boundary. Do not launch with an unnamed rollback owner.
+
 Run the sign-off gate after filling the matrix:
 
 ```bash

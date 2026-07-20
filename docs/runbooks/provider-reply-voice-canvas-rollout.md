@@ -32,6 +32,7 @@ Start with internal-only access, then 5%, 25%, 50%, and 100% only after reviewin
 - Increased `retried`: check blocked-state copy, validation, and task-service latency before expanding rollout.
 - Increased `abandoned`: compare by scene only; never add reply text, provider names, notes, references, or transcripts to diagnose.
 - Reconnect reports: verify draft scenes restore entered information, while an in-flight waiting request returns to a safe state and is never automatically resubmitted.
+- Privacy or safety concern: preserve privacy-safe event counts and request timing only; do not collect entered content, provider names, reply text, notes, references, phone numbers, emails, transcripts, account identifiers, or personal details while investigating.
 
 ## Release checks
 
@@ -39,3 +40,19 @@ Start with internal-only access, then 5%, 25%, 50%, and 100% only after reviewin
 - Verify English and Spanish long labels at 390 px, 768 px, and desktop widths.
 - Confirm no reply save, completion, call, message, navigation, or external action occurs before explicit confirmation.
 - Confirm task hub provider reply resume falls back to the existing provider reply panel when the destination Canvas flag is disabled or rollout 0.
+
+## Rollback owner handoff
+
+Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS`, set `VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/provider-reply-voice-canvas` rollback-disabled endpoint response, and confirm the Existing provider reply panel appears.
+
+Use this copy-safe handoff note when recording ownership:
+
+```text
+Rollback owner handoff, reviewed on [YYYY-MM-DD] by [reviewer]:
+- Owner/backup: [name or team] / [name or team]
+- Decision time: [time window or incident bridge reference]
+- Rollback trigger: pre-confirmation action, duplicate save/completion, stale response accepted, privacy leak, fallback unavailable, restore failure, or sustained failed/retry/abandonment spike
+- Rollback action: set enable false and rollout 0; restart only if runtime configuration is read at process start
+- Evidence to capture: sanitized rollback-disabled endpoint artifact, Existing provider reply panel fallback screenshot, open-session Canvas closed/hidden observation, and no-write/no-external-action note
+- Privacy boundary: no transcripts, entered text, provider names, reply text, notes, references, phone numbers, emails, account identifiers, or personal data in artifacts
+```

@@ -32,6 +32,7 @@ Start with internal-only access, then 5%, 25%, 50%, and 100% only after reviewin
 - Increased `retried`: check blocked-state copy, unavailable-option handling, and provider latency before expanding rollout.
 - Increased `abandoned`: compare by scene only; never add entered values, item names, retailer names, addresses, or transcripts to diagnose.
 - Reconnect reports: verify draft scenes restore entered information, while an in-flight waiting request returns to a safe state and is never automatically resubmitted.
+- Privacy or safety concern: preserve privacy-safe event counts and request timing only; do not collect entered content, shopping items, retailer names, prices, fees, addresses, transcripts, account identifiers, or personal details while investigating.
 
 ## Release checks
 
@@ -39,3 +40,19 @@ Start with internal-only access, then 5%, 25%, 50%, and 100% only after reviewin
 - Verify English and Spanish long labels at 390 px, 768 px, and desktop widths.
 - Confirm no request write, order, call, message, navigation, or external action occurs before explicit confirmation.
 - Confirm task hub shopping draft resume falls back to the existing shopping path when the destination Canvas flag is disabled or rollout 0.
+
+## Rollback owner handoff
+
+Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS`, set `VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/shopping-delivery-voice-canvas` rollback-disabled endpoint response, and confirm the Existing shopping guide and recommendations appear.
+
+Use this copy-safe handoff note when recording ownership:
+
+```text
+Rollback owner handoff, reviewed on [YYYY-MM-DD] by [reviewer]:
+- Owner/backup: [name or team] / [name or team]
+- Decision time: [time window or incident bridge reference]
+- Rollback trigger: pre-confirmation action, duplicate request/action, stale response accepted, privacy leak, fallback unavailable, restore failure, or sustained failed/retry/abandonment spike
+- Rollback action: set enable false and rollout 0; restart only if runtime configuration is read at process start
+- Evidence to capture: sanitized rollback-disabled endpoint artifact, Existing shopping guide and recommendations fallback screenshot, open-session Canvas closed/hidden observation, and no-write/no-external-action note
+- Privacy boundary: no transcripts, entered text, shopping items, retailer names, prices, fees, addresses, account identifiers, or personal data in artifacts
+```

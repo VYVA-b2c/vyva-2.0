@@ -30,7 +30,7 @@ Telemetry contains only closed events such as `scene_viewed`, `draft_restored`, 
 
 Never log medication names, strengths, quantities, provider/pharmacy names, notes, symptoms, transcripts, contact preferences, or preparation references.
 
-## Release checklist
+## Release checks
 
 1. Verify the fallback with the flag disabled and with malformed configuration.
 2. Run focused unit, integration, accessibility, responsive, and browser tests.
@@ -38,6 +38,28 @@ Never log medication names, strengths, quantities, provider/pharmacy names, note
 4. Begin with an internal cohort, then a small percentage while watching abandonment, retry, completion, failure, and urgent-help event rates.
 5. Confirm no external action or preparation request occurs before the review confirmation.
 
-## Incident response
+## Failure triage
 
 Immediately disable the flag for any pre-confirmation action, duplicate preparation, privacy leak, stale response acceptance, unsafe urgent routing, or inability to restore the existing flow. Preserve privacy-safe event counts and request timing only; do not collect entered content while investigating.
+
+- Increased `failed`: inspect refill preparation and Concierge task service health; disable the flag if sustained.
+- Increased `retried`: check medication-identification copy, urgent-help routing, and blocked-state guidance before expanding rollout.
+- Increased `abandoned`: compare by scene only; never add entered values, medication names, strengths, quantities, symptoms, pharmacy or provider names, notes, contact details, or transcripts to diagnose.
+- Reconnect reports: verify draft scenes restore entered information, while an in-flight waiting request returns to a safe state and is never automatically resubmitted.
+- Privacy or safety concern: preserve privacy-safe event counts and request timing only; do not collect entered content, medication names, strengths, quantities, symptoms, pharmacy or provider names, notes, contact details, or preparation references while investigating.
+
+## Rollback owner handoff
+
+Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS`, set `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/medication-refill-voice-canvas` rollback-disabled endpoint response, and confirm the Existing medication refill shopping/support path appears.
+
+Use this copy-safe handoff note when recording ownership:
+
+```text
+Rollback owner handoff, reviewed on [YYYY-MM-DD] by [reviewer]:
+- Owner/backup: [name or team] / [name or team]
+- Decision time: [time window or incident bridge reference]
+- Rollback trigger: pre-confirmation action, duplicate preparation, stale response accepted, privacy leak, unsafe urgent routing, fallback unavailable, restore failure, or sustained failed/retry/abandonment spike
+- Rollback action: set enable false and rollout 0; restart only if runtime configuration is read at process start
+- Evidence to capture: sanitized rollback-disabled endpoint artifact, Existing medication refill shopping/support path fallback screenshot, open-session Canvas closed/hidden observation, and no-write/no-external-action note
+- Privacy boundary: no transcripts, entered text, medication names, strengths, quantities, symptoms, pharmacy or provider names, notes, contact details, preparation references, account identifiers, or personal data in artifacts
+```

@@ -31,9 +31,26 @@ Start at 5%, then 25%, 50%, and 100% only after reviewing completion, abandonmen
 - Increased `retried`: check provider latency and blocked-state copy before expanding rollout.
 - Increased `abandoned`: compare by scene only; never add entered values or transcripts to diagnose.
 - Reconnect reports: verify a draft scene restores, while an in-flight waiting request returns to listening and is never resubmitted.
+- Privacy or safety concern: preserve privacy-safe event counts and request timing only; do not collect entered content, addresses, saved-place labels, transcripts, dates, times, or ride details while investigating.
 
 ## Release checks
 
 - Run focused component and Concierge tests, typecheck, changed-file lint, and the dedicated Playwright specification.
 - Verify English and Spanish copy at 390 px, 768 px, and desktop widths.
 - Confirm no transport or action request occurs without explicit confirmation.
+
+## Rollback owner handoff
+
+Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_RIDE_VOICE_CANVAS`, set `VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/ride-voice-canvas` rollback-disabled endpoint response, and confirm the Existing Concierge transport panel appears.
+
+Use this copy-safe handoff note when recording ownership:
+
+```text
+Rollback owner handoff, reviewed on [YYYY-MM-DD] by [reviewer]:
+- Owner/backup: [name or team] / [name or team]
+- Decision time: [time window or incident bridge reference]
+- Rollback trigger: pre-confirmation action, duplicate booking/action, stale response accepted, privacy leak, fallback unavailable, restore failure, or sustained failed/retry/abandonment spike
+- Rollback action: set enable false and rollout 0; restart only if runtime configuration is read at process start
+- Evidence to capture: sanitized rollback-disabled endpoint artifact, Existing Concierge transport panel fallback screenshot, open-session Canvas closed/hidden observation, and no-write/no-external-action note
+- Privacy boundary: no transcripts, entered text, addresses, saved-place labels, dates, times, ride details, account identifiers, or personal data in artifacts
+```
