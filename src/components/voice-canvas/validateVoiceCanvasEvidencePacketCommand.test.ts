@@ -405,8 +405,34 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects endpoint evidence note patterns without expected-state proof", () =>
     withTempPacket(
       completedPacket().replace(
-        "matching expected-state labels, Cache-Control no-store, and only sanitized endpoint/status/cache-control/timing plus enabled/rollout payload evidence",
+        "matching expected-state labels, Cache-Control no-store, auth metadata matching the launch run plan, no credential references, and only sanitized endpoint/status/cache-control/timing plus enabled/rollout payload evidence",
         "only sanitized endpoint/status/cache-control/timing plus enabled/rollout payload evidence",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Feature endpoint and rollback" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects endpoint evidence note patterns without auth metadata proof", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "auth metadata matching the launch run plan, no credential references, and ",
+        "",
       ),
       (tempPacketPath) => {
         const result = runValidator([tempPacketPath, "--json"]);

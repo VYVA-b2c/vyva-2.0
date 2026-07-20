@@ -79,6 +79,8 @@ const inventoryCoverageRequirements: Record<
     ["feature"],
     ["endpoint"],
     ["rollback"],
+    ["auth", "authentication"],
+    ["metadata"],
   ],
   "Task hub resume artifacts": [
     ["task hub"],
@@ -355,6 +357,9 @@ const evidenceNotePatternRequirements: Record<
     ["expected-state"],
     ["cache-control"],
     ["no-store"],
+    ["auth metadata", "authentication metadata"],
+    ["run plan"],
+    ["credential"],
   ],
   "Task hub destination fallback": [
     ["reference"],
@@ -463,6 +468,8 @@ const finalPrefillChecklistRequirements: readonly (readonly string[])[] = [
   ["canvas:qa:features"],
   ["deployed url"],
   ["expected-state"],
+  ["auth metadata", "authentication metadata"],
+  ["credential"],
   ["rollback owner"],
   ["backup"],
   ["decision"],
