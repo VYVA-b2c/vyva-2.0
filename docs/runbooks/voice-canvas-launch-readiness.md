@@ -2,7 +2,7 @@
 
 This checklist is the final preflight before enabling Canvas-powered Concierge flows for real users. It covers ride, appointment, medication refill, shopping or delivery, provider reply, and task hub resume.
 
-Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-audit.md`. Record deployed real-device results in `docs/audits/voice-canvas-real-device-qa-matrix.md`. Do not treat the feature as launch-signed-off until that audit shows the deployed/manual checklist is complete.
+Current audit status is tracked in `docs/audits/voice-canvas-launch-readiness-audit.md`. Prepare sanitized evidence references in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then record deployed real-device results in `docs/audits/voice-canvas-real-device-qa-matrix.md`. Do not treat the feature as launch-signed-off until that audit shows the deployed/manual checklist is complete.
 
 ## Launch invariants
 
@@ -60,6 +60,8 @@ For analytics signal rows, the evidence note must include dated source-event, po
 ## Real-device QA pass
 
 Run this pass for each flow: ride, appointment, refill, shopping, provider reply, and task hub resume.
+
+Before filling the matrix, use `docs/audits/voice-canvas-real-device-evidence-packet.md` to name sanitized screenshots, photos, recordings, logs, traces, captures, dashboards, queries, or artifact links and map them back to the matrix rows they prove.
 
 1. Open on desktop, tablet, and mobile widths.
 2. Start with touch, complete or safely exit with keyboard where possible, and repeat with voice commands.

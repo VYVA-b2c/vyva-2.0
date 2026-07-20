@@ -1,0 +1,68 @@
+# Voice Canvas real-device evidence packet
+
+Use this packet before filling `docs/audits/voice-canvas-real-device-qa-matrix.md`. It gives QA one sanitized place to name artifacts, dates, reviewers, and the matrix rows each artifact proves.
+
+This packet is not launch approval. The QA matrix remains the launch gate, and `npm run canvas:qa:validate` must pass without `--allow-pending` before Canvas is enabled for real users.
+
+## Privacy rules for every artifact
+
+- Do not capture spoken transcripts, typed free text, addresses, saved-place labels, medication details, provider names, reply text, notes, references, dates, times, shopping item details, account identifiers, phone numbers, emails, or other personal details.
+- Use synthetic QA data and cropped or redacted screenshots whenever possible.
+- Prefer sanitized artifact names over raw URLs when the destination may expose personal data.
+- Each note must include a non-future `YYYY-MM-DD` date and the reviewer or QA owner.
+- If an artifact accidentally contains personal details, do not link it here or in the QA matrix. Replace it with a sanitized artifact.
+
+## Evidence packet inventory
+
+| Artifact set | Suggested sanitized reference | Matrix rows it should prove | Reviewer/date |
+| --- | --- | --- | --- |
+| Environment and flag artifacts | `voice-canvas/env-flags/<YYYY-MM-DD>/enabled-disabled-rollout-log` | Environment record; feature endpoint and rollback checks | Pending |
+| Real-device screenshots or photos | `voice-canvas/devices/<YYYY-MM-DD>/<flow>-phone-tablet-desktop` | Device coverage for phone, tablet, and desktop/laptop | Pending |
+| Interaction recordings or logs | `voice-canvas/interactions/<YYYY-MM-DD>/<flow>-voice-touch-keyboard` | Interaction mode coverage for voice, touch, and keyboard | Pending |
+| Behavior recovery artifacts | `voice-canvas/recovery/<YYYY-MM-DD>/<flow>-resume-refresh-reconnect-back-cancel` | Required behavior checklist for resume, app exit/reopen, refresh/reconnect, interruption, browser back, cancel, retry, duplicate/stale guard, and no side effects | Pending |
+| Feature endpoint artifacts | `voice-canvas/endpoints/<YYYY-MM-DD>/<flow>-disabled-enabled-malformed-missing-rollback` | Feature endpoint and rollback checks | Pending |
+| Task hub resume artifacts | `voice-canvas/task-hub/<YYYY-MM-DD>/resume-fallback-no-side-effects` | Task hub destination fallback checks | Pending |
+| Copy and accessibility artifacts | `voice-canvas/accessibility/<YYYY-MM-DD>/copy-focus-screenreader-reduced-motion` | Copy and accessibility read-through | Pending |
+| Analytics signal artifacts | `voice-canvas/analytics/<YYYY-MM-DD>/started-resumed-abandoned-blocked-confirmed-completed-counts` | Analytics signal review | Pending |
+| Analytics privacy artifacts | `voice-canvas/privacy/<YYYY-MM-DD>/allowed-envelope-forbidden-data-absent` | Analytics privacy review | Pending |
+
+## Flow packet checklist
+
+Use one flow packet per launch surface.
+
+| Flow | Required packet coverage |
+| --- | --- |
+| Ride Voice Canvas | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review and explicit confirmation; no booking, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel |
+| Appointment Voice Canvas | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; date/time path without exposing date or time details; review and explicit confirmation; no booking, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing appointment panel |
+| Medication Refill Voice Canvas | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; refill path without exposing medication details; review and explicit confirmation; no refill request, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing medication refill shopping/support path |
+| Shopping Delivery Voice Canvas | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; shopping path without exposing item or retailer details; review and explicit confirmation; no order, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing shopping guide and recommendations |
+| Provider Reply Voice Canvas | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; provider reply path without exposing provider names or reply text; review and explicit confirmation; no reply, call, message, navigation, completion, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing provider reply panel |
+| Concierge Task Hub Resume | Real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit where supported; local shopping draft, local medication refill draft, pending provider reply task, and stale or blocked task resume; destination flag fallback to named existing paths; no writes or external actions before confirmation |
+
+## Copy-ready evidence note patterns
+
+Replace bracketed text before copying into the QA matrix.
+
+| Matrix area | Evidence note pattern |
+| --- | --- |
+| Device coverage | `QA real-device screenshot/photo artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: real phone, tablet, and desktop/laptop coverage passed for [flow] with no transcripts, entered text, addresses, or personal details visible.` |
+| Interaction mode coverage | `QA interaction recording/log artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [flow] completed or safely exited with voice, touch, and keyboard; artifact excludes spoken transcripts, entered text, addresses, and personal details.` |
+| Required behavior | `QA behavior artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [flow] restored entered information across start/resume, app exit/reopen, refresh/reconnect, voice interruption, browser back, cancel/exit, and recoverable failure retry/exit with no write, no resubmission, and no external action before explicit confirmation; duplicate confirmation was prevented and stale response was ignored.` |
+| Feature endpoint and rollback | `QA endpoint trace/log artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [endpoint] using server key [server key] showed disabled false/rollout 0, enabled true/rollout 100, malformed-config fail-closed fallback, missing-config fail-closed fallback, and in-session rollback to [named fallback path].` |
+| Task hub destination fallback | `QA task hub artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [task path] resumed when destination Canvas was enabled, fell back to [named existing path] when disabled or rollout 0, and performed no writes and no external actions before confirmation.` |
+| Copy and accessibility | `QA copy/accessibility artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: one clear decision, Spanish long-label readability with no overflow/clipping/truncation, waiting pending/no-action copy, blocked retry/exit copy, completed outcome/no-extra-action copy, keyboard completion or safe exit, focus movement, screen-reader announcements for waiting/blocked/completed, and calm reduced-motion behavior passed.` |
+| Analytics signal | `QA analytics dashboard/query artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [launch signal] source event [source event] produced aggregate signal count [positive number] with only allowed envelope fields.` |
+| Analytics privacy | `QA analytics privacy artifact [reference] reviewed on [YYYY-MM-DD] by [reviewer]: [forbidden data class] was absent and was not recorded, logged, sent, captured, or included; sample contained only allowed envelope fields.` |
+
+## Final pre-fill check
+
+Before changing the QA matrix from `pending execution` to `ready for launch`, confirm:
+
+- every packet row above has a sanitized artifact reference and reviewer/date;
+- every launch flow has real phone, tablet, and desktop/laptop evidence;
+- every launch flow has voice, touch, and keyboard completion or safe-exit evidence where supported;
+- rollback evidence names the actual fallback path for each feature-flagged flow;
+- task hub evidence covers local shopping draft, local medication refill draft, pending provider reply task, and stale or blocked task;
+- analytics evidence has positive aggregate counts for started, resumed, abandoned, blocked, confirmed, and completed;
+- privacy evidence names each forbidden data class and confirms it was absent from the telemetry sample;
+- no artifact link exposes personal details.

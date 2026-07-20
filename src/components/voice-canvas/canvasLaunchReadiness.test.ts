@@ -17,6 +17,8 @@ function evidenceFile(reference: string) {
 
 const launchRunbookPath = "docs/runbooks/voice-canvas-launch-readiness.md";
 const launchAuditPath = "docs/audits/voice-canvas-launch-readiness-audit.md";
+const evidencePacketPath =
+  "docs/audits/voice-canvas-real-device-evidence-packet.md";
 const realDeviceQaMatrixPath =
   "docs/audits/voice-canvas-real-device-qa-matrix.md";
 
@@ -177,10 +179,12 @@ describe("Canvas launch readiness manifest", () => {
     expect(runbook).toContain("Immediate rollback");
     expect(runbook).toContain("No booking, call, message");
     expect(runbook).toContain("voice-canvas-launch-readiness-audit.md");
+    expect(runbook).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(runbook).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(runbook).toContain("canvasLaunchSignoff.test.ts");
     expect(runbook).toContain("validateVoiceCanvasQaMatrixCommand.test.ts");
     expect(audit).toContain("manual real-device/deployed rollback QA still required");
+    expect(audit).toContain("voice-canvas-real-device-evidence-packet.md");
     expect(audit).toContain("voice-canvas-real-device-qa-matrix.md");
     expect(audit).toContain("canvasLaunchSignoff.test.ts");
     expect(audit).toContain("validateVoiceCanvasQaMatrixCommand.test.ts");
@@ -255,6 +259,7 @@ describe("Canvas launch readiness manifest", () => {
       "concrete analytics artifact/query/dashboard/log reference",
       "Evidence artifact inventory",
       "sanitized concrete artifacts",
+      "voice-canvas-real-device-evidence-packet.md",
       "canvas:qa:validate",
       "validateVoiceCanvasQaMatrixCommand.test.ts",
       "Addresses or saved-place labels",
@@ -266,6 +271,57 @@ describe("Canvas launch readiness manifest", () => {
       "concrete and role-specific",
     ]) {
       expect(matrix).toContain(requiredCheck);
+    }
+  });
+
+  it("provides a sanitized evidence packet for staging QA execution", () => {
+    const packet = readFileSync(
+      path.resolve(process.cwd(), evidencePacketPath),
+      "utf8",
+    );
+
+    expect(packet).toContain("This packet is not launch approval");
+    expect(packet).toContain("Do not capture spoken transcripts");
+    expect(packet).toContain("typed free text");
+    expect(packet).toContain("addresses");
+    expect(packet).toContain("provider names");
+    expect(packet).toContain("shopping item details");
+    expect(packet).toContain("no artifact link exposes personal details");
+
+    for (const artifactSet of [
+      "Environment and flag artifacts",
+      "Real-device screenshots or photos",
+      "Interaction recordings or logs",
+      "Behavior recovery artifacts",
+      "Feature endpoint artifacts",
+      "Task hub resume artifacts",
+      "Copy and accessibility artifacts",
+      "Analytics signal artifacts",
+      "Analytics privacy artifacts",
+    ]) {
+      expect(packet).toContain(artifactSet);
+    }
+
+    for (const flow of canvasLaunchReadinessFlows) {
+      expect(packet, flow.label).toContain(flow.label);
+      if (flow.featureFlag) {
+        expect(packet, flow.featureFlag.fallback).toContain(
+          flow.featureFlag.fallback,
+        );
+      }
+    }
+
+    for (const requiredCopy of [
+      "real phone, tablet, and desktop/laptop",
+      "voice, touch, and keyboard",
+      "no write, no resubmission, and no external action before explicit confirmation",
+      "duplicate confirmation was prevented and stale response was ignored",
+      "started, resumed, abandoned, blocked, confirmed, and completed",
+      "only allowed envelope fields",
+      "forbidden data class",
+      "absent and was not recorded, logged, sent, captured, or included",
+    ]) {
+      expect(packet).toContain(requiredCopy);
     }
   });
 });
