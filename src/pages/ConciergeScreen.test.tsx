@@ -5202,6 +5202,51 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.queryByTestId("panel-concierge-provider-resume")).not.toBeInTheDocument();
   });
 
+  it("returns from setup helper request and lets the user continue the original OTC task manually", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [],
+          serviceReadiness: {
+            hasSavedPharmacy: false,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        providerSetupHelpRequested: {
+          setupReason: "Ask trusted helper to set up a pharmacy",
+          helperName: "Maya",
+          conciergeResume: {
+            kind: "otc_pharmacy",
+            itemText: "Vitamin D",
+            fulfillmentPreference: "pickup",
+            requestedTime: "tomorrow",
+            notes: "Same brand",
+          },
+        },
+      },
+    }]);
+
+    const panel = await screen.findByTestId("panel-concierge-provider-setup-help");
+    expect(panel).toHaveTextContent("Waiting for help");
+    expect(panel).toHaveTextContent("Maya can help save the provider.");
+    expect(panel).toHaveTextContent("Ask trusted helper to set up a pharmacy");
+    await waitFor(() => expect(screen.getByTestId("route-state")).toHaveTextContent("null"));
+
+    fireEvent.click(screen.getByTestId("button-provider-setup-help-continue"));
+
+    expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Save a pharmacy first");
+    expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Add my usual pharmacy");
+    expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Find options nearby");
+    expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Ask someone to help");
+    expect(screen.queryByTestId("panel-concierge-provider-setup-help")).not.toBeInTheDocument();
+  });
+
   it("turns a symptom appointment handoff into a one-tap concierge request", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).includes("/api/appointments/requests")) {
