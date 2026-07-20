@@ -18388,6 +18388,87 @@ export default function MarketingAdminPage() {
       };
     }).filter((route): route is NonNullable<typeof route> => Boolean(route));
   }, [contacts, contentTemplatePacksWithStats]);
+  const leadTemplatePathfinderRoute = templatePathfinderRoutes[0] ?? null;
+  const contentTemplateCommandQueue = [
+    {
+      key: "recommended-kit",
+      title: "Create recommended launch kit",
+      value: recommendedContentLaunchKit?.pack.title ?? "No kit ready",
+      detail: recommendedContentLaunchKit
+        ? `${recommendedContentLaunchKit.templates.length} starter assets across ${formatChannelList(recommendedContentLaunchKit.channels)}.`
+        : "Template packs are not available yet.",
+      state: recommendedContentLaunchKit?.state ?? "blocked" as CampaignReadinessState,
+      actionLabel: "Create kit",
+      disabled: !recommendedContentLaunchKit || contentSaving || campaignSaving || recommendedContentLaunchKit.templates.length === 0,
+      onSelect: () => {
+        if (recommendedContentLaunchKit) {
+          void createCampaignPlanFromTemplatePack(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.templates, recommendedContentLaunchKit.heroTemplate);
+        }
+      },
+    },
+    {
+      key: "customize-kit",
+      title: "Customize in studio",
+      value: recommendedContentLaunchKit?.heroTemplate?.title ?? recommendedContentLaunchKit?.pack.focus ?? "Pick a pack",
+      detail: recommendedContentLaunchKit
+        ? "Load the best pack into the campaign studio for AI copy, design, route, and audience work."
+        : "Choose a template pack before customizing.",
+      state: recommendedContentLaunchKit ? "planning" as CampaignReadinessState : "blocked" as CampaignReadinessState,
+      actionLabel: "Open studio",
+      disabled: !recommendedContentLaunchKit || contentSaving,
+      onSelect: () => {
+        if (recommendedContentLaunchKit) {
+          loadContentTemplatePackInStudio(recommendedContentLaunchKit.pack, recommendedContentLaunchKit.heroTemplate, recommendedContentLaunchKit.channels);
+        }
+      },
+    },
+    {
+      key: "generate-pack",
+      title: contentTemplateGapAutopilot.mode === "gap" ? "Fill template gaps" : "Grow template library",
+      value: `${contentTemplateGapAutopilot.batch.length} AI drafts`,
+      detail: contentTemplateGapAutopilot.topSuggestion
+        ? `${contentTemplateGapAutopilot.topSuggestion.title} is the next suggested ${contentTemplateGapAutopilot.mode === "gap" ? "coverage gap" : "expansion"}.`
+        : "No AI template pack is queued.",
+      state: contentTemplateGapAutopilot.state,
+      actionLabel: "Generate pack",
+      disabled: !contentTemplateGapAutopilot.batch.length || contentSaving || templateGapPackRunning || Boolean(templateGapAiRunningId),
+      onSelect: () => void generateTemplateGapPack(),
+    },
+    {
+      key: "pathfinder",
+      title: "Use pathfinder route",
+      value: leadTemplatePathfinderRoute?.title ?? "No route",
+      detail: leadTemplatePathfinderRoute
+        ? `${leadTemplatePathfinderRoute.pack.title}: ${leadTemplatePathfinderRoute.reasons.join(" · ")}.`
+        : "No pathfinder route is available yet.",
+      state: leadTemplatePathfinderRoute?.state ?? "blocked" as CampaignReadinessState,
+      actionLabel: "Open route",
+      disabled: !leadTemplatePathfinderRoute,
+      onSelect: () => {
+        if (!leadTemplatePathfinderRoute) return;
+        setContentTemplatePackFilter(leadTemplatePathfinderRoute.pack.id);
+        setContentTemplateSearch("");
+        setContentTemplateChannelFilter("all");
+        setContentTemplateAudienceFilter("all");
+        setContentTemplateCategoryFilter("all");
+        setContentActionFeedback(`Showing pathfinder route: ${leadTemplatePathfinderRoute.title} with ${leadTemplatePathfinderRoute.pack.title}.`);
+      },
+    },
+    {
+      key: "matchmaker",
+      title: "Use best-fit template",
+      value: bestContentTemplateRecommendation?.template.title ?? "No match yet",
+      detail: bestContentTemplateRecommendation
+        ? `${bestContentTemplateRecommendation.reachable} reachable contact${bestContentTemplateRecommendation.reachable === 1 ? "" : "s"} and ${bestContentTemplateRecommendation.score}% fit.`
+        : "Change filters or add contacts to get a stronger match.",
+      state: bestContentTemplateRecommendation ? "ready" as CampaignReadinessState : "planning" as CampaignReadinessState,
+      actionLabel: "Apply template",
+      disabled: !bestContentTemplateRecommendation || contentSaving,
+      onSelect: () => {
+        if (bestContentTemplateRecommendation) applyContentTemplate(bestContentTemplateRecommendation.template);
+      },
+    },
+  ];
   const campaignStudioLaunchPathItems: CampaignStudioLaunchPathItem[] = [
     {
       key: "goal",
@@ -35403,6 +35484,44 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               ) : null}
+
+              <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-template-command-queue">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Template command queue</p>
+                    <h3 className="mt-1 font-serif text-2xl text-[#241133]">Best next template moves</h3>
+                    <p className="mt-1 max-w-4xl text-sm font-bold leading-relaxed text-[#6f5f59]">
+                      Shortcuts for turning the large library into campaign assets: create the recommended kit, customize it, generate the next AI pack, open the best route, or apply the best-fit template.
+                    </p>
+                  </div>
+                  <Pill className={contentTemplateCommandQueue.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : contentTemplateCommandQueue.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                    {contentTemplateCommandQueue.filter((item) => !item.disabled).length} ready
+                  </Pill>
+                </div>
+                <div className="mt-3 grid gap-3 xl:grid-cols-5">
+                  {contentTemplateCommandQueue.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onSelect}
+                      disabled={item.disabled}
+                      className={`flex min-h-[178px] flex-col rounded-xl border p-3 text-left shadow-sm transition enabled:hover:border-purple-300 enabled:hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70 ${readinessClass(item.state)}`}
+                      data-testid={`button-marketing-template-command-${item.key}`}
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                        <Sparkles size={15} className="text-purple-700" aria-hidden="true" />
+                      </span>
+                      <span className="mt-3 block text-sm font-black text-[#241133]">{item.title}</span>
+                      <span className="mt-1 line-clamp-2 block text-xs font-black leading-relaxed text-purple-800">{item.value}</span>
+                      <span className="mt-2 line-clamp-3 block flex-1 text-xs font-bold leading-relaxed text-[#6f5f59]">{item.detail}</span>
+                      <span className={`mt-3 inline-flex items-center gap-1 text-xs font-black ${item.disabled ? "text-[#8b7a73]" : "text-purple-700"}`}>
+                        {item.actionLabel} {!item.disabled ? <ExternalLink size={12} aria-hidden="true" /> : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {recommendedContentLaunchKit ? (
                 <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 via-white to-emerald-50 p-5 shadow-sm" data-testid="marketing-recommended-launch-kit">

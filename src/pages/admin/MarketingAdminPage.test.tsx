@@ -2768,6 +2768,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-recommended-launch-kit")).toHaveTextContent("AI command ready");
     expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Activate families");
     expect(screen.getByTestId("marketing-template-pathfinder")).toHaveTextContent("Build provider referrals");
+    expect(screen.getByTestId("marketing-template-command-queue")).toHaveTextContent("Template command queue");
+    expect(screen.getByTestId("button-marketing-template-command-recommended-kit")).toHaveTextContent("Create recommended launch kit");
+    expect(screen.getByTestId("button-marketing-template-command-customize-kit")).toHaveTextContent("Customize in studio");
+    expect(screen.getByTestId("button-marketing-template-command-generate-pack")).toHaveTextContent("Grow template library");
+    expect(screen.getByTestId("button-marketing-template-command-pathfinder")).toHaveTextContent("Use pathfinder route");
+    expect(screen.getByTestId("button-marketing-template-command-matchmaker")).toHaveTextContent("Use best-fit template");
     expect(screen.getByTestId("marketing-template-path-family-activation")).toHaveTextContent("Family onboarding");
     expect(screen.getByTestId("marketing-template-path-provider-growth")).toHaveTextContent("Clinic and pharmacy referral");
     fireEvent.click(screen.getByTestId("button-marketing-template-path-open-family-activation"));
