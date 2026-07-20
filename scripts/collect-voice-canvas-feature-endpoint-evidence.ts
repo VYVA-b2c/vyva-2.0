@@ -235,6 +235,7 @@ function isLocalOrPlaceholderHost(hostname: string): boolean {
     host === "::1" ||
     host === "0.0.0.0" ||
     host === "example.com" ||
+    host.includes("mock") ||
     host.endsWith(".localhost") ||
     host.endsWith(".local") ||
     host.endsWith(".test") ||

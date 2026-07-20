@@ -303,7 +303,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
   });
 
-  it("rejects future, stale, and local launch evidence run plans by default", () => {
+  it("rejects future, stale, local, and mock launch evidence run plans by default", () => {
     const future = runLaunchEvidencePlan([
       `--date=${dateDaysFromNow(1)}`,
       "--base-url=https://staging.vyva.app",
@@ -319,6 +319,11 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "--base-url=http://localhost:3000",
       "--json",
     ]);
+    const mock = runLaunchEvidencePlan([
+      `--date=${dateDaysAgo(0)}`,
+      "--base-url=https://mock-staging.vyva.app",
+      "--json",
+    ]);
 
     expect(future.status).toBe(1);
     expect(JSON.parse(future.stdout).problems).toContain(
@@ -330,6 +335,10 @@ describe("Voice Canvas launch evidence run helper command", () => {
     );
     expect(local.status).toBe(1);
     expect(JSON.parse(local.stdout).problems).toContain(
+      "Launch evidence base URL must be a deployed non-local origin unless --allow-local is set.",
+    );
+    expect(mock.status).toBe(1);
+    expect(JSON.parse(mock.stdout).problems).toContain(
       "Launch evidence base URL must be a deployed non-local origin unless --allow-local is set.",
     );
   });

@@ -80,6 +80,7 @@ function validateBaseUrl(value: string): string[] {
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "::1" ||
+    host.includes("mock") ||
     host.endsWith(".local") ||
     host.endsWith(".test") ||
     host.endsWith(".example") ||

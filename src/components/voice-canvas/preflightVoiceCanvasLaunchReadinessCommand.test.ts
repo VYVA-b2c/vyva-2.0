@@ -1415,6 +1415,39 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
   });
 
+  it("rejects launch evidence run plans captured from mock hosts", () => {
+    const runDate = freshReviewDate();
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      validLaunchRunPlan(runDate, "https://mock-staging.vyva.app"),
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            problemCount: number;
+            problems: string[];
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.problems).toContain(
+          "Launch evidence run plan baseUrl must be a deployed HTTPS non-local origin.",
+        );
+        expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
+        expect(summary.nextActions).toContain(
+          "Fix the launch evidence run plan before final launch sign-off.",
+        );
+      },
+    );
+  });
+
   it("rejects launch evidence run plans that drift from the canonical evidence bundle", () => {
     const runDate = freshReviewDate();
     const runPlan = validLaunchRunPlan(runDate);
@@ -2185,18 +2218,15 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
       {
         ...validFeatureEndpointArtifact("rollback"),
-        baseUrl: "https://staging.vyva.app",
+        baseUrl: "https://mock-staging.vyva.app",
         featureEndpoints: validFeatureEndpointArtifact("rollback").featureEndpoints.map(
-          (endpoint, index) =>
-            index === 0
-              ? {
-                  ...endpoint,
-                  url: endpoint.url.replace(
-                    "https://staging.vyva.app",
-                    "https://other-staging.vyva.app",
-                  ),
-                }
-              : endpoint,
+          (endpoint) => ({
+            ...endpoint,
+            url: endpoint.url.replace(
+              "https://staging.vyva.app",
+              "https://mock-staging.vyva.app",
+            ),
+          }),
         ),
       },
       ({ enabledPath, rollbackPath }) => {
@@ -2216,7 +2246,11 @@ describe("Voice Canvas launch readiness preflight command", () => {
               problemCount: number;
               problems: string[];
             };
-            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
           };
           nextActions: string[];
         };
@@ -2234,6 +2268,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
           ]),
         );
         expect(summary.featureEndpointEvidence.rollback.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.rollback.problems).toContain(
+          "Feature endpoint artifact must include a deployed HTTPS non-local baseUrl origin.",
+        );
         expect(summary.nextActions).toContain(
           "Fix enabled feature endpoint evidence before launch sign-off.",
         );

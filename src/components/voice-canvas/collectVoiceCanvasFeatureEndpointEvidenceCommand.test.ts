@@ -262,6 +262,18 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     );
   });
 
+  it("rejects mock hosts as launch evidence", async () => {
+    const result = await runCollector([
+      "--base-url=https://mock-staging.vyva.app",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "Refusing to collect launch evidence from a local, private, or placeholder host.",
+    );
+  });
+
   it("rejects non-HTTPS launch evidence outside explicit local smoke mode", async () => {
     const result = await runCollector([
       "--base-url=http://staging.vyva.app",
