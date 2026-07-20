@@ -643,6 +643,55 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("rejects forged-ready endpoint artifacts with cacheable rows or embedded problems", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        problemCount: 1,
+        problems: ["hidden endpoint issue"],
+        featureEndpoints: validFeatureEndpointArtifact("enabled").featureEndpoints.map(
+          (endpoint, index) =>
+            index === 0
+              ? {
+                  ...endpoint,
+                  cacheControl: "public, max-age=300",
+                  problems: ["cacheable response"],
+                }
+              : endpoint,
+        ),
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: { readyForLaunchEvidence: boolean; problemCount: number };
+            rollback: { readyForLaunchEvidence: boolean; problemCount: number };
+          };
+          nextActions: string[];
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          true,
+        );
+        expect(summary.nextActions).toContain(
+          "Fix enabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
   it("fails unsafe analytics evidence without echoing personal fields or values", () =>
     withTempAnalyticsFile(
       {

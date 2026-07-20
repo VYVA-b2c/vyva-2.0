@@ -310,6 +310,17 @@ function validateFeatureEndpointArtifact(
     problems.push("Feature endpoint artifact must have readyForQaEvidence true.");
   }
 
+  if (isRecord(artifact) && artifact.problemCount !== 0) {
+    problems.push("Feature endpoint artifact problemCount must be 0.");
+  }
+
+  if (
+    isRecord(artifact) &&
+    (!Array.isArray(artifact.problems) || artifact.problems.length !== 0)
+  ) {
+    problems.push("Feature endpoint artifact problems must be an empty array.");
+  }
+
   const expectedEnabled = mode === "enabled";
   const expectedRollout = mode === "enabled" ? 100 : 0;
   const endpointRows = Array.isArray(endpoints) ? endpoints : [];
@@ -376,6 +387,17 @@ function validateFeatureEndpointArtifact(
     }
     if (row.ok !== true || row.status !== 200) {
       problems.push(`${flow.label}: endpoint evidence must be ok with HTTP 200.`);
+    }
+    if (
+      typeof row.cacheControl !== "string" ||
+      !row.cacheControl.toLowerCase().includes("no-store")
+    ) {
+      problems.push(
+        `${flow.label}: endpoint evidence must include Cache-Control no-store.`,
+      );
+    }
+    if (!Array.isArray(row.problems) || row.problems.length !== 0) {
+      problems.push(`${flow.label}: endpoint evidence row problems must be empty.`);
     }
     if (row.enabled !== expectedEnabled) {
       problems.push(
