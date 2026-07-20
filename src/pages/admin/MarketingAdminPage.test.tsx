@@ -1503,6 +1503,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Consent review");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Partner outreach");
     expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Offline field run");
+    expect(screen.getByTestId("marketing-saved-views")).toHaveTextContent("Template factory");
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-partner"));
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
@@ -1532,6 +1533,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByLabelText("Channel filter")).toHaveValue("event");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Launch mode loaded: Local / offline event");
     expect(screen.getByTestId("marketing-campaign-studio-channel-pack-preview")).toHaveTextContent("Local event");
+
+    fireEvent.click(screen.getByTestId("button-marketing-saved-view-templates"));
+    expect(screen.getByTestId("marketing-content-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Saved view: template factory.");
+    expect(screen.getByTestId("marketing-template-command-queue")).toHaveTextContent("Template command queue");
   });
 
   it("turns a standalone contact into a reusable campaign audience before opening the studio", async () => {

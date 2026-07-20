@@ -106,7 +106,7 @@ type MarketingSmartSearchResult = {
   icon: LucideIcon;
   onSelect: () => void;
 };
-type MarketingSavedViewKey = "launch" | "publish" | "relationships" | "consent" | "partner" | "offline" | "creative" | "source";
+type MarketingSavedViewKey = "launch" | "publish" | "relationships" | "consent" | "partner" | "offline" | "templates" | "creative" | "source";
 type MarketingSavedView = {
   key: MarketingSavedViewKey;
   title: string;
@@ -12254,6 +12254,17 @@ export default function MarketingAdminPage() {
       } else {
         setMessage("Saved view: offline field run.");
       }
+      return;
+    }
+    if (viewKey === "templates") {
+      setActiveTab("content");
+      setContentSourceFilter("all");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+      setContentTemplatePackFilter("all");
+      setContentActionFeedback("Saved view: template factory. Use Template gaps, AI drafting, packs, and the gallery to build reusable campaign assets.");
+      setMessage("Saved view: template factory. Open the AI template production path before starting new campaigns.");
       return;
     }
     if (viewKey === "creative") {
@@ -27902,6 +27913,7 @@ export default function MarketingAdminPage() {
     || Boolean(contact.companyName || contact.roleLabel)
   )).length;
   const savedViewCreativeGapCount = Math.max(missingSourceReferenceCount, contentTemplateGapSuggestions.length);
+  const savedViewTemplateCount = contentTemplateGallery.length + contentTemplateGapSuggestions.length;
   const savedViewPublishCount = dueReadyEmailCampaigns.length
     + (scheduledEmailCampaignWithoutRecipients ? 1 : 0)
     + manualHandoffCampaigns.length;
@@ -27968,6 +27980,14 @@ export default function MarketingAdminPage() {
       countLabel: "field kit",
       icon: Waypoints,
       className: "border-orange-100 bg-orange-50 text-orange-950",
+    },
+    {
+      key: "templates",
+      title: "Template factory",
+      detail: "AI-assisted template gaps, reusable packs, and ready-to-adapt channel starters.",
+      countLabel: `${savedViewTemplateCount} assets`,
+      icon: Sparkles,
+      className: "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-950",
     },
     {
       key: "creative",
