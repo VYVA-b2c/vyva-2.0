@@ -23,6 +23,8 @@ npm run canvas:qa:validate -- --allow-pending
 
 The pending-mode validator prints incomplete cells by section, so use that output to confirm each evidence area is being filled before the final launch gate.
 
+Use `npm run --silent canvas:qa:validate -- --allow-pending --json` when you need a machine-readable validator artifact for QA dashboards, CI logs, or launch evidence.
+
 For final launch sign-off, run without `--allow-pending` and do not enable Canvas unless it passes:
 
 ```bash

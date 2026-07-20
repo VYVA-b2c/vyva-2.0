@@ -261,6 +261,8 @@ describe("Canvas launch readiness manifest", () => {
       "sanitized concrete artifacts",
       "voice-canvas-real-device-evidence-packet.md",
       "canvas:qa:validate",
+      "--json",
+      "npm run --silent canvas:qa:validate -- --allow-pending --json",
       "validateVoiceCanvasQaMatrixCommand.test.ts",
       "Addresses or saved-place labels",
       "Medication names, strengths, quantities, or symptoms",

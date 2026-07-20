@@ -58,4 +58,91 @@ describe("Voice Canvas QA matrix validator command", () => {
       "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
     );
   });
+
+  it("emits machine-readable JSON for pending-review QA artifacts", () => {
+    const result = runValidator(["--allow-pending", "--json"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+
+    const summary = JSON.parse(result.stdout) as {
+      matrixPath: string;
+      status: string;
+      state: string;
+      readyForLaunch: boolean;
+      incompleteCellCount: number;
+      failingCellCount: number;
+      pendingSections: Array<{
+        section: string;
+        pendingCells: number;
+        rowsWithPending: number;
+      }>;
+      problemCount: number;
+      problems: string[];
+      allowPending: boolean;
+      acceptedPending: boolean;
+      message: string;
+    };
+
+    expect(summary.matrixPath).toContain("voice-canvas-real-device-qa-matrix.md");
+    expect(summary.status).toBe("pending execution");
+    expect(summary.state).toBe("pending");
+    expect(summary.readyForLaunch).toBe(false);
+    expect(summary.incompleteCellCount).toBe(280);
+    expect(summary.failingCellCount).toBe(0);
+    expect(summary.problemCount).toBe(0);
+    expect(summary.problems).toEqual([]);
+    expect(summary.allowPending).toBe(true);
+    expect(summary.acceptedPending).toBe(true);
+    expect(summary.pendingSections).toEqual(
+      expect.arrayContaining([
+        {
+          section: "Environment record",
+          pendingCells: 8,
+          rowsWithPending: 8,
+        },
+        {
+          section: "Required behavior checklist",
+          pendingCells: 78,
+          rowsWithPending: 6,
+        },
+        {
+          section: "Final sign-off",
+          pendingCells: 16,
+          rowsWithPending: 4,
+        },
+      ]),
+    );
+    expect(summary.message).toBe(
+      "Matrix is still pending execution, but its structure is valid.",
+    );
+  });
+
+  it("keeps final-gate JSON parseable when the pending matrix fails launch", () => {
+    const result = runValidator(["--json"]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("");
+
+    const summary = JSON.parse(result.stdout) as {
+      readyForLaunch: boolean;
+      acceptedPending: boolean;
+      message: string;
+      pendingSections: Array<{ section: string; pendingCells: number }>;
+    };
+
+    expect(summary.readyForLaunch).toBe(false);
+    expect(summary.acceptedPending).toBe(false);
+    expect(summary.pendingSections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          section: "Evidence artifact inventory",
+          pendingCells: 27,
+        }),
+      ]),
+    );
+    expect(summary.message).toBe(
+      "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.",
+    );
+  });
 });

@@ -81,22 +81,67 @@ if (args.includes("--help") || args.includes("-h")) {
       "Usage:",
       "  npm run canvas:qa:validate",
       "  npm run canvas:qa:validate -- --allow-pending",
+      "  npm run --silent canvas:qa:validate -- --allow-pending --json",
       "  npm run canvas:qa:validate -- docs/audits/voice-canvas-real-device-qa-matrix.md",
       "",
       "The command exits non-zero unless the matrix is ready for launch.",
       "Use --allow-pending for in-progress review of the committed pending matrix.",
+      "Use --json to emit machine-readable summary output for QA artifacts or CI.",
     ].join("\n"),
   );
   process.exit(0);
 }
 
 const allowPending = args.includes("--allow-pending");
+const jsonOutput = args.includes("--json");
 const matrixArg = args.find((arg) => !arg.startsWith("-"));
 const matrixPath = path.resolve(process.cwd(), matrixArg ?? defaultMatrixPath);
 const matrix = readFileSync(matrixPath, "utf8");
 const result = evaluateCanvasRealDeviceQaMatrix(matrix);
 const pendingSummaries = summarizePendingCellsBySection(matrix);
 const relativeMatrixPath = path.relative(process.cwd(), matrixPath);
+const acceptedPending =
+  allowPending &&
+  result.status === CANVAS_REAL_DEVICE_QA_PENDING_STATUS &&
+  result.problems.length === 0;
+
+function failureMessage(): string {
+  if (result.problems.length > 0) return "Matrix is not ready for launch.";
+  if (result.status === CANVAS_REAL_DEVICE_QA_PENDING_STATUS) {
+    return "Matrix is still pending execution. Fill every row, attach sanitized evidence, and change Status to ready for launch.";
+  }
+  return "Matrix is not ready for launch.";
+}
+
+const exitCode = result.readyForLaunch || acceptedPending ? 0 : 1;
+
+if (jsonOutput) {
+  console.log(
+    JSON.stringify(
+      {
+        matrixPath: relativeMatrixPath,
+        status: result.status,
+        state: result.state,
+        readyForLaunch: result.readyForLaunch,
+        incompleteCellCount: result.incompleteCellCount,
+        failingCellCount: result.failingCellCount,
+        pendingSections: pendingSummaries,
+        problemCount: result.problems.length,
+        problems: result.problems,
+        allowPending,
+        acceptedPending,
+        message: result.readyForLaunch
+          ? "Matrix is ready for launch."
+          : acceptedPending
+            ? "Matrix is still pending execution, but its structure is valid."
+            : failureMessage(),
+      },
+      null,
+      2,
+    ),
+  );
+  process.exit(exitCode);
+}
 
 console.log(`Canvas QA matrix: ${relativeMatrixPath}`);
 console.log(`Status: ${result.status ?? "missing"}`);
@@ -119,11 +164,7 @@ if (result.readyForLaunch) {
   process.exit(0);
 }
 
-if (
-  allowPending &&
-  result.status === CANVAS_REAL_DEVICE_QA_PENDING_STATUS &&
-  result.problems.length === 0
-) {
+if (acceptedPending) {
   console.log("Matrix is still pending execution, but its structure is valid.");
   process.exit(0);
 }
