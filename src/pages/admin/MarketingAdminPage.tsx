@@ -20090,6 +20090,58 @@ export default function MarketingAdminPage() {
       })
       .sort((a, b) => a.offsetHours - b.offsetHours);
   }, [campaignDraft.scheduleStartsAt, campaignDraftEligibleRecipientPreview, campaignDraftLaunchPreviewItems]);
+  const campaignDraftPublishRouteSummary = useMemo(() => ({
+    vyvaSend: campaignDraftLaunchTimeline.filter((item) => item.route === "VYVA send").length,
+    manual: campaignDraftLaunchTimeline.filter((item) => item.route === "Manual handoff").length,
+    needsContent: campaignDraftLaunchTimeline.filter((item) => item.route === "Needs content").length,
+    providerReady: campaignDraftLaunchTimeline.filter((item) => item.route === "Provider-ready").length,
+    totalRecipients: campaignDraftLaunchTimeline.reduce((total, item) => total + item.recipients, 0),
+  }), [campaignDraftLaunchTimeline]);
+  const campaignDraftPublishRouteMapText = useMemo(() => {
+    const targetAudienceLabel = selectedCampaignDraftTargetAudience
+      ? `${selectedCampaignDraftTargetAudience.name} (${selectedCampaignDraftTargetAudience.mappedMemberCount}/${selectedCampaignDraftTargetAudience.memberCount} mapped)`
+      : `All eligible ${campaignDraft.audienceType.toUpperCase()} contacts`;
+    const routeLines = campaignDraftLaunchTimeline.length
+      ? campaignDraftLaunchTimeline.map((item, index) => ([
+        `${index + 1}. ${channelLabel[item.channel]} - ${item.route}`,
+        `   Owner: ${item.owner}`,
+        `   Timing: ${item.timingLabel}${item.plannedAt ? ` (${formatDate(item.plannedAt)})` : " (no date yet)"}`,
+        `   Content: ${item.contentTitle}`,
+        `   Recipients: ${item.recipients}`,
+        `   Operator action: ${item.action}`,
+        `   Next: ${item.detail}`,
+      ].join("\n"))).join("\n\n")
+      : "- No routes selected yet.";
+    return [
+      "VYVA campaign publish route map",
+      "",
+      `Campaign: ${campaignDraft.name.trim() || "Untitled campaign"}`,
+      `Audience/list: ${targetAudienceLabel}`,
+      `Channels: ${formatChannelList(campaignDraftSelectedChannels)}`,
+      `Schedule anchor: ${campaignDraft.scheduleStartsAt ? formatDate(fromDateTimeLocal(campaignDraft.scheduleStartsAt)) : "No schedule yet"}`,
+      `Snapshot mode: ${campaignDraft.snapshotRecipients ? `${campaignDraftRecipientPreview.length} recipients will be saved` : "off"}`,
+      `Route summary: ${campaignDraftPublishRouteSummary.vyvaSend} VYVA-send, ${campaignDraftPublishRouteSummary.manual} manual handoff, ${campaignDraftPublishRouteSummary.providerReady} provider-ready later, ${campaignDraftPublishRouteSummary.needsContent} missing content.`,
+      "",
+      "Routes:",
+      routeLines,
+      "",
+      "Operator rules:",
+      "- Email can only be sent from VYVA after explicit final review.",
+      "- Social, phone, print, local event, WhatsApp, and SMS routes are handoff/tracking routes unless provider controls are enabled.",
+      "- Every route needs linked content, an owner, recipient basis, and outcome capture before launch.",
+      "- Record manual publish URLs, attendance, replies, partner owners, and follow-up actions back on the campaign.",
+    ].join("\n");
+  }, [
+    campaignDraft.audienceType,
+    campaignDraft.name,
+    campaignDraft.scheduleStartsAt,
+    campaignDraft.snapshotRecipients,
+    campaignDraftLaunchTimeline,
+    campaignDraftPublishRouteSummary,
+    campaignDraftRecipientPreview.length,
+    campaignDraftSelectedChannels,
+    selectedCampaignDraftTargetAudience,
+  ]);
   const campaignDraftConsentReach = useMemo(() => ({
     optedIn: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus === "opted_in").length,
     needsReview: campaignDraftEligibleRecipientPreview.filter((contact) => contact.consentStatus !== "opted_in" && contact.consentStatus !== "opted_out").length,
@@ -35285,9 +35337,37 @@ export default function MarketingAdminPage() {
                             This turns the selected routes into a practical order with owners, content, recipients, and send mode before the campaign is saved.
                           </p>
                         </div>
-                        <Pill className="bg-purple-50 text-purple-800">
-                          {campaignDraft.scheduleStartsAt ? "Timed from schedule" : "Set schedule to anchor dates"}
-                        </Pill>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <Pill className="bg-purple-50 text-purple-800">
+                            {campaignDraft.scheduleStartsAt ? "Timed from schedule" : "Set schedule to anchor dates"}
+                          </Pill>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign publish route map", campaignDraftPublishRouteMapText)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-800 hover:bg-purple-100"
+                            data-testid="button-marketing-copy-campaign-draft-publish-route-map"
+                          >
+                            <Copy size={13} /> Copy route map
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-4" data-testid="marketing-campaign-draft-publish-route-map">
+                        <div className="rounded-lg border border-purple-100 bg-purple-50/70 p-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-purple-800">VYVA send</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{campaignDraftPublishRouteSummary.vyvaSend} route{campaignDraftPublishRouteSummary.vyvaSend === 1 ? "" : "s"}</p>
+                        </div>
+                        <div className="rounded-lg border border-amber-100 bg-amber-50/70 p-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-amber-800">Manual handoff</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{campaignDraftPublishRouteSummary.manual} route{campaignDraftPublishRouteSummary.manual === 1 ? "" : "s"}</p>
+                        </div>
+                        <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-blue-800">Provider-ready later</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{campaignDraftPublishRouteSummary.providerReady} route{campaignDraftPublishRouteSummary.providerReady === 1 ? "" : "s"}</p>
+                        </div>
+                        <div className="rounded-lg border border-red-100 bg-red-50/70 p-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-red-800">Missing content</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{campaignDraftPublishRouteSummary.needsContent} route{campaignDraftPublishRouteSummary.needsContent === 1 ? "" : "s"}</p>
+                        </div>
                       </div>
                       <div className="mt-3 grid gap-2 xl:grid-cols-2">
                         {campaignDraftLaunchTimeline.map((item, index) => (

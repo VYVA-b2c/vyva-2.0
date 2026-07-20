@@ -4309,6 +4309,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-email")).toHaveTextContent("2");
     expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-email")).toHaveTextContent("Primary email send");
     expect(screen.getByTestId("marketing-campaign-draft-launch-timeline-email")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("VYVA send");
+    expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("1 route");
+    expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("Missing content");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-draft-publish-route-map"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign publish route map"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("1. LinkedIn - Manual handoff"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("2. Email - VYVA send"));
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign publish route map copied.");
+    });
     expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Ready to add");
     expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Add campaign");
     expect(screen.getByTestId("marketing-campaign-planner-launch-brief")).toHaveTextContent("AI launch brief");
