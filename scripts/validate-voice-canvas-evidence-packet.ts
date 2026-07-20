@@ -409,6 +409,8 @@ const finalPrefillChecklistRequirements: readonly (readonly string[])[] = [
   ["local medication"],
   ["pending provider"],
   ["stale", "blocked"],
+  ["canvas:qa:runsheet"],
+  ["run-sheet-summary.json"],
   ["canvas:qa:packet"],
   ["evidence-packet-summary.json"],
   ["analytics"],

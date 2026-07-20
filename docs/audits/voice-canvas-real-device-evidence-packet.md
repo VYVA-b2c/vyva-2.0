@@ -73,6 +73,7 @@ Before changing the QA matrix from `pending execution` to `ready for launch`, co
 - rollback evidence names the actual fallback path for each feature-flagged flow;
 - enabled and rollback-disabled `canvas:qa:features` artifacts were captured from the deployed URL with distinct run-specific paths;
 - task hub evidence covers local shopping draft, local medication refill draft, pending provider reply task, and stale or blocked task;
+- `canvas:qa:runsheet` validation passed and produced a run-specific `run-sheet-summary.json` artifact before run-sheet evidence was copied into the packet or QA matrix;
 - `canvas:qa:packet` validation passed and produced a run-specific `evidence-packet-summary.json` artifact before evidence was copied into the QA matrix;
 - analytics evidence has positive aggregate counts for started, resumed, abandoned, blocked, confirmed, and completed;
 - `canvas:qa:analytics` validation passed for the sanitized analytics evidence artifact and produced a run-specific validation artifact;
