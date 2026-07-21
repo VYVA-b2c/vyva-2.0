@@ -953,6 +953,27 @@ function hasRunPlanWordGroups(
   return wordGroups.every((words) => hasRunPlanWord(value, words));
 }
 
+function hasUnsafeLaunchRunPlanText(value: string): boolean {
+  const normalized = normalizeRunPlanText(value);
+  return (
+    /\b(known issue|known issues|known bug|known bugs|unresolved issue|unresolved issues|unresolved bug|unresolved bugs|defect|defects|regression|regressions|risk accepted|accepted risk|launch risk|workaround required|manual workaround|waiver|exception)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:write|writes|external action|external actions|booking|bookings|call|calls|message|messages|navigation|navigations|reply|replies|refill request|order|orders|submission|submissions|endpoint|endpoints)\b.{0,36}\b(?:happened|occurred|triggered|fired|ran|sent|submitted|created|wrote|called|messaged|navigated|booked|ordered)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:triggered|fired|ran|sent|submitted|created|wrote|called|messaged|navigated|booked|ordered)\b.{0,36}\b(?:write|writes|external action|external actions|booking|bookings|call|calls|message|messages|navigation|navigations|reply|replies|refill request|order|orders|submission|submissions|endpoint|endpoints)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:fallback|rollback|canvas|draft|entered information|current scene|current work|focus|screen reader|announcement|announcements|spanish|long labels|analytics|voice|touch|keyboard|reconnect|refresh|interruption|browser back|retry|exit|task hub|destination)\b.{0,36}\b(?:unavailable|not available|not visible|not shown|not working|not preserved|not restored|not recovered|not readable|not announced|failed|broken)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:unavailable|not available|not visible|not shown|not working|not preserved|not restored|not recovered|not readable|not announced|failed|broken)\b.{0,36}\b(?:fallback|rollback|canvas|draft|entered information|current scene|current work|focus|screen reader|announcement|announcements|spanish|long labels|analytics|voice|touch|keyboard|reconnect|refresh|interruption|browser back|retry|exit|task hub|destination)\b/.test(
+      normalized,
+    )
+  );
+}
+
 function launchEvidenceCommandsForRun(
   runDate: string,
   baseUrl: string,
@@ -1033,6 +1054,12 @@ function validateLaunchRunPlanArtifact(
   const checklist = isRecord(artifact) && Array.isArray(artifact.checklist)
     ? artifact.checklist.filter((entry): entry is string => typeof entry === "string")
     : [];
+  const privacyBoundary = isRecord(artifact) && Array.isArray(artifact.privacyBoundary)
+    ? artifact.privacyBoundary.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const message = isRecord(artifact) && typeof artifact.message === "string"
+    ? artifact.message
+    : "";
   const flowCoverage = isRecord(artifact) && Array.isArray(artifact.flowCoverage)
     ? artifact.flowCoverage.filter(isRecord)
     : [];
@@ -1102,6 +1129,15 @@ function validateLaunchRunPlanArtifact(
         );
       }
     }
+  }
+  if (
+    [...checklist, ...privacyBoundary, message].some((entry) =>
+      hasUnsafeLaunchRunPlanText(entry),
+    )
+  ) {
+    problems.push(
+      "Launch evidence run plan contains contradictory or unsafe launch evidence wording.",
+    );
   }
 
   const coveredFlowIds = new Set(

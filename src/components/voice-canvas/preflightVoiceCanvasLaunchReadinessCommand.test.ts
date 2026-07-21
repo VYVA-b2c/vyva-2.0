@@ -1657,6 +1657,44 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
   });
 
+  it("rejects launch evidence run plans with contradictory unsafe wording", () => {
+    const runDate = freshReviewDate();
+    const runPlan = validLaunchRunPlan(runDate);
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      {
+        ...runPlan,
+        checklist: [
+          ...runPlan.checklist,
+          "Accepted risk: booking triggered before confirmation and fallback unavailable during rollback.",
+        ],
+      },
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            problemCount: number;
+            problems: string[];
+          };
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
+        expect(summary.launchRunPlan.problems).toContain(
+          "Launch evidence run plan contains contradictory or unsafe launch evidence wording.",
+        );
+        expect(result.stdout).not.toContain("booking triggered");
+        expect(result.stdout).not.toContain("fallback unavailable");
+      },
+    );
+  });
+
   it("includes sanitized feature endpoint artifacts in the preflight summary", () =>
     withTempFeatureEndpointFiles(
       validFeatureEndpointArtifact("enabled"),
