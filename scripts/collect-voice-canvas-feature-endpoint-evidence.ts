@@ -161,7 +161,7 @@ function parseBaseUrl(value: string): URL {
   try {
     parsed = new URL(value);
   } catch {
-    console.error(`Invalid --base-url: ${value}`);
+    console.error("Invalid --base-url. Provide a deployed origin URL without credentials, query, or hash.");
     process.exit(1);
   }
 

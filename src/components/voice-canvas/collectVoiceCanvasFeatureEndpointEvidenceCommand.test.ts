@@ -286,6 +286,28 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     );
   });
 
+  it("rejects malformed or query-bearing base URLs without echoing unsafe values", async () => {
+    const malformed = await runCollector([
+      "--base-url=not-a-url-token=secret",
+      "--json",
+    ]);
+
+    expect(malformed.status).toBe(1);
+    expect(malformed.stderr).toContain("Invalid --base-url.");
+    expect(malformed.stderr).not.toContain("token=secret");
+
+    const queryBearing = await runCollector([
+      "--base-url=https://staging.vyva.app?token=secret",
+      "--json",
+    ]);
+
+    expect(queryBearing.status).toBe(1);
+    expect(queryBearing.stderr).toContain(
+      "Expected --base-url to be an origin URL without credentials, query, or hash.",
+    );
+    expect(queryBearing.stderr).not.toContain("token=secret");
+  });
+
   it("collects sanitized JSON evidence for launch-scoped feature endpoints", async () => {
     const server = await startFeatureServer(healthyEndpointResponses());
 

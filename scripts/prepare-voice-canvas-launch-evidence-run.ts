@@ -89,6 +89,9 @@ function validateBaseUrl(value: string): string[] {
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
 
   const problems: string[] = [];
+  if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/") {
+    problems.push("Launch evidence base URL must be an origin URL without credentials, path, query, or hash.");
+  }
   if (parsed.protocol !== "https:" && !allowLocal) {
     problems.push("Launch evidence base URL must use HTTPS unless --allow-local is set.");
   }
@@ -98,6 +101,21 @@ function validateBaseUrl(value: string): string[] {
     );
   }
   return problems;
+}
+
+function normalizedBaseUrl(value: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+
+  if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/") {
+    return null;
+  }
+
+  return parsed.origin;
 }
 
 function validateRequestHeaderEnvRefs(values: string[]): string[] {
@@ -183,6 +201,7 @@ const problems = [
   ...validateBaseUrl(baseUrlArg),
   ...validateRequestHeaderEnvRefs(requestHeaderEnvArgs),
 ];
+const safeBaseUrl = normalizedBaseUrl(baseUrlArg);
 
 if (outputArg && !jsonOutput) {
   problems.push("Use --output only with --json so saved run plans stay machine-readable.");
@@ -195,7 +214,7 @@ if (problems.length > 0) {
         {
           readyForEvidenceRun: false,
           runDate,
-          baseUrl: baseUrlArg,
+          baseUrl: safeBaseUrl ?? "invalid",
           problemCount: problems.length,
           problems,
         },
@@ -214,7 +233,8 @@ if (problems.length > 0) {
 }
 
 const paths = artifactPaths(runDate);
-const commands = launchCommands(runDate, baseUrlArg, requestHeaderEnvArgs);
+const baseUrl = safeBaseUrl ?? baseUrlArg;
+const commands = launchCommands(runDate, baseUrl, requestHeaderEnvArgs);
 const flowCoverage = canvasLaunchEvidenceFlowCoverage();
 const checklist = [
   "Collect enabled endpoint evidence before rollback evidence.",
@@ -238,7 +258,7 @@ const privacyBoundary = [
 const summary = {
   readyForEvidenceRun: true,
   runDate,
-  baseUrl: baseUrlArg,
+  baseUrl,
   artifactDirectory: `artifacts/voice-canvas`,
   artifactPaths: paths,
   requestHeaderEnv: requestHeaderEnvArgs,

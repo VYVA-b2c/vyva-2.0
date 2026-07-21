@@ -289,6 +289,32 @@ describe("Voice Canvas launch evidence run helper command", () => {
     expect(result.stdout).not.toContain(secret);
   });
 
+  it("rejects credential, path, query, or hash base URLs without echoing them", () => {
+    const runDate = dateDaysAgo(0);
+    const result = runLaunchEvidencePlan([
+      `--date=${runDate}`,
+      "--base-url=https://qa-user:secret-pass@staging.vyva.app/app?token=secret#frag",
+      "--json",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).not.toContain("secret-pass");
+    expect(result.stdout).not.toContain("token=secret");
+
+    const summary = JSON.parse(result.stdout) as {
+      readyForEvidenceRun: boolean;
+      baseUrl: string;
+      problems: string[];
+    };
+
+    expect(summary.readyForEvidenceRun).toBe(false);
+    expect(summary.baseUrl).toBe("invalid");
+    expect(summary.problems).toContain(
+      "Launch evidence base URL must be an origin URL without credentials, path, query, or hash.",
+    );
+  });
+
   it("rejects malformed authenticated QA gateway header references", () => {
     const result = runLaunchEvidencePlan([
       `--date=${dateDaysAgo(0)}`,
