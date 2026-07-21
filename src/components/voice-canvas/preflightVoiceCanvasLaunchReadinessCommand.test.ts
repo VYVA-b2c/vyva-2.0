@@ -451,7 +451,7 @@ function validCopyEvidenceArtifact(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | warm plain senior-friendly restrained copy with one clear decision at a time | what happens next and what is pending are clear for primary action, secondary back cancel exit, waiting, blocked, and completed states | long translated Spanish labels wrap without overflow on mobile, tablet, and desktop | focus moves meaningfully; screen reader announces waiting, blocked, and completed; reduced motion respected | artifacts/voice-canvas/${reviewedOn}/${flow.id}-copy-clarity-accessibility-screenshot-capture-review-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+      `| ${flow.label} | warm plain senior-friendly restrained copy with one clear decision at a time | what happens next and what is pending and what has not happened yet are clear for primary action, secondary back cancel exit, waiting, blocked, and completed states with no-action reassurance | long translated Spanish labels wrap without overflow on mobile, tablet, and desktop | focus moves meaningfully; screen reader announces waiting, blocked, and completed; reduced motion respected | artifacts/voice-canvas/${reviewedOn}/${flow.id}-copy-clarity-accessibility-screenshot-capture-review-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
     );
   }
 
@@ -459,7 +459,7 @@ function validCopyEvidenceArtifact(): string {
     "",
     "## Copy-ready evidence packet note",
     "",
-    `Copy clarity reviewed on ${reviewedOn} by QA Launch Reviewer: every launch flow used warm plain senior-friendly restrained copy, showed one clear decision at a time, explained what happens next and what is pending for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handled long translated Spanish labels without overflow, moved focus meaningfully, announced waiting/blocked/completed states to screen readers, respected reduced motion, and used sanitized dated copy/accessibility artifact references only.`,
+    `Copy clarity reviewed on ${reviewedOn} by QA Launch Reviewer: every launch flow used warm plain senior-friendly restrained copy, showed one clear decision at a time, explained what happens next, what is pending, and what has not happened yet for primary, secondary/back/cancel/exit, waiting, blocked, and completed states with no-action reassurance, handled long translated Spanish labels without overflow, moved focus meaningfully, announced waiting/blocked/completed states to screen readers, respected reduced motion, and used sanitized dated copy/accessibility artifact references only.`,
   );
 
   return `${lines.join("\n")}\n`;

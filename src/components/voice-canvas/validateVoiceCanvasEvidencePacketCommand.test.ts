@@ -632,6 +632,32 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects copy/accessibility note patterns without pending no-action reassurance", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "waiting pending/no-action copy, blocked retry/exit copy",
+        "waiting copy, blocked retry/exit copy",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Copy and accessibility" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
   it("rejects rollback owner handoff note patterns without handoff proof", () =>
     withTempPacket(
       completedPacket().replace(

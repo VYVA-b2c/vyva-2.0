@@ -431,6 +431,8 @@ const evidenceNotePatternRequirements: Record<
     ["clipping"],
     ["truncation"],
     ["waiting"],
+    ["pending"],
+    ["no-action", "no action", "what has not happened", "has not happened"],
     ["blocked"],
     ["completed"],
     ["keyboard"],
