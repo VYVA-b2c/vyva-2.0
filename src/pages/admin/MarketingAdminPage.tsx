@@ -25324,6 +25324,7 @@ export default function MarketingAdminPage() {
     setContentDrawerMode("preview");
     setConfirmingContentDeleteId(null);
     setContentActionFeedback(`Previewing "${contentAsset.title}".`);
+    setMessage(`Preview opened for ${contentAsset.title}.`);
     scrollToContentActionRow(contentAsset.id);
   }
 
@@ -25337,6 +25338,7 @@ export default function MarketingAdminPage() {
     setConfirmingContentDeleteId(null);
     setContentFeedback("");
     setContentActionFeedback(`Editing "${contentAsset.title}".`);
+    setMessage(`Editor opened for ${contentAsset.title}.`);
     scrollToContentActionRow(contentAsset.id);
   }
 
