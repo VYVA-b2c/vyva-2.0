@@ -225,6 +225,9 @@ function validAnalyticsEvidence() {
     qaRunUrl: "https://staging.vyva.app",
     source: "real deployed QA staging analytics dashboard export artifact",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
+    flowCounts: Object.fromEntries(
+      CANVAS_LAUNCH_FLOW_IDS.map((flowId) => [flowId, 1]),
+    ),
     counts: {
       started: 2,
       resumed: 1,

@@ -22,6 +22,7 @@ interface AnalyticsEvidenceSummary {
   requiredSignals: readonly CanvasLaunchSignal[];
   allowedEnvelopeFields: readonly string[];
   coveredFlows: readonly CanvasLaunchFlowId[];
+  flowCounts: Partial<Record<CanvasLaunchFlowId, number>> | null;
   sampleCount: number;
   sampleLaunchSignalCounts: CanvasLaunchTelemetryCounts;
   declaredCounts: Partial<CanvasLaunchTelemetryCounts> | null;
@@ -36,6 +37,7 @@ const allowedTopLevelKeys = [
   "qaRunUrl",
   "source",
   "coveredFlows",
+  "flowCounts",
   "counts",
   "samples",
   "events",
@@ -71,12 +73,13 @@ if (args.includes("--help") || args.includes("-h")) {
       "  npm run --silent canvas:qa:analytics -- --input=artifacts/voice-canvas/YYYY-MM-DD-analytics-evidence.json --json --output=artifacts/voice-canvas/YYYY-MM-DD-analytics-validation.json",
       "",
       "Use --template to print a privacy-safe JSON skeleton. The template is intentionally not launch-ready until generatedAt, qaRunUrl, source, counts, and sanitized sample envelopes are filled from real deployed QA, staging, or production-like aggregate evidence.",
-      "The input JSON must be an object with generatedAt, qaRunUrl, source, samples/events, and optional counts.",
+      "The input JSON must be an object with generatedAt, qaRunUrl, source, coveredFlows, flowCounts, samples/events, and optional counts.",
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
       "qaRunUrl must be the deployed non-local QA run URL that produced the aggregate evidence.",
       "The source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
       "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, token-bearing URLs, bearer tokens, cookies, passwords, API keys, or other personal data.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
+      "flowCounts must include a positive aggregate count for every launch flow id and must not include personal details.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Allowed envelope values must stay non-identifying; step text must not contain addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
@@ -103,6 +106,9 @@ function analyticsEvidenceTemplate() {
     qaRunUrl: "REPLACE_WITH_DEPLOYED_NON_LOCAL_QA_RUN_URL",
     source: "REPLACE_WITH_STAGING_DASHBOARD_QUERY_OR_EXPORT_REFERENCE",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
+    flowCounts: Object.fromEntries(
+      CANVAS_LAUNCH_FLOW_IDS.map((flowId) => [flowId, 0]),
+    ),
     counts: {
       started: 0,
       resumed: 0,
@@ -241,6 +247,53 @@ function extractCoveredFlows(
   }
 
   return CANVAS_LAUNCH_FLOW_IDS.filter((flowId) => covered.has(flowId));
+}
+
+function extractFlowCounts(
+  artifact: unknown,
+  problems: string[],
+): Partial<Record<CanvasLaunchFlowId, number>> | null {
+  if (!isRecord(artifact) || artifact.flowCounts === undefined) {
+    problems.push(
+      "Analytics evidence must include flowCounts with positive aggregate counts for every launch flow.",
+    );
+    return null;
+  }
+
+  if (!isRecord(artifact.flowCounts)) {
+    problems.push("flowCounts must be an object when provided.");
+    return null;
+  }
+
+  const flowCounts: Partial<Record<CanvasLaunchFlowId, number>> = {};
+  const unexpectedFlowKeyCount = Object.keys(artifact.flowCounts).filter(
+    (key) => !CANVAS_LAUNCH_FLOW_IDS.includes(key as CanvasLaunchFlowId),
+  ).length;
+  if (unexpectedFlowKeyCount > 0) {
+    problems.push(
+      `flowCounts included ${unexpectedFlowKeyCount} key(s) outside the launch flow set.`,
+    );
+  }
+
+  for (const flowId of CANVAS_LAUNCH_FLOW_IDS) {
+    const value = artifact.flowCounts[flowId];
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      !Number.isInteger(value) ||
+      value < 0
+    ) {
+      problems.push(`${flowId}: flow count must be a non-negative integer.`);
+      continue;
+    }
+
+    flowCounts[flowId] = value;
+    if (value <= 0) {
+      problems.push(`${flowId}: flow count must be positive.`);
+    }
+  }
+
+  return flowCounts;
 }
 
 function topLevelProblems(artifact: unknown): string[] {
@@ -437,6 +490,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
     : null;
   const declaredCounts = extractDeclaredCounts(artifact, problems);
   const coveredFlows = extractCoveredFlows(artifact, problems);
+  const flowCounts = extractFlowCounts(artifact, problems);
   const samples = normalizeSamples(artifact);
   const sampleLaunchSignalCounts = emptyCanvasLaunchTelemetryCounts();
 
@@ -480,6 +534,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
     requiredSignals: CANVAS_LAUNCH_SIGNALS,
     allowedEnvelopeFields,
     coveredFlows,
+    flowCounts,
     sampleCount: samples.length,
     sampleLaunchSignalCounts,
     declaredCounts,

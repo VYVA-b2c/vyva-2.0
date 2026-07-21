@@ -451,6 +451,7 @@ const evidenceNotePatternRequirements: Record<
     ["allowed envelope"],
     ["non-identifying allowed values", "non identifying allowed values"],
     ["coveredflows"],
+    ["flowcounts", "flow counts"],
     ["ride"],
     ["appointment"],
     ["refill"],

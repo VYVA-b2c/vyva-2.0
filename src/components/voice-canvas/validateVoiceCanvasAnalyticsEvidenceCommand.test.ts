@@ -91,6 +91,9 @@ function validEvidence() {
     qaRunUrl: "https://staging.vyva.app",
     source: "real deployed QA staging analytics dashboard export artifact",
     coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
+    flowCounts: Object.fromEntries(
+      CANVAS_LAUNCH_FLOW_IDS.map((flowId) => [flowId, 1]),
+    ),
     counts: {
       started: 2,
       resumed: 1,
@@ -174,6 +177,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
       qaRunUrl: string;
       source: string;
       coveredFlows: string[];
+      flowCounts: Record<string, number>;
       counts: Record<string, number>;
       samples: unknown[];
     };
@@ -183,6 +187,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
       qaRunUrl: "REPLACE_WITH_DEPLOYED_NON_LOCAL_QA_RUN_URL",
       source: "REPLACE_WITH_STAGING_DASHBOARD_QUERY_OR_EXPORT_REFERENCE",
       coveredFlows: [...CANVAS_LAUNCH_FLOW_IDS],
+      flowCounts: Object.fromEntries(
+        CANVAS_LAUNCH_FLOW_IDS.map((flowId) => [flowId, 0]),
+      ),
       counts: {
         started: 0,
         resumed: 0,
@@ -226,6 +233,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
           "Analytics evidence must include generatedAt as a non-future ISO timestamp.",
           "Analytics evidence qaRunUrl must be a deployed HTTPS non-local QA run URL.",
           "Analytics evidence must include sanitized sample envelopes in samples or events.",
+          "ride: flow count must be positive.",
           "started: declared aggregate count must be positive.",
           "completed: sample evidence must include a positive observed count.",
         ]),
@@ -255,6 +263,7 @@ describe("Voice Canvas analytics evidence validator command", () => {
         sampleCount: number;
         allowedEnvelopeFields: string[];
         coveredFlows: string[];
+        flowCounts: Record<string, number>;
         sampleLaunchSignalCounts: Record<string, number>;
         declaredCounts: Record<string, number>;
         problems: string[];
@@ -267,6 +276,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
         ...CANVAS_LAUNCH_ALLOWED_TELEMETRY_FIELDS,
       ]);
       expect(summary.coveredFlows).toEqual([...CANVAS_LAUNCH_FLOW_IDS]);
+      expect(summary.flowCounts).toEqual(
+        Object.fromEntries(CANVAS_LAUNCH_FLOW_IDS.map((flowId) => [flowId, 1])),
+      );
       expect(summary.sampleLaunchSignalCounts).toEqual({
         started: 1,
         resumed: 1,
@@ -278,6 +290,42 @@ describe("Voice Canvas analytics evidence validator command", () => {
       expect(summary.declaredCounts.started).toBe(2);
       expect(summary.problems).toEqual([]);
     }));
+
+  it("rejects analytics evidence without positive aggregate counts for every launch flow", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        flowCounts: {
+          ride: 3,
+          appointment: 1,
+          refill: 1,
+          shopping: 1,
+          provider_reply: 0,
+          "123 Secret Street": 1,
+        },
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "flowCounts included 1 key(s) outside the launch flow set.",
+            "provider_reply: flow count must be positive.",
+            "task_hub_resume: flow count must be a non-negative integer.",
+          ]),
+        );
+        expect(JSON.stringify(summary)).not.toContain("123 Secret Street");
+      },
+    ));
 
   it("rejects analytics evidence that does not cover every launch flow", () =>
     withTempJsonFile(

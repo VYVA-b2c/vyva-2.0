@@ -713,7 +713,7 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects analytics evidence note patterns without launch-flow coverage", () =>
     withTempPacket(
       completedPacket().replace(
-        "validation confirmed coveredFlows for ride, appointment, refill, shopping, provider_reply, and task_hub_resume plus positive observed sample counts",
+        "validation confirmed coveredFlows and positive flowCounts for ride, appointment, refill, shopping, provider_reply, and task_hub_resume plus positive observed sample counts",
         "validation confirmed positive observed sample counts",
       ),
       (tempPacketPath) => {
