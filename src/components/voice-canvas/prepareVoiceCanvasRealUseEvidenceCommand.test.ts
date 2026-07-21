@@ -57,7 +57,7 @@ function validRealUseEvidenceArtifact(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | real physical phone/mobile completed with no write and no external action before confirmation | real physical tablet completed with no write and no external action before confirmation | real desktop/laptop completed with no write and no external action before confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-phone-tablet-desktop-screenshot-photo-capture-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+      `| ${flow.label} | real physical phone/mobile completed with no write and no external action before explicit confirmation | real physical tablet completed with no write and no external action before explicit confirmation | real desktop/laptop completed with no write and no external action before explicit confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-phone-tablet-desktop-screenshot-photo-capture-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
     );
   }
 
@@ -71,7 +71,7 @@ function validRealUseEvidenceArtifact(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | voice path completed with no write and no external action before confirmation | touch path completed with no write and no external action before confirmation | keyboard-only path completed with no write and no external action before confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-voice-touch-keyboard-recording-log-screenshot-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+      `| ${flow.label} | voice path completed with no write and no external action before explicit confirmation | touch path completed with no write and no external action before explicit confirmation | keyboard-only path completed with no write and no external action before explicit confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-voice-touch-keyboard-recording-log-screenshot-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
     );
   }
 
@@ -204,7 +204,7 @@ describe("Voice Canvas real-use evidence helper command", () => {
   it("rejects rows without no-write and no-external-action proof", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(
-        "with no write and no external action before confirmation",
+        "with no write and no external action before explicit confirmation",
         "before confirmation",
       ),
       (inputPath) => {
@@ -213,7 +213,7 @@ describe("Voice Canvas real-use evidence helper command", () => {
         expect(result.status).toBe(1);
         const summary = JSON.parse(result.stdout);
         expect(summary.problems.join("\n")).toContain(
-          "must prove completion or safe exit with no write and no external action before confirmation",
+          "must prove completion or safe exit with no write and no external action before explicit confirmation",
         );
       },
     ));
@@ -221,7 +221,7 @@ describe("Voice Canvas real-use evidence helper command", () => {
   it("rejects rows without before-confirmation safety timing", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(
-        "with no write and no external action before confirmation",
+        "with no write and no external action before explicit confirmation",
         "with no write and no external action during completed QA",
       ),
       (inputPath) => {
@@ -230,7 +230,24 @@ describe("Voice Canvas real-use evidence helper command", () => {
         expect(result.status).toBe(1);
         const summary = JSON.parse(result.stdout);
         expect(summary.problems.join("\n")).toContain(
-          "must prove completion or safe exit with no write and no external action before confirmation",
+          "must prove completion or safe exit with no write and no external action before explicit confirmation",
+        );
+      },
+    ));
+
+  it("rejects real-use rows that do not prove explicit-confirmation timing", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "real physical phone/mobile completed with no write and no external action before explicit confirmation",
+        "real physical phone/mobile completed with no write and no external action before confirmation",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Ride Voice Canvas: phone/mobile cell must prove completion or safe exit with no write and no external action before explicit confirmation.",
         );
       },
     ));
@@ -238,8 +255,8 @@ describe("Voice Canvas real-use evidence helper command", () => {
   it("rejects contradictory real-use evidence even when no-side-effect wording is present", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(
-        "real physical tablet completed with no write and no external action before confirmation",
-        "real physical tablet completed with no write and no external action before confirmation, but message sent before confirmation",
+        "real physical tablet completed with no write and no external action before explicit confirmation",
+        "real physical tablet completed with no write and no external action before explicit confirmation, but message sent before explicit confirmation",
       ),
       (inputPath) => {
         const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);

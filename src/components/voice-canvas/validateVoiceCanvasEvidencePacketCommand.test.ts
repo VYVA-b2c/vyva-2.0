@@ -478,8 +478,8 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects flow packet rows that omit canonical execution details", () =>
     withTempPacket(
       completedPacket().replace(
-        "Entry surfaces: voice handoff, /concierge, and task hub pending resume; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review, explicit confirmation, waiting, completed or saved result, and blocked result; no booking, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel; sanitized artifact categories: device screenshots/photos, voice/touch/keyboard interaction logs, endpoint rollback, analytics signal, and privacy query",
-        "Entry surfaces: voice handoff only; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review and explicit confirmation; no booking, call, message, navigation, or write before confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Generic fallback panel; sanitized artifact categories: screenshot only",
+        "Entry surfaces: voice handoff, /concierge, and task hub pending resume; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review, explicit confirmation, waiting, completed or saved result, and blocked result; no booking, call, message, navigation, or write before explicit confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel; sanitized artifact categories: device screenshots/photos, voice/touch/keyboard interaction logs, endpoint rollback, analytics signal, and privacy query",
+        "Entry surfaces: voice handoff only; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review and explicit confirmation; no booking, call, message, navigation, or write before explicit confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Generic fallback panel; sanitized artifact categories: screenshot only",
       ),
       (tempPacketPath) => {
         const result = runValidator([tempPacketPath, "--json"]);
@@ -601,6 +601,32 @@ describe("Voice Canvas evidence packet validator command", () => {
           expect.arrayContaining([
             'Copy-ready evidence note pattern "Analytics signal" is missing required launch evidence wording.',
             'Copy-ready evidence note pattern "Analytics privacy" is missing required launch evidence wording.',
+          ]),
+        );
+      },
+    ));
+
+  it("rejects task hub evidence note patterns without explicit-confirmation timing", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "performed no writes and no external actions before explicit confirmation.",
+        "performed no writes and no external actions before confirmation.",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Copy-ready evidence note pattern "Task hub destination fallback" is missing required launch evidence wording.',
           ]),
         );
       },

@@ -242,7 +242,7 @@ const checklist = [
   "Fill copy clarity evidence from senior-friendly copy, what-happens-next, long-label, focus, announcement, and reduced-motion review.",
   "Fill recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage.",
   "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
-  "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
+  "Fill entry surface evidence from every canonical launch surface without writes or external actions before explicit confirmation.",
   "Fill rollback owner handoff with deployed QA run URL, owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
   "Use one deployed QA origin across launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback-owner artifacts.",
   "Keep endpoint auth metadata matching the launch run plan request-header env references without saving credential names, values, tokens, cookies, passwords, or API keys.",

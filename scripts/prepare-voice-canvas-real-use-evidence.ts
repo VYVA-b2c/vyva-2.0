@@ -115,7 +115,7 @@ function realUseEvidenceTemplate(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | [real physical phone/mobile completed or safely exited with no write and no external action before confirmation] | [real physical tablet completed or safely exited with no write and no external action before confirmation] | [real desktop/laptop completed or safely exited with no write and no external action before confirmation] | [sanitized dated phone/tablet/desktop screenshot/photo/capture/artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
+      `| ${flow.label} | [real physical phone/mobile completed or safely exited with no write and no external action before explicit confirmation] | [real physical tablet completed or safely exited with no write and no external action before explicit confirmation] | [real desktop/laptop completed or safely exited with no write and no external action before explicit confirmation] | [sanitized dated phone/tablet/desktop screenshot/photo/capture/artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
     );
   }
 
@@ -129,7 +129,7 @@ function realUseEvidenceTemplate(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | [voice path completed or safely exited with no write and no external action before confirmation] | [touch path completed or safely exited with no write and no external action before confirmation] | [keyboard-only path completed or safely exited with no write and no external action before confirmation] | [sanitized dated voice/touch/keyboard recording/log/screenshot/artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
+      `| ${flow.label} | [voice path completed or safely exited with no write and no external action before explicit confirmation] | [touch path completed or safely exited with no write and no external action before explicit confirmation] | [keyboard-only path completed or safely exited with no write and no external action before explicit confirmation] | [sanitized dated voice/touch/keyboard recording/log/screenshot/artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
     );
   }
 
@@ -317,10 +317,12 @@ function hasSafeCompletionWording(value: string): boolean {
       "no-external-action",
     ]) &&
     includesAny(value, [
-      "before confirmation",
       "before explicit confirmation",
-      "prior to confirmation",
+      "prior to explicit confirmation",
       "until explicit confirmation",
+      "before final confirmation",
+      "prior to final confirmation",
+      "until final confirmation",
     ])
   );
 }
@@ -410,7 +412,7 @@ function validateRealUseEvidence(inputPathArg: string): RealUseEvidenceSummary {
         ["desktop/laptop", deviceRow.desktop],
       ] as const) {
         if (!hasSafeCompletionWording(value)) {
-          problems.push(`${flow.label}: ${label} cell must prove completion or safe exit with no write and no external action before confirmation.`);
+          problems.push(`${flow.label}: ${label} cell must prove completion or safe exit with no write and no external action before explicit confirmation.`);
         }
       }
       if (
@@ -444,7 +446,7 @@ function validateRealUseEvidence(inputPathArg: string): RealUseEvidenceSummary {
           problems.push(`${flow.label}: ${label} cell must name ${label} evidence.`);
         }
         if (!hasSafeCompletionWording(value)) {
-          problems.push(`${flow.label}: ${label} cell must prove completion or safe exit with no write and no external action before confirmation.`);
+          problems.push(`${flow.label}: ${label} cell must prove completion or safe exit with no write and no external action before explicit confirmation.`);
         }
       }
       if (

@@ -147,7 +147,7 @@ function validLaunchRunPlan(
       "Fill copy clarity evidence from senior-friendly copy, what-happens-next, long-label, focus, announcement, and reduced-motion review.",
       "Fill recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage.",
       "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
-      "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
+      "Fill entry surface evidence from every canonical launch surface without writes or external actions before explicit confirmation.",
       "Fill rollback owner handoff with deployed QA run URL, owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
       "Use one deployed QA origin across launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback-owner artifacts.",
       "Keep endpoint auth metadata matching the launch run plan request-header env references without saving credential names, values, tokens, cookies, passwords, or API keys.",
@@ -400,7 +400,7 @@ function validRealUseEvidenceArtifact(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | real physical phone/mobile completed with no write and no external action before confirmation | real physical tablet completed with no write and no external action before confirmation | real desktop/laptop completed with no write and no external action before confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-phone-tablet-desktop-screenshot-photo-capture-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+      `| ${flow.label} | real physical phone/mobile completed with no write and no external action before explicit confirmation | real physical tablet completed with no write and no external action before explicit confirmation | real desktop/laptop completed with no write and no external action before explicit confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-phone-tablet-desktop-screenshot-photo-capture-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
     );
   }
 
@@ -414,7 +414,7 @@ function validRealUseEvidenceArtifact(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | voice path completed with no write and no external action before confirmation | touch path completed with no write and no external action before confirmation | keyboard-only path completed with no write and no external action before confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-voice-touch-keyboard-recording-log-screenshot-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
+      `| ${flow.label} | voice path completed with no write and no external action before explicit confirmation | touch path completed with no write and no external action before explicit confirmation | keyboard-only path completed with no write and no external action before explicit confirmation | artifacts/voice-canvas/${reviewedOn}/${flow.id}-voice-touch-keyboard-recording-log-screenshot-artifact.md | reviewed by QA Launch Reviewer on ${reviewedOn} |`,
     );
   }
 

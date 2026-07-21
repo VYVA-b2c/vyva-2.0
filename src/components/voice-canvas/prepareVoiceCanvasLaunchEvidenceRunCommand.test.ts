@@ -98,7 +98,7 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "Fill recovery behavior evidence from resume, refresh, back, reconnect, interruption, cancel, retry, duplicate, and stale-response coverage.",
     );
     expect(result.stdout).toContain(
-      "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
+      "Fill entry surface evidence from every canonical launch surface without writes or external actions before explicit confirmation.",
     );
     expect(result.stdout).toContain(
       "Fill rollback owner handoff with deployed QA run URL, owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",

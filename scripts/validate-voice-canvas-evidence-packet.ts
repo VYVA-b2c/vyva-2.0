@@ -293,7 +293,7 @@ const flowPacketCoverageRequirements: Record<
     ["existing"],
     ["no writes"],
     ["external actions"],
-    ["confirmation"],
+    ["explicit confirmation"],
   ],
 };
 
@@ -398,7 +398,7 @@ const evidenceNotePatternRequirements: Record<
     ["rollout 0"],
     ["no writes"],
     ["no external actions"],
-    ["confirmation"],
+    ["explicit confirmation"],
   ],
   "Rollback owner handoff": [
     ["reference"],
