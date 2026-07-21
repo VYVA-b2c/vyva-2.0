@@ -86,6 +86,31 @@ function renderPage() {
 }
 
 describe("WorkflowCoverageAdminPage", () => {
+  it("lets testers mark cross-pillar manual QA checks and copy failed notes", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    window.localStorage.clear();
+    renderPage();
+
+    expect(screen.getByRole("region", { name: "Cross-pillar manual QA runner" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Prove the real flow, not just the map" })).toBeInTheDocument();
+    expect(screen.getByText("High-risk passed")).toBeInTheDocument();
+
+    const transportQa = screen.getByTestId(`cross-pillar-qa-flow-${CONCIERGE_FLOW_REFERENCES.transportBooking}`);
+    expect(within(transportQa).getByText("Book ride / transport")).toBeInTheDocument();
+    expect(within(transportQa).getByText("High risk")).toBeInTheDocument();
+
+    const missingSetupCheck = within(transportQa).getByTestId(`cross-pillar-qa-check-${CONCIERGE_FLOW_REFERENCES.transportBooking}:missing_setup`);
+    fireEvent.click(within(missingSetupCheck).getByRole("button", { name: "Fail" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy QA notes" }));
+
+    expect(await screen.findByDisplayValue(/Cross-pillar manual QA notes/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/Book ride \/ transport/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/Fail: Missing setup path/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/Failed checkpoints: 1/)).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Book ride / transport"));
+  });
+
   it("shows workflow coverage, next work, and mapped entry points", async () => {
     renderPage();
 
@@ -103,6 +128,7 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(screen.getByText(/Check provider or tool readiness/i)).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Cross-pillar flow matrix" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Workflow readiness checklist" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cross-pillar manual QA runner" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter by coverage"), { target: { value: "all" } });
     const rideMatrix = screen.getByTestId(`workflow-matrix-row-${CONCIERGE_FLOW_REFERENCES.transportBooking}`);
