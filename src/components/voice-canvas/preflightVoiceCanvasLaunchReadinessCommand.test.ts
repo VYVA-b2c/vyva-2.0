@@ -811,6 +811,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Evidence packet next evidence area: Evidence packet inventory (14 pending cell(s) across 14 row(s))",
     );
     expect(result.stdout).toContain(
+      "Start with docs/audits/voice-canvas-real-device-qa-handoff.md, then execute the detailed run sheet, evidence packet, and QA matrix.",
+    );
+    expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
     );
     expect(result.stdout).toContain(
@@ -829,6 +832,9 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain("Ready for launch: no");
     expect(result.stdout).toContain(
       "For final launch sign-off, rerun with --date=YYYY-MM-DD so the same-date, same deployed-origin evidence bundle cannot accidentally omit required artifacts.",
+    );
+    expect(result.stdout).toContain(
+      "Start with docs/audits/voice-canvas-real-device-qa-handoff.md, then execute the detailed run sheet, evidence packet, and QA matrix.",
     );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
@@ -1194,6 +1200,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     });
     expect(summary.nextActions).toEqual(
       expect.arrayContaining([
+        "Start with docs/audits/voice-canvas-real-device-qa-handoff.md, then execute the detailed run sheet, evidence packet, and QA matrix.",
         "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
         "Fill the sanitized evidence packet artifact references and reviewer/date cells with fresh explicit reviewed, verified, validated, approved, or sign-off wording.",
         "Execute fresh real-device and deployed rollback QA, then fill the QA matrix.",

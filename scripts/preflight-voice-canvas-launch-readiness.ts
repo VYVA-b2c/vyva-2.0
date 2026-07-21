@@ -1524,6 +1524,12 @@ function messagesForNextAction(
   const matrixIncomplete = numericField(matrixRun.summary, "incompleteCellCount");
   const packetIncomplete = numericField(packetRun.summary, "incompleteCellCount");
 
+  if (runSheetIncomplete > 0 || matrixIncomplete > 0 || packetIncomplete > 0) {
+    messages.push(
+      "Start with docs/audits/voice-canvas-real-device-qa-handoff.md, then execute the detailed run sheet, evidence packet, and QA matrix.",
+    );
+  }
+
   if (!runSheetRun.summary) {
     messages.push("Fix the run sheet validator output before using the preflight artifact.");
   }
