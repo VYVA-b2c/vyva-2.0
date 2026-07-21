@@ -18703,12 +18703,26 @@ export default function MarketingAdminPage() {
     : campaignStudioTemplateProductionItems.some((item) => item.state === "needs_action")
       ? "needs_action"
       : "ready";
+  const campaignStudioTemplateCoverageReadyCount = campaignStudioTemplateProductionItems.filter((item) => item.starterTemplateCount + item.savedAssetCount > 0).length;
+  const campaignStudioTemplateCoverageGapItems = campaignStudioTemplateProductionItems.filter((item) => item.starterTemplateCount + item.savedAssetCount === 0);
+  const campaignStudioTemplateCoverageState: CampaignReadinessState = campaignStudioTemplateProductionState === "blocked"
+    ? "blocked"
+    : campaignStudioTemplateCoverageGapItems.length
+      ? "needs_action"
+      : "ready";
+  const campaignStudioNextTemplateMove = campaignStudioTemplateCoverageGapItems[0]
+    ? `Create a reusable ${campaignStudioTemplateCoverageGapItems[0].contentType.toLowerCase()} for ${channelLabel[campaignStudioTemplateCoverageGapItems[0].channel]}.`
+    : campaignStudioTemplateProductionItems[0]
+      ? `Adapt the ${campaignStudioTemplateProductionItems[0].contentType.toLowerCase()} with AI for ${campaignStudioTemplateProductionItems[0].audienceSegment}.`
+      : "Select a channel route before building template coverage.";
   const campaignStudioTemplateProductionText = [
     [
       "VYVA campaign template production kit",
       `Campaign: ${campaignStudioGenerated.campaignName}`,
       `Audience: ${campaignStudioOfflineAudienceName}`,
       `Overall: ${readinessLabel(campaignStudioTemplateProductionState)}`,
+      `Template coverage: ${campaignStudioTemplateCoverageReadyCount}/${campaignStudioTemplateProductionItems.length} routes covered`,
+      `Next template move: ${campaignStudioNextTemplateMove}`,
     ].join("\n"),
     ...campaignStudioTemplateProductionItems.map((item) => item.text),
     "AI instruction: produce attractive, channel-native templates for every route. Keep claims safe, preserve consent posture, use only allowed merge tokens, and return final copy plus design or publishing notes.",
@@ -35119,6 +35133,37 @@ export default function MarketingAdminPage() {
                           >
                             <Copy size={14} /> Copy kit
                           </button>
+                        </div>
+                      </div>
+                      <div className={`mt-3 rounded-xl border p-3 ${readinessClass(campaignStudioTemplateCoverageState)}`} data-testid="marketing-campaign-studio-template-coverage-planner">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-emerald-800">Template coverage planner</p>
+                            <p className="mt-1 text-sm font-black text-[#241133]">
+                              {campaignStudioTemplateCoverageReadyCount}/{campaignStudioTemplateProductionItems.length} selected route{campaignStudioTemplateProductionItems.length === 1 ? "" : "s"} have reusable template coverage
+                            </p>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#536b5e]">
+                              Next template move: {campaignStudioNextTemplateMove}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Pill className={readinessPillClass(campaignStudioTemplateCoverageState)}>{readinessLabel(campaignStudioTemplateCoverageState)}</Pill>
+                            <Pill className="bg-white text-emerald-900">
+                              {campaignStudioTemplateCoverageGapItems.length
+                                ? `${campaignStudioTemplateCoverageGapItems.length} gap${campaignStudioTemplateCoverageGapItems.length === 1 ? "" : "s"}`
+                                : "No gaps"}
+                            </Pill>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {campaignStudioTemplateProductionItems.map((item) => {
+                            const covered = item.starterTemplateCount + item.savedAssetCount > 0;
+                            return (
+                              <Pill key={item.channel} className={covered ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                                {channelLabel[item.channel]}: {covered ? "covered" : "needs template"}
+                              </Pill>
+                            );
+                          })}
                         </div>
                       </div>
                       <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-template-production-items">

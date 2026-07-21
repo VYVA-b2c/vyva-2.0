@@ -6412,6 +6412,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign production workload copied.");
     expect(screen.getByTestId("marketing-campaign-studio-template-production")).toHaveTextContent("Template production kit");
     expect(screen.getByTestId("marketing-campaign-studio-template-production")).toHaveTextContent("Turn the plan into attractive channel templates");
+    expect(screen.getByTestId("marketing-campaign-studio-template-coverage-planner")).toHaveTextContent("Template coverage planner");
+    expect(screen.getByTestId("marketing-campaign-studio-template-coverage-planner")).toHaveTextContent("selected route");
+    expect(screen.getByTestId("marketing-campaign-studio-template-coverage-planner")).toHaveTextContent("Next template move:");
+    expect(screen.getByTestId("marketing-campaign-studio-template-coverage-planner")).toHaveTextContent("LinkedIn:");
     expect(screen.getByTestId("marketing-campaign-studio-template-production-linkedin")).toHaveTextContent("LinkedIn post");
     expect(screen.getByTestId("marketing-campaign-studio-template-production-linkedin")).toHaveTextContent("Market: Spain");
     expect(screen.getByTestId("marketing-campaign-studio-template-production-linkedin")).toHaveTextContent("Coverage:");
@@ -6420,6 +6424,8 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign template production kit"));
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn template production brief"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Template coverage:"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Next template move:"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI instruction: produce attractive, channel-native templates"));
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign template production kit copied.");
     expect(screen.getByTestId("marketing-campaign-studio-creative-quality")).toHaveTextContent("Copy checks before create");
