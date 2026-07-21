@@ -1665,10 +1665,10 @@ describe("Voice Canvas launch readiness preflight command", () => {
       runDate,
       {
         ...runPlan,
-        checklist: [
-          ...runPlan.checklist,
-          "Accepted risk: booking triggered before confirmation and fallback unavailable during rollback.",
-        ],
+        reviewerNotes: {
+          qaLead:
+            "Accepted risk: booking triggered before confirmation and fallback unavailable during rollback.",
+        },
       },
       (inputPath) => {
         const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);

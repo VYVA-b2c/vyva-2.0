@@ -1083,6 +1083,11 @@ function validateLaunchRunPlanArtifact(
   if (!isRecord(artifact)) {
     problems.push("Launch evidence run plan artifact must be a JSON object.");
   } else {
+    if (containsUnsafeLaunchArtifactText(artifact)) {
+      problems.push(
+        "Launch evidence run plan contains contradictory or unsafe launch evidence wording.",
+      );
+    }
     if (artifact.readyForEvidenceRun !== true) {
       problems.push("Launch evidence run plan must be marked readyForEvidenceRun true.");
     }
@@ -1141,16 +1146,6 @@ function validateLaunchRunPlanArtifact(
       }
     }
   }
-  if (
-    [...checklist, ...privacyBoundary, message].some((entry) =>
-      hasUnsafeLaunchRunPlanText(entry),
-    )
-  ) {
-    problems.push(
-      "Launch evidence run plan contains contradictory or unsafe launch evidence wording.",
-    );
-  }
-
   const coveredFlowIds = new Set(
     flowCoverage
       .map((entry) => entry.id)
