@@ -255,6 +255,38 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects contradictory unsafe launch evidence without copying values", () =>
+    withTempPacket(
+      completedPacket().replace(
+        completedInteractionInventoryRow,
+        "| Interaction recordings or logs | `artifacts/voice-canvas/2026-07-19-real-use-coverage.md` and `artifacts/voice-canvas/2026-07-19-real-use-validation.json`; booking triggered before confirmation and fallback unavailable during rollback | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForLaunchEvidencePacket: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForLaunchEvidencePacket).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining("contradictory or unsafe launch evidence"),
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("booking triggered");
+        expect(serialized).not.toContain("fallback unavailable");
+      },
+    ));
+
   it("rejects artifact references that name broader private launch details", () =>
     withTempPacket(
       completedPacket().replace(
