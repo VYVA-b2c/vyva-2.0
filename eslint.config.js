@@ -37,8 +37,8 @@ export default tseslint.config(
   {
     files: ["src/pages/admin/MarketingAdminPage.tsx"],
     rules: {
-      // This page is a large legacy admin surface; the hooks rule currently
-      // exceeds its internal path-counting stack here while other lint rules pass.
+      // The large legacy marketing/admin surface overflows the hooks rule's
+      // internal path counter; extracted child modules remain fully linted.
       "react-hooks/rules-of-hooks": "off",
     },
   },
