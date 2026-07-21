@@ -2408,6 +2408,11 @@ describe("MarketingAdminPage", () => {
   }, 30000);
 
   it("routes due ready email campaigns from the publishing queue to final review", async () => {
+    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    });
     const dueAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const dueCampaign = {
       ...campaigns[0],
@@ -2434,6 +2439,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("is due now");
     expect(screen.getByText('Opened "Caregiver welcome" for due email review.')).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-send-approval")).toHaveTextContent("Email send approval");
+    expect(screen.getByTestId("marketing-campaign-send-approval")).toHaveTextContent("Ready for final confirmation");
+    expect(screen.getByTestId("marketing-campaign-send-approval-content")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-campaign-send-approval-audience")).toHaveTextContent("1 saved");
+    expect(screen.getByTestId("marketing-campaign-send-approval-consent")).toHaveTextContent("Clear");
+    expect(screen.getByTestId("marketing-campaign-send-approval-recipient-sample")).toHaveTextContent("Hassan Partner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-copy-send-approval"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA email send approval snapshot"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Decision: Ready for explicit final confirmation"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Hassan Partner"));
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Email send approval snapshot copied.");
   });
 
   it("guides campaign creation through compose audience preview and launch steps", async () => {
