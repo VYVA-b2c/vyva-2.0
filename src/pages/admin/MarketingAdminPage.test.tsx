@@ -7587,6 +7587,23 @@ describe("MarketingAdminPage", () => {
     renderPage();
 
     await screen.findByTestId("marketing-campaign-readiness-overview");
+    expect(screen.getByTestId("marketing-campaign-priority-lane")).toHaveTextContent("Work this first");
+    expect(screen.getByTestId("marketing-campaign-priority-lane")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-campaign-priority-lane")).toHaveTextContent("Attach content");
+    expect(screen.getByTestId("marketing-campaign-priority-lane")).toHaveTextContent("40% confidence");
+    expect(screen.getByTestId("button-marketing-campaign-priority-open")).toHaveTextContent("Attach content");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-priority-copy-brief"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign priority lane"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Campaign: Partner outreach"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Next action: Attach content"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI/admin instruction:"));
+    expect(screen.getByTestId("marketing-campaign-readiness-copy-feedback")).toHaveTextContent("Campaign priority lane brief copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-priority-open"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Partner outreach");
+    expect(screen.getByText('Opened "Partner outreach" to fix the creative gap: LinkedIn.')).toBeInTheDocument();
+
     expect(screen.getByTestId("button-marketing-campaign-readiness-copy-brief")).toHaveTextContent("Copy queue brief");
 
     const readyQueue = within(screen.getByTestId("marketing-campaign-readiness-overview-ready"));

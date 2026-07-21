@@ -13009,6 +13009,69 @@ export default function MarketingAdminPage() {
     "AI/admin instruction:",
     "Prioritize blocked campaigns first, then audience/consent, then schedule gaps, then ready sends and manual handoffs. For each campaign, suggest the shortest next action and any copy/content/recipient fix needed before launch.",
   ].join("\n"), [audienceFilter, campaignReadinessOverviewItems, campaigns.length, channelFilter, search, visibleCampaigns.length]);
+  const campaignPriorityLane = useMemo(() => {
+    const labelRank: Record<string, number> = {
+      "Needs content": 0,
+      "No channels": 1,
+      "Review consent": 2,
+      "Snapshot recipients": 3,
+      "Map audience": 4,
+      "Ready to send": 5,
+      "Manual handoff": 6,
+      "Add schedule": 7,
+    };
+    const stateRank: Record<CampaignReadinessState, number> = {
+      blocked: 0,
+      needs_action: 1,
+      ready: 2,
+      planning: 3,
+    };
+    const selected = [...campaignReadinessRows].sort((a, b) => {
+      const labelDelta = (labelRank[a.readiness.label] ?? 99) - (labelRank[b.readiness.label] ?? 99);
+      if (labelDelta !== 0) return labelDelta;
+      const stateDelta = stateRank[a.readiness.state] - stateRank[b.readiness.state];
+      if (stateDelta !== 0) return stateDelta;
+      return a.campaign.name.localeCompare(b.campaign.name);
+    })[0] ?? null;
+    if (!selected) return null;
+
+    const publishPath = campaignRowPublishPath(selected.campaign, contentById, audiences, contactByCampaignRecipientId);
+    const confidence = campaignRowConfidence(selected.readiness, publishPath);
+    const actionLabel = campaignRowReadinessActionLabel(selected.readiness);
+    const readySteps = publishPath.filter((step) => step.state === "ready").length;
+    const blockers = publishPath.filter((step) => step.state === "blocked" || step.state === "needs_action");
+    const brief = [
+      "VYVA campaign priority lane",
+      `Campaign: ${selected.campaign.name}`,
+      `Status: ${selected.campaign.status}`,
+      `Audience: ${selected.campaign.audienceType.toUpperCase()}`,
+      `Next action: ${actionLabel}`,
+      `Readiness: ${selected.readiness.label} - ${selected.readiness.detail}`,
+      `Confidence: ${confidence.score}% - ${confidence.label}`,
+      `Routes: ${selected.campaign.channels.map((channel) => channelLabel[channel.channel]).join(", ") || "No channels"}`,
+      `Recipients: ${selected.campaign.recipientCount}`,
+      "",
+      "Publish path:",
+      ...publishPath.map((step) => `- ${step.label}: ${step.detail} (${readinessLabel(step.state)})`),
+      "",
+      blockers.length
+        ? `Fix first: ${blockers.map((step) => `${step.label} - ${step.detail}`).join("; ")}.`
+        : "Fix first: no blocker in the publish path.",
+      "",
+      "AI/admin instruction: give the campaign owner the shortest safe next step, including content, consent, recipient, schedule, or handoff work needed before launch.",
+    ].join("\n");
+
+    return {
+      campaign: selected.campaign,
+      readiness: selected.readiness,
+      publishPath,
+      confidence,
+      actionLabel,
+      readySteps,
+      blockers,
+      brief,
+    };
+  }, [audiences, campaignReadinessRows, contactByCampaignRecipientId, contentById]);
 
   const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
     const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
@@ -36086,6 +36149,55 @@ export default function MarketingAdminPage() {
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
                 <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
+                  {campaignPriorityLane ? (
+                    <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(campaignPriorityLane.readiness.state)}`} data-testid="marketing-campaign-priority-lane">
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-center">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill className="bg-[#241133] text-white">Work this first</Pill>
+                            <Pill className={readinessPillClass(campaignPriorityLane.readiness.state)}>{campaignPriorityLane.readiness.label}</Pill>
+                            <Pill className={readinessPillClass(campaignPriorityLane.confidence.state)}>{campaignPriorityLane.confidence.score}% confidence</Pill>
+                          </div>
+                          <h3 className="mt-3 font-serif text-2xl text-[#241133]">{campaignPriorityLane.campaign.name}</h3>
+                          <p className="mt-1 text-sm font-black leading-relaxed">{campaignPriorityLane.actionLabel}: {campaignPriorityLane.readiness.detail}</p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+                              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Path ready</p>
+                              <p className="mt-1 text-sm font-black text-[#241133]">{campaignPriorityLane.readySteps}/{campaignPriorityLane.publishPath.length}</p>
+                            </div>
+                            <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+                              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Blockers</p>
+                              <p className="mt-1 text-sm font-black text-[#241133]">{campaignPriorityLane.blockers.length}</p>
+                            </div>
+                            <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+                              <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Recipients</p>
+                              <p className="mt-1 text-sm font-black text-[#241133]">{campaignPriorityLane.campaign.recipientCount}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openCampaignForNextAction(campaignPriorityLane.campaign)}
+                            disabled={campaignSaving}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white shadow-sm hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            data-testid="button-marketing-campaign-priority-open"
+                          >
+                            <Zap size={15} /> {campaignPriorityLane.actionLabel}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignHandoffText("Campaign priority lane brief", campaignPriorityLane.brief)}
+                            disabled={!campaignPriorityLane.brief.trim()}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            data-testid="button-marketing-campaign-priority-copy-brief"
+                          >
+                            <Sparkles size={14} /> Copy priority brief
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="mb-4 rounded-2xl border border-purple-100 bg-purple-50/60 p-4" data-testid="marketing-campaign-readiness-overview">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
