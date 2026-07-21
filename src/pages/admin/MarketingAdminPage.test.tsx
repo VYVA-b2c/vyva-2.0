@@ -910,6 +910,18 @@ describe("MarketingAdminPage", () => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing daily operator brief"));
     });
     expect(screen.getByTestId("marketing-cockpit-operator-feedback")).toHaveTextContent("Daily operator brief copied.");
+    expect(screen.getByTestId("marketing-next-best-moves")).toHaveTextContent("Next best moves");
+    expect(screen.getByTestId("marketing-next-best-moves")).toHaveTextContent("Keep working after the first blocker");
+    expect(screen.getByTestId("marketing-next-best-moves")).toHaveTextContent("#1");
+    expect(screen.getByTestId("button-marketing-next-best-move-next")).toHaveTextContent("Finish Source sync setup");
+    expect(screen.getByTestId("button-marketing-next-best-move-next")).toHaveTextContent("Open settings");
+    expect(screen.getByTestId("button-marketing-next-best-moves-copy")).toHaveTextContent("Copy queue");
+    fireEvent.click(screen.getByTestId("button-marketing-next-best-moves-copy"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA marketing next best moves"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI/admin instruction: keep the queue practical"));
+    expect(screen.getByTestId("marketing-next-best-moves-feedback")).toHaveTextContent("Marketing next best moves copied.");
     expect(screen.getByTestId("marketing-launch-decision-board")).toHaveTextContent("Launch decision");
     expect(screen.getByTestId("marketing-launch-decision-board")).toHaveTextContent("Fix creative before launch");
     expect(screen.getByTestId("marketing-launch-decision-counts")).toHaveTextContent("Creative gaps");

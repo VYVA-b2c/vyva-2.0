@@ -30568,6 +30568,34 @@ export default function MarketingAdminPage() {
   const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
   const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
   const marketingCockpitHasReview = marketingCockpitItems.some((item) => item.state === "needs_action");
+  const marketingNextBestMoveRank: Record<CampaignReadinessState, number> = {
+    blocked: 0,
+    needs_action: 1,
+    planning: 2,
+    ready: 3,
+  };
+  const marketingNextBestMoves = [...marketingWorkflowCoachItems]
+    .sort((a, b) => {
+      const stateDelta = marketingNextBestMoveRank[a.state] - marketingNextBestMoveRank[b.state];
+      if (stateDelta !== 0) return stateDelta;
+      return a.title.localeCompare(b.title);
+    })
+    .slice(0, 5);
+  const marketingNextBestMovesBriefText = [
+    "VYVA marketing next best moves",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    "Use this as the live operator queue after the top blocker is handled.",
+    "",
+    ...marketingNextBestMoves.map((item, index) => [
+      `${index + 1}. ${item.title}`,
+      `   State: ${readinessLabel(item.state)}`,
+      `   Why: ${item.detail}`,
+      `   Action: ${item.actionLabel}`,
+    ].join("\n")),
+    "",
+    "AI/admin instruction: keep the queue practical. Work blocked and review items first, then planning work, then ready optimization. For each move, return the shortest next action, owner, and expected outcome.",
+  ].join("\n");
   const savedViewConsentCount = contacts.filter((contact) => contact.consentStatus !== "opted_in").length;
   const savedViewB2bCount = contacts.filter((contact) => (
     contact.audienceType === "b2b"
@@ -31689,6 +31717,66 @@ export default function MarketingAdminPage() {
                       <p className="text-xs font-bold leading-relaxed text-[#7d6b65]">One click takes you to the work area that unblocks the most marketing progress.</p>
                     </div>
                   </div>
+                </div>
+                <div className="mb-4 rounded-2xl border border-violet-100 bg-violet-50/60 p-4 shadow-sm" data-testid="marketing-next-best-moves">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Next best moves</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Keep working after the first blocker</h3>
+                      <p className="mt-1 max-w-3xl text-xs font-bold leading-relaxed text-[#6b5b54]">
+                        Ranked by urgency across import, audience, creative, launch, and relationship work so the admin always has the next useful click.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void copyCampaignHandoffText("Marketing next best moves", marketingNextBestMovesBriefText)}
+                      disabled={!marketingNextBestMoves.length}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                      data-testid="button-marketing-next-best-moves-copy"
+                    >
+                      <Copy size={14} /> Copy queue
+                    </button>
+                  </div>
+                  {marketingNextBestMoves.length ? (
+                    <div className="mt-4 grid gap-2 xl:grid-cols-5">
+                      {marketingNextBestMoves.map((item, index) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={`${item.key}-${index}`}
+                            type="button"
+                            onClick={item.onSelect}
+                            disabled={item.disabled}
+                            className={`flex min-h-[150px] flex-col rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                            data-testid={`button-marketing-next-best-move-${item.key}`}
+                          >
+                            <span className="flex items-start justify-between gap-2">
+                              <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                                <Icon size={16} aria-hidden="true" />
+                              </span>
+                              <span className="rounded-full bg-white/90 px-2 py-1 text-[11px] font-black text-[#5b4a46]">#{index + 1}</span>
+                            </span>
+                            <span className="mt-3 flex flex-wrap items-center gap-2">
+                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              <span className="text-[11px] font-black uppercase tracking-[0.1em] text-violet-800">{item.eyebrow}</span>
+                            </span>
+                            <span className="mt-2 line-clamp-2 text-sm font-black text-[#241133]">{item.title}</span>
+                            <span className="mt-1 line-clamp-3 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                            <span className="mt-auto pt-3 text-xs font-black text-purple-700">{item.actionLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-xl border border-dashed border-violet-200 bg-white p-4 text-sm font-bold text-[#7d6b65]">
+                      No ranked moves yet. Import Source data or create a campaign to populate the queue.
+                    </div>
+                  )}
+                  {campaignHandoffCopyFeedback ? (
+                    <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-next-best-moves-feedback">
+                      {campaignHandoffCopyFeedback}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="mb-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-publishing-queue">
                   <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(marketingLaunchDecisionState)}`} data-testid="marketing-launch-decision-board">
