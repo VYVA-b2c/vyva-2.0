@@ -41,6 +41,7 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { CampaignPublishConfidencePanel, buildCampaignPublishConfidenceModel } from "./MarketingCampaignPublishConfidence";
 import { CampaignSendApprovalCard, buildCampaignSendApprovalModel } from "./MarketingCampaignSendApproval";
+import { CampaignStudioCreativeReadinessPanel } from "./MarketingCampaignStudioReadiness";
 import { apiFetch } from "@/lib/queryClient";
 
 const CHANNELS = ["email", "whatsapp", "sms", "phone", "print", "event", "facebook", "instagram", "linkedin", "tiktok"] as const;
@@ -35497,112 +35498,24 @@ export default function MarketingAdminPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-[#eadfd5] bg-white p-4" data-testid="marketing-campaign-studio-creative-quality">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Creative quality</p>
-                          <h3 className="mt-1 text-lg font-black text-[#241133]">Copy checks before create</h3>
-                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Quick signals for message clarity, action, personalization, and fit across the selected channels.</p>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Pill className={campaignStudioCreativeIssueCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
-                            {campaignStudioCreativeSummary}
-                          </Pill>
-                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioCreativeReadyCount}/{campaignStudioCreativeQualityItems.length} ready</Pill>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-creative-quality-items">
-                        {campaignStudioCreativeQualityItems.map((item) => (
-                          <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-creative-quality-${item.key}`}>
-                            <div className="flex items-start gap-2">
-                              <span className="mt-0.5 shrink-0">
-                                {item.state === "ready" ? <CheckCircle2 size={16} /> : item.state === "blocked" ? <X size={16} /> : <Clock size={16} />}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="flex flex-wrap items-center gap-2">
-                                  <span className="font-black">{item.title}</span>
-                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
-                                </span>
-                                <span className="mt-1 block text-xs font-bold leading-relaxed">{item.detail}</span>
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-studio-personalization-preview">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Merge field preview</p>
-                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Check that personalization tokens resolve against the selected audience before creating content.</p>
-                          </div>
-                          <Pill className={campaignStudioPersonalizationTokens.length ? "bg-purple-50 text-purple-800" : "bg-amber-50 text-amber-800"}>
-                            {campaignStudioPersonalizationTokens.length || "No"} token{campaignStudioPersonalizationTokens.length === 1 ? "" : "s"}
-                          </Pill>
-                        </div>
-                        {campaignStudioPersonalizationTokens.length ? (
-                          <>
-                            <div className="mt-3 flex flex-wrap gap-2" data-testid="marketing-campaign-studio-personalization-tokens">
-                              {campaignStudioPersonalizationCoverage.map((item) => (
-                                <Pill
-                                  key={item.token}
-                                  className={item.available === campaignStudioAudiencePool.length ? "bg-emerald-50 text-emerald-800" : item.available > 0 ? "bg-amber-50 text-amber-800" : "bg-red-50 text-red-800"}
-                                >
-                                  {`{{${item.token}}}`} {item.available}/{campaignStudioAudiencePool.length}
-                                </Pill>
-                              ))}
-                            </div>
-                            <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-sm" data-testid="marketing-campaign-studio-personalization-sample">
-                              <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8a7168]">
-                                Sample for {campaignStudioPersonalizationContact?.fullName || campaignStudioPersonalizationContact?.email || "selected audience"}
-                              </p>
-                              <p className="mt-2 font-black text-[#241133]">{campaignStudioPersonalizedSubject}</p>
-                              <p className="mt-1 font-bold text-[#6f5f59]">{campaignStudioPersonalizedLine}</p>
-                            </div>
-                          </>
-                        ) : (
-                          <p className="mt-3 rounded-xl border border-dashed border-[#eadfd5] bg-white px-3 py-3 text-sm font-bold text-[#7d6b65]">
-                            No merge fields detected. For email or WhatsApp, add tokens like {"{{first_name}}"} or {"{{company_name}}"} when the audience data supports it.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-purple-200 bg-white p-4" data-testid="marketing-campaign-studio-readiness">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Pre-create checklist</p>
-                          <h3 className="mt-1 text-lg font-black text-[#241133]">Studio readiness</h3>
-                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Know what will be saved before VYVA creates the campaign and content asset.</p>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Pill className={campaignStudioBlockedCount > 0 ? "bg-red-50 text-red-800" : campaignStudioNeedsActionCount > 0 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
-                            {campaignStudioReadinessSummary}
-                          </Pill>
-                          <Pill className="bg-purple-50 text-purple-800">{campaignStudioReadyCount}/{campaignStudioReadinessItems.length} ready</Pill>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2" data-testid="marketing-campaign-studio-readiness-items">
-                        {campaignStudioReadinessItems.map((item) => (
-                          <div key={item.key} className={`rounded-xl border p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-readiness-${item.key}`}>
-                            <div className="flex items-start gap-2">
-                              <span className="mt-0.5 shrink-0">
-                                {item.state === "ready" ? <CheckCircle2 size={16} /> : item.state === "blocked" ? <X size={16} /> : <Clock size={16} />}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="flex flex-wrap items-center gap-2">
-                                  <span className="font-black">{item.title}</span>
-                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
-                                </span>
-                                <span className="mt-1 block text-xs font-bold leading-relaxed">{item.detail}</span>
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-next-step">
-                        Next step: {campaignStudioNextStep}
-                      </p>
-                    </div>
+                    <CampaignStudioCreativeReadinessPanel
+                      creativeItems={campaignStudioCreativeQualityItems}
+                      creativeIssueCount={campaignStudioCreativeIssueCount}
+                      creativeSummary={campaignStudioCreativeSummary}
+                      creativeReadyCount={campaignStudioCreativeReadyCount}
+                      personalizationTokens={campaignStudioPersonalizationTokens}
+                      personalizationCoverage={campaignStudioPersonalizationCoverage}
+                      audienceSize={campaignStudioAudiencePool.length}
+                      personalizationSampleLabel={campaignStudioPersonalizationContact?.fullName || campaignStudioPersonalizationContact?.email || "selected audience"}
+                      personalizedSubject={campaignStudioPersonalizedSubject}
+                      personalizedLine={campaignStudioPersonalizedLine}
+                      readinessItems={campaignStudioReadinessItems}
+                      readinessSummary={campaignStudioReadinessSummary}
+                      readyCount={campaignStudioReadyCount}
+                      blockedCount={campaignStudioBlockedCount}
+                      needsActionCount={campaignStudioNeedsActionCount}
+                      nextStep={campaignStudioNextStep}
+                    />
 
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="marketing-campaign-studio-channel-launch-lanes">
                       <div className="flex flex-wrap items-start justify-between gap-3">
