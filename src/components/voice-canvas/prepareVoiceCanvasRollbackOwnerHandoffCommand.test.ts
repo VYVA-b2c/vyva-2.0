@@ -279,6 +279,23 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
       },
     ));
 
+  it("rejects rollback handoffs where backup owner matches the primary owner", () =>
+    withTempMarkdownFile(
+      validRollbackOwnerHandoffArtifact().replace(
+        "Backup owner: Ops Backup Owner",
+        "Backup owner: Ops Launch Owner",
+      ),
+      (inputPath) => {
+        const result = runRollbackOwnerHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Rollback owner handoff artifact must name a backup owner distinct from the primary rollback owner.",
+        );
+      },
+    ));
+
   it("rejects unchanged templates and unsafe filled handoff artifacts", () =>
     withTempMarkdownFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {
       const templateResult = runRollbackOwnerHelper(["--template"]);

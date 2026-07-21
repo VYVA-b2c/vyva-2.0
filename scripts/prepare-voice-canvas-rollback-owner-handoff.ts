@@ -190,6 +190,10 @@ function summaryQaRunUrl(value: string | null): string {
   return new URL(value).origin;
 }
 
+function normalizedOwnerValue(value: string | null): string {
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+}
+
 const unsafeFilledArtifactPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
@@ -255,6 +259,16 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
   }
   if (!isDeployedQaRunUrl(lineValue(content, "QA run URL"))) {
     problems.push("Rollback owner handoff QA run URL must be a deployed HTTPS non-local URL.");
+  }
+
+  const rollbackOwner = normalizedOwnerValue(
+    lineValue(content, "Operations/rollback owner"),
+  );
+  const backupOwner = normalizedOwnerValue(lineValue(content, "Backup owner"));
+  if (rollbackOwner && backupOwner && rollbackOwner === backupOwner) {
+    problems.push(
+      "Rollback owner handoff artifact must name a backup owner distinct from the primary rollback owner.",
+    );
   }
 
   for (const requiredEvidence of [

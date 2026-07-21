@@ -172,7 +172,7 @@ describe("Voice Canvas rollback-owner preflight evidence", () => {
 
         expect(summary.rollbackOwnerEvidence.readyForLaunchEvidence).toBe(false);
         expect(summary.rollbackOwnerEvidence.problems).toContain(
-          "Rollback owner handoff QA run URL must be a deployed non-local http(s) URL.",
+          "Rollback owner handoff QA run URL must be a deployed HTTPS non-local URL.",
         );
         expect(summary.nextActions).toContain(
           "Fix sanitized rollback owner handoff evidence before launch sign-off.",
