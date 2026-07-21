@@ -91,6 +91,8 @@ describe("Voice Canvas evidence packet validator command", () => {
     expect(result.stdout).toContain("explicit reviewed, verified");
     expect(result.stdout).toContain("no older than 7 days");
     expect(result.stdout).toContain("never copy raw artifact-reference values");
+    expect(result.stdout).toContain("token-bearing URLs");
+    expect(result.stdout).toContain("API keys");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
       `--output=artifacts/voice-canvas/${unsafeDatePlaceholder}-evidence-packet-summary.json`,
@@ -220,6 +222,36 @@ describe("Voice Canvas evidence packet validator command", () => {
         const serialized = JSON.stringify(summary);
         expect(serialized).not.toContain("123 Secret Street");
         expect(serialized).not.toContain("transcript");
+      },
+    ));
+
+  it("rejects secret-bearing artifact references without copying secret values", () =>
+    withTempPacket(
+      completedPacket().replace(
+        completedRealDeviceInventoryRow,
+        "| Real-device screenshots or photos | `https://qa-user:secret-pass@staging.vyva.app/artifacts/2026-07-19/run-sheet.json?token=secret` | Device coverage for phone, tablet, and desktop/laptop | QA Owner reviewed on 2026-07-19 |",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Real-device screenshots or photos" has an artifact reference that appears to include personal or raw captured data.',
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("secret-pass");
+        expect(serialized).not.toContain("token=secret");
       },
     ));
 

@@ -234,6 +234,10 @@ const literalPersonalDataPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\b(?:\+?\d[\s().-]*){10,}\b/,
+  /https?:\/\/[^\s/|`]+:[^\s@/|`]+@[^\s|`]+/i,
+  /\b(?:token|secret|api[_-]?key|authorization|cookie|password|session)[=:][^\s|`]+/i,
+  /\bbearer\s+[A-Za-z0-9._~+/-]+=*/i,
+  /\bx-api-key\s*[:=]\s*[^\s|`]+/i,
   /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|ride details|route details|pickup details|dropoff details|destination details|appointment date|appointment time|date\/time details|medication name|medication details|provider name|provider details|provider contact|reply text|reply body|shopping item|shopping details|item name|retailer name|price|fee|contact details|account id|user id|profile id|patient id)\b/i,
 ];
 
@@ -969,7 +973,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "It protects privacy guardrails, environment preflight, canonical flow entry surfaces, fallback paths, sanitized artifact categories, flow/device rows, behavior recovery, rollback, copy/accessibility, analytics, and closeout checks.",
       "Filled result cells must name specific sanitized evidence or behavior; generic pass/done/OK text is rejected.",
       "Filled dated evidence cells must use non-future YYYY-MM-DD dates no older than 7 days.",
-      "Filled cells must not include literal personal data such as street-address-shaped text, email addresses, phone numbers, transcripts, route details, shopping details, provider details, or account identifiers.",
+      "Filled cells must not include literal personal data or secrets such as street-address-shaped text, email addresses, phone numbers, transcripts, route details, shopping details, provider details, account identifiers, token-bearing URLs, bearer tokens, cookies, passwords, or API keys.",
       "Use --json to emit machine-readable summary output for QA artifacts or CI.",
       "Use --output=<path> with --json to also save the summary to a file.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",

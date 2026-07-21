@@ -96,6 +96,8 @@ describe("Voice Canvas run sheet validator command", () => {
     expect(result.stdout).toContain("street-address-shaped text");
     expect(result.stdout).toContain("route details");
     expect(result.stdout).toContain("account identifiers");
+    expect(result.stdout).toContain("token-bearing URLs");
+    expect(result.stdout).toContain("API keys");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
     expect(result.stdout).not.toContain(
@@ -247,6 +249,39 @@ describe("Voice Canvas run sheet validator command", () => {
         const serialized = JSON.stringify(summary);
         expect(serialized).not.toContain("123 Secret Street");
         expect(serialized).not.toContain("qa-person@example.com");
+      },
+    ));
+
+  it("rejects run sheets with secret-bearing artifact references without echoing values", () =>
+    withTempRunSheet(
+      completedRunSheet().replace(
+        COMPLETED_EVIDENCE_CELL,
+        "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot link https://qa-user:secret-pass@staging.vyva.app/artifacts?token=secret and bearer abc123SECRET",
+      ),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForQaRunSheet: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForQaRunSheet).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining("literal personal data"),
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("secret-pass");
+        expect(serialized).not.toContain("token=secret");
+        expect(serialized).not.toContain("abc123SECRET");
       },
     ));
 

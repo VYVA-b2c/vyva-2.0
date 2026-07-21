@@ -517,6 +517,10 @@ const unsafeReferencePatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\b(?:\+?\d[\s().-]*){10,}\b/,
+  /https?:\/\/[^\s/|`]+:[^\s@/|`]+@[^\s|`]+/i,
+  /\b(?:token|secret|api[_-]?key|authorization|cookie|password|session)[=:][^\s|`]+/i,
+  /\bbearer\s+[A-Za-z0-9._~+/-]+=*/i,
+  /\bx-api-key\s*[:=]\s*[^\s|`]+/i,
   /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|ride details|route details|pickup details|dropoff details|destination details|appointment date|appointment time|date\/time details|medication name|medication details|provider name|provider details|provider contact|reply text|reply body|shopping item|shopping details|item name|retailer name|price|fee|contact details|account id|user id|profile id|patient id)\b/i,
 ];
 
@@ -1019,7 +1023,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Inventory references must point to concrete dated sanitized artifact paths or links, not generic review prose.",
       "Inventory coverage cells must map each artifact set to the required environment, entry surface, device, interaction, behavior, endpoint, task hub, copy/accessibility, analytics, privacy, run-sheet validation, or preflight evidence.",
       "Inventory reviewer/date cells must include a non-future YYYY-MM-DD date no older than 7 days and explicit reviewed, verified, validated, approved, or sign-off wording.",
-      "Problems never copy raw artifact-reference values, so accidental personal details are not repeated in validator output.",
+      "Problems never copy raw artifact-reference values, so accidental personal details, token-bearing URLs, bearer tokens, cookies, passwords, or API keys are not repeated in validator output.",
     ].join("\n"),
   );
   process.exit(0);
