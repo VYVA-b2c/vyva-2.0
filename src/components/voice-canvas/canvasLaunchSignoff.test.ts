@@ -19,7 +19,7 @@ const QA_SIGNOFF_ROW =
   "| QA | Quentin QA | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence |";
 
 const OPS_SIGNOFF_ROW =
-  "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner and backup, decision window, rollback trigger, enable false rollout 0 action, sanitized endpoint fallback open-session Canvas closed evidence, and privacy boundary launch evidence |";
+  "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner and distinct backup, decision window, rollback trigger, enable false rollout 0 action, sanitized endpoint fallback open-session Canvas closed evidence, and privacy boundary launch evidence |";
 
 const TASK_HUB_SHOPPING_ROW =
   "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |";
@@ -802,6 +802,26 @@ describe("Canvas real-device QA sign-off", () => {
     const completed = completedMatrix().replace(
       OPS_SIGNOFF_ROW,
       "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner disabled rollout 0 fallback launch evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual([
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete, role-specific launch evidence"),
+      ]),
+    );
+  });
+
+  it("rejects Operations sign-off notes that do not prove a distinct backup owner", () => {
+    const completed = completedMatrix().replace(
+      OPS_SIGNOFF_ROW,
+      "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner and backup, decision window, rollback trigger, enable false rollout 0 action, sanitized endpoint fallback open-session Canvas closed evidence, and privacy boundary launch evidence |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);

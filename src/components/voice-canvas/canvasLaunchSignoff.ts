@@ -279,6 +279,7 @@ const launchSignoffRoleNoteRequirements: Record<
     ["rollback"],
     ["owner"],
     ["backup"],
+    ["distinct", "separate", "different"],
     ["decision"],
     ["trigger"],
     ["disable", "disabled", "enable false", "rollout 0", "0%"],
