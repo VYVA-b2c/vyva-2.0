@@ -7543,6 +7543,8 @@ describe("MarketingAdminPage", () => {
       }],
     });
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
+    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("review the email send panel");
+    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("confirm the schedule");
   });
 
   it("creates multi-channel planner packs without auto-dispatching", async () => {
@@ -7598,6 +7600,8 @@ describe("MarketingAdminPage", () => {
     ]));
     expect(postBody.recipients).toHaveLength(2);
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
+    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("review the email send panel");
+    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("prepare LinkedIn handoff");
   });
 
   it("runs due scheduled email campaigns from the calendar tab", async () => {

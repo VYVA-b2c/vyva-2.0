@@ -22541,7 +22541,23 @@ export default function MarketingAdminPage() {
       setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
       setCampaignDraft(emptyCampaignDraft());
       const recipientMessage = campaignDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
-      setMessage(`Campaign draft created.${recipientMessage}`);
+      const savedEmailRoutes = result.campaign.channels.filter((channel) => channel.channel === "email");
+      const savedManualRoutes = result.campaign.channels.filter((channel) => channel.channel !== "email");
+      const savedRecipientCount = result.campaign.recipientCount || recipients?.length || 0;
+      const postCreateNextSteps = [
+        savedEmailRoutes.length
+          ? savedRecipientCount > 0
+            ? "review the email send panel"
+            : "snapshot email recipients"
+          : "",
+        savedManualRoutes.length
+          ? `prepare ${formatChannelList(savedManualRoutes.map((channel) => channel.channel))} handoff`
+          : "",
+        scheduledAt ? "confirm the schedule" : "keep it as a draft until timing is approved",
+      ].filter(Boolean);
+      const postCreateMessage = `Campaign created and opened. Next: ${postCreateNextSteps.join("; ")}.`;
+      setCampaignEmailFeedback(postCreateMessage);
+      setMessage(`${postCreateMessage}${recipientMessage}`);
       await refreshAll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Campaign could not be created.");
