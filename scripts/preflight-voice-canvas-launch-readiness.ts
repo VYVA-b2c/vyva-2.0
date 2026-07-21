@@ -903,6 +903,34 @@ const requiredLaunchRunPlanChecklistGroups: Array<{
       ["telemetry"],
     ],
   },
+  {
+    label: "one deployed QA origin across external launch artifacts",
+    wordGroups: [
+      ["one", "same", "single"],
+      ["deployed"],
+      ["qa origin", "origin"],
+      ["launch run plan", "run plan"],
+      ["enabled endpoint", "enabled endpoints"],
+      ["rollback endpoint", "rollback endpoints"],
+      ["analytics"],
+      ["copy clarity", "copy-clarity"],
+      ["recovery behavior", "recovery-behavior"],
+      ["real use", "real-use"],
+      ["entry surface", "entry-surface"],
+      ["rollback owner", "rollback-owner"],
+    ],
+  },
+  {
+    label: "endpoint auth metadata matching the launch run plan without credentials",
+    wordGroups: [
+      ["endpoint"],
+      ["auth metadata", "authentication metadata"],
+      ["matching", "match"],
+      ["launch run plan", "run plan"],
+      ["request header", "request-header"],
+      ["credential", "credentials", "token", "tokens", "secret", "secrets"],
+    ],
+  },
 ];
 
 function normalizeRunPlanText(value: string): string {

@@ -240,6 +240,12 @@ describe("Voice Canvas launch evidence run helper command", () => {
       "rollback owner handoff with deployed QA run URL, owner, backup",
     );
     expect(summary.checklist.join(" ")).toContain(
+      "one deployed QA origin across launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback-owner artifacts",
+    );
+    expect(summary.checklist.join(" ")).toContain(
+      "endpoint auth metadata matching the launch run plan request-header env references without saving credential names",
+    );
+    expect(summary.checklist.join(" ")).toContain(
       "refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery",
     );
     expect(summary.checklist.join(" ")).toContain(

@@ -244,6 +244,8 @@ const checklist = [
   "Fill real-use evidence from real physical phone, tablet, desktop/laptop, voice, touch, and keyboard coverage.",
   "Fill entry surface evidence from every canonical launch surface without writes or external actions before confirmation.",
   "Fill rollback owner handoff with deployed QA run URL, owner, backup, decision window, trigger, action, fallback, privacy, and no-side-effect proof.",
+  "Use one deployed QA origin across launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback-owner artifacts.",
+  "Keep endpoint auth metadata matching the launch run plan request-header env references without saving credential names, values, tokens, cookies, passwords, or API keys.",
   "Execute every flow on real phone, tablet, and desktop/laptop sessions using voice, touch, and keyboard paths.",
   "Verify refresh, browser back, app exit/reopen, reconnect, voice interruption, cancel/exit, retry, and duplicate/stale-response recovery with entered information preserved.",
   "Verify feature-flag rollback closes or hides Canvas in an open session and restores the named existing fallback path without writes or external actions.",
