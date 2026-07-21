@@ -526,6 +526,10 @@ function validateFeatureEndpointArtifact(
 
   if (!isRecord(artifact)) {
     problems.push("Feature endpoint artifact must be a JSON object.");
+  } else if (containsUnsafeLaunchArtifactText(artifact)) {
+    problems.push(
+      "Feature endpoint artifact contains contradictory or unsafe launch evidence wording.",
+    );
   }
 
   const endpoints = isRecord(artifact) ? artifact.featureEndpoints : null;
@@ -972,6 +976,13 @@ function hasUnsafeLaunchRunPlanText(value: string): boolean {
       normalized,
     )
   );
+}
+
+function containsUnsafeLaunchArtifactText(value: unknown): boolean {
+  if (typeof value === "string") return hasUnsafeLaunchRunPlanText(value);
+  if (Array.isArray(value)) return value.some(containsUnsafeLaunchArtifactText);
+  if (!isRecord(value)) return false;
+  return Object.values(value).some(containsUnsafeLaunchArtifactText);
 }
 
 function launchEvidenceCommandsForRun(

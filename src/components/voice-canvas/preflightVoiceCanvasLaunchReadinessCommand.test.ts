@@ -1747,6 +1747,46 @@ describe("Voice Canvas launch readiness preflight command", () => {
       },
     ));
 
+  it("rejects feature endpoint artifacts with contradictory unsafe wording", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        launchNote:
+          "Accepted risk: external action triggered before confirmation and fallback unavailable during rollback.",
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
+          };
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.enabled.problems).toContain(
+          "Feature endpoint artifact contains contradictory or unsafe launch evidence wording.",
+        );
+        expect(result.stdout).not.toContain("external action triggered");
+        expect(result.stdout).not.toContain("fallback unavailable");
+      },
+    ));
+
   it("rejects endpoint artifacts that include request header or credential references", () =>
     withTempFeatureEndpointFiles(
       {
