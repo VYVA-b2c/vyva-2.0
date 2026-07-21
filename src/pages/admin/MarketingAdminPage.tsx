@@ -30581,6 +30581,46 @@ export default function MarketingAdminPage() {
     ].join("\n");
   }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
 
+  const marketingDashboardAiRecipientRouteMapText = useMemo(() => {
+    const plan = marketingDashboardAiCommandPlan;
+    if (!plan) return "";
+
+    const audienceName = plan.match.targetAudience?.name ?? `${plan.match.play.audienceType.toUpperCase()} contacts`;
+    const contactLines = plan.matchingContacts.slice(0, 12).map((contact) => {
+      const reachableChannels = plan.selectedChannels.filter((channel) => contactReachableForChannel(contact, channel));
+      const contactContext = [
+        contact.companyName,
+        contact.roleLabel,
+        contact.email,
+        contact.phoneNumber || contact.whatsappNumber,
+      ].filter(Boolean).join(" / ") || "No contact detail";
+      return `- ${contact.fullName || contact.email || contact.phoneNumber || contact.id}: ${contactContext}; consent ${contact.consentStatus}; routes ${reachableChannels.length ? formatChannelList(reachableChannels) : "none"}`;
+    });
+
+    return [
+      "VYVA AI command recipient route map",
+      "",
+      `Command: ${marketingDashboardAiCommand.trim()}`,
+      `Play: ${plan.match.play.label}`,
+      `Audience: ${audienceName}`,
+      `Matched contacts: ${plan.audienceQuality.total}`,
+      `Reachable contacts: ${plan.reachableContacts}`,
+      `Consent review: ${plan.audienceQuality.needsReview}`,
+      `Missing selected route: ${plan.audienceQuality.noSelectedRoute}`,
+      "",
+      "Channel coverage",
+      ...plan.audienceQuality.routeCoverage.map((item) => `- ${channelLabel[item.channel]}: ${item.count} reachable`),
+      "",
+      "Contact route sample",
+      ...(contactLines.length ? contactLines : ["- No matched contacts yet."]),
+      "",
+      "Review notes",
+      "- Use this map to confirm who is included before creating campaign records.",
+      "- Review consent and no-route contacts before sending or handing off.",
+      "- Keep non-email/social routes as manual publishing tasks until provider controls are enabled.",
+    ].join("\n");
+  }, [marketingDashboardAiCommand, marketingDashboardAiCommandPlan]);
+
   function marketingDashboardAiRouteBriefText(channel: Channel) {
     const plan = marketingDashboardAiCommandPlan;
     const route = plan?.channelRoutes.find((item) => item.channel === channel);
@@ -30884,6 +30924,41 @@ export default function MarketingAdminPage() {
       } else {
         const fallbackInput = document.createElement("textarea");
         fallbackInput.value = marketingDashboardAiRationaleText;
+        fallbackInput.setAttribute("readonly", "true");
+        fallbackInput.style.position = "fixed";
+        fallbackInput.style.left = "-9999px";
+        document.body.appendChild(fallbackInput);
+        fallbackInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(fallbackInput);
+        if (!copied) throw new Error("Clipboard unavailable");
+      }
+
+      const feedback = `${label} copied.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    } catch {
+      const feedback = `Could not copy ${label}. Select the text and copy it manually.`;
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+    }
+  }
+
+  async function copyMarketingDashboardAiRecipientRouteMap() {
+    const label = "AI recipient route map";
+    if (!marketingDashboardAiRecipientRouteMapText.trim()) {
+      const feedback = "Type a campaign goal first so VYVA can prepare a recipient route map.";
+      setMarketingDashboardAiCommandFeedback(feedback);
+      setMessage(feedback);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(marketingDashboardAiRecipientRouteMapText);
+      } else {
+        const fallbackInput = document.createElement("textarea");
+        fallbackInput.value = marketingDashboardAiRecipientRouteMapText;
         fallbackInput.setAttribute("readonly", "true");
         fallbackInput.style.position = "fixed";
         fallbackInput.style.left = "-9999px";
@@ -31972,6 +32047,54 @@ export default function MarketingAdminPage() {
                                     {channelLabel[item.channel]} {item.count}
                                   </Pill>
                                 ))}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-2.5 py-2" data-testid="marketing-ai-command-recipient-route-map">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <span className="block text-[#7d6b65]">Recipient route map</span>
+                                  <span className="mt-1 block text-[#241133]">
+                                    {marketingDashboardAiCommandPlan.matchingContacts.slice(0, 4).length
+                                      ? `${marketingDashboardAiCommandPlan.matchingContacts.slice(0, 4).length} sample contact${marketingDashboardAiCommandPlan.matchingContacts.slice(0, 4).length === 1 ? "" : "s"} from ${marketingDashboardAiCommandPlan.audienceQuality.total} matched.`
+                                      : "No matched contacts yet."}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => void copyMarketingDashboardAiRecipientRouteMap()}
+                                  className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-[11px] font-black text-blue-800 transition hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                                  data-testid="button-marketing-ai-command-copy-recipient-route-map"
+                                >
+                                  <Copy size={12} /> Copy map
+                                </button>
+                              </div>
+                              <div className="mt-2 grid gap-1.5">
+                                {marketingDashboardAiCommandPlan.matchingContacts.slice(0, 4).map((contact) => {
+                                  const reachableChannels = marketingDashboardAiCommandPlan.selectedChannels.filter((channel) => contactReachableForChannel(contact, channel));
+                                  return (
+                                    <div key={contact.id} className="rounded-lg bg-white px-2 py-1.5 text-[11px] font-bold text-[#5b4a46] ring-1 ring-blue-100">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <span className="font-black text-[#241133]">{contact.fullName || contact.email || contact.phoneNumber || "Unknown contact"}</span>
+                                        <Pill className={contact.consentStatus === "opted_in" ? "bg-emerald-50 text-emerald-800" : contact.consentStatus === "opted_out" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-800"}>
+                                          {contact.consentStatus}
+                                        </Pill>
+                                      </div>
+                                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                        <span>{contact.companyName || contact.roleLabel || contact.email || "No organization"}</span>
+                                        <span className="text-[#9a8983]">Route:</span>
+                                        {reachableChannels.length ? (
+                                          reachableChannels.map((channel) => (
+                                            <Pill key={channel} className={channelClass(channel)}>
+                                              {channelLabel[channel]}
+                                            </Pill>
+                                          ))
+                                        ) : (
+                                          <Pill className="bg-red-50 text-red-800">No selected route</Pill>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           </div>

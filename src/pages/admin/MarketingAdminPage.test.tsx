@@ -1754,6 +1754,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-audience-quality")).toHaveTextContent("1 consent review");
     expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("Email 1");
     expect(screen.getByTestId("marketing-ai-command-audience-channel-coverage")).toHaveTextContent("LinkedIn 1");
+    expect(screen.getByTestId("marketing-ai-command-recipient-route-map")).toHaveTextContent("Recipient route map");
+    expect(screen.getByTestId("marketing-ai-command-recipient-route-map")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-ai-command-recipient-route-map")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("marketing-ai-command-recipient-route-map")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-ai-command-recipient-route-map")).toHaveTextContent("LinkedIn");
+    fireEvent.click(screen.getByTestId("button-marketing-ai-command-copy-recipient-route-map"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA AI command recipient route map"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Hassan Partner"));
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("routes Email and LinkedIn"));
+    expect(screen.getByTestId("marketing-ai-command-feedback")).toHaveTextContent("AI recipient route map copied.");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("Launch confidence");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("74% Review first");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("Professional referral webinar templates matched");
