@@ -6318,6 +6318,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-consent")).toHaveTextContent("1 pending/unknown and 0 opted out");
     expect(screen.getByTestId("marketing-campaign-studio-audience-intel-localization")).toHaveTextContent("Spain 1");
     expect(screen.getByTestId("marketing-campaign-studio-audience-recommendation")).toHaveTextContent("Review 1 unmapped list member from Partners");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-decision-board")).toHaveTextContent("Audience decision board");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-decision-ready-audience")).toHaveTextContent("1 route snapshot");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-decision-contact-cleanup")).toHaveTextContent("1 issue");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-decision-segment-focus")).toHaveTextContent("Market: Spain");
+    expect(screen.getByTestId("marketing-campaign-studio-audience-decision-relationship-path")).toHaveTextContent("Hassan Partner");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-audience-decision-board"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign audience decision board"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Ready audience: 1 route snapshot"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign audience decision board copied.");
     expect(screen.getByTestId("marketing-campaign-studio-segment-personalization")).toHaveTextContent("Segment personalization matrix");
     expect(screen.getByTestId("marketing-campaign-studio-segment-personalization-market-spain")).toHaveTextContent("Spain");
     expect(screen.getByTestId("marketing-campaign-studio-segment-personalization-market-spain")).toHaveTextContent("LinkedIn");

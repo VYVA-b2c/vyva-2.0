@@ -869,6 +869,10 @@ type CampaignStudioRecipientMixItem = CampaignAudienceInsightItem & {
   channels?: Channel[];
 };
 
+type CampaignStudioAudienceDecisionItem = CampaignAudienceInsightItem & {
+  actionLabel: string;
+};
+
 type CampaignStudioSegmentPersonalizationItem = {
   key: string;
   label: string;
@@ -19378,6 +19382,66 @@ export default function MarketingAdminPage() {
     },
   ];
   const campaignStudioFollowUpPlaybookText = campaignStudioFollowUpPlays.map((item) => item.text).join("\n\n---\n\n");
+  const campaignStudioPrimarySegment = campaignStudioSegmentPersonalizationItems.find((item) => item.basis === "Market")
+    ?? campaignStudioSegmentPersonalizationItems.find((item) => item.basis === "Language")
+    ?? campaignStudioSegmentPersonalizationItems.find((item) => item.basis === "Organization")
+    ?? campaignStudioSegmentPersonalizationItems[0]
+    ?? null;
+  const campaignStudioPrimaryReachableSample = campaignStudioRecipientSample[0]?.contact ?? null;
+  const campaignStudioContactCleanupCount = campaignStudioDeliveryIssues.consentReview + campaignStudioDeliveryIssues.optedOut + campaignStudioDeliveryIssues.routeMissing;
+  const campaignStudioAudienceDecisionItems: CampaignStudioAudienceDecisionItem[] = [
+    {
+      key: "ready-audience",
+      title: "Ready audience",
+      value: `${campaignStudioPackRecipientCount} route snapshot${campaignStudioPackRecipientCount === 1 ? "" : "s"}`,
+      state: campaignStudioPackRecipientCount > 0 ? "ready" : "blocked",
+      detail: campaignStudioPackRecipientCount > 0
+        ? `${campaignStudioRecipientSample.length ? `Start with ${campaignStudioRecipientSample.length} visible sample${campaignStudioRecipientSample.length === 1 ? "" : "s"}` : "Create the reachable recipient set"} across ${formatChannelList(campaignStudioSelectedChannels)}.`
+        : "No reachable audience route exists for this campaign setup yet.",
+      actionLabel: campaignStudioPackRecipientCount > 0 ? "Create recipient snapshot" : "Change audience or route",
+    },
+    {
+      key: "contact-cleanup",
+      title: "Contact cleanup",
+      value: `${campaignStudioContactCleanupCount} issue${campaignStudioContactCleanupCount === 1 ? "" : "s"}`,
+      state: campaignStudioDeliveryIssues.optedOut > 0 || campaignStudioDeliveryIssues.routeMissing > 0 ? "needs_action" : campaignStudioDeliveryIssues.consentReview > 0 ? "planning" : "ready",
+      detail: `${campaignStudioDeliveryIssues.consentReview} consent review, ${campaignStudioDeliveryIssues.optedOut} opted out, ${campaignStudioDeliveryIssues.routeMissing} missing selected route.`,
+      actionLabel: campaignStudioContactCleanupCount > 0 ? "Review contacts before sending" : "No cleanup blocking launch",
+    },
+    {
+      key: "segment-focus",
+      title: "Segment focus",
+      value: campaignStudioPrimarySegment ? `${campaignStudioPrimarySegment.basis}: ${campaignStudioPrimarySegment.label}` : "No segment yet",
+      state: campaignStudioPrimarySegment?.state ?? (campaignStudioAudiencePool.length ? "planning" : "blocked"),
+      detail: campaignStudioPrimarySegment
+        ? `${campaignStudioPrimarySegment.contactCount} contact${campaignStudioPrimarySegment.contactCount === 1 ? "" : "s"}; ${campaignStudioPrimarySegment.proofAngle}`
+        : "Add market, language, role, organization, category, or vertical data to shape better variants.",
+      actionLabel: campaignStudioPrimarySegment ? `Personalize ${campaignStudioPrimarySegment.label}` : "Add segmentation fields",
+    },
+    {
+      key: "relationship-path",
+      title: "Relationship path",
+      value: campaignStudioFollowUpPlays[0]?.title ?? "No play yet",
+      state: campaignStudioFollowUpPlays[0]?.state ?? "planning",
+      detail: campaignStudioPrimaryReachableSample
+        ? `First visible contact: ${campaignStudioPrimaryReachableSample.fullName || campaignStudioPrimaryReachableSample.email || campaignStudioPrimaryReachableSample.phoneNumber || "unnamed contact"}. Capture reply, need, owner, and next date.`
+        : "Once reachable contacts exist, pair the campaign with a reply and no-reply follow-up owner.",
+      actionLabel: "Use follow-up play",
+    },
+  ];
+  const campaignStudioAudienceDecisionText = [
+    "VYVA campaign audience decision board",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${campaignStudioOfflineAudienceName}`,
+    `Channels: ${formatChannelList(campaignStudioSelectedChannels)}`,
+    "",
+    ...campaignStudioAudienceDecisionItems.map((item) => [
+      `${item.title}: ${item.value}`,
+      `State: ${readinessLabel(item.state)}`,
+      `Decision: ${item.detail}`,
+      `Next action: ${item.actionLabel}`,
+    ].join("\n")),
+  ].join("\n\n---\n\n");
   const campaignStudioSectionMapItems = [
     {
       key: "audience",
@@ -34598,6 +34662,41 @@ export default function MarketingAdminPage() {
                             <Sparkles size={13} aria-hidden="true" /> Use {channelLabel[campaignStudioBestChannelReach.channel]} route
                           </button>
                         ) : null}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3" data-testid="marketing-campaign-studio-audience-decision-board">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.1em] text-indigo-800">Audience decision board</p>
+                            <p className="mt-1 text-xs font-bold text-[#536f67]">
+                              Converts contact data into the exact targeting, cleanup, segment, and relationship move to make before launch.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign audience decision board", campaignStudioAudienceDecisionText)}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 text-xs font-black text-indigo-800 hover:bg-indigo-50"
+                            data-testid="button-marketing-campaign-studio-copy-audience-decision-board"
+                          >
+                            <Copy size={13} /> Copy decision board
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-2 xl:grid-cols-4" data-testid="marketing-campaign-studio-audience-decision-board-items">
+                          {campaignStudioAudienceDecisionItems.map((item) => (
+                            <article key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-audience-decision-${item.key}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{item.title}</p>
+                                  <p className="mt-1 text-base font-black">{item.value}</p>
+                                </div>
+                                <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                              </div>
+                              <p className="mt-2 text-xs font-bold leading-relaxed">{item.detail}</p>
+                              <p className="mt-2 rounded-lg bg-indigo-50 px-2 py-1.5 text-[11px] font-black uppercase tracking-[0.08em] text-indigo-800">
+                                {item.actionLabel}
+                              </p>
+                            </article>
+                          ))}
+                        </div>
                       </div>
                       <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50/50 p-3" data-testid="marketing-campaign-studio-segment-personalization">
                         <div className="flex flex-wrap items-start justify-between gap-3">
