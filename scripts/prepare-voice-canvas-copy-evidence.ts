@@ -106,7 +106,7 @@ function copyEvidenceTemplate(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | [warm plain senior-friendly restrained copy with one clear decision at a time] | [what happens next is clear for primary action, secondary/back/cancel/exit, waiting, blocked, and completed states] | [long translated Spanish labels wrap without overflow, clipping, or hidden decisions on mobile, tablet, and desktop] | [focus moves meaningfully; screen reader announces waiting, blocked, and completed; reduced motion respected] | [sanitized dated copy review screenshot/capture/accessibility artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
+      `| ${flow.label} | [warm plain senior-friendly restrained copy with one clear decision at a time] | [what happens next and what is pending are clear for primary action, secondary/back/cancel/exit, waiting, blocked, and completed states] | [long translated Spanish labels wrap without overflow, clipping, or hidden decisions on mobile, tablet, and desktop] | [focus moves meaningfully; screen reader announces waiting, blocked, and completed; reduced motion respected] | [sanitized dated copy review screenshot/capture/accessibility artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
     );
   }
 
@@ -114,7 +114,7 @@ function copyEvidenceTemplate(): string {
     "",
     "## Copy-ready evidence packet note",
     "",
-    `Copy clarity reviewed on [${artifactDatePlaceholder}] by [reviewer]: every launch flow used warm plain senior-friendly restrained copy, showed one clear decision at a time, explained what happens next for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handled long translated Spanish labels without overflow, moved focus meaningfully, announced waiting/blocked/completed states to screen readers, respected reduced motion, and used sanitized dated copy/accessibility artifact references only.`,
+    `Copy clarity reviewed on [${artifactDatePlaceholder}] by [reviewer]: every launch flow used warm plain senior-friendly restrained copy, showed one clear decision at a time, explained what happens next and what is pending for primary, secondary/back/cancel/exit, waiting, blocked, and completed states, handled long translated Spanish labels without overflow, moved focus meaningfully, announced waiting/blocked/completed states to screen readers, respected reduced motion, and used sanitized dated copy/accessibility artifact references only.`,
   );
 
   return lines.join("\n");
@@ -352,6 +352,7 @@ function validateCopyEvidence(inputPathArg: string): CopyEvidenceSummary {
     if (
       !hasAllWordGroups(copyRow.nextStepClarity, [
         ["what happens next", "next step"],
+        ["pending", "what is pending"],
         ["primary"],
         ["secondary", "back", "cancel", "exit"],
         ["waiting"],
@@ -359,7 +360,7 @@ function validateCopyEvidence(inputPathArg: string): CopyEvidenceSummary {
         ["completed", "complete"],
       ])
     ) {
-      problems.push(`${flow.label}: next-step cell must explain primary, secondary/back/cancel/exit, waiting, blocked, and completed states.`);
+      problems.push(`${flow.label}: next-step cell must explain what happens next, what is pending, and primary, secondary/back/cancel/exit, waiting, blocked, and completed states.`);
     }
 
     if (
