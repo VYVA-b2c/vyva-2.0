@@ -12,6 +12,7 @@ export type VoiceCanvasSceneKind =
   | "blocked";
 
 export type VoiceCanvasStatus = "idle" | "listening" | "loading" | "success" | "blocked";
+export type VoiceCanvasAgentPresenceState = "idle" | "listening" | "speaking" | "thinking";
 
 export interface VoiceCanvasChoice {
   id: string;
@@ -90,11 +91,20 @@ export interface VoiceCanvasProgress {
   label: string;
 }
 
+export interface VoiceCanvasAgentPresence {
+  state: VoiceCanvasAgentPresenceState;
+  label: string;
+  description?: string;
+  accessibleLabel?: string;
+  ariaLive?: "off" | "polite" | "assertive";
+}
+
 export interface VoiceCanvasViewModel {
   sceneId: string;
   kind: VoiceCanvasSceneKind;
   title: string;
   helperText?: string;
+  agentPresence?: VoiceCanvasAgentPresence;
   progress?: VoiceCanvasProgress;
   choices?: VoiceCanvasChoice[];
   blocks?: VoiceCanvasBlock[];
