@@ -15160,6 +15160,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       ),
   );
   const providerReplyCanvasCopy = useMemo<ProviderReplyCanvasCopy>(() => ({
+    agentPresence: {
+      idleLabel: isSpanish ? "VYVA lista" : "VYVA is ready",
+      idleDescription: isSpanish ? "Puedes hablar o tocar la pantalla." : "You can speak or use the screen.",
+      listeningLabel: isSpanish ? "Escuchando contigo" : "Listening with you",
+      listeningDescription: isSpanish ? "Puedes dictar la respuesta o revisar los campos." : "You can dictate the reply or review the fields.",
+      speakingLabel: isSpanish ? "VYVA está hablando" : "VYVA is speaking",
+      speakingDescription: isSpanish ? "La pantalla seguirá el mismo paso." : "The screen will stay on the same step.",
+      thinkingLabel: isSpanish ? "Guardando la respuesta" : "Thinking through the provider reply",
+      thinkingDescription: isSpanish ? "Revisando el registro antes de guardar." : "Checking the record before saving.",
+      accessibleLabel: isSpanish ? "Estado de voz de VYVA para la respuesta del proveedor" : "VYVA voice status for the provider reply",
+    },
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
       title: isSpanish ? "Revisemos la respuesta" : "Review the provider reply",
@@ -16575,6 +16586,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     conciergeVoiceAction?.id ?? "anonymous",
   );
   const legacyRideCanvasCopy = useMemo<RideCanvasCopy>(() => ({
+    agentPresence: {
+      idleLabel: isSpanish ? "VYVA lista" : "VYVA is ready",
+      idleDescription: isSpanish ? "Puedes hablar o tocar la pantalla." : "You can speak or use the screen.",
+      listeningLabel: isSpanish ? "Escuchando contigo" : "Listening with you",
+      listeningDescription: isSpanish ? "Puedes decir el destino o tocar una opción." : "You can say the destination or tap an option.",
+      speakingLabel: isSpanish ? "VYVA está hablando" : "VYVA is speaking",
+      speakingDescription: isSpanish ? "La pantalla seguirá el mismo paso." : "The screen will stay on the same step.",
+      thinkingLabel: isSpanish ? "Preparando opciones" : "Thinking through ride options",
+      thinkingDescription: isSpanish ? "Revisando los detalles del viaje." : "Checking the ride details.",
+      accessibleLabel: isSpanish ? "Estado de voz de VYVA para el viaje" : "VYVA voice status for the ride",
+    },
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
       title: isSpanish ? "¿Adonde te ayudo a ir?" : "Where can I help you go?",
@@ -16734,6 +16756,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const appointmentCanvasRolloutQuery=useQuery({queryKey:["/api/config/features/appointment-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/appointment-voice-canvas");return response.ok?parseAppointmentCanvasRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},enabled:isVoiceAppointmentHandoff,staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
   const usesAppointmentVoiceCanvas=isVoiceAppointmentHandoff&&isAppointmentCanvasEnabled(appointmentCanvasRolloutQuery.data,conciergeVoiceAction?.id??"anonymous");
   const appointmentVoiceCanvasCopy=useMemo<AppointmentCanvasCopy>(()=>({
+    agentPresence:{idleLabel:isSpanish?"VYVA lista":"VYVA is ready",idleDescription:isSpanish?"Puedes hablar o tocar la pantalla.":"You can speak or use the screen.",listeningLabel:isSpanish?"Escuchando contigo":"Listening with you",listeningDescription:isSpanish?"Puedes decir el profesional, el motivo o la hora.":"You can say the provider, reason, or time.",speakingLabel:isSpanish?"VYVA está hablando":"VYVA is speaking",speakingDescription:isSpanish?"La pantalla seguirá el mismo paso.":"The screen will stay on the same step.",thinkingLabel:isSpanish?"Preparando la cita":"Thinking through appointment details",thinkingDescription:isSpanish?"Revisando la preparación antes de confirmar.":"Checking the preparation before confirmation.",accessibleLabel:isSpanish?"Estado de voz de VYVA para la cita":"VYVA voice status for the appointment"},
     listening:{status:isSpanish?"Escuchando":"Listening",title:isSpanish?"Preparemos tu cita":"Let’s prepare your appointment",helper:isSpanish?"Puedes hablar o usar los botones.":"Use your voice or the buttons below.",start:isSpanish?"Empezar":"Start",cancel:isSpanish?"Ahora no":"Not now"},
     provider:{title:isSpanish?"¿Con qué profesional o clínica?":"Which clinician or clinic?",helper:isSpanish?"Elige uno guardado o añade otro.":"Choose a saved provider or add another.",newProvider:isSpanish?"Otro profesional o clínica":"A different provider",newProviderHelper:isSpanish?"Escribe el nombre":"Enter the provider name",back:isSpanish?"Volver":"Go back"},
     providerEntry:{title:isSpanish?"¿Qué nombre usamos?":"What provider should we use?",helper:isSpanish?"Escribe el profesional o la clínica.":"Enter the clinician or clinic.",label:isSpanish?"Profesional o clínica":"Clinician or clinic",placeholder:isSpanish?"Nombre del profesional o clínica":"Provider or clinic name",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},

@@ -29,6 +29,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 export interface ShoppingVoiceCommands {
   start: string[];
@@ -95,10 +96,11 @@ export function ShoppingVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
+  const baseViewModel = useMemo(
     () => shoppingCanvasViewModel(state, copy, retailers, addresses),
     [state, copy, retailers, addresses],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {
       restoreTrackedRef.current = true;

@@ -54,6 +54,7 @@ it("renders agent presence from supplied copy on non-listening scenes", () => {
       label: "Listening with you",
       description: "You can say Clinic or Pharmacy.",
       accessibleLabel: "VYVA is listening while you choose a ride destination",
+      ariaLive: "polite",
     },
     choices: [{ id: "clinic", label: "Clinic" }],
   })} />);
