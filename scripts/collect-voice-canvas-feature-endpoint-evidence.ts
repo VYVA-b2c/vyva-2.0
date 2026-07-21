@@ -81,7 +81,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Use --json to emit machine-readable endpoint evidence for QA artifacts.",
       "Use --output=<path> with --json to also save the evidence to a file.",
       "Failed endpoint evidence is printed but not saved unless --save-failed is passed for diagnostic artifacts.",
-      "Use --request-header-env=Header-Name:ENV_NAME for authenticated QA or preview gateways; header values are never printed or saved.",
+      "Use --request-header-env=Header-Name:ENV_NAME for authenticated QA or preview gateways; endpoint artifacts save only authenticatedRequest/requestHeaderCount, never header names, env names, values, or secrets.",
       "Existing output files are preserved by default; pass --force only when intentionally replacing one.",
     ].join("\n"),
   );

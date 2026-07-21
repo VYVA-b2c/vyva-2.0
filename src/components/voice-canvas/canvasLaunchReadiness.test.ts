@@ -301,6 +301,9 @@ describe("Canvas launch readiness manifest", () => {
     expect(audit).toContain("scripts/prepare-voice-canvas-rollback-owner-handoff.ts");
     expect(audit).toContain("same deployed-origin");
     expect(audit).toContain("endpoint auth metadata alignment");
+    expect(audit).toContain("authenticatedRequest");
+    expect(audit).toContain("requestHeaderCount");
+    expect(audit).toContain("never header names, environment-variable names");
     expect(audit).toContain("no credential values");
     expect(audit).toContain("same-date-only launch plan reference cannot reach launch sign-off");
     expect(audit).toContain("canonical flow entry surfaces");

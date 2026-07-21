@@ -394,7 +394,7 @@ describe("Voice Canvas feature endpoint evidence command", () => {
     }
   });
 
-  it("can collect launch evidence through an authenticated QA gateway without saving credential values", async () => {
+  it("can collect launch evidence through an authenticated QA gateway without saving credential details", async () => {
     const secret = "qa-preview-secret-value";
     const responses = endpointResponsesForState("enabled");
     for (const response of responses.values()) {
@@ -430,10 +430,16 @@ describe("Voice Canvas feature endpoint evidence command", () => {
       expect(summary.authenticatedRequest).toBe(true);
       expect(summary.requestHeaderCount).toBe(1);
       expect(summary.readyForQaEvidence).toBe(true);
+      expect(summary).not.toHaveProperty("requestHeaderEnv");
+      expect(summary).not.toHaveProperty("requestHeaders");
 
       const serialized = JSON.stringify(summary);
       expect(serialized).not.toContain(secret);
+      expect(serialized).not.toContain("x-qa-preview-bypass");
+      expect(serialized).not.toContain("VYVA_QA_PREVIEW_BYPASS");
       expect(result.stdout).not.toContain(secret);
+      expect(result.stdout).not.toContain("x-qa-preview-bypass");
+      expect(result.stdout).not.toContain("VYVA_QA_PREVIEW_BYPASS");
     } finally {
       await server.close();
     }
