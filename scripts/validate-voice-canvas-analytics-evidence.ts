@@ -324,6 +324,12 @@ function isDeployedQaRunUrl(value: unknown): boolean {
   }
 }
 
+function summaryQaRunUrl(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") return "unknown";
+  if (!isDeployedQaRunUrl(value)) return "invalid";
+  return new URL(value).origin;
+}
+
 function hasConcreteAnalyticsSource(value: unknown): boolean {
   if (typeof value !== "string") return false;
   const normalized = value.toLowerCase().trim();
@@ -438,9 +444,7 @@ function validateAnalyticsEvidence(inputPath: string): AnalyticsEvidenceSummary 
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
-    qaRunUrl: isRecord(artifact) && typeof artifact.qaRunUrl === "string"
-      ? artifact.qaRunUrl
-      : "unknown",
+    qaRunUrl: isRecord(artifact) ? summaryQaRunUrl(artifact.qaRunUrl) : "unknown",
     requiredSignals: CANVAS_LAUNCH_SIGNALS,
     allowedEnvelopeFields,
     coveredFlows,

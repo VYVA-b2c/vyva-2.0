@@ -204,6 +204,12 @@ function isDeployedQaRunUrl(value: string | null): boolean {
   }
 }
 
+function summaryQaRunUrl(value: string | null): string {
+  if (!value) return "unknown";
+  if (!isDeployedQaRunUrl(value)) return "invalid";
+  return new URL(value).origin;
+}
+
 function splitMarkdownRow(line: string): string[] {
   return line
     .trim()
@@ -387,7 +393,7 @@ function validateRecoveryEvidence(inputPathArg: string): RecoveryEvidenceSummary
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     reviewedOn: reviewedDate ? reviewedDate.toISOString().slice(0, 10) : "unknown",
-    qaRunUrl: lineValue(content, "QA run URL") ?? "unknown",
+    qaRunUrl: summaryQaRunUrl(lineValue(content, "QA run URL")),
     requiredFlowCount: canvasLaunchReadinessFlows.length,
     requiredRecoveryRowCount: canvasLaunchReadinessFlows.length,
     problemCount: problems.length,

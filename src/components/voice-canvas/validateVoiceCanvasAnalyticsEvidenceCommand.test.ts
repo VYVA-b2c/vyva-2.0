@@ -411,7 +411,36 @@ describe("Voice Canvas analytics evidence validator command", () => {
         };
 
         expect(summary.readyForLaunchEvidence).toBe(false);
-        expect(summary.qaRunUrl).toBe("https://mock-staging.vyva.app");
+        expect(summary.qaRunUrl).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Analytics evidence qaRunUrl must be a deployed HTTPS non-local QA run URL.",
+          ]),
+        );
+      },
+    ));
+
+  it("does not echo query-bearing analytics QA run URLs", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        qaRunUrl: "https://staging.vyva.app?token=secret",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).not.toContain("token=secret");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          qaRunUrl: string;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.qaRunUrl).toBe("invalid");
         expect(summary.problems).toEqual(
           expect.arrayContaining([
             "Analytics evidence qaRunUrl must be a deployed HTTPS non-local QA run URL.",

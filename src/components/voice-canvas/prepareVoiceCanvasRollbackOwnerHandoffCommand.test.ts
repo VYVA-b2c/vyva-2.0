@@ -250,7 +250,12 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
         const result = runRollbackOwnerHelper([`--input=${inputPath}`, "--json"]);
 
         expect(result.status).toBe(1);
-        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(result.stdout).not.toContain("token=secret");
+        const summary = JSON.parse(result.stdout) as {
+          qaRunUrl: string;
+          problems: string[];
+        };
+        expect(summary.qaRunUrl).toBe("invalid");
         expect(summary.problems).toContain(
           "Rollback owner handoff QA run URL must be a deployed HTTPS non-local URL.",
         );

@@ -184,6 +184,12 @@ function isDeployedQaRunUrl(value: string | null): boolean {
   }
 }
 
+function summaryQaRunUrl(value: string | null): string {
+  if (!value) return "unknown";
+  if (!isDeployedQaRunUrl(value)) return "invalid";
+  return new URL(value).origin;
+}
+
 const unsafeFilledArtifactPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
@@ -300,7 +306,7 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
     inputPath: relativeInputPath,
     readyForLaunchEvidence: problems.length === 0,
     reviewedOn: reviewedDate ? reviewedDate.toISOString().slice(0, 10) : "unknown",
-    qaRunUrl: lineValue(content, "QA run URL") ?? "unknown",
+    qaRunUrl: summaryQaRunUrl(lineValue(content, "QA run URL")),
     requiredFlowCount: canvasLaunchReadinessFlows.filter((flow) => flow.featureFlag)
       .length,
     problemCount: problems.length,
