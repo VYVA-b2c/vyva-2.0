@@ -7388,6 +7388,22 @@ describe("MarketingAdminPage", () => {
               }),
             ]),
           }),
+          outcomeTrackers: expect.arrayContaining([
+            expect.objectContaining({
+              key: "human-response",
+              metric: "Replies, comments, demo requests, and call outcomes",
+              target: "Every human response has a contact note, owner, and follow-up date.",
+              source: expect.stringContaining("Email replies"),
+              text: expect.stringContaining("Human response outcome log"),
+            }),
+            expect.objectContaining({
+              key: "engagement-signal",
+              metric: "Email opens, clicks, and soft engagement",
+              target: expect.stringContaining("warmer next message"),
+              source: expect.stringContaining("Campaign metrics"),
+              text: expect.stringContaining("Engagement signal tracker"),
+            }),
+          ]),
         },
         targetAudience: {
           name: "Partners",

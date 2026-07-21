@@ -1311,6 +1311,9 @@ type CampaignStudioFollowUpPlayItem = {
 type CampaignStudioOutcomeTrackerItem = {
   key: string;
   title: string;
+  metric: string;
+  target: string;
+  source: string;
   value: string;
   detail: string;
   text: string;
@@ -19765,6 +19768,9 @@ export default function MarketingAdminPage() {
     {
       key: "human-response",
       title: "Human responses",
+      metric: "Replies, comments, demo requests, and call outcomes",
+      target: "Every human response has a contact note, owner, and follow-up date.",
+      source: "Email replies, social comments/DMs, WhatsApp replies, phone notes, and event notes",
       value: "Replies, comments, demos",
       detail: "Treat every direct response as a relationship record, not just a campaign result.",
       icon: UsersRound,
@@ -19789,6 +19795,9 @@ export default function MarketingAdminPage() {
     {
       key: "engagement-signal",
       title: "Engagement signals",
+      metric: campaignStudioHasEmailChannel ? "Email opens, clicks, and soft engagement" : "Views, saves, clicks, and profile visits",
+      target: "Turn high-intent engagement into a warmer next message or smaller segment.",
+      source: "Campaign metrics, platform analytics, tracked links, and saved manual outcomes",
       value: campaignStudioHasEmailChannel ? "Opens and clicks" : "Views, saves, clicks",
       detail: "Use soft engagement as a warm queue for a lighter follow-up or a sharper next angle.",
       icon: BarChart3,
@@ -19815,6 +19824,9 @@ export default function MarketingAdminPage() {
     {
       key: "consent-cleanup",
       title: "Consent and fit cleanup",
+      metric: "Opt-outs, wrong-fit contacts, bad routes, and unmapped records",
+      target: "Clean or suppress weak-fit records before the next broadcast.",
+      source: "Consent status, failed routes, manual results, and contact enrichment notes",
       value: `${campaignStudioConsentCounts.optedOut} opted out / ${campaignStudioConsentCounts.review} review`,
       detail: "Clean bad-fit, opted-out, and unmapped contacts before the next campaign so trust improves over time.",
       icon: CheckCircle2,
@@ -19838,6 +19850,9 @@ export default function MarketingAdminPage() {
     {
       key: "next-campaign",
       title: "Next campaign move",
+      metric: "Next segment, channel, CTA, and owner decision",
+      target: "Choose the next campaign from real response, engagement, and silence patterns.",
+      source: "Outcome tracker pack, campaign metrics, recipient snapshots, and relationship notes",
       value: selectedCampaignStudioPlay.audienceType === "b2b" ? "Nurture or partner follow-up" : "Activation or trust follow-up",
       detail: "Decide the next message from what people actually did, so campaigns become a relationship loop.",
       icon: Waypoints,
