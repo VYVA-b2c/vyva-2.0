@@ -4833,6 +4833,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Partner update");
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Source design preview");
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Media references");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Preview opened");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Choose the next move for this asset");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Review the source, edit a VYVA copy, duplicate a draft, or start a campaign route from this content.");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Source imports stay untouched");
+    expect(screen.getByTestId("button-marketing-preview-next-edit")).toHaveTextContent("Edit copy");
+    expect(screen.getByTestId("button-marketing-preview-next-duplicate")).toHaveTextContent("Duplicate draft");
+    expect(screen.getByTestId("button-marketing-preview-next-campaign")).toHaveTextContent("Use in campaign");
+    expect(screen.getByTestId("button-marketing-preview-next-reuse-brief")).toHaveTextContent("Copy AI brief");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");

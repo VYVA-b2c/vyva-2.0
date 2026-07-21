@@ -41776,6 +41776,37 @@ export default function MarketingAdminPage() {
                   >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
+                      <div className="rounded-xl border border-purple-100 bg-purple-50/70 p-3" data-testid="marketing-content-preview-next-actions">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Preview opened</p>
+                            <h4 className="mt-1 font-black text-[#241133]">Choose the next move for this asset</h4>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                              Review the source, edit a VYVA copy, duplicate a draft, or start a campaign route from this content.
+                            </p>
+                          </div>
+                          <Pill className={selectedContent.source === "lovable" ? "bg-white text-violet-800" : "bg-white text-[#5b4a46]"}>
+                            {contentOriginLabel(selectedContent)}
+                          </Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-xs font-black text-[#241133] md:grid-cols-4">
+                          <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-edit">
+                            <Pencil size={14} /> Edit copy
+                          </button>
+                          <button type="button" onClick={() => void duplicateContentAsDraft(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-duplicate">
+                            <Copy size={14} /> Duplicate draft
+                          </button>
+                          <button type="button" onClick={() => startCampaignFromContentAsset(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-white transition hover:bg-purple-800 disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid="button-marketing-preview-next-campaign">
+                            <Megaphone size={14} /> Use in campaign
+                          </button>
+                          <button type="button" onClick={() => void copySelectedContentReuseBrief()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-50" data-testid="button-marketing-preview-next-reuse-brief">
+                            <Sparkles size={14} /> Copy AI brief
+                          </button>
+                        </div>
+                        <p className="mt-2 text-[11px] font-bold leading-relaxed text-[#6b5b54]">
+                          Source imports stay untouched. Edits and duplicates save only inside VYVA marketing.
+                        </p>
+                      </div>
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
                         <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
