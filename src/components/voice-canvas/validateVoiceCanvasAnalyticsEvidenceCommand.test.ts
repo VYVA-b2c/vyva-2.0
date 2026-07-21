@@ -614,6 +614,46 @@ describe("Voice Canvas analytics evidence validator command", () => {
       },
     ));
 
+  it("rejects identifier-like numeric values inside allowed sample envelope fields", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        samples: [
+          {
+            ...validSamples()[0],
+            attempt: 987654321,
+            revision: 123456789,
+          },
+          ...validSamples().slice(1),
+        ],
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problemCount: number;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problemCount).toBeGreaterThan(0);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Sample 1 attempt must be a small positive interaction count, not an identifier-like value.",
+            "Sample 1 revision must be a bounded non-negative draft revision, not an identifier-like value.",
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("987654321");
+        expect(serialized).not.toContain("123456789");
+      },
+    ));
+
   it("rejects secrets inside allowed sample envelope values without copying them", () =>
     withTempJsonFile(
       {

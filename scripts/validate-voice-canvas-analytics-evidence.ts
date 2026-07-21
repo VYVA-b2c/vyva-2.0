@@ -41,6 +41,8 @@ const allowedTopLevelKeys = [
   "events",
 ] as const;
 const maxLaunchEvidenceAgeMs = 7 * 24 * 60 * 60 * 1000;
+const maxEvidenceAttempt = 25;
+const maxEvidenceRevision = 10_000;
 const unsafeAnalyticsMetadataPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
@@ -395,6 +397,26 @@ function sampleEnvelopeProblems(
   if (!isCanvasTelemetryEnvelope(sample)) {
     problems.push(`Sample ${index + 1} is not a valid Canvas telemetry envelope.`);
     return { problems, signal: null };
+  }
+
+  if (
+    !Number.isInteger(sample.attempt) ||
+    sample.attempt < 1 ||
+    sample.attempt > maxEvidenceAttempt
+  ) {
+    problems.push(
+      `Sample ${index + 1} attempt must be a small positive interaction count, not an identifier-like value.`,
+    );
+  }
+  if (
+    sample.revision !== undefined &&
+    (!Number.isInteger(sample.revision) ||
+      sample.revision < 0 ||
+      sample.revision > maxEvidenceRevision)
+  ) {
+    problems.push(
+      `Sample ${index + 1} revision must be a bounded non-negative draft revision, not an identifier-like value.`,
+    );
   }
 
   const launchSample = canvasLaunchTelemetrySampleFromEnvelope(sample);
