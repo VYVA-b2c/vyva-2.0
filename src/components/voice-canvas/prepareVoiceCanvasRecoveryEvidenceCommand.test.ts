@@ -241,6 +241,27 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
       },
     ));
 
+  it("rejects incomplete recovery evidence without echoing values", () =>
+    withTempRecoveryFile(
+      validRecoveryEvidenceArtifact().replace(
+        "recoverable failure offered retry and exit with entered information preserved, no write, no resubmission, and no external action",
+        "recoverable failure retry is incomplete, exit path not complete, and task not safely exited, with no write, no resubmission, and no external action",
+      ),
+      (inputPath) => {
+        const result = runRecoveryEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Recovery behavior evidence artifact must use affirmative successful recovery evidence, not failed, unavailable, or accepted duplicate/stale evidence.",
+        );
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("retry is incomplete");
+        expect(serialized).not.toContain("not complete");
+        expect(serialized).not.toContain("not safely exited");
+      },
+    ));
+
   it("rejects stale reviewer dates", () =>
     withTempRecoveryFile(
       validRecoveryEvidenceArtifact().replaceAll(freshReviewDate(), "2000-01-01"),

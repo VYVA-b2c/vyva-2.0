@@ -263,6 +263,27 @@ describe("Voice Canvas copy clarity evidence helper command", () => {
       },
     ));
 
+  it("rejects incomplete copy/accessibility evidence without echoing values", () =>
+    withTempCopyFile(
+      validCopyEvidenceArtifact().replace(
+        "what happens next and what is pending and what has not happened yet are clear for primary action, secondary back cancel exit, waiting, blocked, and completed states with no-action reassurance",
+        "what happens next and what is pending are incomplete; completed state is not complete and not safely exited",
+      ),
+      (inputPath) => {
+        const result = runCopyEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Copy clarity evidence artifact must use affirmative successful copy/accessibility evidence, not overflow, clipping, unreadable, missing-focus, missing-announcement, unavailable, or unverified evidence.",
+        );
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("are incomplete");
+        expect(serialized).not.toContain("not complete");
+        expect(serialized).not.toContain("not safely exited");
+      },
+    ));
+
   it("rejects accessibility evidence without announcements and reduced-motion proof", () =>
     withTempCopyFile(
       validCopyEvidenceArtifact().replace(

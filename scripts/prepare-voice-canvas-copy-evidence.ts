@@ -256,6 +256,7 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
 ];
 
 const rejectedCopyEvidencePatterns: readonly RegExp[] = [
+  /\b(?:not complete|not completed|incomplete|did not complete|failed to complete|unable to complete|could not complete|not safely exited|not safe exit|not exited safely)\b/i,
   /\b(?:overflowed|overflows|overflowing|clipped|clipping|truncated|cut off|unreadable|illegible|not readable|not legible)\b/i,
   /\b(?:missing focus|focus did not move|did not move focus|not focused|not announced|not announce|announcement missing|announcements missing|screen reader failed)\b/i,
   /\b(?:not verified|not reviewed|unable to verify|unable to review|failed|unavailable)\b/i,
@@ -366,7 +367,7 @@ function validateCopyEvidence(inputPathArg: string): CopyEvidenceSummary {
         ["secondary", "back", "cancel", "exit"],
         ["waiting"],
         ["blocked"],
-        ["completed", "complete"],
+        ["completed"],
       ])
     ) {
       problems.push(`${flow.label}: next-step cell must explain what happens next, what is pending, what has not happened yet, and primary, secondary/back/cancel/exit, waiting, blocked, and completed states.`);
@@ -393,7 +394,7 @@ function validateCopyEvidence(inputPathArg: string): CopyEvidenceSummary {
         ["announce", "announces", "announcement"],
         ["waiting"],
         ["blocked"],
-        ["completed", "complete"],
+        ["completed"],
         ["reduced motion", "reduced-motion"],
       ])
     ) {
