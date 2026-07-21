@@ -218,6 +218,24 @@ describe("Voice Canvas real-use evidence helper command", () => {
       },
     ));
 
+  it("rejects contradictory real-use evidence even when no-side-effect wording is present", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "real physical tablet completed with no write and no external action before confirmation",
+        "real physical tablet completed with no write and no external action before confirmation, but message sent before confirmation",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Real-use evidence artifact must use real physical devices, not emulator, simulator, responsive-mode, DevTools, unavailable, or failed evidence.",
+        );
+        expect(result.stdout).not.toContain("message sent");
+      },
+    ));
+
   it("rejects evidence references that omit required device or interaction artifacts", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact()
