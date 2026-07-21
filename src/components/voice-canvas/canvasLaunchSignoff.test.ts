@@ -100,7 +100,7 @@ const ARTIFACT_INVENTORY_RUN_SHEET_ROW =
   "| Run sheet validation artifacts | Run sheet validation evidence for packet and matrix copy | Sanitized run sheet validation JSON artifact link for run-sheet-summary.json with no personal details | QA reviewer verified on 2026-07-19 |";
 
 const ARTIFACT_INVENTORY_RUN_PLAN_ROW =
-  "| Launch run plan artifacts | Launch run plan same date artifact evidence | Sanitized launch-evidence-run JSON artifact link for same date evidence bundle with no personal details | QA reviewer verified on 2026-07-19 |";
+  "| Launch run plan artifacts | Launch run plan same-date same deployed-origin endpoint auth metadata artifact evidence with no credential values | Sanitized launch-evidence-run JSON artifact link for same-date same deployed-origin evidence bundle with endpoint auth metadata alignment, no credential values, and no personal details | QA reviewer verified on 2026-07-19 |";
 
 const ARTIFACT_INVENTORY_PREFLIGHT_ROW =
   "| Launch preflight artifacts | Launch preflight run sheet matrix packet run plan endpoint analytics evidence | Sanitized launch preflight JSON artifact link for run sheet matrix packet run plan endpoint analytics gate with no personal details | QA reviewer verified on 2026-07-19 |";
@@ -922,6 +922,26 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidArtifactInventoryRows).toEqual([
       "Feature endpoint artifacts: coverage must name the launch evidence it proves",
       "Feature endpoint artifacts: coverage/reference must include auth metadata matching the launch run plan and no credential references",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
+  it("rejects launch run plan inventory rows without deployed-origin and auth metadata proof", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_RUN_PLAN_ROW,
+      "| Launch run plan artifacts | Launch run plan same date artifact evidence | Sanitized launch-evidence-run JSON artifact link for same date evidence bundle with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Launch run plan artifacts: coverage must name the launch evidence it proves",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
