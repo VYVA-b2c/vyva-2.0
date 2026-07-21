@@ -1698,6 +1698,45 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
   });
 
+  it("rejects launch evidence run plans with incomplete completion wording", () => {
+    const runDate = freshReviewDate();
+    const runPlan = validLaunchRunPlan(runDate);
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      {
+        ...runPlan,
+        reviewerNotes: {
+          qaLead:
+            "Incomplete real-use run: keyboard path not complete and task hub not safely exited.",
+        },
+      },
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            problemCount: number;
+            problems: string[];
+          };
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
+        expect(summary.launchRunPlan.problems).toContain(
+          "Launch evidence run plan contains contradictory or unsafe launch evidence wording.",
+        );
+        expect(result.stdout).not.toContain("Incomplete real-use run");
+        expect(result.stdout).not.toContain("not complete");
+        expect(result.stdout).not.toContain("not safely exited");
+      },
+    );
+  });
+
   it("includes sanitized feature endpoint artifacts in the preflight summary", () =>
     withTempFeatureEndpointFiles(
       validFeatureEndpointArtifact("enabled"),
@@ -1787,6 +1826,47 @@ describe("Voice Canvas launch readiness preflight command", () => {
         );
         expect(result.stdout).not.toContain("external action triggered");
         expect(result.stdout).not.toContain("fallback unavailable");
+      },
+    ));
+
+  it("rejects feature endpoint artifacts with incomplete launch evidence wording", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        launchNote:
+          "Incomplete endpoint evidence: rollback validation not complete and stale task not safely exited.",
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              problemCount: number;
+              problems: string[];
+            };
+          };
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.problemCount).toBeGreaterThan(0);
+        expect(summary.featureEndpointEvidence.enabled.problems).toContain(
+          "Feature endpoint artifact contains contradictory or unsafe launch evidence wording.",
+        );
+        expect(result.stdout).not.toContain("Incomplete endpoint evidence");
+        expect(result.stdout).not.toContain("not complete");
+        expect(result.stdout).not.toContain("not safely exited");
       },
     ));
 
