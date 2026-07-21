@@ -899,6 +899,18 @@ type CampaignExecutionPlanItem = {
   state: CampaignReadinessState;
 };
 
+type CampaignStudioChannelLaunchLaneItem = {
+  channel: Channel;
+  title: string;
+  sendMode: string;
+  recipients: number;
+  contentState: string;
+  timing: string;
+  nextStep: string;
+  detail: string;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioChannelRouteItem = {
   channel: Channel;
   selected: boolean;
@@ -17364,6 +17376,62 @@ export default function MarketingAdminPage() {
       `Recipients: ${item.recipients}`,
       `Action: ${item.action}`,
       `Copy hook: ${item.detail}`,
+    ].join("\n")),
+  ].join("\n\n");
+  const campaignStudioChannelLaunchLanes: CampaignStudioChannelLaunchLaneItem[] = campaignStudioChannelDrafts.map(({ channel, draft, recipients }) => {
+    const execution = campaignStudioExecutionPlan.find((item) => item.channel === channel);
+    const timeline = campaignStudioLaunchTimeline.find((item) => item.channel === channel);
+    const hasCopy = Boolean(draft.subject?.trim() || draft.body?.trim());
+    const sendMode = channel === "email" && execution?.state === "ready"
+      ? "VYVA send after review"
+      : execution?.sendMode === "Provider-ready later"
+        ? "Provider-ready later"
+        : "Manual handoff";
+    const state: CampaignReadinessState = recipients === 0
+      ? "blocked"
+      : !hasCopy
+        ? "needs_action"
+        : execution?.state ?? "planning";
+    const nextStep = recipients === 0
+      ? `Add reachable ${channelLabel[channel]} contacts before creating this route.`
+      : !hasCopy
+        ? `Generate or edit ${channelLabel[channel]} copy before creating.`
+        : channel === "email" && execution?.state === "ready"
+          ? "Create campaign records, then review and send from campaign details."
+          : execution?.sendMode === "Provider-ready later"
+            ? "Create the plan now; provider dispatch controls can be enabled later."
+            : `Create the plan, then publish or track ${channelLabel[channel]} outside VYVA.`;
+    return {
+      channel,
+      title: draft.contentTitle || `${channelLabel[channel]} route`,
+      sendMode,
+      recipients,
+      contentState: hasCopy
+        ? draft.source === "openai"
+          ? "AI-polished copy ready"
+          : draft.source === "fallback"
+            ? "Fallback copy ready"
+            : "Template copy ready"
+        : "Copy missing",
+      timing: timeline?.timingLabel ?? "Uses campaign schedule",
+      nextStep,
+      detail: execution?.detail ?? "VYVA stores the plan, content, schedule, and recipient snapshot.",
+      state,
+    };
+  });
+  const campaignStudioChannelLaunchLaneText = [
+    "VYVA campaign channel launch lanes",
+    `Campaign: ${campaignStudioGenerated.campaignName}`,
+    `Audience: ${selectedCampaignStudioTargetAudience?.name ?? "Best matching list"}`,
+    `Schedule: ${formatDate(fromDateTimeLocal(campaignStudioSchedule))}`,
+    "",
+    ...campaignStudioChannelLaunchLanes.map((item) => [
+      `${channelLabel[item.channel]} - ${readinessLabel(item.state)}`,
+      `Send mode: ${item.sendMode}`,
+      `Reach: ${item.recipients} planned recipient${item.recipients === 1 ? "" : "s"}`,
+      `Content: ${item.contentState}`,
+      `Timing: ${item.timing}`,
+      `Next: ${item.nextStep}`,
     ].join("\n")),
   ].join("\n\n");
   const campaignStudioBestChannelReach = [...campaignStudioChannelReach].sort((a, b) => {
@@ -35151,6 +35219,58 @@ export default function MarketingAdminPage() {
                       <p className="mt-3 rounded-xl bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-studio-next-step">
                         Next step: {campaignStudioNextStep}
                       </p>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="marketing-campaign-studio-channel-launch-lanes">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Before create</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Channel launch lanes</h3>
+                          <p className="mt-1 text-xs font-bold text-[#5d7169]">See exactly what each selected route will save, send, or hand off before creating the campaign.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign channel launch lanes", campaignStudioChannelLaunchLaneText)}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-800 hover:bg-emerald-50"
+                          data-testid="button-marketing-campaign-studio-copy-channel-launch-lanes"
+                        >
+                          <Copy size={14} /> Copy lanes
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-channel-launch-lane-list">
+                        {campaignStudioChannelLaunchLanes.map((lane) => (
+                          <article
+                            key={lane.channel}
+                            className={`rounded-xl border bg-white p-3 ${readinessClass(lane.state)}`}
+                            data-testid={`marketing-campaign-studio-channel-launch-lane-${lane.channel}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Pill className={channelClass(lane.channel)}>{channelLabel[lane.channel]}</Pill>
+                                  <Pill className={readinessPillClass(lane.state)}>{readinessLabel(lane.state)}</Pill>
+                                </div>
+                                <h4 className="mt-2 line-clamp-1 font-black text-[#241133]">{lane.title}</h4>
+                              </div>
+                              <Pill className="bg-white text-[#5b4a46]">{lane.sendMode}</Pill>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs font-bold leading-relaxed text-[#5d7169]">
+                              <div className="rounded-lg bg-emerald-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Reach:</span> {lane.recipients} planned recipient{lane.recipients === 1 ? "" : "s"}
+                              </div>
+                              <div className="rounded-lg bg-emerald-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Content:</span> {lane.contentState}
+                              </div>
+                              <div className="rounded-lg bg-emerald-50/60 px-3 py-2">
+                                <span className="font-black text-[#241133]">Timing:</span> {lane.timing}
+                              </div>
+                              <div className="rounded-lg bg-white px-3 py-2">
+                                <span className="font-black text-[#241133]">Next:</span> {lane.nextStep}
+                              </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
                     </div>
 
                     <div className={`rounded-xl border p-4 ${readinessClass(campaignStudioPrimaryLaunchStep.state)}`} data-testid="marketing-campaign-studio-launch-assistant">

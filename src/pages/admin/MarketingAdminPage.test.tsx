@@ -6434,6 +6434,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-readiness-recipients")).toHaveTextContent("1 eligible recipient will be snapshotted.");
     expect(screen.getByTestId("marketing-campaign-studio-readiness-channel")).toHaveTextContent("Planning");
     expect(screen.getByTestId("marketing-campaign-studio-next-step")).toHaveTextContent("Improve with AI");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-launch-lanes")).toHaveTextContent("Channel launch lanes");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-launch-lane-linkedin")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-launch-lane-linkedin")).toHaveTextContent("Manual handoff");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-launch-lane-linkedin")).toHaveTextContent("1 planned recipient");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-launch-lane-linkedin")).toHaveTextContent("Template copy ready");
+    expect(screen.getByTestId("marketing-campaign-studio-channel-launch-lane-linkedin")).toHaveTextContent("Create the plan, then publish or track LinkedIn outside VYVA.");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-channel-launch-lanes"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign channel launch lanes"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("LinkedIn - Planning"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign channel launch lanes copied.");
     expect(screen.getByTestId("marketing-campaign-studio-launch-assistant")).toHaveTextContent("Recommended now");
     expect(screen.getByTestId("marketing-campaign-studio-launch-assistant")).toHaveTextContent("Polish this into a stronger campaign");
     expect(screen.getByTestId("marketing-campaign-studio-launch-assistant-output")).toHaveTextContent("1 content asset");
