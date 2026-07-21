@@ -26,12 +26,25 @@ import {
   workflowActionsForTarget,
   workflowCoverageState,
 } from "../../../shared/workflowRegistry";
+import {
+  CROSS_PILLAR_MANUAL_QA_STATUS_OPTIONS,
+  buildCrossPillarManualQaFlows,
+  buildCrossPillarManualQaNotes,
+  normalizeCrossPillarManualQaRunnerState,
+  summarizeCrossPillarManualQaRunner,
+  updateCrossPillarManualQaRunnerStatus,
+  type CrossPillarManualQaFlow,
+  type CrossPillarManualQaRunnerState,
+  type CrossPillarManualQaStatus,
+} from "../../../shared/crossPillarManualQa";
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
 
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
 type ActionLevelFilter = "all" | WorkflowActionLevel;
+
+const CROSS_PILLAR_MANUAL_QA_STORAGE_KEY = "vyva:admin:crossPillarManualQa:v1";
 
 const DOMAIN_LABELS: Record<WorkflowDomain, string> = {
   home: "Home",
@@ -85,6 +98,13 @@ const FLOW_STATUS_CLASS: Record<WorkflowFlowStatus, string> = {
 const READINESS_GATE_CLASS: Record<WorkflowReadinessGate["state"], string> = {
   ready: "border-emerald-100 bg-emerald-50 text-emerald-800",
   needs_attention: "border-amber-100 bg-amber-50 text-amber-800",
+};
+
+const MANUAL_QA_STATUS_CLASS: Record<CrossPillarManualQaStatus, string> = {
+  not_tested: "border-[#eadfd5] bg-white text-[#7d6b65]",
+  pass: "border-emerald-100 bg-emerald-50 text-emerald-800",
+  fail: "border-red-100 bg-red-50 text-red-700",
+  needs_review: "border-amber-100 bg-amber-50 text-amber-800",
 };
 
 function coverageIcon(state: WorkflowCoverageState) {
@@ -384,6 +404,182 @@ function ReadinessChecklistTable({ rows }: { rows: WorkflowReadinessChecklistRow
   );
 }
 
+function readStoredCrossPillarQaState(flows: CrossPillarManualQaFlow[]): CrossPillarManualQaRunnerState {
+  if (typeof window === "undefined") return normalizeCrossPillarManualQaRunnerState(flows, null);
+  try {
+    const raw = window.localStorage.getItem(CROSS_PILLAR_MANUAL_QA_STORAGE_KEY);
+    return normalizeCrossPillarManualQaRunnerState(flows, raw ? JSON.parse(raw) : null);
+  } catch {
+    return normalizeCrossPillarManualQaRunnerState(flows, null);
+  }
+}
+
+function writeStoredCrossPillarQaState(state: CrossPillarManualQaRunnerState): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CROSS_PILLAR_MANUAL_QA_STORAGE_KEY, JSON.stringify(state));
+}
+
+function ManualQaStatusButton({
+  active,
+  label,
+  status,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  status: CrossPillarManualQaStatus;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${MANUAL_QA_STATUS_CLASS[status]} ${
+        active ? "ring-2 ring-purple-200" : ""
+      }`}
+      aria-pressed={active}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ManualQaRunner({
+  flows,
+  runnerState,
+  notes,
+  onStatusChange,
+  onCopyNotes,
+  onReset,
+}: {
+  flows: CrossPillarManualQaFlow[];
+  runnerState: CrossPillarManualQaRunnerState;
+  notes: string;
+  onStatusChange: (checkId: string, status: CrossPillarManualQaStatus) => void;
+  onCopyNotes: () => void;
+  onReset: () => void;
+}) {
+  const summary = summarizeCrossPillarManualQaRunner(flows, runnerState);
+  const resultsByReference = new Map(summary.flowResults.map((result) => [result.reference, result]));
+
+  return (
+    <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Cross-pillar manual QA runner">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Manual QA runner</p>
+          <h2 className="mt-1 font-serif text-3xl leading-tight">Prove the real flow, not just the map</h2>
+          <p className="mt-1 max-w-3xl text-sm font-semibold text-[#7d6b65]">
+            Start with high-risk flows, mark each checkpoint, then copy failed notes into PRs or tasks.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onCopyNotes}
+            className="min-h-11 rounded-xl bg-purple-700 px-4 text-sm font-black text-white"
+          >
+            Copy QA notes
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            className="min-h-11 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 text-sm font-black text-purple-700"
+          >
+            Reset QA
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <InsightCard label="Flows passed" value={`${summary.fullyPassedFlows}/${summary.totalFlows}`} />
+        <InsightCard label="High-risk passed" value={`${summary.highPriorityPassedFlows}/${summary.highPriorityFlows}`} />
+        <InsightCard label="Blocked" value={summary.blockedFlows} />
+        <InsightCard label="Needs review" value={summary.needsReviewFlows} />
+        <InsightCard label="Failed checks" value={summary.failedCheckpoints} />
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {flows.map((flow) => {
+          const result = resultsByReference.get(flow.reference);
+          return (
+            <article
+              key={flow.reference}
+              className="rounded-[14px] border border-[#eadfd5] bg-[#fffaf4] p-4"
+              data-testid={`cross-pillar-qa-flow-${flow.reference}`}
+            >
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${
+                      flow.priority === "high" ? "border-red-100 bg-red-50 text-red-700" : "border-[#eadfd5] bg-white text-[#7d6b65]"
+                    }`}>
+                      {flow.priority === "high" ? "High risk" : "Standard"}
+                    </span>
+                    <span className="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-purple-700">
+                      {domainLabel(flow.domain)}
+                    </span>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${
+                      result?.status === "passed" ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+                      : result?.status === "blocked" ? "border-red-100 bg-red-50 text-red-700"
+                      : result?.status === "needs_review" ? "border-amber-100 bg-amber-50 text-amber-800"
+                      : "border-[#eadfd5] bg-white text-[#7d6b65]"
+                    }`}>
+                      {(result?.status ?? "not_tested").replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <h3 className="mt-2 font-serif text-2xl leading-tight text-[#2f2135]">{flow.title}</h3>
+                  <code className="mt-1 block text-xs font-bold text-[#8b7a73]">{flow.reference}</code>
+                </div>
+                {flow.route ? (
+                  <span className="rounded-xl bg-white px-3 py-2 text-xs font-black text-[#7d6b65]">{flow.route}</span>
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid gap-3">
+                {flow.checks.map((check) => {
+                  const currentStatus = runnerState[check.id] ?? "not_tested";
+                  return (
+                    <div key={check.id} className="rounded-[12px] bg-white p-3" data-testid={`cross-pillar-qa-check-${check.id}`}>
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+                        <div>
+                          <p className="text-sm font-black text-[#2f2135]">{check.title}</p>
+                          <p className="mt-1 text-sm font-semibold leading-relaxed text-[#6f5f59]">{check.instruction}</p>
+                          <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">Expected</p>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#2f2135]">{check.expectedResult}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 lg:justify-end">
+                          {CROSS_PILLAR_MANUAL_QA_STATUS_OPTIONS.map((option) => (
+                            <ManualQaStatusButton
+                              key={option.id}
+                              active={currentStatus === option.id}
+                              label={option.label}
+                              status={option.id}
+                              onClick={() => onStatusChange(check.id, option.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <label className="mt-4 block">
+        <span className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">QA notes</span>
+        <textarea
+          readOnly
+          value={notes}
+          className="mt-2 min-h-[160px] w-full rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3 font-mono text-xs font-semibold text-[#2f2135]"
+        />
+      </label>
+    </section>
+  );
+}
+
 export default function WorkflowCoverageAdminPage() {
   const [domainFilter, setDomainFilter] = useState<DomainFilter>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("incomplete");
@@ -393,6 +589,9 @@ export default function WorkflowCoverageAdminPage() {
   const nextCandidates = useMemo(() => nextWorkflowImplementationCandidates(6), []);
   const matrixRows = useMemo(() => workflowFlowMatrixRows(), []);
   const readinessRows = useMemo(() => workflowReadinessChecklistRows(), []);
+  const manualQaFlows = useMemo(() => buildCrossPillarManualQaFlows(), []);
+  const [manualQaState, setManualQaState] = useState<CrossPillarManualQaRunnerState>(() => readStoredCrossPillarQaState(manualQaFlows));
+  const [manualQaNotes, setManualQaNotes] = useState(() => buildCrossPillarManualQaNotes(manualQaFlows, manualQaState));
   const { data: fastHelpOutcomes, isLoading: fastHelpLoading } = useQuery<HomeFastHelpOutcomeAggregate>({
     queryKey: ["/api/admin/home/fast-help-outcomes?days=30"],
     retry: false,
@@ -450,6 +649,28 @@ export default function WorkflowCoverageAdminPage() {
     setCoverageFilter("incomplete");
     setActionLevelFilter("all");
     setQuery("");
+  };
+
+  const updateManualQaStatus = (checkId: string, status: CrossPillarManualQaStatus) => {
+    setManualQaState((current) => {
+      const next = updateCrossPillarManualQaRunnerStatus(current, checkId, status);
+      writeStoredCrossPillarQaState(next);
+      setManualQaNotes(buildCrossPillarManualQaNotes(manualQaFlows, next));
+      return next;
+    });
+  };
+
+  const copyManualQaNotes = () => {
+    const notes = buildCrossPillarManualQaNotes(manualQaFlows, manualQaState);
+    setManualQaNotes(notes);
+    void navigator.clipboard?.writeText(notes);
+  };
+
+  const resetManualQa = () => {
+    const next = normalizeCrossPillarManualQaRunnerState(manualQaFlows, null);
+    setManualQaState(next);
+    writeStoredCrossPillarQaState(next);
+    setManualQaNotes(buildCrossPillarManualQaNotes(manualQaFlows, next));
   };
 
   return (
@@ -657,6 +878,15 @@ export default function WorkflowCoverageAdminPage() {
           </div>
           <ReadinessChecklistTable rows={visibleReadinessRows} />
         </section>
+
+        <ManualQaRunner
+          flows={manualQaFlows}
+          runnerState={manualQaState}
+          notes={manualQaNotes}
+          onStatusChange={updateManualQaStatus}
+          onCopyNotes={copyManualQaNotes}
+          onReset={resetManualQa}
+        />
 
         <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
