@@ -27680,6 +27680,9 @@ export default function MarketingAdminPage() {
   const campaignSavedLaunchPacketFollowUps = hasTemplatePackLaunchPacket
     ? recordArray(campaignSavedLaunchPacket.followUpPlays)
     : recordArray(campaignStudioSavedLaunchKit.followUpPlays);
+  const campaignSavedLaunchPacketOutcomeTrackers = hasTemplatePackLaunchPacket
+    ? recordArray(campaignSavedLaunchPacket.outcomeTrackers)
+    : recordArray(campaignStudioSavedLaunchKit.outcomeTrackers);
   const campaignSavedLaunchPacketRunSheets = recordArray(campaignStudioSavedLaunchKit.publishingRunSheets);
   const campaignSavedLaunchPacketApprovalPack = recordArray(campaignStudioSavedLaunchKit.approvalPack);
   const campaignSavedDistributionChecklist = recordValue(campaignStudioSavedLaunchKit.distributionChecklist);
@@ -27693,6 +27696,18 @@ export default function MarketingAdminPage() {
     .map((item) => displayText(item.text))
     .filter(Boolean)
     .join("\n\n---\n\n");
+  const campaignSavedOutcomeTrackerText = campaignSavedLaunchPacketOutcomeTrackers.length
+    ? [
+      "VYVA campaign outcome trackers",
+      `Campaign: ${editingCampaign?.name ?? "Campaign"}`,
+      "",
+      ...campaignSavedLaunchPacketOutcomeTrackers.map((item, index) => [
+        `${index + 1}. ${displayText(item.metric) || "Metric"}`,
+        `Target: ${displayText(item.target) || "Define the success target."}`,
+        `Source: ${displayText(item.source) || "Campaign metrics and relationship notes."}`,
+      ].join("\n")),
+    ].join("\n")
+    : "";
   const campaignSavedLaunchPacketText = Object.keys(campaignSavedLaunchPacket).length
     ? launchPacketTextFromMetadata(campaignSavedLaunchPacket)
     : displayText(campaignStudioSavedLaunchKit.launchPacketText);
@@ -37948,6 +37963,41 @@ export default function MarketingAdminPage() {
                                       </div>
                                     );
                                   })}
+                                </div>
+                              </div>
+                            ) : null}
+                            {campaignSavedLaunchPacketOutcomeTrackers.length ? (
+                              <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/70 p-3" data-testid="marketing-campaign-saved-outcome-trackers">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Outcome trackers</p>
+                                    <p className="mt-1 text-xs font-bold leading-relaxed text-violet-900">
+                                      Saved measurement rules for replies, engagement, relationship notes, and follow-up ownership.
+                                    </p>
+                                  </div>
+                                  {campaignSavedOutcomeTrackerText ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyCampaignHandoffText("Saved outcome trackers", campaignSavedOutcomeTrackerText)}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-800 hover:bg-violet-100"
+                                      data-testid="button-marketing-copy-saved-outcome-trackers"
+                                    >
+                                      <Copy size={14} /> Copy trackers
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                  {campaignSavedLaunchPacketOutcomeTrackers.map((item, index) => (
+                                    <div key={`${displayText(item.key) || displayText(item.metric) || "tracker"}-${index}`} className="rounded-lg border border-violet-100 bg-white p-3">
+                                      <p className="text-sm font-black text-[#241133]">{displayText(item.metric) || "Campaign metric"}</p>
+                                      <p className="mt-2 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                        <span className="font-black text-violet-800">Target:</span> {displayText(item.target) || "Define the success target."}
+                                      </p>
+                                      <p className="mt-1 text-xs font-bold leading-relaxed text-[#6f5f59]">
+                                        <span className="font-black text-violet-800">Source:</span> {displayText(item.source) || "Campaign metrics and relationship notes."}
+                                      </p>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             ) : null}

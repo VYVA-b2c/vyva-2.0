@@ -7430,6 +7430,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("LinkedIn post composer");
     expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("Email publishing checklist");
     expect(screen.getByTestId("marketing-campaign-saved-distribution-checklist-items")).toHaveTextContent("VYVA campaign details > Email send review");
+    expect(screen.getByTestId("marketing-campaign-saved-outcome-trackers")).toHaveTextContent("Outcome trackers");
+    expect(screen.getByTestId("marketing-campaign-saved-outcome-trackers")).toHaveTextContent("Replies, comments, demo requests, and call outcomes");
+    expect(screen.getByTestId("marketing-campaign-saved-outcome-trackers")).toHaveTextContent("Every human response has a contact note");
+    expect(screen.getByTestId("marketing-campaign-saved-outcome-trackers")).toHaveTextContent("Campaign metrics");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-saved-outcome-trackers"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign outcome trackers"));
+    });
+    expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Saved outcome trackers copied.");
     fireEvent.click(screen.getByTestId("button-marketing-copy-saved-distribution-checklist"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign distribution checklist"));
