@@ -30,7 +30,10 @@ import {
   normalizeConciergeProviderCategory,
   type ConciergeProviderCategoryId,
 } from "../../../../shared/conciergeFlowRegistry";
-import { normalizeSavedProviderDefaults } from "../../../../shared/conciergeSavedProviders";
+import {
+  normalizeSavedProviderDefaults,
+  savedProviderContactReadiness,
+} from "../../../../shared/conciergeSavedProviders";
 import { useTranslation } from "react-i18next";
 
 interface ProviderCategory {
@@ -812,6 +815,8 @@ const ProvidersSection = () => {
 
   const categoryLabel = activeCategoryDef?.label ?? "provider";
   const visibleProviders = providers.filter((provider) => provider.category === activeCategory);
+  const defaultProvider = visibleProviders.find((provider) => provider.is_default) ?? null;
+  const defaultProviderReadiness = defaultProvider ? savedProviderContactReadiness(defaultProvider) : null;
 
   return (
     <div className="min-h-screen bg-vyva-cream flex flex-col">
@@ -857,6 +862,39 @@ const ProvidersSection = () => {
             setSearchKey((k) => k + 1);
           }}
         />
+
+        <section
+          className="rounded-[18px] border border-vyva-border bg-white px-4 py-4 shadow-sm"
+          data-testid="provider-concierge-default-summary"
+        >
+          <div className="flex items-start gap-3">
+            <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] ${
+              defaultProviderReadiness?.conciergeUsable
+                ? "bg-[#ECFDF5]"
+                : "bg-[#FFF7ED]"
+            }`}>
+              <ShieldCheck
+                size={18}
+                className={defaultProviderReadiness?.conciergeUsable ? "text-[#047857]" : "text-[#9A3412]"}
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="font-body text-[13px] font-black text-vyva-text-1">
+                {defaultProviderReadiness?.conciergeUsable && defaultProvider
+                  ? `Concierge will use ${defaultProvider.name}`
+                  : `No ready default ${categoryLabel.toLowerCase()} yet`}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
+                {defaultProviderReadiness?.conciergeUsable
+                  ? `${defaultProviderReadiness.label}. VYVA still asks before calling, sending, or booking.`
+                  : defaultProvider
+                    ? "Add a phone, email, WhatsApp, website, or booking link so Concierge can use this provider after your OK."
+                    : `Choose a saved ${categoryLabel.toLowerCase()} as default, or add one below.`}
+              </p>
+            </div>
+          </div>
+        </section>
 
         {setupNotice ? (
           <div
@@ -1210,7 +1248,7 @@ const ProvidersSection = () => {
           >
             {visibleProviders.map((p) => {
               const catLabel = PROVIDER_CATEGORIES.find((c) => c.id === p.category)?.label ?? p.category;
-              const hasContact = p.phone || p.email || p.whatsapp || p.booking_url || p.online_order_url;
+              const readiness = savedProviderContactReadiness(p);
               return (
                 <div
                   key={p.id}
@@ -1224,11 +1262,13 @@ const ProvidersSection = () => {
                       <p className="font-body text-[12px] text-vyva-text-2 truncate">{p.address}</p>
                     )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      {hasContact && (
-                        <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[11px] font-black text-[#047857]">
-                          Contact ready
-                        </span>
-                      )}
+                      <span className={`rounded-full px-2 py-0.5 font-body text-[11px] font-black ${
+                        readiness.conciergeUsable
+                          ? "bg-[#ECFDF5] text-[#047857]"
+                          : "bg-[#FFF7ED] text-[#9A3412]"
+                      }`}>
+                        {readiness.label}
+                      </span>
                       {p.is_trusted !== false ? (
                         <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple">
                           Trusted
@@ -1244,7 +1284,7 @@ const ProvidersSection = () => {
                         </span>
                       )}
                     </div>
-                    {setupReturnTo && p.is_trusted !== false ? (
+                    {setupReturnTo && readiness.conciergeUsable ? (
                       <button
                         type="button"
                         data-testid={`button-provider-use-${p.id}`}
@@ -1253,6 +1293,15 @@ const ProvidersSection = () => {
                         className="mt-2 rounded-full border border-vyva-purple px-3 py-1.5 font-body text-[12px] font-black text-vyva-purple disabled:opacity-40"
                       >
                         Use this provider
+                      </button>
+                    ) : setupReturnTo && p.is_trusted !== false ? (
+                      <button
+                        type="button"
+                        data-testid={`button-provider-edit-contact-${p.id}`}
+                        onClick={() => setEditingProvider(p)}
+                        className="mt-2 rounded-full border border-[#FDBA74] px-3 py-1.5 font-body text-[12px] font-black text-[#9A3412]"
+                      >
+                        Add contact
                       </button>
                     ) : p.is_trusted !== false && !p.is_default ? (
                       <button

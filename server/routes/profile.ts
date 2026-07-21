@@ -62,7 +62,10 @@ import {
   type ProfileReadColumn,
 } from "../lib/profileReadCompatibility.js";
 import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
-import { savedProviderIsTrusted } from "../../shared/conciergeSavedProviders.js";
+import {
+  savedProviderContactReadiness,
+  savedProviderIsTrusted,
+} from "../../shared/conciergeSavedProviders.js";
 
 const DEMO_USER_ID = "demo-user";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
@@ -494,7 +497,7 @@ function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
 }
 
 function providerMatches(provider: SavedProviderSummary, terms: string[]): boolean {
-  if (!savedProviderIsTrusted(provider)) return false;
+  if (!savedProviderIsTrusted(provider) || !savedProviderContactReadiness(provider).conciergeUsable) return false;
   const searchable = [provider.role, provider.category, provider.name]
     .join(" ")
     .toLowerCase();

@@ -29,6 +29,7 @@
     "canvas:qa:runsheet": "tsx scripts/validate-voice-canvas-run-sheet.ts",
     "canvas:qa:rollback-owner": "tsx scripts/prepare-voice-canvas-rollback-owner-handoff.ts",
     "canvas:qa:validate": "tsx scripts/validate-voice-canvas-qa-matrix.ts",
+    "qa:manual:preflight": "node scripts/manual-qa-preflight.mjs",
     "db:migrate": "cross-env DATABASE_URL=file:./dev.db prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260624120000_init_brain_wellbeing/migration.sql && cross-env DATABASE_URL=file:./dev.db prisma generate --schema prisma/schema.prisma",
     "db:seed": "cross-env DATABASE_URL=file:./dev.db prisma db seed --schema prisma/schema.prisma",
     "db:reset": "cross-env DATABASE_URL=file:./dev.db tsx prisma/reset.ts",
@@ -41,7 +42,7 @@
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test": "vitest run",
+    "test": "node scripts/run-vitest.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

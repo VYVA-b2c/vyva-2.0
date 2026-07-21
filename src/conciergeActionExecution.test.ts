@@ -217,6 +217,28 @@ describe("concierge action execution task", () => {
     });
   });
 
+  it("accepts a saved provider website as contact readiness for a handoff", () => {
+    const task = withConciergeExecutionTask({
+      useCase: "home_service",
+      providerName: "Home Repair",
+      payload: {
+        flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+        service_type: "plumbing",
+        urgency: "this week",
+        home_address: "Home",
+        execution_channel: "booking_url",
+        website_uri: "https://repair.example",
+      },
+      summary: "Ask Home Repair for availability",
+    }).execution_task as Record<string, unknown>;
+
+    expect(task).toMatchObject({
+      provider_ready: true,
+      requested_tool: "booking_link",
+      missing_requirements: [],
+    });
+  });
+
   it("blocks confirmation when a phone call is missing the number", () => {
     const plan = planConciergeConfirmedExecution({
       useCase: "book_appointment",

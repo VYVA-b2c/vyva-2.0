@@ -7,10 +7,34 @@ export interface ConciergeSavedProviderLike {
   name?: string | null;
   role?: string | null;
   category?: string | null;
+  phone?: string | null;
+  contact_phone?: string | null;
+  email?: string | null;
+  whatsapp?: string | null;
+  bookingUrl?: string | null;
+  booking_url?: string | null;
+  online_order_url?: string | null;
+  websiteUrl?: string | null;
+  website_uri?: string | null;
+  preferredChannel?: string | null;
+  preferred_channel?: string | null;
+  can_contact_after_confirmation?: boolean | null;
+  canContactAfterConfirmation?: boolean | null;
   is_trusted?: boolean | null;
   isTrusted?: boolean | null;
   is_default?: boolean | null;
   isDefault?: boolean | null;
+}
+
+export type ConciergeSavedProviderContactChannel = "phone" | "email" | "whatsapp" | "booking_url" | "website";
+
+export interface ConciergeSavedProviderReadiness {
+  trusted: boolean;
+  canContactAfterConfirmation: boolean;
+  channels: ConciergeSavedProviderContactChannel[];
+  preferredChannel: ConciergeSavedProviderContactChannel | null;
+  conciergeUsable: boolean;
+  label: string;
 }
 
 const CATEGORY_TERMS: Record<ConciergeProviderCategoryId, RegExp> = {
@@ -50,13 +74,68 @@ export function savedProviderIsDefault(provider: ConciergeSavedProviderLike): bo
   return (provider.is_default ?? provider.isDefault) === true;
 }
 
+function clean(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function providerHasChannel(
+  provider: ConciergeSavedProviderLike,
+  channel: ConciergeSavedProviderContactChannel,
+): boolean {
+  if (channel === "phone") return Boolean(clean(provider.phone) || clean(provider.contact_phone));
+  if (channel === "email") return Boolean(clean(provider.email));
+  if (channel === "whatsapp") return Boolean(clean(provider.whatsapp));
+  if (channel === "booking_url") return Boolean(clean(provider.bookingUrl) || clean(provider.booking_url) || clean(provider.online_order_url));
+  return Boolean(clean(provider.websiteUrl) || clean(provider.website_uri));
+}
+
+export function savedProviderContactReadiness(
+  provider: ConciergeSavedProviderLike,
+): ConciergeSavedProviderReadiness {
+  const trusted = savedProviderIsTrusted(provider);
+  const canContactAfterConfirmation = (provider.can_contact_after_confirmation ?? provider.canContactAfterConfirmation) !== false;
+  const channels: ConciergeSavedProviderContactChannel[] = ["phone", "email", "whatsapp", "booking_url", "website"]
+    .filter((channel) => providerHasChannel(provider, channel));
+  const preferred = clean(provider.preferred_channel ?? provider.preferredChannel).toLowerCase();
+  const preferredChannel = (
+    preferred === "phone"
+    || preferred === "email"
+    || preferred === "whatsapp"
+    || preferred === "booking_url"
+    || preferred === "website"
+  ) ? preferred : null;
+  const usablePreferred = preferredChannel && channels.includes(preferredChannel);
+  const conciergeUsable = trusted && canContactAfterConfirmation && (usablePreferred || channels.length > 0);
+
+  return {
+    trusted,
+    canContactAfterConfirmation,
+    channels,
+    preferredChannel: usablePreferred ? preferredChannel : channels[0] ?? null,
+    conciergeUsable,
+    label: conciergeUsable
+      ? channels.map((channel) => ({
+        phone: "Phone",
+        email: "Email",
+        whatsapp: "WhatsApp",
+        booking_url: "Booking link",
+        website: "Website",
+      }[channel])).join(", ")
+      : !trusted
+        ? "Not trusted yet"
+        : !canContactAfterConfirmation
+          ? "Needs permission"
+          : "Add contact",
+  };
+}
+
 export function selectConciergeSavedProvider<T extends ConciergeSavedProviderLike>(
   providers: readonly T[] | null | undefined,
   category: ConciergeProviderCategoryId,
   searchTerms: readonly string[] = [],
 ): T | null {
   const candidates = (providers ?? []).filter((provider) => (
-    savedProviderIsTrusted(provider) && savedProviderCategory(provider) === category
+    savedProviderContactReadiness(provider).conciergeUsable && savedProviderCategory(provider) === category
   ));
   if (candidates.length === 0) return null;
 

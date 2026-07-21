@@ -51,6 +51,7 @@ import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult"
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
 import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
 import type { ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
+import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -81,6 +82,9 @@ import {
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type WoundScan = {
   id: string;
@@ -1860,7 +1864,52 @@ const HealthScreen = () => {
     book_ride: Car,
     add_doctor_contact: UserSearch,
   };
+  const hasDoctorContact = Boolean(profileContacts?.gpPhone || profile?.gpPhone || profileContacts?.gpEmail || profile?.gpEmail);
+  const openDoctorProviderSetup = () => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        setupFocus: "doctor_clinic",
+        returnTo: "/health/doctor",
+        notice: t("health.seeDoctor.providerSetupNotice", "Add your usual doctor or clinic. VYVA will bring you back to Health afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
+      },
+    });
+  };
+  const findDoctorOptions = () => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: "appointment",
+          message: t(
+            "health.seeDoctor.findOptionsPrefill",
+            "Help me find doctor or clinic options nearby. Compare proximity, availability, reputation, accessibility, and coverage. Ask me to confirm before contacting anyone.",
+          ),
+          source: "health_missing_provider",
+        },
+      },
+    });
+  };
+  const askHelperForDoctorSetup = () => {
+    navigate("/onboarding/profile/care-team", {
+      state: {
+        returnTo: "/health/doctor",
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
+      },
+    });
+  };
   const openSeeDoctorAction = (action: HealthDoctorQuickAction) => {
+    if (action.kind === "add_doctor_contact") {
+      openDoctorProviderSetup();
+      return;
+    }
     if (action.to) {
       navigate(action.to, action.state ? { state: action.state } : undefined);
     }
@@ -1954,6 +2003,12 @@ const HealthScreen = () => {
     action: ShowVyvaFollowUpAction,
     contract: ShowVyvaReviewContract,
   ) => {
+    const preparedReceipt = buildWorkflowReceiptMoment({
+      workflowReference: APP_WORKFLOW_REFERENCES.visualScan,
+      status: "prepared",
+      capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+      locale: activeLanguage(appLanguage) === "es" ? "es" : "en",
+    });
     const plan = buildShowVyvaActionExecutionPlan({
       contract,
       action,
@@ -1973,7 +2028,7 @@ const HealthScreen = () => {
       .then(async () => {
         markShowVyvaReviewHistoryActionSaved(contract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
         navigate(plan.targetRoute);
       })
       .catch(() => {
@@ -3853,8 +3908,24 @@ const HealthScreen = () => {
                   <p className="mt-3 font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0A7C4E]">
                     {t("health.seeDoctor.actions.title", "Doctor access")}
                   </p>
+                  {!hasDoctorContact ? (
+                    <ProviderSetupFallbackPanel
+                      testId="panel-health-doctor-setup-fallback"
+                      workflowReference={APP_WORKFLOW_REFERENCES.doctorNextStep}
+                      returnTo="/health/doctor"
+                      title={t("health.seeDoctor.providerFallbackTitle", "Need a doctor or clinic first?")}
+                      description={t("health.seeDoctor.providerFallbackDescription", "Save your usual contact, ask VYVA to find options, or let a trusted helper set it up.")}
+                      addLabel={t("health.seeDoctor.providerFallbackAdd", "Add my usual doctor")}
+                      findLabel={t("health.seeDoctor.providerFallbackFind", "Find nearby options")}
+                      helperLabel={t("health.seeDoctor.providerFallbackHelper", "Ask family/caregiver")}
+                      confirmation={t("health.seeDoctor.providerFallbackConfirm", "VYVA still asks before calling, booking, or sharing health details.")}
+                      onAddProvider={openDoctorProviderSetup}
+                      onFindOptions={findDoctorOptions}
+                      onAskHelper={askHelperForDoctorSetup}
+                    />
+                  ) : null}
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {seeDoctorActions.map((action) => {
+                    {seeDoctorActions.filter((action) => hasDoctorContact || action.kind !== "add_doctor_contact").map((action) => {
                       const Icon = seeDoctorActionIcons[action.kind];
                       const className = "vyva-tap flex min-h-[74px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 text-left transition active:scale-[0.98]";
                       const content = (
