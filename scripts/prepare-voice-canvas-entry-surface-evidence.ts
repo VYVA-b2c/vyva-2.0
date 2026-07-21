@@ -265,6 +265,7 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
 ];
 
 const rejectedEntrySurfaceEvidencePatterns: readonly RegExp[] = [
+  /\b(?:not complete|not completed|incomplete|did not complete|failed to complete|unable to complete|could not complete|not safely exited|not safe exit|not exited safely)\b/i,
   /\b(?:write|data write|booking|call|message|navigation|external action)\s+(?:triggered|occurred|happened|started|sent|placed|submitted|created|booked|navigated)\b/i,
   /\b(?:triggered|sent|placed|submitted|created|booked|navigated)\s+(?:a\s+)?(?:write|data write|booking|call|message|navigation|external action)\b/i,
   /\b(?:not exercised|not opened|did not open|did not resume|unable to open|unable to resume|failed|unavailable|fallback missing|fallback unavailable)\b/i,

@@ -334,6 +334,25 @@ describe("Voice Canvas entry surface evidence helper command", () => {
       },
     ));
 
+  it("rejects incomplete entry-surface evidence without echoing values", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "exercised from this exact surface with no write and no external action before explicit confirmation",
+        "exercised from this exact surface but not complete and not safely exited, with no write and no external action before explicit confirmation",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Entry surface evidence artifact must use affirmative successful entry-surface evidence, not failed, unavailable, missing-fallback, write, booking, call, message, navigation, or external-action evidence.",
+        );
+        expect(result.stdout).not.toContain("not complete");
+        expect(result.stdout).not.toContain("not safely exited");
+      },
+    ));
+
   it("rejects undated or non-artifact evidence references", () =>
     withTempMarkdownFile(
       validEntrySurfaceEvidenceArtifact().replace(

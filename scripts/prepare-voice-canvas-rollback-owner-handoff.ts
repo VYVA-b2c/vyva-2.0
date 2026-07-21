@@ -206,6 +206,7 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
 ];
 
 const rejectedRollbackHandoffPatterns: readonly RegExp[] = [
+  /\b(?:not complete|not completed|incomplete|did not complete|failed to complete|unable to complete|could not complete|not safely exited|not safe exit|not exited safely)\b/i,
   /\b(?:owner|backup owner|rollback owner)\s+(?:tbd|todo|pending|missing|unassigned|unknown|unavailable)\b/i,
   /\b(?:decision window|rollback trigger|rollback action|fallback readiness|privacy boundary)\s+(?:tbd|todo|pending|missing|unknown|unavailable|not ready|not verified|unverified)\b/i,
   /\b(?:fallback|existing fallback|named fallback|Canvas closed|Canvas hidden|open-session|open session)\s+(?:missing|unavailable|not visible|not shown|not ready|not verified|unverified|failed|broken)\b/i,
