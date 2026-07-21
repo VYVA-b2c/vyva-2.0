@@ -3997,11 +3997,11 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-template-pack-create-assets-monthly-care-digest"));
 
-    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Creating 5 Monthly care digest content assets");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Creating 7 Monthly care digest content assets");
 
     await waitFor(() => {
       const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
-      expect(contentPosts).toHaveLength(5);
+      expect(contentPosts).toHaveLength(7);
     });
 
     const contentPosts = apiFetchMock.mock.calls.filter(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
@@ -4021,12 +4021,12 @@ describe("MarketingAdminPage", () => {
         angle: "proof",
       }),
     });
-    expect(new Set(postBodies.map((body) => body.metadata.templateId)).size).toBe(5);
+    expect(new Set(postBodies.map((body) => body.metadata.templateId)).size).toBe(7);
     expect(postBodies.some((body) => body.channel === "whatsapp")).toBe(true);
     expect(postBodies.every((body) => typeof body.metadata.aiPrompt === "string" && body.metadata.aiPrompt.length > 20)).toBe(true);
 
     await waitFor(() => {
-      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Created 5 Monthly care digest content assets");
+      expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Created 7 Monthly care digest content assets");
     });
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("First asset opened for review.");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
@@ -7858,9 +7858,13 @@ describe("MarketingAdminPage", () => {
     });
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Risk gate: 1 saved email recipient needs opted-in consent before sending."));
     expect(screen.getByTestId("marketing-campaign-handoff-copy-feedback")).toHaveTextContent("Campaign operator sheet copied.");
-    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("Launch decision");
-    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("Review before launch");
-    expect(screen.getByTestId("marketing-campaign-launch-decision")).toHaveTextContent("consent review");
+    const launchDecisionPanel = screen
+      .getAllByTestId("marketing-campaign-launch-decision")
+      .find((panel) => panel.textContent?.includes("Review before launch"));
+    expect(launchDecisionPanel).toBeDefined();
+    expect(launchDecisionPanel).toHaveTextContent("Launch decision");
+    expect(launchDecisionPanel).toHaveTextContent("Review before launch");
+    expect(launchDecisionPanel).toHaveTextContent("consent review");
     expect(screen.getByTestId("button-marketing-launch-decision-primary")).toHaveTextContent("Open contact");
     fireEvent.click(screen.getByTestId("button-marketing-copy-launch-decision"));
     await waitFor(() => {
