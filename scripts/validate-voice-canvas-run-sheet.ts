@@ -204,6 +204,28 @@ function isGenericCompletedCell(value: string): boolean {
   );
 }
 
+function hasContradictoryLaunchEvidenceLanguage(value: string): boolean {
+  const normalized = normalizeCell(value).toLowerCase();
+  if (isPendingCell(normalized)) return false;
+  return (
+    /\b(known issue|known issues|known bug|known bugs|unresolved issue|unresolved issues|unresolved bug|unresolved bugs|defect|defects|regression|regressions|risk accepted|accepted risk|launch risk|workaround required|manual workaround|waiver|exception)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:write|writes|external action|external actions|booking|bookings|call|calls|message|messages|navigation|navigations|submission|submissions|endpoint|endpoints)\b.{0,36}\b(?:happened|occurred|triggered|fired|ran|sent|submitted|created|wrote|called|messaged|navigated)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:triggered|fired|ran|sent|submitted|created|wrote|called|messaged|navigated)\b.{0,36}\b(?:write|writes|external action|external actions|booking|bookings|call|calls|message|messages|navigation|navigations|submission|submissions|endpoint|endpoints)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:fallback|rollback|canvas|draft|entered information|current scene|current work|focus|screen-reader|screen reader|announcement|announcements|spanish|long labels|analytics|voice|touch|keyboard|reconnect|refresh|interruption|browser back|retry|exit)\b.{0,36}\b(?:missing|unavailable|not available|not visible|not shown|not working|not preserved|not restored|not recovered|not readable|not announced|failed|broken)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:missing|unavailable|not available|not visible|not shown|not working|not preserved|not restored|not recovered|not readable|not announced|failed|broken)\b.{0,36}\b(?:fallback|rollback|canvas|draft|entered information|current scene|current work|focus|screen-reader|screen reader|announcement|announcements|spanish|long labels|analytics|voice|touch|keyboard|reconnect|refresh|interruption|browser back|retry|exit)\b/.test(
+      normalized,
+    )
+  );
+}
+
 function parseIsoDate(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const parsed = new Date(`${value}T00:00:00.000Z`);
@@ -606,6 +628,27 @@ function countLiteralPersonalDataCells(tables: readonly MarkdownTable[]): number
   );
 }
 
+function countContradictoryLaunchEvidenceCells(
+  tables: readonly MarkdownTable[],
+): number {
+  return tables.reduce(
+    (total, table) =>
+      total +
+      table.rows.reduce(
+        (rowTotal, row) =>
+          rowTotal +
+          row
+            .slice(1)
+            .filter(
+              (cell) =>
+                !isPendingCell(cell) && hasContradictoryLaunchEvidenceLanguage(cell),
+            ).length,
+        0,
+      ),
+    0,
+  );
+}
+
 function countStaleOrFutureEvidenceDateCells(tables: readonly MarkdownTable[]): number {
   return tables.reduce(
     (total, table) =>
@@ -942,6 +985,13 @@ function evaluateRunSheet(markdown: string) {
   if (literalPersonalDataCellCount > 0) {
     problems.push(
       `Run sheet contains ${literalPersonalDataCellCount} filled cell(s) that appear to include literal personal data; replace them with sanitized artifact references.`,
+    );
+  }
+  const contradictoryLaunchEvidenceCellCount =
+    countContradictoryLaunchEvidenceCells(tables);
+  if (contradictoryLaunchEvidenceCellCount > 0) {
+    problems.push(
+      `Run sheet contains ${contradictoryLaunchEvidenceCellCount} filled cell(s) with contradictory or unsafe launch evidence wording; resolve the underlying QA issue before sign-off.`,
     );
   }
   const readyForQaRunSheet = problems.length === 0 && incompleteCellCount === 0;
