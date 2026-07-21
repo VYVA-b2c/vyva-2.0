@@ -160,12 +160,15 @@ describe("Voice Canvas launch evidence run helper command", () => {
       checklist: string[];
       privacyBoundary: string[];
       sameRunDateRequired: boolean;
+      message: string;
     };
 
     expect(summary.readyForEvidenceRun).toBe(true);
     expect(summary.runDate).toBe(runDate);
     expect(summary.baseUrl).toBe("https://staging.vyva.app");
     expect(summary.sameRunDateRequired).toBe(true);
+    expect(summary.message).toContain("same-date paths, same deployed origin");
+    expect(summary.message).toContain("matching endpoint auth metadata");
     expect(summary.requestHeaderEnv).toEqual([]);
     expect(summary.authenticatedRequest).toBe(false);
     expect(Object.values(summary.artifactPaths).every((value) => value.includes(runDate))).toBe(

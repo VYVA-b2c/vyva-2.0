@@ -164,7 +164,7 @@ function validLaunchRunPlan(
     ],
     sameRunDateRequired: true,
     message:
-      "Voice Canvas launch evidence run plan is ready. Use these same-date paths for final evidence collection.",
+      "Voice Canvas launch evidence run plan is ready. Use these same-date paths, same deployed origin, and matching endpoint auth metadata for final evidence collection.",
   };
 }
 
@@ -715,7 +715,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "npm run canvas:qa:preflight -- --run-plan=artifacts/voice-canvas/YYYY-MM-DD-launch-evidence-run.json",
     );
     expect(result.stdout).toContain(
-      "Pass --date=YYYY-MM-DD to validate the standard same-date launch evidence bundle without hand-assembling every artifact path.",
+      "Pass --date=YYYY-MM-DD to validate the standard same-date, same deployed-origin launch evidence bundle without hand-assembling every artifact path.",
     );
     expect(result.stdout).toContain(
       "Use --final --date=YYYY-MM-DD for launch sign-off; plain --final is only for custom explicit artifact-path diagnostics.",
@@ -825,7 +825,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
     expect(result.stdout).toContain("Final gate mode: yes");
     expect(result.stdout).toContain("Ready for launch: no");
     expect(result.stdout).toContain(
-      "For final launch sign-off, rerun with --date=YYYY-MM-DD so the same-date evidence bundle cannot accidentally omit required artifacts.",
+      "For final launch sign-off, rerun with --date=YYYY-MM-DD so the same-date, same deployed-origin evidence bundle cannot accidentally omit required artifacts.",
     );
     expect(result.stdout).toContain(
       "Execute the real-device run sheet and record fresh sanitized evidence before final launch sign-off.",
@@ -846,7 +846,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
       "Provide --features-rollback=<path> for the rollback-disabled feature endpoint collector artifact before final launch sign-off.",
     );
     expect(result.stdout).toContain(
-      "Provide --run-plan=<path> for the same-date launch evidence run plan before final launch sign-off.",
+      "Provide --run-plan=<path> for the same-date, same deployed-origin launch evidence run plan with matching endpoint auth metadata before final launch sign-off.",
     );
     expect(result.stdout).toContain(
       "Provide --analytics=<path> for the sanitized analytics evidence artifact before final launch sign-off.",
@@ -1545,7 +1545,7 @@ describe("Voice Canvas launch readiness preflight command", () => {
         expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
         expect(summary.launchRunPlan.problemCount).toBeGreaterThan(0);
         expect(summary.launchRunPlan.problems.join("\n")).toContain(
-          "Launch evidence run plan commands must match the canonical same-date evidence bundle.",
+          "Launch evidence run plan commands must match the canonical same-date, same deployed-origin evidence bundle.",
         );
         expect(summary.nextActions).toContain(
           "Fix the launch evidence run plan before final launch sign-off.",

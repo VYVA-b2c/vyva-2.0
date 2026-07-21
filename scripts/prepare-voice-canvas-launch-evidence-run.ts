@@ -271,7 +271,7 @@ const summary = {
   privacyBoundary,
   sameRunDateRequired: true,
   message:
-    "Voice Canvas launch evidence run plan is ready. Use these same-date paths for final evidence collection.",
+    "Voice Canvas launch evidence run plan is ready. Use these same-date paths, same deployed origin, and matching endpoint auth metadata for final evidence collection.",
 };
 const jsonSummary = JSON.stringify(summary, null, 2);
 
