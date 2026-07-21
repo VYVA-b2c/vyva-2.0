@@ -306,6 +306,25 @@ describe("Voice Canvas real-use evidence helper command", () => {
       },
     ));
 
+  it("rejects secret-bearing artifact references without echoing them", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "sanitized artifact references include bearer abc123SECRET and token=secret",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).not.toContain("abc123SECRET");
+        expect(result.stdout).not.toContain("token=secret");
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Real-use evidence artifact appears to include personal details.",
+        );
+      },
+    ));
+
   it("saves templates and validation JSON without overwriting by default", () =>
     withTempMarkdownFile(validRealUseEvidenceArtifact(), (inputPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-real-use-out-"));

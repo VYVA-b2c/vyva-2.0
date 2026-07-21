@@ -317,6 +317,24 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
       );
     }));
 
+  it("rejects secret-bearing handoff references without echoing them", () =>
+    withTempMarkdownFile(
+      validRollbackOwnerHandoffArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "sanitized artifact references include authorization=abc123SECRET",
+      ),
+      (inputPath) => {
+        const result = runRollbackOwnerHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).not.toContain("abc123SECRET");
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Rollback owner handoff artifact appears to include personal details.",
+        );
+      },
+    ));
+
   it("saves validation JSON while preserving existing artifacts by default", () =>
     withTempMarkdownFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-rollback-owner-output-"));

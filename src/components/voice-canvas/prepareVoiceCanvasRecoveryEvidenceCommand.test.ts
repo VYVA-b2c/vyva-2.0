@@ -281,6 +281,26 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
       },
     ));
 
+  it("rejects secret-bearing artifact references without echoing them", () =>
+    withTempRecoveryFile(
+      validRecoveryEvidenceArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "sanitized artifact references include https://qa-user:secret-pass@staging.vyva.app/recovery?token=secret",
+      ),
+      (inputPath) => {
+        const result = runRecoveryEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Recovery behavior evidence artifact appears to include personal details.",
+        );
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("secret-pass");
+        expect(serialized).not.toContain("token=secret");
+      },
+    ));
+
   it("saves templates and validation JSON without overwriting by default", () => {
     const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-recovery-output-"));
     const templatePath = path.join(tempDir, "recovery-behavior.md");

@@ -368,6 +368,24 @@ describe("Voice Canvas entry surface evidence helper command", () => {
       },
     ));
 
+  it("rejects secret-bearing artifact references without echoing them", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "sanitized artifact references only with no personal details",
+        "x-api-key: abc123SECRET in entry surface artifact reference",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).not.toContain("abc123SECRET");
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Entry surface evidence artifact appears to include personal details.",
+        );
+      },
+    ));
+
   it("saves validation JSON while preserving existing artifacts by default", () =>
     withTempMarkdownFile(validEntrySurfaceEvidenceArtifact(), (inputPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-entry-surface-out-"));

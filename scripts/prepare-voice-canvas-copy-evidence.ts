@@ -247,6 +247,10 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\b(?:\+?\d[\s().-]*){10,}\b/,
+  /https?:\/\/[^\s/|`]+:[^\s@/|`]+@[^\s|`]+/i,
+  /\b(?:token|secret|api[_-]?key|authorization|cookie|password|session)[=:][^\s|`]+/i,
+  /\bbearer\s+[A-Za-z0-9._~+/-]+=*/i,
+  /\bx-api-key\s*[:=]\s*[^\s|`]+/i,
   /\b(?:patient id|profile id|account id|user id)\b\s*[:#-]?\s*[A-Za-z0-9_-]{3,}\b/i,
   /\b(?:pickup address|destination address|saved-place label|spoken transcript|typed free text|medication name|provider name|shopping item|account id)\s*[:=-]\s*\S+/i,
 ];
