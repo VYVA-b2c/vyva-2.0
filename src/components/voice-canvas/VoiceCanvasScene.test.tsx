@@ -47,6 +47,56 @@ it("supports arrow-key navigation between choices", () => {
   const first=screen.getByRole("button",{name:"First"}),second=screen.getByRole("button",{name:"Second"}); first.focus(); fireEvent.keyDown(first,{key:"ArrowRight"}); expect(second).toHaveFocus(); fireEvent.keyDown(second,{key:"ArrowDown"}); expect(first).toHaveFocus();
 });
 
+it("renders selectable option-card blocks with rich details", () => {
+  const onChoice = vi.fn();
+  render(<VoiceCanvasScene
+    viewModel={base("choice", {
+      blocks: [{
+        kind: "option-card",
+        id: "ride:carecab",
+        title: "CareCab",
+        subtitle: "Best reputation",
+        badge: "Recommended",
+        recommended: true,
+        description: "Good for appointments",
+        details: [
+          { id: "pickup", label: "Estimated pickup", value: "12 min", tone: "good" },
+          { id: "price", label: "Estimated price", value: "$18-$22" },
+        ],
+        accessibleLabel: "Choose CareCab, best reputation, estimated pickup 12 minutes",
+      }],
+    })}
+    onChoice={onChoice}
+  />);
+  const card = screen.getByRole("button", { name: "Choose CareCab, best reputation, estimated pickup 12 minutes" });
+  expect(card).toHaveTextContent("CareCab");
+  expect(card).toHaveTextContent("Recommended");
+  expect(card).toHaveTextContent("Estimated pickup");
+  expect(card).toHaveTextContent("12 min");
+  fireEvent.click(card);
+  expect(onChoice).toHaveBeenCalledWith("ride:carecab");
+});
+
+it("supports keyboard navigation between option-card blocks and honors disabled cards", () => {
+  render(<VoiceCanvasScene viewModel={base("choice", {
+    blocks: [
+      { kind: "option-card", id: "first", title: "First provider", accessibleLabel: "First provider" },
+      { kind: "option-card", id: "second", title: "Second provider", accessibleLabel: "Second provider", selected: true },
+      { kind: "option-card", id: "third", title: "Disabled provider", accessibleLabel: "Disabled provider", disabled: true },
+    ],
+  })} />);
+  const first = screen.getByRole("button", { name: "First provider" });
+  const second = screen.getByRole("button", { name: "Second provider" });
+  const disabled = screen.getByRole("button", { name: "Disabled provider" });
+  first.focus();
+  fireEvent.keyDown(first, { key: "ArrowRight" });
+  expect(second).toHaveFocus();
+  fireEvent.keyDown(second, { key: "ArrowDown" });
+  expect(first).toHaveFocus();
+  expect(second).toHaveAttribute("aria-pressed", "true");
+  expect(disabled).toBeDisabled();
+});
+
 it("exposes progress and loading semantics", () => {
   render(<VoiceCanvasScene viewModel={base("waiting",{status:"loading",progress:{current:2,total:4,label:"Step 2 of 4"},primaryAction:{label:"Saving",loading:true}})} />);
   expect(screen.getByRole("progressbar",{name:"Step 2 of 4"})).toHaveAttribute("aria-valuenow","2"); expect(screen.getByRole("region")).toHaveAttribute("aria-busy","true"); expect(screen.getByRole("button",{name:"Saving"})).toBeDisabled();

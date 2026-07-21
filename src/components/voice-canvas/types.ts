@@ -29,6 +29,31 @@ export interface VoiceCanvasSummaryRow {
   value: string;
 }
 
+export interface VoiceCanvasOptionCardDetail {
+  id?: string;
+  label: string;
+  value: string;
+  tone?: "good" | "neutral" | "caution";
+}
+
+export interface VoiceCanvasOptionCardBlock {
+  kind: "option-card";
+  id: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  badge?: string;
+  recommended?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+  icon?: LucideIcon;
+  details?: VoiceCanvasOptionCardDetail[];
+  accessibleLabel?: string;
+  voiceAliases?: string[];
+}
+
+export type VoiceCanvasBlock = VoiceCanvasOptionCardBlock;
+
 export interface VoiceCanvasAction {
   label: string;
   disabled?: boolean;
@@ -72,6 +97,7 @@ export interface VoiceCanvasViewModel {
   helperText?: string;
   progress?: VoiceCanvasProgress;
   choices?: VoiceCanvasChoice[];
+  blocks?: VoiceCanvasBlock[];
   summaryRows?: VoiceCanvasSummaryRow[];
   textEntry?: VoiceCanvasTextEntry;
   fileEntry?: VoiceCanvasFileEntry;

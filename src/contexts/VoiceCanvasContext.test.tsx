@@ -93,6 +93,67 @@ describe("VoiceCanvasProvider", () => {
     window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, received);
   });
 
+  it("routes a spoken option-card alias through the active scene", () => {
+    const received = vi.fn();
+    window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, received);
+    render(<VoiceCanvasProvider><Harness /></VoiceCanvasProvider>);
+    act(() => emitVoiceCanvasScene({
+      ...firstScene,
+      viewModel: {
+        ...firstScene.viewModel,
+        blocks: [{
+          kind: "option-card",
+          id: "ride:carecab",
+          title: "CareCab",
+          subtitle: "Best reputation",
+          voiceAliases: ["recommended ride"],
+        }],
+      },
+    }));
+
+    act(() => emitVoiceUserMessage({ text: "recommended ride", at: "2026-07-18T10:00:00.000Z" }));
+
+    expect(received).toHaveBeenCalledTimes(1);
+    expect((received.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+      sceneId: "ride-destination",
+      revision: 1,
+      kind: "choice",
+      choiceId: "ride:carecab",
+      value: "CareCab",
+    });
+    expect(sendText).not.toHaveBeenCalled();
+    window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, received);
+  });
+
+  it("does not allow voice to select disabled option-card blocks", () => {
+    const received = vi.fn();
+    window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, received);
+    render(<VoiceCanvasProvider><Harness /></VoiceCanvasProvider>);
+    act(() => emitVoiceCanvasScene({
+      ...firstScene,
+      viewModel: {
+        ...firstScene.viewModel,
+        blocks: [{
+          kind: "option-card",
+          id: "ride:disabled",
+          title: "Unavailable provider",
+          disabled: true,
+          voiceAliases: ["unavailable ride"],
+        }],
+      },
+    }));
+
+    act(() => emitVoiceUserMessage({ text: "unavailable ride", at: "2026-07-18T10:00:00.000Z" }));
+
+    expect(received).toHaveBeenCalledTimes(1);
+    expect((received.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+      kind: "text",
+      value: "unavailable ride",
+    });
+    expect((received.mock.calls[0][0] as CustomEvent).detail.choiceId).toBeUndefined();
+    window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, received);
+  });
+
   it("does not route the voice echo of a touch answer twice", () => {
     const received = vi.fn();
     window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, received);
