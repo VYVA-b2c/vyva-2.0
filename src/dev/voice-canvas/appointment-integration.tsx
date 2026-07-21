@@ -1,4 +1,176 @@
-import{useCallback,useState}from"react";import{AppointmentVoiceCanvas,type AppointmentCanvasCopy}from"../../components/voice-canvas";import"./gallery.css";import"./integration.css";
-const en:AppointmentCanvasCopy={listening:{status:"Listening",title:"Let’s prepare your appointment",helper:"Use voice, touch, or keyboard.",start:"Start",cancel:"Not now"},provider:{title:"Which clinician or clinic?",helper:"Choose a saved provider or add another.",newProvider:"A different provider",newProviderHelper:"Enter the clinician or clinic",back:"Go back"},providerEntry:{title:"What provider should we use?",helper:"Enter the clinician or clinic.",label:"Clinician or clinic",placeholder:"Provider name",continue:"Continue",back:"Go back"},reason:{title:"What is the appointment for?",helper:"Include only what is helpful.",label:"Reason for appointment",placeholder:"Check-up or follow-up",continue:"Continue",back:"Go back"},dateTime:{title:"When works for you?",helper:"Choose a preferred day and time.",timeLabel:"Preferred time",continue:"Review",back:"Go back"},review:{title:"Review appointment preparation",helper:"Nothing is sent or booked until you confirm.",provider:"Provider",reason:"Reason",date:"Day",time:"Time",confirm:"Confirm and prepare",change:"Make a change"},waiting:{status:"Please wait",title:"Preparing the request",helper:"Please stay on this screen.",action:"Preparing…"},completed:{status:"Completed",title:"Appointment preparation is ready",helper:"Review next steps before any external action.",reference:"Reference",done:"Done"},blocked:{status:"Needs attention",title:"We could not prepare the request",helper:"Review details and try again.",retry:"Review and retry",cancel:"Cancel"},cancelled:{status:"Cancelled",title:"Nothing was prepared",helper:"No details were sent.",restart:"Start again"},progress:(a,b)=>`Step ${a} of ${b}`};
-const es:AppointmentCanvasCopy={...en,listening:{status:"Escuchando",title:"Preparemos tu cita",helper:"Usa voz, pantalla o teclado.",start:"Empezar",cancel:"Ahora no"},provider:{title:"¿Con qué profesional o clínica?",helper:"Elige uno guardado o añade otro.",newProvider:"Otro profesional o clínica",newProviderHelper:"Escribe el nombre",back:"Volver"},review:{title:"Revisa la preparación",helper:"Nada se envía ni se reserva hasta que confirmes.",provider:"Profesional",reason:"Motivo",date:"Día",time:"Hora",confirm:"Confirmar y preparar la solicitud de cita",change:"Cambiar un dato"},progress:(a,b)=>`Paso ${a} de ${b}`};
-export default function Gallery(){const[failure,setFailure]=useState(false),spanish=new URLSearchParams(location.search).get("locale")==="es";const confirm=useCallback(async()=>{await new Promise(resolve=>setTimeout(resolve,300));if(failure)throw new Error("Service unavailable");return{reference:"VYVA-APT-2486"}},[failure]);return <main className="vc-gallery vc-integration-gallery"><header><p>VYVA · Appointment Canvas</p><h1>Medical appointment preparation</h1><span>No contact or booking before explicit confirmation</span></header><div className="vc-demo-toolbar"><button onClick={()=>setFailure(false)}>Successful result</button><button onClick={()=>setFailure(true)}>Blocked result</button></div><div className="vc-gallery-stage"><AppointmentVoiceCanvas copy={spanish?es:en} providers={[{id:"saved",label:spanish?"Centro médico y de bienestar Riverside con un nombre traducido especialmente largo":"Riverside Medical Centre",description:spanish?"Guardado en tu perfil":"Saved in your profile"}]} dateChoices={[{id:"tomorrow",label:spanish?"Mañana":"Tomorrow",value:spanish?"mañana":"tomorrow"}]} voiceCommands={{start:[spanish?"empezar":"start"],back:[spanish?"volver":"back"],cancel:[spanish?"cancelar":"cancel"],confirm:[spanish?"confirmar":"confirm"],retry:[spanish?"intentar otra vez":"retry"]}} onConfirmPrepare={confirm} storageKey={`appointment-gallery-${spanish}`}/></div></main>}
+import { useCallback, useState } from "react";
+import {
+  AppointmentVoiceCanvas,
+  type AppointmentCanvasCopy,
+} from "../../components/voice-canvas";
+import "./gallery.css";
+import "./integration.css";
+
+const en: AppointmentCanvasCopy = {
+  listening: {
+    status: "Listening",
+    title: "Let's prepare your appointment",
+    helper: "Use voice, touch, or keyboard.",
+    start: "Start",
+    cancel: "Not now",
+  },
+  provider: {
+    title: "Which clinician or clinic?",
+    helper: "Choose a saved provider or add another.",
+    newProvider: "A different provider",
+    newProviderHelper: "Enter the clinician or clinic",
+    back: "Go back",
+  },
+  providerEntry: {
+    title: "What provider should we use?",
+    helper: "Enter the clinician or clinic.",
+    label: "Clinician or clinic",
+    placeholder: "Provider name",
+    continue: "Continue",
+    back: "Go back",
+  },
+  reason: {
+    title: "What is the appointment for?",
+    helper: "Include only what is helpful.",
+    label: "Reason for appointment",
+    placeholder: "Check-up or follow-up",
+    continue: "Continue",
+    back: "Go back",
+  },
+  dateTime: {
+    title: "When works for you?",
+    helper: "Choose a preferred day and time.",
+    timeLabel: "Preferred time",
+    continue: "Review",
+    back: "Go back",
+  },
+  review: {
+    title: "Review appointment preparation",
+    helper: "Nothing is sent or booked until you confirm.",
+    provider: "Provider",
+    reason: "Reason",
+    date: "Day",
+    time: "Time",
+    confirm: "Confirm and prepare",
+    change: "Make a change",
+  },
+  waiting: {
+    status: "Please wait",
+    title: "Preparing the request",
+    helper: "Please stay on this screen.",
+    action: "Preparing...",
+  },
+  completed: {
+    status: "Completed",
+    title: "Appointment preparation is ready",
+    helper: "Review next steps before any external action.",
+    reference: "Reference",
+    done: "Done",
+  },
+  blocked: {
+    status: "Needs attention",
+    title: "We could not prepare the request",
+    helper: "Review details and try again.",
+    retry: "Review and retry",
+    cancel: "Cancel",
+  },
+  cancelled: {
+    status: "Cancelled",
+    title: "Nothing was prepared",
+    helper: "No details were sent.",
+    restart: "Start again",
+  },
+  progress: (a, b) => `Step ${a} of ${b}`,
+};
+
+const es: AppointmentCanvasCopy = {
+  ...en,
+  listening: {
+    status: "Escuchando",
+    title: "Preparemos tu cita",
+    helper: "Usa voz, pantalla o teclado.",
+    start: "Empezar",
+    cancel: "Ahora no",
+  },
+  provider: {
+    title: "¿Con qué profesional o clínica?",
+    helper: "Elige uno guardado o añade otro.",
+    newProvider: "Otro profesional o clínica",
+    newProviderHelper: "Escribe el nombre",
+    back: "Volver",
+  },
+  review: {
+    ...en.review,
+    title: "Revisa la preparación",
+    helper: "Nada se envía ni se reserva hasta que confirmes.",
+    provider: "Profesional",
+    reason: "Motivo",
+    date: "Día",
+    time: "Hora",
+    confirm: "Confirmar y preparar la solicitud de cita",
+    change: "Cambiar un dato",
+  },
+  progress: (a, b) => `Paso ${a} de ${b}`,
+};
+
+export default function Gallery() {
+  const [failure, setFailure] = useState(false);
+  const params = new URLSearchParams(location.search);
+  const spanish = params.get("locale") === "es";
+  const evidenceSafe = params.get("evidence") === "sanitized";
+  const confirm = useCallback(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (failure) throw new Error("Service unavailable");
+    return { reference: "VYVA-APT-2486" };
+  }, [failure]);
+
+  const savedProviderLabel = evidenceSafe
+    ? spanish
+      ? "Opción de atención guardada con una etiqueta traducida especialmente larga"
+      : "Saved care option"
+    : spanish
+      ? "Centro médico y de bienestar Riverside con un nombre traducido especialmente largo"
+      : "Riverside Medical Centre";
+
+  return (
+    <main className="vc-gallery vc-integration-gallery">
+      <header>
+        <p>VYVA · Appointment Canvas</p>
+        <h1>Medical appointment preparation</h1>
+        <span>No contact or booking before explicit confirmation</span>
+      </header>
+      <div className="vc-demo-toolbar">
+        <button onClick={() => setFailure(false)}>Successful result</button>
+        <button onClick={() => setFailure(true)}>Blocked result</button>
+      </div>
+      <div className="vc-gallery-stage">
+        <AppointmentVoiceCanvas
+          copy={spanish ? es : en}
+          providers={[
+            {
+              id: "saved",
+              label: savedProviderLabel,
+              description: spanish ? "Guardado en tu perfil" : "Saved in your profile",
+            },
+          ]}
+          dateChoices={[
+            {
+              id: "tomorrow",
+              label: spanish ? "Mañana" : "Tomorrow",
+              value: spanish ? "mañana" : "tomorrow",
+            },
+          ]}
+          voiceCommands={{
+            start: [spanish ? "empezar" : "start"],
+            back: [spanish ? "volver" : "back"],
+            cancel: [spanish ? "cancelar" : "cancel"],
+            confirm: [spanish ? "confirmar" : "confirm"],
+            retry: [spanish ? "intentar otra vez" : "retry"],
+          }}
+          onConfirmPrepare={confirm}
+          storageKey={`appointment-gallery-${spanish}-${evidenceSafe}`}
+        />
+      </div>
+    </main>
+  );
+}

@@ -2,12 +2,14 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   CanvasSafetyError,
+  canvasLaunchSignalForTelemetry,
   canvasOutcomeForStep,
   dispatchCanvasTelemetryEvent,
   isCanvasRolloutEnabled,
   parseCanvasRolloutConfig,
   type CanvasTelemetryEnvelope,
 } from "./canvasPlatform";
+import { CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS } from "./canvasLaunchReadiness";
 import { useCanvasExternalActionGate } from "./useVoiceCanvasPlatform";
 
 describe("Canvas platform outcomes", () => {
@@ -24,6 +26,41 @@ describe("Canvas platform outcomes", () => {
   it("does not invent an outcome for data-entry scenes", () => {
     expect(canvasOutcomeForStep("address")).toBeUndefined();
   });
+
+  it.each([
+    [{ name: "scene_viewed", step: "provider", restored: false }, "started"],
+    [{ name: "scene_viewed", step: "provider", restored: true }, "resumed"],
+    [{ name: "draft_restored", step: "review", restored: true }, "resumed"],
+    [{ name: "abandoned", step: "listening", restored: false }, "abandoned"],
+    [{ name: "confirmation_submitted", step: "review", restored: false }, "confirmed"],
+    [{ name: "completed", step: "completed", restored: false }, "completed"],
+    [{ name: "pending", step: "pending", restored: false }, "completed"],
+    [{ name: "failed", step: "blocked", restored: false }, "blocked"],
+    [{ name: "urgent_help_shown", step: "urgent", restored: false }, "blocked"],
+  ] as const)("maps %s to the %s launch signal", (event, signal) => {
+    expect(canvasLaunchSignalForTelemetry({
+      ...event,
+      input: "system",
+      attempt: 1,
+    })).toBe(signal);
+  });
+
+  it("does not turn intermediate preparation events into launch completion", () => {
+    expect(canvasLaunchSignalForTelemetry({
+      name: "saved",
+      step: "saved",
+      input: "system",
+      attempt: 1,
+      restored: false,
+    })).toBeUndefined();
+    expect(canvasLaunchSignalForTelemetry({
+      name: "pending",
+      step: "pending_detail",
+      input: "system",
+      attempt: 1,
+      restored: false,
+    })).toBeUndefined();
+  });
 });
 
 describe("Canvas platform safety primitives", () => {
@@ -32,15 +69,20 @@ describe("Canvas platform safety primitives", () => {
     window.addEventListener("canvas-test", (event) => {
       detail = (event as CustomEvent).detail;
     }, { once: true });
+    const forbiddenPayload = Object.fromEntries(
+      CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS.map((field) => [
+        field,
+        `private-${field}`,
+      ]),
+    );
     dispatchCanvasTelemetryEvent("canvas-test", {
       name: "completed",
       step: "completed",
       input: "system",
       attempt: 1,
       restored: false,
-      address: "private address",
-      transcript: "private transcript",
-    } as CanvasTelemetryEnvelope & { address: string; transcript: string });
+      ...forbiddenPayload,
+    } as CanvasTelemetryEnvelope & Record<string, string>);
     expect(detail).toEqual({
       name: "completed",
       step: "completed",

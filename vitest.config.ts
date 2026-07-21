@@ -19,6 +19,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    pool: "threads",
     testTimeout: 60_000,
     projects: [
       {

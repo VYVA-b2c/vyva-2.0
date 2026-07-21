@@ -115,6 +115,11 @@ import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
+import {
+  CANVAS_FEATURE_FLAG_ENDPOINTS,
+  resolveCanvasFeatureFlag,
+  type CanvasFeatureFlagKey,
+} from "./lib/canvasFeatureFlags.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
@@ -307,20 +312,14 @@ app.get("/api/config/places-key", (_req, res) => {
   return res.json({ configured: true, source: getGooglePlacesApiKeySource() });
 });
 
-app.get("/api/config/features/ride-voice-canvas", (_req, res) => {
-  const enabled = process.env.VYVA_ENABLE_RIDE_VOICE_CANVAS === "true";
-  const configuredRollout = Number(process.env.VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT ?? "0");
-  const rolloutPercent = Number.isFinite(configuredRollout)
-    ? Math.min(100, Math.max(0, Math.round(configuredRollout)))
-    : 0;
+function sendCanvasFeatureFlag(res: express.Response, feature: CanvasFeatureFlagKey) {
   res.setHeader("cache-control", "no-store");
-  return res.json({ enabled, rolloutPercent });
+  return res.json(resolveCanvasFeatureFlag(feature));
+}
+
+CANVAS_FEATURE_FLAG_ENDPOINTS.forEach(({ endpoint, feature }) => {
+  app.get(endpoint, (_req, res) => sendCanvasFeatureFlag(res, feature));
 });
-app.get("/api/config/features/appointment-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/medication-refill-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/prescription-follow-up-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_PRESCRIPTION_FOLLOW_UP_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_PRESCRIPTION_FOLLOW_UP_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/shopping-delivery-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/home-service-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_HOME_SERVICE_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_HOME_SERVICE_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
 
 app.post("/api/places/autocomplete", async (req, res) => {
   const key = getGooglePlacesApiKey();
