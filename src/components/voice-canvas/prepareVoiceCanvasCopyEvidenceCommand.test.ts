@@ -207,6 +207,28 @@ describe("Voice Canvas copy clarity evidence helper command", () => {
       },
     ));
 
+  it("rejects contradictory copy/accessibility evidence even when required phrases are present", () =>
+    withTempCopyFile(
+      validCopyEvidenceArtifact().replace(
+        "long translated Spanish labels wrap without overflow on mobile, tablet, and desktop",
+        "long translated Spanish labels wrap without overflow on mobile, tablet, and desktop, but tablet labels were clipped and screen reader not announced for blocked state",
+      ),
+      (inputPath) => {
+        const result = runCopyEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            "Copy clarity evidence artifact must use affirmative successful copy/accessibility evidence, not overflow, clipping, unreadable, missing-focus, missing-announcement, unavailable, or unverified evidence.",
+          ]),
+        );
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("tablet labels were clipped");
+        expect(serialized).not.toContain("screen reader not announced");
+      },
+    ));
+
   it("rejects accessibility evidence without announcements and reduced-motion proof", () =>
     withTempCopyFile(
       validCopyEvidenceArtifact().replace(

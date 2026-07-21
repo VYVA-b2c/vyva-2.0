@@ -255,6 +255,12 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
   /\b(?:pickup address|destination address|saved-place label|spoken transcript|typed free text|medication name|provider name|shopping item|account id)\s*[:=-]\s*\S+/i,
 ];
 
+const rejectedCopyEvidencePatterns: readonly RegExp[] = [
+  /\b(?:overflowed|overflows|overflowing|clipped|clipping|truncated|cut off|unreadable|illegible|not readable|not legible)\b/i,
+  /\b(?:missing focus|focus did not move|did not move focus|not focused|not announced|not announce|announcement missing|announcements missing|screen reader failed)\b/i,
+  /\b(?:not verified|not reviewed|unable to verify|unable to review|failed|unavailable)\b/i,
+];
+
 function artifactReferenceLooksConcrete(value: string): boolean {
   return (
     /\b\d{4}-\d{2}-\d{2}\b/.test(value) &&
@@ -311,6 +317,13 @@ function validateCopyEvidence(inputPathArg: string): CopyEvidenceSummary {
   for (const pattern of unsafeFilledArtifactPatterns) {
     if (pattern.test(content)) {
       problems.push("Copy clarity evidence artifact appears to include personal details.");
+      break;
+    }
+  }
+
+  for (const pattern of rejectedCopyEvidencePatterns) {
+    if (pattern.test(content)) {
+      problems.push("Copy clarity evidence artifact must use affirmative successful copy/accessibility evidence, not overflow, clipping, unreadable, missing-focus, missing-announcement, unavailable, or unverified evidence.");
       break;
     }
   }
