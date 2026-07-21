@@ -282,6 +282,24 @@ describe("Voice Canvas entry surface evidence helper command", () => {
       },
     ));
 
+  it("rejects contradictory entry-surface evidence even when no-write wording is present", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "exercised from this exact surface with no write and no external action before explicit confirmation",
+        "exercised from this exact surface with no write and no external action before explicit confirmation, but booking triggered from the entry surface",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Entry surface evidence artifact must use affirmative successful entry-surface evidence, not failed, unavailable, missing-fallback, write, booking, call, message, navigation, or external-action evidence.",
+        );
+        expect(result.stdout).not.toContain("booking triggered");
+      },
+    ));
+
   it("rejects undated or non-artifact evidence references", () =>
     withTempMarkdownFile(
       validEntrySurfaceEvidenceArtifact().replace(

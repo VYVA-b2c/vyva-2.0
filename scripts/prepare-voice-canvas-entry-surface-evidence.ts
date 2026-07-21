@@ -264,6 +264,12 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
   /\b(?:pickup address|destination address|saved-place label|spoken transcript|typed free text|medication name|provider name|shopping item|account id)\s*[:=-]\s*\S+/i,
 ];
 
+const rejectedEntrySurfaceEvidencePatterns: readonly RegExp[] = [
+  /\b(?:write|data write|booking|call|message|navigation|external action)\s+(?:triggered|occurred|happened|started|sent|placed|submitted|created|booked|navigated)\b/i,
+  /\b(?:triggered|sent|placed|submitted|created|booked|navigated)\s+(?:a\s+)?(?:write|data write|booking|call|message|navigation|external action)\b/i,
+  /\b(?:not exercised|not opened|did not open|did not resume|unable to open|unable to resume|failed|unavailable|fallback missing|fallback unavailable)\b/i,
+];
+
 function artifactReferenceLooksConcrete(value: string): boolean {
   return /\b\d{4}-\d{2}-\d{2}\b/.test(value) && /\b(?:screenshot|log|recording|capture|photo|artifact)\b/i.test(value);
 }
@@ -318,6 +324,13 @@ function validateEntrySurfaceEvidence(inputPathArg: string): EntrySurfaceEvidenc
   for (const pattern of unsafeFilledArtifactPatterns) {
     if (pattern.test(content)) {
       problems.push("Entry surface evidence artifact appears to include personal details.");
+      break;
+    }
+  }
+
+  for (const pattern of rejectedEntrySurfaceEvidencePatterns) {
+    if (pattern.test(content)) {
+      problems.push("Entry surface evidence artifact must use affirmative successful entry-surface evidence, not failed, unavailable, missing-fallback, write, booking, call, message, navigation, or external-action evidence.");
       break;
     }
   }
