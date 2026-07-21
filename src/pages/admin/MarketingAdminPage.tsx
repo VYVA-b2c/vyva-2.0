@@ -978,6 +978,16 @@ type CampaignPerformanceLearningCard = CampaignReadinessItem & {
   value: string;
 };
 
+type PostLaunchRelationshipQueueItem = CampaignReadinessItem & {
+  value: string;
+  actionLabel: string;
+  campaign: Campaign;
+  routeLabel: string;
+  signalCount: number;
+  brief: string;
+  icon: LucideIcon;
+};
+
 type CampaignExperimentSuggestion = CampaignReadinessItem & {
   value: string;
   actionLabel: string;
@@ -13476,6 +13486,120 @@ export default function MarketingAdminPage() {
     return { cards, brief };
   }, [campaignById, visibleCampaignMetrics]);
 
+  const postLaunchRelationshipQueue = useMemo<PostLaunchRelationshipQueueItem[]>(() => {
+    const groupedMetrics = new Map<string, MarketingCampaignMetric[]>();
+    for (const metric of visibleCampaignMetrics) {
+      if (!metric.campaignId) continue;
+      groupedMetrics.set(metric.campaignId, [...(groupedMetrics.get(metric.campaignId) ?? []), metric]);
+    }
+
+    return campaigns
+      .map((campaign) => {
+        const metrics = groupedMetrics.get(campaign.id) ?? [];
+        const summary = summarizeCampaignMetrics(metrics);
+        const manualSummary = summarizeManualPublishResults(manualPublishResultsFromMetadata(campaign.metadata));
+        const signalCount = summary.clicked + summary.replied + summary.socialEngagement + manualSummary.engagements + manualSummary.followUps;
+        const reached = summary.delivered || summary.sent || manualSummary.reached;
+        const routeLabel = formatChannelList(campaign.channels.map((channel) => channel.channel)) || "No route";
+        const hasManualRoutes = campaign.channels.some((channel) => channel.channel !== "email");
+        const state: CampaignReadinessState = signalCount > 0
+          ? "ready"
+          : reached > 0
+            ? "needs_action"
+            : hasManualRoutes && manualSummary.count === 0
+              ? "needs_action"
+              : "planning";
+        const title = signalCount > 0
+          ? "Follow up warm signals"
+          : reached > 0
+            ? "Improve before repeating"
+            : hasManualRoutes
+              ? "Track manual outcome"
+              : "Await campaign results";
+        const detail = signalCount > 0
+          ? `${campaign.name} has ${summary.clicked} click${summary.clicked === 1 ? "" : "s"}, ${summary.replied} repl${summary.replied === 1 ? "y" : "ies"}, ${summary.socialEngagement + manualSummary.engagements} engagement signal${summary.socialEngagement + manualSummary.engagements === 1 ? "" : "s"}, and ${manualSummary.followUps} manual follow-up${manualSummary.followUps === 1 ? "" : "s"} to turn into the next relationship move.`
+          : reached > 0
+            ? `${campaign.name} reached ${reached} contact${reached === 1 ? "" : "s"} but has no strong response signal yet. Tighten the CTA or message before repeating.`
+            : hasManualRoutes
+              ? `${campaign.name} includes ${routeLabel}. Record manual publishing results so the relationship queue has usable signals.`
+              : `${campaign.name} needs results before VYVA can recommend a relationship follow-up.`;
+        const actionLabel = signalCount > 0
+          ? "Open follow-up"
+          : hasManualRoutes && manualSummary.count === 0
+            ? "Track outcome"
+            : "Review campaign";
+        const brief = [
+          "VYVA post-launch relationship follow-up",
+          `Campaign: ${campaign.name}`,
+          `Audience: ${campaign.audienceType.toUpperCase()}`,
+          `Routes: ${routeLabel}`,
+          `Status: ${campaign.status}`,
+          `Recipients: ${campaign.recipientCount}`,
+          "",
+          "Signals:",
+          `- Sent: ${summary.sent}`,
+          `- Delivered/reached: ${reached}`,
+          `- Opened: ${summary.opened}`,
+          `- Clicked: ${summary.clicked}`,
+          `- Replied: ${summary.replied}`,
+          `- Social/manual engagement: ${summary.socialEngagement + manualSummary.engagements}`,
+          `- Manual results: ${manualSummary.count}`,
+          `- Manual follow-ups needed: ${manualSummary.followUps}`,
+          "",
+          `Recommended action: ${actionLabel}`,
+          detail,
+          "",
+          "AI task: turn these results into the next relationship move. Segment warm responders, quiet contacts, and manual follow-up contacts separately. Suggest channel, message angle, CTA, owner, and what should be tracked next.",
+        ].join("\n");
+
+        return {
+          key: campaign.id,
+          campaign,
+          title,
+          value: signalCount > 0
+            ? `${signalCount} signal${signalCount === 1 ? "" : "s"}`
+            : reached > 0
+              ? `${reached} reached`
+              : manualSummary.count
+                ? `${manualSummary.count} tracked`
+                : "No results",
+          detail,
+          state,
+          actionLabel,
+          routeLabel,
+          signalCount,
+          brief,
+          icon: signalCount > 0 ? UsersRound : hasManualRoutes ? Waypoints : Activity,
+        };
+      })
+      .filter((item) => item.signalCount > 0 || item.state !== "planning")
+      .sort((a, b) => {
+        const stateRank: Record<CampaignReadinessState, number> = { ready: 0, needs_action: 1, blocked: 2, planning: 3 };
+        const stateDelta = stateRank[a.state] - stateRank[b.state];
+        if (stateDelta !== 0) return stateDelta;
+        return b.signalCount - a.signalCount || a.campaign.name.localeCompare(b.campaign.name);
+      })
+      .slice(0, 4);
+  }, [campaigns, visibleCampaignMetrics]);
+
+  const postLaunchRelationshipQueueBrief = [
+    "VYVA post-launch relationship queue",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    postLaunchRelationshipQueue.length
+      ? "Work these campaigns after publishing so results become relationship actions."
+      : "No post-launch relationship actions are visible yet.",
+    "",
+    ...postLaunchRelationshipQueue.map((item, index) => [
+      `${index + 1}. ${item.campaign.name} - ${item.value} (${readinessLabel(item.state)})`,
+      `   Routes: ${item.routeLabel}`,
+      `   Next: ${item.actionLabel}`,
+      `   Why: ${item.detail}`,
+    ].join("\n")),
+    "",
+    "AI/admin instruction: create the next relationship plan from real signals. Prioritize warm contacts, manual follow-ups, consent-safe routes, and one clear owner.",
+  ].join("\n");
+
   const visibleContent = useMemo(() => content.filter((item) => {
     const contentMatchesSearch = matchesSearch(search, [
       item.id,
@@ -22850,6 +22974,11 @@ export default function MarketingAdminPage() {
   async function copyCampaignPerformanceLearningBrief() {
     const copied = await copyCampaignHandoffText("Performance learning brief", campaignPerformanceLearning.brief);
     setCampaignPerformanceLearningFeedback(copied ? "Performance learning brief copied." : "Could not copy the performance learning brief.");
+  }
+
+  async function copyPostLaunchRelationshipQueueBrief() {
+    const copied = await copyCampaignHandoffText("Post-launch relationship queue", postLaunchRelationshipQueueBrief);
+    setCampaignPerformanceLearningFeedback(copied ? "Post-launch relationship queue copied." : "Could not copy the post-launch relationship queue.");
   }
 
   async function copyCampaignLaunchRecipe() {
@@ -32470,6 +32599,75 @@ export default function MarketingAdminPage() {
                         </div>
                         {campaignPerformanceLearningFeedback ? (
                           <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid="marketing-performance-learning-feedback">
+                            {campaignPerformanceLearningFeedback}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {postLaunchRelationshipQueue.length ? (
+                      <div className="rounded-2xl border border-teal-100 bg-teal-50/50 p-4" data-testid="marketing-post-launch-relationship-queue">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-teal-800">Post-launch relationship queue</p>
+                            <h3 className="mt-1 text-lg font-black text-[#241133]">Turn campaign results into the next relationship move</h3>
+                            <p className="mt-1 max-w-3xl text-xs font-bold leading-relaxed text-[#5f6f62]">
+                              Uses imported metrics and tracked manual outcomes to show which campaigns need warm follow-up, CTA repair, or outcome tracking.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void copyPostLaunchRelationshipQueueBrief()}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 text-xs font-black text-teal-800 hover:bg-teal-50"
+                            data-testid="button-marketing-copy-post-launch-relationship-queue"
+                          >
+                            <Copy size={13} aria-hidden="true" /> Copy queue brief
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                          {postLaunchRelationshipQueue.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <article key={item.key} className={`flex min-h-[220px] flex-col rounded-xl border p-3 shadow-sm ${readinessClass(item.state)}`} data-testid={`marketing-post-launch-relationship-${item.campaign.id}`}>
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-teal-800 shadow-sm">
+                                    <Icon size={16} aria-hidden="true" />
+                                  </span>
+                                  <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
+                                </div>
+                                <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">{item.title}</p>
+                                <p className="mt-1 text-xl font-black text-[#241133]">{item.value}</p>
+                                <p className="mt-1 text-xs font-black text-teal-800">{item.campaign.name}</p>
+                                <p className="mt-2 line-clamp-4 text-xs font-bold leading-relaxed text-[#5b4a46]">{item.detail}</p>
+                                <div className="mt-auto flex flex-wrap gap-2 pt-3">
+                                  <Pill className="bg-white text-[#5b4a46]">{item.routeLabel}</Pill>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      startCampaignEdit(item.campaign);
+                                      setActiveTab("dashboard");
+                                      setCampaignEmailFeedback(`Relationship follow-up opened for "${item.campaign.name}". Review results, recipients, and next owner before launching another touch.`);
+                                      setMessage(`Opened "${item.campaign.name}" for post-launch relationship follow-up.`);
+                                    }}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-3 text-xs font-black text-white hover:bg-teal-800"
+                                    data-testid={`button-marketing-open-post-launch-relationship-${item.campaign.id}`}
+                                  >
+                                    <ExternalLink size={13} aria-hidden="true" /> {item.actionLabel}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyCampaignHandoffText(`${item.campaign.name} relationship follow-up`, item.brief)}
+                                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-white px-3 text-xs font-black text-teal-800 hover:bg-teal-50"
+                                    data-testid={`button-marketing-copy-post-launch-relationship-${item.campaign.id}`}
+                                  >
+                                    <Copy size={13} aria-hidden="true" /> Copy
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                        {campaignPerformanceLearningFeedback ? (
+                          <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-black text-teal-800" role="status" aria-live="polite" data-testid="marketing-post-launch-relationship-feedback">
                             {campaignPerformanceLearningFeedback}
                           </p>
                         ) : null}

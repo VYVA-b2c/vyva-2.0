@@ -2085,6 +2085,20 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-performance-learning-feedback")).toHaveTextContent("Performance learning brief copied.");
 
+    expect(await screen.findByTestId("marketing-post-launch-relationship-queue")).toHaveTextContent("Turn campaign results into the next relationship move");
+    expect(screen.getByTestId("marketing-post-launch-relationship-campaign-1")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-post-launch-relationship-campaign-1")).toHaveTextContent("Follow up warm signals");
+    expect(screen.getByTestId("button-marketing-copy-post-launch-relationship-queue")).toHaveTextContent("Copy queue brief");
+    fireEvent.click(screen.getByTestId("button-marketing-copy-post-launch-relationship-queue"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA post-launch relationship queue"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI/admin instruction: create the next relationship plan"));
+    expect(screen.getByTestId("marketing-post-launch-relationship-feedback")).toHaveTextContent("Post-launch relationship queue copied.");
+    fireEvent.click(screen.getByTestId("button-marketing-open-post-launch-relationship-campaign-1"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened "Caregiver welcome" for post-launch relationship follow-up.')).toBeInTheDocument();
+
     expect(await screen.findByTestId("marketing-experiment-planner")).toHaveTextContent("Draft a CTA experiment");
     expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-experiment-planner")).toHaveTextContent("Build a follow-up from the winner");
