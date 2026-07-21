@@ -335,6 +335,24 @@ describe("Voice Canvas rollback owner handoff helper command", () => {
       },
     ));
 
+  it("rejects contradictory rollback owner handoff evidence even when readiness wording is present", () =>
+    withTempMarkdownFile(
+      validRollbackOwnerHandoffArtifact().replace(
+        "Fallback readiness: existing Concierge fallback verified and ready",
+        "Fallback readiness: existing Concierge fallback verified and ready, but fallback unavailable during rollback",
+      ),
+      (inputPath) => {
+        const result = runRollbackOwnerHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).not.toContain("fallback unavailable");
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Rollback owner handoff artifact must use affirmative ready rollback evidence, not missing owner, unavailable fallback, unverified readiness, write, booking, call, message, navigation, or external-action evidence.",
+        );
+      },
+    ));
+
   it("saves validation JSON while preserving existing artifacts by default", () =>
     withTempMarkdownFile(validRollbackOwnerHandoffArtifact(), (inputPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-rollback-owner-output-"));

@@ -201,6 +201,14 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
   /\b(?:patient id|profile id|account id|user id)\b\s*[:#-]?\s*[A-Za-z0-9_-]{3,}\b/i,
 ];
 
+const rejectedRollbackHandoffPatterns: readonly RegExp[] = [
+  /\b(?:owner|backup owner|rollback owner)\s+(?:tbd|todo|pending|missing|unassigned|unknown|unavailable)\b/i,
+  /\b(?:decision window|rollback trigger|rollback action|fallback readiness|privacy boundary)\s+(?:tbd|todo|pending|missing|unknown|unavailable|not ready|not verified|unverified)\b/i,
+  /\b(?:fallback|existing fallback|named fallback|Canvas closed|Canvas hidden|open-session|open session)\s+(?:missing|unavailable|not visible|not shown|not ready|not verified|unverified|failed|broken)\b/i,
+  /\b(?:write|data write|resubmission|booking|call|message|navigation|external action)\s+(?:triggered|occurred|happened|started|sent|placed|submitted|created|booked|navigated|accepted)\b/i,
+  /\b(?:triggered|sent|placed|submitted|created|booked|navigated|accepted)\s+(?:a\s+)?(?:write|data write|resubmission|booking|call|message|navigation|external action)\b/i,
+];
+
 function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandoffSummary {
   const inputPath = path.resolve(process.cwd(), inputPathArg);
   const relativeInputPath = path.relative(process.cwd(), inputPath);
@@ -302,6 +310,13 @@ function validateRollbackOwnerHandoff(inputPathArg: string): RollbackOwnerHandof
   for (const pattern of unsafeFilledArtifactPatterns) {
     if (pattern.test(content)) {
       problems.push("Rollback owner handoff artifact appears to include personal details.");
+      break;
+    }
+  }
+
+  for (const pattern of rejectedRollbackHandoffPatterns) {
+    if (pattern.test(content)) {
+      problems.push("Rollback owner handoff artifact must use affirmative ready rollback evidence, not missing owner, unavailable fallback, unverified readiness, write, booking, call, message, navigation, or external-action evidence.");
       break;
     }
   }
