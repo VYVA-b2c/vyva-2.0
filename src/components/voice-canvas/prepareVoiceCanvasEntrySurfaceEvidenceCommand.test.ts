@@ -282,6 +282,23 @@ describe("Voice Canvas entry surface evidence helper command", () => {
       },
     ));
 
+  it("rejects rows without before-confirmation safety timing", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "with no write and no external action before explicit confirmation",
+        "with no write and no external action during entry-surface QA",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems.join("\n")).toContain(
+          "result must prove no write and no external action before explicit confirmation",
+        );
+      },
+    ));
+
   it("rejects contradictory entry-surface evidence even when no-write wording is present", () =>
     withTempMarkdownFile(
       validEntrySurfaceEvidenceArtifact().replace(

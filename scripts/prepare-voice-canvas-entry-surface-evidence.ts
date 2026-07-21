@@ -274,6 +274,15 @@ function artifactReferenceLooksConcrete(value: string): boolean {
   return /\b\d{4}-\d{2}-\d{2}\b/.test(value) && /\b(?:screenshot|log|recording|capture|photo|artifact)\b/i.test(value);
 }
 
+function hasBeforeConfirmationProof(value: string): boolean {
+  return includesAny(value, [
+    "before confirmation",
+    "before explicit confirmation",
+    "prior to confirmation",
+    "until explicit confirmation",
+  ]);
+}
+
 function validateEntrySurfaceEvidence(inputPathArg: string): EntrySurfaceEvidenceSummary {
   const inputPath = path.resolve(process.cwd(), inputPathArg);
   const relativeInputPath = path.relative(process.cwd(), inputPath);
@@ -375,6 +384,11 @@ function validateEntrySurfaceEvidence(inputPathArg: string): EntrySurfaceEvidenc
       ) {
         problems.push(
           `${flow.label} ${surface}: result must prove no external action occurred before confirmation.`,
+        );
+      }
+      if (!hasBeforeConfirmationProof(row.result)) {
+        problems.push(
+          `${flow.label} ${surface}: result must prove no write and no external action before explicit confirmation.`,
         );
       }
       if (!artifactReferenceLooksConcrete(row.evidence)) {
