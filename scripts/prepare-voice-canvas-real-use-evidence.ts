@@ -315,6 +315,12 @@ function hasSafeCompletionWording(value: string): boolean {
       "no external action",
       "without external action",
       "no-external-action",
+    ]) &&
+    includesAny(value, [
+      "before confirmation",
+      "before explicit confirmation",
+      "prior to confirmation",
+      "until explicit confirmation",
     ])
   );
 }

@@ -218,6 +218,23 @@ describe("Voice Canvas real-use evidence helper command", () => {
       },
     ));
 
+  it("rejects rows without before-confirmation safety timing", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "with no write and no external action before confirmation",
+        "with no write and no external action during completed QA",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems.join("\n")).toContain(
+          "must prove completion or safe exit with no write and no external action before confirmation",
+        );
+      },
+    ));
+
   it("rejects contradictory real-use evidence even when no-side-effect wording is present", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(
