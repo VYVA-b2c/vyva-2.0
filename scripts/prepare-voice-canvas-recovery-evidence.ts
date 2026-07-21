@@ -110,7 +110,7 @@ function recoveryEvidenceTemplate(): string {
 
   for (const flow of canvasLaunchReadinessFlows) {
     lines.push(
-      `| ${flow.label} | [start and resume restored current work with entered information preserved, no write, no resubmission, and no external action] | [app exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action] | [refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action] | [voice interruption recovered current work with entered information preserved, no write, no resubmission, and no external action] | [browser back returned safely or preserved entered information with no write and no external action] | [cancel and exit left safely with no write and no external action] | [recoverable failure offered retry and exit or cancel with entered information preserved, no write, no resubmission, and no external action] | [duplicate confirmation or action prevented and stale response ignored or discarded] | [sanitized dated recovery screenshot/log/recording/capture/artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
+      `| ${flow.label} | [start and resume restored current work with entered information preserved, no write, no resubmission, and no external action] | [app exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action] | [refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action] | [voice interruption recovered current work with entered information preserved, no write, no resubmission, and no external action] | [browser back returned safely or preserved entered information with no write and no external action] | [cancel and exit left safely with no write and no external action] | [recoverable failure offered retry and exit or cancel with entered information preserved, no write, no resubmission, and no external action] | [duplicate confirmation or action prevented and stale response ignored or discarded with no write, no resubmission, and no external action] | [sanitized dated recovery screenshot/log/recording/capture/artifact reference] | [reviewed by reviewer on ${artifactDatePlaceholder}] |`,
     );
   }
 
@@ -382,6 +382,9 @@ function validateRecoveryEvidence(inputPathArg: string): RecoveryEvidenceSummary
       ])
     ) {
       problems.push(`${flow.label}: duplicate/stale cell must prove duplicate prevention and stale-response ignoring or discarding.`);
+    }
+    if (!hasNoSideEffectProof(row.duplicateStale, true)) {
+      problems.push(`${flow.label}: duplicate/stale cell must prove no write, no external action, and no resubmission.`);
     }
 
     if (!artifactReferenceLooksConcrete(row.evidence)) {
