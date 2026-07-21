@@ -22,6 +22,24 @@
 .vc-choice-label { font-size:1.05rem; font-weight:750; line-height:1.3; }
 .vc-choice-description { color:var(--vc-muted); font-size:.92rem; line-height:1.35; }
 .vc-choice-check { flex:0 0 auto; margin-left:auto; color:var(--vc-purple-dark); }
+.vc-blocks { display:grid; width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:28px; }
+.vc-option-card { display:flex; min-width:0; min-height:150px; flex-direction:column; align-items:stretch; gap:12px; padding:17px; border:1.5px solid var(--vc-border); border-radius:22px; background:#fff; color:var(--vc-ink); text-align:left; cursor:pointer; transition:border-color .18s,box-shadow .18s,transform .18s; }
+.vc-option-card:hover:not(:disabled) { border-color:#aa91c7; transform:translateY(-1px); box-shadow:0 10px 26px rgba(92,62,121,.1); }
+.vc-option-card[data-selected],.vc-option-card[data-recommended] { border-color:var(--vc-purple); background:#fbf8ff; box-shadow:0 0 0 2px rgba(114,85,165,.12); }
+.vc-option-card-top { display:flex; min-width:0; align-items:flex-start; gap:12px; }
+.vc-option-card-icon { flex:0 0 auto; display:grid; place-items:center; width:45px; height:45px; border-radius:15px; color:var(--vc-purple-dark); background:var(--vc-lilac); }
+.vc-option-card-copy { min-width:0; display:flex; flex:1 1 auto; flex-direction:column; gap:3px; overflow-wrap:anywhere; }
+.vc-option-card-title { font-size:1.08rem; font-weight:800; line-height:1.25; }
+.vc-option-card-subtitle { color:var(--vc-muted); font-size:.94rem; line-height:1.35; }
+.vc-option-card-badge { flex:0 1 auto; max-width:42%; padding:5px 9px; border-radius:999px; background:#efe7fb; color:var(--vc-purple-dark); font-size:.78rem; font-weight:850; line-height:1.2; text-align:center; overflow-wrap:anywhere; }
+.vc-option-card-check { flex:0 0 auto; color:var(--vc-purple-dark); }
+.vc-option-card-description { color:var(--vc-muted); font-size:.94rem; line-height:1.45; overflow-wrap:anywhere; }
+.vc-option-card-details { display:grid; gap:8px; margin:0; }
+.vc-option-card-details div { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr); gap:10px; align-items:start; padding-top:8px; border-top:1px solid #f0eaf5; }
+.vc-option-card-details dt { color:var(--vc-muted); font-size:.86rem; font-weight:700; overflow-wrap:anywhere; }
+.vc-option-card-details dd { margin:0; font-size:.96rem; font-weight:800; line-height:1.3; overflow-wrap:anywhere; }
+.vc-option-card-details div[data-tone="good"] dd { color:#35705a; }
+.vc-option-card-details div[data-tone="caution"] dd { color:#9a5b31; }
 .vc-field { display:flex; flex-direction:column; align-items:stretch; width:100%; margin-top:28px; text-align:left; color:var(--vc-ink); font-weight:750; gap:9px; }
 .vc-field input,.vc-field textarea { width:100%; min-height:62px; padding:16px 18px; border:1.5px solid var(--vc-border); border-radius:17px; background:white; color:var(--vc-ink); font:inherit; font-size:1.05rem; resize:vertical; }
 .vc-file-entry { display:flex; flex-direction:column; align-items:stretch; width:100%; gap:9px; margin-top:12px; }
@@ -43,5 +61,5 @@
 .voice-canvas h2:focus-visible { outline:3px solid #f0b85b; outline-offset:6px; border-radius:8px; }
 .voice-canvas button:disabled,.voice-canvas input:disabled,.voice-canvas textarea:disabled { cursor:not-allowed; opacity:.52; }
 @keyframes vc-spin { to { transform:rotate(360deg); } }
-@media (max-width:560px) { .voice-canvas { border-radius:26px; } .vc-choices { grid-template-columns:1fr; } .vc-actions { flex-direction:column; } .vc-actions button { width:100%; } .vc-summary div { grid-template-columns:1fr; gap:4px; } }
+@media (max-width:560px) { .voice-canvas { border-radius:26px; } .vc-choices,.vc-blocks { grid-template-columns:1fr; } .vc-actions { flex-direction:column; } .vc-actions button { width:100%; } .vc-summary div,.vc-option-card-details div { grid-template-columns:1fr; gap:4px; } .vc-option-card-badge { max-width:50%; } }
 @media (prefers-reduced-motion:reduce) { .voice-canvas * { scroll-behavior:auto!important; transition:none!important; animation-duration:.01ms!important; animation-iteration-count:1!important; } }
