@@ -1485,6 +1485,36 @@ describe("Voice Canvas launch readiness preflight command", () => {
     );
   });
 
+  it("does not echo query-bearing launch evidence run plan base URLs", () => {
+    const runDate = freshReviewDate();
+
+    return withLaunchRunPlanArtifact(
+      runDate,
+      validLaunchRunPlan(runDate, "https://staging.vyva.app?token=secret"),
+      (inputPath) => {
+        const result = runPreflight([`--run-plan=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).not.toContain("token=secret");
+
+        const summary = JSON.parse(result.stdout) as {
+          launchRunPlan: {
+            readyForLaunchEvidence: boolean;
+            baseUrl: string;
+            problems: string[];
+          };
+        };
+
+        expect(summary.launchRunPlan.readyForLaunchEvidence).toBe(false);
+        expect(summary.launchRunPlan.baseUrl).toBe("invalid");
+        expect(summary.launchRunPlan.problems).toContain(
+          "Launch evidence run plan baseUrl must be a deployed HTTPS non-local origin.",
+        );
+      },
+    );
+  });
+
   it("rejects launch evidence run plans that drift from the canonical evidence bundle", () => {
     const runDate = freshReviewDate();
     const runPlan = validLaunchRunPlan(runDate);
@@ -2381,6 +2411,51 @@ describe("Voice Canvas launch readiness preflight command", () => {
         );
         expect(summary.nextActions).toContain(
           "Fix rollback-disabled feature endpoint evidence before launch sign-off.",
+        );
+      },
+    ));
+
+  it("does not echo query-bearing feature endpoint artifact base URLs", () =>
+    withTempFeatureEndpointFiles(
+      {
+        ...validFeatureEndpointArtifact("enabled"),
+        baseUrl: "https://staging.vyva.app?token=secret",
+      },
+      validFeatureEndpointArtifact("rollback"),
+      ({ enabledPath, rollbackPath }) => {
+        const result = runPreflight([
+          `--features-enabled=${enabledPath}`,
+          `--features-rollback=${rollbackPath}`,
+          "--json",
+        ]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).not.toContain("token=secret");
+
+        const summary = JSON.parse(result.stdout) as {
+          featureEndpointEvidence: {
+            enabled: {
+              readyForLaunchEvidence: boolean;
+              baseUrl: string;
+              problems: string[];
+            };
+            rollback: { readyForLaunchEvidence: boolean; baseUrl: string };
+          };
+        };
+
+        expect(summary.featureEndpointEvidence.enabled.readyForLaunchEvidence).toBe(
+          false,
+        );
+        expect(summary.featureEndpointEvidence.enabled.baseUrl).toBe("invalid");
+        expect(summary.featureEndpointEvidence.enabled.problems).toContain(
+          "Feature endpoint artifact must include a deployed HTTPS non-local baseUrl origin.",
+        );
+        expect(summary.featureEndpointEvidence.rollback.readyForLaunchEvidence).toBe(
+          true,
+        );
+        expect(summary.featureEndpointEvidence.rollback.baseUrl).toBe(
+          "https://staging.vyva.app",
         );
       },
     ));

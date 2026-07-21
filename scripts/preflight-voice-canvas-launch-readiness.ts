@@ -477,6 +477,12 @@ function parseDeployedOrigin(value: unknown): URL | null {
   }
 }
 
+function summaryDeployedOrigin(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") return "unknown";
+  const deployedOrigin = parseDeployedOrigin(value);
+  return deployedOrigin ? deployedOrigin.origin : "invalid";
+}
+
 function parseValidNonFutureGeneratedAt(value: unknown): Date | null {
   if (typeof value !== "string" || value.trim() === "") return null;
   const parsed = new Date(value);
@@ -726,7 +732,7 @@ function validateFeatureEndpointArtifact(
     path: relativePath,
     readyForLaunchEvidence: problems.length === 0,
     mode,
-    baseUrl,
+    baseUrl: summaryDeployedOrigin(baseUrl),
     generatedAt: generatedAt ? generatedAt.toISOString() : "unknown",
     authenticatedRequest: authenticatedRequest === true,
     requestHeaderCount:
@@ -1122,7 +1128,7 @@ function validateLaunchRunPlanArtifact(
     path: relativePath,
     readyForLaunchEvidence: problems.length === 0,
     runDate,
-    baseUrl,
+    baseUrl: summaryDeployedOrigin(baseUrl),
     requestHeaderCount: requestHeaderEnvRefs.length,
     commandCount: commands.length,
     flowCount: flowCoverage.length,
