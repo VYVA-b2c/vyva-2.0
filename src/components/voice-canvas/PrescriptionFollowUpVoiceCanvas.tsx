@@ -28,6 +28,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 export interface PrescriptionFollowUpCommands {
   start: string[];
@@ -84,10 +85,11 @@ export function PrescriptionFollowUpVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
+  const baseViewModel = useMemo(
     () => prescriptionFollowUpViewModel(state, copy),
     [state, copy],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {
       restoreTrackedRef.current = true;

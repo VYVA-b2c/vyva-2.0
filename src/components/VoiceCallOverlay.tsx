@@ -7,7 +7,7 @@ import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
 import { emitSosSheetOpen } from "@/lib/sosEvents";
-import { VoiceCanvasScene, type VoiceCanvasViewModel } from "@/components/voice-canvas";
+import { VoiceCanvasScene, useVoiceCanvasAgentPresence, type VoiceCanvasViewModel } from "@/components/voice-canvas";
 
 interface VoiceCallOverlayProps {
   isSpeaking: boolean;
@@ -382,7 +382,7 @@ const VoiceCallOverlay = ({
   const controlColumnCount = hasConnectionError
     ? [Boolean(onRetry), Boolean(onMinimize), true].filter(Boolean).length
     : [canToggleMic, true, canType].filter(Boolean).length;
-  const visibleCanvasViewModel = canvasViewModel && !hasConnectionError
+  const baseVisibleCanvasViewModel = canvasViewModel && !hasConnectionError
     ? {
         ...canvasViewModel,
         ...(canvasViewModel.textEntry
@@ -390,6 +390,7 @@ const VoiceCallOverlay = ({
           : {}),
       }
     : null;
+  const visibleCanvasViewModel = useVoiceCanvasAgentPresence(baseVisibleCanvasViewModel);
 
   const handleSos = () => {
     emitSosSheetOpen();

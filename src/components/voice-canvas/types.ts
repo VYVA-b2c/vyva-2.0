@@ -99,12 +99,26 @@ export interface VoiceCanvasAgentPresence {
   ariaLive?: "off" | "polite" | "assertive";
 }
 
+export interface VoiceCanvasAgentPresenceCopy {
+  idleLabel: string;
+  idleDescription?: string;
+  listeningLabel: string;
+  listeningDescription?: string;
+  speakingLabel: string;
+  speakingDescription?: string;
+  thinkingLabel: string;
+  thinkingDescription?: string;
+  accessibleLabel: string;
+  ariaLive?: "off" | "polite" | "assertive";
+}
+
 export interface VoiceCanvasViewModel {
   sceneId: string;
   kind: VoiceCanvasSceneKind;
   title: string;
   helperText?: string;
   agentPresence?: VoiceCanvasAgentPresence;
+  agentPresenceCopy?: VoiceCanvasAgentPresenceCopy;
   progress?: VoiceCanvasProgress;
   choices?: VoiceCanvasChoice[];
   blocks?: VoiceCanvasBlock[];

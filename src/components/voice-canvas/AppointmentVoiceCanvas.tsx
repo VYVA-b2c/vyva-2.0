@@ -28,6 +28,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 export interface AppointmentVoiceCommands {
   start: string[];
@@ -77,10 +78,11 @@ export function AppointmentVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
+  const baseViewModel = useMemo(
     () => appointmentCanvasViewModel(state, copy, providers, dateChoices),
     [state, copy, providers, dateChoices],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
   useEffect(() => {
     onTelemetry({
       name: "scene_viewed",

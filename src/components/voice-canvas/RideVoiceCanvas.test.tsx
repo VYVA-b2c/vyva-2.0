@@ -8,6 +8,7 @@ import type { RideCanvasCopy } from "./rideCanvasViewModel";
 vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: () => <div data-testid="mock-vyva-orb" /> }));
 
 const copy:RideCanvasCopy={
+  agentPresence:{idleLabel:"Voice ready",idleDescription:"Use voice or touch.",listeningLabel:"Listening with you",listeningDescription:"Say or tap a ride detail.",speakingLabel:"VYVA is speaking",speakingDescription:"Follow the screen.",thinkingLabel:"Thinking through ride options",thinkingDescription:"Checking ride details.",accessibleLabel:"VYVA ride voice status"},
   listening:{status:"Listening",title:"How can I help?",helper:"Take your time.",start:"Arrange a ride",cancel:"Cancel"},
   place:{title:"Where are you going?",helper:"Choose one place.",newAddress:"A new address",newAddressHelper:"Enter another place",continue:"Continue",back:"Back"},
   address:{title:"What address?",helper:"Enter the destination.",label:"Address",placeholder:"Start typing",continue:"Continue",back:"Back"},
@@ -41,6 +42,16 @@ it("supports new address entry and preserves it while backtracking",()=>{
 
 it("keeps required actions disabled until information is complete",()=>{
   render(<RideVoiceCanvas {...props()}/>);click("Arrange a ride");click("A new address");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();fireEvent.change(screen.getByLabelText("Address"),{target:{value:"A"}});expect(screen.getByRole("button",{name:"Continue"})).toBeEnabled();click("Continue");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();
+});
+
+it("activates shared agent presence on visual ride scenes",()=>{
+  render(<RideVoiceCanvas {...props()}/>);
+  click("Arrange a ride");
+  const scene=screen.getByRole("region");
+  expect(scene).toHaveAttribute("data-agent-presence","true");
+  expect(scene).toHaveAttribute("data-agent-state","idle");
+  expect(screen.getByText("Voice ready")).toBeInTheDocument();
+  expect(screen.getByText("Use voice or touch.")).toBeInTheDocument();
 });
 
 it("prevents duplicate confirmation submissions",async()=>{

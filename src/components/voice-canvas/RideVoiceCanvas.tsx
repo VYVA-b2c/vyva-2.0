@@ -28,6 +28,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 
 export interface RideVoiceCommands {
@@ -82,10 +83,11 @@ export function RideVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
+  const baseViewModel = useMemo(
     () => rideCanvasViewModel(state, copy, places, dateChoices),
     [state, copy, places, dateChoices],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
 
   useEffect(() => {
     onTelemetry({

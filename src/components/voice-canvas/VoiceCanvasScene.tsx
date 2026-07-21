@@ -27,7 +27,7 @@ function orbStateForAgentPresence(state: VoiceCanvasAgentPresence["state"]): Zam
 }
 
 function AgentPresence({ presence, sceneId }: { presence: VoiceCanvasAgentPresence; sceneId: string }) {
-  const ariaLive = presence.ariaLive ?? "polite";
+  const ariaLive = presence.ariaLive ?? "off";
   return (
     <div
       className="vc-agent-presence"
