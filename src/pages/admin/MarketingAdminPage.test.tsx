@@ -6478,6 +6478,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-channels")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-reach")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence")).toHaveTextContent("Publish confidence");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence")).toHaveTextContent("/100 confidence");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence-next")).toHaveTextContent("Next move:");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence-readiness")).toHaveTextContent("Core readiness");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence-audience")).toHaveTextContent("1 snapshot");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence-creative")).toHaveTextContent("Creative quality");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence-templates")).toHaveTextContent("Template coverage");
+    expect(screen.getByTestId("marketing-campaign-studio-publish-confidence-preflight")).toHaveTextContent("Preflight");
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-copy-publish-confidence"));
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign publish confidence"));
+    });
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("Next move:"));
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign publish confidence copied.");
     expect(screen.getByTestId("marketing-campaign-studio-section-map")).toHaveTextContent("Studio section map");
     expect(screen.getByTestId("marketing-campaign-studio-section-map")).toHaveTextContent("6 workflow areas");
     expect(screen.getByTestId("marketing-campaign-studio-workflow-progress")).toHaveTextContent("Workflow progress");
