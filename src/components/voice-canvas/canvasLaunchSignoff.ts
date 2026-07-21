@@ -213,6 +213,13 @@ function isApprovedLaunchDecisionCell(value: string): boolean {
   if (/\b(not approved|unapproved|rejected|hold|blocked|no[- ]?go)\b/.test(normalized))
     return false;
   if (
+    /\b(known issue|known issues|known bug|known bugs|unresolved issue|unresolved issues|unresolved bug|unresolved bugs|defect|defects|regression|regressions|risk accepted|accepted risk|launch risk|workaround required|manual workaround|waiver|exception)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+  if (
     /\b(if|when|once|after|pending|contingent|conditional(?:ly)?|conditioned|provided|assuming|unless|except|needs?|requires?|required|todo|fix(?:es|ed)?|follow[- ]?up|blocker)\b/.test(
       normalized,
     )
@@ -232,6 +239,9 @@ function hasBlockedLaunchSignoffNoteLanguage(value: string): boolean {
   if (isPlaceholderCell(normalized)) return false;
   return (
     /\b(not ready|not approved|unapproved|rejected|hold|blocked|no[- ]?go|blocker|launch blocker)\b/.test(
+      normalized,
+    ) ||
+    /\b(known issue|known issues|known bug|known bugs|unresolved issue|unresolved issues|unresolved bug|unresolved bugs|defect|defects|regression|regressions|risk accepted|accepted risk|launch risk|workaround required|manual workaround|waiver|exception)\b/.test(
       normalized,
     ) ||
     /\b(if|when|once|after|pending|contingent|conditional(?:ly)?|conditioned|provided|assuming|unless|except)\b/.test(

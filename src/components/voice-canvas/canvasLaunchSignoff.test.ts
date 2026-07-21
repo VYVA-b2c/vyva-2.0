@@ -716,6 +716,31 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
+  it("rejects ready-for-launch sign-offs with accepted-risk or known-issue wording", () => {
+    const completed = completedMatrix()
+      .replace(
+        ENGINEERING_SIGNOFF_ROW,
+        "| Engineering | Elena Engineering | 2026-07-19 | Approved with known issue risk accepted | Verified rollback, stale and duplicate guards, feature flag fallback launch evidence |",
+      )
+      .replace(
+        QA_SIGNOFF_ROW,
+        "| QA | Quentin QA | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence; manual workaround required for tablet regression |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual(["Engineering"]);
+    expect(result.blockedRequiredSignoffNoteRoles).toEqual(["QA"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without an approved-for-launch decision"),
+        expect.stringContaining("pending fixes, conditions, or blockers"),
+      ]),
+    );
+  });
+
   it("rejects ready-for-launch sign-offs with vague notes", () => {
     const completed = completedMatrix().replace(
       QA_SIGNOFF_ROW,
