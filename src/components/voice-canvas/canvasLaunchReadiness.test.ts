@@ -21,6 +21,8 @@ const realDeviceRunSheetPath =
   "docs/audits/voice-canvas-real-device-run-sheet.md";
 const evidencePacketPath =
   "docs/audits/voice-canvas-real-device-evidence-packet.md";
+const realDeviceQaHandoffPath =
+  "docs/audits/voice-canvas-real-device-qa-handoff.md";
 const realDeviceQaMatrixPath =
   "docs/audits/voice-canvas-real-device-qa-matrix.md";
 const featureRunbooksByFlowId = {
@@ -337,6 +339,41 @@ describe("Canvas launch readiness manifest", () => {
     expect(packageJson.scripts["canvas:qa:rollback-owner"]).toBe(
       "tsx scripts/prepare-voice-canvas-rollback-owner-handoff.ts",
     );
+  });
+
+  it("provides a concise real-device QA handoff for launch execution", () => {
+    const handoff = readFileSync(
+      path.resolve(process.cwd(), realDeviceQaHandoffPath),
+      "utf8",
+    );
+
+    expect(handoff).toContain("Voice Canvas real-device QA handoff");
+    expect(handoff).toContain("voice-canvas-real-device-run-sheet.md");
+    expect(handoff).toContain("voice-canvas-real-device-evidence-packet.md");
+    expect(handoff).toContain("voice-canvas-real-device-qa-matrix.md");
+    expect(handoff).toContain("Hard stop rules");
+    expect(handoff).toContain("no external action before explicit confirmation");
+    expect(handoff).toContain("Feature-flag rollback does not close or hide Canvas");
+    expect(handoff).toContain("real phone, real tablet, and real desktop");
+    expect(handoff).toContain("Ride Voice Canvas");
+    expect(handoff).toContain("Appointment Voice Canvas");
+    expect(handoff).toContain("Medication Refill Voice Canvas");
+    expect(handoff).toContain("Shopping Delivery Voice Canvas");
+    expect(handoff).toContain("Provider Reply Voice Canvas");
+    expect(handoff).toContain("Concierge Task Hub Resume");
+    expect(handoff).toContain("canvas:qa:run");
+    expect(handoff).toContain("canvas:qa:features");
+    expect(handoff).toContain("canvas:qa:copy");
+    expect(handoff).toContain("canvas:qa:recovery");
+    expect(handoff).toContain("canvas:qa:real-use");
+    expect(handoff).toContain("canvas:qa:entry-surfaces");
+    expect(handoff).toContain("canvas:qa:rollback-owner");
+    expect(handoff).toContain("canvas:qa:analytics");
+    expect(handoff).toContain("canvas:qa:runsheet");
+    expect(handoff).toContain("canvas:qa:validate");
+    expect(handoff).toContain("canvas:qa:packet");
+    expect(handoff).toContain("canvas:qa:preflight -- --final --date=YYYY-MM-DD");
+    expect(handoff).toContain("Final preflight passes without `--allow-pending`");
   });
 
   it("keeps the real-device sign-off matrix aligned with launch scope", () => {
