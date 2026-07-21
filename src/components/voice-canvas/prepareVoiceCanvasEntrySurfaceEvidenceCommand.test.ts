@@ -277,12 +277,12 @@ describe("Voice Canvas entry surface evidence helper command", () => {
         const summary = JSON.parse(result.stdout);
         expect(summary.problems.join("\n")).toContain("result must prove no write");
         expect(summary.problems.join("\n")).toContain(
-          "result must prove no external action occurred before confirmation",
+          "result must prove no external action occurred before explicit confirmation",
         );
       },
     ));
 
-  it("rejects rows without before-confirmation safety timing", () =>
+  it("rejects rows without explicit-confirmation safety timing", () =>
     withTempMarkdownFile(
       validEntrySurfaceEvidenceArtifact().replace(
         "with no write and no external action before explicit confirmation",
@@ -295,6 +295,23 @@ describe("Voice Canvas entry surface evidence helper command", () => {
         const summary = JSON.parse(result.stdout);
         expect(summary.problems.join("\n")).toContain(
           "result must prove no write and no external action before explicit confirmation",
+        );
+      },
+    ));
+
+  it("rejects rows that only prove generic confirmation timing", () =>
+    withTempMarkdownFile(
+      validEntrySurfaceEvidenceArtifact().replace(
+        "exercised from this exact surface with no write and no external action before explicit confirmation",
+        "exercised from this exact surface with no write and no external action before confirmation",
+      ),
+      (inputPath) => {
+        const result = runEntrySurfaceHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Ride Voice Canvas voice handoff: result must prove no write and no external action before explicit confirmation.",
         );
       },
     ));

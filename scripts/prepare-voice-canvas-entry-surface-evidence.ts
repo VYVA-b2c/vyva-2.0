@@ -276,10 +276,12 @@ function artifactReferenceLooksConcrete(value: string): boolean {
 
 function hasBeforeConfirmationProof(value: string): boolean {
   return includesAny(value, [
-    "before confirmation",
     "before explicit confirmation",
-    "prior to confirmation",
+    "prior to explicit confirmation",
     "until explicit confirmation",
+    "before final confirmation",
+    "prior to final confirmation",
+    "until final confirmation",
   ]);
 }
 
@@ -383,7 +385,7 @@ function validateEntrySurfaceEvidence(inputPathArg: string): EntrySurfaceEvidenc
         ])
       ) {
         problems.push(
-          `${flow.label} ${surface}: result must prove no external action occurred before confirmation.`,
+          `${flow.label} ${surface}: result must prove no external action occurred before explicit confirmation.`,
         );
       }
       if (!hasBeforeConfirmationProof(row.result)) {
