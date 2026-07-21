@@ -1092,6 +1092,8 @@ const explicitNoExternalActionEvidenceWords = [
   "without writes, resubmissions, or external actions",
 ] as const;
 
+const explicitConfirmationEvidenceWords = ["explicit confirmation"] as const;
+
 const explicitNoResubmissionEvidenceWords = [
   "no resubmission",
   "no resubmissions",
@@ -1287,7 +1289,7 @@ const behaviorChecklistRequirements = [
         "not routed",
       ],
       ["before"],
-      ["explicit confirmation", "confirmation"],
+      explicitConfirmationEvidenceWords,
     ],
   },
   {
@@ -1762,7 +1764,8 @@ const taskHubDestinationRequirements: Record<
         "without external action",
         "without external actions",
       ],
-      ["confirmation"],
+      ["before"],
+      explicitConfirmationEvidenceWords,
     ],
   },
   "Local medication refill draft": {
@@ -1787,7 +1790,8 @@ const taskHubDestinationRequirements: Record<
         "without external action",
         "without external actions",
       ],
-      ["confirmation"],
+      ["before"],
+      explicitConfirmationEvidenceWords,
     ],
   },
   "Pending provider reply task": {
@@ -1813,7 +1817,8 @@ const taskHubDestinationRequirements: Record<
         "without external action",
         "without external actions",
       ],
-      ["confirmation"],
+      ["before"],
+      explicitConfirmationEvidenceWords,
     ],
   },
   "Stale or blocked task": {
@@ -1837,6 +1842,8 @@ const taskHubDestinationRequirements: Record<
         "without external actions",
       ],
       ["detail", "completion", "confirmation", "endpoint"],
+      ["before"],
+      explicitConfirmationEvidenceWords,
     ],
   },
 };
@@ -1903,7 +1910,7 @@ function invalidTaskHubDestinationRows(
         hasNegativeTaskHubDestinationOutcomeLanguage(safeBehavior))
     ) {
       problems.push(
-        `${rowLabel}: safety cell must mention no writes and no external actions before confirmation`,
+        `${rowLabel}: safety cell must mention no writes and no external actions before explicit confirmation`,
       );
     }
     if (

@@ -22,16 +22,16 @@ const OPS_SIGNOFF_ROW =
   "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner and distinct backup, decision window, rollback trigger, enable false rollout 0 action, sanitized endpoint fallback open-session Canvas closed evidence, and privacy boundary launch evidence |";
 
 const TASK_HUB_SHOPPING_ROW =
-  "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |";
+  "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |";
 
 const TASK_HUB_MEDICATION_ROW =
-  "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: medication refill draft resume enabled, medication refill disabled rollout 0 fallback to existing medication refill path, no write and no external action before confirmation |";
+  "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: medication refill draft resume enabled, medication refill disabled rollout 0 fallback to existing medication refill path, no write and no external action before explicit confirmation |";
 
 const TASK_HUB_PROVIDER_REPLY_ROW =
-  "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: pending provider reply resume, provider reply disabled rollout 0 fallback to safe Concierge task path, no write and no external action before confirmation |";
+  "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: pending provider reply resume, provider reply disabled rollout 0 fallback to safe Concierge task path, no write and no external action before explicit confirmation |";
 
 const TASK_HUB_STALE_BLOCKED_ROW =
-  "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback with no Canvas rewrite | No external action and no write to detail, completion, or confirmation endpoint before confirmation | QA task hub artifact log evidence on 2026-07-19: stale or blocked task resume through safe Concierge task path, disabled safe fallback to no Canvas safe Concierge task path, no write and no external action to detail completion confirmation endpoint before confirmation |";
+  "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback with no Canvas rewrite | No external action and no write to detail, completion, or confirmation endpoint before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: stale or blocked task resume through safe Concierge task path, disabled safe fallback to no Canvas safe Concierge task path, no write and no external action to detail completion confirmation endpoint before explicit confirmation |";
 
 const TASK_HUB_EVIDENCE_ERROR =
   "Local shopping draft: evidence must include dated artifact resume, disabled fallback, no-write, and no-external-action evidence";
@@ -1354,7 +1354,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidTaskHubDestinationRows).toEqual([
       "Local shopping draft: resume route must name the task hub destination behavior",
       "Local shopping draft: fallback must name the disabled destination path",
-      "Local shopping draft: safety cell must mention no writes and no external actions before confirmation",
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
       TASK_HUB_EVIDENCE_ERROR,
     ]);
     expect(result.problems).toEqual(
@@ -1367,7 +1367,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects task hub evidence notes that omit resume, fallback, and side-effect coverage", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1382,7 +1382,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects task hub evidence notes that omit concrete artifacts", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1397,7 +1397,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects task hub destination fallback rows that do not name the existing destination path", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1412,7 +1412,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects task hub destination fallback rows with only generic existing-fallback wording", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 existing fallback | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 existing fallback | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1427,7 +1427,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects stale task hub fallback rows that do not name the safe Concierge path", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_STALE_BLOCKED_ROW,
-      "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback | No external action and no write to detail, completion, or confirmation endpoint before confirmation | QA task hub artifact log evidence on 2026-07-19: stale or blocked task resume through safe Concierge task path, disabled safe fallback to no Canvas safe Concierge task path, no write and no external action to detail completion confirmation endpoint before confirmation |",
+      "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback | No external action and no write to detail, completion, or confirmation endpoint before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: stale or blocked task resume through safe Concierge task path, disabled safe fallback to no Canvas safe Concierge task path, no write and no external action to detail completion confirmation endpoint before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1439,10 +1439,10 @@ describe("Canvas real-device QA sign-off", () => {
     ]);
   });
 
-  it("rejects task hub safety rows without explicit no-write evidence", () => {
+  it("rejects task hub safety rows with vague confirmation wording", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1450,14 +1450,29 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidTaskHubDestinationRows).toEqual([
-      "Local shopping draft: safety cell must mention no writes and no external actions before confirmation",
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
+    ]);
+  });
+
+  it("rejects task hub safety rows without explicit no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
     ]);
   });
 
   it("rejects task hub safety rows without explicit no-external-action evidence", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_PROVIDER_REPLY_ROW,
-      "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No write before confirmation | QA task hub artifact log evidence on 2026-07-19: pending provider reply resume, provider reply disabled rollout 0 fallback to safe Concierge task path, no write and no external action before confirmation |",
+      "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: pending provider reply resume, provider reply disabled rollout 0 fallback to safe Concierge task path, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1465,14 +1480,14 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidTaskHubDestinationRows).toEqual([
-      "Pending provider reply task: safety cell must mention no writes and no external actions before confirmation",
+      "Pending provider reply task: safety cell must mention no writes and no external actions before explicit confirmation",
     ]);
   });
 
   it("rejects task hub safety rows that use submission wording instead of explicit no-external-action evidence", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_MEDICATION_ROW,
-      "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No write and not submitted before confirmation | QA task hub artifact log evidence on 2026-07-19: medication refill draft resume enabled, medication refill disabled rollout 0 fallback to existing medication refill path, no write and no external action before confirmation |",
+      "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No write and not submitted before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: medication refill draft resume enabled, medication refill disabled rollout 0 fallback to existing medication refill path, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1480,14 +1495,14 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.state).toBe("invalid");
     expect(result.readyForLaunch).toBe(false);
     expect(result.invalidTaskHubDestinationRows).toEqual([
-      "Local medication refill draft: safety cell must mention no writes and no external actions before confirmation",
+      "Local medication refill draft: safety cell must mention no writes and no external actions before explicit confirmation",
     ]);
   });
 
   it("rejects task hub destination rows with negative resume, fallback, or safety wording", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft did not resume to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback unavailable for existing shopping experience | No external action and no write before confirmation, but external action triggered | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation |",
+      "| Local shopping draft | Shopping draft did not resume to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback unavailable for existing shopping experience | No external action and no write before explicit confirmation, but external action triggered | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1497,7 +1512,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.invalidTaskHubDestinationRows).toEqual([
       "Local shopping draft: resume route must name the task hub destination behavior",
       "Local shopping draft: fallback must name the disabled destination path",
-      "Local shopping draft: safety cell must mention no writes and no external actions before confirmation",
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
     ]);
     expect(result.problems).toEqual(
       expect.arrayContaining([
@@ -1509,7 +1524,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects task hub evidence notes with contradictory resume or fallback wording", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation but fallback unavailable |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation but fallback unavailable |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -1529,7 +1544,7 @@ describe("Canvas real-device QA sign-off", () => {
   it("rejects task hub evidence artifacts that include sensitive details", () => {
     const completed = completedMatrix().replace(
       TASK_HUB_SHOPPING_ROW,
-      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before confirmation, but screenshot captured address details |",
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation, but screenshot captured address details |",
     );
 
     const result = evaluateCanvasRealDeviceQaMatrix(completed);
@@ -2410,7 +2425,7 @@ describe("Canvas real-device QA sign-off", () => {
     expect(result.problems).toEqual([]);
   });
 
-  it("rejects ready-for-launch matrices that do not explicitly deny external action before confirmation", () => {
+  it("rejects ready-for-launch matrices that do not explicitly deny external action before explicit confirmation", () => {
     const completed = completedMatrix().replace(
       "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
       "External action before explicit confirmation evidence passed",
@@ -2428,7 +2443,25 @@ describe("Canvas real-device QA sign-off", () => {
     );
   });
 
-  it("rejects ready-for-launch matrices without every forbidden side-effect class before confirmation", () => {
+  it("rejects confirmation safety rows with vague confirmation wording", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "No external action, no write, no booking, no call, no message, and no navigation before confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without every forbidden side-effect class before explicit confirmation", () => {
     const completed = completedMatrix().replace(
       "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
       "No external action before explicit confirmation evidence passed",
