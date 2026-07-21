@@ -901,6 +901,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("CTA opportunity");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Build a campaign");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Publish or review email");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Fix audience data");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Improve content");
+    fireEvent.click(screen.getByTestId("button-marketing-quick-task-fix-audience"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toBeInTheDocument();
+    expect(screen.getByText("Opened Contacts to review audience readiness.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Today's operating plan");
     expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Run marketing in this order");
     expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Step 1");

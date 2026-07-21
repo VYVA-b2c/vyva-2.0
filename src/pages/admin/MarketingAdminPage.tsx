@@ -31002,6 +31002,107 @@ export default function MarketingAdminPage() {
       onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
     }] : []),
   ].slice(0, 6);
+  const publishQuickTaskTarget = firstReadyEmailCampaign
+    ?? firstConsentReviewCampaign
+    ?? campaignNeedingAudience
+    ?? scheduledEmailCampaignWithoutRecipients
+    ?? firstManualHandoffCampaign
+    ?? null;
+  const marketingQuickTaskItems: MarketingWorkflowCoachItem[] = [
+    {
+      key: "build-campaign",
+      eyebrow: "Create",
+      title: "Build a campaign",
+      value: topCampaignRecommendation ? "AI pick" : "Studio",
+      detail: topCampaignRecommendation
+        ? `Use ${topCampaignRecommendation.recommendation.play.label} with ${topCampaignRecommendation.recommendation.reachableContacts} reachable contact${topCampaignRecommendation.recommendation.reachableContacts === 1 ? "" : "s"}.`
+        : "Open the AI campaign command, choose a template pack, and create the next launch plan.",
+      state: topCampaignRecommendation?.recommendation.state ?? "planning",
+      actionLabel: topCampaignRecommendation ? "Load best plan" : "Open AI studio",
+      icon: Sparkles,
+      onSelect: () => {
+        if (topCampaignRecommendation) {
+          applyCampaignStudioPlayRecommendation(topCampaignRecommendation.recommendation);
+          return;
+        }
+        setActiveTab("dashboard");
+        setMessage("Use AI campaign command to describe the campaign you want to build.");
+      },
+    },
+    {
+      key: "publish-email",
+      eyebrow: "Publish",
+      title: "Publish or review email",
+      value: firstReadyEmailCampaign ? "Ready" : publishQuickTaskTarget ? "Review" : "None",
+      detail: firstReadyEmailCampaign
+        ? `"${firstReadyEmailCampaign.name}" has email content and saved recipients ready for final review.`
+        : publishQuickTaskTarget
+          ? `"${publishQuickTaskTarget.name}" needs one review step before publishing.`
+          : "No email campaign is ready yet. Create a campaign or attach recipients and content first.",
+      state: firstReadyEmailCampaign ? "ready" : publishQuickTaskTarget ? "needs_action" : "planning",
+      actionLabel: firstReadyEmailCampaign ? "Open send review" : publishQuickTaskTarget ? "Open campaign" : "Create campaign",
+      icon: Send,
+      onSelect: () => {
+        if (publishQuickTaskTarget) {
+          openCampaignForNextAction(publishQuickTaskTarget);
+          return;
+        }
+        setActiveTab("dashboard");
+        setMessage("Create or complete a campaign before publishing email.");
+      },
+    },
+    {
+      key: "fix-audience",
+      eyebrow: "Audience",
+      title: "Fix audience data",
+      value: contactHealthNeedsConsent > 0 ? `${contactHealthNeedsConsent} consent` : contactHealthDirectReachable > 0 ? `${contactHealthDirectReachable} reachable` : "Review",
+      detail: contactHealthNeedsConsent > 0
+        ? `${contactHealthNeedsConsent} contact${contactHealthNeedsConsent === 1 ? "" : "s"} need consent cleanup before outreach.`
+        : contactHealthUnmappedListMembers > 0
+          ? `${contactHealthUnmappedListMembers} imported list member${contactHealthUnmappedListMembers === 1 ? "" : "s"} need contact mapping.`
+          : "Open contacts to review list membership, consent, channels, and relationship queues.",
+      state: contactHealthTotal === 0 ? "blocked" : contactHealthNeedsConsent > 0 || contactHealthUnmappedListMembers > 0 ? "needs_action" : "ready",
+      actionLabel: contactHealthUnmappedListMembers > 0 ? "Open lists" : "Open contacts",
+      icon: UsersRound,
+      onSelect: () => {
+        setActiveTab("contacts");
+        setContactView(contactHealthUnmappedListMembers > 0 ? "lists" : "contacts");
+        setMessage("Opened Contacts to review audience readiness.");
+      },
+    },
+    {
+      key: "improve-content",
+      eyebrow: "Creative",
+      title: "Improve content",
+      value: missingSourceReferenceCount > 0 ? `${missingSourceReferenceCount} gaps` : `${launchLaneContentReadyCount} ready`,
+      detail: missingSourceReferenceCount > 0
+        ? "Replace imported placeholders with real copy, HTML, design, and media before launch."
+        : "Open the content library to polish templates, localize copy, and prepare channel variants.",
+      state: missingSourceReferenceCount > 0 ? "blocked" : launchLaneContentReadyCount > 0 ? "ready" : "planning",
+      actionLabel: missingSourceReferenceCount > 0 ? "Fix gaps" : "Open content",
+      icon: FileText,
+      onSelect: () => {
+        if (missingSourceReferenceCount > 0) {
+          openMissingLovableContentRepair();
+          return;
+        }
+        setActiveTab("content");
+        setMessage("Opened Content to improve reusable campaign assets.");
+      },
+    },
+    ...(contactRelationshipPriorityQueue ? [{
+      key: "relationship-work",
+      eyebrow: "Relationships",
+      title: "Work a relationship queue",
+      value: contactRelationshipPriorityQueue.countLabel,
+      detail: contactRelationshipPriorityQueue.detail,
+      state: contactRelationshipPriorityQueue.state,
+      actionLabel: contactRelationshipPriorityQueue.studioLabel,
+      icon: contactRelationshipPriorityQueue.icon,
+      disabled: contactRelationshipPriorityQueue.count === 0,
+      onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
+    }] : []),
+  ].slice(0, 5);
   const marketingCockpitItems = marketingWorkflowCoachItems.slice(0, 5);
   const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
   const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
@@ -31540,6 +31641,41 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
                 <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
               </div>
+
+              <SectionCard
+                title="What do you want to do?"
+                subtitle="Choose the plain-language job first. VYVA routes you to the right campaign, audience, content, or publishing workspace."
+                action={<Pill className="bg-purple-50 text-purple-800"><Sparkles size={13} className="mr-1" /> Guided</Pill>}
+              >
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" data-testid="marketing-quick-task-launcher">
+                  {marketingQuickTaskItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={item.onSelect}
+                        disabled={item.disabled}
+                        className={`flex min-h-[164px] flex-col rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                        data-testid={`button-marketing-quick-task-${item.key}`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                            <Icon size={18} aria-hidden="true" />
+                          </span>
+                          <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                        </span>
+                        <span className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-purple-800">{item.eyebrow}</span>
+                        <span className="mt-1 text-base font-black text-[#241133]">{item.title}</span>
+                        <span className="mt-2 line-clamp-3 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                        <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-black text-purple-700">
+                          {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </SectionCard>
 
               <SectionCard
                 title="Marketing cockpit"
