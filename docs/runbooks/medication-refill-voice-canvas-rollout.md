@@ -50,7 +50,7 @@ Immediately disable the flag for any pre-confirmation action, duplicate preparat
 
 ## Rollback owner handoff
 
-Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS`, set `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/medication-refill-voice-canvas` rollback-disabled endpoint response, and confirm the Existing medication refill shopping/support path appears.
+Before launch, name the rollback owner and distinct backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS`, set `VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/medication-refill-voice-canvas` rollback-disabled endpoint response, and confirm the Existing medication refill shopping/support path appears.
 
 Use this copy-safe handoff note when recording ownership:
 

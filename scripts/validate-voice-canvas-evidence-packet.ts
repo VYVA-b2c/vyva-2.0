@@ -406,6 +406,7 @@ const evidenceNotePatternRequirements: Record<
     ["reviewer"],
     ["operations/rollback owner", "rollback owner"],
     ["backup owner", "backup"],
+    ["distinct", "separate", "different"],
     ["decision window", "decision"],
     ["rollback trigger", "trigger"],
     ["enable false", "disabled"],

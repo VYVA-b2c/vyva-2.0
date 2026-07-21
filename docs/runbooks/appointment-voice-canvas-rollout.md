@@ -40,7 +40,7 @@ Start at 5%, then 25%, 50%, and 100% after reviewing scene-only completion, aban
 
 ## Rollback owner handoff
 
-Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS`, set `VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/appointment-voice-canvas` rollback-disabled endpoint response, and confirm the Existing appointment panel appears.
+Before launch, name the rollback owner and distinct backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS`, set `VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/appointment-voice-canvas` rollback-disabled endpoint response, and confirm the Existing appointment panel appears.
 
 Use this copy-safe handoff note when recording ownership:
 

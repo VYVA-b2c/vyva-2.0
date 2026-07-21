@@ -111,7 +111,7 @@ function rollbackOwnerHandoffTemplate(): string {
       `- Endpoint: ${flow.featureFlag!.endpoint}`,
       `- Server key: ${flow.featureFlag!.serverFeatureKey}`,
       `- Named fallback path: ${flow.featureFlag!.fallback}`,
-      "- Handoff confirmation: [owner and backup can disable this flag, verify rollback-disabled endpoint payload, confirm Canvas closed or hidden in an open session, and confirm the named fallback path is visible]",
+      "- Handoff confirmation: [owner and distinct backup can disable this flag, verify rollback-disabled endpoint payload, confirm Canvas closed or hidden in an open session, and confirm the named fallback path is visible]",
     );
   }
 
@@ -119,7 +119,7 @@ function rollbackOwnerHandoffTemplate(): string {
     "",
     "## Copy-ready final sign-off note",
     "",
-    `Operations/rollback owner sign-off, reviewed on [${artifactDatePlaceholder}] by [reviewer]: rollback owner [owner] and backup owner [backup] confirmed the decision window [window], rollback trigger [trigger], enable false or disabled rollout 0 rollback action [action], sanitized endpoint/fallback/open-session evidence [references], Canvas closed or hidden behavior, privacy boundary, and fallback readiness before launch.`,
+    `Operations/rollback owner sign-off, reviewed on [${artifactDatePlaceholder}] by [reviewer]: rollback owner [owner] and distinct backup owner [backup] confirmed the decision window [window], rollback trigger [trigger], enable false or disabled rollout 0 rollback action [action], sanitized endpoint/fallback/open-session evidence [references], Canvas closed or hidden behavior, privacy boundary, and fallback readiness before launch.`,
   );
 
   return lines.join("\n");

@@ -199,7 +199,7 @@ Prepare the rollback owner handoff artifact from the manifest-filled copy-safe t
 npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md
 ```
 
-Fill it only with a deployed non-local QA run URL, the real launch owner/backup, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness. Do not add personal data.
+Fill it only with a deployed non-local QA run URL, the real launch owner and distinct backup, decision window, rollback trigger, rollback action, endpoint/fallback/open-session evidence, privacy boundary, and fallback readiness. Do not add personal data.
 
 Validate the filled handoff before final preflight:
 
@@ -263,7 +263,7 @@ For environment rows, analytics sink review and initial/rollback flag state cell
 
 For entry surface rows, keep the manifest-aligned surface list for every flow and provide dated screenshot, log, recording, or artifact evidence that each surface was exercised. Generic main-entry or single-surface evidence does not satisfy launch sign-off.
 
-The evidence artifact inventory must also include rollback owner handoff artifacts before launch, with sanitized owner/backup, decision-window, rollback-trigger, endpoint/fallback/open-session, privacy-boundary, and fallback-readiness proof.
+The evidence artifact inventory must also include rollback owner handoff artifacts before launch, with sanitized owner/distinct-backup, decision-window, rollback-trigger, endpoint/fallback/open-session, privacy-boundary, and fallback-readiness proof.
 
 For privacy rows, the result and evidence must name the specific forbidden data class being reviewed, and the evidence must point to a concrete analytics artifact/query/dashboard/log reference. Generic no-sensitive-data wording or prose-only analytics-review wording does not satisfy launch sign-off.
 
@@ -293,11 +293,11 @@ For task hub destination rows, the no-side-effects cell must explicitly prove bo
 
 For evidence artifact inventory rows, map the sanitized artifact bucket to the exact evidence it proves, including environment/flag, entry surface, real-device, interaction, behavior recovery, feature endpoint, task hub, rollback owner handoff, copy/accessibility, analytics signal, analytics privacy, run-sheet validation, launch run plan, and launch preflight artifacts. The launch run plan artifact row must name same-date, same deployed-origin, endpoint auth metadata alignment, and no credential values. Each reference must point to concrete sanitized screenshots, photos, recordings, logs, traces, captures, dashboards, queries, JSON validation artifacts, or links with no personal details, and each row must include a QA/reviewer note with a non-future `YYYY-MM-DD` date.
 
-For final sign-off rows, notes must be concrete and role-specific: Product covers real-use evidence, senior copy, what happens next, and privacy/analytics readiness; Engineering covers rollback, stale/duplicate guards, and feature-flag fallback safety; QA covers the real-device matrix plus voice/touch/keyboard coverage; Operations covers rollback ownership, backup owner, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
+For final sign-off rows, notes must be concrete and role-specific: Product covers real-use evidence, senior copy, what happens next, and privacy/analytics readiness; Engineering covers rollback, stale/duplicate guards, and feature-flag fallback safety; QA covers the real-device matrix plus voice/touch/keyboard coverage; Operations covers rollback ownership, distinct backup owner, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
 
-Per-flow rollback runbooks include a copy-safe rollback owner handoff template. Before enabling any percentage rollout, fill that handoff in the launch record with a deployed non-local QA run URL, owner/backup, decision window, trigger, rollback action, sanitized endpoint/fallback/open-session evidence, and privacy boundary. Do not launch with an unnamed rollback owner.
+Per-flow rollback runbooks include a copy-safe rollback owner handoff template. Before enabling any percentage rollout, fill that handoff in the launch record with a deployed non-local QA run URL, owner/distinct backup, decision window, trigger, rollback action, sanitized endpoint/fallback/open-session evidence, and privacy boundary. Do not launch with an unnamed rollback owner.
 
-Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md`, the `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` helper, and the `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` validation artifact before filling the Operations/rollback owner final sign-off. It requires a deployed non-local QA run URL, owner and backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
+Use the rollback owner handoff copy-ready evidence note in `docs/audits/voice-canvas-real-device-evidence-packet.md`, the `npm run --silent canvas:qa:rollback-owner -- --template --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md` helper, and the `npm run --silent canvas:qa:rollback-owner -- --input=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-handoff.md --json --output=artifacts/voice-canvas/YYYY-MM-DD-rollback-owner-validation.json` validation artifact before filling the Operations/rollback owner final sign-off. It requires a deployed non-local QA run URL, owner and distinct backup, decision window, rollback trigger, enable-false or disabled rollout-0 action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness.
 
 Run the sign-off gate after filling the matrix:
 

@@ -316,7 +316,7 @@ function validRollbackOwnerHandoffArtifact(): string {
       `- Endpoint: ${flow.featureFlag!.endpoint}`,
       `- Server key: ${flow.featureFlag!.serverFeatureKey}`,
       `- Named fallback path: ${flow.featureFlag!.fallback}`,
-      "- Handoff confirmation: owner and backup can disable this flag, verify rollback-disabled endpoint payload, confirm Canvas closed or hidden in an open session, and confirm the named fallback path is visible",
+      "- Handoff confirmation: owner and distinct backup can disable this flag, verify rollback-disabled endpoint payload, confirm Canvas closed or hidden in an open session, and confirm the named fallback path is visible",
     );
   }
 

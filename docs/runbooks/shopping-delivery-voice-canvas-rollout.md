@@ -43,7 +43,7 @@ Start with internal-only access, then 5%, 25%, 50%, and 100% only after reviewin
 
 ## Rollback owner handoff
 
-Before launch, name the rollback owner and backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS`, set `VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/shopping-delivery-voice-canvas` rollback-disabled endpoint response, and confirm the Existing shopping guide and recommendations appear.
+Before launch, name the rollback owner and distinct backup owner in the launch record. The owner must be able to disable `VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS`, set `VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT=0`, verify the `/api/config/features/shopping-delivery-voice-canvas` rollback-disabled endpoint response, and confirm the Existing shopping guide and recommendations appear.
 
 Use this copy-safe handoff note when recording ownership:
 
