@@ -391,6 +391,32 @@ describe("Voice Canvas evidence packet validator command", () => {
       },
     ));
 
+  it("rejects launch run plan inventory rows without deployed-origin and auth metadata proof", () =>
+    withTempPacket(
+      completedPacket().replace(
+        "Same-date and same deployed-origin launch artifact run plan for endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, rollback-owner, run-sheet, matrix, packet, and final preflight evidence, including safe endpoint auth metadata alignment and no credential values",
+        "Same date launch artifact run plan for final preflight evidence",
+      ),
+      (tempPacketPath) => {
+        const result = runValidator([tempPacketPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            'Evidence packet inventory row "Launch run plan artifacts" does not map the artifact to the required launch evidence coverage.',
+          ]),
+        );
+      },
+    ));
+
   it("rejects flow packet rows that omit launch-safety coverage", () =>
     withTempPacket(
       completedPacket().replace(

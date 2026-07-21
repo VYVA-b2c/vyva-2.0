@@ -126,7 +126,22 @@ const inventoryCoverageRequirements: Record<
   "Launch run plan artifacts": [
     ["launch"],
     ["run plan", "launch-evidence-run"],
-    ["same", "date"],
+    ["same-date", "same date"],
+    ["same deployed-origin", "same deployed origin", "deployed origin"],
+    ["endpoint"],
+    ["auth metadata", "authentication metadata"],
+    [
+      "no credential value",
+      "no credential values",
+      "without credential value",
+      "without credential values",
+      "no secret value",
+      "no secret values",
+      "without secret value",
+      "without secret values",
+      "no token",
+      "without token",
+    ],
     ["artifact"],
   ],
   "Launch preflight artifacts": [
