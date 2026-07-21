@@ -41,6 +41,7 @@ import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { CampaignChannelLaunchAndPublishingPanel } from "./MarketingCampaignChannelPublishing";
 import { CampaignCopyDistributionPanel } from "./MarketingCampaignCopyDistribution";
+import { CampaignProductionKitPanel } from "./MarketingCampaignProductionKit";
 import { CampaignPublishConfidencePanel, buildCampaignPublishConfidenceModel } from "./MarketingCampaignPublishConfidence";
 import { CampaignRelationshipLoopPanel } from "./MarketingCampaignRelationshipLoop";
 import { CampaignSendApprovalCard, buildCampaignSendApprovalModel } from "./MarketingCampaignSendApproval";
@@ -35217,207 +35218,26 @@ export default function MarketingAdminPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4" data-testid="marketing-campaign-studio-creative-direction">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-indigo-800">Creative direction board</p>
-                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know what each channel should look and feel like</h3>
-                          <p className="mt-1 text-xs font-bold text-[#5d5773]">
-                            Converts the selected campaign plan into channel-specific creative notes: hook, visual asset, style, production handoff, and AI/design prompt.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void copyCampaignStudioOfflineHandoff("Campaign creative direction board", campaignStudioCreativeDirectionText)}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 text-sm font-black text-indigo-800 hover:bg-indigo-50"
-                          data-testid="button-marketing-campaign-studio-copy-creative-direction"
-                        >
-                          <Copy size={14} /> Copy creative board
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-creative-direction-items">
-                        {campaignStudioCreativeDirections.map((item) => (
-                          <article
-                            key={item.channel}
-                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
-                            data-testid={`marketing-campaign-studio-creative-direction-${item.channel}`}
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
-                            </div>
-                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
-                            <p className="mt-2 line-clamp-2 text-xs font-bold leading-relaxed text-[#5d5773]">
-                              <span className="font-black text-[#241133]">Hook:</span> {item.hook}
-                            </p>
-                            <div className="mt-3 grid gap-2 rounded-lg bg-indigo-50/70 p-2 text-xs font-bold text-[#50496a]">
-                              <p><span className="font-black text-[#241133]">Visual:</span> {item.assetTitle}</p>
-                              <p><span className="font-black text-[#241133]">Style:</span> {item.style}</p>
-                              <p><span className="font-black text-[#241133]">Handoff:</span> {item.productionNote}</p>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/40 p-4" data-testid="marketing-campaign-studio-brand-review">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-fuchsia-800">Brand review board</p>
-                          <h3 className="mt-1 text-lg font-black text-[#241133]">Check it before it leaves VYVA</h3>
-                          <p className="mt-1 text-xs font-bold text-[#66506b]">
-                            A reviewer-friendly pass for brand fit, claims, readability, channel consistency, and production handoff.
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Pill className={readinessPillClass(campaignStudioBrandReviewState)}>{readinessLabel(campaignStudioBrandReviewState)}</Pill>
-                          <button
-                            type="button"
-                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign brand review board", campaignStudioBrandReviewText)}
-                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-fuchsia-200 bg-white px-3 text-sm font-black text-fuchsia-800 hover:bg-fuchsia-50"
-                            data-testid="button-marketing-campaign-studio-copy-brand-review"
-                          >
-                            <Copy size={14} /> Copy review board
-                          </button>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-2 xl:grid-cols-5" data-testid="marketing-campaign-studio-brand-review-items">
-                        {campaignStudioBrandReviewItems.map((item) => (
-                          <article key={item.key} className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`} data-testid={`marketing-campaign-studio-brand-review-${item.key}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-xs font-black uppercase tracking-[0.08em] opacity-80">{item.title}</p>
-                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
-                            </div>
-                            <p className="mt-2 text-sm font-black text-[#241133]">{item.value}</p>
-                            <p className="mt-2 line-clamp-4 text-xs font-bold leading-relaxed text-[#66506b]">{item.detail}</p>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4" data-testid="marketing-campaign-studio-production-load">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-amber-800">Production workload</p>
-                          <h3 className="mt-1 text-lg font-black text-[#241133]">Know the effort before launch</h3>
-                          <p className="mt-1 text-xs font-bold text-[#6d5742]">
-                            Converts the selected routes into owners, effort, requirements, and blockers so campaigns do not stall after approval.
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Pill className={readinessPillClass(campaignStudioProductionLoadState)}>{campaignStudioProductionLoadSummary}</Pill>
-                          <Pill className="bg-white text-amber-900">{campaignStudioProductionLoadTotalMinutes} min</Pill>
-                          <button
-                            type="button"
-                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign production workload", campaignStudioProductionLoadText)}
-                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-sm font-black text-amber-900 hover:bg-amber-50"
-                            data-testid="button-marketing-campaign-studio-copy-production-load"
-                          >
-                            <Copy size={14} /> Copy workload
-                          </button>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-production-load-items">
-                        {campaignStudioProductionLoadItems.map((item) => (
-                          <article
-                            key={item.channel}
-                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
-                            data-testid={`marketing-campaign-studio-production-load-${item.channel}`}
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
-                            </div>
-                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.title}</h4>
-                            <div className="mt-3 grid gap-2 rounded-lg bg-amber-50/70 p-2 text-xs font-bold text-[#5f4b37]">
-                              <p><span className="font-black text-[#241133]">Owner:</span> {item.owner}</p>
-                              <p><span className="font-black text-[#241133]">Effort:</span> {item.estimateMinutes} min</p>
-                              <p><span className="font-black text-[#241133]">Needs:</span> {item.requirement}</p>
-                              <p><span className="font-black text-[#241133]">Blocker:</span> {item.blocker || "None"}</p>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" data-testid="marketing-campaign-studio-template-production">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Template production kit</p>
-                          <h3 className="mt-1 text-lg font-black text-[#241133]">Turn the plan into attractive channel templates</h3>
-                          <p className="mt-1 text-xs font-bold text-[#536b5e]">
-                            Uses the campaign brief, selected routes, audience segments, and template coverage to create copy/design prompts for every channel.
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Pill className={readinessPillClass(campaignStudioTemplateProductionState)}>{readinessLabel(campaignStudioTemplateProductionState)}</Pill>
-                          <Pill className="bg-white text-emerald-900">
-                            {campaignStudioTemplateProductionItems.length} route{campaignStudioTemplateProductionItems.length === 1 ? "" : "s"}
-                          </Pill>
-                          <button
-                            type="button"
-                            onClick={() => void copyCampaignStudioOfflineHandoff("Campaign template production kit", campaignStudioTemplateProductionText)}
-                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-black text-emerald-900 hover:bg-emerald-50"
-                            data-testid="button-marketing-campaign-studio-copy-template-production"
-                          >
-                            <Copy size={14} /> Copy kit
-                          </button>
-                        </div>
-                      </div>
-                      <div className={`mt-3 rounded-xl border p-3 ${readinessClass(campaignStudioTemplateCoverageState)}`} data-testid="marketing-campaign-studio-template-coverage-planner">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-[0.1em] text-emerald-800">Template coverage planner</p>
-                            <p className="mt-1 text-sm font-black text-[#241133]">
-                              {campaignStudioTemplateCoverageReadyCount}/{campaignStudioTemplateProductionItems.length} selected route{campaignStudioTemplateProductionItems.length === 1 ? "" : "s"} have reusable template coverage
-                            </p>
-                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#536b5e]">
-                              Next template move: {campaignStudioNextTemplateMove}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Pill className={readinessPillClass(campaignStudioTemplateCoverageState)}>{readinessLabel(campaignStudioTemplateCoverageState)}</Pill>
-                            <Pill className="bg-white text-emerald-900">
-                              {campaignStudioTemplateCoverageGapItems.length
-                                ? `${campaignStudioTemplateCoverageGapItems.length} gap${campaignStudioTemplateCoverageGapItems.length === 1 ? "" : "s"}`
-                                : "No gaps"}
-                            </Pill>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {campaignStudioTemplateProductionItems.map((item) => {
-                            const covered = item.starterTemplateCount + item.savedAssetCount > 0;
-                            return (
-                              <Pill key={item.channel} className={covered ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
-                                {channelLabel[item.channel]}: {covered ? "covered" : "needs template"}
-                              </Pill>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="mt-3 grid gap-3 xl:grid-cols-3" data-testid="marketing-campaign-studio-template-production-items">
-                        {campaignStudioTemplateProductionItems.map((item) => (
-                          <article
-                            key={item.channel}
-                            className={`rounded-xl border bg-white p-3 ${readinessClass(item.state)}`}
-                            data-testid={`marketing-campaign-studio-template-production-${item.channel}`}
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                              <Pill className={readinessPillClass(item.state)}>{readinessLabel(item.state)}</Pill>
-                            </div>
-                            <h4 className="mt-3 text-sm font-black text-[#241133]">{item.contentType}</h4>
-                            <p className="mt-1 text-xs font-black text-emerald-800">{item.audienceSegment}</p>
-                            <div className="mt-3 grid gap-2 rounded-lg bg-emerald-50/70 p-2 text-xs font-bold text-[#405d4c]">
-                              <p><span className="font-black text-[#241133]">Coverage:</span> {item.starterTemplateCount} starter / {item.savedAssetCount} saved</p>
-                              <p><span className="font-black text-[#241133]">Tokens:</span> {item.personalizationTokens.length ? item.personalizationTokens.join(", ") : "None"}</p>
-                              <p className="line-clamp-2"><span className="font-black text-[#241133]">Hook:</span> {item.subjectPrompt}</p>
-                              <p className="line-clamp-3"><span className="font-black text-[#241133]">Design:</span> {item.designPrompt}</p>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
+                    <CampaignProductionKitPanel
+                      creativeDirections={campaignStudioCreativeDirections}
+                      creativeDirectionText={campaignStudioCreativeDirectionText}
+                      brandReviewItems={campaignStudioBrandReviewItems}
+                      brandReviewState={campaignStudioBrandReviewState}
+                      brandReviewText={campaignStudioBrandReviewText}
+                      productionLoadItems={campaignStudioProductionLoadItems}
+                      productionLoadState={campaignStudioProductionLoadState}
+                      productionLoadSummary={campaignStudioProductionLoadSummary}
+                      productionLoadTotalMinutes={campaignStudioProductionLoadTotalMinutes}
+                      productionLoadText={campaignStudioProductionLoadText}
+                      templateProductionItems={campaignStudioTemplateProductionItems}
+                      templateProductionState={campaignStudioTemplateProductionState}
+                      templateCoverageState={campaignStudioTemplateCoverageState}
+                      templateCoverageReadyCount={campaignStudioTemplateCoverageReadyCount}
+                      templateCoverageGapCount={campaignStudioTemplateCoverageGapItems.length}
+                      nextTemplateMove={campaignStudioNextTemplateMove}
+                      templateProductionText={campaignStudioTemplateProductionText}
+                      onCopy={copyCampaignStudioOfflineHandoff}
+                    />
 
                     <CampaignStudioCreativeReadinessPanel
                       creativeItems={campaignStudioCreativeQualityItems}
