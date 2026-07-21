@@ -69,6 +69,7 @@ describe("concierge readiness dashboard model", () => {
       "Trusted transport / taxi",
       "Mobility preferences",
       "Home address",
+      "Contact preference",
     ]);
     expect(transport?.toolDependencies.map((item) => item.label)).toEqual([
       "Phone call",
