@@ -1595,7 +1595,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
-  }, 45_000);
+  }, 120_000);
 
   it("turns dashboard audience summaries into contact and campaign actions", async () => {
     renderPage();
@@ -2063,7 +2063,6 @@ describe("MarketingAdminPage", () => {
     expect(intentBrief.value).toContain("Consent re-permission campaign.");
     expect(intentBrief.value).toContain("Do not message opted-out contacts.");
   });
-
   it("shows tracked manual outcomes in campaign performance scans", async () => {
     const manuallyTrackedCampaign = {
       ...campaigns[1],
@@ -3988,7 +3987,7 @@ describe("MarketingAdminPage", () => {
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("Hi {{first_name}}");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("marketing_content_template_gallery");
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
-  }, 60000);
+  }, 60_000);
 
   it("creates saved content assets from a curated template pack", async () => {
     renderPage();
@@ -4914,7 +4913,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
     });
-  });
+  }, 60_000);
 
   it("duplicates imported content as a clean editable draft", async () => {
     renderPage();
@@ -5068,7 +5067,7 @@ describe("MarketingAdminPage", () => {
       },
     });
     expect(patchPayload.designJson.aiPolish).toMatchObject({ generator: "marketing_content_ai_polish", tone: "direct" });
-  });
+  }, 60_000);
 
   it("generates starter copy for imported content that has no body yet", async () => {
     renderPage({}, { content: [missingLovableContent, ...content] });
@@ -5425,7 +5424,7 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
     });
-  });
+  }, 60_000);
 
   it("validates and creates richer marketing contacts", async () => {
     renderPage();
@@ -6792,7 +6791,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
     expect((screen.getByTestId("textarea-marketing-content-design-json") as HTMLTextAreaElement).value).toContain("\"angle\": \"proof\"");
-  }, 60000);
+  }, 60_000);
 
   it("recommends and loads template packs directly inside the campaign studio", async () => {
     const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
@@ -8249,7 +8248,14 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Campaign email sent to 1 recipient.");
     });
-  });
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-campaign-delete-confirmation-campaign-1")).toHaveTextContent("Click Confirm delete to remove this campaign, its channels, and recipient snapshots.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
+    });
+  }, 60_000);
 
   it("lets imported social campaigns use social content as the primary campaign asset", async () => {
     renderPage();

@@ -34,6 +34,10 @@ import {
   type ConciergeActionAdapterMode,
   type ConciergeActionAdapterResult,
 } from "./conciergeActionAdapters.js";
+import {
+  parseConciergeProviderReplyDecisionHistory,
+  parseConciergeProviderReplyResolution,
+} from "../../shared/conciergeProviderReplyResolution.js";
 
 export const CONCIERGE_USE_CASES = [
   "book_ride",
@@ -104,6 +108,7 @@ export interface TriggerResult {
   conversationId: string | null;
   callSid: string | null;
   message: string;
+  historySessionId?: string | null;
 }
 
 export interface CompleteResult {
@@ -116,6 +121,14 @@ export interface PendingActionDetailsUpdateInput {
   actionPayload: Record<string, unknown>;
   answerKey?: string | null;
   answerValue?: string | null;
+}
+
+function conciergeTaskIdFromPayload(payload: Record<string, unknown> | null | undefined): string | null {
+  const value = payload?.concierge_task_id;
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
 }
 
 export interface PendingActionDetailsUpdateResult {
@@ -417,6 +430,18 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
     ],
   );
 
+  const conciergeTaskId = conciergeTaskIdFromPayload(actionPayload);
+  if (conciergeTaskId && result.rows[0]) {
+    await pool.query(
+      `
+        update concierge_task_drafts
+        set linked_pending_id = $2::uuid, stage = 'review', updated_at = now()
+        where id = $1::uuid and user_id = $3 and status = 'active'
+      `,
+      [conciergeTaskId, result.rows[0].id, input.userId],
+    );
+  }
+
   return result.rows[0]!;
 }
 
@@ -518,6 +543,175 @@ async function updatePendingStatus(
   );
   pending.status = status;
   pending.action_payload = actionPayload;
+}
+
+function isSuccessfulLiveEmailAdapterResult(
+  result: ConciergeActionAdapterResult | null | undefined,
+): result is ConciergeActionAdapterResult {
+  return Boolean(
+    result
+      && result.mode === "live"
+      && result.channel === "email"
+      && result.status === "sent"
+      && result.external_action_allowed,
+  );
+}
+
+async function recordSuccessfulLiveEmailReceipt(
+  pending: PendingRow,
+  adapterResult: ConciergeActionAdapterResult,
+): Promise<string | null> {
+  const actionPayload = pending.action_payload ?? {};
+  const executionTask = executionTaskFromPayload(actionPayload);
+  const providerReplyResolution = parseConciergeProviderReplyResolution(
+    actionPayload.provider_reply_resolution,
+  );
+  const parsedProviderReplyDecisions = parseConciergeProviderReplyDecisionHistory(
+    actionPayload.provider_reply_decisions,
+  );
+  const providerReplyDecisions = parsedProviderReplyDecisions.map((decision, index) => (
+    index === parsedProviderReplyDecisions.length - 1 && decision.status === "draft_ready"
+      ? {
+          ...decision,
+          status: "sent" as const,
+          sentAt: adapterResult.attempted_at,
+        }
+      : decision
+  ));
+  const providerName = pending.provider_name?.trim()
+    || adapterResult.provider_name?.trim()
+    || adapterResult.provider_contact?.trim()
+    || "Email recipient";
+  const providerEmail = adapterResult.provider_contact?.trim()
+    || asString(actionPayload.provider_email)
+    || asString(actionPayload.recipient_email)
+    || null;
+  const outcomeSummary = providerEmail
+    ? `Email sent to ${providerName} (${providerEmail}). Waiting for provider reply.`
+    : `Email sent to ${providerName}. Waiting for provider reply.`;
+  const outcomePayload = {
+    flow_reference: asString(actionPayload.flow_reference) ?? executionTask?.flow_reference ?? null,
+    receipt_kind: "provider_contact_sent",
+    email_outcome: "sent",
+    execution_channel: "email",
+    execution_mode: "live",
+    live_action: true,
+    external_action_allowed: true,
+    confirmation_required: true,
+    user_confirmed: executionTask?.user_confirmed === true,
+    confirmation_source: executionTask?.confirmation_source ?? "user_controlled_execution",
+    provider_name: providerName,
+    provider_email: providerEmail,
+    recipient_email: providerEmail,
+    provider_message_id: adapterResult.result_id ?? null,
+    adapter: adapterResult.adapter,
+    adapter_mode: adapterResult.mode,
+    adapter_channel: adapterResult.channel,
+    adapter_provider: adapterResult.provider_name,
+    adapter_provider_contact: adapterResult.provider_contact,
+    adapter_attempted_at: adapterResult.attempted_at,
+    adapter_status: adapterResult.status,
+    adapter_result: adapterResult,
+    execution_task: executionTask,
+    live_handoff_status: "waiting",
+    live_handoff_outcome: "email_sent",
+    provider_follow_up_status: "waiting",
+    waiting_for_provider: true,
+    mission_status: "awaiting_provider_reply",
+    sent_at: adapterResult.attempted_at,
+    ...(providerReplyResolution ? {
+      provider_reply_resolution: providerReplyResolution,
+      provider_reply_resolution_action: providerReplyResolution.decision?.action
+        ?? providerReplyResolution.primaryAction,
+      provider_reply_user_decision: providerReplyResolution.decision?.action ?? null,
+      provider_reply_resolution_at: providerReplyResolution.decision?.recordedAt ?? null,
+      provider_response_summary: asString(actionPayload.provider_response_summary)
+        ?? providerReplyResolution.summary,
+      provider_reply: asString(actionPayload.provider_reply),
+      provider_follow_up_requires_confirmation: true,
+      provider_follow_up_confirmed: executionTask?.user_confirmed === true,
+      no_external_action_without_confirmation: true,
+    } : {}),
+    ...(providerReplyDecisions.length > 0 ? {
+      provider_reply_decisions: providerReplyDecisions,
+    } : {}),
+  };
+
+  const result = await pool.query<{ id: string }>(
+    `
+      with existing as (
+        select id
+        from concierge_sessions
+        where pending_id = $1::uuid
+          and outcome = 'completed'
+          and outcome_payload->>'receipt_kind' = 'provider_contact_sent'
+          and outcome_payload->>'adapter_channel' = 'email'
+        order by completed_at desc nulls last
+        limit 1
+      ), updated as (
+        update concierge_sessions
+        set
+          action_payload = $9::jsonb,
+          outcome_payload = coalesce(outcome_payload, '{}'::jsonb) || $10::jsonb,
+          outcome_summary = $11,
+          completed_at = $12::timestamptz
+        where id in (select id from existing)
+        returning id
+      ), inserted as (
+        insert into concierge_sessions (
+          user_id,
+          pending_id,
+          use_case,
+          provider_id,
+          provider_name,
+          provider_phone,
+          found_externally,
+          action_summary,
+          action_payload,
+          outcome,
+          outcome_payload,
+          outcome_summary,
+          completed_at
+        )
+        select
+          $2,
+          $1::uuid,
+          $3,
+          $4::uuid,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9::jsonb,
+          'completed',
+          $10::jsonb,
+          $11,
+          $12::timestamptz
+        where not exists (select 1 from existing)
+        returning id
+      )
+      select id from updated
+      union all
+      select id from inserted
+      limit 1
+    `,
+    [
+      pending.id,
+      pending.user_id,
+      pending.use_case,
+      pending.provider_id,
+      providerName,
+      pending.provider_phone,
+      pending.found_externally,
+      pending.action_summary,
+      JSON.stringify(actionPayload),
+      JSON.stringify(outcomePayload),
+      outcomeSummary,
+      adapterResult.attempted_at,
+    ],
+  );
+
+  return result.rows[0]?.id ?? null;
 }
 
 async function loadPendingById(pendingId: string): Promise<PendingRow | null> {
@@ -760,6 +954,19 @@ async function queueConfirmedConciergeAction(
   plan: ConciergeConfirmedExecutionPlan,
   reason?: string,
 ): Promise<TriggerResult> {
+  const existingAdapterResult = adapterResultFromPayload(pending.action_payload);
+  if (isSuccessfulLiveEmailAdapterResult(existingAdapterResult)) {
+    const historySessionId = await recordSuccessfulLiveEmailReceipt(pending, existingAdapterResult);
+    return {
+      pendingId: pending.id,
+      status: pending.status,
+      conversationId: null,
+      callSid: null,
+      message: existingAdapterResult.result,
+      historySessionId,
+    };
+  }
+
   const liveUserControlledChannel = Boolean(
     !plan.dry_run &&
     !reason &&
@@ -839,11 +1046,16 @@ async function queueConfirmedConciergeAction(
     adapterResult,
   });
 
+  const historySessionId = isSuccessfulLiveEmailAdapterResult(adapterResult)
+    ? await recordSuccessfulLiveEmailReceipt(pending, adapterResult)
+    : null;
+
   return {
     pendingId: pending.id,
     status: "pending",
     conversationId: null,
     callSid: null,
+    historySessionId,
     message: adapterResult?.status === "simulated"
       ? "Dry-run confirmed. VYVA recorded the simulated adapter handoff without contacting anyone."
       : (adapterResult?.status === "sent"
@@ -1182,6 +1394,13 @@ export async function completePendingConciergeAction(
       adapter_attempted_at: completionAdapterResult.attempted_at,
       adapter_status: completionAdapterResult.status,
       adapter_result: completionAdapterResult,
+      ...(completionAdapterResult.channel === "email" ? {
+        provider_name: pending.provider_name ?? completionAdapterResult.provider_name,
+        provider_email: completionAdapterResult.provider_contact,
+        recipient_email: completionAdapterResult.provider_contact,
+        provider_message_id: completionAdapterResult.result_id ?? null,
+        email_outcome: "sent",
+      } : {}),
     } : {}),
     execution_task: finalActionPayload.execution_task,
   };
@@ -1189,40 +1408,72 @@ export async function completePendingConciergeAction(
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const inserted = await client.query<{ id: string }>(
+    const existingReceipt = await client.query<{ id: string }>(
       `
-        insert into concierge_sessions (
-          user_id,
-          pending_id,
-          use_case,
-          provider_id,
-          provider_name,
-          provider_phone,
-          found_externally,
-          action_summary,
-          action_payload,
-          outcome,
-          outcome_payload,
-          outcome_summary,
-          completed_at
-        )
-        values ($1, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, $9::jsonb, 'completed', $10::jsonb, $11, now())
-        returning id
+        select id
+        from concierge_sessions
+        where pending_id = $1::uuid
+          and outcome = 'completed'
+          and outcome_payload->>'receipt_kind' = 'provider_contact_sent'
+        order by completed_at desc nulls last
+        limit 1
       `,
-      [
-        pending.user_id,
-        pending.id,
-        pending.use_case,
-        pending.provider_id,
-        pending.provider_name,
-        pending.provider_phone,
-        pending.found_externally,
-        pending.action_summary,
-        JSON.stringify(finalActionPayload),
-        JSON.stringify(finalOutcomePayload),
-        outcomeSummary,
-      ],
+      [pending.id],
     );
+    const receiptId = existingReceipt.rows[0]?.id ?? null;
+    const storedSession = receiptId
+      ? await client.query<{ id: string }>(
+          `
+            update concierge_sessions
+            set
+              action_payload = $2::jsonb,
+              outcome_payload = $3::jsonb,
+              outcome_summary = $4,
+              completed_at = now()
+            where id = $1::uuid
+            returning id
+          `,
+          [
+            receiptId,
+            JSON.stringify(finalActionPayload),
+            JSON.stringify({ ...finalOutcomePayload, receipt_kind: "final_task_completion" }),
+            outcomeSummary,
+          ],
+        )
+      : await client.query<{ id: string }>(
+          `
+            insert into concierge_sessions (
+              user_id,
+              pending_id,
+              use_case,
+              provider_id,
+              provider_name,
+              provider_phone,
+              found_externally,
+              action_summary,
+              action_payload,
+              outcome,
+              outcome_payload,
+              outcome_summary,
+              completed_at
+            )
+            values ($1, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, $9::jsonb, 'completed', $10::jsonb, $11, now())
+            returning id
+          `,
+          [
+            pending.user_id,
+            pending.id,
+            pending.use_case,
+            pending.provider_id,
+            pending.provider_name,
+            pending.provider_phone,
+            pending.found_externally,
+            pending.action_summary,
+            JSON.stringify(finalActionPayload),
+            JSON.stringify(finalOutcomePayload),
+            outcomeSummary,
+          ],
+        );
 
     await client.query(
       `
@@ -1232,8 +1483,19 @@ export async function completePendingConciergeAction(
       `,
       [pendingId, JSON.stringify(finalActionPayload)],
     );
+    const conciergeTaskId = conciergeTaskIdFromPayload(finalActionPayload);
+    if (conciergeTaskId) {
+      await client.query(
+        `
+          update concierge_task_drafts
+          set status = 'completed', completed_at = now(), updated_at = now()
+          where id = $1::uuid and user_id = $2 and status = 'active'
+        `,
+        [conciergeTaskId, pending.user_id],
+      );
+    }
     await client.query("commit");
-    return { ok: true, status: "completed", sessionId: inserted.rows[0]?.id ?? null };
+    return { ok: true, status: "completed", sessionId: storedSession.rows[0]?.id ?? null };
   } catch (err) {
     await client.query("rollback");
     throw err;

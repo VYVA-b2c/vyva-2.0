@@ -94,4 +94,42 @@ describe("Resend email dispatch", () => {
       html: "<p>Rich Source template</p>",
     });
   });
+
+  it("keeps a user-approved Home Service photo on the provider email", () => {
+    const email = buildEmailPayload({
+      id: "communication-home-service",
+      recipient: "provider@example.com",
+      purpose: "home_service_request",
+      body: "Please review this home service request.",
+      metadata: {
+        subject: "Home service request",
+        attachments: [{
+          filename: "leaking-sink.jpg",
+          type: "image/jpeg",
+          content: "cGhvdG8=",
+        }],
+      },
+    } as CommunicationLog);
+
+    expect(email.attachments).toEqual([
+      expect.objectContaining({
+        filename: "leaking-sink.jpg",
+        type: "image/jpeg",
+        content: "cGhvdG8=",
+      }),
+    ]);
+    expect(buildResendEmailRequest(
+      { id: "communication-home-service", recipient: "provider@example.com", body: email.text } as CommunicationLog,
+      email,
+      "concierge@vyva.life",
+      "reply@vyva.life",
+      null,
+    )).toMatchObject({
+      attachments: [{
+        filename: "leaking-sink.jpg",
+        content: "cGhvdG8=",
+        content_type: "image/jpeg",
+      }],
+    });
+  });
 });

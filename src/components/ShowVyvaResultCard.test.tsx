@@ -22,7 +22,9 @@ describe("ShowVyvaResultCard", () => {
       concernSummary: "Suspicious phone number",
       riskLevel: "high",
       confidenceLevel: "medium",
-      noticed: ["The number asks for fast action.", "The request could expose private details."],
+      verifiedObservations: ["The message includes a phone number."],
+      warningSigns: ["The number asks for fast action."],
+      unknowns: ["The sender's identity cannot be confirmed from this message."],
       safeNextSteps: ["Do not call back yet.", "Ask VYVA to verify the source first."],
     });
     const onActionSelect = vi.fn();
@@ -36,20 +38,36 @@ describe("ShowVyvaResultCard", () => {
       />,
     );
 
-    expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-    expect(screen.getByText("What VYVA thinks")).toBeInTheDocument();
-    expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
-    expect(screen.getByText("Recommended next step")).toBeInTheDocument();
-    expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();
-    expect(screen.getByTestId("show-vyva-result-reviewed-phone")).toHaveTextContent("+34 600 111 222");
+    expect(screen.getByTestId("show-vyva-decision-handoff-phone")).toBeInTheDocument();
+    expect(screen.getByTestId("show-vyva-decision-title-phone")).toHaveTextContent("This looks risky");
+    expect(screen.getByTestId("show-vyva-decision-subtitle-phone")).toHaveTextContent("Do not call back yet.");
+    expect(screen.getByTestId("show-vyva-confidence-evidence-phone")).toHaveTextContent("Why VYVA thinks this");
+    expect(screen.getByTestId("show-vyva-confidence-label-phone")).toHaveTextContent("Clear risk");
+    expect(screen.getByTestId("show-vyva-confidence-evidence-phone")).toHaveTextContent("The number asks for fast action.");
+    expect(screen.getByTestId("show-vyva-facts-found-phone")).toHaveTextContent("The message includes a phone number.");
+    expect(screen.getByTestId("show-vyva-uncertain-points-phone")).toHaveTextContent("The sender's identity cannot be confirmed from this message.");
+    expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
+    expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
     expect(screen.getByTestId("show-vyva-result-input-phone")).toHaveTextContent("Phone number");
     expect(screen.getByTestId("show-vyva-result-risk-phone")).toHaveTextContent("High risk");
     expect(screen.getByText(/must confirm before anything/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-scam_concierge-phone"));
+    expect(screen.getAllByRole("button", { name: /Do not reply|Block or report|Ask someone/i })).toHaveLength(3);
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-phone"));
+
+    expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
+    expect(screen.getByText("What is visible")).toBeInTheDocument();
+    expect(screen.getByText("Warning signs")).toBeInTheDocument();
+    expect(screen.getByText("What VYVA cannot confirm")).toBeInTheDocument();
+    expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
+    expect(screen.getByText("Recommended next step")).toBeInTheDocument();
+    expect(screen.getByTestId("show-vyva-result-reviewed-phone")).toHaveTextContent("+34 600 111 222");
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-block_or_report-phone"));
 
     expect(onActionSelect).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "scam_concierge", requiresConfirmation: true }),
+      expect.objectContaining({ id: "block_or_report", requiresConfirmation: true }),
       expect.objectContaining({ finalConfirmationRequired: true }),
     );
   });
@@ -92,11 +110,8 @@ describe("ShowVyvaResultCard", () => {
       );
 
       expect(screen.getByTestId(`show-vyva-result-case-${index}`)).toBeInTheDocument();
-      expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
-      expect(screen.getByText("What VYVA thinks")).toBeInTheDocument();
-      expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
-      expect(screen.getByText("Recommended next step")).toBeInTheDocument();
-      expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();
+      expect(screen.getByTestId(`show-vyva-decision-handoff-case-${index}`)).toBeInTheDocument();
+      expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
       expect(screen.getByText(/must confirm before anything/i)).toBeInTheDocument();
       unmount();
     }

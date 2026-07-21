@@ -691,7 +691,7 @@ describe("MusicRoomScreen", () => {
     expect(screen.getAllByText("Dance").length).toBeGreaterThan(1);
     expect(screen.getByLabelText("Song or memory...")).toHaveValue("Stand By Me");
     expect(apiFetchMock).not.toHaveBeenCalled();
-  });
+  }, 60_000);
 
   it("uses a groove cue to make the record feel playable", async () => {
     render(

@@ -71,6 +71,9 @@ export interface ShowVyvaReviewContract {
   concernSummary: string;
   riskLevel: ShowVyvaReviewRiskLevel;
   confidenceLevel: ShowVyvaReviewConfidenceLevel;
+  verifiedObservations: string[];
+  warningSigns: string[];
+  unknowns: string[];
   noticed: string[];
   safeNextSteps: string[];
   followUpActions: ShowVyvaFollowUpAction[];
@@ -82,6 +85,9 @@ export interface ShowVyvaReviewDraftInput extends ShowVyvaReviewInputDescriptor 
   concernSummary?: string | null;
   riskLevel?: ShowVyvaReviewRiskLevel | null;
   confidenceLevel?: ShowVyvaReviewConfidenceLevel | null;
+  verifiedObservations?: string[] | null;
+  warningSigns?: string[] | null;
+  unknowns?: string[] | null;
   noticed?: string[] | null;
   safeNextSteps?: string[] | null;
   includeActions?: ShowVyvaFollowUpActionId[] | null;
@@ -187,6 +193,19 @@ function fallbackNoticed(inputType: ShowVyvaReviewInputType, value?: string | nu
   return [`Input type: ${fallbackConcern(inputType).toLowerCase()}.`];
 }
 
+function fallbackUnknowns(inputType: ShowVyvaReviewInputType): string[] {
+  if (inputType === SHOW_VYVA_REVIEW_INPUT_TYPES.phoneNumber) {
+    return ["A phone number alone does not confirm who is calling or why."];
+  }
+  if (inputType === SHOW_VYVA_REVIEW_INPUT_TYPES.companyName || inputType === SHOW_VYVA_REVIEW_INPUT_TYPES.pastedLink) {
+    return ["This item alone does not confirm the organisation's identity or reputation."];
+  }
+  if (inputType === SHOW_VYVA_REVIEW_INPUT_TYPES.cameraPhoto || inputType === SHOW_VYVA_REVIEW_INPUT_TYPES.uploadedImage) {
+    return ["Details outside the image, or too small to read, cannot be confirmed."];
+  }
+  return ["Missing pages, context, identity, and authenticity cannot be confirmed from this item alone."];
+}
+
 function fallbackNextSteps(context: ShowVyvaReviewContext): string[] {
   if (context === "scam") {
     return ["Do not reply, pay, call back, or share details yet.", "Choose one safe follow-up step."];
@@ -207,15 +226,15 @@ function defaultActionIdsForInput(
   if (followUpContext !== "scam") return null;
 
   if (inputType === "phone_number") {
-    return ["check_number", "call_trusted_contact", "save_report", "scam_concierge"];
+    return ["do_not_reply", "block_or_report", "ask_someone", "check_number", "call_trusted_contact", "save_report", "scam_concierge"];
   }
   if (inputType === "pasted_link") {
-    return ["check_link", "call_trusted_contact", "save_report", "scam_concierge"];
+    return ["do_not_reply", "block_or_report", "ask_someone", "check_link", "call_trusted_contact", "save_report", "scam_concierge"];
   }
   if (inputType === "company_name") {
-    return ["check_company", "call_trusted_contact", "save_report", "scam_concierge"];
+    return ["do_not_reply", "block_or_report", "ask_someone", "check_company", "call_trusted_contact", "save_report", "scam_concierge"];
   }
-  return ["forward_email", "check_company", "save_report", "call_trusted_contact", "scam_concierge"];
+  return ["do_not_reply", "block_or_report", "ask_someone", "forward_email", "check_company", "save_report", "call_trusted_contact", "scam_concierge"];
 }
 
 export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): ShowVyvaReviewContract {
@@ -228,6 +247,19 @@ export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): Sh
     include: input.includeActions ?? defaultIncludeActions ?? undefined,
     exclude: input.excludeActions ?? undefined,
   });
+  const providedNoticed = cleanList(input.noticed);
+  const verifiedObservations = cleanList(input.verifiedObservations).length
+    ? cleanList(input.verifiedObservations)
+    : providedNoticed.length
+      ? providedNoticed
+      : fallbackNoticed(inputType, input.value);
+  const warningSigns = cleanList(input.warningSigns);
+  const unknowns = cleanList(input.unknowns).length
+    ? cleanList(input.unknowns)
+    : fallbackUnknowns(inputType);
+  const noticed = providedNoticed.length
+    ? providedNoticed
+    : [...verifiedObservations, ...warningSigns, ...unknowns].slice(0, 8);
 
   return {
     useCaseId: input.useCaseId,
@@ -243,7 +275,10 @@ export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): Sh
     concernSummary: input.concernSummary?.trim() || fallbackConcern(inputType),
     riskLevel: input.riskLevel ?? "unknown",
     confidenceLevel: input.confidenceLevel ?? "low",
-    noticed: cleanList(input.noticed).length ? cleanList(input.noticed) : fallbackNoticed(inputType, input.value),
+    verifiedObservations,
+    warningSigns,
+    unknowns,
+    noticed,
     safeNextSteps: cleanList(input.safeNextSteps).length ? cleanList(input.safeNextSteps) : fallbackNextSteps(context),
     followUpActions: actions,
     finalConfirmationRequired: true,
@@ -268,6 +303,11 @@ export function showVyvaReviewContractFromScamResult(
     concernSummary: result.resultTitle,
     riskLevel: riskFromLabel(result.riskLevel),
     confidenceLevel: result.riskLevel ? "medium" : "low",
+    verifiedObservations: cleanList([result.explanation]),
+    warningSigns: /suspicious|scam|high/i.test(result.riskLevel ?? "")
+      ? cleanList([result.resultTitle])
+      : [],
+    unknowns: ["The image alone cannot confirm the sender's identity or whether the request is genuine."],
     noticed: [result.explanation ?? "", ...cleanList(result.steps).slice(0, 1)],
     safeNextSteps: cleanList(result.steps),
   });
@@ -282,6 +322,9 @@ export function showVyvaReviewContractFromSafeHomeResult(
     concernSummary: result.resultTitle,
     riskLevel: riskFromLabel(result.riskLevel),
     confidenceLevel: result.riskLevel ? "medium" : "low",
+    verifiedObservations: cleanList([result.advice]),
+    warningSigns: cleanList(result.hazards),
+    unknowns: ["Areas outside the photo and hazards hidden from view were not reviewed."],
     noticed: cleanList(result.hazards).length ? cleanList(result.hazards) : [result.advice ?? ""],
     safeNextSteps: cleanList([result.advice]),
   });
@@ -296,6 +339,9 @@ export function showVyvaReviewContractFromHealthResult(
     concernSummary: result.resultTitle,
     riskLevel: riskFromLabel(result.severity),
     confidenceLevel: result.severity ? "medium" : "low",
+    verifiedObservations: cleanList(result.visibleObservations),
+    warningSigns: cleanList(result.potentialConcerns),
+    unknowns: cleanList(result.uncertainty),
     noticed: [
       ...cleanList(result.visibleObservations),
       ...cleanList(result.potentialConcerns),
@@ -323,6 +369,9 @@ export function showVyvaReviewContractFromPastePayload(payload: ShowVyvaPastePay
     concernSummary,
     riskLevel: "unknown",
     confidenceLevel: "low",
+    verifiedObservations: [`VYVA received this as ${concernSummary.toLowerCase()}.`],
+    warningSigns: [],
+    unknowns: ["The pasted item has not independently confirmed identity, authenticity, or full context."],
     noticed: [
       `VYVA reviewed this as ${concernSummary.toLowerCase()}.`,
       "Nothing has been sent, called, uploaded externally, paid, or shared.",

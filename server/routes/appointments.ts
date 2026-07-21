@@ -64,6 +64,14 @@ const createRequestSchema = z.object({
   preferences: z.record(z.string(), z.unknown()).optional().default({}),
   route_prefill_source: z.string().trim().max(80).optional(),
   language: z.string().trim().min(2).max(12).optional(),
+  draft: z.boolean().optional().default(false),
+});
+
+const updateHomeServiceDraftSchema = z.object({
+  detail: z.string().trim().max(1200).optional().default(""),
+  preferences: z.record(z.string(), z.unknown()).optional().default({}),
+  language: z.string().trim().min(2).max(12).optional(),
+  finalize: z.boolean().optional().default(false),
 });
 
 const addOptionSchema = z.object({
@@ -80,6 +88,14 @@ const confirmAttemptSchema = z.object({
   option_id: z.string().uuid().optional(),
   channel: z.enum(APPOINTMENT_CHANNELS),
   result_notes: z.string().trim().max(1000).optional(),
+  share_details: z.object({
+    share_home_address: z.boolean().optional().default(false),
+    photo: z.object({
+      name: z.string().trim().min(1).max(180),
+      type: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      data_url: z.string().startsWith("data:image/").max(2_500_000),
+    }).optional(),
+  }).optional(),
 });
 
 const markBookedSchema = z.object({
@@ -365,7 +381,7 @@ function homeServiceActionPayload(request: AppointmentRequest): Record<string, u
     service_type: intake?.service_type ?? null,
     service_label: intake ? homeServiceTypeLabel(intake.service_type, request.language ?? "en") : null,
     urgency: intake?.urgency ?? null,
-    requested_time: intake?.urgency ?? null,
+    requested_time: recordText(preferences, "requested_time") ?? intake?.answers.requested_time ?? intake?.urgency ?? null,
     criteria: intake?.criteria ?? null,
     safety_flags: intake?.safety_flags ?? null,
     problem_summary: request.reason_detail,
@@ -373,6 +389,41 @@ function homeServiceActionPayload(request: AppointmentRequest): Record<string, u
     home_address_source: recordText(preferences, "home_address_source"),
     location: homeAddress,
     home_access_or_safety_notes: accessNotes,
+  };
+}
+
+function confirmedHomeServicePayload(
+  request: AppointmentRequest,
+  shareDetails: z.infer<typeof confirmAttemptSchema>["share_details"],
+): Record<string, unknown> {
+  const payload = homeServiceActionPayload(request);
+  if (request.appointment_type !== "home-service") return payload;
+  if (shareDetails?.share_home_address !== true) {
+    payload.home_address = null;
+    payload.location = null;
+    payload.home_address_shared = false;
+  } else {
+    payload.home_address_shared = Boolean(payload.home_address);
+  }
+  payload.photo_available = Boolean(shareDetails?.photo);
+  payload.photo_name = shareDetails?.photo?.name ?? null;
+  return payload;
+}
+
+function confirmedPhotoAttachment(
+  request: AppointmentRequest,
+  channel: AppointmentChannel,
+  shareDetails: z.infer<typeof confirmAttemptSchema>["share_details"],
+) {
+  if (request.appointment_type !== "home-service" || channel !== "email" || !shareDetails?.photo) return null;
+  const match = shareDetails.photo.data_url.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return null;
+  return {
+    filename: shareDetails.photo.name,
+    content: match[2],
+    type: match[1],
+    disposition: "attachment" as const,
+    content_id: "home-service-photo",
   };
 }
 
@@ -466,6 +517,7 @@ async function saveSuccessfulAppointmentProvider(input: {
         source: "appointment_success",
         original_provider_source: input.selectedOption.provider_source,
       },
+      is_trusted: false,
       is_primary: false,
       is_active: true,
       last_used_at: new Date(),
@@ -517,7 +569,12 @@ async function savedProviderOptions(
   const providers = await db
     .select()
     .from(userProviders)
-    .where(and(eq(userProviders.user_id, userId), eq(userProviders.is_active, true)));
+    .where(and(
+      eq(userProviders.user_id, userId),
+      eq(userProviders.is_active, true),
+      eq(userProviders.is_trusted, true),
+    ))
+    .orderBy(desc(userProviders.is_primary), desc(userProviders.updated_at));
 
   return providers
     .map((provider) => ({
@@ -552,11 +609,16 @@ async function savedProviderOptions(
     });
 }
 
-function appointmentMessage(channel: AppointmentChannel, option: AppointmentProviderOption, request: AppointmentRequest) {
+function appointmentMessage(
+  channel: AppointmentChannel,
+  option: AppointmentProviderOption,
+  request: AppointmentRequest,
+  approvedHomeServicePayload?: Record<string, unknown>,
+) {
   const provider = optionName(option);
   const reason = request.reason_detail?.trim() || "I would like to arrange an appointment.";
   const isHomeService = request.appointment_type === "home-service";
-  const homeServicePayload = isHomeService ? homeServiceActionPayload(request) : {};
+  const homeServicePayload = isHomeService ? approvedHomeServicePayload ?? homeServiceActionPayload(request) : {};
   const homeAddress = typeof homeServicePayload.home_address === "string" ? homeServicePayload.home_address : "";
   const accessNotes = typeof homeServicePayload.home_access_or_safety_notes === "string" ? homeServicePayload.home_access_or_safety_notes : "";
   const subject = isHomeService ? "Home service request" : "Appointment request";
@@ -607,8 +669,12 @@ router.get("/context", async (req: Request, res: Response) => {
       db
         .select()
         .from(userProviders)
-        .where(and(eq(userProviders.user_id, userId), eq(userProviders.is_active, true)))
-        .orderBy(desc(userProviders.updated_at))
+        .where(and(
+          eq(userProviders.user_id, userId),
+          eq(userProviders.is_active, true),
+          eq(userProviders.is_trusted, true),
+        ))
+        .orderBy(desc(userProviders.is_primary), desc(userProviders.updated_at))
         .limit(20),
       db
         .select()
@@ -642,6 +708,44 @@ router.get("/context", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/requests/active-home-service", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  try {
+    const requests = await db
+      .select()
+      .from(appointmentRequests)
+      .where(and(
+        eq(appointmentRequests.user_id, userId),
+        eq(appointmentRequests.appointment_type, "home-service"),
+      ))
+      .orderBy(desc(appointmentRequests.updated_at))
+      .limit(12);
+    const request = requests.find((item) => !["booked", "completed", "cancelled", "stopped", "contacted", "attempt_ready"].includes(item.status));
+    if (!request) return res.json({ request: null, options: [] });
+    const options = await loadOptionsForRequest(request.id, userId);
+    return res.json({ request, options, mission: missionStateFor({ request, options }) });
+  } catch (err) {
+    console.error("[appointments GET /requests/active-home-service]", err);
+    return res.status(500).json({ error: "Could not load home service draft" });
+  }
+});
+
+router.get("/requests/:id", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    const request = await loadRequestForUser(req.params.id, userId);
+    if (!request) return res.status(404).json({ error: "Appointment request not found" });
+    const options = await loadOptionsForRequest(request.id, userId);
+    return res.json({ request, options, mission: missionStateFor({ request, options }) });
+  } catch (err) {
+    console.error("[appointments GET /requests/:id]", err);
+    return res.status(500).json({ error: "Could not load appointment request" });
+  }
+});
+
 router.post("/requests", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -664,24 +768,26 @@ router.post("/requests", async (req: Request, res: Response) => {
         appointment_type: parsed.data.appointment_type,
         reason_detail: requestDetail || null,
         preferences: parsed.data.preferences,
-        status: "needs_provider",
+        status: parsed.data.draft ? "collecting_details" : "needs_provider",
         route_prefill_source: parsed.data.route_prefill_source ?? null,
         language: parsed.data.language ?? "es",
       })
       .returning();
 
-    const candidates = await savedProviderOptions(
-      userId,
-      request.id,
-      parsed.data.appointment_type,
-      requestDetail,
-      parsed.data.preferences,
-    );
+    const candidates = parsed.data.draft
+      ? []
+      : await savedProviderOptions(
+          userId,
+          request.id,
+          parsed.data.appointment_type,
+          requestDetail,
+          parsed.data.preferences,
+        );
     const options = candidates.length > 0
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
 
-    const status = options.length > 0 ? "options_ready" : "needs_provider";
+    const status = parsed.data.draft ? "collecting_details" : options.length > 0 ? "options_ready" : "needs_provider";
     const [updatedRequest] = await db
       .update(appointmentRequests)
       .set({ status, updated_at: new Date() })
@@ -697,6 +803,49 @@ router.post("/requests", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[appointments POST /requests]", err);
     return res.status(500).json({ error: "Could not create appointment request" });
+  }
+});
+
+router.patch("/requests/:id/home-service-draft", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const request = await loadRequestForUser(req.params.id, userId);
+  if (!request || request.appointment_type !== "home-service") {
+    return res.status(404).json({ error: "Home service request not found" });
+  }
+  const parsed = updateHomeServiceDraftSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const intake = homeServiceIntakeFromPreferences(parsed.data.preferences);
+    const detail = intake?.research_brief || parsed.data.detail || request.reason_detail || "";
+    let options = await loadOptionsForRequest(request.id, userId);
+    if (parsed.data.finalize && options.length === 0) {
+      await syncProfileProvidersToUserProviders(userId);
+      const candidates = await savedProviderOptions(userId, request.id, "home-service", detail, parsed.data.preferences);
+      options = candidates.length > 0
+        ? await db.insert(appointmentProviderOptions).values(candidates).returning()
+        : [];
+    }
+    const status = parsed.data.finalize
+      ? options.length > 0 ? "options_ready" : "needs_provider"
+      : "collecting_details";
+    const [updated] = await db
+      .update(appointmentRequests)
+      .set({
+        reason_detail: detail || null,
+        preferences: parsed.data.preferences,
+        language: parsed.data.language ?? request.language,
+        status,
+        updated_at: new Date(),
+      })
+      .where(and(eq(appointmentRequests.id, request.id), eq(appointmentRequests.user_id, userId)))
+      .returning();
+    const responseRequest = updated ?? request;
+    return res.json({ request: responseRequest, options, mission: missionStateFor({ request: responseRequest, options }) });
+  } catch (err) {
+    console.error("[appointments PATCH /requests/:id/home-service-draft]", err);
+    return res.status(500).json({ error: "Could not save home service draft" });
   }
 });
 
@@ -718,7 +867,12 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
       const rows = await db
         .select()
         .from(userProviders)
-        .where(and(eq(userProviders.id, parsed.data.provider_id), eq(userProviders.user_id, userId)))
+        .where(and(
+          eq(userProviders.id, parsed.data.provider_id),
+          eq(userProviders.user_id, userId),
+          eq(userProviders.is_active, true),
+          eq(userProviders.is_trusted, true),
+        ))
         .limit(1);
       provider = rows[0] ?? null;
       if (!provider) return res.status(404).json({ error: "Provider not found" });
@@ -892,8 +1046,10 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
     const bookingUrl = snapshotText(snapshot, "booking_url");
     const channel = parsed.data.channel;
     const flowReference = appointmentRequestFlowReference(request);
+    const conciergeTaskId = recordText(recordValue(request.preferences), "concierge_task_id");
     const communicationRecipient = appointmentChannelRecipient(channel, snapshot);
-    const homeServicePayload = homeServiceActionPayload(request);
+    const homeServicePayload = confirmedHomeServicePayload(request, parsed.data.share_details);
+    const photoAttachment = confirmedPhotoAttachment(request, channel, parsed.data.share_details);
     const preferenceSnapshot = orderAppointmentChannels({
       channels: option.available_channels as AppointmentChannel[],
       providerSnapshot: snapshot,
@@ -949,6 +1105,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           foundExternally: option.provider_source !== "saved",
           actionSummary: `VYVA is calling ${providerName} to request this appointment.`,
           actionPayload: {
+            concierge_task_id: conciergeTaskId,
             appointment_request_id: request.id,
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
@@ -1001,7 +1158,10 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         throw err;
       }
     } else if (channel === "email" || channel === "whatsapp") {
-      const message = appointmentMessage(channel, option, request);
+      const message = appointmentMessage(channel, option, request, homeServicePayload);
+      const messageBody = photoAttachment
+        ? `${message.body}\n\nA photo is attached with the user's approval.`
+        : message.body;
       const [queuedCommunication] = await db
         .insert(communicationsLog)
         .values({
@@ -1010,7 +1170,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           recipient: communicationRecipient!,
           purpose: "appointment_request",
           status: "queued",
-          body: message.body,
+          body: messageBody,
           metadata: {
             subject: message.subject,
             appointment_request_id: request.id,
@@ -1024,6 +1184,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             provider_whatsapp: providerWhatsapp,
             booking_url: bookingUrl,
             execution_channel: channel,
+            ...(photoAttachment ? { attachments: [photoAttachment] } : {}),
             ...homeServicePayload,
             provider_snapshot: snapshot,
             preferred_channel: channel,
@@ -1110,6 +1271,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           foundExternally: option.provider_source !== "saved",
           actionSummary: `VYVA will handle the booking form for ${providerName}.`,
           actionPayload: {
+            concierge_task_id: conciergeTaskId,
             appointment_request_id: request.id,
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
@@ -1170,6 +1332,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
         foundExternally: option.provider_source !== "saved",
         actionSummary: `VYVA will handle the next appointment step for ${providerName}.`,
         actionPayload: {
+          concierge_task_id: conciergeTaskId,
           appointment_request_id: request.id,
           appointment_option_id: option.id,
           appointment_attempt_id: attempt.id,

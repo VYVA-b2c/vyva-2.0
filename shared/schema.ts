@@ -20,7 +20,7 @@
 // ============================================================
 
 import {
-  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index,
+  pgTable, pgEnum, unique, uniqueIndex, primaryKey, index, foreignKey,
   text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -893,6 +893,7 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
   fallback_chain:                text("fallback_chain").array().default(["whatsapp_outbound", "voice_outbound"]),
   max_outbound_calls_per_day:    integer("max_outbound_calls_per_day").default(1),
   max_whatsapp_messages_per_day: integer("max_whatsapp_messages_per_day").default(5),
+  concierge_task_notifications_enabled: boolean("concierge_task_notifications_enabled").notNull().default(true),
 });
 
 export const insertUserChannelPreferencesSchema = createInsertSchema(userChannelPreferences).omit({ id: true, updated_at: true });
@@ -2558,6 +2559,7 @@ export const userProviders = pgTable("user_providers", {
   contact_role: text("contact_role"),
   notes:        text("notes"),
   metadata:     jsonb("metadata").notNull().default({}),
+  is_trusted:   boolean("is_trusted").notNull().default(true),
   is_primary:   boolean("is_primary").notNull().default(true),
   is_active:    boolean("is_active").notNull().default(true),
   last_used_at: timestamp("last_used_at", { withTimezone: true }),
@@ -2591,6 +2593,99 @@ export const conciergePending = pgTable("concierge_pending", {
 export const insertConciergePendingSchema = createInsertSchema(conciergePending).omit({ id: true, confirmed_at: true, expires_at: true, updated_at: true });
 export type InsertConciergePending = z.infer<typeof insertConciergePendingSchema>;
 export type ConciergePending = typeof conciergePending.$inferSelect;
+
+export const conciergeInboundMessages = pgTable("concierge_inbound_messages", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  channel:               text("channel").notNull(),
+  provider_event_id:     text("provider_event_id").notNull(),
+  webhook_event_id:      text("webhook_event_id"),
+  sender_email:          text("sender_email").notNull(),
+  recipient_emails:      text("recipient_emails").array().notNull().default([]),
+  subject:               text("subject").notNull().default(""),
+  body_text:             text("body_text").notNull().default(""),
+  received_at:           timestamp("received_at", { withTimezone: true }).notNull(),
+  matched_pending_id:    uuid("matched_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  match_status:          text("match_status").notNull().default("processing"),
+  match_method:          text("match_method"),
+  match_reason:          text("match_reason"),
+  action_needed:         boolean("action_needed").notNull().default(false),
+  review_status:         text("review_status").notNull().default("pending"),
+  reviewed_by:           text("reviewed_by"),
+  reviewed_at:           timestamp("reviewed_at", { withTimezone: true }),
+  provider_metadata:     jsonb("provider_metadata").notNull().default({}),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("concierge_inbound_messages_channel_event_unique").on(t.channel, t.provider_event_id),
+  uniqueIndex("concierge_inbound_messages_webhook_event_unique").on(t.webhook_event_id),
+  index("concierge_inbound_messages_review_idx").on(t.review_status, t.received_at),
+  index("concierge_inbound_messages_pending_idx").on(t.matched_pending_id),
+]);
+
+export const insertConciergeInboundMessageSchema = createInsertSchema(conciergeInboundMessages).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertConciergeInboundMessage = z.infer<typeof insertConciergeInboundMessageSchema>;
+export type ConciergeInboundMessage = typeof conciergeInboundMessages.$inferSelect;
+
+export const conciergeTaskNotifications = pgTable("concierge_task_notifications", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  pending_id:         uuid("pending_id").notNull().references(() => conciergePending.id, { onDelete: "cascade" }),
+  inbound_message_id: uuid("inbound_message_id").notNull().references(() => conciergeInboundMessages.id, { onDelete: "cascade" }),
+  event_type:         text("event_type").notNull(),
+  title:              text("title").notNull(),
+  body:               text("body").notNull(),
+  task_path:          text("task_path").notNull(),
+  delivery_status:    text("delivery_status").notNull().default("ready"),
+  dedupe_key:         text("dedupe_key").notNull(),
+  read_at:            timestamp("read_at", { withTimezone: true }),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("concierge_task_notifications_dedupe_key_unique").on(t.dedupe_key),
+  uniqueIndex("concierge_task_notifications_inbound_message_unique").on(t.inbound_message_id),
+  index("concierge_task_notifications_user_unread_idx")
+    .on(t.user_id, t.created_at.desc())
+    .where(sql`${t.delivery_status} = 'ready' and ${t.read_at} is null`),
+  index("concierge_task_notifications_pending_idx").on(t.pending_id),
+]);
+
+export const insertConciergeTaskNotificationSchema = createInsertSchema(conciergeTaskNotifications).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertConciergeTaskNotification = z.infer<typeof insertConciergeTaskNotificationSchema>;
+export type ConciergeTaskNotification = typeof conciergeTaskNotifications.$inferSelect;
+
+export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  kind:              text("kind").notNull(),
+  entry_payload:     jsonb("entry_payload").notNull().default({}),
+  progress_payload:  jsonb("progress_payload").notNull().default({}),
+  stage:             text("stage").notNull().default("details"),
+  status:            text("status").notNull().default("active"),
+  linked_pending_id: uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  language:          text("language").notNull().default("es"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completed_at:      timestamp("completed_at", { withTimezone: true }),
+  deleted_at:        timestamp("deleted_at", { withTimezone: true }),
+});
+
+export const insertConciergeTaskDraftSchema = createInsertSchema(conciergeTaskDrafts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  completed_at: true,
+  deleted_at: true,
+});
+export type InsertConciergeTaskDraft = z.infer<typeof insertConciergeTaskDraftSchema>;
+export type ConciergeTaskDraftRow = typeof conciergeTaskDrafts.$inferSelect;
 
 export const conciergeChannelReadinessSettings = pgTable("concierge_channel_readiness_settings", {
   channel:            text("channel").primaryKey(),
@@ -2878,9 +2973,23 @@ export const insertHomePlanCardSchema = createInsertSchema(homePlanCards).omit({
 export type InsertHomePlanCard = z.infer<typeof insertHomePlanCardSchema>;
 export type HomePlanCardRow = typeof homePlanCards.$inferSelect;
 
+export const homeFastHelpImpressions = pgTable("home_fast_help_impressions", {
+  id:              uuid("id").primaryKey(),
+  user_id:         uuid("user_id").notNull(),
+  action_ids:      text("action_ids").array().notNull(),
+  ranking_version: text("ranking_version").notNull(),
+  shown_at:        timestamp("shown_at", { withTimezone: true }).notNull(),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("home_fast_help_impressions_id_user_unique").on(t.id, t.user_id),
+  index("home_fast_help_impressions_user_shown_idx").on(t.user_id, t.shown_at),
+  index("home_fast_help_impressions_version_shown_idx").on(t.ranking_version, t.shown_at),
+]);
+
 export const homeFastHelpJourneys = pgTable("home_fast_help_journeys", {
   id:           uuid("id").primaryKey(),
   user_id:      uuid("user_id").notNull(),
+  impression_id: uuid("impression_id"),
   action_id:    text("action_id").notNull(),
   status:       text("status").notNull(),
   started_at:   timestamp("started_at", { withTimezone: true }).notNull(),
@@ -2891,6 +3000,12 @@ export const homeFastHelpJourneys = pgTable("home_fast_help_journeys", {
 }, (t) => [
   index("home_fast_help_journeys_user_updated_idx").on(t.user_id, t.updated_at),
   index("home_fast_help_journeys_user_action_updated_idx").on(t.user_id, t.action_id, t.updated_at),
+  index("home_fast_help_journeys_impression_idx").on(t.impression_id),
+  foreignKey({
+    columns: [t.impression_id, t.user_id],
+    foreignColumns: [homeFastHelpImpressions.id, homeFastHelpImpressions.user_id],
+    name: "home_fast_help_journeys_impression_id_fkey",
+  }),
 ]);
 
 export const homeFastHelpJourneyEvents = pgTable("home_fast_help_journey_events", {
@@ -2908,6 +3023,8 @@ export const homeFastHelpJourneyEvents = pgTable("home_fast_help_journey_events"
 
 export const insertHomeFastHelpJourneySchema = createInsertSchema(homeFastHelpJourneys).omit({ created_at: true, synced_at: true });
 export const insertHomeFastHelpJourneyEventSchema = createInsertSchema(homeFastHelpJourneyEvents).omit({ created_at: true });
+export const insertHomeFastHelpImpressionSchema = createInsertSchema(homeFastHelpImpressions).omit({ created_at: true });
+export type HomeFastHelpImpressionRow = typeof homeFastHelpImpressions.$inferSelect;
 export type HomeFastHelpJourneyRow = typeof homeFastHelpJourneys.$inferSelect;
 export type HomeFastHelpJourneyEventRow = typeof homeFastHelpJourneyEvents.$inferSelect;
 
@@ -3485,6 +3602,9 @@ export const schema = {
   consentAuditLogs,
   userProviders,
   conciergePending,
+  conciergeInboundMessages,
+  conciergeTaskNotifications,
+  conciergeTaskDrafts,
   conciergeSessions,
   appointmentRequests,
   appointmentProviderOptions,

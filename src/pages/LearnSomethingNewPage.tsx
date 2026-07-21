@@ -30,6 +30,8 @@ import { apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTtsReadout, type TtsSegment } from "@/hooks/useVyvaVoice";
 import { useLanguage } from "@/i18n";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type LearningCategory = {
   id: string;
@@ -989,8 +991,25 @@ export default function LearnSomethingNewPage() {
     },
     onSuccess: (_payload, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["/api/learning/today"] });
-      if (variables.eventType === "completed") toast({ title: "Lesson completed", description: "Nice. Tomorrow's snippet will keep the thread going." });
-      if (variables.eventType === "saved") toast({ title: "Saved for later", description: "This lesson will stay marked for another look." });
+      if (variables.eventType === "completed") {
+        const receipt = buildWorkflowReceiptMoment({
+          workflowReference: APP_WORKFLOW_REFERENCES.learningTodayLesson,
+          status: "done",
+          subject: variables.item.lesson?.title ?? "today's lesson",
+          capturedSummary: "Nice. Tomorrow's snippet will keep the thread going.",
+          locale: language === "es" ? "es" : "en",
+        });
+        toast({ title: receipt.title, description: receipt.message });
+      }
+      if (variables.eventType === "saved") {
+        const receipt = buildWorkflowReceiptMoment({
+          workflowReference: APP_WORKFLOW_REFERENCES.learningSaveForLater,
+          status: "saved",
+          capturedSummary: "This lesson will stay marked for another look.",
+          locale: language === "es" ? "es" : "en",
+        });
+        toast({ title: receipt.title, description: receipt.message });
+      }
       if (variables.eventType === "skipped") toast({ title: "Next lesson", description: "We moved this one aside." });
     },
     onError: (error) => {

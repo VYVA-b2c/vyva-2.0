@@ -1,5 +1,6 @@
 import { sendOperationalEmail, type SentEmailResult } from "../lib/email.js";
 import { resolveEmailFromAddress } from "../lib/emailSenderConfig.js";
+import { conciergeReplyAddressForPendingTask } from "./conciergeInboundEmailRouting.js";
 
 const OWNED_EMAIL_ADAPTER_FLAGS = [
   "CONCIERGE_EMAIL_OWNED_ADAPTER_ENABLED",
@@ -148,6 +149,7 @@ export async function sendOwnedConciergeEmailAdapter(input: {
     subject: email.subject,
     text: email.text,
     html: email.html,
+    replyTo: conciergeReplyAddressForPendingTask(input.pendingId),
     debugLabel: "Concierge pilot",
     allowDevelopmentLog: false,
   });

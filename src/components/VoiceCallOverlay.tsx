@@ -7,6 +7,7 @@ import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
 import { emitSosSheetOpen } from "@/lib/sosEvents";
+import { VoiceCanvasScene, type VoiceCanvasViewModel } from "@/components/voice-canvas";
 
 interface VoiceCallOverlayProps {
   isSpeaking: boolean;
@@ -23,6 +24,11 @@ interface VoiceCallOverlayProps {
   voiceDiagnostics?: VoiceDiagnosticStep[];
   onRetry?: () => void;
   onType?: () => void;
+  canvasViewModel?: VoiceCanvasViewModel | null;
+  onCanvasChoice?: (choiceId: string) => void;
+  onCanvasPrimary?: (value?: string) => void;
+  onCanvasSecondary?: () => void;
+  onCanvasFile?: (file: File | null) => void;
 }
 
 function orbState(isSpeaking: boolean, isConnecting: boolean): ZamoraOrbState {
@@ -216,6 +222,11 @@ const VoiceCallOverlay = ({
   voiceDiagnostics,
   onRetry,
   onType,
+  canvasViewModel,
+  onCanvasChoice,
+  onCanvasPrimary,
+  onCanvasSecondary,
+  onCanvasFile,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
@@ -226,6 +237,7 @@ const VoiceCallOverlay = ({
   const latestVyvaText = latestVyvaEntry?.text.trim() ?? "";
   const vyvaCaptionChunks = useMemo(() => splitTranscriptIntoCaptionChunks(latestVyvaText), [latestVyvaText]);
   const [captionChunkIndex, setCaptionChunkIndex] = useState(0);
+  const [canvasTextValue, setCanvasTextValue] = useState(canvasViewModel?.textEntry?.value ?? "");
   const activeCaptionIndex = vyvaCaptionChunks.length > 0
     ? Math.min(captionChunkIndex, vyvaCaptionChunks.length - 1)
     : 0;
@@ -234,6 +246,10 @@ const VoiceCallOverlay = ({
   useEffect(() => {
     setCaptionChunkIndex(0);
   }, [latestVyvaText]);
+
+  useEffect(() => {
+    setCanvasTextValue(canvasViewModel?.textEntry?.value ?? "");
+  }, [canvasViewModel?.sceneId, canvasViewModel?.textEntry?.value]);
 
   useEffect(() => {
     if (vyvaCaptionChunks.length <= 1 || activeCaptionIndex >= vyvaCaptionChunks.length - 1) return;
@@ -366,6 +382,14 @@ const VoiceCallOverlay = ({
   const controlColumnCount = hasConnectionError
     ? [Boolean(onRetry), Boolean(onMinimize), true].filter(Boolean).length
     : [canToggleMic, true, canType].filter(Boolean).length;
+  const visibleCanvasViewModel = canvasViewModel && !hasConnectionError
+    ? {
+        ...canvasViewModel,
+        ...(canvasViewModel.textEntry
+          ? { textEntry: { ...canvasViewModel.textEntry, value: canvasTextValue } }
+          : {}),
+      }
+    : null;
 
   const handleSos = () => {
     emitSosSheetOpen();
@@ -515,12 +539,25 @@ const VoiceCallOverlay = ({
           width: "100%",
           gap: 18,
           boxSizing: "border-box",
-          paddingTop: "clamp(30px, 8vh, 86px)",
-          paddingBottom: "clamp(310px, 39vh, 382px)",
+          paddingTop: visibleCanvasViewModel ? "clamp(18px, 4vh, 42px)" : "clamp(30px, 8vh, 86px)",
+          paddingBottom: visibleCanvasViewModel ? "clamp(250px, 31vh, 310px)" : "clamp(310px, 39vh, 382px)",
           overflowY: "auto",
           scrollbarWidth: "none",
         }}
       >
+        {visibleCanvasViewModel ? (
+          <div data-testid="voice-canvas-surface" style={{ width: "min(100%, 760px)" }}>
+            <VoiceCanvasScene
+              viewModel={visibleCanvasViewModel}
+              onChoice={onCanvasChoice}
+              onPrimary={() => onCanvasPrimary?.(canvasTextValue)}
+              onSecondary={onCanvasSecondary}
+              onTextChange={setCanvasTextValue}
+              onFileChange={onCanvasFile}
+            />
+          </div>
+        ) : (
+          <>
         <div
           data-testid="voice-mode-orb"
           aria-hidden="true"
@@ -802,6 +839,8 @@ const VoiceCallOverlay = ({
               {activeAction.summary}
             </p>
           </div>
+        )}
+          </>
         )}
       </div>
 

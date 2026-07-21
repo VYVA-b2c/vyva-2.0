@@ -46,14 +46,23 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
 import type { ShowVyvaFollowUpAction } from "@/components/ShowVyvaFollowUpPanel";
+import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
+import {
+  prepareShowVyvaEvidenceFile,
+  reviewShowVyvaVisualEvidence,
+  type ShowVyvaPreparedEvidence,
+} from "@/lib/showVyvaEvidence";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
@@ -73,6 +82,9 @@ import {
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromHealthResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type WoundScan = {
   id: string;
@@ -111,6 +123,7 @@ type ShowVyvaFileReviewInput = {
   source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
   fileName?: string | null;
   mimeType?: string | null;
+  question?: string;
 };
 
 type TriageReport = {
@@ -669,9 +682,11 @@ export function VisualHealthScanCardContent({
 }: {
   t: TFunction;
   analyzing: boolean;
-  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId) => void;
+  onScanSource: (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">, useCaseId: ShowVyvaUseCaseId, question: string) => void;
   onPasteReview?: (payload: ShowVyvaPastePayload) => void;
 }) {
+  const navigate = useNavigate();
+
   return (
     <>
       <div className="px-[18px] py-[18px]">
@@ -685,8 +700,12 @@ export function VisualHealthScanCardContent({
             SHOW_VYVA_USE_CASE_IDS.documentHelp,
           ]}
           busy={analyzing}
-          onChooseFileSource={(source, useCase) => onScanSource(source, useCase.id)}
+          onChooseFileSource={(source, useCase, question) => onScanSource(source, useCase.id, question)}
           onPaste={onPasteReview ? (payload) => onPasteReview(payload) : undefined}
+        />
+        <ShowVyvaReviewHistory
+          className="mt-[14px]"
+          onResume={(item) => navigate(item.resumeRoute)}
         />
       </div>
       <div className="flex flex-wrap gap-2 px-[18px] pb-[16px]">
@@ -1536,7 +1555,7 @@ const ScanFullScreenModal = ({
       </div>
 
       <div className="flex-1 flex items-center justify-center px-[18px] min-h-0" onClick={(e) => e.stopPropagation()}>
-        {scan.image_data && (
+        {scan.image_data ? (
           <img
             data-testid="img-modal-scan-full"
             src={scan.image_data}
@@ -1544,6 +1563,16 @@ const ScanFullScreenModal = ({
             className="max-w-full max-h-full rounded-[16px] object-contain"
             style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}
           />
+        ) : (
+          <div
+            data-testid="scan-image-not-retained"
+            className="flex flex-col items-center gap-3 rounded-[18px] bg-white/10 px-8 py-7 text-center text-white"
+          >
+            <ShieldCheck size={32} aria-hidden="true" />
+            <p className="font-body text-[14px] font-semibold">
+              {t("showVyva.capture.imageNotRetained", "Image not retained")}
+            </p>
+          </div>
         )}
       </div>
 
@@ -1599,7 +1628,10 @@ const HealthScreen = () => {
   const [woundAnalyzing,   setWoundAnalyzing]   = useState(false);
   const [woundResult,      setWoundResult]      = useState<VisualScanResult | null>(null);
   const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
+  const [showVyvaEvidenceReview, setShowVyvaEvidenceReview] = useState<ShowVyvaReviewContract | null>(null);
   const [visualScanCaptureSource, setVisualScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [visualCaptureDraft, setVisualCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
+  const [visualCapturePreparing, setVisualCapturePreparing] = useState(false);
   const [visualScanReviewInput, setVisualScanReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
     source: "camera",
@@ -1832,7 +1864,52 @@ const HealthScreen = () => {
     book_ride: Car,
     add_doctor_contact: UserSearch,
   };
+  const hasDoctorContact = Boolean(profileContacts?.gpPhone || profile?.gpPhone || profileContacts?.gpEmail || profile?.gpEmail);
+  const openDoctorProviderSetup = () => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        setupFocus: "doctor_clinic",
+        returnTo: "/health/doctor",
+        notice: t("health.seeDoctor.providerSetupNotice", "Add your usual doctor or clinic. VYVA will bring you back to Health afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
+      },
+    });
+  };
+  const findDoctorOptions = () => {
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: "appointment",
+          message: t(
+            "health.seeDoctor.findOptionsPrefill",
+            "Help me find doctor or clinic options nearby. Compare proximity, availability, reputation, accessibility, and coverage. Ask me to confirm before contacting anyone.",
+          ),
+          source: "health_missing_provider",
+        },
+      },
+    });
+  };
+  const askHelperForDoctorSetup = () => {
+    navigate("/onboarding/profile/care-team", {
+      state: {
+        returnTo: "/health/doctor",
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          setupFocus: "doctor_clinic",
+          setupReason: t("health.seeDoctor.providerHelperReason", "Ask someone you trust to help save your usual doctor or clinic."),
+        },
+      },
+    });
+  };
   const openSeeDoctorAction = (action: HealthDoctorQuickAction) => {
+    if (action.kind === "add_doctor_contact") {
+      openDoctorProviderSetup();
+      return;
+    }
     if (action.to) {
       navigate(action.to, action.state ? { state: action.state } : undefined);
     }
@@ -1926,6 +2003,12 @@ const HealthScreen = () => {
     action: ShowVyvaFollowUpAction,
     contract: ShowVyvaReviewContract,
   ) => {
+    const preparedReceipt = buildWorkflowReceiptMoment({
+      workflowReference: APP_WORKFLOW_REFERENCES.visualScan,
+      status: "prepared",
+      capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+      locale: activeLanguage(appLanguage) === "es" ? "es" : "en",
+    });
     const plan = buildShowVyvaActionExecutionPlan({
       contract,
       action,
@@ -1943,8 +2026,9 @@ const HealthScreen = () => {
 
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
+        markShowVyvaReviewHistoryActionSaved(contract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
         navigate(plan.targetRoute);
       })
       .catch(() => {
@@ -2210,39 +2294,37 @@ const HealthScreen = () => {
     }
   };
 
-  const compressImage = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const MAX = 1024;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
-          else { width = Math.round((width * MAX) / height); height = MAX; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("canvas context unavailable"));
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
-      };
-      img.onerror = reject;
-      img.src = objectUrl;
-    });
-
   const handleWoundSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    setVisualScanReviewInput((current) => ({
-      ...current,
+    const reviewInput = {
+      ...visualScanReviewInput,
       fileName: file.name,
       mimeType: file.type,
-    }));
+    };
+    setVisualScanReviewInput(reviewInput);
+    setVisualCapturePreparing(true);
+
+    prepareShowVyvaEvidenceFile(file)
+      .then((evidence) => setVisualCaptureDraft(evidence))
+      .catch((error) => {
+        console.error("[show-vyva-capture] error:", error);
+        toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
+      })
+      .finally(() => setVisualCapturePreparing(false));
+  };
+
+  const submitWoundEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
+    const reviewInput = {
+      ...visualScanReviewInput,
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+    };
+    setVisualScanReviewInput(reviewInput);
+    setVisualCaptureDraft(null);
     setShowVyvaPasteReview(null);
+    setShowVyvaEvidenceReview(null);
     setWoundResult(null);
     setWoundAnalyzing(true);
 
@@ -2257,31 +2339,44 @@ const HealthScreen = () => {
       advice: t("health.scanWound.errorAdvice"),
     };
 
-    compressImage(file)
-      .then(async (dataUrl) => {
-        const res = await apiFetch("/api/wound-scan", {
-          method: "POST",
-          body: JSON.stringify({ image: dataUrl, language: appLanguage }),
+    try {
+      if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto) {
+        const contract = await reviewShowVyvaVisualEvidence({
+          image: evidence.dataUrl,
+          language: appLanguage,
+          useCaseId: reviewInput.useCaseId,
+          source: reviewInput.source,
+          question: reviewInput.question,
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as VisualScanResult;
-        if (data.isFallback) {
-          setWoundResult(errorFallback);
-        } else {
-          setWoundResult(data);
-          queryClient.invalidateQueries({ queryKey: ["/api/wound-scan/history"] });
-        }
-      })
-      .catch((err) => {
-        console.error("[wound-scan] error:", err);
+        setShowVyvaEvidenceReview(contract);
+        return;
+      }
+      const res = await apiFetch("/api/wound-scan", {
+        method: "POST",
+        body: JSON.stringify({ image: evidence.dataUrl, language: appLanguage, question: reviewInput.question }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as VisualScanResult;
+      if (data.isFallback) {
         setWoundResult(errorFallback);
-      })
-      .finally(() => setWoundAnalyzing(false));
+      } else {
+        setWoundResult(data);
+        queryClient.invalidateQueries({ queryKey: ["/api/wound-scan/history"] });
+      }
+    } catch (err) {
+      console.error("[wound-scan] error:", err);
+      setWoundResult(errorFallback);
+    } finally {
+      setWoundAnalyzing(false);
+    }
   };
 
   const openVisualScanFilePicker = (
     source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
     useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
+    question = "",
   ) => {
     setVisualScanCaptureSource(source);
     setVisualScanReviewInput({
@@ -2289,12 +2384,14 @@ const HealthScreen = () => {
       source,
       fileName: null,
       mimeType: null,
+      question,
     });
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const openShowVyvaConciergeReview = (payload: ShowVyvaPastePayload) => {
     setWoundResult(null);
+    setShowVyvaEvidenceReview(null);
     setShowVyvaPasteReview(payload);
     setVisualScanOpen(true);
   };
@@ -3462,7 +3559,7 @@ const HealthScreen = () => {
           >
             <VisualHealthScanCardContent
               t={t}
-              analyzing={woundAnalyzing}
+              analyzing={woundAnalyzing || visualCapturePreparing}
               onScanSource={openVisualScanFilePicker}
               onPasteReview={openShowVyvaConciergeReview}
             />
@@ -3474,6 +3571,27 @@ const HealthScreen = () => {
                   testIdSuffix="health-pasted"
                   onActionSelect={handleVisualScanFollowUpSelect}
                   onClose={() => setShowVyvaPasteReview(null)}
+                />
+              </div>
+            )}
+
+            {showVyvaEvidenceReview && !woundAnalyzing && (
+              <div className="mx-[18px]">
+                <ShowVyvaResultCard
+                  contract={showVyvaEvidenceReview}
+                  testIdSuffix="health-visual-evidence"
+                  headerAction={(
+                    <button
+                      type="button"
+                      data-testid="button-close-health-visual-evidence"
+                      onClick={() => setShowVyvaEvidenceReview(null)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                      aria-label={t("showVyva.closeReview", "Close review")}
+                    >
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                  onActionSelect={handleVisualScanFollowUpSelect}
                 />
               </div>
             )}
@@ -3790,8 +3908,24 @@ const HealthScreen = () => {
                   <p className="mt-3 font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0A7C4E]">
                     {t("health.seeDoctor.actions.title", "Doctor access")}
                   </p>
+                  {!hasDoctorContact ? (
+                    <ProviderSetupFallbackPanel
+                      testId="panel-health-doctor-setup-fallback"
+                      workflowReference={APP_WORKFLOW_REFERENCES.doctorNextStep}
+                      returnTo="/health/doctor"
+                      title={t("health.seeDoctor.providerFallbackTitle", "Need a doctor or clinic first?")}
+                      description={t("health.seeDoctor.providerFallbackDescription", "Save your usual contact, ask VYVA to find options, or let a trusted helper set it up.")}
+                      addLabel={t("health.seeDoctor.providerFallbackAdd", "Add my usual doctor")}
+                      findLabel={t("health.seeDoctor.providerFallbackFind", "Find nearby options")}
+                      helperLabel={t("health.seeDoctor.providerFallbackHelper", "Ask family/caregiver")}
+                      confirmation={t("health.seeDoctor.providerFallbackConfirm", "VYVA still asks before calling, booking, or sharing health details.")}
+                      onAddProvider={openDoctorProviderSetup}
+                      onFindOptions={findDoctorOptions}
+                      onAskHelper={askHelperForDoctorSetup}
+                    />
+                  ) : null}
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {seeDoctorActions.map((action) => {
+                    {seeDoctorActions.filter((action) => hasDoctorContact || action.kind !== "add_doctor_contact").map((action) => {
                       const Icon = seeDoctorActionIcons[action.kind];
                       const className = "vyva-tap flex min-h-[74px] items-center gap-3 rounded-[16px] border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-3 text-left transition active:scale-[0.98]";
                       const content = (
@@ -3843,7 +3977,7 @@ const HealthScreen = () => {
             >
               <VisualHealthScanCardContent
                 t={t}
-                analyzing={woundAnalyzing}
+                analyzing={woundAnalyzing || visualCapturePreparing}
                 onScanSource={openVisualScanFilePicker}
                 onPasteReview={openShowVyvaConciergeReview}
               />
@@ -3855,6 +3989,26 @@ const HealthScreen = () => {
                     testIdSuffix="health-pasted"
                     onActionSelect={handleVisualScanFollowUpSelect}
                     onClose={() => setShowVyvaPasteReview(null)}
+                  />
+                </div>
+              )}
+
+              {showVyvaEvidenceReview && !woundAnalyzing && (
+                <div className="mx-[18px]">
+                  <ShowVyvaResultCard
+                    contract={showVyvaEvidenceReview}
+                    testIdSuffix="health-visual-evidence-mobile"
+                    headerAction={(
+                      <button
+                        type="button"
+                        onClick={() => setShowVyvaEvidenceReview(null)}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                        aria-label={t("showVyva.closeReview", "Close review")}
+                      >
+                        <X size={18} aria-hidden="true" />
+                      </button>
+                    )}
+                    onActionSelect={handleVisualScanFollowUpSelect}
                   />
                 </div>
               )}
@@ -4338,12 +4492,26 @@ const HealthScreen = () => {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={visualScanCaptureSource === "camera" ? "image/*" : "image/*,application/pdf,.pdf"}
         capture={visualScanCaptureSource === "camera" ? "environment" : undefined}
         className="hidden"
         onChange={handleWoundSelect}
         data-testid="input-wound-photo"
       />
+
+      {visualCaptureDraft ? (
+        <ShowVyvaCaptureCoach
+          evidence={visualCaptureDraft}
+          useCaseId={visualScanReviewInput.useCaseId}
+          busy={woundAnalyzing}
+          onUse={submitWoundEvidence}
+          onRetake={() => {
+            setVisualCaptureDraft(null);
+            window.setTimeout(() => fileInputRef.current?.click(), 0);
+          }}
+          onClose={() => setVisualCaptureDraft(null)}
+        />
+      ) : null}
 
       {/* Full-screen visual scan image modal */}
       {fullScreenScan && (

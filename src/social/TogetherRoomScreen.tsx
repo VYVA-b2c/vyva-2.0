@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import StoryRoomHandoffCard, { StoryRoomReplyLoopCard, type StoryRoomHandoffNote } from "./StoryRoomHandoffCard";
@@ -7804,6 +7806,17 @@ export default function TogetherRoomScreen({
     setStatusMessage("");
   };
 
+  const planPostReceiptMessage = (message: string) => {
+    const receipt = buildWorkflowReceiptMoment({
+      workflowReference: APP_WORKFLOW_REFERENCES.togetherSharePlan,
+      status: "saved",
+      capturedSummary: message,
+      subject: proposalKind === "plan" ? copy.sharePlanTitle : undefined,
+      locale: language === "es" ? "es" : "en",
+    });
+    return `${receipt.title}. ${receipt.message}`;
+  };
+
   const submitProposal = async (
     title: string,
     details: string,
@@ -7858,7 +7871,7 @@ export default function TogetherRoomScreen({
           return;
         }
         resetProposalComposer();
-        setStatusMessage(withQuietPauseClearedNotice(copy.sent, wasQuietPaused));
+        setStatusMessage(withQuietPauseClearedNotice(planPostReceiptMessage(copy.sent), wasQuietPaused));
         return;
       }
       applyServerPulse(result.pulse);
@@ -7866,7 +7879,7 @@ export default function TogetherRoomScreen({
       const nextStatusMessage = result.proposal?.needsReview || result.proposal?.status === "pending_review"
         ? copy.reviewPending
         : copy.sent;
-      setStatusMessage(withQuietPauseClearedNotice(nextStatusMessage, wasQuietPaused));
+      setStatusMessage(withQuietPauseClearedNotice(planPostReceiptMessage(nextStatusMessage), wasQuietPaused));
     } catch {
       if (wasQuietPaused) {
         setIsQuietPaused(true);

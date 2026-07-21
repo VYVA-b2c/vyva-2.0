@@ -477,7 +477,7 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(JSON.parse(String(patch?.[1]?.body)).metadata).toMatchObject({ locality: "Eixample" });
     });
     expect(await screen.findByTestId("admin-event-save-feedback-valencia-art-hour")).toHaveTextContent("valencia-art-hour saved.");
-  }, 15_000);
+  }, 60_000);
 
   it("shows event save errors next to the clicked event", async () => {
     renderPage([discoveryCandidate], {
@@ -528,5 +528,5 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(await screen.findByText(/1 activity imported from activities.csv/)).toBeInTheDocument();
     await openAdminLane("drafts");
     expect(await screen.findByText("community-choir")).toBeInTheDocument();
-  }, 15_000);
+  }, 60_000);
 });

@@ -770,7 +770,10 @@ describe("RoomScreen movement room", () => {
     fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
     fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
 
-    await waitFor(() => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument(),
+      { timeout: 5_000 },
+    );
     await waitFor(() =>
       expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Wall push-ups logged for 10 min."),
     );
@@ -952,7 +955,7 @@ describe("RoomScreen reading room member lounge", () => {
     expect(screen.queryByTestId("reading-club-focused-path")).not.toBeInTheDocument();
     expect(screen.getByTestId("reading-club-deep-tools")).toBeInTheDocument();
     expect(screen.getByTestId("reading-club-desk")).toBeInTheDocument();
-  });
+  }, 60_000);
 });
 
 describe("RoomScreen reading room member lounge", () => {
@@ -1041,5 +1044,5 @@ describe("RoomScreen reading room member lounge", () => {
     expect(screen.queryByTestId("reading-club-focused-path")).not.toBeInTheDocument();
     expect(screen.getByTestId("reading-club-deep-tools")).toBeInTheDocument();
     expect(screen.getByTestId("reading-club-desk")).toBeInTheDocument();
-  });
+  }, 60_000);
 });

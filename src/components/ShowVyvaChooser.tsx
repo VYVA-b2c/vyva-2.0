@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, ClipboardPaste, FileUp, Link2, ShieldCheck } from "lucide-react";
+import { Camera, ClipboardPaste, FileUp, Focus, Link2, MessageCircleQuestion, ShieldCheck } from "lucide-react";
 import {
   SHOW_VYVA_USE_CASES,
   SHOW_VYVA_USE_CASE_IDS,
@@ -19,7 +19,7 @@ type ShowVyvaChooserProps = {
   busy?: boolean;
   title?: string;
   subtitle?: string;
-  onChooseFileSource: (source: FileCaptureSource, useCase: ShowVyvaUseCase) => void;
+  onChooseFileSource: (source: FileCaptureSource, useCase: ShowVyvaUseCase, question: string) => void;
   onPaste?: (payload: ShowVyvaPastePayload, useCase: ShowVyvaUseCase) => void;
 };
 
@@ -52,6 +52,7 @@ export default function ShowVyvaChooser({
   const [selectedUseCaseId, setSelectedUseCaseId] = useState<ShowVyvaUseCaseId>(safeDefault);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteValue, setPasteValue] = useState("");
+  const [question, setQuestion] = useState("");
   const selectedUseCase = useCases.find((item) => item.id === selectedUseCaseId) ?? useCases[0] ?? SHOW_VYVA_USE_CASES[0];
   const canPaste = Boolean(onPaste) && (
     selectedUseCase.acceptedSources.includes("paste_text") ||
@@ -62,7 +63,7 @@ export default function ShowVyvaChooser({
 
   const handleFileSource = (source: FileCaptureSource) => {
     if (!selectedUseCase.acceptedSources.includes(source)) return;
-    onChooseFileSource(source, selectedUseCase);
+    onChooseFileSource(source, selectedUseCase, question.trim());
   };
 
   const handlePasteSubmit = () => {
@@ -70,7 +71,7 @@ export default function ShowVyvaChooser({
     if (!value || !onPaste) return;
     const source = inferShowVyvaPasteSource(value);
     if (!selectedUseCase.acceptedSources.includes(source)) return;
-    onPaste({ useCaseId: selectedUseCase.id, source, value }, selectedUseCase);
+    onPaste({ useCaseId: selectedUseCase.id, source, value, question: question.trim() || undefined }, selectedUseCase);
     setPasteValue("");
     setPasteOpen(false);
   };
@@ -122,6 +123,26 @@ export default function ShowVyvaChooser({
       <p data-testid="text-show-vyva-prompt" className="mt-3 font-body text-[15px] font-extrabold leading-snug text-vyva-text-1">
         {t(`showVyva.prompt.${selectedUseCase.id}`, selectedUseCase.prompt)}
       </p>
+
+      <div className="mt-3 flex items-start gap-2 rounded-[14px] border border-[#D8CFF7] bg-[#F8F6FF] px-3 py-2.5">
+        <Focus size={18} className="mt-0.5 flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+        <p data-testid="text-show-vyva-capture-guidance" className="font-body text-[13px] font-bold leading-snug text-[#4C3565]">
+          {t(`showVyva.capture.instruction.${selectedUseCase.id}`, selectedUseCase.captureInstruction)}
+        </p>
+      </div>
+
+      <label className="mt-3 flex min-h-[50px] items-center gap-2 rounded-[15px] border border-[#EDE5DB] bg-[#FFFCF8] px-3 focus-within:border-vyva-purple focus-within:ring-2 focus-within:ring-[#EDE9FE]">
+        <MessageCircleQuestion size={18} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+        <span className="sr-only">{t("showVyva.questionLabel", "What would you like to know?")}</span>
+        <input
+          data-testid="input-show-vyva-question"
+          value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          className="min-w-0 flex-1 bg-transparent py-3 font-body text-[14px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#8A7A73]"
+          placeholder={t("showVyva.questionPlaceholder", "What would you like to know? Optional")}
+          maxLength={240}
+        />
+      </label>
 
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <button

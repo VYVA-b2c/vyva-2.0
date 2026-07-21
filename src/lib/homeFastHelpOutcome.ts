@@ -26,6 +26,7 @@ export type HomeFastHelpOutcomeEvent = {
 export type HomeFastHelpJourney = {
   id: string;
   actionId: ContextualHomeFastHelpActionId;
+  impressionId: string | null;
   destinationPath: string;
   destinationState: Record<string, unknown> | null;
   startedAt: string;
@@ -159,6 +160,9 @@ function coerceJourney(value: unknown): HomeFastHelpJourney | null {
   return {
     id: journeyId,
     actionId: value.actionId,
+    impressionId: typeof value.impressionId === "string" && UUID_PATTERN.test(value.impressionId)
+      ? value.impressionId
+      : null,
     destinationPath: value.destinationPath,
     destinationState: isRecord(value.destinationState) ? value.destinationState : null,
     startedAt: value.startedAt,
@@ -277,12 +281,14 @@ export function startHomeFastHelpJourney({
   destinationPath,
   destinationState,
   profileId,
+  impressionId,
   occurredAtMs = Date.now(),
 }: {
   actionId: ContextualHomeFastHelpActionId;
   destinationPath: string;
   destinationState?: unknown;
   profileId?: string | null;
+  impressionId?: string | null;
   occurredAtMs?: number;
 }) {
   const occurredAt = new Date(occurredAtMs).toISOString();
@@ -290,6 +296,7 @@ export function startHomeFastHelpJourney({
   const journey: HomeFastHelpJourney = {
     id: createJourneyId(),
     actionId,
+    impressionId: impressionId && UUID_PATTERN.test(impressionId) ? impressionId : null,
     destinationPath,
     destinationState: isRecord(destinationState) ? destinationState : null,
     startedAt: occurredAt,
@@ -484,6 +491,7 @@ function toSyncedJourney(journey: HomeFastHelpJourney): HomeFastHelpSyncedJourne
   return {
     id: journey.id,
     actionId: journey.actionId,
+    impressionId: journey.impressionId,
     status: journey.status,
     startedAt: journey.startedAt,
     updatedAt: journey.updatedAt,
@@ -513,6 +521,7 @@ export function mergeSyncedHomeFastHelpJourneys(
     mergedById.set(remote.id, {
       id: merged.id,
       actionId: merged.actionId,
+      impressionId: local?.impressionId ?? merged.impressionId ?? null,
       destinationPath: local?.destinationPath ?? homeFastHelpDestinationPath(merged.actionId),
       destinationState: local?.destinationState ?? null,
       startedAt: merged.startedAt,

@@ -1,8 +1,11 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CheckCircle2, HelpCircle, ShieldCheck, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, HelpCircle, SearchCheck, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ShowVyvaReviewContract, ShowVyvaReviewRiskLevel } from "../../shared/showVyvaReviewContract";
 import type { ShowVyvaFollowUpAction } from "../../shared/showVyvaFollowUp";
+import { buildShowVyvaDecisionHandoff, type ShowVyvaDecisionTone } from "../../shared/showVyvaDecisionHandoff";
+import { buildShowVyvaConfidenceEvidence, type ShowVyvaConfidenceEvidenceTone } from "../../shared/showVyvaConfidenceEvidence";
+import { upsertShowVyvaReviewHistory } from "@/lib/showVyvaReviewHistory";
 import ShowVyvaFollowUpPanel from "./ShowVyvaFollowUpPanel";
 
 type ShowVyvaResultCardProps = {
@@ -55,6 +58,19 @@ const RISK_TONES: Record<ShowVyvaReviewRiskLevel, {
   },
 };
 
+const DECISION_TONES: Record<ShowVyvaDecisionTone, { bg: string; border: string; text: string }> = {
+  safe: { bg: "#F0FDFA", border: "#99F6E4", text: "#0F766E" },
+  care: { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" },
+  warn: { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B" },
+  neutral: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569" },
+};
+
+const CONFIDENCE_EVIDENCE_TONES: Record<ShowVyvaConfidenceEvidenceTone, { bg: string; border: string; text: string; chip: string }> = {
+  clear_risk: { bg: "#FEF2F2", border: "#FECACA", text: "#991B1B", chip: "#FEE2E2" },
+  needs_checking: { bg: "#FFFBEB", border: "#FDE68A", text: "#92400E", chip: "#FEF3C7" },
+  not_enough_information: { bg: "#F8FAFC", border: "#E2E8F0", text: "#475569", chip: "#E2E8F0" },
+};
+
 function fallbackRiskLabel(riskLevel: ShowVyvaReviewRiskLevel): string {
   if (riskLevel === "low") return "Low";
   if (riskLevel === "medium") return "Needs care";
@@ -104,16 +120,33 @@ export default function ShowVyvaResultCard({
   onActionSelect,
 }: ShowVyvaResultCardProps) {
   const { t } = useTranslation();
+  const [explainOpen, setExplainOpen] = useState(false);
   const tone = RISK_TONES[contract.riskLevel];
+  const handoff = buildShowVyvaDecisionHandoff(contract);
+  const handoffTone = DECISION_TONES[handoff.tone];
+  const confidenceEvidence = buildShowVyvaConfidenceEvidence(contract);
+  const confidenceEvidenceTone = CONFIDENCE_EVIDENCE_TONES[confidenceEvidence.tone];
   const RiskIcon = tone.icon;
   const inputLabel = t(`showVyva.contract.input.${contract.inputType}`, fallbackInputLabel(contract.inputType));
   const riskLabel = t(`showVyva.contract.risk.${contract.riskLevel}`, fallbackRiskLabel(contract.riskLevel));
   const confidenceLabel = t(`showVyva.contract.confidence.${contract.confidenceLevel}`, contract.confidenceLevel);
   const reviewedValue = compactReviewedValue(contract.reviewedValue ?? contract.fileName);
   const defaultReviewedLabel = reviewedValue ? `${inputLabel}: ${reviewedValue}` : inputLabel;
-  const noticed = contract.noticed.length ? contract.noticed : [contract.concernSummary];
+  const verifiedObservations = contract.verifiedObservations?.length
+    ? contract.verifiedObservations
+    : contract.noticed.length
+      ? contract.noticed
+      : [contract.concernSummary];
+  const warningSigns = contract.warningSigns ?? [];
+  const unknowns = contract.unknowns?.length
+    ? contract.unknowns
+    : [t("showVyva.contract.unknownFallback", "VYVA cannot confirm details that are not visible in this item.")];
   const nextSteps = contract.safeNextSteps.length ? contract.safeNextSteps : [contract.concernSummary];
-  const followUpActions = actions ?? contract.followUpActions;
+  const followUpActions = actions ?? handoff.actions;
+
+  useEffect(() => {
+    upsertShowVyvaReviewHistory(contract);
+  }, [contract]);
 
   return (
     <section
@@ -158,7 +191,88 @@ export default function ShowVyvaResultCard({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3">
+      <section
+        data-testid={`show-vyva-decision-handoff-${testIdSuffix}`}
+        className="mt-4 rounded-[18px] border p-3"
+        style={{ background: handoffTone.bg, borderColor: handoffTone.border }}
+      >
+        <p className="font-body text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: handoffTone.text }}>
+          {t("showVyva.handoff.kicker", "Best next step")}
+        </p>
+        <h4
+          data-testid={`show-vyva-decision-title-${testIdSuffix}`}
+          className="mt-1 font-body text-[19px] font-black leading-tight"
+          style={{ color: handoffTone.text }}
+        >
+          {t(`showVyva.handoff.title.${contract.followUpContext}`, handoff.title)}
+        </h4>
+        <p
+          data-testid={`show-vyva-decision-subtitle-${testIdSuffix}`}
+          className="mt-1 font-body text-[14px] font-bold leading-snug"
+          style={{ color: handoffTone.text }}
+        >
+          {handoff.subtitle}
+        </p>
+      </section>
+
+      <section
+        data-testid={`show-vyva-confidence-evidence-${testIdSuffix}`}
+        className="mt-3 rounded-[18px] border p-3"
+        style={{ background: confidenceEvidenceTone.bg, borderColor: confidenceEvidenceTone.border }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="inline-flex items-center gap-2 font-body text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: confidenceEvidenceTone.text }}>
+            <SearchCheck size={14} aria-hidden="true" />
+            {t("showVyva.evidence.kicker", "Why VYVA thinks this")}
+          </p>
+          <span
+            data-testid={`show-vyva-confidence-label-${testIdSuffix}`}
+            className="rounded-full px-3 py-1 font-body text-[12px] font-black"
+            style={{ background: confidenceEvidenceTone.chip, color: confidenceEvidenceTone.text }}
+          >
+            {t(`showVyva.evidence.confidence.${confidenceEvidence.tone}`, confidenceEvidence.label)}
+          </span>
+        </div>
+        <ul className="mt-2 grid gap-1.5">
+          {confidenceEvidence.evidencePoints.map((item, index) => (
+            <li key={`${item}-${index}`} className="font-body text-[13px] font-bold leading-snug" style={{ color: confidenceEvidenceTone.text }}>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-[14px] bg-white/75 p-2.5" data-testid={`show-vyva-facts-found-${testIdSuffix}`}>
+            <p className="font-body text-[10px] font-black uppercase tracking-[0.09em]" style={{ color: confidenceEvidenceTone.text }}>
+              {t("showVyva.evidence.factsFound", "Facts found")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+              {confidenceEvidence.factsFound[0] ?? t("showVyva.evidence.noFacts", "No solid fact found yet.")}
+            </p>
+          </div>
+          <div className="rounded-[14px] bg-white/75 p-2.5" data-testid={`show-vyva-uncertain-points-${testIdSuffix}`}>
+            <p className="font-body text-[10px] font-black uppercase tracking-[0.09em]" style={{ color: confidenceEvidenceTone.text }}>
+              {t("showVyva.evidence.stillUncertain", "Still uncertain")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-1">
+              {confidenceEvidence.uncertainPoints[0] ?? t("showVyva.evidence.noUncertainty", "Nothing else flagged from this item.")}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <button
+        type="button"
+        data-testid={`button-show-vyva-explain-${testIdSuffix}`}
+        onClick={() => setExplainOpen((value) => !value)}
+        className="mt-3 flex min-h-[44px] w-full items-center justify-between rounded-[15px] border border-[#EDE5DB] bg-[#FFFCF8] px-3 text-left font-body text-[13px] font-black text-vyva-text-2 transition active:scale-[0.99]"
+        aria-expanded={explainOpen}
+      >
+        <span>{explainOpen ? t("showVyva.handoff.hideExplain", "Hide explanation") : t("showVyva.handoff.explain", "Explain")}</span>
+        <ChevronDown size={17} className={explainOpen ? "rotate-180 transition" : "transition"} aria-hidden="true" />
+      </button>
+
+      {explainOpen ? (
+      <div className="mt-3 grid gap-3" data-testid={`show-vyva-result-details-${testIdSuffix}`}>
         <section className="rounded-[16px] bg-[#FFFCF8] p-3">
           <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#7C3AED]">
             {t("showVyva.contract.sections.reviewed", "What VYVA reviewed")}
@@ -168,22 +282,50 @@ export default function ShowVyvaResultCard({
           </p>
         </section>
 
-        <section className="rounded-[16px] bg-[#FFFCF8] p-3">
+        <section className="rounded-[16px] bg-[#F0FDFA] p-3">
           <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#7C3AED]">
-            {t("showVyva.contract.sections.thinks", "What VYVA thinks")}
+            {t("showVyva.contract.sections.visible", "What is visible")}
           </p>
           <p data-testid={`show-vyva-result-thinks-${testIdSuffix}`} className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-1">
-            {thinkingLabel ?? noticed[0]}
+            {thinkingLabel ?? verifiedObservations[0]}
           </p>
-          {noticed.length > 1 ? (
+          {verifiedObservations.length > 1 ? (
             <ul className="mt-2 grid gap-1.5">
-              {noticed.slice(1, 4).map((item, index) => (
+              {verifiedObservations.slice(1, 4).map((item, index) => (
                 <li key={`${item}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
                   {item}
                 </li>
               ))}
             </ul>
           ) : null}
+        </section>
+
+        {warningSigns.length ? (
+          <section className="rounded-[16px] border border-[#FDE68A] bg-[#FFFBEB] p-3" data-testid={`show-vyva-result-warning-signs-${testIdSuffix}`}>
+            <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#92400E]">
+              {t("showVyva.contract.sections.warningSigns", "Warning signs")}
+            </p>
+            <ul className="mt-2 grid gap-1.5">
+              {warningSigns.slice(0, 4).map((item, index) => (
+                <li key={`${item}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-[#78350F]">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        <section className="rounded-[16px] border border-[#E2E8F0] bg-[#F8FAFC] p-3" data-testid={`show-vyva-result-unknowns-${testIdSuffix}`}>
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#475569]">
+            {t("showVyva.contract.sections.unknowns", "What VYVA cannot confirm")}
+          </p>
+          <ul className="mt-2 grid gap-1.5">
+            {unknowns.slice(0, 4).map((item, index) => (
+              <li key={`${item}-${index}`} className="font-body text-[13px] font-semibold leading-snug text-[#475569]">
+                {item}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="rounded-[16px] p-3" style={{ background: tone.bg, border: `1px solid ${tone.border}` }}>
@@ -213,12 +355,13 @@ export default function ShowVyvaResultCard({
           ) : null}
         </section>
       </div>
+      ) : null}
 
       {onActionSelect && followUpActions.length ? (
         <ShowVyvaFollowUpPanel
           context={contract.followUpContext}
           testIdSuffix={testIdSuffix}
-          title={actionTitle ?? t("showVyva.contract.sections.safeActions", "Ask VYVA to help or save for later")}
+          title={actionTitle ?? t("showVyva.handoff.actionsTitle", "Choose a safe action")}
           subtitle={actionSubtitle}
           confirmation={t("showVyva.contract.finalConfirmation", contract.finalConfirmationRule)}
           actions={followUpActions}

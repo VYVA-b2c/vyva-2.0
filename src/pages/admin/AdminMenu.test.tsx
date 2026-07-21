@@ -35,6 +35,10 @@ describe("AdminMenu", () => {
       .toHaveAttribute("href", "/admin/cognitive-assessment");
     expect(screen.getByRole("link", { name: /concierge readiness.*flow coverage and launch gates/i }))
       .toHaveAttribute("href", "/admin/concierge-readiness");
+    expect(screen.getByRole("link", { name: /email replies.*replies needing review/i }))
+      .toHaveAttribute("href", "/admin/concierge-email-replies");
+    expect(screen.getByRole("link", { name: /providers.*trusted contacts/i }))
+      .toHaveAttribute("href", "/admin/providers");
   });
 
   it("links admins to workflow coverage", () => {

@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeShoppingScreen from "./ConciergeShoppingScreen";
 import { apiFetch } from "@/lib/queryClient";
+import { emptyShoppingDraft } from "@/components/voice-canvas/shoppingCanvasMachine";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { buildShoppingRecommendations, getStaticShoppingSupportPackages } from "../../shared/shopping";
 
@@ -85,10 +86,62 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
 }
 
 afterEach(() => {
+  sessionStorage.clear();
   apiFetchMock.mockReset();
 });
 
 describe("ConciergeShoppingScreen", () => {
+  it("fails closed to the existing Shopping experience when the independent flag is disabled", async () => {
+    mockShoppingApi();
+    renderScreen();
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/config/features/shopping-delivery-voice-canvas"));
+    expect(screen.queryByTestId("shopping-delivery-canvas-entry")).not.toBeInTheDocument();
+    expect(screen.getByTestId("shopping-voice-guide")).toBeInTheDocument();
+  });
+
+  it("opens the delivery Canvas when the independent flag is enabled", async () => {
+    apiFetchMock.mockImplementation((path) => {
+      if (path === "/api/config/features/shopping-delivery-voice-canvas") return Promise.resolve(jsonResponse({ enabled: true, rolloutPercent: 100 }));
+      if (path === "/api/profile") return Promise.resolve(jsonResponse({ id: "user-1", address: "1 Main Street", savedProviders: [{ id: "market", name: "Local Market", category: "grocery" }] }));
+      if (path === "/api/concierge/shopping/support-packages") return Promise.resolve(jsonResponse({ packages: getStaticShoppingSupportPackages() }));
+      return Promise.resolve(errorResponse(500, { error: "Unexpected API call" }));
+    });
+    renderScreen();
+    const open = await screen.findByTestId("button-open-shopping-delivery-canvas");
+    fireEvent.click(open);
+    expect(screen.getByTestId("shopping-voice-canvas")).toHaveAttribute("data-step", "listening");
+  });
+
+  it("opens a resumed local shopping Canvas draft from the task hub", async () => {
+    sessionStorage.setItem("vyva.shoppingDelivery.v1", JSON.stringify({
+      step: "review",
+      draft: {
+        ...emptyShoppingDraft,
+        retailerName: "Local Market",
+        items: [{ id: "item-1", name: "Soup", quantity: "4 cans" }],
+        fulfillment: "delivery",
+        location: "1 Main Street",
+        preferredTime: "Tomorrow morning",
+        substitutions: "ask",
+        estimateStatus: "unverified",
+      },
+      requestId: 0,
+      revision: 4,
+    }));
+    apiFetchMock.mockImplementation((path) => {
+      if (path === "/api/config/features/shopping-delivery-voice-canvas") return Promise.resolve(jsonResponse({ enabled: true, rolloutPercent: 100 }));
+      if (path === "/api/profile") return Promise.resolve(jsonResponse({ id: "user-1", address: "1 Main Street", savedProviders: [{ id: "market", name: "Local Market", category: "grocery" }] }));
+      if (path === "/api/concierge/shopping/support-packages") return Promise.resolve(jsonResponse({ packages: getStaticShoppingSupportPackages() }));
+      return Promise.resolve(errorResponse(500, { error: "Unexpected API call" }));
+    });
+
+    renderScreen([{ pathname: "/concierge/shopping", state: { resumeCanvas: "shopping" } }]);
+
+    expect(await screen.findByTestId("shopping-voice-canvas")).toHaveAttribute("data-step", "review");
+    expect(screen.getByRole("heading", { name: "Review before confirming" })).toBeInTheDocument();
+    expect(screen.getByText("Only a request will be prepared. No order or payment will be made.")).toBeInTheDocument();
+  });
+
   it("submits a need, renders recommendations, and saves a shortlist item", async () => {
     mockShoppingApi(jsonResponse(buildShoppingRecommendations({
       needText: "Safer bathroom at night",

@@ -249,7 +249,7 @@ function isCredentialReferenceAllowed(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > 200) return false;
   if (/(bearer\s+|sk-|xox[baprs]-|-----BEGIN|password=|secret=|api[_-]?key=)/i.test(trimmed)) return false;
-  return /^[A-Za-z0-9_:/@.\-]+$/.test(trimmed);
+  return /^[A-Za-z0-9_:/@.-]+$/.test(trimmed);
 }
 
 function normalizeAdapterLiveEndpointUrl(channel: ConciergeProductionChannel, value: string | null | undefined): string | null {
