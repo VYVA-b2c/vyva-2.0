@@ -6463,6 +6463,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-studio-command-stat-ai")).toHaveTextContent("0/1");
     expect(screen.getByTestId("marketing-campaign-studio-section-map")).toHaveTextContent("Studio section map");
     expect(screen.getByTestId("marketing-campaign-studio-section-map")).toHaveTextContent("6 workflow areas");
+    expect(screen.getByTestId("marketing-campaign-studio-workflow-progress")).toHaveTextContent("Workflow progress");
+    expect(screen.getByTestId("marketing-campaign-studio-workflow-progress")).toHaveTextContent("areas ready");
+    expect(screen.getByTestId("marketing-campaign-studio-workflow-progress")).toHaveTextContent("Next area:");
+    expect(screen.getByTestId("marketing-campaign-studio-workflow-progress")).toHaveTextContent("complete");
     expect(screen.getByTestId("button-marketing-campaign-studio-section-audience")).toHaveTextContent("Audience");
     expect(screen.getByTestId("button-marketing-campaign-studio-section-audience")).toHaveTextContent("1 selected");
     expect(screen.getByTestId("button-marketing-campaign-studio-section-templates")).toHaveTextContent("Templates");

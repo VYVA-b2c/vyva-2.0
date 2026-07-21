@@ -19416,6 +19416,11 @@ export default function MarketingAdminPage() {
       state: campaignStudioFollowUpPlays.length ? "ready" as const : "planning" as const,
     },
   ];
+  const campaignStudioSectionReadyCount = campaignStudioSectionMapItems.filter((item) => item.state === "ready").length;
+  const campaignStudioSectionBlockedCount = campaignStudioSectionMapItems.filter((item) => item.state === "blocked").length;
+  const campaignStudioSectionNeedsWorkCount = campaignStudioSectionMapItems.length - campaignStudioSectionReadyCount;
+  const campaignStudioSectionProgressPercent = Math.round((campaignStudioSectionReadyCount / Math.max(campaignStudioSectionMapItems.length, 1)) * 100);
+  const campaignStudioNextWorkflowArea = campaignStudioSectionMapItems.find((item) => item.state !== "ready") ?? campaignStudioSectionMapItems[0];
   const jumpToCampaignStudioSection = (targetTestId: string) => {
     const target = document.querySelector(`[data-testid="${targetTestId}"]`);
     if (target instanceof HTMLElement) {
@@ -33281,6 +33286,32 @@ export default function MarketingAdminPage() {
                             </p>
                           </div>
                           <Pill className="bg-purple-50 text-purple-800">{campaignStudioSectionMapItems.length} workflow areas</Pill>
+                        </div>
+                        <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3" data-testid="marketing-campaign-studio-workflow-progress">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.1em] text-purple-800">Workflow progress</p>
+                              <p className="mt-1 text-sm font-black text-[#241133]">
+                                {campaignStudioSectionReadyCount} of {campaignStudioSectionMapItems.length} areas ready
+                              </p>
+                              <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                                Next area: {campaignStudioNextWorkflowArea.title}. {campaignStudioNextWorkflowArea.detail}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Pill className={campaignStudioSectionBlockedCount ? "bg-red-50 text-red-800" : campaignStudioSectionNeedsWorkCount ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                                {campaignStudioSectionBlockedCount
+                                  ? `${campaignStudioSectionBlockedCount} blocked`
+                                  : campaignStudioSectionNeedsWorkCount
+                                    ? `${campaignStudioSectionNeedsWorkCount} to polish`
+                                    : "Ready"}
+                              </Pill>
+                              <Pill className="bg-white text-purple-800">{campaignStudioSectionProgressPercent}% complete</Pill>
+                            </div>
+                          </div>
+                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white" aria-hidden="true">
+                            <div className="h-full rounded-full bg-purple-700" style={{ width: `${campaignStudioSectionProgressPercent}%` }} />
+                          </div>
                         </div>
                         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-6" data-testid="marketing-campaign-studio-section-map-items">
                           {campaignStudioSectionMapItems.map((item) => (
