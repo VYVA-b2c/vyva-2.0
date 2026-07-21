@@ -235,6 +235,42 @@ describe("Voice Canvas real-use evidence helper command", () => {
       },
     ));
 
+  it("rejects real-use device rows with not-complete wording", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "real physical phone/mobile completed with no write and no external action before explicit confirmation",
+        "real physical phone/mobile not complete with no write and no external action before explicit confirmation",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Real-use evidence artifact must use real physical devices, not emulator, simulator, responsive-mode, DevTools, unavailable, or failed evidence.",
+        );
+        expect(result.stdout).not.toContain("not complete");
+      },
+    ));
+
+  it("rejects real-use interaction rows with incomplete wording", () =>
+    withTempMarkdownFile(
+      validRealUseEvidenceArtifact().replace(
+        "voice path completed with no write and no external action before explicit confirmation",
+        "voice path incomplete with no write and no external action before explicit confirmation",
+      ),
+      (inputPath) => {
+        const result = runRealUseHelper([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout);
+        expect(summary.problems).toContain(
+          "Real-use evidence artifact must use real physical devices, not emulator, simulator, responsive-mode, DevTools, unavailable, or failed evidence.",
+        );
+        expect(result.stdout).not.toContain("incomplete");
+      },
+    ));
+
   it("rejects real-use rows that do not prove explicit-confirmation timing", () =>
     withTempMarkdownFile(
       validRealUseEvidenceArtifact().replace(

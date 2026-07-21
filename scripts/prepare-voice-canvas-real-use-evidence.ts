@@ -295,7 +295,7 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
 
 const rejectedDeviceEvidencePatterns: readonly RegExp[] = [
   /\b(?:emulator|simulator|responsive mode|responsive-mode|devtools|device toolbar|viewport only)\b/i,
-  /\b(?:not tested|not real|unavailable|failed|unable to test|broken|crashed|blank screen|white screen|not completed|not safely exited|not safe exit)\b/i,
+  /\b(?:not tested|not real|unavailable|failed|unable to test|broken|crashed|blank screen|white screen|not completed|not complete|incomplete|did not complete|failed to complete|unable to complete|could not complete|not safely exited|not safe exit)\b/i,
   /\b(?:write|data write|booking|call|message|navigation|external action)\s+(?:triggered|occurred|happened|started|sent|placed|submitted|created|booked|navigated)\b/i,
   /\b(?:triggered|sent|placed|submitted|created|booked|navigated)\s+(?:a\s+)?(?:write|data write|booking|call|message|navigation|external action)\b/i,
 ];
@@ -309,7 +309,7 @@ function artifactReferenceLooksConcrete(
 
 function hasSafeCompletionWording(value: string): boolean {
   return (
-    includesAny(value, ["completed", "complete", "safely exited", "safe exit"]) &&
+    includesAny(value, ["completed", "safely exited", "safe exit"]) &&
     includesAny(value, ["no write", "without write", "no-write"]) &&
     includesAny(value, [
       "no external action",
