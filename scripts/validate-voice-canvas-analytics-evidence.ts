@@ -45,6 +45,10 @@ const unsafeAnalyticsMetadataPatterns: readonly RegExp[] = [
   /\b\d{1,6}\s+[A-Za-z0-9.'-]+(?:\s+[A-Za-z0-9.'-]+){0,5}\s+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|way|court|ct)\b/i,
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
   /\b(?:\+?\d[\s().-]*){10,}\b/,
+  /https?:\/\/[^\s/|`"]+:[^\s@/|`"]+@[^\s|`"]+/i,
+  /\b(?:token|secret|api[_-]?key|authorization|cookie|password|session)[=:][^\s|`"]+/i,
+  /\bbearer\s+[A-Za-z0-9._~+/-]+=*/i,
+  /\bx-api-key\s*[:=]\s*[^\s|`"]+/i,
   /\b(?:transcript|spoken transcript|typed free text|free text|saved-place label|saved place label|pickup address|dropoff address|destination address|street address|ride details|route details|pickup details|dropoff details|destination details|appointment date|appointment time|date\/time details|medication name|medication details|provider name|provider details|provider contact|reply text|reply body|shopping item|shopping details|item name|retailer name|price|fee|contact details|account id|user id|profile id|patient id)\b/i,
 ];
 
@@ -69,7 +73,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
       "qaRunUrl must be the deployed non-local QA run URL that produced the aggregate evidence.",
       "The source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
-      "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
+      "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, token-bearing URLs, bearer tokens, cookies, passwords, API keys, or other personal data.",
       "coveredFlows must list every launch flow: ride, appointment, refill, shopping, provider_reply, task_hub_resume.",
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Allowed envelope values must stay non-identifying; step text must not contain addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",

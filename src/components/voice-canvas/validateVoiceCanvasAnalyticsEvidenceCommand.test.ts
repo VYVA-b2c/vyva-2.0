@@ -136,8 +136,10 @@ describe("Voice Canvas analytics evidence validator command", () => {
       "The source must identify real deployed QA, staging, production, or a concrete analytics dashboard/query/export/log artifact.",
     );
     expect(result.stdout).toContain(
-      "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
+      "The source must not name addresses, transcripts, route details, shopping details, provider details, account identifiers",
     );
+    expect(result.stdout).toContain("token-bearing URLs");
+    expect(result.stdout).toContain("API keys");
     expect(result.stdout).toContain(
       "generatedAt must be a non-future ISO timestamp no older than 7 days.",
     );
@@ -574,6 +576,41 @@ describe("Voice Canvas analytics evidence validator command", () => {
       },
     ));
 
+  it("rejects secrets inside allowed sample envelope values without copying them", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        samples: [
+          {
+            ...validSamples()[0],
+            step: "review-token=secret",
+          },
+          ...validSamples().slice(1),
+        ],
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problemCount: number;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problemCount).toBeGreaterThan(0);
+        expect(summary.problems).toContain(
+          "Sample 1 included 1 allowed envelope value(s) that appear to contain personal or raw captured data.",
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("token=secret");
+      },
+    ));
+
   it("rejects source metadata that names private launch details without echoing it", () =>
     withTempJsonFile(
       {
@@ -604,6 +641,37 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(serialized).not.toContain("retailer-name");
         expect(serialized).not.toContain("route-details");
         expect(serialized).not.toContain("profile-id");
+      },
+    ));
+
+  it("rejects source metadata with secret-bearing links without echoing it", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        source:
+          "staging dashboard export https://qa-user:secret-pass@staging.vyva.app/analytics?token=secret",
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          problemCount: number;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.problemCount).toBeGreaterThan(0);
+        expect(summary.problems).toContain(
+          "Analytics evidence source appears to include personal or raw captured data.",
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("secret-pass");
+        expect(serialized).not.toContain("token=secret");
       },
     ));
 
