@@ -43809,6 +43809,41 @@ export default function MarketingAdminPage() {
                       </p>
                       <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
                     </div>
+                    <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3" data-testid="marketing-engine-operational-status">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">What is usable now</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">Campaign planning, imported content, lists, contacts, and explicit email sends are ready from this admin module.</p>
+                        </div>
+                        <Pill className={syncState.configured && latestSyncRun?.status === "succeeded" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                          {syncState.configured && latestSyncRun?.status === "succeeded" ? "Production ready" : "Needs review"}
+                        </Pill>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-4">
+                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Imported data</p>
+                          <p className="mt-1 text-base font-black text-[#241133]">
+                            {latestSyncRun ? `${latestSyncRun.status} ${formatDate(latestSyncRun.completedAt || latestSyncRun.createdAt)}` : "No sync yet"}
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{campaigns.length} campaigns, {content.length} content, {contacts.length} contacts, {audiences.length} lists</p>
+                        </div>
+                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Email publishing</p>
+                          <p className="mt-1 text-base font-black text-[#241133]">Manual approval</p>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Email can send from campaign details after content, recipients, consent, and confirmation are reviewed.</p>
+                        </div>
+                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Other channels</p>
+                          <p className="mt-1 text-base font-black text-[#241133]">{syncState.lockedSendCapabilities.filter((item) => item.locked).length} planning routes</p>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">WhatsApp, social, phone, print, and event routes are tracked as handoffs until provider controls are enabled.</p>
+                        </div>
+                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Next build step</p>
+                          <p className="mt-1 text-base font-black text-[#241133]">{emailScheduler.enabled ? "Automated journeys" : "Due email scheduler"}</p>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{emailScheduler.enabled ? "Wire journey automation after campaign sending is stable." : "Enable MARKETING_EMAIL_SCHEDULER_ENABLED when unattended scheduled sends are wanted."}</p>
+                        </div>
+                      </div>
+                    </div>
                     <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3" data-testid="marketing-source-sync-setup-run-sheet">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>

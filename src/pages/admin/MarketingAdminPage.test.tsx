@@ -1513,6 +1513,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Manual Run due emails button only");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("What is usable now");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Campaign planning, imported content, lists, contacts, and explicit email sends are ready");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Needs review");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Email publishing");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Manual approval");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Other channels");
+    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Next build step");
     expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Setup run sheet");
     expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Needs token");
     expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Manual due-email run");
