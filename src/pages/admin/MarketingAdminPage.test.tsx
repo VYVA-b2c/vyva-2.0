@@ -912,6 +912,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Today's operating plan");
     expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Run marketing in this order");
     expect(screen.getByTestId("marketing-cockpit-daily-plan")).toHaveTextContent("Step 1");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Operational readiness");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Can we actually run marketing today?");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Source data");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Contacts and lists");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Templates and content");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Campaign publishing");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Email route");
+    expect(screen.getByTestId("marketing-operational-readiness")).toHaveTextContent("Next human follow-up");
+    fireEvent.click(screen.getByTestId("button-marketing-operational-ops-send"));
+    expect(screen.getByText("Create or complete an email campaign before sending.")).toBeInTheDocument();
     expect(screen.getByTestId("button-marketing-cockpit-copy-operator-brief")).toHaveTextContent("Copy work order");
     fireEvent.click(screen.getByTestId("button-marketing-cockpit-copy-operator-brief"));
     await waitFor(() => {

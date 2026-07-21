@@ -31123,6 +31123,70 @@ export default function MarketingAdminPage() {
   const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
   const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
   const marketingCockpitHasReview = marketingCockpitItems.some((item) => item.state === "needs_action");
+  const emailSendCapability = syncState.lockedSendCapabilities.find((item) => item.channel === "email");
+  const emailSendEnabled = emailSendCapability?.sendCapability === "enabled" && !emailSendCapability.locked;
+  const marketingOperationalStatusItems: MarketingWorkflowCoachItem[] = [
+    ...(importWorkflowItem ? [{
+      ...importWorkflowItem,
+      key: "ops-sync",
+      eyebrow: "Import",
+      title: "Source data",
+      actionLabel: syncState.configured ? "Check sync" : "Configure sync",
+    }] : []),
+    ...(audienceWorkflowItem ? [{
+      ...audienceWorkflowItem,
+      key: "ops-audience",
+      eyebrow: "Audience",
+      title: "Contacts and lists",
+      actionLabel: contactHealthNeedsConsent > 0 || contactHealthUnmappedListMembers > 0 ? "Clean up" : "Review audience",
+    }] : []),
+    ...(creativeWorkflowItem ? [{
+      ...creativeWorkflowItem,
+      key: "ops-creative",
+      eyebrow: "Creative",
+      title: "Templates and content",
+      actionLabel: missingSourceReferenceCount > 0 ? "Fix gaps" : "Open library",
+    }] : []),
+    ...(launchWorkflowItem ? [{
+      ...launchWorkflowItem,
+      key: "ops-launch",
+      eyebrow: "Launch",
+      title: "Campaign publishing",
+      actionLabel: firstReadyEmailCampaign ? "Send review" : "Open queue",
+    }] : []),
+    {
+      key: "ops-send",
+      eyebrow: "Sending",
+      title: "Email route",
+      value: emailSendEnabled ? "Enabled" : "Locked",
+      detail: emailSendEnabled
+        ? "Email campaigns can use VYVA's reviewed send path. Social, phone, print, events, and WhatsApp stay as tracked handoffs for now."
+        : "Email provider sending is not available in this environment yet.",
+      state: emailSendEnabled ? (firstReadyEmailCampaign ? "ready" : "planning") : "blocked",
+      actionLabel: firstReadyEmailCampaign ? "Open send review" : "Build email campaign",
+      icon: Send,
+      onSelect: () => {
+        if (firstReadyEmailCampaign) {
+          openCampaignForNextAction(firstReadyEmailCampaign);
+          return;
+        }
+        setActiveTab("dashboard");
+        setMessage(emailSendEnabled ? "Create or complete an email campaign before sending." : "Email sending is not enabled in this environment.");
+      },
+    },
+    ...(contactRelationshipPriorityQueue ? [{
+      key: "ops-relationships",
+      eyebrow: "Relationships",
+      title: "Next human follow-up",
+      value: contactRelationshipPriorityQueue.countLabel,
+      detail: contactRelationshipPriorityQueue.detail,
+      state: contactRelationshipPriorityQueue.state,
+      actionLabel: contactRelationshipPriorityQueue.studioLabel,
+      icon: contactRelationshipPriorityQueue.icon,
+      disabled: contactRelationshipPriorityQueue.count === 0,
+      onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
+    }] : []),
+  ].slice(0, 6);
   const marketingNextBestMoveRank: Record<CampaignReadinessState, number> = {
     blocked: 0,
     needs_action: 1,
@@ -31753,6 +31817,50 @@ export default function MarketingAdminPage() {
                             <span className="block truncate text-xs font-bold text-[#6b5b54]">{item.actionLabel}</span>
                           </span>
                           <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-operational-readiness">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Operational readiness</p>
+                      <h3 className="mt-1 text-lg font-black text-[#241133]">Can we actually run marketing today?</h3>
+                      <p className="mt-1 max-w-3xl text-xs font-bold leading-relaxed text-[#6b5b54]">
+                        One scan for the pieces that matter: imported data, reachable audiences, finished creative, campaign launch path, email sending, and relationship follow-up.
+                      </p>
+                    </div>
+                    <Pill className={marketingOperationalStatusItems.some((item) => item.state === "blocked") ? "bg-red-50 text-red-800" : marketingOperationalStatusItems.some((item) => item.state === "needs_action") ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+                      {marketingOperationalStatusItems.filter((item) => item.state === "ready").length}/{marketingOperationalStatusItems.length} ready
+                    </Pill>
+                  </div>
+                  <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {marketingOperationalStatusItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onSelect}
+                          disabled={item.disabled}
+                          className={`grid min-h-[118px] grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                          data-testid={`button-marketing-operational-${item.key}`}
+                        >
+                          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
+                            <Icon size={16} aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-black uppercase tracking-[0.1em] text-purple-800">{item.eyebrow}</span>
+                              <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                            </span>
+                            <span className="mt-1 block text-sm font-black text-[#241133]">{item.title}</span>
+                            <span className="mt-1 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                            <span className="mt-2 inline-flex items-center gap-1 text-xs font-black text-purple-700">
+                              {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
+                            </span>
+                          </span>
                         </button>
                       );
                     })}
