@@ -299,6 +299,10 @@ describe("Canvas launch readiness manifest", () => {
     expect(audit).toContain("scripts/validate-voice-canvas-analytics-evidence.ts");
     expect(audit).toContain("scripts/validate-voice-canvas-evidence-packet.ts");
     expect(audit).toContain("scripts/prepare-voice-canvas-rollback-owner-handoff.ts");
+    expect(audit).toContain("same deployed-origin");
+    expect(audit).toContain("endpoint auth metadata alignment");
+    expect(audit).toContain("no credential values");
+    expect(audit).toContain("same-date-only launch plan reference cannot reach launch sign-off");
     expect(audit).toContain("canonical flow entry surfaces");
     expect(audit).toContain("real-use QA gates");
     expect(audit).toContain("feature endpoints/server keys");
