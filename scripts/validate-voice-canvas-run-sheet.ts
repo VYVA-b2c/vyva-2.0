@@ -211,6 +211,9 @@ function hasContradictoryLaunchEvidenceLanguage(value: string): boolean {
     /\b(known issue|known issues|known bug|known bugs|unresolved issue|unresolved issues|unresolved bug|unresolved bugs|defect|defects|regression|regressions|risk accepted|accepted risk|launch risk|workaround required|manual workaround|waiver|exception)\b/.test(
       normalized,
     ) ||
+    /\b(not complete|not completed|incomplete|did not complete|failed to complete|unable to complete|could not complete|not safely exited|not safe exit|not exited safely)\b/.test(
+      normalized,
+    ) ||
     /\b(?:write|writes|external action|external actions|booking|bookings|call|calls|message|messages|navigation|navigations|submission|submissions|endpoint|endpoints)\b.{0,36}\b(?:happened|occurred|triggered|fired|ran|sent|submitted|created|wrote|called|messaged|navigated)\b/.test(
       normalized,
     ) ||

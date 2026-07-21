@@ -387,6 +387,38 @@ describe("Voice Canvas run sheet validator command", () => {
       },
     ));
 
+  it("rejects run sheets with incomplete completion evidence without echoing values", () =>
+    withTempRunSheet(
+      completedRunSheet().replace(
+        "completed and blocked results explain what happens next",
+        "incomplete result proof with not complete outcome but what happens next noted",
+      ),
+      (tempRunSheetPath) => {
+        const result = runValidator([tempRunSheetPath, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          state: string;
+          readyForQaRunSheet: boolean;
+          problems: string[];
+        };
+
+        expect(summary.state).toBe("invalid");
+        expect(summary.readyForQaRunSheet).toBe(false);
+        expect(summary.problems).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining("contradictory or unsafe launch evidence"),
+          ]),
+        );
+
+        const serialized = JSON.stringify(summary);
+        expect(serialized).not.toContain("incomplete result proof");
+        expect(serialized).not.toContain("not complete outcome");
+      },
+    ));
+
   it("rejects run sheets that omit required behavior coverage", () =>
     withTempRunSheet(
       completedRunSheet().replace(
