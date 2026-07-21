@@ -152,6 +152,9 @@ describe("Voice Canvas analytics evidence validator command", () => {
     expect(result.stdout).toContain(
       "Allowed envelope values must stay non-identifying",
     );
+    expect(result.stdout).toContain(
+      "Every sample must map to one of those launch signals",
+    );
     expect(result.stdout).toContain("never copies raw sample rows");
     expect(result.stdout).toContain("pass --force only when intentionally");
     const unsafeDatePlaceholder = ["<", "YYYY-MM-DD", ">"].join("");
@@ -535,6 +538,41 @@ describe("Voice Canvas analytics evidence validator command", () => {
         expect(serialized).not.toContain("private spoken detail");
         expect(serialized).not.toContain("pickupAddress");
         expect(serialized).not.toContain("transcript");
+      },
+    ));
+
+  it("rejects valid telemetry samples that do not map to launch signals", () =>
+    withTempJsonFile(
+      {
+        ...validEvidence(),
+        samples: [
+          ...validSamples(),
+          {
+            name: "retried",
+            step: "review",
+            input: "touch_or_keyboard",
+            attempt: 2,
+            restored: false,
+          },
+        ],
+      },
+      (inputPath) => {
+        const result = runValidator([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+
+        const summary = JSON.parse(result.stdout) as {
+          readyForLaunchEvidence: boolean;
+          sampleCount: number;
+          problems: string[];
+        };
+
+        expect(summary.readyForLaunchEvidence).toBe(false);
+        expect(summary.sampleCount).toBe(7);
+        expect(summary.problems).toContain(
+          "Sample 7 did not map to a required launch signal and must be excluded from launch evidence.",
+        );
       },
     ));
 

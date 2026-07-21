@@ -78,6 +78,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "Every sample must contain only: name, step, input, attempt, restored, revision.",
       "Allowed envelope values must stay non-identifying; step text must not contain addresses, transcripts, route details, shopping details, provider details, account identifiers, or other personal data.",
       "Every launch signal must have a positive observed sample count: started, resumed, abandoned, blocked, confirmed, completed.",
+      "Every sample must map to one of those launch signals; unrelated telemetry samples must be excluded from the launch evidence artifact.",
       "Completed can be proven by completed samples or terminal pending samples.",
       "The command writes only aggregate validation results and never copies raw sample rows into its output.",
       "Use --output=<path> with --json to also save the validation summary to a file.",
@@ -397,6 +398,11 @@ function sampleEnvelopeProblems(
   }
 
   const launchSample = canvasLaunchTelemetrySampleFromEnvelope(sample);
+  if (!launchSample) {
+    problems.push(
+      `Sample ${index + 1} did not map to a required launch signal and must be excluded from launch evidence.`,
+    );
+  }
   return { problems, signal: launchSample?.signal ?? null };
 }
 
