@@ -436,6 +436,9 @@ const behaviorCellRequirements: Partial<
     ["prevented", "blocked", "ignored", "rejected", "discarded"],
     ["stale"],
     ["ignored", "rejected", "discarded"],
+    ["no write", "without write"],
+    ["no resubmission", "without resubmission"],
+    ["no external action", "without external action"],
   ],
   "Recoverable failure offered retry and exit": [
     ["recoverable failure", "failure"],
