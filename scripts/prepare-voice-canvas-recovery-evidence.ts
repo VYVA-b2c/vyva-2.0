@@ -262,6 +262,9 @@ const unsafeFilledArtifactPatterns: readonly RegExp[] = [
 
 const rejectedRecoveryPatterns: readonly RegExp[] = [
   /\b(?:not tested|unavailable|failed|unable to test|broken|crashed|blank screen|white screen|not restored|not preserved|did not restore|did not preserve|duplicate accepted|stale accepted)\b/i,
+  /\b(?:write|data write|resubmission|booking|call|message|navigation|external action)\s+(?:triggered|occurred|happened|started|sent|placed|submitted|created|booked|navigated|accepted)\b/i,
+  /\b(?:triggered|sent|placed|submitted|created|booked|navigated|accepted)\s+(?:a\s+)?(?:write|data write|resubmission|booking|call|message|navigation|external action)\b/i,
+  /\b(?:duplicate confirmation|duplicate action|stale response)\s+(?:accepted|processed|submitted|triggered|created)\b/i,
 ];
 
 function hasNoSideEffectProof(value: string, requireNoResubmission = true): boolean {

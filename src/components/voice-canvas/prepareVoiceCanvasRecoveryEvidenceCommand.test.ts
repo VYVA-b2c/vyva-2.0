@@ -205,6 +205,24 @@ describe("Voice Canvas recovery behavior evidence helper command", () => {
       },
     ));
 
+  it("rejects contradictory recovery evidence even when no-side-effect wording is present", () =>
+    withTempRecoveryFile(
+      validRecoveryEvidenceArtifact().replace(
+        "refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action",
+        "refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action, but navigation triggered during reconnect",
+      ),
+      (inputPath) => {
+        const result = runRecoveryEvidence([`--input=${inputPath}`, "--json"]);
+
+        expect(result.status).toBe(1);
+        const summary = JSON.parse(result.stdout) as { problems: string[] };
+        expect(summary.problems).toContain(
+          "Recovery behavior evidence artifact must use affirmative successful recovery evidence, not failed, unavailable, or accepted duplicate/stale evidence.",
+        );
+        expect(result.stdout).not.toContain("navigation triggered");
+      },
+    ));
+
   it("rejects stale reviewer dates", () =>
     withTempRecoveryFile(
       validRecoveryEvidenceArtifact().replaceAll(freshReviewDate(), "2000-01-01"),
