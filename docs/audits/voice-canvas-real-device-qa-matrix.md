@@ -3,6 +3,8 @@
 Status: **pending execution**  
 Use this file to record the deployed, real-device launch-readiness pass for ride, appointment, medication refill, shopping or delivery, provider reply, and task hub resume.
 
+If you are starting the launch run, begin with `docs/audits/voice-canvas-real-device-qa-handoff.md` first. It gives the short execution order, hard stop rules, artifact list, rollback proof, and final acceptance bar before this matrix is filled.
+
 Do not mark the Canvas launch-readiness goal complete until every required row below has a passing result, an evidence link or note, and a reviewer/date note with explicit reviewed, verified, validated, approved, or sign-off wording.
 
 Execute the real-device pass with `docs/audits/voice-canvas-real-device-run-sheet.md`, prepare sanitized artifact references in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then copy the matching reviewer/date review wording and evidence notes into this matrix.

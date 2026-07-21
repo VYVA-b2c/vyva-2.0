@@ -2,6 +2,8 @@
 
 Use this run sheet during staging or production-like real-device QA before filling `docs/audits/voice-canvas-real-device-qa-matrix.md`.
 
+If you are starting the launch run, begin with `docs/audits/voice-canvas-real-device-qa-handoff.md` first. It gives the short execution order, hard stop rules, artifact list, rollback proof, and final acceptance bar before this detailed sheet is filled.
+
 This file is not launch approval. It is the tester-facing execution sheet. Record sanitized artifacts in `docs/audits/voice-canvas-real-device-evidence-packet.md`, then copy final passing evidence into the QA matrix and run `npm run canvas:qa:validate` without `--allow-pending`.
 
 Before starting a QA run, capture a read-only preflight snapshot:

@@ -383,6 +383,7 @@ describe("Canvas launch readiness manifest", () => {
     );
 
     expect(matrix).toContain("pending execution");
+    expect(matrix).toContain("voice-canvas-real-device-qa-handoff.md");
     expect(matrix).toContain("Environment URL");
     expect(matrix).toContain("Build or commit SHA");
     expect(matrix).toContain("Analytics sink reviewed");
@@ -522,6 +523,7 @@ describe("Canvas launch readiness manifest", () => {
     );
 
     expect(packet).toContain("This packet is not launch approval");
+    expect(packet).toContain("voice-canvas-real-device-qa-handoff.md");
     expect(packet).toContain("Do not capture spoken transcripts");
     expect(packet).toContain("typed free text");
     expect(packet).toContain("addresses");
@@ -624,6 +626,7 @@ describe("Canvas launch readiness manifest", () => {
     );
 
     expect(runSheet).toContain("This file is not launch approval");
+    expect(runSheet).toContain("voice-canvas-real-device-qa-handoff.md");
     expect(runSheet).toContain("Use synthetic QA accounts");
     expect(runSheet).toContain("Do not write spoken transcripts");
     expect(runSheet).toContain("record a launch blocker");

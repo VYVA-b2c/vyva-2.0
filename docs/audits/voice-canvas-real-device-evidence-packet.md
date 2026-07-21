@@ -2,6 +2,8 @@
 
 Use this packet after executing `docs/audits/voice-canvas-real-device-run-sheet.md` and before filling `docs/audits/voice-canvas-real-device-qa-matrix.md`. It gives QA one sanitized place to name artifacts, dates, reviewers, and the matrix rows each artifact proves.
 
+If you are starting the launch run, begin with `docs/audits/voice-canvas-real-device-qa-handoff.md` first. It gives the short execution order, hard stop rules, artifact list, rollback proof, and final acceptance bar before this packet is filled.
+
 This packet is not launch approval. The QA matrix remains the launch gate, and `npm run canvas:qa:validate` must pass without `--allow-pending` before Canvas is enabled for real users.
 
 Validate this packet before copying evidence into the QA matrix:
