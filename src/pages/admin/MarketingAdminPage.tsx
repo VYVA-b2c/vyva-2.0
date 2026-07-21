@@ -32023,6 +32023,34 @@ export default function MarketingAdminPage() {
                                   : "Best available saved templates"}
                               </span>
                             </div>
+                            <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-2.5 py-2" data-testid="marketing-ai-command-creation-summary">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-emerald-900">What Create kit saves</span>
+                                  <span className="mt-1 block text-[#241133]">
+                                    Campaign plan, content drafts, channel routes, and recipient snapshots.
+                                  </span>
+                                </div>
+                                <Pill className="bg-white text-emerald-800">No auto-send</Pill>
+                              </div>
+                              <div className="mt-2 grid gap-1.5 text-[11px] font-black text-[#5b4a46] sm:grid-cols-4">
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  {marketingDashboardAiCommandPlan.selectedChannels.length} route{marketingDashboardAiCommandPlan.selectedChannels.length === 1 ? "" : "s"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  {marketingDashboardAiCommandPlan.packMatch?.templates.length ?? 0} template{(marketingDashboardAiCommandPlan.packMatch?.templates.length ?? 0) === 1 ? "" : "s"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  {marketingDashboardAiCommandPlan.reachableContacts} snapshot{marketingDashboardAiCommandPlan.reachableContacts === 1 ? "" : "s"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  Review before send
+                                </span>
+                              </div>
+                              <p className="mt-2 text-[11px] font-bold leading-relaxed text-[#5b4a46]">
+                                Email remains a manual reviewed send step; social, WhatsApp, phone, print, and event work becomes tracked handoff work.
+                              </p>
+                            </div>
                             <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-2.5 py-2" data-testid="marketing-ai-command-rationale">
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
