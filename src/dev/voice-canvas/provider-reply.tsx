@@ -19,6 +19,7 @@ const en: ProviderReplyCanvasCopy = {
     title: "Provider context",
     helper: "Check the task before saving anything.",
     provider: "Provider",
+    providerType: "Provider type",
     action: "Task",
     waiting: "Waiting",
     continue: "Continue",
@@ -51,6 +52,7 @@ const en: ProviderReplyCanvasCopy = {
     title: "Review before saving",
     helper: "This saves the reply, but does not complete the task.",
     provider: "Provider",
+    intent: "Reply intent",
     action: "Task",
     reply: "Reply",
     scheduledFor: "Scheduled for",
@@ -93,6 +95,7 @@ const en: ProviderReplyCanvasCopy = {
     missingContextHelper: "Provider context is missing.",
     incompleteReplyHelper: "Add the provider reply before continuing.",
     incompleteScheduledForHelper: "Add a valid date and time before continuing.",
+    urgentBoundaryHelper: "This may need urgent help. No message was sent.",
     retry: "Retry",
     cancel: "Cancel",
   },
@@ -101,6 +104,19 @@ const en: ProviderReplyCanvasCopy = {
     title: "Nothing saved",
     helper: "The reply was not saved.",
     restart: "Start again",
+  },
+  detailLabels: {
+    messagePurpose: "Message purpose",
+    providerType: "Provider type",
+    confidence: "Confidence",
+    reviewNeeded: "Review needed",
+    draftOnly: "Draft only",
+    noMessageSent: "No message sent yet",
+    reviewBeforeSend: "Review before send",
+    recommended: "Recommended",
+    urgentBoundary: "Urgent safety boundary",
+    outgoingDraft: "Outgoing draft",
+    editBeforeSend: "You can edit before anything is saved.",
   },
   progress: (current, total) => `Step ${current} of ${total}`,
 };
@@ -119,6 +135,7 @@ const es: ProviderReplyCanvasCopy = {
     title: "Contexto del proveedor",
     helper: "Comprueba la tarea antes de guardar nada.",
     provider: "Proveedor",
+    providerType: "Tipo de proveedor",
     action: "Tarea",
     waiting: "Espera",
     continue: "Continuar",
@@ -155,6 +172,7 @@ const es: ProviderReplyCanvasCopy = {
     title: "Revisa antes de guardar",
     helper: "Esto guarda la respuesta, pero no completa la tarea.",
     provider: "Proveedor",
+    intent: "Intencion de respuesta",
     action: "Tarea",
     reply: "Respuesta",
     scheduledFor: "Programado para",
@@ -188,8 +206,22 @@ const es: ProviderReplyCanvasCopy = {
     missingContextHelper: "Falta el contexto del proveedor.",
     incompleteReplyHelper: "Anade la respuesta del proveedor antes de continuar.",
     incompleteScheduledForHelper: "Anade una fecha y hora validas antes de continuar.",
+    urgentBoundaryHelper: "Esto puede necesitar ayuda urgente. No se envio ningun mensaje.",
     retry: "Reintentar",
     cancel: "Cancelar",
+  },
+  detailLabels: {
+    messagePurpose: "Proposito del mensaje",
+    providerType: "Tipo de proveedor",
+    confidence: "Confianza",
+    reviewNeeded: "Revisar",
+    draftOnly: "Solo borrador",
+    noMessageSent: "No se envio ningun mensaje",
+    reviewBeforeSend: "Revisar antes de enviar",
+    recommended: "Recomendado",
+    urgentBoundary: "Limite de seguridad urgente",
+    outgoingDraft: "Borrador saliente",
+    editBeforeSend: "Puedes editar antes de guardar nada.",
   },
   progress: (current, total) => `Paso ${current} de ${total}`,
 };
@@ -199,6 +231,8 @@ const reviewState: ProviderReplyCanvasState = {
   requestId: 0,
   revision: 0,
   draft: {
+    replyIntentId: "confirm-appointment",
+    replyIntentLabel: "Confirm appointment",
     providerReply: "Confirmed Friday at 10:30. Reference HC-908.",
     scheduledFor: "",
     notes: "Bring insurance card.",
@@ -210,6 +244,8 @@ const sanitizedReviewState: ProviderReplyCanvasState = {
   requestId: 0,
   revision: 0,
   draft: {
+    replyIntentId: "confirm-appointment",
+    replyIntentLabel: "Confirm appointment",
     providerReply: "Sanitized reply summary ready for review.",
     scheduledFor: "",
     notes: "Sanitized note placeholder.",
@@ -257,6 +293,7 @@ export default function ProviderReplyGallery() {
               : spanish
                 ? "Clinica Riverside con un nombre traducido muy largo"
                 : "Riverside Clinic",
+            providerType: spanish ? "Clinica" : "Clinic",
             actionLabel: evidenceSafe
               ? spanish
                 ? "Revisar tarea"
@@ -272,6 +309,48 @@ export default function ProviderReplyGallery() {
                 ? "Esperando 2 horas"
                 : "Waiting 2 hours",
             requiresScheduledFor: scheduled,
+            replyIntents: [
+              {
+                id: "confirm-appointment",
+                label: spanish ? "Confirmar cita" : "Confirm appointment",
+                subtitle: spanish ? "Solo borrador" : "Draft only",
+                description: spanish
+                  ? "Guardar la confirmacion para revisarla."
+                  : "Save the confirmation for review.",
+                purposeLabel: spanish ? "Confirmar cita" : "Confirm appointment",
+                confidenceLabel: spanish ? "Revisar" : "Review needed",
+                draftOnlyLabel: spanish ? "No se envio ningun mensaje" : "No message sent yet",
+                reviewReminder: spanish ? "Revisar antes de enviar" : "Review before send",
+                recommended: true,
+                voiceAliases: spanish ? ["confirmar"] : ["confirm"],
+              },
+              {
+                id: "reschedule",
+                label: spanish
+                  ? "Reprogramar con una etiqueta traducida deliberadamente larga para probar tarjetas"
+                  : "Reschedule with a deliberately long provider reply intent label",
+                subtitle: spanish ? "Necesita revision" : "Needs review",
+                description: spanish
+                  ? "Preparar un borrador para revisar antes de guardar."
+                  : "Prepare a draft for review before anything is saved.",
+                purposeLabel: spanish ? "Reprogramar" : "Reschedule",
+                confidenceLabel: spanish ? "Revisar" : "Review needed",
+                draftOnlyLabel: spanish ? "No se envio ningun mensaje" : "No message sent yet",
+              },
+              {
+                id: "urgent",
+                label: spanish ? "Urgente o seguridad" : "Urgent or safety concern",
+                subtitle: spanish ? "Detiene este flujo" : "Stops this flow",
+                description: spanish
+                  ? "Esta ruta queda bloqueada y segura."
+                  : "This path is blocked and safe.",
+                urgent: true,
+                boundaryLabel: spanish
+                  ? "No uses una respuesta normal para ayuda urgente."
+                  : "Do not use a normal provider reply for urgent help.",
+                voiceAliases: spanish ? ["urgente"] : ["urgent"],
+              },
+            ],
             rows: [{
               id: "summary",
               label: spanish ? "Resumen" : "Summary",

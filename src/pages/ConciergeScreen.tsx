@@ -15184,6 +15184,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         ? "Comprueba la tarea antes de guardar nada."
         : "Check the task before saving anything.",
       provider: isSpanish ? "Proveedor" : "Provider",
+      providerType: isSpanish ? "Tipo de proveedor" : "Provider type",
       action: isSpanish ? "Tarea" : "Task",
       waiting: isSpanish ? "Espera" : "Waiting",
       continue: isSpanish ? "Continuar" : "Continue",
@@ -15222,6 +15223,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         ? "Esto guarda la respuesta, pero no completa la tarea."
         : "This saves the reply, but does not complete the task.",
       provider: isSpanish ? "Proveedor" : "Provider",
+      intent: isSpanish ? "Intencion de respuesta" : "Reply intent",
       action: isSpanish ? "Tarea" : "Task",
       reply: isSpanish ? "Respuesta" : "Reply",
       scheduledFor: isSpanish ? "Programado para" : "Scheduled for",
@@ -15274,6 +15276,9 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       incompleteScheduledForHelper: isSpanish
         ? "Anade una fecha y hora validas antes de continuar."
         : "Add a valid date and time before continuing.",
+      urgentBoundaryHelper: isSpanish
+        ? "Esto puede necesitar ayuda urgente. No se envio ningun mensaje."
+        : "This may need urgent help. No message was sent.",
       retry: isSpanish ? "Reintentar" : "Retry",
       cancel: isSpanish ? "Cancelar" : "Cancel",
     },
@@ -15283,6 +15288,19 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       helper: isSpanish ? "La respuesta no se guardo." : "The reply was not saved.",
       restart: isSpanish ? "Empezar otra vez" : "Start again",
     },
+    detailLabels: {
+      messagePurpose: isSpanish ? "Proposito del mensaje" : "Message purpose",
+      providerType: isSpanish ? "Tipo de proveedor" : "Provider type",
+      confidence: isSpanish ? "Confianza" : "Confidence",
+      reviewNeeded: isSpanish ? "Revisar" : "Review needed",
+      draftOnly: isSpanish ? "Solo borrador" : "Draft only",
+      noMessageSent: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+      reviewBeforeSend: isSpanish ? "Revisar antes de enviar" : "Review before send",
+      recommended: isSpanish ? "Recomendado" : "Recommended",
+      urgentBoundary: isSpanish ? "Limite de seguridad urgente" : "Urgent safety boundary",
+      outgoingDraft: isSpanish ? "Borrador saliente" : "Outgoing draft",
+      editBeforeSend: isSpanish ? "Puedes editar antes de guardar nada." : "You can edit before anything is saved.",
+    },
     progress: (current, total) => isSpanish ? `Paso ${current} de ${total}` : `Step ${current} of ${total}`,
   }), [isSpanish]);
   const providerReplyCanvasContext = useMemo(() => {
@@ -15291,13 +15309,87 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       || activeAction.provider_name?.trim()
       || payloadString(activeAction.action_payload, ["provider_name", "pharmacy_name", "selected_provider_name"]);
     const actionLabel = getPendingActionUseCaseLabel(activeAction, locale);
+    const providerType = providerSearchCategoryLabel(providerSearchCategoryFromAction(activeAction), isSpanish);
     const existingReply = conciergeProviderReplySnapshot(activeAction.action_payload);
     const summary = existingReply?.summary || existingReply?.reply || activeAction.action_summary;
     return {
       providerName,
+      providerType,
       actionLabel,
       waitingSinceLabel: formatProviderWaitingSince(activeAction, locale, isSpanish, providerWaitingClockMs),
       requiresScheduledFor: isMedicalAppointmentPendingAction(activeAction) || isHomeServicePendingAction(activeAction),
+      replyIntents: [
+        {
+          id: "confirm-appointment",
+          label: isSpanish ? "Confirmar cita o detalle" : "Confirm appointment or detail",
+          subtitle: isSpanish ? "Solo borrador" : "Draft only",
+          description: isSpanish ? "Guardar la confirmacion para revisarla." : "Save the confirmation for review.",
+          providerType,
+          purposeLabel: isSpanish ? "Confirmar" : "Confirm",
+          confidenceLabel: isSpanish ? "Revisar" : "Review needed",
+          draftOnlyLabel: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+          reviewReminder: isSpanish ? "Revisar antes de enviar" : "Review before send",
+          recommended: true,
+          voiceAliases: isSpanish ? ["confirmar", "confirmar cita"] : ["confirm", "confirm appointment"],
+        },
+        {
+          id: "reschedule",
+          label: isSpanish ? "Reprogramar" : "Reschedule",
+          subtitle: isSpanish ? "Necesita revision" : "Needs review",
+          description: isSpanish ? "Preparar una respuesta de cambio de horario." : "Prepare a schedule-change reply.",
+          providerType,
+          purposeLabel: isSpanish ? "Reprogramar" : "Reschedule",
+          confidenceLabel: isSpanish ? "Revisar" : "Review needed",
+          draftOnlyLabel: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+          voiceAliases: isSpanish ? ["reprogramar"] : ["reschedule"],
+        },
+        {
+          id: "ask-question",
+          label: isSpanish ? "Hacer una pregunta" : "Ask a question",
+          subtitle: isSpanish ? "Solo borrador" : "Draft only",
+          description: isSpanish ? "Preparar una pregunta antes de guardar." : "Prepare a question before saving.",
+          providerType,
+          purposeLabel: isSpanish ? "Pregunta" : "Question",
+          confidenceLabel: isSpanish ? "Revisar" : "Review needed",
+          draftOnlyLabel: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+          voiceAliases: isSpanish ? ["pregunta", "hacer pregunta"] : ["question", "ask a question"],
+        },
+        {
+          id: "send-info",
+          label: isSpanish ? "Enviar informacion o documentos" : "Send information or documents",
+          subtitle: isSpanish ? "Revisar primero" : "Review first",
+          description: isSpanish ? "Preparar informacion para revisar antes de cualquier envio." : "Prepare information to review before anything is sent.",
+          providerType,
+          purposeLabel: isSpanish ? "Informacion" : "Information",
+          confidenceLabel: isSpanish ? "Revisar" : "Review needed",
+          draftOnlyLabel: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+          voiceAliases: isSpanish ? ["informacion", "documentos"] : ["information", "documents", "send documents"],
+        },
+        {
+          id: "decline-cancel",
+          label: isSpanish ? "Cancelar o rechazar" : "Decline or cancel",
+          subtitle: isSpanish ? "Necesita revision" : "Needs review",
+          description: isSpanish ? "Preparar una respuesta para revisar antes de actuar." : "Prepare a reply to review before acting.",
+          providerType,
+          purposeLabel: isSpanish ? "Cancelar" : "Cancel",
+          confidenceLabel: isSpanish ? "Revisar" : "Review needed",
+          draftOnlyLabel: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+          voiceAliases: isSpanish ? ["cancelar", "rechazar"] : ["cancel", "decline"],
+        },
+        {
+          id: "urgent",
+          label: isSpanish ? "Urgente o seguridad" : "Urgent or safety concern",
+          subtitle: isSpanish ? "Detiene este flujo" : "Stops this flow",
+          description: isSpanish ? "No uses una respuesta normal para ayuda urgente." : "Do not use a normal provider reply for urgent help.",
+          providerType,
+          purposeLabel: isSpanish ? "Urgente" : "Urgent",
+          confidenceLabel: isSpanish ? "Bloqueado" : "Blocked",
+          draftOnlyLabel: isSpanish ? "No se envio ningun mensaje" : "No message sent yet",
+          boundaryLabel: isSpanish ? "Este camino queda bloqueado y seguro." : "This path is blocked and safe.",
+          urgent: true,
+          voiceAliases: isSpanish ? ["urgente", "emergencia"] : ["urgent", "emergency"],
+        },
+      ],
       rows: summary ? [{
         id: "summary",
         label: isSpanish ? "Resumen" : "Summary",

@@ -33,6 +33,7 @@ const copy: ProviderReplyVoiceCanvasProps["copy"] = {
     title: "Provider context",
     helper: "Check the task before saving anything.",
     provider: "Provider",
+    providerType: "Provider type",
     action: "Task",
     waiting: "Waiting",
     continue: "Continue",
@@ -65,6 +66,7 @@ const copy: ProviderReplyVoiceCanvasProps["copy"] = {
     title: "Review before saving",
     helper: "This saves the reply but does not complete the task.",
     provider: "Provider",
+    intent: "Reply intent",
     action: "Task",
     reply: "Reply",
     scheduledFor: "Scheduled for",
@@ -107,6 +109,7 @@ const copy: ProviderReplyVoiceCanvasProps["copy"] = {
     missingContextHelper: "Provider context is missing.",
     incompleteReplyHelper: "Add the provider reply before continuing.",
     incompleteScheduledForHelper: "Add a valid date and time before continuing.",
+    urgentBoundaryHelper: "This may need urgent help. No message was sent.",
     retry: "Retry",
     cancel: "Cancel",
   },
@@ -115,6 +118,19 @@ const copy: ProviderReplyVoiceCanvasProps["copy"] = {
     title: "Nothing saved",
     helper: "The reply was not saved.",
     restart: "Start again",
+  },
+  detailLabels: {
+    messagePurpose: "Message purpose",
+    providerType: "Provider type",
+    confidence: "Confidence",
+    reviewNeeded: "Review needed",
+    draftOnly: "Draft only",
+    noMessageSent: "No message sent yet",
+    reviewBeforeSend: "Review before send",
+    recommended: "Recommended",
+    urgentBoundary: "Urgent safety boundary",
+    outgoingDraft: "Outgoing draft",
+    editBeforeSend: "You can edit before anything is saved.",
   },
   progress: (current, total) => `Step ${current} of ${total}`,
 };
@@ -132,8 +148,45 @@ const commands: ProviderReplyVoiceCanvasProps["voiceCommands"] = {
 
 const context: ProviderReplyVoiceCanvasProps["context"] = {
   providerName: "Riverside Clinic",
+  providerType: "Clinic",
   actionLabel: "Book appointment",
   waitingSinceLabel: "Waiting 2 hours",
+};
+
+const richIntentContext: ProviderReplyVoiceCanvasProps["context"] = {
+  ...context,
+  replyIntents: [
+    {
+      id: "confirm-appointment",
+      label: "Confirm appointment",
+      subtitle: "Appointment reply",
+      description: "Save the provider confirmation for review.",
+      purposeLabel: "Confirm appointment",
+      confidenceLabel: "Review needed",
+      draftOnlyLabel: "No message sent yet",
+      reviewReminder: "Review before send",
+      recommended: true,
+      voiceAliases: ["confirm"],
+    },
+    {
+      id: "reschedule-long",
+      label: "Reschedule with a deliberately long translated provider reply intent label",
+      subtitle: "Needs review",
+      description: "Prepare a draft for review before anything is saved.",
+      purposeLabel: "Reschedule",
+      confidenceLabel: "Review needed",
+      draftOnlyLabel: "No message sent yet",
+    },
+    {
+      id: "urgent",
+      label: "Urgent or safety concern",
+      subtitle: "Stops this flow",
+      description: "This path is blocked and safe.",
+      urgent: true,
+      boundaryLabel: "Do not use a normal provider reply for urgent help.",
+      voiceAliases: ["urgent"],
+    },
+  ],
 };
 
 function props(
@@ -187,6 +240,52 @@ beforeEach(() => {
 });
 
 describe("ProviderReplyVoiceCanvas", () => {
+  it("shows rich provider reply intent cards without saving or sending", () => {
+    const onSaveReply = vi.fn();
+    render(<ProviderReplyVoiceCanvas {...props({ context: richIntentContext, onSaveReply })} />);
+
+    click("Start");
+
+    expect(screen.getAllByText("Message purpose").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Provider type").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No message sent yet").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Review before send").length).toBeGreaterThan(0);
+    expect(screen.getByText("Recommended")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Confirm appointment/ }));
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+    click("Continue");
+
+    expect(screen.getByRole("heading", { name: "What did they say?" })).toBeInTheDocument();
+    expect(screen.getByText("Draft only")).toBeInTheDocument();
+    expect(onSaveReply).not.toHaveBeenCalled();
+  });
+
+  it("keeps urgent provider reply intent blocked and safe", () => {
+    const onSaveReply = vi.fn();
+    render(<ProviderReplyVoiceCanvas {...props({ context: richIntentContext, onSaveReply })} />);
+
+    click("Start");
+    fireEvent.click(screen.getByRole("button", { name: /Urgent or safety concern/ }));
+
+    expect(screen.getByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByText("This may need urgent help. No message was sent.")).toBeInTheDocument();
+    expect(onSaveReply).not.toHaveBeenCalled();
+    click("Retry");
+    expect(screen.getByRole("heading", { name: "Provider context" })).toBeInTheDocument();
+  });
+
+  it("supports voice intent selection before composing the draft", () => {
+    render(<ProviderReplyVoiceCanvas {...props({ context: richIntentContext })} />);
+
+    say("start");
+    say("confirm");
+    expect(screen.getByRole("button", { name: /Confirm appointment/ })).toHaveAttribute("aria-pressed", "true");
+    say("continue");
+    expect(screen.getByRole("heading", { name: "What did they say?" })).toBeInTheDocument();
+  });
+
   it("saves a provider reply before separately marking the task complete", async () => {
     const onSaveReply = vi.fn().mockResolvedValue({ summary: "Reply saved.", reference: "SAVE-1" });
     const onMarkComplete = vi.fn().mockResolvedValue({ reference: "DONE-1" });
@@ -266,7 +365,7 @@ describe("ProviderReplyVoiceCanvas", () => {
       step: "saving",
       requestId: 2,
       revision: 0,
-      draft: { providerReply: "Reply", scheduledFor: "", notes: "" },
+      draft: { replyIntentId: "", replyIntentLabel: "", providerReply: "Reply", scheduledFor: "", notes: "" },
     };
     expect(providerReplyCanvasReducer(waiting, {
       type: "SAVE_RESOLVE",

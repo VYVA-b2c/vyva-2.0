@@ -13,9 +13,27 @@ export type ProviderReplyCanvasStep =
   | "cancelled";
 
 export interface ProviderReplyCanvasDraft {
+  replyIntentId: string;
+  replyIntentLabel: string;
   providerReply: string;
   scheduledFor: string;
   notes: string;
+}
+
+export interface ProviderReplyIntent {
+  id: string;
+  label: string;
+  description?: string;
+  subtitle?: string;
+  providerType?: string;
+  purposeLabel?: string;
+  confidenceLabel?: string;
+  reviewReminder?: string;
+  draftOnlyLabel?: string;
+  boundaryLabel?: string;
+  recommended?: boolean;
+  urgent?: boolean;
+  voiceAliases?: string[];
 }
 
 export interface ProviderReplyCanvasState {
@@ -26,12 +44,13 @@ export interface ProviderReplyCanvasState {
   savedSummary?: string;
   resultReference?: string;
   errorMessage?: string;
-  retryTarget?: "reply" | "scheduledFor" | "review" | "saved";
+  retryTarget?: "context" | "reply" | "scheduledFor" | "review" | "saved";
 }
 
 export type ProviderReplyCanvasEvent =
   | { type: "START" }
-  | { type: "CONTINUE_CONTEXT" }
+  | { type: "CHOOSE_INTENT"; intent: ProviderReplyIntent; blockedMessage?: string }
+  | { type: "CONTINUE_CONTEXT"; requiresIntent?: boolean }
   | { type: "CHANGE_REPLY"; value: string }
   | { type: "CONTINUE_REPLY"; requiresScheduledFor: boolean }
   | { type: "CHANGE_SCHEDULED_FOR"; value: string }
@@ -46,11 +65,13 @@ export type ProviderReplyCanvasEvent =
   | { type: "COMPLETE" }
   | { type: "COMPLETE_RESOLVE"; requestId: number; reference?: string }
   | { type: "COMPLETE_REJECT"; requestId: number; message?: string }
-  | { type: "INVALID_REQUIRED_INFO"; message: string; retryTarget: "reply" | "scheduledFor" }
+  | { type: "INVALID_REQUIRED_INFO"; message: string; retryTarget: "context" | "reply" | "scheduledFor" }
   | { type: "RETRY" }
   | { type: "EDIT" };
 
 export const emptyProviderReplyDraft: ProviderReplyCanvasDraft = {
+  replyIntentId: "",
+  replyIntentLabel: "",
   providerReply: "",
   scheduledFor: "",
   notes: "",
@@ -77,8 +98,29 @@ export function providerReplyCanvasReducer(
       return state.step === "listening" || state.step === "cancelled"
         ? { ...state, step: "context", errorMessage: undefined }
         : state;
+    case "CHOOSE_INTENT":
+      if (state.step !== "context") return state;
+      if (event.intent.urgent) {
+        return {
+          ...state,
+          step: "blocked",
+          errorMessage: event.blockedMessage,
+          retryTarget: "context",
+        };
+      }
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          replyIntentId: event.intent.id,
+          replyIntentLabel: event.intent.label,
+        },
+      };
     case "CONTINUE_CONTEXT":
-      return state.step === "context" ? { ...state, step: "reply" } : state;
+      return state.step === "context" &&
+        (!event.requiresIntent || (state.draft.replyIntentId ?? "").trim())
+        ? { ...state, step: "reply" }
+        : state;
     case "CHANGE_REPLY":
       return state.step === "reply" || state.step === "review"
         ? { ...state, draft: { ...state.draft, providerReply: event.value } }
@@ -218,6 +260,8 @@ export function isRestorableProviderReplyCanvasState(
     typeof state.revision === "number" &&
     typeof state.step === "string" &&
     !!draft &&
+    (typeof draft.replyIntentId === "string" || draft.replyIntentId === undefined) &&
+    (typeof draft.replyIntentLabel === "string" || draft.replyIntentLabel === undefined) &&
     typeof draft.providerReply === "string" &&
     typeof draft.scheduledFor === "string" &&
     typeof draft.notes === "string" &&

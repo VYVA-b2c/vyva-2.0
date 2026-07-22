@@ -12,6 +12,7 @@ import {
   providerReplyCanvasReducer,
   type ProviderReplyCanvasDraft,
   type ProviderReplyCanvasEvent,
+  type ProviderReplyIntent,
   type ProviderReplyCanvasState,
 } from "./providerReplyCanvasMachine";
 import {
@@ -75,6 +76,10 @@ export interface ProviderReplyVoiceCanvasProps {
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
 const matches = (text: string, commands: string[]) =>
   commands.some((command) => text === normalize(command));
+const matchesIntent = (text: string, intent: ProviderReplyIntent) =>
+  [intent.label, ...(intent.voiceAliases ?? [])].some((value) =>
+    text === normalize(value) || text.includes(normalize(value)),
+  );
 
 function freezeDraft(draft: ProviderReplyCanvasDraft) {
   return Object.freeze({ ...draft });
@@ -177,10 +182,26 @@ export function ProviderReplyVoiceCanvas({
     dispatch(event);
   }, [actionGate, dispatch, onTelemetry, restoredRef, state.requestId, state.revision]);
 
+  const choose = useCallback((id: string) => {
+    inputRef.current = "touch_or_keyboard";
+    if (!id.startsWith("intent:")) return;
+    const intent = context.replyIntents?.find((item) => item.id === id.slice(7));
+    if (!intent) return;
+    submit({
+      type: "CHOOSE_INTENT",
+      intent,
+      blockedMessage: copy.blocked.urgentBoundaryHelper,
+    });
+  }, [context.replyIntents, copy.blocked.urgentBoundaryHelper, submit]);
+
   const primary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "cancelled") submit({ type: "START" });
-    else if (state.step === "context") submit({ type: "CONTINUE_CONTEXT" });
+    else if (state.step === "context")
+      submit({
+        type: "CONTINUE_CONTEXT",
+        requiresIntent: Boolean(context.replyIntents?.length),
+      });
     else if (state.step === "reply")
       submit({
         type: "CONTINUE_REPLY",
@@ -192,7 +213,7 @@ export function ProviderReplyVoiceCanvas({
     else if (state.step === "saved") submit({ type: "COMPLETE" });
     else if (state.step === "blocked") submit({ type: "RETRY" });
     else if (state.step === "completed") onDone?.();
-  }, [context.requiresScheduledFor, onDone, state.step, submit]);
+  }, [context.replyIntents, context.requiresScheduledFor, onDone, state.step, submit]);
 
   const secondary = useCallback(() => {
     inputRef.current = "touch_or_keyboard";
@@ -299,7 +320,20 @@ export function ProviderReplyVoiceCanvas({
     else if (matches(text, voiceCommands.back)) eventToDispatch = { type: "BACK" };
     else if (matches(text, voiceCommands.start)) eventToDispatch = { type: "START" };
     else if (state.step === "context" && matches(text, voiceCommands.continue))
-      eventToDispatch = { type: "CONTINUE_CONTEXT" };
+      eventToDispatch = {
+        type: "CONTINUE_CONTEXT",
+        requiresIntent: Boolean(context.replyIntents?.length),
+      };
+    else if (state.step === "context") {
+      const intent = context.replyIntents?.find((item) => matchesIntent(text, item));
+      if (intent) {
+        eventToDispatch = {
+          type: "CHOOSE_INTENT",
+          intent,
+          blockedMessage: copy.blocked.urgentBoundaryHelper,
+        };
+      }
+    }
     else if (state.step === "reply" && matches(text, voiceCommands.continue))
       eventToDispatch = state.draft.providerReply.trim()
         ? {
@@ -361,6 +395,7 @@ export function ProviderReplyVoiceCanvas({
     >
       <VoiceCanvasScene
         viewModel={viewModel}
+        onChoice={choose}
         onPrimary={primary}
         onSecondary={secondary}
         onTextChange={change}

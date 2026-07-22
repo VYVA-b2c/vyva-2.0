@@ -1,14 +1,34 @@
-import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasSummaryRow, VoiceCanvasViewModel } from "./types";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  ClipboardCheck,
+  FileText,
+  MessageCircle,
+  PenLine,
+  RotateCcw,
+  Send,
+  Stethoscope,
+  type LucideIcon,
+} from "lucide-react";
+import type {
+  VoiceCanvasAgentPresenceCopy,
+  VoiceCanvasOptionCardDetail,
+  VoiceCanvasSummaryRow,
+  VoiceCanvasViewModel,
+} from "./types";
 import {
   isValidProviderReplyScheduledFor,
+  type ProviderReplyIntent,
   type ProviderReplyCanvasState,
 } from "./providerReplyCanvasMachine";
 
 export interface ProviderReplyCanvasContext {
   providerName?: string;
+  providerType?: string;
   actionLabel?: string;
   waitingSinceLabel?: string;
   requiresScheduledFor?: boolean;
+  replyIntents?: ProviderReplyIntent[];
   rows?: VoiceCanvasSummaryRow[];
 }
 
@@ -25,6 +45,7 @@ export interface ProviderReplyCanvasCopy {
     title: string;
     helper: string;
     provider: string;
+    providerType: string;
     action: string;
     waiting: string;
     continue: string;
@@ -57,6 +78,7 @@ export interface ProviderReplyCanvasCopy {
     title: string;
     helper: string;
     provider: string;
+    intent: string;
     action: string;
     reply: string;
     scheduledFor: string;
@@ -99,6 +121,7 @@ export interface ProviderReplyCanvasCopy {
     missingContextHelper: string;
     incompleteReplyHelper: string;
     incompleteScheduledForHelper: string;
+    urgentBoundaryHelper: string;
     retry: string;
     cancel: string;
   };
@@ -107,6 +130,19 @@ export interface ProviderReplyCanvasCopy {
     title: string;
     helper: string;
     restart: string;
+  };
+  detailLabels: {
+    messagePurpose: string;
+    providerType: string;
+    confidence: string;
+    reviewNeeded: string;
+    draftOnly: string;
+    noMessageSent: string;
+    reviewBeforeSend: string;
+    recommended: string;
+    urgentBoundary: string;
+    outgoingDraft: string;
+    editBeforeSend: string;
   };
   progress: (current: number, total: number) => string;
 }
@@ -118,6 +154,24 @@ const progress = (copy: ProviderReplyCanvasCopy, current: number) => ({
   label: copy.progress(current, totalSteps),
 });
 
+const detail = (
+  id: string,
+  label: string,
+  value?: string,
+  tone?: "good" | "neutral" | "caution",
+): VoiceCanvasOptionCardDetail[] => value ? [{ id, label, value, tone }] : [];
+
+function intentIcon(intent: ProviderReplyIntent): LucideIcon {
+  const id = intent.id.toLocaleLowerCase();
+  if (intent.urgent) return AlertTriangle;
+  if (id.includes("reschedule")) return RotateCcw;
+  if (id.includes("question")) return MessageCircle;
+  if (id.includes("document") || id.includes("info")) return FileText;
+  if (id.includes("decline") || id.includes("cancel")) return AlertTriangle;
+  if (id.includes("confirm")) return BadgeCheck;
+  return Send;
+}
+
 function contextRows(
   context: ProviderReplyCanvasContext,
   copy: ProviderReplyCanvasCopy,
@@ -128,6 +182,13 @@ function contextRows(
       id: "provider",
       label: copy.context.provider,
       value: context.providerName.trim(),
+    });
+  }
+  if (context.providerType?.trim()) {
+    rows.push({
+      id: "provider-type",
+      label: copy.context.providerType,
+      value: context.providerType.trim(),
     });
   }
   if (context.actionLabel?.trim()) {
@@ -190,12 +251,41 @@ export function providerReplyCanvasViewModel(
     case "context":
       return {
         sceneId: "provider-reply-context",
-        kind: "review",
+        kind: context.replyIntents?.length ? "choice" : "review",
         title: copy.context.title,
         helperText: copy.context.helper,
         progress: progress(copy, 1),
+        blocks: context.replyIntents?.map((intent) => ({
+          kind: "option-card" as const,
+          id: `intent:${intent.id}`,
+          title: intent.label,
+          subtitle: intent.subtitle || (intent.urgent ? copy.detailLabels.urgentBoundary : copy.detailLabels.draftOnly),
+          description: intent.description,
+          badge: intent.recommended ? copy.detailLabels.recommended : undefined,
+          recommended: intent.recommended,
+          selected: (state.draft.replyIntentId ?? "") === intent.id,
+          icon: intentIcon(intent),
+          accessibleLabel: [
+            intent.label,
+            intent.subtitle,
+            intent.description,
+            intent.urgent ? copy.detailLabels.urgentBoundary : copy.detailLabels.noMessageSent,
+          ].filter(Boolean).join(". "),
+          voiceAliases: intent.voiceAliases,
+          details: [
+            ...detail("purpose", copy.detailLabels.messagePurpose, intent.purposeLabel || intent.label),
+            ...detail("provider-type", copy.detailLabels.providerType, intent.providerType || context.providerType),
+            ...detail("confidence", copy.detailLabels.confidence, intent.confidenceLabel || copy.detailLabels.reviewNeeded, intent.urgent ? "caution" : "neutral"),
+            ...detail("draft-only", copy.detailLabels.draftOnly, intent.draftOnlyLabel || copy.detailLabels.noMessageSent, intent.urgent ? "caution" : "good"),
+            ...detail("review", copy.detailLabels.reviewBeforeSend, intent.reviewReminder || copy.detailLabels.reviewBeforeSend),
+            ...detail("boundary", copy.detailLabels.urgentBoundary, intent.boundaryLabel, intent.urgent ? "caution" : "neutral"),
+          ],
+        })),
         summaryRows: contextRows(context, copy),
-        primaryAction: { label: copy.context.continue },
+        primaryAction: {
+          label: copy.context.continue,
+          disabled: Boolean(context.replyIntents?.length) && !(state.draft.replyIntentId ?? "").trim(),
+        },
         secondaryAction: { label: copy.context.back },
       };
     case "reply":
@@ -205,6 +295,20 @@ export function providerReplyCanvasViewModel(
         title: copy.reply.title,
         helperText: copy.reply.helper,
         progress: progress(copy, 2),
+        blocks: [{
+          kind: "option-card",
+          id: "reply-draft-guidance",
+          title: state.draft.replyIntentLabel || copy.detailLabels.outgoingDraft,
+          subtitle: copy.detailLabels.draftOnly,
+          description: copy.detailLabels.editBeforeSend,
+          icon: PenLine,
+          disabled: true,
+          details: [
+            ...detail("provider", copy.context.provider, context.providerName),
+            ...detail("purpose", copy.detailLabels.messagePurpose, state.draft.replyIntentLabel || context.actionLabel),
+            ...detail("boundary", copy.detailLabels.noMessageSent, copy.detailLabels.noMessageSent, "good"),
+          ],
+        }],
         textEntry: {
           label: copy.reply.label,
           value: state.draft.providerReply,
@@ -263,6 +367,13 @@ export function providerReplyCanvasViewModel(
               value: context.providerName.trim(),
             }
           : null,
+        (state.draft.replyIntentLabel ?? "").trim()
+          ? {
+              id: "intent",
+              label: copy.review.intent,
+              value: (state.draft.replyIntentLabel ?? "").trim(),
+            }
+          : null,
         context.actionLabel?.trim()
           ? {
               id: "action",
@@ -294,6 +405,19 @@ export function providerReplyCanvasViewModel(
         title: copy.review.title,
         helperText: copy.review.helper,
         progress: progress(copy, 5),
+        blocks: [{
+          kind: "option-card",
+          id: "review-before-send",
+          title: copy.detailLabels.reviewBeforeSend,
+          subtitle: copy.detailLabels.noMessageSent,
+          description: copy.detailLabels.editBeforeSend,
+          icon: ClipboardCheck,
+          disabled: true,
+          details: [
+            ...detail("draft", copy.detailLabels.outgoingDraft, copy.detailLabels.draftOnly, "good"),
+            ...detail("confidence", copy.detailLabels.confidence, copy.detailLabels.reviewNeeded),
+          ],
+        }],
         summaryRows: rows,
         primaryAction: { label: copy.review.save },
         secondaryAction: { label: copy.review.back },
