@@ -7,7 +7,7 @@ export interface RideCanvasCopy {
   listening:{status:string;title:string;helper:string;start:string;cancel:string};
   place:{title:string;helper:string;newAddress:string;newAddressHelper:string;continue:string;back:string};
   provider:{title:string;helper:string;back:string};
-  details:{savedPlace:string;newAddress:string;provider:string;estimatedPickup:string;estimatedArrival:string;estimatedPrice:string;reputation:string;accessibility:string;recommended:string};
+  details:{savedPlace:string;newAddress:string;provider:string;estimatedPickup:string;estimatedArrival:string;estimatedPrice:string;reputation:string;accessibility:string;recommended:string;reviewBeforeBooking:string;noBookingYet:string};
   address:{title:string;helper:string;label:string;placeholder:string;continue:string;back:string};
   dateTime:{title:string;helper:string;timeLabel:string;continue:string;back:string};
   review:{title:string;helper:string;destination:string;provider:string;date:string;time:string;confirm:string;change:string};
@@ -25,6 +25,10 @@ function detail(id:string,label:string,detail?:RideRichOptionDetail):VoiceCanvas
   return [{ id, label, value: detail.value, tone: detail.tone }];
 }
 
+function boundaryDetail(id:string,label:string,value:string,tone?:"good"|"neutral"|"caution"):VoiceCanvasOptionCardDetail[] {
+  return [{ id, label, value, tone }];
+}
+
 function rideOptionDetails(copy:RideCanvasCopy,item:Pick<RidePlace | RideProviderOption,"pickupEstimate"|"arrivalEstimate"|"priceEstimate"|"reputation"|"accessibilityNote">):VoiceCanvasOptionCardDetail[] {
   return [
     ...detail("pickup",copy.details.estimatedPickup,item.pickupEstimate),
@@ -32,6 +36,8 @@ function rideOptionDetails(copy:RideCanvasCopy,item:Pick<RidePlace | RideProvide
     ...detail("price",copy.details.estimatedPrice,item.priceEstimate),
     ...detail("reputation",copy.details.reputation,item.reputation),
     ...detail("accessibility",copy.details.accessibility,item.accessibilityNote),
+    ...boundaryDetail("review",copy.details.reviewBeforeBooking,copy.details.reviewBeforeBooking),
+    ...boundaryDetail("boundary",copy.details.noBookingYet,copy.details.noBookingYet,"good"),
   ];
 }
 

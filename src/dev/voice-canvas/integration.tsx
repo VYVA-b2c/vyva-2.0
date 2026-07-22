@@ -49,6 +49,8 @@ const englishCopy: RideCanvasCopy = {
     reputation: "Reputation",
     accessibility: "Accessibility",
     recommended: "Recommended",
+    reviewBeforeBooking: "Review before booking",
+    noBookingYet: "No booking yet",
   },
   address: {
     title: "What address should we use?",
@@ -146,6 +148,8 @@ const spanishCopy: RideCanvasCopy = {
     reputation: "Reputacion",
     accessibility: "Accesibilidad",
     recommended: "Recomendada",
+    reviewBeforeBooking: "Revisar antes de reservar",
+    noBookingYet: "Sin reserva todavia",
   },
   address: {
     title: "¿Qué dirección usamos?",
