@@ -1,8 +1,9 @@
 import { CalendarDays, Home, MapPin, Navigation } from "lucide-react";
-import type { VoiceCanvasViewModel } from "./types";
+import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasViewModel } from "./types";
 import type { RideCanvasState, RidePlace } from "./rideCanvasMachine";
 
 export interface RideCanvasCopy {
+  agentPresence: VoiceCanvasAgentPresenceCopy;
   listening:{status:string;title:string;helper:string;start:string;cancel:string};
   place:{title:string;helper:string;newAddress:string;newAddressHelper:string;continue:string;back:string};
   address:{title:string;helper:string;label:string;placeholder:string;continue:string;back:string};

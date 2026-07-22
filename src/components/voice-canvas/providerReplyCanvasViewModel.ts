@@ -1,4 +1,4 @@
-import type { VoiceCanvasSummaryRow, VoiceCanvasViewModel } from "./types";
+import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasSummaryRow, VoiceCanvasViewModel } from "./types";
 import {
   isValidProviderReplyScheduledFor,
   type ProviderReplyCanvasState,
@@ -13,6 +13,7 @@ export interface ProviderReplyCanvasContext {
 }
 
 export interface ProviderReplyCanvasCopy {
+  agentPresence: VoiceCanvasAgentPresenceCopy;
   listening: {
     status: string;
     title: string;

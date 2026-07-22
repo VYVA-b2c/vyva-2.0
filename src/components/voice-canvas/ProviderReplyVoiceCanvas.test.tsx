@@ -11,6 +11,17 @@ import {
 import { VYVA_VOICE_USER_MESSAGE_EVENT, type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
 
 const copy: ProviderReplyVoiceCanvasProps["copy"] = {
+  agentPresence: {
+    idleLabel: "Voice ready",
+    idleDescription: "Use voice or touch.",
+    listeningLabel: "Listening with you",
+    listeningDescription: "Say or type the provider reply.",
+    speakingLabel: "VYVA is speaking",
+    speakingDescription: "Follow the screen.",
+    thinkingLabel: "Thinking through provider reply",
+    thinkingDescription: "Checking provider reply details.",
+    accessibleLabel: "VYVA provider reply voice status",
+  },
   listening: {
     status: "Listening",
     title: "Review provider reply",

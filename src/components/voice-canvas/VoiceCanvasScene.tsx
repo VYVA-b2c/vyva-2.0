@@ -1,7 +1,7 @@
 import { Camera, Check, CircleAlert, LoaderCircle, MapPin, Trash2, type LucideIcon } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent } from "react";
-import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
-import type { VoiceCanvasChoice, VoiceCanvasViewModel } from "./types";
+import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
+import type { VoiceCanvasAgentPresence, VoiceCanvasChoice, VoiceCanvasOptionCardBlock, VoiceCanvasViewModel } from "./types";
 import "./voice-canvas.css";
 
 export interface VoiceCanvasSceneProps {
@@ -19,6 +19,38 @@ const statusIcons: Partial<Record<VoiceCanvasViewModel["kind"], LucideIcon>> = {
   blocked: CircleAlert,
   waiting: LoaderCircle,
 };
+
+function orbStateForAgentPresence(state: VoiceCanvasAgentPresence["state"]): ZamoraOrbState {
+  if (state === "listening") return "listening";
+  if (state === "speaking") return "speaking";
+  return "idle";
+}
+
+function AgentPresence({ presence, sceneId }: { presence: VoiceCanvasAgentPresence; sceneId: string }) {
+  const ariaLive = presence.ariaLive ?? "off";
+  return (
+    <div
+      className="vc-agent-presence"
+      data-state={presence.state}
+      role={ariaLive === "off" ? undefined : "status"}
+      aria-live={ariaLive === "off" ? undefined : ariaLive}
+      aria-label={presence.accessibleLabel}
+    >
+      <span className="vc-agent-orb" aria-hidden="true">
+        <ZamoraVoiceOrb state={orbStateForAgentPresence(presence.state)} size={52} isDark={false} testId={`voice-canvas-agent-orb-${sceneId}`} />
+      </span>
+      <span className="vc-agent-copy">
+        <span className="vc-agent-label">{presence.label}</span>
+        {presence.description && <span className="vc-agent-description">{presence.description}</span>}
+      </span>
+      <span className="vc-agent-bars" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+    </div>
+  );
+}
 
 function ChoiceButton({ choice, onChoice }: { choice: VoiceCanvasChoice; onChoice?: (id: string) => void }) {
   const Icon = choice.icon ?? MapPin;
@@ -42,8 +74,45 @@ function ChoiceButton({ choice, onChoice }: { choice: VoiceCanvasChoice; onChoic
   );
 }
 
+function OptionCardBlock({ block, onChoice }: { block: VoiceCanvasOptionCardBlock; onChoice?: (id: string) => void }) {
+  const Icon = block.icon ?? MapPin;
+  return (
+    <button
+      type="button"
+      className="vc-option-card"
+      data-selected={block.selected || undefined}
+      data-recommended={block.recommended || undefined}
+      aria-pressed={block.selected}
+      aria-label={block.accessibleLabel}
+      disabled={block.disabled}
+      onClick={() => onChoice?.(block.id)}
+    >
+      <span className="vc-option-card-top">
+        <span className="vc-option-card-icon" aria-hidden="true"><Icon size={24} strokeWidth={1.8} /></span>
+        <span className="vc-option-card-copy">
+          <span className="vc-option-card-title">{block.title}</span>
+          {block.subtitle && <span className="vc-option-card-subtitle">{block.subtitle}</span>}
+        </span>
+        {block.badge && <span className="vc-option-card-badge">{block.badge}</span>}
+        {block.selected && <Check className="vc-option-card-check" size={24} aria-hidden="true" />}
+      </span>
+      {block.description && <span className="vc-option-card-description">{block.description}</span>}
+      {block.details && block.details.length > 0 && (
+        <dl className="vc-option-card-details">
+          {block.details.map((detail) => (
+            <div key={detail.id ?? detail.label} data-tone={detail.tone ?? "neutral"}>
+              <dt>{detail.label}</dt>
+              <dd>{detail.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </button>
+  );
+}
+
 export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, onTextChange, onFileChange, className = "" }: VoiceCanvasSceneProps) {
-  const { kind, title, helperText, progress, choices = [], summaryRows = [], textEntry, fileEntry, statusLabel } = viewModel;
+  const { kind, title, helperText, agentPresence, progress, choices = [], blocks = [], summaryRows = [], textEntry, fileEntry, statusLabel } = viewModel;
   const StatusIcon = statusIcons[kind];
   const isWaiting = kind === "waiting" || viewModel.status === "loading";
   const titleId = `voice-canvas-title-${viewModel.sceneId}`;
@@ -66,10 +135,14 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
       className={`voice-canvas ${className}`.trim()}
       data-kind={kind}
       data-status={viewModel.status ?? "idle"}
+      data-agent-presence={agentPresence ? "true" : undefined}
+      data-agent-state={agentPresence?.state}
       aria-labelledby={titleId}
       aria-describedby={helperId}
       aria-busy={isWaiting}
     >
+      {agentPresence && <AgentPresence presence={agentPresence} sceneId={viewModel.sceneId} />}
+
       {progress && (
         <div className="vc-progress" aria-label={progress.label} role="progressbar" aria-valuemin={1} aria-valuemax={progress.total} aria-valuenow={progress.current}>
           <span className="vc-progress-label">{progress.label}</span>
@@ -89,6 +162,15 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
         {helperText && <p id={helperId} className="vc-helper">{helperText}</p>}
 
         {choices.length > 0 && <div className="vc-choices" role="group" aria-label={title} onKeyDown={handleChoiceKeyDown}>{choices.map((choice) => <ChoiceButton key={choice.id} choice={choice} onChoice={onChoice} />)}</div>}
+
+        {blocks.length > 0 && (
+          <div className="vc-blocks" role="group" aria-label={title} onKeyDown={handleChoiceKeyDown}>
+            {blocks.map((block) => {
+              if (block.kind === "option-card") return <OptionCardBlock key={block.id} block={block} onChoice={onChoice} />;
+              return null;
+            })}
+          </div>
+        )}
 
         {textEntry && (
           <label className="vc-field">

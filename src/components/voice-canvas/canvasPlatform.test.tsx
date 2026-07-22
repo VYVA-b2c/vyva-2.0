@@ -10,7 +10,12 @@ import {
   type CanvasTelemetryEnvelope,
 } from "./canvasPlatform";
 import { CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS } from "./canvasLaunchReadiness";
-import { useCanvasExternalActionGate } from "./useVoiceCanvasPlatform";
+import {
+  applyVoiceCanvasAgentPresence,
+  useCanvasExternalActionGate,
+  voiceCanvasAgentPresenceStateFor,
+} from "./useVoiceCanvasPlatform";
+import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasViewModel } from "./types";
 
 describe("Canvas platform outcomes", () => {
   it.each([
@@ -118,5 +123,47 @@ describe("Canvas platform safety primitives", () => {
     expect(() => result.current.begin(1, 1)).toThrow(CanvasSafetyError);
     act(() => result.current.authorize(2, 1));
     expect(result.current.begin(2, 1)).toBeInstanceOf(AbortController);
+  });
+});
+
+describe("Canvas agent presence adapter", () => {
+  const copy: VoiceCanvasAgentPresenceCopy = {
+    idleLabel: "Voice ready",
+    idleDescription: "Use voice or touch.",
+    listeningLabel: "Listening with you",
+    listeningDescription: "Say or tap a choice.",
+    speakingLabel: "VYVA is speaking",
+    speakingDescription: "Follow the screen.",
+    thinkingLabel: "Thinking",
+    thinkingDescription: "Checking details.",
+    accessibleLabel: "VYVA voice status",
+  };
+  const viewModel: VoiceCanvasViewModel = {
+    sceneId: "ride-place",
+    kind: "place",
+    title: "Where to?",
+  };
+
+  it("maps real voice state into shared Canvas presence states", () => {
+    expect(voiceCanvasAgentPresenceStateFor(viewModel, { status: "connected", voiceSessionPhase: "listening" })).toBe("listening");
+    expect(voiceCanvasAgentPresenceStateFor(viewModel, { status: "connected", isSpeaking: true, voiceSessionPhase: "speaking" })).toBe("speaking");
+    expect(voiceCanvasAgentPresenceStateFor({ ...viewModel, kind: "waiting", status: "loading" }, { status: "connected", voiceSessionPhase: "listening" })).toBe("thinking");
+    expect(voiceCanvasAgentPresenceStateFor(viewModel, { status: "connected", isMicMuted: true, voiceSessionPhase: "muted" })).toBe("idle");
+  });
+
+  it("applies flow-supplied copy without changing pure listening scenes", () => {
+    expect(applyVoiceCanvasAgentPresence(viewModel, { status: "connected", voiceSessionPhase: "listening" }, copy).agentPresence).toEqual({
+      state: "listening",
+      label: "Listening with you",
+      description: "Say or tap a choice.",
+      accessibleLabel: "VYVA voice status",
+      ariaLive: undefined,
+    });
+    const listening: VoiceCanvasViewModel = {
+      sceneId: "ride-listening",
+      kind: "listening",
+      title: "Listening",
+    };
+    expect(applyVoiceCanvasAgentPresence(listening, { status: "connected", voiceSessionPhase: "listening" }, copy)).toBe(listening);
   });
 });
