@@ -4511,6 +4511,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("1 route");
     expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("Manual handoff");
     expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("Missing content");
+    expect(screen.getByTestId("marketing-campaign-planner-template-recommendations")).toHaveTextContent("Recommended campaign kits");
+    expect(screen.getByTestId("marketing-campaign-planner-template-recommendations")).toHaveTextContent("Apply to planner");
+    expect(screen.getByTestId("marketing-campaign-planner-template-recommendations")).toHaveTextContent("Create full kit");
     fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-draft-publish-route-map"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign publish route map"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("1. LinkedIn - Manual handoff"));
@@ -4558,6 +4561,10 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign audience reach brief copied.");
     });
+    const plannerTemplateRecommendations = within(screen.getByTestId("marketing-campaign-planner-template-recommendations"));
+    fireEvent.click(plannerTemplateRecommendations.getAllByRole("button", { name: /Apply to planner/i })[0]);
+    expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).toContain("campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Planner kit loaded:");
   });
 
   it("drafts missing campaign content directly from the planner", async () => {
