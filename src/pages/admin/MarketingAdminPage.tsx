@@ -31,6 +31,7 @@ import {
   Sparkles,
   Trash2,
   UsersRound,
+  Wand2,
   Waypoints,
   X,
   ArrowDown,
@@ -677,6 +678,19 @@ type CampaignPlannerRecipe = {
   scheduleStartsAt: string;
   status: "draft" | "scheduled";
   reachableContacts: number;
+};
+
+type CampaignPlannerTemplatePackRecommendation = {
+  pack: ContentTemplatePack;
+  templates: ContentTemplate[];
+  heroTemplate: ContentTemplate | null;
+  channels: Channel[];
+  reachableContacts: number;
+  existingAssetCount: number;
+  newAssetCount: number;
+  score: number;
+  state: CampaignReadinessState;
+  reasons: string[];
 };
 
 type CampaignStudioGeneratedDraft = {
@@ -16977,6 +16991,63 @@ export default function MarketingAdminPage() {
     )) ?? null,
     [campaignDraftSelectedChannels],
   );
+  const campaignPlannerTemplatePackRecommendations = useMemo<CampaignPlannerTemplatePackRecommendation[]>(() => (
+    sortedContentTemplatePacksWithStats.map((packStats) => {
+      const packAudience = templatePackAudience(packStats.pack, packStats.heroTemplate, campaignStudioPlays.find((item) => item.id === packStats.pack.studioPlayId) ?? campaignStudioPlays[0]);
+      const audienceMatch = campaignAllowsContact(campaignDraft.audienceType, packAudience) || campaignAllowsContact(packAudience, campaignDraft.audienceType);
+      const routeChannels = uniqueChannels([
+        packStats.heroTemplate?.channel ?? packStats.channels[0] ?? campaignDraft.channel,
+        ...packStats.pack.sequence.map((step) => step.channel),
+        ...packStats.channels,
+      ]);
+      const channelOverlap = routeChannels.filter((channel) => campaignDraftSelectedChannels.includes(channel)).length;
+      const selectedRouteCoverage = campaignDraftSelectedChannels.filter((channel) => routeChannels.includes(channel)).length;
+      const reachableContacts = contacts.filter((contact) => (
+        campaignAllowsContact(packAudience, contact.audienceType)
+        && routeChannels.some((channel) => recipientForChannel(contact, channel))
+      )).length;
+      const score = Math.min(99,
+        (audienceMatch ? 30 : 8)
+        + channelOverlap * 14
+        + selectedRouteCoverage * 8
+        + Math.min(reachableContacts, 6) * 6
+        + Math.min(packStats.templates.length, 8) * 3
+        + Math.min(packStats.existingAssetCount, 4) * 4
+      );
+      const state: CampaignReadinessState = score >= 72 && reachableContacts > 0
+        ? "ready"
+        : score >= 48 || packStats.templates.length >= 4 ? "planning" : "needs_action";
+      const reasons = [
+        audienceMatch ? `${campaignDraft.audienceType.toUpperCase()} audience fit` : `${packAudience.toUpperCase()} template audience`,
+        channelOverlap
+          ? `${channelOverlap} current route${channelOverlap === 1 ? "" : "s"} covered`
+          : `${formatChannelList(routeChannels.slice(0, 3))} route${routeChannels.length === 1 ? "" : "s"}`,
+        `${reachableContacts} reachable contact${reachableContacts === 1 ? "" : "s"}`,
+        packStats.existingAssetCount
+          ? `${packStats.existingAssetCount} reusable asset${packStats.existingAssetCount === 1 ? "" : "s"}`
+          : `${packStats.newAssetCount} asset${packStats.newAssetCount === 1 ? "" : "s"} to create`,
+      ];
+      return {
+        pack: packStats.pack,
+        templates: packStats.templates,
+        heroTemplate: packStats.heroTemplate,
+        channels: routeChannels,
+        reachableContacts,
+        existingAssetCount: packStats.existingAssetCount,
+        newAssetCount: packStats.newAssetCount,
+        score,
+        state,
+        reasons,
+      };
+    })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+        if (b.templates.length !== a.templates.length) return b.templates.length - a.templates.length;
+        return a.pack.title.localeCompare(b.pack.title);
+      })
+      .slice(0, 3)
+  ), [campaignDraft.audienceType, campaignDraft.channel, campaignDraftSelectedChannels, contacts, sortedContentTemplatePacksWithStats]);
   const visibleCampaignStudioPlays = useMemo(
     () => campaignStudioCategory === "all"
       ? campaignStudioPlays
@@ -21847,6 +21918,62 @@ export default function MarketingAdminPage() {
     });
     setCampaignStudioFeedback(`Starter loaded: ${recipe.play.label}${recipe.matchedContent ? ` with ${recipe.matchedContent.title}` : ""}.`);
     setMessage(`Starter loaded: ${recipe.play.label}. Review the planner, then add the campaign.`);
+  }
+
+  function applyCampaignPlannerTemplatePack(recommendation: CampaignPlannerTemplatePackRecommendation) {
+    const play = campaignStudioPlays.find((item) => item.id === recommendation.pack.studioPlayId) ?? campaignStudioPlays[0];
+    const audienceType = templatePackAudience(recommendation.pack, recommendation.heroTemplate, play);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const primaryChannel = recommendation.heroTemplate?.channel ?? recommendation.channels[0] ?? play.defaultChannel;
+    const routeContentIds = Object.fromEntries(recommendation.channels.map((channel) => {
+      const template = recommendation.templates.find((item) => item.channel === channel)
+        ?? recommendation.heroTemplate
+        ?? recommendation.templates[0]
+        ?? null;
+      const existing = template
+        ? content.find((item) => contentAssetMatchesTemplatePack(item, recommendation.pack, template))
+        : content.find((item) => item.channel === channel && item.status !== "archived") ?? null;
+      return [channel, existing?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
+
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: `${recommendation.pack.title} campaign`,
+      audienceType,
+      channel: primaryChannel,
+      channels: recommendation.channels,
+      contentAssetId: routeContentIds[primaryChannel] ?? "",
+      channelContentAssetIds: routeContentIds,
+      status: campaignStudioDefaultSchedule(play) ? "scheduled" : "draft",
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      scheduleEndsAt: "",
+      objective: [
+        recommendation.pack.focus,
+        "",
+        recommendation.pack.description,
+        "",
+        `Template kit: ${recommendation.pack.title}.`,
+        `AI direction: ${recommendation.pack.aiPrompt}`,
+      ].join("\n"),
+      targetAudienceId: targetAudience?.id ?? "",
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: recommendation.reachableContacts > 0,
+    });
+    if (recommendation.heroTemplate) {
+      setContentDraft(contentDraftFromTemplate(recommendation.heroTemplate));
+      setSelectedContentId(null);
+      setEditingContentId(null);
+      setContentEditDraft(null);
+      setContentDrawerMode(null);
+    }
+    setContentTemplatePackFilter(recommendation.pack.id);
+    setContentTemplateSearch("");
+    setContentTemplateChannelFilter("all");
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setCampaignStudioFeedback(`Planner kit loaded: ${recommendation.pack.title}. ${recommendation.channels.length} route${recommendation.channels.length === 1 ? "" : "s"} ready to review.`);
+    setContentActionFeedback(`Planner kit loaded: ${recommendation.pack.title}.`);
+    setMessage(`${recommendation.pack.title} is loaded into the campaign planner. Review content, audience, and schedule before creating it.`);
   }
 
   function focusCampaignPlannerField(testId: string) {
@@ -35947,6 +36074,72 @@ export default function MarketingAdminPage() {
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm" data-testid="marketing-campaign-planner-template-recommendations">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Recommended campaign kits</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Start from the best reusable templates for this draft</h3>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                          Ranked by audience fit, selected routes, reachable contacts, reusable content, and how much copy VYVA can prepare automatically.
+                        </p>
+                      </div>
+                      <Pill className="bg-white text-emerald-800">
+                        {campaignPlannerTemplatePackRecommendations.length} match{campaignPlannerTemplatePackRecommendations.length === 1 ? "" : "es"}
+                      </Pill>
+                    </div>
+                    <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                      {campaignPlannerTemplatePackRecommendations.map((recommendation) => (
+                        <article key={recommendation.pack.id} className={`rounded-xl border p-3 ${readinessClass(recommendation.state)}`} data-testid={`marketing-campaign-planner-template-pack-${recommendation.pack.id}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h4 className="font-black">{recommendation.pack.title}</h4>
+                              <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed opacity-85">{recommendation.pack.focus}</p>
+                            </div>
+                            <Pill className={readinessPillClass(recommendation.state)}>{recommendation.score}% fit</Pill>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            {recommendation.channels.slice(0, 5).map((channel) => (
+                              <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                            ))}
+                            {recommendation.channels.length > 5 ? <Pill className="bg-white text-[#6b5b54]">+{recommendation.channels.length - 5}</Pill> : null}
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-lg border border-white/70 bg-white/80 p-2">
+                              <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Reach</p>
+                              <p className="mt-1 text-sm font-black">{recommendation.reachableContacts}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/70 bg-white/80 p-2">
+                              <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Assets</p>
+                              <p className="mt-1 text-sm font-black">{recommendation.existingAssetCount} reuse / {recommendation.newAssetCount} new</p>
+                            </div>
+                          </div>
+                          <ul className="mt-3 space-y-1 text-xs font-bold leading-relaxed opacity-85">
+                            {recommendation.reasons.slice(0, 3).map((reason) => <li key={reason}>- {reason}</li>)}
+                          </ul>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => applyCampaignPlannerTemplatePack(recommendation)}
+                              disabled={campaignSaving || contentSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              data-testid={`button-marketing-campaign-planner-apply-template-pack-${recommendation.pack.id}`}
+                            >
+                              <Wand2 size={13} /> Apply to planner
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void createCampaignPlanFromTemplatePack(recommendation.pack, recommendation.templates, recommendation.heroTemplate)}
+                              disabled={campaignSaving || contentSaving || !recommendation.templates.length}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid={`button-marketing-campaign-planner-create-template-pack-${recommendation.pack.id}`}
+                            >
+                              <Plus size={13} /> Create full kit
+                            </button>
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   </div>
                   <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
