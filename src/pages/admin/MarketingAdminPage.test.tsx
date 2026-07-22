@@ -4458,6 +4458,9 @@ describe("MarketingAdminPage", () => {
 
     const starterPanel = within(screen.getByTestId("marketing-campaign-planner-recipes"));
     expect(starterPanel.getByText("Partner outreach")).toBeInTheDocument();
+    const goalStarterPanel = within(screen.getByTestId("marketing-campaign-planner-goal-starters"));
+    expect(goalStarterPanel.getByText("Smart brief starters")).toBeInTheDocument();
+    expect(goalStarterPanel.getByText("Pick the outcome, then review the campaign")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-planner-copilot")).toHaveTextContent("Campaign copilot");
     expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Start from the best campaign");
     expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Load best starter");
@@ -4565,6 +4568,22 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(plannerTemplateRecommendations.getAllByRole("button", { name: /Apply to planner/i })[0]);
     expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).toContain("campaign");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Planner kit loaded:");
+  });
+
+  it("loads a campaign planner draft from a smart goal starter", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const goalStarterPanel = within(screen.getByTestId("marketing-campaign-planner-goal-starters"));
+    const [firstGoalStarter] = goalStarterPanel.getAllByRole("button");
+    fireEvent.click(firstGoalStarter);
+
+    expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).not.toEqual("");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Create");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Goal loaded:");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-planner-preflight")).toHaveTextContent("Preflight guardrails");
   });
 
   it("drafts missing campaign content directly from the planner", async () => {

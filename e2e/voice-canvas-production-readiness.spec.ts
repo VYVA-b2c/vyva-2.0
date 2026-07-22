@@ -15,6 +15,7 @@ test.beforeEach(async ({ page }) => {
 test("completes with touch and shows no result before confirmation", async ({ page }) => {
   await page.getByRole("button", { name: "Arrange a ride" }).click();
   await page.getByRole("button", { name: "Home" }).click();
+  await page.getByRole("button", { name: "CareCab" }).click();
   await page.getByRole("button", { name: "Today" }).click();
   await page.getByLabel("Pickup time").fill("10:30");
   await page.getByRole("button", { name: "Review the ride" }).click();
@@ -55,6 +56,11 @@ test("supports keyboard-only use", async ({ page }) => {
     page.getByRole("heading", { name: "Where would you like to go?" }),
   ).toBeFocused();
   await page.getByRole("button", { name: "Home" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Which ride option looks best?" }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "CareCab" }).focus();
   await page.keyboard.press("Enter");
   await expect(
     page.getByRole("heading", { name: "When should the ride arrive?" }),
