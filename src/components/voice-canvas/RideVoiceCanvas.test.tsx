@@ -11,21 +11,30 @@ const copy:RideCanvasCopy={
   agentPresence:{idleLabel:"Voice ready",idleDescription:"Use voice or touch.",listeningLabel:"Listening with you",listeningDescription:"Say or tap a ride detail.",speakingLabel:"VYVA is speaking",speakingDescription:"Follow the screen.",thinkingLabel:"Thinking through ride options",thinkingDescription:"Checking ride details.",accessibleLabel:"VYVA ride voice status"},
   listening:{status:"Listening",title:"How can I help?",helper:"Take your time.",start:"Arrange a ride",cancel:"Cancel"},
   place:{title:"Where are you going?",helper:"Choose one place.",newAddress:"A new address",newAddressHelper:"Enter another place",continue:"Continue",back:"Back"},
+  provider:{title:"Which ride option looks best?",helper:"Compare the company details before choosing.",back:"Back"},
+  details:{savedPlace:"Saved place",newAddress:"New destination",provider:"Ride company",estimatedPickup:"Estimated pickup",estimatedArrival:"Estimated arrival",estimatedPrice:"Estimated price",reputation:"Reputation",accessibility:"Accessibility",recommended:"Recommended"},
   address:{title:"What address?",helper:"Enter the destination.",label:"Address",placeholder:"Start typing",continue:"Continue",back:"Back"},
   dateTime:{title:"When?",helper:"Choose a day and time.",timeLabel:"Time",continue:"Continue",back:"Back"},
-  review:{title:"Review the ride",helper:"Nothing happens until you confirm.",destination:"Destination",date:"Date",time:"Time",confirm:"Confirm ride",change:"Make a change"},
+  review:{title:"Review the ride",helper:"Nothing happens until you confirm.",destination:"Destination",provider:"Ride option",date:"Date",time:"Time",confirm:"Confirm ride",change:"Make a change"},
   waiting:{status:"Please wait",title:"Preparing the ride",helper:"This may take a moment.",action:"Preparing…"},
   completed:{status:"Completed",title:"Ride ready",helper:"The confirmed result is ready.",reference:"Reference",done:"Done"},
   blocked:{status:"Needs attention",title:"Could not prepare ride",helper:"Try again.",retry:"Review and retry",cancel:"Cancel"},
   cancelled:{status:"Cancelled",title:"Ride cancelled",helper:"Nothing was requested.",restart:"Start again"},
   progress:(current,total)=>`Step ${current} of ${total}`,
 };
-const places=[{id:"home",label:"Home",address:"12 Garden Lane"},{id:"clinic",label:"Clinic",address:"Riverside Clinic"}];
+const places=[
+  {id:"home",label:"Home",address:"12 Garden Lane",pickupEstimate:{value:"8 min",tone:"good" as const},priceEstimate:{value:"$12-$16"},reputation:{value:"4.8 / 5",tone:"good" as const},accessibilityNote:{value:"Door help available"},recommended:true},
+  {id:"clinic",label:"Clinic with an intentionally long translated saved destination label",address:"Riverside Clinic",pickupEstimate:{value:"11 min"},arrivalEstimate:{value:"10:52 AM"},priceEstimate:{value:"$14-$18"},reputation:{value:"4.6 / 5",tone:"good" as const},voiceAliases:["riverside clinic"]},
+];
+const providers=[
+  {id:"carecab",label:"CareCab",subtitle:"Best reputation",description:"Good for appointments",pickupEstimate:{value:"8 min",tone:"good" as const},arrivalEstimate:{value:"10:48 AM"},priceEstimate:{value:"$12-$16"},reputation:{value:"4.9 / 5",tone:"good" as const},accessibilityNote:{value:"Wheelchair-friendly on request"},recommended:true,voiceAliases:["care cab"]},
+  {id:"cityride",label:"CityRide with an intentionally long translated company reputation label",subtitle:"Lower estimated price",description:"Standard car",pickupEstimate:{value:"13 min"},arrivalEstimate:{value:"10:55 AM"},priceEstimate:{value:"$10-$14",tone:"good" as const},reputation:{value:"4.4 / 5"}},
+];
 const dateChoices=[{id:"today",label:"Today",value:"2026-07-18"},{id:"tomorrow",label:"Tomorrow",value:"2026-07-19"}];
 const commands={start:["start"],back:["go back"],cancel:["cancel"],confirm:["confirm"],retry:["retry"]};
-const props=(overrides:Partial<RideVoiceCanvasProps>={}):RideVoiceCanvasProps=>({copy,places,dateChoices,voiceCommands:commands,onConfirmRide:vi.fn().mockResolvedValue({reference:"RIDE-42"}),storageKey:"ride-test",...overrides});
-const click=(name:string)=>fireEvent.click(screen.getByRole("button",{name}));
-const goToReview=()=>{click("Arrange a ride");click("Home");click("Today");fireEvent.change(screen.getByLabelText("Time"),{target:{value:"10:30"}});click("Continue");};
+const props=(overrides:Partial<RideVoiceCanvasProps>={}):RideVoiceCanvasProps=>({copy,places,providers,dateChoices,voiceCommands:commands,onConfirmRide:vi.fn().mockResolvedValue({reference:"RIDE-42"}),storageKey:"ride-test",...overrides});
+const click=(name:string|RegExp)=>fireEvent.click(screen.getByRole("button",{name}));
+const goToReview=()=>{click("Arrange a ride");click(/Home/);click(/CareCab/);click("Today");fireEvent.change(screen.getByLabelText("Time"),{target:{value:"10:30"}});click("Continue");};
 
 beforeEach(()=>sessionStorage.clear());
 afterEach(()=>vi.restoreAllMocks());
@@ -33,15 +42,15 @@ afterEach(()=>vi.restoreAllMocks());
 it("completes the saved-place ride happy path only after explicit confirmation",async()=>{
   const confirm=vi.fn().mockResolvedValue({reference:"RIDE-42"});render(<RideVoiceCanvas {...props({onConfirmRide:confirm})}/>);goToReview();
   expect(confirm).not.toHaveBeenCalled();expect(screen.getByText("12 Garden Lane")).toBeInTheDocument();click("Confirm ride");
-  expect(confirm).toHaveBeenCalledOnce();expect(confirm.mock.calls[0][0]).toEqual({placeId:"home",destination:"12 Garden Lane",dateChoice:"2026-07-18",time:"10:30"});expect(await screen.findByRole("heading",{name:"Ride ready"})).toBeInTheDocument();expect(screen.getByText("RIDE-42")).toBeInTheDocument();
+  expect(confirm).toHaveBeenCalledOnce();expect(confirm.mock.calls[0][0]).toEqual({placeId:"home",destination:"12 Garden Lane",providerId:"carecab",providerName:"CareCab",dateChoice:"2026-07-18",time:"10:30"});expect(await screen.findByRole("heading",{name:"Ride ready"})).toBeInTheDocument();expect(screen.getByText("RIDE-42")).toBeInTheDocument();
 });
 
 it("supports new address entry and preserves it while backtracking",()=>{
-  render(<RideVoiceCanvas {...props()}/>);click("Arrange a ride");click("A new address");fireEvent.change(screen.getByLabelText("Address"),{target:{value:"99 Long Translated Address"}});click("Continue");click("Back");expect(screen.getByDisplayValue("99 Long Translated Address")).toBeInTheDocument();
+  render(<RideVoiceCanvas {...props()}/>);click("Arrange a ride");click("A new address");fireEvent.change(screen.getByLabelText("Address"),{target:{value:"99 Long Translated Address"}});click("Continue");expect(screen.getByRole("heading",{name:"Which ride option looks best?"})).toBeInTheDocument();click("Back");expect(screen.getByDisplayValue("99 Long Translated Address")).toBeInTheDocument();
 });
 
 it("keeps required actions disabled until information is complete",()=>{
-  render(<RideVoiceCanvas {...props()}/>);click("Arrange a ride");click("A new address");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();fireEvent.change(screen.getByLabelText("Address"),{target:{value:"A"}});expect(screen.getByRole("button",{name:"Continue"})).toBeEnabled();click("Continue");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();
+  render(<RideVoiceCanvas {...props()}/>);click("Arrange a ride");click("A new address");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();fireEvent.change(screen.getByLabelText("Address"),{target:{value:"A"}});expect(screen.getByRole("button",{name:"Continue"})).toBeEnabled();click("Continue");click(/CareCab/);expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();
 });
 
 it("activates shared agent presence on visual ride scenes",()=>{
@@ -52,6 +61,24 @@ it("activates shared agent presence on visual ride scenes",()=>{
   expect(scene).toHaveAttribute("data-agent-state","idle");
   expect(screen.getByText("Voice ready")).toBeInTheDocument();
   expect(screen.getByText("Use voice or touch.")).toBeInTheDocument();
+});
+
+it("shows rich destination and provider option cards without executing a ride action",()=>{
+  const confirm=vi.fn();
+  render(<RideVoiceCanvas {...props({onConfirmRide:confirm})}/>);
+  click("Arrange a ride");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("Saved place");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("Estimated pickup");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("8 min");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("$12-$16");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("4.8 / 5");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("Door help available");
+  click(/Home/);
+  expect(screen.getByRole("button",{name:/CareCab/})).toHaveTextContent("Best reputation");
+  expect(screen.getByRole("button",{name:/CareCab/})).toHaveTextContent("10:48 AM");
+  expect(screen.getByRole("button",{name:/CareCab/})).toHaveTextContent("Wheelchair-friendly on request");
+  expect(screen.getByText("CityRide with an intentionally long translated company reputation label")).toBeVisible();
+  expect(confirm).not.toHaveBeenCalled();
 });
 
 it("prevents duplicate confirmation submissions",async()=>{
@@ -72,12 +99,12 @@ it("cancels safely without executing an external action",()=>{
 });
 
 it("restores an interrupted scene and draft from session storage",()=>{
-  sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",dateChoice:"2026-07-19",time:"14:00"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();expect(screen.getByDisplayValue("14:00")).toBeInTheDocument();click("Back");expect(screen.getByDisplayValue("99 Garden Road")).toBeInTheDocument();
+  sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",providerId:"carecab",providerName:"CareCab",dateChoice:"2026-07-19",time:"14:00"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();expect(screen.getByDisplayValue("14:00")).toBeInTheDocument();click("Back");expect(screen.getByRole("heading",{name:"Which ride option looks best?"})).toBeInTheDocument();click("Back");expect(screen.getByDisplayValue("99 Garden Road")).toBeInTheDocument();
 });
 
 it("emits privacy-safe resumed telemetry for a restored draft",()=>{
   const events:unknown[]=[];
-  sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",dateChoice:"2026-07-19",time:"14:00"}}));
+  sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",providerId:"carecab",providerName:"CareCab",dateChoice:"2026-07-19",time:"14:00"}}));
   render(<RideVoiceCanvas {...props({onTelemetry:event=>events.push(event)})}/>);
   expect(events).toContainEqual(expect.objectContaining({name:"scene_viewed",step:"dateTime",restored:true,input:"system",attempt:0}));
   const serialized=JSON.stringify(events);
@@ -87,11 +114,11 @@ it("emits privacy-safe resumed telemetry for a restored draft",()=>{
 });
 
 it("does not restore an in-flight external request after reconnect",()=>{
-  sessionStorage.setItem("ride-test",JSON.stringify({step:"waiting",requestId:4,draft:{placeId:"home",destination:"12 Garden Lane",dateChoice:"2026-07-18",time:"10:30"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"How can I help?"})).toBeInTheDocument();
+  sessionStorage.setItem("ride-test",JSON.stringify({step:"waiting",requestId:4,draft:{placeId:"home",destination:"12 Garden Lane",providerId:"carecab",providerName:"CareCab",dateChoice:"2026-07-18",time:"10:30"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"How can I help?"})).toBeInTheDocument();
 });
 
 it("synchronizes voice commands and place choices with the visual scene",()=>{
-  render(<RideVoiceCanvas {...props()}/>);const emit=(text:string)=>act(()=>window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT,{detail:{text,transcriptEntry:{from:"user",text}}})));emit("start");expect(screen.getByRole("heading",{name:"Where are you going?"})).toBeInTheDocument();emit("Please take me to Riverside Clinic");expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();emit("Tomorrow");expect(screen.getByRole("button",{name:"Tomorrow"})).toHaveAttribute("aria-pressed","true");
+  render(<RideVoiceCanvas {...props()}/>);const emit=(text:string)=>act(()=>window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT,{detail:{text,transcriptEntry:{from:"user",text}}})));emit("start");expect(screen.getByRole("heading",{name:"Where are you going?"})).toBeInTheDocument();emit("Please take me to Riverside Clinic");expect(screen.getByRole("heading",{name:"Which ride option looks best?"})).toBeInTheDocument();emit("CareCab please");expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();emit("Tomorrow");expect(screen.getByRole("button",{name:"Tomorrow"})).toHaveAttribute("aria-pressed","true");
 });
 
 it("ignores an unrelated voice interruption without losing the current scene",()=>{
@@ -99,7 +126,7 @@ it("ignores an unrelated voice interruption without losing the current scene",()
 });
 
 it("supports keyboard-only progression through choices and actions",()=>{
-  render(<RideVoiceCanvas {...props()}/>);const start=screen.getByRole("button",{name:"Arrange a ride"});start.focus();fireEvent.keyDown(start,{key:"Enter"});fireEvent.click(start);const home=screen.getByRole("button",{name:"Home"});home.focus();fireEvent.keyDown(home,{key:"Enter"});fireEvent.click(home);expect(screen.getByRole("heading",{name:"When?"})).toHaveFocus();
+  render(<RideVoiceCanvas {...props()}/>);const start=screen.getByRole("button",{name:"Arrange a ride"});start.focus();fireEvent.keyDown(start,{key:"Enter"});fireEvent.click(start);const home=screen.getByRole("button",{name:/Home/});home.focus();fireEvent.keyDown(home,{key:"Enter"});fireEvent.click(home);expect(screen.getByRole("heading",{name:"Which ride option looks best?"})).toHaveFocus();const careCab=screen.getByRole("button",{name:/CareCab/});careCab.focus();fireEvent.keyDown(careCab,{key:"Enter"});fireEvent.click(careCab);expect(screen.getByRole("heading",{name:"When?"})).toHaveFocus();
 });
 
 it("moves keyboard focus to each new scene heading",()=>{
@@ -113,11 +140,12 @@ it("announces waiting, completed, and blocked status changes",async()=>{
 describe.each([[390,"mobile"],[768,"tablet"],[1440,"desktop"]])("%s px",(width,label)=>it(`renders the ${label} flow without dropping controls`,()=>{Object.defineProperty(window,"innerWidth",{value:width,configurable:true});render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("button",{name:"Arrange a ride"})).toBeVisible();expect(screen.getByRole("button",{name:"Cancel"})).toBeVisible();}));
 
 it("emits only closed, privacy-safe analytics fields",async()=>{
-  const events:unknown[]=[];render(<RideVoiceCanvas {...props({onTelemetry:event=>events.push(event)})}/>);click("Arrange a ride");click("Home");click("Today");fireEvent.change(screen.getByLabelText("Time"),{target:{value:"10:30"}});click("Continue");click("Confirm ride");await screen.findByText("RIDE-42");
+  const events:unknown[]=[];render(<RideVoiceCanvas {...props({onTelemetry:event=>events.push(event)})}/>);click("Arrange a ride");click(/Home/);click(/CareCab/);click("Today");fireEvent.change(screen.getByLabelText("Time"),{target:{value:"10:30"}});click("Continue");click("Confirm ride");await screen.findByText("RIDE-42");
   expect(events).toContainEqual(expect.objectContaining({name:"confirmation_submitted",step:"review",input:"touch_or_keyboard",attempt:1}));
   expect(events).toContainEqual(expect.objectContaining({name:"completed",step:"completed",input:"system",attempt:1}));
   const serialized=JSON.stringify(events);
   expect(serialized).not.toContain("12 Garden Lane");
+  expect(serialized).not.toContain("CareCab");
   expect(serialized).not.toContain("10:30");
   expect(serialized).not.toContain("RIDE-42");
 });
