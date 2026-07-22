@@ -1796,6 +1796,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("Professional referral webinar templates matched");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("1 reachable contact");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("1 consent review");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("What Create kit saves");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("Campaign plan, content drafts, channel routes, and recipient snapshots.");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("No auto-send");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("2 routes");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("1 snapshot");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("Review before send");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Why VYVA chose this");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partner webinar play");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partners list");
