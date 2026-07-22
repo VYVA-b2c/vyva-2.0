@@ -16612,6 +16612,22 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       continue: isSpanish ? "Continuar" : "Continue",
       back: isSpanish ? "Volver" : "Go back",
     },
+    provider: {
+      title: isSpanish ? "¿Que opcion de viaje prefieres?" : "Which ride option looks best?",
+      helper: isSpanish ? "Compara estimacion, reputacion y ayuda disponible antes de elegir." : "Compare estimate, reputation, and available help before choosing.",
+      back: isSpanish ? "Volver" : "Go back",
+    },
+    details: {
+      savedPlace: isSpanish ? "Lugar guardado" : "Saved place",
+      newAddress: isSpanish ? "Nuevo destino" : "New destination",
+      provider: isSpanish ? "Empresa de viaje" : "Ride company",
+      estimatedPickup: isSpanish ? "Recogida estimada" : "Estimated pickup",
+      estimatedArrival: isSpanish ? "Llegada estimada" : "Estimated arrival",
+      estimatedPrice: isSpanish ? "Precio estimado" : "Estimated price",
+      reputation: isSpanish ? "Reputacion" : "Reputation",
+      accessibility: isSpanish ? "Accesibilidad" : "Accessibility",
+      recommended: isSpanish ? "Recomendada" : "Recommended",
+    },
     address: {
       title: isSpanish ? "¿Que direccion usamos?" : "What address should we use?",
       helper: isSpanish ? "Escribe la direccion completa o el codigo postal." : "Type the full address or just the postcode.",
@@ -16631,6 +16647,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       title: isSpanish ? "¿Esta todo correcto?" : "Does everything look right?",
       helper: isSpanish ? "No se solicita nada hasta que confirmes." : "Nothing will be requested until you confirm.",
       destination: isSpanish ? "Destino" : "Destination",
+      provider: isSpanish ? "Opcion de viaje" : "Ride option",
       date: isSpanish ? "Dia" : "Date",
       time: isSpanish ? "Hora" : "Time",
       confirm: isSpanish ? "Confirmar y preparar viaje" : "Confirm and prepare ride",
@@ -16665,8 +16682,52 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     progress: (current, total) => isSpanish ? `Paso ${current} de ${total}` : `Step ${current} of ${total}`,
   }), [isSpanish]);
   const rideCanvasPlaces = useMemo(() => savedHomeAddress
-    ? [{ id: "home", label: isSpanish ? "Casa" : "Home", address: savedHomeAddress }]
-    : [], [isSpanish, savedHomeAddress]);
+    ? [{
+      id: "home",
+      label: isSpanish ? "Casa" : "Home",
+      address: savedHomeAddress,
+      subtitle: isSpanish ? "Guardado en tu perfil" : "Saved in your profile",
+      pickupEstimate: { value: "8-12 min", tone: "good" as const },
+      priceEstimate: { value: isSpanish ? "Se revisa antes de confirmar" : "Reviewed before confirmation" },
+      reputation: { value: isSpanish ? "Perfil guardado" : "Saved profile", tone: "good" as const },
+      accessibilityNote: hasSavedTransportMobilityInfo
+        ? { value: isSpanish ? "Tiene en cuenta tus necesidades guardadas" : "Uses your saved mobility needs", tone: "good" as const }
+        : undefined,
+      recommended: true,
+    }]
+    : [], [hasSavedTransportMobilityInfo, isSpanish, savedHomeAddress]);
+  const rideCanvasProviders = useMemo(() => {
+    const savedProviderOptions = hasSavedTransportProvider && savedTransportProvider.trim()
+      ? [{
+        id: "saved-provider",
+        label: savedTransportProvider,
+        subtitle: isSpanish ? "Proveedor guardado" : "Saved provider",
+        description: isSpanish ? "Se usara solo despues de tu confirmacion." : "Used only after your confirmation.",
+        pickupEstimate: { value: isSpanish ? "Segun disponibilidad" : "Based on availability" },
+        priceEstimate: { value: isSpanish ? "Se confirma antes de actuar" : "Confirmed before action" },
+        reputation: { value: isSpanish ? "Preferencia guardada" : "Saved preference", tone: "good" as const },
+        accessibilityNote: hasSavedTransportMobilityInfo
+          ? { value: isSpanish ? "Incluye notas de movilidad guardadas" : "Includes saved mobility notes", tone: "good" as const }
+          : undefined,
+        recommended: true,
+        voiceAliases: [savedTransportProvider],
+      }]
+      : [];
+    return [
+      ...savedProviderOptions,
+      {
+        id: "concierge-compare",
+        label: isSpanish ? "Comparar opciones seguras" : "Compare safe options",
+        subtitle: isSpanish ? "VYVA prepara opciones" : "VYVA prepares options",
+        description: isSpanish ? "No llama, reserva ni escribe hasta que confirmes." : "No calls, bookings, or messages happen until you confirm.",
+        pickupEstimate: { value: isSpanish ? "Varia por disponibilidad" : "Varies by availability" },
+        priceEstimate: { value: isSpanish ? "Rango antes de confirmar" : "Range before confirmation" },
+        reputation: { value: isSpanish ? "Compara reputacion y disponibilidad" : "Compares reputation and availability" },
+        accessibilityNote: { value: isSpanish ? "Puede priorizar ayuda en puerta o movilidad" : "Can prioritize door help or mobility support" },
+        recommended: savedProviderOptions.length === 0,
+      },
+    ];
+  }, [hasSavedTransportMobilityInfo, hasSavedTransportProvider, isSpanish, savedTransportProvider]);
   const rideCanvasDates = useMemo(() => [
     { id: "today", label: isSpanish ? "Hoy" : "Today", value: "today" },
     { id: "tomorrow", label: isSpanish ? "Mañana" : "Tomorrow", value: "tomorrow" },
@@ -16679,11 +16740,13 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     retry: isSpanish ? ["intentar otra vez"] : ["retry", "try again"],
   }), [isSpanish]);
   const rideCanvasInitialState = useMemo<RideCanvasState>(() => ({
-    step: transportDestination.trim() ? "dateTime" : "listening",
+    step: transportDestination.trim() ? "provider" : "listening",
     requestId: 0,
     draft: {
       placeId: "",
       destination: transportDestination.trim(),
+      providerId: "",
+      providerName: "",
       dateChoice: "",
       time: "",
     },
@@ -16704,8 +16767,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       requestedTime,
       mobilityNeeds: transportMobilityNeeds,
       hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
-      hasSavedTransportProvider,
-      savedTransportProviderName: savedTransportProvider,
+      hasSavedTransportProvider: hasSavedTransportProvider || Boolean(draft.providerName),
+      savedTransportProviderName: draft.providerName || savedTransportProvider,
       locale,
     });
     if (signal.aborted) throw new DOMException("Ride request cancelled", "AbortError");
@@ -16720,8 +16783,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       requestedTime,
       mobilityNeeds: transportMobilityNeeds,
       hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
-      hasSavedTransportProvider,
-      savedTransportProviderName: savedTransportProvider,
+      hasSavedTransportProvider: hasSavedTransportProvider || Boolean(draft.providerName),
+      savedTransportProviderName: draft.providerName || savedTransportProvider,
       locale,
     });
     if (signal.aborted) throw new DOMException("Ride request cancelled", "AbortError");
@@ -17964,6 +18027,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           <RideVoiceCanvas
             copy={legacyRideCanvasCopy}
             places={rideCanvasPlaces}
+            providers={rideCanvasProviders}
             dateChoices={rideCanvasDates}
             voiceCommands={rideCanvasCommands}
             initialState={rideCanvasInitialState}
