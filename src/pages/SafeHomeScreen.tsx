@@ -21,6 +21,7 @@ import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
 import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
+import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/ShowVyvaLiveCamera";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
@@ -327,6 +328,7 @@ const SafeHomeScreen = () => {
   const [homeScanCaptureSource, setHomeScanCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
   const [homeCaptureDraft, setHomeCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
   const [homeCapturePreparing, setHomeCapturePreparing] = useState(false);
+  const [homeLiveCameraOpen, setHomeLiveCameraOpen] = useState(false);
   const [homeScanReviewInput, setHomeScanReviewInput] = useState<ShowVyvaFileReviewInput>({
     useCaseId: SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto,
     source: "camera",
@@ -369,10 +371,7 @@ const SafeHomeScreen = () => {
     },
   });
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
+  const prepareHomeCaptureFile = (file: File) => {
     const reviewInput = {
       ...homeScanReviewInput,
       fileName: file.name,
@@ -388,6 +387,29 @@ const SafeHomeScreen = () => {
         toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
       })
       .finally(() => setHomeCapturePreparing(false));
+  };
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    prepareHomeCaptureFile(file);
+  };
+
+  const openHomeNativePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setHomeLiveCameraOpen(false);
+    setHomeScanCaptureSource(source);
+    setHomeScanReviewInput((current) => ({ ...current, source }));
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const retakeHomeCapture = () => {
+    setHomeCaptureDraft(null);
+    if (homeScanReviewInput.source === "camera" && supportsShowVyvaLiveCamera()) {
+      setHomeLiveCameraOpen(true);
+      return;
+    }
+    openHomeNativePicker(homeScanReviewInput.source);
   };
 
   const submitHomeEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
@@ -467,6 +489,10 @@ const SafeHomeScreen = () => {
       mimeType: null,
       question,
     });
+    if (source === "camera" && supportsShowVyvaLiveCamera()) {
+      setHomeLiveCameraOpen(true);
+      return;
+    }
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
@@ -918,16 +944,26 @@ const SafeHomeScreen = () => {
               data-testid="input-home-scan-file"
             />
 
+            {homeLiveCameraOpen ? (
+              <ShowVyvaLiveCamera
+                useCaseId={homeScanReviewInput.useCaseId}
+                onCapture={(file) => {
+                  setHomeLiveCameraOpen(false);
+                  prepareHomeCaptureFile(file);
+                }}
+                onUseDeviceCamera={() => openHomeNativePicker("camera")}
+                onUpload={() => openHomeNativePicker("upload")}
+                onCancel={() => setHomeLiveCameraOpen(false)}
+              />
+            ) : null}
+
             {homeCaptureDraft ? (
               <ShowVyvaCaptureCoach
                 evidence={homeCaptureDraft}
                 useCaseId={homeScanReviewInput.useCaseId}
                 busy={analyzing}
                 onUse={submitHomeEvidence}
-                onRetake={() => {
-                  setHomeCaptureDraft(null);
-                  window.setTimeout(() => fileInputRef.current?.click(), 0);
-                }}
+                onRetake={retakeHomeCapture}
                 onClose={() => setHomeCaptureDraft(null)}
               />
             ) : null}

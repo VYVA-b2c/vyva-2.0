@@ -1,14 +1,27 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ShowVyvaCaptureCoach from "./ShowVyvaCaptureCoach";
 import type { ShowVyvaPreparedEvidence } from "@/lib/showVyvaEvidence";
 import { SHOW_VYVA_USE_CASE_IDS } from "../../shared/showVyvaFlow";
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string) => typeof fallback === "string" ? fallback : key,
-  }),
+const { rotateEvidenceMock } = vi.hoisted(() => ({
+  rotateEvidenceMock: vi.fn(),
 }));
+
+vi.mock("@/lib/showVyvaEvidence", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/showVyvaEvidence")>();
+  return { ...original, rotateShowVyvaPreparedEvidence: rotateEvidenceMock };
+});
+
+vi.mock("react-i18next", async (importOriginal) => {
+  const original = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...original,
+    useTranslation: () => ({
+      t: (key: string, fallback?: string) => typeof fallback === "string" ? fallback : key,
+    }),
+  };
+});
 
 const imageEvidence: ShowVyvaPreparedEvidence = {
   dataUrl: "data:image/jpeg;base64,preview",
@@ -21,6 +34,10 @@ const imageEvidence: ShowVyvaPreparedEvidence = {
 };
 
 describe("ShowVyvaCaptureCoach", () => {
+  beforeEach(() => {
+    rotateEvidenceMock.mockReset();
+  });
+
   it("shows use-case guidance, quality warnings, and the evidence privacy review", () => {
     render(
       <ShowVyvaCaptureCoach
@@ -80,5 +97,26 @@ describe("ShowVyvaCaptureCoach", () => {
 
     expect(screen.getByText("PDF - first page")).toBeInTheDocument();
     expect(screen.getByTestId("section-show-vyva-capture-quality")).toHaveTextContent("clear enough");
+    expect(screen.queryByTestId("button-show-vyva-capture-rotate")).not.toBeInTheDocument();
+  });
+
+  it("lets the user rotate an image before confirming it", async () => {
+    const rotatedEvidence = { ...imageEvidence, dataUrl: "data:image/jpeg;base64,rotated" };
+    rotateEvidenceMock.mockResolvedValue(rotatedEvidence);
+    const onUse = vi.fn();
+    render(
+      <ShowVyvaCaptureCoach
+        evidence={imageEvidence}
+        useCaseId={SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto}
+        onUse={onUse}
+        onRetake={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-show-vyva-capture-rotate"));
+    await waitFor(() => expect(screen.getByTestId("image-show-vyva-capture-preview")).toHaveAttribute("src", rotatedEvidence.dataUrl));
+    fireEvent.click(screen.getByTestId("button-show-vyva-capture-use"));
+    expect(onUse).toHaveBeenCalledWith(rotatedEvidence);
   });
 });
