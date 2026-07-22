@@ -1,6 +1,7 @@
 export type RefillCanvasStep="listening"|"medication"|"medicationEntry"|"strength"|"safety"|"provider"|"providerEntry"|"quantity"|"notes"|"contact"|"review"|"waiting"|"completed"|"blocked"|"urgent"|"cancelled";
-export interface RefillMedication{id:string;label:string;strength?:string;description?:string}
-export interface RefillProvider{id:string;label:string;kind:"prescriber"|"pharmacy";description?:string}
+export interface RefillCardDetail{value?:string;tone?:"good"|"neutral"|"caution"}
+export interface RefillMedication{id:string;label:string;strength?:string;description?:string;savedLabel?:string;profileLabel?:string;reviewReminder?:string;recommended?:boolean;voiceAliases?:string[]}
+export interface RefillProvider{id:string;label:string;kind:"prescriber"|"pharmacy";description?:string;typeLabel?:string;reviewReminder?:string;recommended?:boolean;voiceAliases?:string[]}
 export interface RefillCanvasDraft{medicationId:string;medicationName:string;strength:string;providerId:string;providerName:string;providerKind:"prescriber"|"pharmacy"|"";quantity:string;notes:string;contactMethod:string}
 export interface RefillCanvasState{step:RefillCanvasStep;draft:RefillCanvasDraft;requestId:number;resultReference?:string;errorMessage?:string;blockedReason?:"identification"|"service"}
 export type RefillCanvasEvent=
