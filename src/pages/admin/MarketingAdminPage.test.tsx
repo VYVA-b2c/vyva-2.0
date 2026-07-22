@@ -1796,6 +1796,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("Professional referral webinar templates matched");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("1 reachable contact");
     expect(screen.getByTestId("marketing-ai-command-launch-confidence")).toHaveTextContent("1 consent review");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("What Create kit saves");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("Campaign plan, content drafts, channel routes, and recipient snapshots.");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("No auto-send");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("2 routes");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("7 templates");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("1 snapshot");
+    expect(screen.getByTestId("marketing-ai-command-creation-summary")).toHaveTextContent("Review before send");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Why VYVA chose this");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partner webinar play");
     expect(screen.getByTestId("marketing-ai-command-rationale")).toHaveTextContent("Partners list");
@@ -4451,6 +4458,9 @@ describe("MarketingAdminPage", () => {
 
     const starterPanel = within(screen.getByTestId("marketing-campaign-planner-recipes"));
     expect(starterPanel.getByText("Partner outreach")).toBeInTheDocument();
+    const goalStarterPanel = within(screen.getByTestId("marketing-campaign-planner-goal-starters"));
+    expect(goalStarterPanel.getByText("Smart brief starters")).toBeInTheDocument();
+    expect(goalStarterPanel.getByText("Pick the outcome, then review the campaign")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-planner-copilot")).toHaveTextContent("Campaign copilot");
     expect(screen.getByTestId("marketing-campaign-planner-copilot-next-action")).toHaveTextContent("Start from the best campaign");
     expect(screen.getByTestId("button-marketing-campaign-planner-copilot-action")).toHaveTextContent("Load best starter");
@@ -4504,6 +4514,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("1 route");
     expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("Manual handoff");
     expect(screen.getByTestId("marketing-campaign-draft-publish-route-map")).toHaveTextContent("Missing content");
+    expect(screen.getByTestId("marketing-campaign-planner-template-recommendations")).toHaveTextContent("Recommended campaign kits");
+    expect(screen.getByTestId("marketing-campaign-planner-template-recommendations")).toHaveTextContent("Apply to planner");
+    expect(screen.getByTestId("marketing-campaign-planner-template-recommendations")).toHaveTextContent("Create full kit");
     fireEvent.click(screen.getByTestId("button-marketing-copy-campaign-draft-publish-route-map"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA campaign publish route map"));
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("1. LinkedIn - Manual handoff"));
@@ -4551,6 +4564,26 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign audience reach brief copied.");
     });
+    const plannerTemplateRecommendations = within(screen.getByTestId("marketing-campaign-planner-template-recommendations"));
+    fireEvent.click(plannerTemplateRecommendations.getAllByRole("button", { name: /Apply to planner/i })[0]);
+    expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).toContain("campaign");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Planner kit loaded:");
+  });
+
+  it("loads a campaign planner draft from a smart goal starter", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    const goalStarterPanel = within(screen.getByTestId("marketing-campaign-planner-goal-starters"));
+    const [firstGoalStarter] = goalStarterPanel.getAllByRole("button");
+    fireEvent.click(firstGoalStarter);
+
+    expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).not.toEqual("");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Create");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Goal loaded:");
+    expect(screen.getByTestId("marketing-campaign-draft-readiness")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-planner-preflight")).toHaveTextContent("Preflight guardrails");
   });
 
   it("drafts missing campaign content directly from the planner", async () => {
@@ -4805,6 +4838,11 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-1")).toHaveTextContent("Email send candidate");
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-1")).toHaveTextContent("2 reachable contacts match this audience");
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-2")).toHaveTextContent("Manual publishing asset");
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-2")).toHaveTextContent("Use this for LinkedIn publishing");
+
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
     expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
@@ -4833,6 +4871,14 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Partner update");
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Source design preview");
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Media references");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Preview opened");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Choose the next move for this asset");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Review the source, edit a VYVA copy, duplicate a draft, or start a campaign route from this content.");
+    expect(screen.getByTestId("marketing-content-preview-next-actions")).toHaveTextContent("Source imports stay untouched");
+    expect(screen.getByTestId("button-marketing-preview-next-edit")).toHaveTextContent("Edit copy");
+    expect(screen.getByTestId("button-marketing-preview-next-duplicate")).toHaveTextContent("Duplicate draft");
+    expect(screen.getByTestId("button-marketing-preview-next-campaign")).toHaveTextContent("Use in campaign");
+    expect(screen.getByTestId("button-marketing-preview-next-reuse-brief")).toHaveTextContent("Copy AI brief");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");

@@ -31,6 +31,7 @@ import {
   Sparkles,
   Trash2,
   UsersRound,
+  Wand2,
   Waypoints,
   X,
   ArrowDown,
@@ -320,6 +321,13 @@ type ContentAsset = {
   metadata?: Record<string, unknown>;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+type ContentChannelGuidance = {
+  state: CampaignReadinessState;
+  title: string;
+  detail: string;
+  routeLabel: string;
 };
 
 type MarketingMediaAsset = {
@@ -677,6 +685,31 @@ type CampaignPlannerRecipe = {
   scheduleStartsAt: string;
   status: "draft" | "scheduled";
   reachableContacts: number;
+};
+
+type CampaignPlannerGoalStarter = {
+  preset: CampaignGoalPreset;
+  play: CampaignStudioPlay;
+  targetAudience: MarketingAudience | null;
+  channels: Channel[];
+  matchedContent: ContentAsset | null;
+  reachableContacts: number;
+  templateCount: number;
+  score: number;
+  state: CampaignReadinessState;
+};
+
+type CampaignPlannerTemplatePackRecommendation = {
+  pack: ContentTemplatePack;
+  templates: ContentTemplate[];
+  heroTemplate: ContentTemplate | null;
+  channels: Channel[];
+  reachableContacts: number;
+  existingAssetCount: number;
+  newAssetCount: number;
+  score: number;
+  state: CampaignReadinessState;
+  reasons: string[];
 };
 
 type CampaignStudioGeneratedDraft = {
@@ -3423,6 +3456,72 @@ function contentAssetHasCopy(item: ContentAsset) {
     || (item.body ?? "").trim()
     || (item.htmlBody ?? "").trim(),
   );
+}
+
+function contentAudience(item: ContentAsset): Audience {
+  const rawAudience = metadataString(item.metadata, "audienceType") || metadataString(item.metadata, "audience_type");
+  return (AUDIENCES as readonly string[]).includes(rawAudience) ? rawAudience as Audience : "both";
+}
+
+function contentChannelGuidance(item: ContentAsset, contacts: MarketingContact[]): ContentChannelGuidance {
+  const hasCopy = contentAssetHasCopy(item);
+  const audience = contentAudience(item);
+  const reachableCount = contacts.filter((contact) => (
+    contact.consentStatus !== "opted_out"
+    && campaignAllowsContact(audience, contact.audienceType)
+    && contactReachableForChannel(contact, item.channel)
+  )).length;
+  const hasCta = Boolean((item.ctaLabel ?? "").trim() || (item.ctaUrl ?? "").trim());
+
+  if (!hasCopy) {
+    return {
+      state: "needs_action",
+      title: "Needs copy",
+      detail: "Add subject, body, or HTML before this can be reused in a campaign.",
+      routeLabel: "Next: open editor",
+    };
+  }
+
+  if (item.channel === "email") {
+    return reachableCount > 0
+      ? {
+          state: "ready",
+          title: "Email send candidate",
+          detail: `${reachableCount} reachable contact${reachableCount === 1 ? "" : "s"} match this audience; consent is checked again before sending.`,
+          routeLabel: "Next: use in campaign",
+        }
+      : {
+          state: "blocked",
+          title: "No email recipients",
+          detail: "Copy exists, but no matching contacts have an email route yet.",
+          routeLabel: "Next: review contacts",
+        };
+  }
+
+  if (item.channel === "whatsapp" || item.channel === "sms" || item.channel === "phone") {
+    return reachableCount > 0
+      ? {
+          state: "planning",
+          title: `${channelLabel[item.channel]} route ready`,
+          detail: `${reachableCount} matching contact${reachableCount === 1 ? "" : "s"} have a usable route. Provider dispatch is still controlled separately.`,
+          routeLabel: "Next: plan handoff",
+        }
+      : {
+          state: "blocked",
+          title: `No ${channelLabel[item.channel]} route`,
+          detail: "Copy exists, but contacts need the matching route before this asset is useful.",
+          routeLabel: "Next: clean contacts",
+        };
+  }
+
+  return {
+    state: hasCta || item.hasDesign || item.mediaAssetCount ? "planning" : "needs_action",
+    title: "Manual publishing asset",
+    detail: hasCta || item.hasDesign || item.mediaAssetCount
+      ? `Use this for ${channelLabel[item.channel]} publishing, briefs, or agency handoff.`
+      : "Copy exists, but add a CTA, design notes, or media reference before handoff.",
+    routeLabel: "Next: use in campaign",
+  };
 }
 
 const lovableContentSourceDetailKeys = [
@@ -13941,6 +14040,44 @@ export default function MarketingAdminPage() {
       state,
     };
   }), [audiences, contacts, contentTemplatePacksWithStats]);
+  const campaignPlannerGoalStarters = useMemo<CampaignPlannerGoalStarter[]>(() => campaignGoalPresets.map((preset) => {
+    const play = campaignIntentPlay(preset.brief);
+    const linkedPack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
+    const channels = uniqueChannels([...preset.channels, ...(linkedPack?.channels ?? [])]);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const matchingContacts = contacts.filter((contact) => (
+      campaignAllowsContact(play.audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+    const reachableContacts = matchingContacts.filter((contact) => (
+      channels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    )).length;
+    const matchedContent = channels
+      .map((channel) => bestCampaignPlannerContent(play, channel, content))
+      .find(Boolean) ?? null;
+    const templateCount = linkedPack?.templates.length ?? 0;
+    const score = reachableContacts * 5 + templateCount * 3 + channels.length * 2 + (matchedContent ? 8 : 0) + (targetAudience ? 6 : 0);
+    const state: CampaignReadinessState = reachableContacts > 0 && (matchedContent || templateCount > 0)
+      ? "ready"
+      : reachableContacts > 0 || matchedContent || templateCount > 0 ? "planning" : "needs_action";
+    return {
+      preset,
+      play,
+      targetAudience,
+      channels,
+      matchedContent,
+      reachableContacts,
+      templateCount,
+      score,
+      state,
+    };
+  })
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+      return a.preset.title.localeCompare(b.preset.title);
+    })
+    .slice(0, 5), [audiences, contacts, content, contentTemplatePacksWithStats]);
   const campaignLaunchModeInsights = useMemo<CampaignLaunchModeInsight[]>(() => campaignLaunchModes.map((mode) => {
     const quickStart = campaignIntentQuickStarts.find((item) => item.id === mode.quickStartId);
     const play = campaignIntentPlay(quickStart?.brief ?? mode.detail);
@@ -16977,6 +17114,63 @@ export default function MarketingAdminPage() {
     )) ?? null,
     [campaignDraftSelectedChannels],
   );
+  const campaignPlannerTemplatePackRecommendations = useMemo<CampaignPlannerTemplatePackRecommendation[]>(() => (
+    sortedContentTemplatePacksWithStats.map((packStats) => {
+      const packAudience = templatePackAudience(packStats.pack, packStats.heroTemplate, campaignStudioPlays.find((item) => item.id === packStats.pack.studioPlayId) ?? campaignStudioPlays[0]);
+      const audienceMatch = campaignAllowsContact(campaignDraft.audienceType, packAudience) || campaignAllowsContact(packAudience, campaignDraft.audienceType);
+      const routeChannels = uniqueChannels([
+        packStats.heroTemplate?.channel ?? packStats.channels[0] ?? campaignDraft.channel,
+        ...packStats.pack.sequence.map((step) => step.channel),
+        ...packStats.channels,
+      ]);
+      const channelOverlap = routeChannels.filter((channel) => campaignDraftSelectedChannels.includes(channel)).length;
+      const selectedRouteCoverage = campaignDraftSelectedChannels.filter((channel) => routeChannels.includes(channel)).length;
+      const reachableContacts = contacts.filter((contact) => (
+        campaignAllowsContact(packAudience, contact.audienceType)
+        && routeChannels.some((channel) => recipientForChannel(contact, channel))
+      )).length;
+      const score = Math.min(99,
+        (audienceMatch ? 30 : 8)
+        + channelOverlap * 14
+        + selectedRouteCoverage * 8
+        + Math.min(reachableContacts, 6) * 6
+        + Math.min(packStats.templates.length, 8) * 3
+        + Math.min(packStats.existingAssetCount, 4) * 4
+      );
+      const state: CampaignReadinessState = score >= 72 && reachableContacts > 0
+        ? "ready"
+        : score >= 48 || packStats.templates.length >= 4 ? "planning" : "needs_action";
+      const reasons = [
+        audienceMatch ? `${campaignDraft.audienceType.toUpperCase()} audience fit` : `${packAudience.toUpperCase()} template audience`,
+        channelOverlap
+          ? `${channelOverlap} current route${channelOverlap === 1 ? "" : "s"} covered`
+          : `${formatChannelList(routeChannels.slice(0, 3))} route${routeChannels.length === 1 ? "" : "s"}`,
+        `${reachableContacts} reachable contact${reachableContacts === 1 ? "" : "s"}`,
+        packStats.existingAssetCount
+          ? `${packStats.existingAssetCount} reusable asset${packStats.existingAssetCount === 1 ? "" : "s"}`
+          : `${packStats.newAssetCount} asset${packStats.newAssetCount === 1 ? "" : "s"} to create`,
+      ];
+      return {
+        pack: packStats.pack,
+        templates: packStats.templates,
+        heroTemplate: packStats.heroTemplate,
+        channels: routeChannels,
+        reachableContacts,
+        existingAssetCount: packStats.existingAssetCount,
+        newAssetCount: packStats.newAssetCount,
+        score,
+        state,
+        reasons,
+      };
+    })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+        if (b.templates.length !== a.templates.length) return b.templates.length - a.templates.length;
+        return a.pack.title.localeCompare(b.pack.title);
+      })
+      .slice(0, 3)
+  ), [campaignDraft.audienceType, campaignDraft.channel, campaignDraftSelectedChannels, contacts, sortedContentTemplatePacksWithStats]);
   const visibleCampaignStudioPlays = useMemo(
     () => campaignStudioCategory === "all"
       ? campaignStudioPlays
@@ -21847,6 +22041,98 @@ export default function MarketingAdminPage() {
     });
     setCampaignStudioFeedback(`Starter loaded: ${recipe.play.label}${recipe.matchedContent ? ` with ${recipe.matchedContent.title}` : ""}.`);
     setMessage(`Starter loaded: ${recipe.play.label}. Review the planner, then add the campaign.`);
+  }
+
+  function applyCampaignPlannerGoalStarter(starter: CampaignPlannerGoalStarter) {
+    const primaryChannel = starter.channels[0] ?? starter.play.defaultChannel;
+    const scheduleStartsAt = campaignStudioDefaultSchedule(starter.play);
+    const contentIds = Object.fromEntries(starter.channels.map((channel) => {
+      const matchedContent = bestCampaignPlannerContent(starter.play, channel, content);
+      return [channel, matchedContent?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
+    const starterContent = contentIds[primaryChannel] ?? "";
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: starter.preset.title,
+      audienceType: starter.play.audienceType,
+      channel: primaryChannel,
+      channels: starter.channels.length ? starter.channels : [primaryChannel],
+      contentAssetId: starterContent,
+      channelContentAssetIds: contentIds,
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: starter.preset.brief,
+      targetAudienceId: starter.targetAudience?.id ?? "",
+      recipientFilter: "",
+      snapshotRecipients: starter.reachableContacts > 0,
+    });
+    const templatePack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === starter.preset.templatePackId) ?? null;
+    if (templatePack) {
+      setContentTemplatePackFilter(templatePack.pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+    }
+    setCampaignStudioFeedback(`Goal loaded: ${starter.preset.title} with ${formatChannelList(starter.channels)}.`);
+    setMessage(`${starter.preset.title} loaded into the planner. Review content, audience, and preflight before adding the campaign.`);
+  }
+
+  function applyCampaignPlannerTemplatePack(recommendation: CampaignPlannerTemplatePackRecommendation) {
+    const play = campaignStudioPlays.find((item) => item.id === recommendation.pack.studioPlayId) ?? campaignStudioPlays[0];
+    const audienceType = templatePackAudience(recommendation.pack, recommendation.heroTemplate, play);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const primaryChannel = recommendation.heroTemplate?.channel ?? recommendation.channels[0] ?? play.defaultChannel;
+    const routeContentIds = Object.fromEntries(recommendation.channels.map((channel) => {
+      const template = recommendation.templates.find((item) => item.channel === channel)
+        ?? recommendation.heroTemplate
+        ?? recommendation.templates[0]
+        ?? null;
+      const existing = template
+        ? content.find((item) => contentAssetMatchesTemplatePack(item, recommendation.pack, template))
+        : content.find((item) => item.channel === channel && item.status !== "archived") ?? null;
+      return [channel, existing?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
+
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: `${recommendation.pack.title} campaign`,
+      audienceType,
+      channel: primaryChannel,
+      channels: recommendation.channels,
+      contentAssetId: routeContentIds[primaryChannel] ?? "",
+      channelContentAssetIds: routeContentIds,
+      status: campaignStudioDefaultSchedule(play) ? "scheduled" : "draft",
+      scheduleStartsAt: campaignStudioDefaultSchedule(play),
+      scheduleEndsAt: "",
+      objective: [
+        recommendation.pack.focus,
+        "",
+        recommendation.pack.description,
+        "",
+        `Template kit: ${recommendation.pack.title}.`,
+        `AI direction: ${recommendation.pack.aiPrompt}`,
+      ].join("\n"),
+      targetAudienceId: targetAudience?.id ?? "",
+      recipientFilter: targetAudience?.name ?? "",
+      snapshotRecipients: recommendation.reachableContacts > 0,
+    });
+    if (recommendation.heroTemplate) {
+      setContentDraft(contentDraftFromTemplate(recommendation.heroTemplate));
+      setSelectedContentId(null);
+      setEditingContentId(null);
+      setContentEditDraft(null);
+      setContentDrawerMode(null);
+    }
+    setContentTemplatePackFilter(recommendation.pack.id);
+    setContentTemplateSearch("");
+    setContentTemplateChannelFilter("all");
+    setContentTemplateAudienceFilter("all");
+    setContentTemplateCategoryFilter("all");
+    setCampaignStudioFeedback(`Planner kit loaded: ${recommendation.pack.title}. ${recommendation.channels.length} route${recommendation.channels.length === 1 ? "" : "s"} ready to review.`);
+    setContentActionFeedback(`Planner kit loaded: ${recommendation.pack.title}.`);
+    setMessage(`${recommendation.pack.title} is loaded into the campaign planner. Review content, audience, and schedule before creating it.`);
   }
 
   function focusCampaignPlannerField(testId: string) {
@@ -32023,6 +32309,34 @@ export default function MarketingAdminPage() {
                                   : "Best available saved templates"}
                               </span>
                             </div>
+                            <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-2.5 py-2" data-testid="marketing-ai-command-creation-summary">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-emerald-900">What Create kit saves</span>
+                                  <span className="mt-1 block text-[#241133]">
+                                    Campaign plan, content drafts, channel routes, and recipient snapshots.
+                                  </span>
+                                </div>
+                                <Pill className="bg-white text-emerald-800">No auto-send</Pill>
+                              </div>
+                              <div className="mt-2 grid gap-1.5 text-[11px] font-black text-[#5b4a46] sm:grid-cols-4">
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  {marketingDashboardAiCommandPlan.selectedChannels.length} route{marketingDashboardAiCommandPlan.selectedChannels.length === 1 ? "" : "s"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  {marketingDashboardAiCommandPlan.packMatch?.templates.length ?? 0} template{(marketingDashboardAiCommandPlan.packMatch?.templates.length ?? 0) === 1 ? "" : "s"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  {marketingDashboardAiCommandPlan.reachableContacts} snapshot{marketingDashboardAiCommandPlan.reachableContacts === 1 ? "" : "s"}
+                                </span>
+                                <span className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-100">
+                                  Review before send
+                                </span>
+                              </div>
+                              <p className="mt-2 text-[11px] font-bold leading-relaxed text-[#5b4a46]">
+                                Email remains a manual reviewed send step; social, WhatsApp, phone, print, and event work becomes tracked handoff work.
+                              </p>
+                            </div>
                             <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-2.5 py-2" data-testid="marketing-ai-command-rationale">
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
@@ -35870,6 +36184,49 @@ export default function MarketingAdminPage() {
 
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
                 <div className="grid gap-4">
+                  {campaignPlannerGoalStarters.length ? (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm" data-testid="marketing-campaign-planner-goal-starters">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Smart brief starters</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Pick the outcome, then review the campaign</h3>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                            VYVA ranks goals by reachable contacts, available templates, saved content, and channel coverage, then fills the planner in one click.
+                          </p>
+                        </div>
+                        <Pill className="bg-white text-violet-800">{campaignPlannerGoalStarters.length} ranked starts</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-5">
+                        {campaignPlannerGoalStarters.map((starter) => (
+                          <button
+                            key={starter.preset.id}
+                            type="button"
+                            onClick={() => applyCampaignPlannerGoalStarter(starter)}
+                            className={`min-h-[190px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 hover:bg-white focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(starter.state)}`}
+                            data-testid={`button-marketing-campaign-planner-goal-${starter.preset.id}`}
+                          >
+                            <span className="flex flex-wrap items-start justify-between gap-2">
+                              <span className="text-[11px] font-black uppercase tracking-[0.12em] opacity-75">{starter.preset.outcome}</span>
+                              <Pill className={readinessPillClass(starter.state)}>{readinessLabel(starter.state)}</Pill>
+                            </span>
+                            <span className="mt-2 block font-black text-[#241133]">{starter.preset.title}</span>
+                            <span className="mt-1 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{starter.preset.detail}</span>
+                            <span className="mt-2 flex flex-wrap gap-1.5">
+                              {starter.channels.slice(0, 3).map((channel) => (
+                                <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                              ))}
+                              {starter.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{starter.channels.length - 3}</Pill> : null}
+                            </span>
+                            <span className="mt-3 grid gap-1 rounded-lg border border-white/70 bg-white/80 px-2 py-2 text-[11px] font-black text-[#5b4a46]">
+                              <span>{starter.reachableContacts} reachable contact{starter.reachableContacts === 1 ? "" : "s"}</span>
+                              <span>{starter.templateCount} template{starter.templateCount === 1 ? "" : "s"}; {starter.matchedContent ? `content: ${starter.matchedContent.title}` : "content can be drafted"}</span>
+                              <span>{starter.targetAudience ? `Best list: ${starter.targetAudience.name}` : "Best list: all matching contacts"}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {campaignPlannerRecipes.length ? (
                     <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-planner-recipes">
                       {campaignPlannerRecipes.map((recipe) => (
@@ -35947,6 +36304,72 @@ export default function MarketingAdminPage() {
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm" data-testid="marketing-campaign-planner-template-recommendations">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Recommended campaign kits</p>
+                        <h3 className="mt-1 text-base font-black text-[#241133]">Start from the best reusable templates for this draft</h3>
+                        <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                          Ranked by audience fit, selected routes, reachable contacts, reusable content, and how much copy VYVA can prepare automatically.
+                        </p>
+                      </div>
+                      <Pill className="bg-white text-emerald-800">
+                        {campaignPlannerTemplatePackRecommendations.length} match{campaignPlannerTemplatePackRecommendations.length === 1 ? "" : "es"}
+                      </Pill>
+                    </div>
+                    <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                      {campaignPlannerTemplatePackRecommendations.map((recommendation) => (
+                        <article key={recommendation.pack.id} className={`rounded-xl border p-3 ${readinessClass(recommendation.state)}`} data-testid={`marketing-campaign-planner-template-pack-${recommendation.pack.id}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h4 className="font-black">{recommendation.pack.title}</h4>
+                              <p className="mt-1 line-clamp-2 text-xs font-bold leading-relaxed opacity-85">{recommendation.pack.focus}</p>
+                            </div>
+                            <Pill className={readinessPillClass(recommendation.state)}>{recommendation.score}% fit</Pill>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            {recommendation.channels.slice(0, 5).map((channel) => (
+                              <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                            ))}
+                            {recommendation.channels.length > 5 ? <Pill className="bg-white text-[#6b5b54]">+{recommendation.channels.length - 5}</Pill> : null}
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-lg border border-white/70 bg-white/80 p-2">
+                              <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Reach</p>
+                              <p className="mt-1 text-sm font-black">{recommendation.reachableContacts}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/70 bg-white/80 p-2">
+                              <p className="text-[11px] font-black uppercase tracking-[0.1em] opacity-70">Assets</p>
+                              <p className="mt-1 text-sm font-black">{recommendation.existingAssetCount} reuse / {recommendation.newAssetCount} new</p>
+                            </div>
+                          </div>
+                          <ul className="mt-3 space-y-1 text-xs font-bold leading-relaxed opacity-85">
+                            {recommendation.reasons.slice(0, 3).map((reason) => <li key={reason}>- {reason}</li>)}
+                          </ul>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => applyCampaignPlannerTemplatePack(recommendation)}
+                              disabled={campaignSaving || contentSaving}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              data-testid={`button-marketing-campaign-planner-apply-template-pack-${recommendation.pack.id}`}
+                            >
+                              <Wand2 size={13} /> Apply to planner
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void createCampaignPlanFromTemplatePack(recommendation.pack, recommendation.templates, recommendation.heroTemplate)}
+                              disabled={campaignSaving || contentSaving || !recommendation.templates.length}
+                              className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white hover:bg-purple-800 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              data-testid={`button-marketing-campaign-planner-create-template-pack-${recommendation.pack.id}`}
+                            >
+                              <Plus size={13} /> Create full kit
+                            </button>
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   </div>
                   <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
@@ -41172,6 +41595,7 @@ export default function MarketingAdminPage() {
                             const usageItems = contentUsageById.get(item.id) ?? [];
                             const isMissingLovableReference = contentOriginKey(item) === "missing_lovable_reference";
                             const itemHasCopy = contentAssetHasCopy(item);
+                            const guidance = contentChannelGuidance(item, contacts);
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -41213,6 +41637,13 @@ export default function MarketingAdminPage() {
                                     ))}
                                   </div>
                                 ) : null}
+                                <div className={`mt-2 rounded-xl border px-3 py-2 ${readinessClass(guidance.state)}`} data-testid={`marketing-content-channel-guidance-${item.id}`}>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Pill className={readinessPillClass(guidance.state)}>{guidance.title}</Pill>
+                                    <span className="text-[11px] font-black uppercase tracking-[0.08em]">{guidance.routeLabel}</span>
+                                  </div>
+                                  <p className="mt-1 text-xs font-bold leading-snug">{guidance.detail}</p>
+                                </div>
                                 {usageItems.length ? (
                                   <div className="mt-2">
                                     <ContentUsageList
@@ -41776,6 +42207,37 @@ export default function MarketingAdminPage() {
                   >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
+                      <div className="rounded-xl border border-purple-100 bg-purple-50/70 p-3" data-testid="marketing-content-preview-next-actions">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Preview opened</p>
+                            <h4 className="mt-1 font-black text-[#241133]">Choose the next move for this asset</h4>
+                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
+                              Review the source, edit a VYVA copy, duplicate a draft, or start a campaign route from this content.
+                            </p>
+                          </div>
+                          <Pill className={selectedContent.source === "lovable" ? "bg-white text-violet-800" : "bg-white text-[#5b4a46]"}>
+                            {contentOriginLabel(selectedContent)}
+                          </Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-xs font-black text-[#241133] md:grid-cols-4">
+                          <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-edit">
+                            <Pencil size={14} /> Edit copy
+                          </button>
+                          <button type="button" onClick={() => void duplicateContentAsDraft(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-duplicate">
+                            <Copy size={14} /> Duplicate draft
+                          </button>
+                          <button type="button" onClick={() => startCampaignFromContentAsset(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-white transition hover:bg-purple-800 disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid="button-marketing-preview-next-campaign">
+                            <Megaphone size={14} /> Use in campaign
+                          </button>
+                          <button type="button" onClick={() => void copySelectedContentReuseBrief()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-50" data-testid="button-marketing-preview-next-reuse-brief">
+                            <Sparkles size={14} /> Copy AI brief
+                          </button>
+                        </div>
+                        <p className="mt-2 text-[11px] font-bold leading-relaxed text-[#6b5b54]">
+                          Source imports stay untouched. Edits and duplicates save only inside VYVA marketing.
+                        </p>
+                      </div>
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
                         <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
