@@ -323,6 +323,13 @@ type ContentAsset = {
   updatedAt?: string | null;
 };
 
+type ContentChannelGuidance = {
+  state: CampaignReadinessState;
+  title: string;
+  detail: string;
+  routeLabel: string;
+};
+
 type MarketingMediaAsset = {
   id: string;
   contentAssetId: string | null;
@@ -3437,6 +3444,72 @@ function contentAssetHasCopy(item: ContentAsset) {
     || (item.body ?? "").trim()
     || (item.htmlBody ?? "").trim(),
   );
+}
+
+function contentAudience(item: ContentAsset): Audience {
+  const rawAudience = metadataString(item.metadata, "audienceType") || metadataString(item.metadata, "audience_type");
+  return (AUDIENCES as readonly string[]).includes(rawAudience) ? rawAudience as Audience : "both";
+}
+
+function contentChannelGuidance(item: ContentAsset, contacts: MarketingContact[]): ContentChannelGuidance {
+  const hasCopy = contentAssetHasCopy(item);
+  const audience = contentAudience(item);
+  const reachableCount = contacts.filter((contact) => (
+    contact.consentStatus !== "opted_out"
+    && campaignAllowsContact(audience, contact.audienceType)
+    && contactReachableForChannel(contact, item.channel)
+  )).length;
+  const hasCta = Boolean((item.ctaLabel ?? "").trim() || (item.ctaUrl ?? "").trim());
+
+  if (!hasCopy) {
+    return {
+      state: "needs_action",
+      title: "Needs copy",
+      detail: "Add subject, body, or HTML before this can be reused in a campaign.",
+      routeLabel: "Next: open editor",
+    };
+  }
+
+  if (item.channel === "email") {
+    return reachableCount > 0
+      ? {
+          state: "ready",
+          title: "Email send candidate",
+          detail: `${reachableCount} reachable contact${reachableCount === 1 ? "" : "s"} match this audience; consent is checked again before sending.`,
+          routeLabel: "Next: use in campaign",
+        }
+      : {
+          state: "blocked",
+          title: "No email recipients",
+          detail: "Copy exists, but no matching contacts have an email route yet.",
+          routeLabel: "Next: review contacts",
+        };
+  }
+
+  if (item.channel === "whatsapp" || item.channel === "sms" || item.channel === "phone") {
+    return reachableCount > 0
+      ? {
+          state: "planning",
+          title: `${channelLabel[item.channel]} route ready`,
+          detail: `${reachableCount} matching contact${reachableCount === 1 ? "" : "s"} have a usable route. Provider dispatch is still controlled separately.`,
+          routeLabel: "Next: plan handoff",
+        }
+      : {
+          state: "blocked",
+          title: `No ${channelLabel[item.channel]} route`,
+          detail: "Copy exists, but contacts need the matching route before this asset is useful.",
+          routeLabel: "Next: clean contacts",
+        };
+  }
+
+  return {
+    state: hasCta || item.hasDesign || item.mediaAssetCount ? "planning" : "needs_action",
+    title: "Manual publishing asset",
+    detail: hasCta || item.hasDesign || item.mediaAssetCount
+      ? `Use this for ${channelLabel[item.channel]} publishing, briefs, or agency handoff.`
+      : "Copy exists, but add a CTA, design notes, or media reference before handoff.",
+    routeLabel: "Next: use in campaign",
+  };
 }
 
 const lovableContentSourceDetailKeys = [
@@ -41393,6 +41466,7 @@ export default function MarketingAdminPage() {
                             const usageItems = contentUsageById.get(item.id) ?? [];
                             const isMissingLovableReference = contentOriginKey(item) === "missing_lovable_reference";
                             const itemHasCopy = contentAssetHasCopy(item);
+                            const guidance = contentChannelGuidance(item, contacts);
                             return (
                             <Fragment key={item.id}>
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
@@ -41434,6 +41508,13 @@ export default function MarketingAdminPage() {
                                     ))}
                                   </div>
                                 ) : null}
+                                <div className={`mt-2 rounded-xl border px-3 py-2 ${readinessClass(guidance.state)}`} data-testid={`marketing-content-channel-guidance-${item.id}`}>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Pill className={readinessPillClass(guidance.state)}>{guidance.title}</Pill>
+                                    <span className="text-[11px] font-black uppercase tracking-[0.08em]">{guidance.routeLabel}</span>
+                                  </div>
+                                  <p className="mt-1 text-xs font-bold leading-snug">{guidance.detail}</p>
+                                </div>
                                 {usageItems.length ? (
                                   <div className="mt-2">
                                     <ContentUsageList
