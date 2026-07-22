@@ -88,6 +88,12 @@ export function useShowVyvaSpokenCapture({
     language,
     onTranscript: handleTranscript,
   });
+  const {
+    isListening: speechRecognitionListening,
+    isSupported: speechRecognitionSupported,
+    startListening,
+    stopListening,
+  } = recognition;
   const sharedVoiceConnected = sharedVoice?.status === "connected";
   const sharedVoiceListening = Boolean(sharedVoiceConnected && !sharedVoice?.isMicMuted);
 
@@ -105,34 +111,34 @@ export function useShowVyvaSpokenCapture({
       && (phase === "live" || phase === "error")
       && !sharedVoiceConnected
       && !isTtsSpeaking
-      && recognition.isSupported;
+      && speechRecognitionSupported;
     if (!shouldListen) {
-      if (recognition.isListening) recognition.stopListening();
+      if (speechRecognitionListening) stopListening();
       return;
     }
-    if (recognition.isListening) return;
-    const timeout = window.setTimeout(() => recognition.startListening(), 250);
+    if (speechRecognitionListening) return;
+    const timeout = window.setTimeout(() => startListening(), 250);
     return () => window.clearTimeout(timeout);
   }, [
     commandsEnabled,
     isTtsSpeaking,
     phase,
-    recognition.isListening,
-    recognition.isSupported,
-    recognition.startListening,
-    recognition.stopListening,
+    speechRecognitionListening,
+    speechRecognitionSupported,
+    startListening,
+    stopListening,
     sharedVoiceConnected,
   ]);
 
   const speak = useCallback((text: string, options?: { onComplete?: () => void; onError?: () => void }) => {
     if (!spokenGuidanceEnabled || !isTtsSupported) return false;
-    if (recognition.isListening) recognition.stopListening();
+    if (speechRecognitionListening) stopListening();
     return speakText(text, voicePlaybackLocale(language), options);
   }, [
     isTtsSupported,
     language,
-    recognition.isListening,
-    recognition.stopListening,
+    speechRecognitionListening,
+    stopListening,
     speakText,
     spokenGuidanceEnabled,
   ]);
@@ -193,18 +199,18 @@ export function useShowVyvaSpokenCapture({
     setCommandsEnabled((current) => {
       const next = !current;
       writeEnabledPreference(SHOW_VYVA_VOICE_COMMANDS_STORAGE_KEY, next);
-      if (!next && recognition.isListening) recognition.stopListening();
+      if (!next && speechRecognitionListening) stopListening();
       return next;
     });
-  }, [recognition.isListening, recognition.stopListening]);
+  }, [speechRecognitionListening, stopListening]);
 
-  const commandsSupported = Boolean(sharedVoiceConnected || recognition.isSupported);
+  const commandsSupported = Boolean(sharedVoiceConnected || speechRecognitionSupported);
 
   return {
     spokenGuidanceEnabled,
     commandsEnabled,
     commandsSupported,
-    commandsListening: commandsEnabled && (sharedVoiceListening || recognition.isListening),
+    commandsListening: commandsEnabled && (sharedVoiceListening || speechRecognitionListening),
     lastCommand,
     announceCaptureSuccess,
     toggleSpokenGuidance,
