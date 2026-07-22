@@ -85,6 +85,18 @@ const en: RefillCanvasCopy = {
     helper: "This preference is prepared only; no message or call is made.",
     back: "Go back",
   },
+  details: {
+    savedProfile: "Saved profile",
+    strength: "Strength",
+    providerType: "Provider type",
+    quantity: "Quantity or supply",
+    routineBoundary: "Routine refill only",
+    urgentBoundary: "Urgent issue stops this flow",
+    noDosingChanges: "No dosing changes",
+    reviewBeforeAction: "Review before action",
+    manualEntry: "Manual entry",
+    recommended: "Recommended",
+  },
   review: {
     title: "Review refill preparation",
     helper: "Nothing is ordered, approved, sent, or written until you confirm.",
@@ -162,6 +174,18 @@ const es: RefillCanvasCopy = {
     confirm: "Confirmar y preparar la solicitud de renovación",
     change: "Cambiar un dato",
   },
+  details: {
+    savedProfile: "Guardado en el perfil",
+    strength: "Concentración",
+    providerType: "Tipo de proveedor",
+    quantity: "Cantidad o suministro",
+    routineBoundary: "Solo renovación rutinaria",
+    urgentBoundary: "Si es urgente, este flujo se detiene",
+    noDosingChanges: "Sin cambios de dosis",
+    reviewBeforeAction: "Revisar antes de actuar",
+    manualEntry: "Entrada manual",
+    recommended: "Recomendado",
+  },
   progress: (a, b) => `Paso ${a} de ${b}`,
 };
 
@@ -184,6 +208,10 @@ export default function Gallery() {
           description: spanish
             ? "Etiqueta de demostración"
             : "Demonstration label",
+          savedLabel: spanish ? "Medicamento guardado" : "Saved medication",
+          profileLabel: spanish ? "Perfil de demostración" : "Demonstration profile",
+          reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action",
+          recommended: true,
         },
         {
           id: "long",
@@ -193,6 +221,9 @@ export default function Gallery() {
           description: spanish
             ? "Etiqueta de demostración"
             : "Demonstration label",
+          savedLabel: spanish ? "Medicamento guardado" : "Saved medication",
+          profileLabel: spanish ? "Perfil de demostración" : "Demonstration profile",
+          reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action",
         },
       ]
     : [
@@ -201,6 +232,10 @@ export default function Gallery() {
           label: "Metformin",
           strength: "500 mg",
           description: "Saved medication",
+          savedLabel: "Saved medication",
+          profileLabel: "Medication profile",
+          reviewReminder: "Review before action",
+          recommended: true,
         },
         {
           id: "long",
@@ -211,6 +246,9 @@ export default function Gallery() {
           description: spanish
             ? "Medicamento guardado en tu perfil"
             : "Saved medication",
+          savedLabel: spanish ? "Medicamento guardado" : "Saved medication",
+          profileLabel: spanish ? "Perfil de medicación" : "Medication profile",
+          reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action",
         },
       ];
   const providers = evidenceSafe
@@ -222,6 +260,9 @@ export default function Gallery() {
             : "Saved care option",
           kind: "prescriber" as const,
           description: spanish ? "Etiqueta de demostración" : "Demonstration label",
+          typeLabel: spanish ? "Prescriptor" : "Prescriber",
+          reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action",
+          recommended: true,
         },
       ]
     : [
@@ -232,12 +273,17 @@ export default function Gallery() {
             : "Dr Garcia",
           kind: "prescriber" as const,
           description: "Saved prescriber",
+          typeLabel: spanish ? "Prescriptor" : "Prescriber",
+          reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action",
+          recommended: true,
         },
         {
           id: "pharmacy",
           label: "Riverside Pharmacy",
           kind: "pharmacy" as const,
           description: "Saved pharmacy",
+          typeLabel: spanish ? "Farmacia" : "Pharmacy",
+          reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action",
         },
       ];
 
@@ -258,8 +304,8 @@ export default function Gallery() {
           medications={medications}
           providers={providers}
           contactChoices={[
-            { id: "phone", label: spanish ? "Llamada telefónica" : "Phone call" },
-            { id: "message", label: spanish ? "Mensaje de texto" : "Text message" },
+            { id: "phone", label: spanish ? "Llamada telefónica" : "Phone call", reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action" },
+            { id: "message", label: spanish ? "Mensaje de texto" : "Text message", reviewReminder: spanish ? "Revisar antes de actuar" : "Review before action" },
           ]}
           voiceCommands={{
             start: ["start", "empezar"],
