@@ -5,11 +5,16 @@ import {
   WORKFLOW_DEFINITIONS,
   WORKFLOW_ACTION_LEVELS,
   WORKFLOW_ENTRY_POINTS,
+  WORKFLOW_PARITY_STATUSES,
+  WORKFLOW_PARITY_STATUS_LABELS,
   WORKFLOW_STATUSES,
   deduplicateWorkflowReferences,
   getWorkflowCoverageSummary,
   getWorkflowDefinition,
   getWorkflowEntryPoint,
+  getWorkflowParityAudit,
+  getWorkflowParityAuditSummary,
+  getWorkflowParityBacklog,
   nextWorkflowImplementationCandidates,
   resolveWorkflowAction,
   validateWorkflowRegistry,
@@ -17,6 +22,7 @@ import {
   workflowActionForEntryPoint,
   workflowActionsForTarget,
   workflowFlowMatrixRows,
+  workflowParityAuditForEntryPoint,
   workflowEntryPointsFor,
   workflowEntryPointsForSurface,
   workflowProfileDataSourceLabels,
@@ -408,5 +414,56 @@ describe("cross-app workflow registry", () => {
 
     expect(candidates).toHaveLength(0);
     expect(candidates.every((candidate) => candidate.coverageState !== "complete")).toBe(true);
+  });
+
+  it("audits every mapped entry point for cross-pillar parity", () => {
+    const audit = getWorkflowParityAudit();
+    const auditedReferences = new Set(audit.map((item) => item.workflowReference));
+
+    expect(audit).toHaveLength(WORKFLOW_DEFINITIONS.length);
+    WORKFLOW_ENTRY_POINTS.forEach((entry) => {
+      expect(auditedReferences.has(entry.workflow)).toBe(true);
+      const item = workflowParityAuditForEntryPoint(entry.id);
+      expect(WORKFLOW_PARITY_STATUSES).toContain(item.status);
+      expect(item.affectedEntryPointIds).toContain(entry.id);
+      expect(item.evidence.length).toBeGreaterThan(0);
+      expect(item.nextStep.length).toBeGreaterThan(0);
+      expect(item.backlogPriority).toBeGreaterThanOrEqual(1);
+      expect(item.backlogPriority).toBeLessThanOrEqual(4);
+    });
+  });
+
+  it("keeps tool-dependent flows visible as a service-readiness backlog", () => {
+    const backlog = getWorkflowParityBacklog(20);
+    const backlogReferences = backlog.map((item) => item.workflowReference);
+
+    [
+      CONCIERGE_FLOW_REFERENCES.scamCheck,
+      CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+      CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+      CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+    ].forEach((reference) => {
+      expect(backlogReferences).toContain(reference);
+      expect(getWorkflowParityAudit().find((item) => item.workflowReference === reference)?.status).toBe("needs_tool_service");
+    });
+
+    expect(backlog).toEqual([...backlog].sort((left, right) => (
+      left.backlogPriority !== right.backlogPriority
+        ? left.backlogPriority - right.backlogPriority
+        : left.domain !== right.domain
+          ? left.domain.localeCompare(right.domain)
+          : left.title.localeCompare(right.title)
+    )));
+  });
+
+  it("summarizes parity statuses without losing the shared label set", () => {
+    const summary = getWorkflowParityAuditSummary();
+
+    expect(Object.keys(WORKFLOW_PARITY_STATUS_LABELS).sort()).toEqual([...WORKFLOW_PARITY_STATUSES].sort());
+    expect(WORKFLOW_PARITY_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.total);
+    expect(summary.ready).toBeGreaterThan(0);
+    expect(summary.blocked).toBeGreaterThan(0);
+    expect(summary.byDomain.concierge.needs_tool_service).toBeGreaterThan(0);
+    expect(summary.byDomain.game.ready).toBeGreaterThan(0);
   });
 });

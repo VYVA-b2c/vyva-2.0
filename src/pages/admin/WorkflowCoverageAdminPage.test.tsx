@@ -126,6 +126,10 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(screen.getByRole("region", { name: "Action level summary" })).toBeInTheDocument();
     expect(screen.getAllByText("External action").length).toBeGreaterThan(0);
     expect(screen.getByText(/Check provider or tool readiness/i)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cross-pillar parity audit" })).toBeInTheDocument();
+    expect(screen.getByText("Same safety standard everywhere")).toBeInTheDocument();
+    expect(screen.getAllByText("Needs tool/service").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("workflow-parity-backlog")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Cross-pillar flow matrix" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Workflow readiness checklist" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Cross-pillar manual QA runner" })).toBeInTheDocument();
@@ -165,8 +169,9 @@ describe("WorkflowCoverageAdminPage", () => {
     expect(within(medicationResearch).getByText(medicationWorkflow?.title ?? "")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Search workflows"), { target: { value: "pubmed" } });
+    const workflowList = screen.getByRole("region", { name: "Workflow list" });
     expect(within(screen.getByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.medicationResearch}`)).getByText(medicationWorkflow?.title ?? "")).toBeInTheDocument();
-    expect(screen.queryByText("Home remedy questions")).not.toBeInTheDocument();
+    expect(within(workflowList).queryByText("Home remedy questions")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter by action level"), { target: { value: "setup" } });
     expect(screen.queryByTestId(`workflow-row-${APP_WORKFLOW_REFERENCES.medicationResearch}`)).not.toBeInTheDocument();

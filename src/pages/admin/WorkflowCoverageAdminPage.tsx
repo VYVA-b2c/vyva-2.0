@@ -9,6 +9,8 @@ import {
   WORKFLOW_ACTION_LEVELS,
   WORKFLOW_ACTION_LEVEL_RULES,
   WORKFLOW_DOMAINS,
+  WORKFLOW_PARITY_STATUS_LABELS,
+  WORKFLOW_REUSABLE_PATTERN_LABELS,
   type WorkflowActionLevel,
   type WorkflowActionLookup,
   type WorkflowCoverageState,
@@ -16,10 +18,14 @@ import {
   type WorkflowDomain,
   type WorkflowFlowMatrixRow,
   type WorkflowFlowStatus,
+  type WorkflowParityAuditItem,
+  type WorkflowParityStatus,
   type WorkflowReadinessChecklistRow,
   type WorkflowReadinessGate,
   type WorkflowReference,
   getWorkflowCoverageSummary,
+  getWorkflowParityAuditSummary,
+  getWorkflowParityBacklog,
   nextWorkflowImplementationCandidates,
   workflowFlowMatrixRows,
   workflowReadinessChecklistRows,
@@ -88,6 +94,15 @@ const ACTION_LEVEL_CLASS: Record<WorkflowActionLevel, string> = {
   admin: "border-slate-200 bg-slate-50 text-slate-700",
 };
 
+const PARITY_CLASS: Record<WorkflowParityStatus, string> = {
+  ready: "border-emerald-100 bg-emerald-50 text-emerald-800",
+  partial: "border-amber-100 bg-amber-50 text-amber-800",
+  missing_resume: "border-orange-100 bg-orange-50 text-orange-800",
+  missing_confirmation: "border-red-100 bg-red-50 text-red-700",
+  missing_setup_path: "border-rose-100 bg-rose-50 text-rose-700",
+  needs_tool_service: "border-sky-100 bg-sky-50 text-sky-800",
+};
+
 const FLOW_STATUS_CLASS: Record<WorkflowFlowStatus, string> = {
   ready: "border-emerald-100 bg-emerald-50 text-emerald-800",
   partial: "border-amber-100 bg-amber-50 text-amber-800",
@@ -119,6 +134,10 @@ function coverageClass(state: WorkflowCoverageState) {
 
 function actionLevelClass(level: WorkflowActionLevel) {
   return ACTION_LEVEL_CLASS[level];
+}
+
+function parityClass(status: WorkflowParityStatus) {
+  return PARITY_CLASS[status];
 }
 
 function flowStatusClass(status: WorkflowFlowStatus) {
@@ -188,6 +207,61 @@ function InsightCard({ label, value }: { label: string; value: string | number }
       <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">{label}</p>
       <p className="mt-2 text-3xl font-black text-[#2f2135]">{value}</p>
     </div>
+  );
+}
+
+function ParityBacklogCard({ item }: { item: WorkflowParityAuditItem }) {
+  return (
+    <article className="rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-purple-700">
+              {domainLabel(item.domain)}
+            </span>
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${parityClass(item.status)}`}>
+              {WORKFLOW_PARITY_STATUS_LABELS[item.status]}
+            </span>
+            <span className="rounded-full border border-[#eadfd5] bg-[#fffaf4] px-2.5 py-1 text-xs font-black text-[#7d6b65]">
+              Priority {item.backlogPriority}
+            </span>
+          </div>
+          <h3 className="mt-2 font-serif text-2xl leading-tight text-[#2f2135]">{item.title}</h3>
+        </div>
+        <code className="shrink-0 rounded-xl bg-[#f7f2eb] px-3 py-2 text-xs font-bold text-[#6f5f59]">
+          {item.workflowReference}
+        </code>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-[12px] bg-[#fbf8f5] p-3">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Evidence</p>
+          <p className="mt-1 text-sm font-bold leading-relaxed text-[#2f2135]">{item.evidence}</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf8f5] p-3">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Next step</p>
+          <p className="mt-1 text-sm font-bold leading-relaxed text-[#2f2135]">{item.nextStep}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {item.reusablePatterns.length === 0 ? (
+          <span className="rounded-full border border-[#eadfd5] bg-[#fffaf4] px-3 py-1.5 text-xs font-bold text-[#7d6b65]">
+            No Concierge pattern needed
+          </span>
+        ) : (
+          item.reusablePatterns.map((pattern) => (
+            <span
+              key={pattern}
+              className="rounded-full border border-teal-100 bg-teal-50 px-3 py-1.5 text-xs font-black text-teal-800"
+            >
+              {WORKFLOW_REUSABLE_PATTERN_LABELS[pattern]}
+            </span>
+          ))
+        )}
+      </div>
+      <p className="mt-3 text-xs font-bold text-[#8b7a73]">
+        Covers {item.affectedEntryPointIds.length} entry point{item.affectedEntryPointIds.length === 1 ? "" : "s"}.
+      </p>
+    </article>
   );
 }
 
@@ -586,6 +660,8 @@ export default function WorkflowCoverageAdminPage() {
   const [actionLevelFilter, setActionLevelFilter] = useState<ActionLevelFilter>("all");
   const [query, setQuery] = useState("");
   const summary = useMemo(() => getWorkflowCoverageSummary(), []);
+  const paritySummary = useMemo(() => getWorkflowParityAuditSummary(), []);
+  const parityBacklog = useMemo(() => getWorkflowParityBacklog(8), []);
   const nextCandidates = useMemo(() => nextWorkflowImplementationCandidates(6), []);
   const matrixRows = useMemo(() => workflowFlowMatrixRows(), []);
   const readinessRows = useMemo(() => workflowReadinessChecklistRows(), []);
@@ -698,6 +774,35 @@ export default function WorkflowCoverageAdminPage() {
               <p className="mt-1 text-xs font-bold opacity-85">{WORKFLOW_ACTION_LEVEL_RULES[level]}</p>
             </div>
           ))}
+        </section>
+
+        <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Cross-pillar parity audit">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Cross-pillar parity audit</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Same safety standard everywhere</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">Uses the Concierge patterns where an action leaves the app.</p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+            <InsightCard label="Audited" value={paritySummary.total} />
+            <InsightCard label="Ready" value={paritySummary.byStatus.ready} />
+            <InsightCard label="Partial" value={paritySummary.byStatus.partial} />
+            <InsightCard label="Missing setup" value={paritySummary.byStatus.missing_setup_path} />
+            <InsightCard label="Missing resume" value={paritySummary.byStatus.missing_resume} />
+            <InsightCard label="Tool/service" value={paritySummary.byStatus.needs_tool_service} />
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2" data-testid="workflow-parity-backlog">
+            {parityBacklog.length === 0 ? (
+              <div className="rounded-[14px] border border-emerald-100 bg-emerald-50 p-4 text-sm font-black text-emerald-800">
+                Every mapped workflow is ready against the current parity rules.
+              </div>
+            ) : (
+              parityBacklog.map((item) => (
+                <ParityBacklogCard key={item.workflowReference} item={item} />
+              ))
+            )}
+          </div>
         </section>
 
         <section className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" aria-label="Fast Help ranking insights">

@@ -331,6 +331,67 @@ export interface WorkflowCoverageSummary {
   missingWorkflows: WorkflowReference[];
 }
 
+export type WorkflowParityStatus =
+  | "ready"
+  | "partial"
+  | "missing_resume"
+  | "missing_confirmation"
+  | "missing_setup_path"
+  | "needs_tool_service";
+
+export const WORKFLOW_PARITY_STATUSES: WorkflowParityStatus[] = [
+  "ready",
+  "partial",
+  "missing_resume",
+  "missing_confirmation",
+  "missing_setup_path",
+  "needs_tool_service",
+];
+
+export const WORKFLOW_PARITY_STATUS_LABELS: Record<WorkflowParityStatus, string> = {
+  ready: "Ready",
+  partial: "Partial",
+  missing_resume: "Missing resume",
+  missing_confirmation: "Missing confirmation",
+  missing_setup_path: "Missing setup path",
+  needs_tool_service: "Needs tool/service",
+};
+
+export type WorkflowReusablePattern =
+  | "setup_choice_panel"
+  | "return_resume_state"
+  | "confirmation_receipt"
+  | "action_readiness"
+  | "manual_fallback";
+
+export const WORKFLOW_REUSABLE_PATTERN_LABELS: Record<WorkflowReusablePattern, string> = {
+  setup_choice_panel: "Setup choice panel",
+  return_resume_state: "Return/resume state",
+  confirmation_receipt: "Confirmation receipt",
+  action_readiness: "Action readiness",
+  manual_fallback: "Manual fallback",
+};
+
+export interface WorkflowParityAuditItem {
+  workflowReference: WorkflowReference;
+  domain: WorkflowDomain;
+  title: string;
+  status: WorkflowParityStatus;
+  affectedEntryPointIds: string[];
+  reusablePatterns: WorkflowReusablePattern[];
+  backlogPriority: 1 | 2 | 3 | 4;
+  evidence: string;
+  nextStep: string;
+}
+
+export interface WorkflowParityAuditSummary {
+  total: number;
+  byStatus: Record<WorkflowParityStatus, number>;
+  byDomain: Record<WorkflowDomain, Record<WorkflowParityStatus, number>>;
+  ready: number;
+  blocked: number;
+}
+
 function conciergeWorkflowDefinitions(): WorkflowDefinition[] {
   return CONCIERGE_FLOW_REGISTRY.map((flow) => ({
     reference: flow.reference,
@@ -339,7 +400,7 @@ function conciergeWorkflowDefinitions(): WorkflowDefinition[] {
     summary: `Concierge flow using ${flow.tools.join(", ")} with final user control.`,
     status: flow.status,
     requiredInfo: flow.firstQuestions,
-    fallbackIfMissing: flow.savedData.includes("trusted_provider") ? ["open_setup", "operator_review"] : ["ask_user", "operator_review"],
+    fallbackIfMissing: flow.savedData.includes("trusted_provider") || flow.setupFocus ? ["open_setup", "operator_review"] : ["ask_user", "operator_review"],
     confirmationRule: flow.confirmationRule,
     completionState: "prepared, confirmed, handed off, and captured in Concierge history",
     primaryRoute: "/concierge",
@@ -1950,6 +2011,153 @@ export function getWorkflowCoverageSummary(): WorkflowCoverageSummary {
     byActionLevel,
     partialWorkflows,
     missingWorkflows,
+  };
+}
+
+function emptyParityStatusCounts(): Record<WorkflowParityStatus, number> {
+  return Object.fromEntries(WORKFLOW_PARITY_STATUSES.map((status) => [status, 0])) as Record<WorkflowParityStatus, number>;
+}
+
+function emptyParityDomainCounts(): Record<WorkflowDomain, Record<WorkflowParityStatus, number>> {
+  return Object.fromEntries(
+    WORKFLOW_DOMAINS.map((domain) => [domain, emptyParityStatusCounts()]),
+  ) as Record<WorkflowDomain, Record<WorkflowParityStatus, number>>;
+}
+
+function conciergeFlowFor(reference: WorkflowReference) {
+  return CONCIERGE_FLOW_REGISTRY.find((flow) => flow.reference === reference);
+}
+
+function workflowHasConfirmationRule(workflow: WorkflowDefinition): boolean {
+  return /ask|confirm|before|never|no confirmation/i.test(workflow.confirmationRule);
+}
+
+function workflowHasSetupPath(workflow: WorkflowDefinition): boolean {
+  const conciergeFlow = conciergeFlowFor(workflow.reference);
+  if (!conciergeFlow?.setupFocus && !workflow.requiredInfo.includes("trusted_provider")) return true;
+  return workflow.fallbackIfMissing.includes("open_setup") || workflow.primaryRoute === "/onboarding/profile/providers";
+}
+
+function workflowHasResumeEvidence(workflow: WorkflowDefinition): boolean {
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  if (actionLevel !== "external_action") return true;
+  return /history|receipt|resume|resumed|captured|saved|prepared|handoff|handed off/i.test(
+    `${workflow.completionState} ${workflow.nextStep ?? ""}`,
+  );
+}
+
+function workflowNeedsRealToolService(workflow: WorkflowDefinition): boolean {
+  return [
+    CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+    CONCIERGE_FLOW_REFERENCES.scamCheck,
+    CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+    CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+  ].includes(workflow.reference as ConciergeFlowReference);
+}
+
+function workflowParityStatusFor(workflow: WorkflowDefinition): WorkflowParityStatus {
+  const coverageState = workflowCoverageState(workflow.status);
+  if (coverageState === "missing") return "partial";
+  if (coverageState === "partial") return "partial";
+  if (!workflowHasSetupPath(workflow)) return "missing_setup_path";
+  if (!workflowHasConfirmationRule(workflow)) return "missing_confirmation";
+  if (!workflowHasResumeEvidence(workflow)) return "missing_resume";
+  if (workflowNeedsRealToolService(workflow)) return "needs_tool_service";
+  return "ready";
+}
+
+function reusablePatternsFor(workflow: WorkflowDefinition): WorkflowReusablePattern[] {
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  const patterns = new Set<WorkflowReusablePattern>();
+  if (workflow.fallbackIfMissing.includes("open_setup") || workflow.domain === "profile") patterns.add("setup_choice_panel");
+  if (actionLevel === "external_action") {
+    patterns.add("return_resume_state");
+    patterns.add("confirmation_receipt");
+    patterns.add("action_readiness");
+    patterns.add("manual_fallback");
+  }
+  if (workflow.relatedConciergeFlow) {
+    patterns.add("confirmation_receipt");
+    patterns.add("manual_fallback");
+  }
+  return [...patterns];
+}
+
+function backlogPriorityFor(status: WorkflowParityStatus, workflow: WorkflowDefinition): 1 | 2 | 3 | 4 {
+  if (status === "missing_confirmation" || status === "missing_setup_path") return 1;
+  if (status === "missing_resume") return 2;
+  if (status === "needs_tool_service") return 3;
+  if (status === "partial") return 3;
+  if (workflowActionLevelForDefinition(workflow) === "external_action") return 4;
+  return 4;
+}
+
+function parityEvidenceFor(status: WorkflowParityStatus, workflow: WorkflowDefinition): string {
+  if (status === "ready") return "Mapped entry points have a suggested flow, confirmation rule, completion state, and safe fallback.";
+  if (status === "needs_tool_service") return "The user journey is mapped, but real external execution still depends on configured call, email, upload, search, booking, or operator tools.";
+  if (status === "missing_setup_path") return "The workflow depends on saved provider or setup data, but the registry does not yet expose the setup choice path.";
+  if (status === "missing_confirmation") return "The workflow needs an explicit final confirmation rule before contact, booking, sharing, upload, payment, or submission.";
+  if (status === "missing_resume") return "The workflow needs a durable return point so users can continue after setup, provider choice, review, or a reply.";
+  return "The workflow opens, but the registry still marks implementation as incomplete.";
+}
+
+function parityNextStepFor(status: WorkflowParityStatus, workflow: WorkflowDefinition): string {
+  if (status === "ready") return workflow.nextStep ?? "Keep monitoring real usage and support outcomes.";
+  if (status === "needs_tool_service") return workflow.nextStep ?? "Connect the required service/tool behind the confirmation layer.";
+  if (status === "missing_setup_path") return "Add the provider/setup choice panel and return users to the original task after setup.";
+  if (status === "missing_confirmation") return "Add a final confirmation moment before the action can leave VYVA.";
+  if (status === "missing_resume") return "Store enough pending-task state to resume the original task after interruption.";
+  return workflow.nextStep ?? "Finish the incomplete mapped flow.";
+}
+
+export function getWorkflowParityAudit(): WorkflowParityAuditItem[] {
+  return WORKFLOW_DEFINITIONS.map((workflow) => {
+    const status = workflowParityStatusFor(workflow);
+    return {
+      workflowReference: workflow.reference,
+      domain: workflow.domain,
+      title: workflow.title,
+      status,
+      affectedEntryPointIds: workflowEntryPointsFor(workflow.reference).map((entry) => entry.id),
+      reusablePatterns: reusablePatternsFor(workflow),
+      backlogPriority: backlogPriorityFor(status, workflow),
+      evidence: parityEvidenceFor(status, workflow),
+      nextStep: parityNextStepFor(status, workflow),
+    };
+  });
+}
+
+export function workflowParityAuditForEntryPoint(entryPointId: string): WorkflowParityAuditItem {
+  const entry = getWorkflowEntryPoint(entryPointId);
+  const item = getWorkflowParityAudit().find((audit) => audit.workflowReference === entry.workflow);
+  if (!item) throw new Error(`No parity audit item for entry point: ${entryPointId}`);
+  return item;
+}
+
+export function getWorkflowParityBacklog(limit = 8): WorkflowParityAuditItem[] {
+  return getWorkflowParityAudit()
+    .filter((item) => item.status !== "ready")
+    .sort((left, right) => {
+      if (left.backlogPriority !== right.backlogPriority) return left.backlogPriority - right.backlogPriority;
+      if (left.domain !== right.domain) return left.domain.localeCompare(right.domain);
+      return left.title.localeCompare(right.title);
+    })
+    .slice(0, limit);
+}
+
+export function getWorkflowParityAuditSummary(): WorkflowParityAuditSummary {
+  const byStatus = emptyParityStatusCounts();
+  const byDomain = emptyParityDomainCounts();
+  getWorkflowParityAudit().forEach((item) => {
+    byStatus[item.status] += 1;
+    byDomain[item.domain][item.status] += 1;
+  });
+  return {
+    total: WORKFLOW_DEFINITIONS.length,
+    byStatus,
+    byDomain,
+    ready: byStatus.ready,
+    blocked: byStatus.missing_confirmation + byStatus.missing_resume + byStatus.missing_setup_path + byStatus.needs_tool_service,
   };
 }
 
