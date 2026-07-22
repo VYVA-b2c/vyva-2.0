@@ -25602,6 +25602,19 @@ export default function MarketingAdminPage() {
     }, 0);
   }
 
+  function scrollToContentActionPanel(contentId: string) {
+    window.setTimeout(() => {
+      const node = document.getElementById(`marketing-content-action-panel-${contentId}`);
+      if (!node) return;
+      if (typeof node.scrollIntoView === "function") {
+        node.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+      }
+      if (typeof node.focus === "function") {
+        node.focus({ preventScroll: true });
+      }
+    }, 0);
+  }
+
   function previewContent(contentAsset: ContentAsset) {
     setActiveTab("content");
     setSelectedContentId(contentAsset.id);
@@ -25611,7 +25624,7 @@ export default function MarketingAdminPage() {
     setConfirmingContentDeleteId(null);
     setContentActionFeedback(`Previewing "${contentAsset.title}".`);
     setMessage(`Preview opened for ${contentAsset.title}.`);
-    scrollToContentActionRow(contentAsset.id);
+    scrollToContentActionPanel(contentAsset.id);
   }
 
   function startContentEdit(contentAsset: ContentAsset) {
@@ -25625,7 +25638,7 @@ export default function MarketingAdminPage() {
     setContentFeedback("");
     setContentActionFeedback(`Editing "${contentAsset.title}".`);
     setMessage(`Editor opened for ${contentAsset.title}.`);
-    scrollToContentActionRow(contentAsset.id);
+    scrollToContentActionPanel(contentAsset.id);
   }
 
   function startContentStarterCopy(contentAsset: ContentAsset) {
@@ -26439,7 +26452,7 @@ export default function MarketingAdminPage() {
     if (confirmingContentDeleteId !== contentAsset.id) {
       setConfirmingContentDeleteId(contentAsset.id);
       setContentActionFeedback(`Click Confirm delete to remove "${contentAsset.title}". Campaigns and journey steps will keep their records but lose this content link.`);
-      scrollToContentActionRow(contentAsset.id);
+      scrollToContentActionPanel(contentAsset.id);
       return;
     }
     setContentSaving(true);
@@ -41736,7 +41749,7 @@ export default function MarketingAdminPage() {
                               </td>
                             </tr>
                             {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
-                              <tr className="border-t border-purple-100 bg-purple-50/80">
+                              <tr id={`marketing-content-action-panel-${item.id}`} tabIndex={-1} className="border-t border-purple-100 bg-purple-50/80">
                                 <td colSpan={9} className="px-4 py-3">
                                   {isPreviewingContent ? (
                                     <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-bold text-purple-950 shadow-sm" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
