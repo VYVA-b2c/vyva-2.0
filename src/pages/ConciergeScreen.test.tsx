@@ -6774,6 +6774,7 @@ describe("ConciergeScreen route prefill", () => {
     const canvas = await screen.findByTestId("panel-concierge-provider-reply-canvas");
     expect(canvas).toHaveTextContent("Review the provider reply");
     fireEvent.click(within(canvas).getByRole("button", { name: "Start" }));
+    fireEvent.click(within(canvas).getByRole("button", { name: /Confirm appointment or detail/ }));
     fireEvent.click(within(canvas).getByRole("button", { name: "Continue" }));
     fireEvent.change(screen.getByLabelText("Provider reply"), {
       target: { value: "Driver will wait outside the main door." },
