@@ -679,6 +679,18 @@ type CampaignPlannerRecipe = {
   reachableContacts: number;
 };
 
+type CampaignPlannerGoalStarter = {
+  preset: CampaignGoalPreset;
+  play: CampaignStudioPlay;
+  targetAudience: MarketingAudience | null;
+  channels: Channel[];
+  matchedContent: ContentAsset | null;
+  reachableContacts: number;
+  templateCount: number;
+  score: number;
+  state: CampaignReadinessState;
+};
+
 type CampaignStudioGeneratedDraft = {
   campaignName: string;
   contentTitle: string;
@@ -13941,6 +13953,44 @@ export default function MarketingAdminPage() {
       state,
     };
   }), [audiences, contacts, contentTemplatePacksWithStats]);
+  const campaignPlannerGoalStarters = useMemo<CampaignPlannerGoalStarter[]>(() => campaignGoalPresets.map((preset) => {
+    const play = campaignIntentPlay(preset.brief);
+    const linkedPack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === preset.templatePackId) ?? null;
+    const channels = uniqueChannels([...preset.channels, ...(linkedPack?.channels ?? [])]);
+    const targetAudience = bestCampaignStudioAudience(play, audiences);
+    const matchingContacts = contacts.filter((contact) => (
+      campaignAllowsContact(play.audienceType, contact.audienceType)
+      && contactMatchesAudienceList(contact, targetAudience)
+    ));
+    const reachableContacts = matchingContacts.filter((contact) => (
+      channels.some((channel) => Boolean(recipientForChannel(contact, channel)))
+    )).length;
+    const matchedContent = channels
+      .map((channel) => bestCampaignPlannerContent(play, channel, content))
+      .find(Boolean) ?? null;
+    const templateCount = linkedPack?.templates.length ?? 0;
+    const score = reachableContacts * 5 + templateCount * 3 + channels.length * 2 + (matchedContent ? 8 : 0) + (targetAudience ? 6 : 0);
+    const state: CampaignReadinessState = reachableContacts > 0 && (matchedContent || templateCount > 0)
+      ? "ready"
+      : reachableContacts > 0 || matchedContent || templateCount > 0 ? "planning" : "needs_action";
+    return {
+      preset,
+      play,
+      targetAudience,
+      channels,
+      matchedContent,
+      reachableContacts,
+      templateCount,
+      score,
+      state,
+    };
+  })
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.reachableContacts !== a.reachableContacts) return b.reachableContacts - a.reachableContacts;
+      return a.preset.title.localeCompare(b.preset.title);
+    })
+    .slice(0, 5), [audiences, contacts, content, contentTemplatePacksWithStats]);
   const campaignLaunchModeInsights = useMemo<CampaignLaunchModeInsight[]>(() => campaignLaunchModes.map((mode) => {
     const quickStart = campaignIntentQuickStarts.find((item) => item.id === mode.quickStartId);
     const play = campaignIntentPlay(quickStart?.brief ?? mode.detail);
@@ -21847,6 +21897,42 @@ export default function MarketingAdminPage() {
     });
     setCampaignStudioFeedback(`Starter loaded: ${recipe.play.label}${recipe.matchedContent ? ` with ${recipe.matchedContent.title}` : ""}.`);
     setMessage(`Starter loaded: ${recipe.play.label}. Review the planner, then add the campaign.`);
+  }
+
+  function applyCampaignPlannerGoalStarter(starter: CampaignPlannerGoalStarter) {
+    const primaryChannel = starter.channels[0] ?? starter.play.defaultChannel;
+    const scheduleStartsAt = campaignStudioDefaultSchedule(starter.play);
+    const contentIds = Object.fromEntries(starter.channels.map((channel) => {
+      const matchedContent = bestCampaignPlannerContent(starter.play, channel, content);
+      return [channel, matchedContent?.id ?? ""];
+    })) as Partial<Record<Channel, string>>;
+    const starterContent = contentIds[primaryChannel] ?? "";
+    setCampaignDraft({
+      ...emptyCampaignDraft(),
+      name: starter.preset.title,
+      audienceType: starter.play.audienceType,
+      channel: primaryChannel,
+      channels: starter.channels.length ? starter.channels : [primaryChannel],
+      contentAssetId: starterContent,
+      channelContentAssetIds: contentIds,
+      status: scheduleStartsAt ? "scheduled" : "draft",
+      scheduleStartsAt,
+      scheduleEndsAt: "",
+      objective: starter.preset.brief,
+      targetAudienceId: starter.targetAudience?.id ?? "",
+      recipientFilter: "",
+      snapshotRecipients: starter.reachableContacts > 0,
+    });
+    const templatePack = contentTemplatePacksWithStats.find(({ pack }) => pack.id === starter.preset.templatePackId) ?? null;
+    if (templatePack) {
+      setContentTemplatePackFilter(templatePack.pack.id);
+      setContentTemplateSearch("");
+      setContentTemplateChannelFilter("all");
+      setContentTemplateAudienceFilter("all");
+      setContentTemplateCategoryFilter("all");
+    }
+    setCampaignStudioFeedback(`Goal loaded: ${starter.preset.title} with ${formatChannelList(starter.channels)}.`);
+    setMessage(`${starter.preset.title} loaded into the planner. Review content, audience, and preflight before adding the campaign.`);
   }
 
   function focusCampaignPlannerField(testId: string) {
@@ -35870,6 +35956,49 @@ export default function MarketingAdminPage() {
 
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
                 <div className="grid gap-4">
+                  {campaignPlannerGoalStarters.length ? (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4 shadow-sm" data-testid="marketing-campaign-planner-goal-starters">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-800">Smart brief starters</p>
+                          <h3 className="mt-1 text-lg font-black text-[#241133]">Pick the outcome, then review the campaign</h3>
+                          <p className="mt-1 text-sm font-bold leading-relaxed text-[#6b5b54]">
+                            VYVA ranks goals by reachable contacts, available templates, saved content, and channel coverage, then fills the planner in one click.
+                          </p>
+                        </div>
+                        <Pill className="bg-white text-violet-800">{campaignPlannerGoalStarters.length} ranked starts</Pill>
+                      </div>
+                      <div className="mt-3 grid gap-3 xl:grid-cols-5">
+                        {campaignPlannerGoalStarters.map((starter) => (
+                          <button
+                            key={starter.preset.id}
+                            type="button"
+                            onClick={() => applyCampaignPlannerGoalStarter(starter)}
+                            className={`min-h-[190px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 hover:bg-white focus:outline-none focus:ring-4 focus:ring-purple-100 ${readinessClass(starter.state)}`}
+                            data-testid={`button-marketing-campaign-planner-goal-${starter.preset.id}`}
+                          >
+                            <span className="flex flex-wrap items-start justify-between gap-2">
+                              <span className="text-[11px] font-black uppercase tracking-[0.12em] opacity-75">{starter.preset.outcome}</span>
+                              <Pill className={readinessPillClass(starter.state)}>{readinessLabel(starter.state)}</Pill>
+                            </span>
+                            <span className="mt-2 block font-black text-[#241133]">{starter.preset.title}</span>
+                            <span className="mt-1 line-clamp-2 block text-xs font-bold leading-relaxed text-[#6b5b54]">{starter.preset.detail}</span>
+                            <span className="mt-2 flex flex-wrap gap-1.5">
+                              {starter.channels.slice(0, 3).map((channel) => (
+                                <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                              ))}
+                              {starter.channels.length > 3 ? <Pill className="bg-white text-[#5b4a46]">+{starter.channels.length - 3}</Pill> : null}
+                            </span>
+                            <span className="mt-3 grid gap-1 rounded-lg border border-white/70 bg-white/80 px-2 py-2 text-[11px] font-black text-[#5b4a46]">
+                              <span>{starter.reachableContacts} reachable contact{starter.reachableContacts === 1 ? "" : "s"}</span>
+                              <span>{starter.templateCount} template{starter.templateCount === 1 ? "" : "s"}; {starter.matchedContent ? `content: ${starter.matchedContent.title}` : "content can be drafted"}</span>
+                              <span>{starter.targetAudience ? `Best list: ${starter.targetAudience.name}` : "Best list: all matching contacts"}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {campaignPlannerRecipes.length ? (
                     <div className="grid gap-3 xl:grid-cols-4" data-testid="marketing-campaign-planner-recipes">
                       {campaignPlannerRecipes.map((recipe) => (
