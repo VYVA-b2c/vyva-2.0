@@ -7,4 +7,4 @@
 .vc-demo-toolbar button { min-height:44px; padding:9px 15px; border:1px solid #ded4e7; border-radius:999px; background:white; color:#554e60; font:inherit; font-weight:750; cursor:pointer; }
 .vc-demo-toolbar button[aria-pressed="true"] { border-color:#7255a5; background:#7255a5; color:white; }
 .vc-demo-toolbar button:focus-visible { outline:4px solid #f0b85b; outline-offset:2px; }
-@media(max-width:560px){.vc-demo-toolbar{padding:0 6px}.vc-demo-toolbar button{flex:1;min-width:0}.vc-integration-gallery .vc-gallery-stage{min-height:600px}}
+@media(max-width:560px){.vc-demo-toolbar{flex-wrap:wrap;padding:0 6px}.vc-demo-toolbar button{flex:1 1 44%;min-width:0;overflow-wrap:anywhere}.vc-integration-gallery .vc-gallery-stage{min-height:600px}}
