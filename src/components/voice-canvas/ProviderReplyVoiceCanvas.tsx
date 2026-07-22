@@ -29,6 +29,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 
 export interface ProviderReplyVoiceCommands {
@@ -110,10 +111,11 @@ export function ProviderReplyVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
+  const baseViewModel = useMemo(
     () => providerReplyCanvasViewModel(state, copy, context),
     [state, copy, context],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
 
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {

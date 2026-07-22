@@ -91,16 +91,29 @@ const serverTests = process.env.DATABASE_URL
   : [];
 
 const tests = [...clientTests, ...sharedTests, ...migrationTests, ...serverTests].sort();
+const singletonTests = new Set([
+  "src/pages/admin/MarketingAdminPage.test.tsx",
+]);
+const regularTests = tests.filter((testFile) => !singletonTests.has(testFile));
+const isolatedTests = tests.filter((testFile) => singletonTests.has(testFile));
 
 if (tests.length === 0) {
   console.log("No test files found.");
   process.exit(0);
 }
 
-for (let index = 0; index < tests.length; index += chunkSize) {
-  const chunk = tests.slice(index, index + chunkSize);
+for (let index = 0; index < regularTests.length; index += chunkSize) {
+  const chunk = regularTests.slice(index, index + chunkSize);
   const chunkNumber = Math.floor(index / chunkSize) + 1;
-  const totalChunks = Math.ceil(tests.length / chunkSize);
+  const totalChunks = Math.ceil(regularTests.length / chunkSize) + isolatedTests.length;
   console.log(`\nRunning test chunk ${chunkNumber}/${totalChunks} (${chunk.length} files)`);
   await run([...baseVitestArgs, "--run", ...chunk], `Test chunk ${chunkNumber}/${totalChunks}`, chunk);
+}
+
+const regularChunkCount = Math.ceil(regularTests.length / chunkSize);
+for (const [offset, testFile] of isolatedTests.entries()) {
+  const chunkNumber = regularChunkCount + offset + 1;
+  const totalChunks = regularChunkCount + isolatedTests.length;
+  console.log(`\nRunning test chunk ${chunkNumber}/${totalChunks} (1 file)`);
+  await run([...baseVitestArgs, "--run", testFile], `Test chunk ${chunkNumber}/${totalChunks}`, [testFile]);
 }

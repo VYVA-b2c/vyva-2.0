@@ -1,4 +1,66 @@
-import{expect,test}from"@playwright/test";test.setTimeout(60_000);test.beforeEach(async({page})=>{await page.goto("/appointment-canvas-integration.html",{waitUntil:"domcontentloaded"});await page.evaluate(()=>sessionStorage.clear());await page.reload({waitUntil:"domcontentloaded"})});
-test("acts only after explicit confirmation",async({page})=>{await page.getByRole("button",{name:"Start"}).click();await page.getByRole("button",{name:"Riverside Medical Centre"}).click();await page.getByLabel("Reason for appointment").fill("Check-up");await page.getByRole("button",{name:"Continue"}).click();await page.getByRole("button",{name:"Tomorrow"}).click();await page.getByLabel("Preferred time").fill("10:30");await page.getByRole("button",{name:"Review"}).click();await expect(page.getByText("VYVA-APT-2486")).toHaveCount(0);await page.getByRole("button",{name:"Confirm and prepare"}).click();await expect(page.getByText("VYVA-APT-2486")).toBeVisible()});
-test("keyboard draft restoration",async({page})=>{await page.getByRole("button",{name:"Start"}).focus();await page.keyboard.press("Enter");await page.getByRole("button",{name:"A different provider"}).focus();await page.keyboard.press("Enter");await page.getByLabel("Clinician or clinic").fill("Neighbourhood Clinic");await page.reload();await expect(page.getByLabel("Clinician or clinic")).toHaveValue("Neighbourhood Clinic")});
-test("Spanish long labels and screenshots",async({page})=>{for(const[name,width,height]of[["desktop",1440,1000],["tablet",768,1024],["mobile",390,844]]as const){await page.setViewportSize({width,height});await page.goto("/appointment-canvas-integration.html?locale=es");if(name==="mobile"){await page.getByRole("button",{name:"Empezar"}).click();await expect(page.getByRole("button",{name:/Centro médico/})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)).toBeLessThanOrEqual(1)}await page.screenshot({path:`src/dev/voice-canvas/appointment-integration-${name}.png`,fullPage:true})}});
+import { expect, test } from "@playwright/test";
+
+test.setTimeout(60_000);
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/appointment-canvas-integration.html", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.evaluate(() => sessionStorage.clear());
+  await page.reload({ waitUntil: "domcontentloaded" });
+});
+
+test("acts only after explicit confirmation", async ({ page }) => {
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.getByRole("button", { name: "Riverside Medical Centre" }).click();
+  await page.getByLabel("Reason for appointment").fill("Check-up");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Tomorrow" }).click();
+  await page.getByLabel("Preferred time").fill("10:30");
+  await page.getByRole("button", { name: "Review" }).click();
+  await expect(page.getByText("VYVA-APT-2486")).toHaveCount(0);
+  await page.getByRole("button", { name: "Confirm and prepare" }).click();
+  await expect(page.getByText("VYVA-APT-2486")).toBeVisible();
+});
+
+test("keyboard draft restoration", async ({ page }) => {
+  await page.getByRole("button", { name: "Start" }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "A different provider" }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByLabel("Clinician or clinic").fill("Neighbourhood Clinic");
+  await page.reload();
+  await expect(page.getByLabel("Clinician or clinic")).toHaveValue(
+    "Neighbourhood Clinic",
+  );
+});
+
+test("Spanish long labels and sanitized screenshots", async ({ page }) => {
+  for (const [name, width, height] of [
+    ["desktop", 1440, 1000],
+    ["tablet", 768, 1024],
+    ["mobile", 390, 844],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(
+      "/appointment-canvas-integration.html?locale=es&evidence=sanitized",
+    );
+    if (name === "mobile") {
+      await page.getByRole("button", { name: "Empezar" }).click();
+      await expect(
+        page.getByRole("button", { name: /Opción de atención guardada/ }),
+      ).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(1);
+    }
+    await page.screenshot({
+      path: `src/dev/voice-canvas/appointment-integration-${name}.png`,
+      fullPage: true,
+    });
+  }
+});

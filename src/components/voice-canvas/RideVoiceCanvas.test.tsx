@@ -8,6 +8,7 @@ import type { RideCanvasCopy } from "./rideCanvasViewModel";
 vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: () => <div data-testid="mock-vyva-orb" /> }));
 
 const copy:RideCanvasCopy={
+  agentPresence:{idleLabel:"Voice ready",idleDescription:"Use voice or touch.",listeningLabel:"Listening with you",listeningDescription:"Say or tap a ride detail.",speakingLabel:"VYVA is speaking",speakingDescription:"Follow the screen.",thinkingLabel:"Thinking through ride options",thinkingDescription:"Checking ride details.",accessibleLabel:"VYVA ride voice status"},
   listening:{status:"Listening",title:"How can I help?",helper:"Take your time.",start:"Arrange a ride",cancel:"Cancel"},
   place:{title:"Where are you going?",helper:"Choose one place.",newAddress:"A new address",newAddressHelper:"Enter another place",continue:"Continue",back:"Back"},
   address:{title:"What address?",helper:"Enter the destination.",label:"Address",placeholder:"Start typing",continue:"Continue",back:"Back"},
@@ -43,6 +44,16 @@ it("keeps required actions disabled until information is complete",()=>{
   render(<RideVoiceCanvas {...props()}/>);click("Arrange a ride");click("A new address");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();fireEvent.change(screen.getByLabelText("Address"),{target:{value:"A"}});expect(screen.getByRole("button",{name:"Continue"})).toBeEnabled();click("Continue");expect(screen.getByRole("button",{name:"Continue"})).toBeDisabled();
 });
 
+it("activates shared agent presence on visual ride scenes",()=>{
+  render(<RideVoiceCanvas {...props()}/>);
+  click("Arrange a ride");
+  const scene=screen.getByRole("region");
+  expect(scene).toHaveAttribute("data-agent-presence","true");
+  expect(scene).toHaveAttribute("data-agent-state","idle");
+  expect(screen.getByText("Voice ready")).toBeInTheDocument();
+  expect(screen.getByText("Use voice or touch.")).toBeInTheDocument();
+});
+
 it("prevents duplicate confirmation submissions",async()=>{
   let release:(value:{reference:string})=>void=()=>{};const confirm=vi.fn(()=>new Promise<{reference:string}>(resolve=>{release=resolve;}));render(<RideVoiceCanvas {...props({onConfirmRide:confirm})}/>);goToReview();click("Confirm ride");
   expect(screen.getByRole("button",{name:"Preparing…"})).toBeDisabled();expect(confirm).toHaveBeenCalledOnce();fireEvent.click(screen.getByRole("button",{name:"Preparing…"}));expect(confirm).toHaveBeenCalledOnce();release({reference:"ONE"});await screen.findByRole("heading",{name:"Ride ready"});
@@ -62,6 +73,17 @@ it("cancels safely without executing an external action",()=>{
 
 it("restores an interrupted scene and draft from session storage",()=>{
   sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",dateChoice:"2026-07-19",time:"14:00"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();expect(screen.getByDisplayValue("14:00")).toBeInTheDocument();click("Back");expect(screen.getByDisplayValue("99 Garden Road")).toBeInTheDocument();
+});
+
+it("emits privacy-safe resumed telemetry for a restored draft",()=>{
+  const events:unknown[]=[];
+  sessionStorage.setItem("ride-test",JSON.stringify({step:"dateTime",requestId:0,draft:{placeId:"",destination:"99 Garden Road",dateChoice:"2026-07-19",time:"14:00"}}));
+  render(<RideVoiceCanvas {...props({onTelemetry:event=>events.push(event)})}/>);
+  expect(events).toContainEqual(expect.objectContaining({name:"scene_viewed",step:"dateTime",restored:true,input:"system",attempt:0}));
+  const serialized=JSON.stringify(events);
+  expect(serialized).not.toContain("99 Garden Road");
+  expect(serialized).not.toContain("14:00");
+  expect(serialized).not.toContain("2026-07-19");
 });
 
 it("does not restore an in-flight external request after reconnect",()=>{

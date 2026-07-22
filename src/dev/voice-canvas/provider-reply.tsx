@@ -205,11 +205,24 @@ const reviewState: ProviderReplyCanvasState = {
   },
 };
 
+const sanitizedReviewState: ProviderReplyCanvasState = {
+  step: "review",
+  requestId: 0,
+  revision: 0,
+  draft: {
+    providerReply: "Sanitized reply summary ready for review.",
+    scheduledFor: "",
+    notes: "Sanitized note placeholder.",
+  },
+};
+
 export default function ProviderReplyGallery() {
   const [mode, setMode] = useState<"success" | "failure">("success");
   const [scheduled, setScheduled] = useState(false);
-  const spanish = new URLSearchParams(location.search).get("locale") === "es";
-  const startsAtReview = new URLSearchParams(location.search).get("scene") === "review";
+  const params = new URLSearchParams(location.search);
+  const spanish = params.get("locale") === "es";
+  const startsAtReview = params.get("scene") === "review";
+  const evidenceSafe = params.get("evidence") === "sanitized";
   const save = useCallback(async () => {
     await new Promise((resolve) => setTimeout(resolve, 250));
     if (mode === "failure") throw new Error(spanish ? "No se pudo guardar." : "Could not save.");
@@ -237,9 +250,27 @@ export default function ProviderReplyGallery() {
         <ProviderReplyVoiceCanvas
           copy={spanish ? es : en}
           context={{
-            providerName: spanish ? "Clinica Riverside con un nombre traducido muy largo" : "Riverside Clinic",
-            actionLabel: spanish ? "Preparar cita" : "Book appointment",
-            waitingSinceLabel: spanish ? "Esperando 2 horas" : "Waiting 2 hours",
+            providerName: evidenceSafe
+              ? spanish
+                ? "Opción guardada con una etiqueta traducida muy larga"
+                : "Saved care option"
+              : spanish
+                ? "Clinica Riverside con un nombre traducido muy largo"
+                : "Riverside Clinic",
+            actionLabel: evidenceSafe
+              ? spanish
+                ? "Revisar tarea"
+                : "Review task"
+              : spanish
+                ? "Preparar cita"
+                : "Book appointment",
+            waitingSinceLabel: evidenceSafe
+              ? spanish
+                ? "Estado de espera"
+                : "Waiting status"
+              : spanish
+                ? "Esperando 2 horas"
+                : "Waiting 2 hours",
             requiresScheduledFor: scheduled,
             rows: [{
               id: "summary",
@@ -259,8 +290,14 @@ export default function ProviderReplyGallery() {
             retry: spanish ? ["reintentar"] : ["retry"],
             skip: spanish ? ["sin notas"] : ["no notes"],
           }}
-          initialState={startsAtReview ? reviewState : undefined}
-          storageKey={`provider-reply-gallery-${spanish}-${scheduled}-${startsAtReview}`}
+          initialState={
+            startsAtReview
+              ? evidenceSafe
+                ? sanitizedReviewState
+                : reviewState
+              : undefined
+          }
+          storageKey={`provider-reply-gallery-${spanish}-${scheduled}-${startsAtReview}-${evidenceSafe}`}
           onSaveReply={save}
           onMarkComplete={complete}
         />

@@ -135,6 +135,65 @@ describe("ShoppingVoiceCanvas", () => {
     resolve();
     await screen.findByText("Your request is prepared");
   });
+  it("emits closed privacy-safe telemetry for shopping details", async () => {
+    const events: unknown[] = [];
+    const onConfirm = vi
+      .fn()
+      .mockResolvedValue({ outcome: "pending", reference: "SHOP-PRIVATE-42" });
+    render(
+      <ShoppingVoiceCanvas
+        {...props({ initialState: reviewState, onConfirm, onTelemetry: (event) => events.push(event) })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm and prepare request" }),
+    );
+
+    await screen.findByText("Your request is pending");
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "confirmation_submitted",
+        step: "review",
+        input: "touch_or_keyboard",
+        attempt: 1,
+        revision: 0,
+        restored: false,
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "pending",
+        step: "pending",
+        input: "system",
+        attempt: 1,
+        revision: 0,
+        restored: false,
+      }),
+    );
+
+    const allowedKeys = new Set([
+      "name",
+      "step",
+      "input",
+      "attempt",
+      "revision",
+      "restored",
+    ]);
+    for (const event of events) {
+      expect(Object.keys(event as Record<string, unknown>).every((key) =>
+        allowedKeys.has(key),
+      )).toBe(true);
+    }
+
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain("Milk");
+    expect(serialized).not.toContain("2 x 1 litre");
+    expect(serialized).not.toContain("1 Main Street");
+    expect(serialized).not.toContain("Tuesday");
+    expect(serialized).not.toContain("SHOP-PRIVATE-42");
+  });
   it("returns to review and requires a second confirmation after material changes", async () => {
     const onConfirm = vi
       .fn()

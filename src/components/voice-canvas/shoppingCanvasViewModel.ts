@@ -6,13 +6,14 @@ import {
   ShoppingBasket,
   Truck,
 } from "lucide-react";
-import type { VoiceCanvasViewModel } from "./types";
+import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasViewModel } from "./types";
 import type {
   ShoppingAddress,
   ShoppingCanvasState,
   ShoppingRetailer,
 } from "./shoppingCanvasMachine";
 export interface ShoppingCanvasCopy {
+  agentPresence: VoiceCanvasAgentPresenceCopy;
   listening: {
     status: string;
     title: string;

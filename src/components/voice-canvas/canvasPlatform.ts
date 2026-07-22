@@ -69,11 +69,21 @@ export type CanvasTelemetryName =
   | "reconfirmation_required"
   | "retried"
   | "abandoned"
+  | "urgent_help_shown"
+  | "saved"
   | "prepared"
   | "pending"
   | "confirmed"
   | "completed"
   | "failed";
+
+export type CanvasLaunchSignal =
+  | "started"
+  | "resumed"
+  | "abandoned"
+  | "blocked"
+  | "confirmed"
+  | "completed";
 
 export interface CanvasTelemetryEnvelope<Step extends string = string> {
   name: CanvasTelemetryName;
@@ -99,6 +109,26 @@ export function dispatchCanvasTelemetryEvent<T extends CanvasTelemetryEnvelope>(
     };
     window.dispatchEvent(new CustomEvent(eventName, { detail }));
   }
+}
+
+/** Privacy-safe launch signal derived from the closed Canvas telemetry envelope. */
+export function canvasLaunchSignalForTelemetry(
+  event: CanvasTelemetryEnvelope,
+): CanvasLaunchSignal | undefined {
+  if (event.name === "draft_restored") return "resumed";
+  if (event.name === "abandoned") return "abandoned";
+  if (event.name === "confirmation_submitted" || event.name === "confirmed")
+    return "confirmed";
+  if (event.name === "completed") return "completed";
+  if (event.name === "pending" && event.step === "pending") return "completed";
+  if (event.name === "failed" || event.name === "urgent_help_shown")
+    return "blocked";
+  if (event.name === "scene_viewed") {
+    const outcome = canvasOutcomeForStep(event.step);
+    if (outcome === "blocked") return "blocked";
+    return event.restored ? "resumed" : "started";
+  }
+  return undefined;
 }
 
 export class CanvasSafetyError extends Error {
