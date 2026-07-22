@@ -21,6 +21,9 @@ describe("cross-app workflow completion audit", () => {
       entriesWithoutNextStep: [],
       reusableFlowsWithoutEntries: [],
       prioritiesWithoutIncompleteEntries: [],
+      unknownReferences: [],
+      externalActionReferencesWithoutReadiness: [],
+      completeEntriesWithReadinessAttention: [],
     });
   });
 

@@ -23,12 +23,25 @@ export interface ShoppingRetailer {
   id: string;
   label: string;
   description?: string;
+  subtitle?: string;
+  retailerType?: string;
+  estimateLabel?: string;
+  feeLabel?: string;
+  savedLabel?: string;
+  reviewReminder?: string;
+  recommended?: boolean;
+  voiceAliases?: string[];
 }
 export interface ShoppingAddress {
   id: string;
   label: string;
   address: string;
   description?: string;
+  savedLabel?: string;
+  deliveryNote?: string;
+  reviewReminder?: string;
+  recommended?: boolean;
+  voiceAliases?: string[];
 }
 export interface ShoppingCanvasItem {
   id: string;

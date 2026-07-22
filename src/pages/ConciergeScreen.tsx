@@ -15160,6 +15160,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       ),
   );
   const providerReplyCanvasCopy = useMemo<ProviderReplyCanvasCopy>(() => ({
+    agentPresence: {
+      idleLabel: isSpanish ? "VYVA lista" : "VYVA is ready",
+      idleDescription: isSpanish ? "Puedes hablar o tocar la pantalla." : "You can speak or use the screen.",
+      listeningLabel: isSpanish ? "Escuchando contigo" : "Listening with you",
+      listeningDescription: isSpanish ? "Puedes dictar la respuesta o revisar los campos." : "You can dictate the reply or review the fields.",
+      speakingLabel: isSpanish ? "VYVA está hablando" : "VYVA is speaking",
+      speakingDescription: isSpanish ? "La pantalla seguirá el mismo paso." : "The screen will stay on the same step.",
+      thinkingLabel: isSpanish ? "Guardando la respuesta" : "Thinking through the provider reply",
+      thinkingDescription: isSpanish ? "Revisando el registro antes de guardar." : "Checking the record before saving.",
+      accessibleLabel: isSpanish ? "Estado de voz de VYVA para la respuesta del proveedor" : "VYVA voice status for the provider reply",
+    },
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
       title: isSpanish ? "Revisemos la respuesta" : "Review the provider reply",
@@ -16575,6 +16586,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     conciergeVoiceAction?.id ?? "anonymous",
   );
   const legacyRideCanvasCopy = useMemo<RideCanvasCopy>(() => ({
+    agentPresence: {
+      idleLabel: isSpanish ? "VYVA lista" : "VYVA is ready",
+      idleDescription: isSpanish ? "Puedes hablar o tocar la pantalla." : "You can speak or use the screen.",
+      listeningLabel: isSpanish ? "Escuchando contigo" : "Listening with you",
+      listeningDescription: isSpanish ? "Puedes decir el destino o tocar una opción." : "You can say the destination or tap an option.",
+      speakingLabel: isSpanish ? "VYVA está hablando" : "VYVA is speaking",
+      speakingDescription: isSpanish ? "La pantalla seguirá el mismo paso." : "The screen will stay on the same step.",
+      thinkingLabel: isSpanish ? "Preparando opciones" : "Thinking through ride options",
+      thinkingDescription: isSpanish ? "Revisando los detalles del viaje." : "Checking the ride details.",
+      accessibleLabel: isSpanish ? "Estado de voz de VYVA para el viaje" : "VYVA voice status for the ride",
+    },
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
       title: isSpanish ? "¿Adonde te ayudo a ir?" : "Where can I help you go?",
@@ -16589,6 +16611,22 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       newAddressHelper: isSpanish ? "Dile a VYVA adonde vas" : "Tell VYVA where you are going",
       continue: isSpanish ? "Continuar" : "Continue",
       back: isSpanish ? "Volver" : "Go back",
+    },
+    provider: {
+      title: isSpanish ? "¿Que opcion de viaje prefieres?" : "Which ride option looks best?",
+      helper: isSpanish ? "Compara estimacion, reputacion y ayuda disponible antes de elegir." : "Compare estimate, reputation, and available help before choosing.",
+      back: isSpanish ? "Volver" : "Go back",
+    },
+    details: {
+      savedPlace: isSpanish ? "Lugar guardado" : "Saved place",
+      newAddress: isSpanish ? "Nuevo destino" : "New destination",
+      provider: isSpanish ? "Empresa de viaje" : "Ride company",
+      estimatedPickup: isSpanish ? "Recogida estimada" : "Estimated pickup",
+      estimatedArrival: isSpanish ? "Llegada estimada" : "Estimated arrival",
+      estimatedPrice: isSpanish ? "Precio estimado" : "Estimated price",
+      reputation: isSpanish ? "Reputacion" : "Reputation",
+      accessibility: isSpanish ? "Accesibilidad" : "Accessibility",
+      recommended: isSpanish ? "Recomendada" : "Recommended",
     },
     address: {
       title: isSpanish ? "¿Que direccion usamos?" : "What address should we use?",
@@ -16609,6 +16647,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       title: isSpanish ? "¿Esta todo correcto?" : "Does everything look right?",
       helper: isSpanish ? "No se solicita nada hasta que confirmes." : "Nothing will be requested until you confirm.",
       destination: isSpanish ? "Destino" : "Destination",
+      provider: isSpanish ? "Opcion de viaje" : "Ride option",
       date: isSpanish ? "Dia" : "Date",
       time: isSpanish ? "Hora" : "Time",
       confirm: isSpanish ? "Confirmar y preparar viaje" : "Confirm and prepare ride",
@@ -16643,8 +16682,52 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     progress: (current, total) => isSpanish ? `Paso ${current} de ${total}` : `Step ${current} of ${total}`,
   }), [isSpanish]);
   const rideCanvasPlaces = useMemo(() => savedHomeAddress
-    ? [{ id: "home", label: isSpanish ? "Casa" : "Home", address: savedHomeAddress }]
-    : [], [isSpanish, savedHomeAddress]);
+    ? [{
+      id: "home",
+      label: isSpanish ? "Casa" : "Home",
+      address: savedHomeAddress,
+      subtitle: isSpanish ? "Guardado en tu perfil" : "Saved in your profile",
+      pickupEstimate: { value: "8-12 min", tone: "good" as const },
+      priceEstimate: { value: isSpanish ? "Se revisa antes de confirmar" : "Reviewed before confirmation" },
+      reputation: { value: isSpanish ? "Perfil guardado" : "Saved profile", tone: "good" as const },
+      accessibilityNote: hasSavedTransportMobilityInfo
+        ? { value: isSpanish ? "Tiene en cuenta tus necesidades guardadas" : "Uses your saved mobility needs", tone: "good" as const }
+        : undefined,
+      recommended: true,
+    }]
+    : [], [hasSavedTransportMobilityInfo, isSpanish, savedHomeAddress]);
+  const rideCanvasProviders = useMemo(() => {
+    const savedProviderOptions = hasSavedTransportProvider && savedTransportProvider.trim()
+      ? [{
+        id: "saved-provider",
+        label: savedTransportProvider,
+        subtitle: isSpanish ? "Proveedor guardado" : "Saved provider",
+        description: isSpanish ? "Se usara solo despues de tu confirmacion." : "Used only after your confirmation.",
+        pickupEstimate: { value: isSpanish ? "Segun disponibilidad" : "Based on availability" },
+        priceEstimate: { value: isSpanish ? "Se confirma antes de actuar" : "Confirmed before action" },
+        reputation: { value: isSpanish ? "Preferencia guardada" : "Saved preference", tone: "good" as const },
+        accessibilityNote: hasSavedTransportMobilityInfo
+          ? { value: isSpanish ? "Incluye notas de movilidad guardadas" : "Includes saved mobility notes", tone: "good" as const }
+          : undefined,
+        recommended: true,
+        voiceAliases: [savedTransportProvider],
+      }]
+      : [];
+    return [
+      ...savedProviderOptions,
+      {
+        id: "concierge-compare",
+        label: isSpanish ? "Comparar opciones seguras" : "Compare safe options",
+        subtitle: isSpanish ? "VYVA prepara opciones" : "VYVA prepares options",
+        description: isSpanish ? "No llama, reserva ni escribe hasta que confirmes." : "No calls, bookings, or messages happen until you confirm.",
+        pickupEstimate: { value: isSpanish ? "Varia por disponibilidad" : "Varies by availability" },
+        priceEstimate: { value: isSpanish ? "Rango antes de confirmar" : "Range before confirmation" },
+        reputation: { value: isSpanish ? "Compara reputacion y disponibilidad" : "Compares reputation and availability" },
+        accessibilityNote: { value: isSpanish ? "Puede priorizar ayuda en puerta o movilidad" : "Can prioritize door help or mobility support" },
+        recommended: savedProviderOptions.length === 0,
+      },
+    ];
+  }, [hasSavedTransportMobilityInfo, hasSavedTransportProvider, isSpanish, savedTransportProvider]);
   const rideCanvasDates = useMemo(() => [
     { id: "today", label: isSpanish ? "Hoy" : "Today", value: "today" },
     { id: "tomorrow", label: isSpanish ? "Mañana" : "Tomorrow", value: "tomorrow" },
@@ -16657,11 +16740,13 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     retry: isSpanish ? ["intentar otra vez"] : ["retry", "try again"],
   }), [isSpanish]);
   const rideCanvasInitialState = useMemo<RideCanvasState>(() => ({
-    step: transportDestination.trim() ? "dateTime" : "listening",
+    step: transportDestination.trim() ? "provider" : "listening",
     requestId: 0,
     draft: {
       placeId: "",
       destination: transportDestination.trim(),
+      providerId: "",
+      providerName: "",
       dateChoice: "",
       time: "",
     },
@@ -16682,8 +16767,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       requestedTime,
       mobilityNeeds: transportMobilityNeeds,
       hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
-      hasSavedTransportProvider,
-      savedTransportProviderName: savedTransportProvider,
+      hasSavedTransportProvider: hasSavedTransportProvider || Boolean(draft.providerName),
+      savedTransportProviderName: draft.providerName || savedTransportProvider,
       locale,
     });
     if (signal.aborted) throw new DOMException("Ride request cancelled", "AbortError");
@@ -16698,8 +16783,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       requestedTime,
       mobilityNeeds: transportMobilityNeeds,
       hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
-      hasSavedTransportProvider,
-      savedTransportProviderName: savedTransportProvider,
+      hasSavedTransportProvider: hasSavedTransportProvider || Boolean(draft.providerName),
+      savedTransportProviderName: draft.providerName || savedTransportProvider,
       locale,
     });
     if (signal.aborted) throw new DOMException("Ride request cancelled", "AbortError");
@@ -16734,6 +16819,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const appointmentCanvasRolloutQuery=useQuery({queryKey:["/api/config/features/appointment-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/appointment-voice-canvas");return response.ok?parseAppointmentCanvasRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},enabled:isVoiceAppointmentHandoff,staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
   const usesAppointmentVoiceCanvas=isVoiceAppointmentHandoff&&isAppointmentCanvasEnabled(appointmentCanvasRolloutQuery.data,conciergeVoiceAction?.id??"anonymous");
   const appointmentVoiceCanvasCopy=useMemo<AppointmentCanvasCopy>(()=>({
+    agentPresence:{idleLabel:isSpanish?"VYVA lista":"VYVA is ready",idleDescription:isSpanish?"Puedes hablar o tocar la pantalla.":"You can speak or use the screen.",listeningLabel:isSpanish?"Escuchando contigo":"Listening with you",listeningDescription:isSpanish?"Puedes decir el profesional, el motivo o la hora.":"You can say the provider, reason, or time.",speakingLabel:isSpanish?"VYVA está hablando":"VYVA is speaking",speakingDescription:isSpanish?"La pantalla seguirá el mismo paso.":"The screen will stay on the same step.",thinkingLabel:isSpanish?"Preparando la cita":"Thinking through appointment details",thinkingDescription:isSpanish?"Revisando la preparación antes de confirmar.":"Checking the preparation before confirmation.",accessibleLabel:isSpanish?"Estado de voz de VYVA para la cita":"VYVA voice status for the appointment"},
     listening:{status:isSpanish?"Escuchando":"Listening",title:isSpanish?"Preparemos tu cita":"Let’s prepare your appointment",helper:isSpanish?"Puedes hablar o usar los botones.":"Use your voice or the buttons below.",start:isSpanish?"Empezar":"Start",cancel:isSpanish?"Ahora no":"Not now"},
     provider:{title:isSpanish?"¿Con qué profesional o clínica?":"Which clinician or clinic?",helper:isSpanish?"Elige uno guardado o añade otro.":"Choose a saved provider or add another.",newProvider:isSpanish?"Otro profesional o clínica":"A different provider",newProviderHelper:isSpanish?"Escribe el nombre":"Enter the provider name",back:isSpanish?"Volver":"Go back"},
     providerEntry:{title:isSpanish?"¿Qué nombre usamos?":"What provider should we use?",helper:isSpanish?"Escribe el profesional o la clínica.":"Enter the clinician or clinic.",label:isSpanish?"Profesional o clínica":"Clinician or clinic",placeholder:isSpanish?"Nombre del profesional o clínica":"Provider or clinic name",continue:isSpanish?"Continuar":"Continue",back:isSpanish?"Volver":"Go back"},
@@ -17941,6 +18027,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
           <RideVoiceCanvas
             copy={legacyRideCanvasCopy}
             places={rideCanvasPlaces}
+            providers={rideCanvasProviders}
             dateChoices={rideCanvasDates}
             voiceCommands={rideCanvasCommands}
             initialState={rideCanvasInitialState}

@@ -1,6 +1,8 @@
 import {
+  CONCIERGE_PROVIDER_CATEGORIES,
   CONCIERGE_FLOW_REFERENCES,
   CONCIERGE_FLOW_REGISTRY,
+  getConciergeFlowDefinition,
   type ConciergeFlowReference,
 } from "./conciergeFlowRegistry";
 
@@ -128,6 +130,7 @@ export type WorkflowStatus = "ready" | "partial" | "planned" | "deferred";
 export const WORKFLOW_STATUSES: WorkflowStatus[] = ["ready", "partial", "planned", "deferred"];
 
 export type WorkflowCoverageState = "complete" | "partial" | "missing";
+export type WorkflowFlowStatus = "ready" | "partial" | "ui_only" | "blocked";
 
 export type WorkflowActionLevel = "light" | "guided" | "external_action" | "setup" | "admin";
 
@@ -160,7 +163,24 @@ export type WorkflowFallback =
   | "open_setup"
   | "open_existing_screen"
   | "operator_review"
+  | "choose_input_type"
   | "safe_block"
+  | "none";
+
+export type WorkflowProfileDataSource =
+  | "basic_profile"
+  | "language"
+  | "timezone"
+  | "health_profile"
+  | "medications"
+  | "vitals"
+  | "mobility"
+  | "care_team"
+  | "trusted_providers"
+  | "learning_interests"
+  | "social_interests"
+  | "home_address"
+  | "documents_media"
   | "none";
 
 export interface WorkflowDefinition {
@@ -177,6 +197,11 @@ export interface WorkflowDefinition {
   relatedConciergeFlow?: ConciergeFlowReference;
   nextStep?: string;
   actionLevel?: WorkflowActionLevel;
+  setupRequirement?: string;
+  findOptionsPath?: string;
+  receiptMoment?: string;
+  resumeBehavior?: string;
+  profileDataSources?: WorkflowProfileDataSource[];
 }
 
 export interface WorkflowEntryPoint {
@@ -218,6 +243,74 @@ export interface WorkflowActionTarget {
   surface?: WorkflowEntrySurface;
   route?: string;
   label?: string;
+}
+
+export interface WorkflowFlowMatrixRow {
+  reference: WorkflowReference;
+  domain: WorkflowDomain;
+  title: string;
+  currentStatus: WorkflowFlowStatus;
+  currentStatusLabel: string;
+  entryPoints: WorkflowEntryPoint[];
+  requiredSetup: string;
+  missingSetupFallback: string;
+  findOptionsPath: string;
+  confirmationRule: string;
+  receiptMoment: string;
+  resumeBehavior: string;
+  nextStep: string;
+  profileDataSources: WorkflowProfileDataSource[];
+  profileDataSourceLabels: string;
+}
+
+export type WorkflowSetupFallbackChoiceKind =
+  | "ask_detail"
+  | "add_provider"
+  | "add_trusted_contact"
+  | "find_options"
+  | "ask_family"
+  | "open_existing_screen"
+  | "operator_review"
+  | "choose_input_type"
+  | "safe_block"
+  | "none";
+
+export interface WorkflowSetupFallbackChoice {
+  kind: WorkflowSetupFallbackChoiceKind;
+  label: string;
+  description: string;
+  route?: string;
+  state?: Record<string, unknown>;
+}
+
+export interface WorkflowSetupFallbackOptions {
+  returnTo?: string;
+}
+
+export type WorkflowReadinessGateKind =
+  | "setup_fallback"
+  | "tool_readiness"
+  | "profile_data"
+  | "confirmation"
+  | "receipt"
+  | "resume";
+
+export type WorkflowReadinessGateState = "ready" | "needs_attention";
+
+export interface WorkflowReadinessGate {
+  kind: WorkflowReadinessGateKind;
+  label: string;
+  detail: string;
+  state: WorkflowReadinessGateState;
+}
+
+export interface WorkflowReadinessChecklistRow {
+  reference: WorkflowReference;
+  domain: WorkflowDomain;
+  title: string;
+  actionLevel: WorkflowActionLevel;
+  gates: WorkflowReadinessGate[];
+  needsAttention: WorkflowReadinessGateKind[];
 }
 
 export interface WorkflowCoverageCounts {
@@ -1349,6 +1442,440 @@ export function workflowCoverageState(status: WorkflowStatus): WorkflowCoverageS
   if (status === "ready") return "complete";
   if (status === "partial") return "partial";
   return "missing";
+}
+
+export function workflowFlowStatus(status: WorkflowStatus): WorkflowFlowStatus {
+  if (status === "ready") return "ready";
+  if (status === "partial") return "partial";
+  if (status === "planned") return "ui_only";
+  return "blocked";
+}
+
+export const WORKFLOW_FLOW_STATUS_LABELS: Record<WorkflowFlowStatus, string> = {
+  ready: "Ready",
+  partial: "Partial",
+  ui_only: "UI only",
+  blocked: "Blocked",
+};
+
+const FALLBACK_LABELS: Record<WorkflowFallback, string> = {
+  ask_user: "Ask the user for the missing detail in the flow.",
+  open_setup: "Open focused setup and return to the original task.",
+  open_existing_screen: "Open the existing page that manages this information.",
+  operator_review: "Offer VYVA or operator review when automation is not enough.",
+  choose_input_type: "Let the user choose camera, upload, pasted text, link, phone, or company input.",
+  safe_block: "Stop the action safely until required information or permission is present.",
+  none: "No setup fallback needed.",
+};
+
+const SAVED_DATA_LABELS: Record<string, string> = {
+  trusted_provider: "trusted provider",
+  coverage: "insurance or coverage",
+  mobility_preferences: "mobility preferences",
+  home_address: "home address",
+  contact_channel: "preferred contact channel",
+  trusted_contact: "trusted contact",
+  document_or_media: "document or media",
+};
+
+const PROFILE_DATA_SOURCE_LABELS: Record<WorkflowProfileDataSource, string> = {
+  basic_profile: "basic profile",
+  language: "language",
+  timezone: "timezone",
+  health_profile: "health profile",
+  medications: "saved medicines",
+  vitals: "vitals history",
+  mobility: "mobility preferences",
+  care_team: "care team",
+  trusted_providers: "trusted providers",
+  learning_interests: "learning interests",
+  social_interests: "social interests",
+  home_address: "home address",
+  documents_media: "documents or media",
+  none: "none",
+};
+
+function formatTokenList(values: readonly string[]): string {
+  if (values.length === 0) return "None";
+  return values.map((value) => value.replace(/_/g, " ")).join(", ");
+}
+
+function profileDataSourceLabel(source: WorkflowProfileDataSource): string {
+  return PROFILE_DATA_SOURCE_LABELS[source] ?? source.replace(/_/g, " ");
+}
+
+function uniqueProfileDataSources(values: readonly WorkflowProfileDataSource[]): WorkflowProfileDataSource[] {
+  const withoutNone = values.filter((value) => value !== "none");
+  const unique = [...new Set(withoutNone)];
+  return unique.length ? unique : ["none"];
+}
+
+function profileDataSourcesFromConciergeFlow(reference: ConciergeFlowReference): WorkflowProfileDataSource[] {
+  const flow = getConciergeFlowDefinition(reference);
+  const sources: WorkflowProfileDataSource[] = [];
+  if (flow.savedData.includes("trusted_provider")) sources.push("trusted_providers");
+  if (flow.savedData.includes("coverage")) sources.push("health_profile");
+  if (flow.savedData.includes("mobility_preferences")) sources.push("mobility");
+  if (flow.savedData.includes("home_address")) sources.push("home_address");
+  if (flow.savedData.includes("contact_channel")) sources.push("basic_profile");
+  if (flow.savedData.includes("trusted_contact")) sources.push("care_team");
+  if (flow.savedData.includes("document_or_media")) sources.push("documents_media");
+  return uniqueProfileDataSources(sources);
+}
+
+export function workflowProfileDataSources(reference: WorkflowReference): WorkflowProfileDataSource[] {
+  const workflow = getWorkflowDefinition(reference);
+  if (workflow.profileDataSources?.length) return uniqueProfileDataSources(workflow.profileDataSources);
+
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  const sources: WorkflowProfileDataSource[] = flowReference ? profileDataSourcesFromConciergeFlow(flowReference) : [];
+  const requiredInfo = new Set(workflow.requiredInfo);
+
+  if (workflow.domain === "home") sources.push("basic_profile", "timezone", "language");
+  if (workflow.domain === "health") sources.push("health_profile");
+  if (workflow.domain === "medication") sources.push("medications");
+  if (workflow.domain === "learning") sources.push("learning_interests", "language");
+  if (workflow.domain === "community" || workflow.domain === "room") sources.push("social_interests", "language");
+  if (workflow.domain === "game" || workflow.domain === "mind_memory") sources.push("language");
+  if (workflow.domain === "profile") sources.push("basic_profile");
+
+  if (requiredInfo.has("saved_medications")) sources.push("medications");
+  if (requiredInfo.has("reading_type") || requiredInfo.has("reading_value") || requiredInfo.has("reading_time")) sources.push("vitals");
+  if (requiredInfo.has("profile_signals")) sources.push("basic_profile", "health_profile", "mobility");
+  if (requiredInfo.has("interests") || requiredInfo.has("interest_choice")) sources.push("learning_interests");
+  if (requiredInfo.has("room_or_interest") || requiredInfo.has("activity_interest")) sources.push("social_interests");
+
+  return uniqueProfileDataSources(sources);
+}
+
+export function workflowProfileDataSourceLabels(reference: WorkflowReference): string {
+  return workflowProfileDataSources(reference).map(profileDataSourceLabel).join(", ");
+}
+
+function providerCategoryLabel(reference: ConciergeFlowReference): string | null {
+  const flow = getConciergeFlowDefinition(reference);
+  if (!flow.setupFocus && !flow.providerCategory) return null;
+  const categoryId = flow.setupFocus ?? flow.providerCategory;
+  return CONCIERGE_PROVIDER_CATEGORIES.find((category) => category.id === categoryId)?.label ?? categoryId ?? null;
+}
+
+function requiredSetupForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.setupRequirement) return workflow.setupRequirement;
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  if (flowReference) {
+    const flow = getConciergeFlowDefinition(flowReference);
+    const savedData = flow.savedData.map((key) => SAVED_DATA_LABELS[key] ?? key.replace(/_/g, " "));
+    const category = providerCategoryLabel(flowReference);
+    const setup = [
+      ...(category && flow.savedData.includes("trusted_provider") ? [`saved ${category.toLowerCase()} provider`] : []),
+      ...savedData.filter((item) => item !== "trusted provider"),
+    ];
+    return setup.length ? setup.join(", ") : "None";
+  }
+  return workflow.requiredInfo.length ? formatTokenList(workflow.requiredInfo) : "None";
+}
+
+function missingSetupFallbackForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.fallbackIfMissing.includes("none")) return FALLBACK_LABELS.none;
+  const parts = workflow.fallbackIfMissing.map((fallback) => FALLBACK_LABELS[fallback]);
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  if (flowReference) {
+    const category = providerCategoryLabel(flowReference);
+    if (category) {
+      parts.unshift(`If no ${category.toLowerCase()} is saved, offer: add usual provider, find nearby options, or ask family/caregiver to help.`);
+    }
+  }
+  return [...new Set(parts)].join(" ");
+}
+
+function findOptionsPathForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.findOptionsPath) return workflow.findOptionsPath;
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  if (flowReference) {
+    const flow = getConciergeFlowDefinition(flowReference);
+    if (flow.tools.includes("web_search") || flow.providerCategory) {
+      return "Use the shared provider/search criteria path: proximity, price, reputation, availability, accessibility, and coverage when relevant.";
+    }
+    return "Prepare the Concierge action path; use operator review when no direct search/tool is available.";
+  }
+  if (workflow.actionLevel === "setup" || workflow.domain === "profile") return "Not needed; this is setup itself.";
+  if (workflow.domain === "game" || workflow.domain === "learning" || workflow.domain === "room") return "Not needed; user chooses from in-app options.";
+  return "Use the relevant in-app page first; route to Concierge only when an external provider or service is needed.";
+}
+
+function receiptMomentForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.receiptMoment) return workflow.receiptMoment;
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  if (actionLevel === "external_action") return "Show an action-prepared or action-confirmed receipt before/after any external handoff.";
+  if (actionLevel === "setup") return "Show a saved setup confirmation and return option.";
+  return workflow.completionState;
+}
+
+function resumeBehaviorForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.resumeBehavior) return workflow.resumeBehavior;
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  if (actionLevel === "external_action") return "Resume from Home, Concierge, or the originating screen through the saved pending task.";
+  if (actionLevel === "setup") return "Return to the original task through the setup return path when provided.";
+  return "Stay in the current in-app flow or reopen from the same entry point.";
+}
+
+export function workflowFlowMatrixRows(): WorkflowFlowMatrixRow[] {
+  return WORKFLOW_DEFINITIONS.map((workflow) => {
+    const currentStatus = workflowFlowStatus(workflow.status);
+    return {
+      reference: workflow.reference,
+      domain: workflow.domain,
+      title: workflow.title,
+      currentStatus,
+      currentStatusLabel: WORKFLOW_FLOW_STATUS_LABELS[currentStatus],
+      entryPoints: workflowEntryPointsFor(workflow.reference),
+      requiredSetup: requiredSetupForWorkflow(workflow),
+      missingSetupFallback: missingSetupFallbackForWorkflow(workflow),
+      findOptionsPath: findOptionsPathForWorkflow(workflow),
+      confirmationRule: workflow.confirmationRule,
+      receiptMoment: receiptMomentForWorkflow(workflow),
+      resumeBehavior: resumeBehaviorForWorkflow(workflow),
+      nextStep: workflow.nextStep ?? "Keep current flow available.",
+      profileDataSources: workflowProfileDataSources(workflow.reference),
+      profileDataSourceLabels: workflowProfileDataSourceLabels(workflow.reference),
+    };
+  });
+}
+
+function pushUniqueSetupChoice(choices: WorkflowSetupFallbackChoice[], choice: WorkflowSetupFallbackChoice): void {
+  if (!choices.some((item) => item.kind === choice.kind && item.route === choice.route)) {
+    choices.push(choice);
+  }
+}
+
+export function workflowSetupFallbackChoices(
+  reference: WorkflowReference,
+  options: WorkflowSetupFallbackOptions = {},
+): WorkflowSetupFallbackChoice[] {
+  const workflow = getWorkflowDefinition(reference);
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  const flow = flowReference ? getConciergeFlowDefinition(flowReference) : null;
+  const choices: WorkflowSetupFallbackChoice[] = [];
+  const returnTo = options.returnTo ?? workflow.primaryRoute;
+  const shouldUseFlowSetupChoices = workflow.domain === "concierge"
+    || workflow.fallbackIfMissing.includes("open_setup")
+    || !workflow.fallbackIfMissing.includes("choose_input_type");
+
+  if (workflow.fallbackIfMissing.includes("none")) {
+    return [{
+      kind: "none",
+      label: "No setup needed",
+      description: "This flow can continue without extra setup.",
+    }];
+  }
+
+  if (workflow.fallbackIfMissing.includes("ask_user")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "ask_detail",
+      label: "Ask a quick question",
+      description: `Ask for ${formatTokenList(workflow.requiredInfo).toLowerCase()} inside the current flow.`,
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("choose_input_type")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "choose_input_type",
+      label: "Choose input type",
+      description: "Let the user choose camera, upload, pasted text, link, phone number, or company lookup.",
+      route: workflow.primaryRoute,
+      state: { returnTo, workflowReference: workflow.reference },
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("open_existing_screen")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "open_existing_screen",
+      label: "Open the right page",
+      description: "Open the existing page that already manages this information.",
+      route: workflow.primaryRoute,
+      state: { returnTo, workflowReference: workflow.reference },
+    });
+  }
+
+  if (shouldUseFlowSetupChoices && flow && (workflow.fallbackIfMissing.includes("open_setup") || flow.savedData.includes("trusted_provider"))) {
+    const category = flow.setupFocus ?? flow.providerCategory;
+    const categoryLabel = flowReference ? providerCategoryLabel(flowReference) : null;
+    if (category) {
+      pushUniqueSetupChoice(choices, {
+        kind: "add_provider",
+        label: `Add usual ${categoryLabel?.toLowerCase() ?? "provider"}`,
+        description: "Save the trusted provider once, then return to the original task.",
+        route: "/onboarding/profile/providers",
+        state: {
+          setupFocus: category,
+          returnTo,
+          providerSetupHelpRequested: {
+            flowReference,
+            setupFocus: category,
+            setupReason: workflow.title,
+          },
+        },
+      });
+    }
+  }
+
+  if (shouldUseFlowSetupChoices && flow?.savedData.includes("trusted_contact")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "add_trusted_contact",
+      label: "Add trusted contact",
+      description: "Save a family member, caregiver, or trusted person before VYVA prepares contact steps.",
+      route: "/onboarding/profile/care-team",
+      state: {
+        returnTo,
+        providerSetupHelpRequested: {
+          flowReference,
+          setupFocus: "trusted_contact",
+          setupReason: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (shouldUseFlowSetupChoices && flow && (flow.providerCategory || flow.tools.includes("web_search"))) {
+    pushUniqueSetupChoice(choices, {
+      kind: "find_options",
+      label: "Find options nearby",
+      description: "Use search criteria such as proximity, price, reputation, availability, accessibility, and coverage when relevant.",
+      route: "/concierge",
+      state: {
+        returnTo,
+        conciergePrefill: {
+          flowReference,
+          mode: "find_options",
+          title: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (shouldUseFlowSetupChoices && flow && (flow.setupFocus || flow.providerCategory || flow.savedData.includes("trusted_provider") || flow.savedData.includes("trusted_contact"))) {
+    pushUniqueSetupChoice(choices, {
+      kind: "ask_family",
+      label: "Ask family or caregiver",
+      description: "Let a trusted helper set up the provider details before VYVA continues.",
+      route: "/onboarding/profile/care-team",
+      state: {
+        returnTo,
+        providerSetupHelpRequested: {
+          flowReference,
+          setupFocus: flow.setupFocus ?? flow.providerCategory ?? null,
+          setupReason: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("operator_review")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "operator_review",
+      label: "Ask VYVA to review",
+      description: "Use manual review when automation, providers, or tools are not ready enough.",
+      route: "/concierge",
+      state: {
+        returnTo,
+        conciergePrefill: {
+          flowReference,
+          mode: "operator_review",
+          title: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("safe_block")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "safe_block",
+      label: "Stop safely",
+      description: "Pause this action until required information or permission is present.",
+    });
+  }
+
+  return choices.length ? choices : [{
+    kind: "none",
+    label: "No setup needed",
+    description: "This flow can continue without extra setup.",
+  }];
+}
+
+function readinessGate(
+  kind: WorkflowReadinessGateKind,
+  label: string,
+  detail: string,
+  state: WorkflowReadinessGateState = detail.trim().length > 0 ? "ready" : "needs_attention",
+): WorkflowReadinessGate {
+  return { kind, label, detail, state };
+}
+
+export function workflowReadinessChecklist(reference: WorkflowReference): WorkflowReadinessChecklistRow {
+  const workflow = getWorkflowDefinition(reference);
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  const flow = flowReference ? getConciergeFlowDefinition(flowReference) : null;
+  const setupChoices = workflowSetupFallbackChoices(reference);
+  const setupReady = setupChoices.length > 0 && !setupChoices.every((choice) => choice.kind === "none" && workflow.fallbackIfMissing.includes("none") === false);
+  const toolDetail = flow
+    ? `Requires ${formatTokenList(flow.tools)}.`
+    : actionLevel === "external_action"
+      ? "External action must route through a related Concierge flow or explicit tool readiness gate."
+      : "No external tool readiness needed.";
+  const profileDetail = workflowProfileDataSourceLabels(reference);
+
+  const gates: WorkflowReadinessGate[] = [
+    readinessGate(
+      "setup_fallback",
+      "Missing setup fallback",
+      setupChoices.map((choice) => choice.label).join(", "),
+      setupReady ? "ready" : "needs_attention",
+    ),
+    readinessGate(
+      "profile_data",
+      "Profile data",
+      `Uses ${profileDetail}.`,
+      profileDetail.trim().length > 0 && profileDetail !== "none" ? "ready" : "needs_attention",
+    ),
+    readinessGate(
+      "confirmation",
+      "Final confirmation",
+      workflow.confirmationRule,
+    ),
+    readinessGate(
+      "receipt",
+      "Receipt moment",
+      receiptMomentForWorkflow(workflow),
+    ),
+    readinessGate(
+      "resume",
+      "Resume behavior",
+      resumeBehaviorForWorkflow(workflow),
+    ),
+  ];
+
+  if (actionLevel === "external_action") {
+    gates.splice(1, 0, readinessGate(
+      "tool_readiness",
+      "Tool readiness",
+      toolDetail,
+      flow && flow.tools.length > 0 ? "ready" : "needs_attention",
+    ));
+  }
+
+  return {
+    reference: workflow.reference,
+    domain: workflow.domain,
+    title: workflow.title,
+    actionLevel,
+    gates,
+    needsAttention: gates.filter((gate) => gate.state === "needs_attention").map((gate) => gate.kind),
+  };
+}
+
+export function workflowReadinessChecklistRows(): WorkflowReadinessChecklistRow[] {
+  return WORKFLOW_DEFINITIONS.map((workflow) => workflowReadinessChecklist(workflow.reference));
 }
 
 function emptyCoverageCounts(): WorkflowCoverageCounts {

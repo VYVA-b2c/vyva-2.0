@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { VoiceCanvasScene } from "./VoiceCanvasScene";
 import type { VoiceCanvasSceneKind, VoiceCanvasViewModel } from "./types";
 
-vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: () => <div data-testid="mock-vyva-orb" /> }));
+vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: ({ testId }: { testId?: string }) => <div data-testid={testId ?? "mock-vyva-orb"} /> }));
 
 const base = (kind: VoiceCanvasSceneKind, extra: Partial<VoiceCanvasViewModel> = {}): VoiceCanvasViewModel => ({ sceneId:kind,kind,title:`${kind} title`,helperText:`${kind} helper`,...extra });
 
@@ -45,6 +45,88 @@ it("accepts and removes an optional camera photo", () => {
 it("supports arrow-key navigation between choices", () => {
   render(<VoiceCanvasScene viewModel={base("choice",{choices:[{id:"a",label:"First"},{id:"b",label:"Second"},{id:"c",label:"Disabled",disabled:true}]})} />);
   const first=screen.getByRole("button",{name:"First"}),second=screen.getByRole("button",{name:"Second"}); first.focus(); fireEvent.keyDown(first,{key:"ArrowRight"}); expect(second).toHaveFocus(); fireEvent.keyDown(second,{key:"ArrowDown"}); expect(first).toHaveFocus();
+});
+
+it("renders agent presence from supplied copy on non-listening scenes", () => {
+  render(<VoiceCanvasScene viewModel={base("place", {
+    agentPresence: {
+      state: "listening",
+      label: "Listening with you",
+      description: "You can say Clinic or Pharmacy.",
+      accessibleLabel: "VYVA is listening while you choose a ride destination",
+      ariaLive: "polite",
+    },
+    choices: [{ id: "clinic", label: "Clinic" }],
+  })} />);
+  const region = screen.getByRole("region", { name: "place title" });
+  expect(region).toHaveAttribute("data-agent-presence", "true");
+  expect(region).toHaveAttribute("data-agent-state", "listening");
+  const presence = screen.getByRole("status", { name: "VYVA is listening while you choose a ride destination" });
+  expect(presence).toHaveTextContent("Listening with you");
+  expect(presence).toHaveTextContent("You can say Clinic or Pharmacy.");
+  expect(screen.getByTestId("voice-canvas-agent-orb-place")).toBeInTheDocument();
+});
+
+it("can render agent presence visually without announcing it", () => {
+  render(<VoiceCanvasScene viewModel={base("review", {
+    agentPresence: {
+      state: "thinking",
+      label: "Checking the ride details",
+      ariaLive: "off",
+    },
+  })} />);
+  expect(screen.getByText("Checking the ride details")).toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+it("renders selectable option-card blocks with rich details", () => {
+  const onChoice = vi.fn();
+  render(<VoiceCanvasScene
+    viewModel={base("choice", {
+      blocks: [{
+        kind: "option-card",
+        id: "ride:carecab",
+        title: "CareCab",
+        subtitle: "Best reputation",
+        badge: "Recommended",
+        recommended: true,
+        description: "Good for appointments",
+        details: [
+          { id: "pickup", label: "Estimated pickup", value: "12 min", tone: "good" },
+          { id: "price", label: "Estimated price", value: "$18-$22" },
+        ],
+        accessibleLabel: "Choose CareCab, best reputation, estimated pickup 12 minutes",
+      }],
+    })}
+    onChoice={onChoice}
+  />);
+  const card = screen.getByRole("button", { name: "Choose CareCab, best reputation, estimated pickup 12 minutes" });
+  expect(card).toHaveTextContent("CareCab");
+  expect(card).toHaveTextContent("Recommended");
+  expect(card).toHaveTextContent("Estimated pickup");
+  expect(card).toHaveTextContent("12 min");
+  fireEvent.click(card);
+  expect(onChoice).toHaveBeenCalledWith("ride:carecab");
+});
+
+it("supports keyboard navigation between option-card blocks and honors disabled cards", () => {
+  render(<VoiceCanvasScene viewModel={base("choice", {
+    blocks: [
+      { kind: "option-card", id: "first", title: "First provider", accessibleLabel: "First provider" },
+      { kind: "option-card", id: "second", title: "Second provider", accessibleLabel: "Second provider", selected: true },
+      { kind: "option-card", id: "third", title: "Disabled provider", accessibleLabel: "Disabled provider", disabled: true },
+    ],
+  })} />);
+  const first = screen.getByRole("button", { name: "First provider" });
+  const second = screen.getByRole("button", { name: "Second provider" });
+  const disabled = screen.getByRole("button", { name: "Disabled provider" });
+  first.focus();
+  fireEvent.keyDown(first, { key: "ArrowRight" });
+  expect(second).toHaveFocus();
+  fireEvent.keyDown(second, { key: "ArrowDown" });
+  expect(first).toHaveFocus();
+  expect(second).toHaveAttribute("aria-pressed", "true");
+  expect(disabled).toBeDisabled();
 });
 
 it("exposes progress and loading semantics", () => {

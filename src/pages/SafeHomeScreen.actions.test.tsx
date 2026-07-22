@@ -213,9 +213,15 @@ describe("Safe-home scan service actions", () => {
     renderSafeHome();
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
-    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1"));
+    expect(screen.getByTestId("panel-safe-home-contact-setup-fallback-scan-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-show-vyva-follow-up-call_care_team-scan-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("panel-safe-home-contact-setup-fallback-scan-1-add"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"), { timeout: 5_000 });
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/safe-home\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(`"flowReference":"${CONCIERGE_FLOW_REFERENCES.safeHomeSupport}"`);
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"setupFocus\":\"trusted_contact\"");
     expect(savePlanMock).not.toHaveBeenCalled();
   });
 

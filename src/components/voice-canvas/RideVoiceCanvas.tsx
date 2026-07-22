@@ -12,6 +12,7 @@ import {
   type RideCanvasDraft,
   type RideCanvasState,
   type RidePlace,
+  type RideProviderOption,
 } from "./rideCanvasMachine";
 import {
   rideCanvasViewModel,
@@ -28,6 +29,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 
 export interface RideVoiceCommands {
@@ -43,6 +45,7 @@ export interface RideConfirmationResult {
 export interface RideVoiceCanvasProps {
   copy: RideCanvasCopy;
   places: RidePlace[];
+  providers: RideProviderOption[];
   dateChoices: RideDateChoice[];
   voiceCommands: RideVoiceCommands;
   onConfirmRide: (
@@ -63,6 +66,7 @@ function normalized(value: string) {
 export function RideVoiceCanvas({
   copy,
   places,
+  providers,
   dateChoices,
   voiceCommands,
   onConfirmRide,
@@ -82,10 +86,11 @@ export function RideVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
-    () => rideCanvasViewModel(state, copy, places, dateChoices),
-    [state, copy, places, dateChoices],
+  const baseViewModel = useMemo(
+    () => rideCanvasViewModel(state, copy, places, providers, dateChoices),
+    [state, copy, places, providers, dateChoices],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
 
   useEffect(() => {
     onTelemetry({
@@ -108,12 +113,17 @@ export function RideVoiceCanvas({
           type: "CHOOSE_PLACE",
           place: places.find((place) => place.id === id.slice(6)),
         });
+      else if (id.startsWith("provider:"))
+        dispatch({
+          type: "CHOOSE_PROVIDER",
+          provider: providers.find((provider) => provider.id === id.slice(9)),
+        });
       else if (id.startsWith("date:")) {
         const date = dateChoices.find((item) => item.id === id.slice(5));
         if (date) dispatch({ type: "CHOOSE_DATE", value: date.value });
       }
     },
-    [places, dateChoices, dispatch],
+    [places, providers, dateChoices, dispatch],
   );
 
   const primary = useCallback(() => {
@@ -266,8 +276,13 @@ export function RideVoiceCanvas({
         dispatch({ type: "RETRY" });
       } else {
         const place = places.find((item) =>
-          [item.label, item.address].some((value) =>
+          [item.label, item.address, ...(item.voiceAliases ?? [])].some((value) =>
             text.includes(normalized(value)),
+          ),
+        );
+        const provider = providers.find((item) =>
+          [item.label, item.description ?? "", ...(item.voiceAliases ?? [])].some((value) =>
+            value && text.includes(normalized(value)),
           ),
         );
         const date = dateChoices.find((item) =>
@@ -275,6 +290,8 @@ export function RideVoiceCanvas({
         );
         if (state.step === "place" && place)
           dispatch({ type: "CHOOSE_PLACE", place });
+        else if (state.step === "provider" && provider)
+          dispatch({ type: "CHOOSE_PROVIDER", provider });
         else if (state.step === "dateTime" && date)
           dispatch({ type: "CHOOSE_DATE", value: date.value });
         else handled = false;

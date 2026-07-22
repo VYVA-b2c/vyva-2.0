@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronLeft, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
 import MedicationUpdatesPanel from "@/components/MedicationUpdatesPanel";
@@ -33,6 +34,7 @@ import MasterDashboardLayout, {
 } from "@/components/MasterDashboardLayout";
 import MyMedicines from "@/features/medications/MyMedicines";
 import CheckInteractions from "@/features/medications/CheckInteractions";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -1234,6 +1236,34 @@ const MedsScreen = () => {
     });
   }
 
+  function openPharmacySetup() {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        setupFocus: "pharmacy",
+        returnTo: "/meds",
+        notice: t("meds.dashboard.pharmacySetupNotice", "Add your usual pharmacy. VYVA will bring you back to medicines afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+          setupFocus: "pharmacy",
+          setupReason: t("meds.dashboard.pharmacyHelperReason", "Ask someone you trust to help save your usual pharmacy."),
+        },
+      },
+    });
+  }
+
+  function askHelperForPharmacySetup() {
+    navigate("/onboarding/profile/care-team", {
+      state: {
+        returnTo: "/meds",
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+          setupFocus: "pharmacy",
+          setupReason: t("meds.dashboard.pharmacyHelperReason", "Ask someone you trust to help save your usual pharmacy."),
+        },
+      },
+    });
+  }
+
   function handleMedicationAssistantAction(action: (typeof ASSISTANT_ACTIONS)[number]) {
     if (action.id === "interactions") {
       setInteractionsOpen((open) => !open);
@@ -1823,38 +1853,58 @@ const MedsScreen = () => {
                   </p>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:min-w-[300px]">
-                {pharmacyPhoneHref ? (
-                  <a
-                    data-testid="link-meds-pharmacy-phone"
-                    href={pharmacyPhoneHref}
-                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
-                  >
-                    <Phone size={17} aria-hidden="true" />
-                    {t("meds.dashboard.callPharmacy", "Call pharmacy")}
-                  </a>
-                ) : (
+              {pharmacyProvider ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:min-w-[300px]">
+                  {pharmacyPhoneHref ? (
+                    <a
+                      data-testid="link-meds-pharmacy-phone"
+                      href={pharmacyPhoneHref}
+                      className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                    >
+                      <Phone size={17} aria-hidden="true" />
+                      {t("meds.dashboard.callPharmacy", "Call pharmacy")}
+                    </a>
+                  ) : (
+                    <button
+                      data-testid="button-meds-pharmacy-add"
+                      type="button"
+                      onClick={openPharmacySetup}
+                      className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                    >
+                      <Plus size={17} aria-hidden="true" />
+                      {t("meds.dashboard.addPharmacy", "Add pharmacy")}
+                    </button>
+                  )}
                   <button
-                    data-testid="button-meds-pharmacy-add"
+                    data-testid="button-meds-pharmacy-order"
                     type="button"
-                    onClick={() => navigate("/onboarding/profile/providers")}
-                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                    onClick={openRefillSupport}
+                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
                   >
-                    <Plus size={17} aria-hidden="true" />
-                    {t("meds.dashboard.addPharmacy", "Add pharmacy")}
+                    <ShoppingCart size={17} aria-hidden="true" />
+                    {t("meds.dashboard.orderRefill", "Order refill")}
                   </button>
-                )}
-                <button
-                  data-testid="button-meds-pharmacy-order"
-                  type="button"
-                  onClick={openRefillSupport}
-                  className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
-                >
-                  <ShoppingCart size={17} aria-hidden="true" />
-                  {t("meds.dashboard.orderRefill", "Order refill")}
-                </button>
-              </div>
+                </div>
+              ) : null}
             </div>
+            {!pharmacyProvider ? (
+              <div className="mt-3">
+                <ProviderSetupFallbackPanel
+                  testId="panel-meds-pharmacy-setup-fallback"
+                  workflowReference={CONCIERGE_FLOW_REFERENCES.otcPharmacy}
+                  returnTo="/meds"
+                  title={t("meds.dashboard.pharmacyFallbackTitle", "Need a pharmacy first?")}
+                  description={t("meds.dashboard.pharmacyFallbackDescription", "Save your usual pharmacy, find nearby OTC options, or ask someone you trust to help set it up.")}
+                  addLabel={t("meds.dashboard.pharmacyFallbackAdd", "Add my usual pharmacy")}
+                  findLabel={t("meds.dashboard.pharmacyFallbackFind", "Find nearby OTC options")}
+                  helperLabel={t("meds.dashboard.pharmacyFallbackHelper", "Ask family/caregiver")}
+                  confirmation={t("meds.dashboard.pharmacyFallbackConfirm", "VYVA still asks before calling, ordering, or sharing details.")}
+                  onAddProvider={openPharmacySetup}
+                  onFindOptions={openRefillSupport}
+                  onAskHelper={askHelperForPharmacySetup}
+                />
+              </div>
+            ) : null}
           </div>
         </article>
       </section>

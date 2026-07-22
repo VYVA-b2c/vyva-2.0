@@ -21,9 +21,14 @@ import {
   workflowActionLevelForReference,
   workflowActionForEntryPoint,
   workflowActionsForTarget,
+  workflowFlowMatrixRows,
   workflowParityAuditForEntryPoint,
   workflowEntryPointsFor,
   workflowEntryPointsForSurface,
+  workflowProfileDataSourceLabels,
+  workflowProfileDataSources,
+  workflowReadinessChecklistRows,
+  workflowSetupFallbackChoices,
 } from "../shared/workflowRegistry";
 
 describe("cross-app workflow registry", () => {
@@ -233,6 +238,175 @@ describe("cross-app workflow registry", () => {
     expect(WORKFLOW_STATUSES.reduce((total, status) => total + summary.byStatus[status], 0)).toBe(summary.workflows.total);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.medicationResearch);
     expect(summary.partialWorkflows).not.toContain(APP_WORKFLOW_REFERENCES.learningReadAloud);
+  });
+
+  it("builds a cross-pillar flow matrix with setup, fallback, options, receipts, and resume behavior", () => {
+    const rows = workflowFlowMatrixRows();
+
+    expect(rows).toHaveLength(WORKFLOW_DEFINITIONS.length);
+    for (const row of rows) {
+      expect(row.currentStatusLabel).toMatch(/Ready|Partial|UI only|Blocked/);
+      expect(row.requiredSetup.length).toBeGreaterThan(0);
+      expect(row.missingSetupFallback.length).toBeGreaterThan(0);
+      expect(row.findOptionsPath.length).toBeGreaterThan(0);
+      expect(row.confirmationRule.length).toBeGreaterThan(0);
+      expect(row.receiptMoment.length).toBeGreaterThan(0);
+      expect(row.resumeBehavior.length).toBeGreaterThan(0);
+      expect(row.profileDataSourceLabels, row.reference).not.toBe("none");
+      expect(row.profileDataSources, row.reference).not.toContain("none");
+    }
+
+    const ride = rows.find((row) => row.reference === CONCIERGE_FLOW_REFERENCES.transportBooking);
+    expect(ride?.requiredSetup).toContain("saved transport");
+    expect(ride?.missingSetupFallback).toContain("add usual provider");
+    expect(ride?.findOptionsPath).toContain("proximity");
+    expect(ride?.receiptMoment).toContain("receipt");
+    expect(ride?.resumeBehavior).toContain("pending task");
+
+    const learning = rows.find((row) => row.reference === APP_WORKFLOW_REFERENCES.learningTodayLesson);
+    expect(learning?.findOptionsPath).toContain("in-app options");
+
+    const safeHome = rows.find((row) => row.reference === CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
+    expect(safeHome?.requiredSetup).toContain("trusted contact");
+    expect(safeHome?.findOptionsPath).toContain("proximity");
+  });
+
+  it("derives consistent missing-setup choices for provider-backed flows", () => {
+    const rideChoices = workflowSetupFallbackChoices(CONCIERGE_FLOW_REFERENCES.transportBooking, {
+      returnTo: "/concierge?task=ride",
+    });
+
+    expect(rideChoices.map((choice) => choice.kind)).toEqual([
+      "add_provider",
+      "find_options",
+      "ask_family",
+      "operator_review",
+    ]);
+    expect(rideChoices.find((choice) => choice.kind === "add_provider")).toMatchObject({
+      label: "Add usual transport / taxi",
+      route: "/onboarding/profile/providers",
+      state: expect.objectContaining({
+        setupFocus: "transport",
+        returnTo: "/concierge?task=ride",
+      }),
+    });
+    expect(rideChoices.find((choice) => choice.kind === "find_options")?.description).toContain("proximity");
+    expect(rideChoices.find((choice) => choice.kind === "ask_family")).toMatchObject({
+      route: "/onboarding/profile/care-team",
+    });
+
+    const doctorChoices = workflowSetupFallbackChoices(APP_WORKFLOW_REFERENCES.doctorNextStep, {
+      returnTo: "/health/doctor",
+    });
+    expect(doctorChoices.map((choice) => choice.kind)).toEqual([
+      "ask_detail",
+      "add_provider",
+      "find_options",
+      "ask_family",
+    ]);
+    expect(doctorChoices.find((choice) => choice.kind === "add_provider")).toMatchObject({
+      label: "Add usual doctor / clinic",
+      route: "/onboarding/profile/providers",
+      state: expect.objectContaining({ setupFocus: "doctor_clinic" }),
+    });
+
+    const safeHomeChoices = workflowSetupFallbackChoices(CONCIERGE_FLOW_REFERENCES.safeHomeSupport, {
+      returnTo: "/safe-home",
+    });
+    expect(safeHomeChoices.map((choice) => choice.kind)).toEqual([
+      "ask_detail",
+      "add_trusted_contact",
+      "find_options",
+      "ask_family",
+      "operator_review",
+    ]);
+    expect(safeHomeChoices.find((choice) => choice.kind === "add_trusted_contact")).toMatchObject({
+      label: "Add trusted contact",
+      route: "/onboarding/profile/care-team",
+    });
+  });
+
+  it("derives non-provider fallbacks without forcing provider setup", () => {
+    const visualScanChoices = workflowSetupFallbackChoices(APP_WORKFLOW_REFERENCES.visualScan);
+    expect(visualScanChoices.map((choice) => choice.kind)).toEqual([
+      "ask_detail",
+      "choose_input_type",
+      "operator_review",
+    ]);
+    expect(visualScanChoices.some((choice) => choice.kind === "add_provider")).toBe(false);
+
+    const learningChoices = workflowSetupFallbackChoices(APP_WORKFLOW_REFERENCES.learningTodayLesson);
+    expect(learningChoices).toEqual([
+      expect.objectContaining({
+        kind: "open_existing_screen",
+        route: "/learn",
+      }),
+    ]);
+
+    const homeChoices = workflowSetupFallbackChoices(APP_WORKFLOW_REFERENCES.homeHub);
+    expect(homeChoices).toEqual([
+      expect.objectContaining({
+        kind: "none",
+      }),
+    ]);
+  });
+
+  it("keeps every external-action flow behind readiness, confirmation, receipt, and resume gates", () => {
+    const rows = workflowReadinessChecklistRows();
+    const externalRows = rows.filter((row) => row.actionLevel === "external_action");
+
+    expect(externalRows.length).toBeGreaterThan(0);
+    for (const row of externalRows) {
+      expect(row.needsAttention, row.reference).toEqual([]);
+      expect(row.gates.map((gate) => gate.kind)).toEqual([
+        "setup_fallback",
+        "tool_readiness",
+        "profile_data",
+        "confirmation",
+        "receipt",
+        "resume",
+      ]);
+      expect(row.gates.find((gate) => gate.kind === "tool_readiness")?.detail, row.reference).toMatch(/Requires/);
+      expect(row.gates.find((gate) => gate.kind === "confirmation")?.detail, row.reference).toMatch(/Confirm|Ask|Never|Check/i);
+      expect(row.gates.find((gate) => gate.kind === "receipt")?.detail, row.reference).toMatch(/receipt|saved|shown|prepared|captured|confirmed/i);
+      expect(row.gates.find((gate) => gate.kind === "resume")?.detail, row.reference).toMatch(/Resume|Return|Stay|reopen/i);
+    }
+  });
+
+  it("keeps every mapped workflow free of readiness gaps", () => {
+    const rows = workflowReadinessChecklistRows();
+
+    expect(rows).toHaveLength(WORKFLOW_DEFINITIONS.length);
+    for (const row of rows) {
+      expect(row.needsAttention, row.reference).toEqual([]);
+      expect(row.gates.map((gate) => gate.kind)).toEqual(
+        row.actionLevel === "external_action"
+          ? ["setup_fallback", "tool_readiness", "profile_data", "confirmation", "receipt", "resume"]
+          : ["setup_fallback", "profile_data", "confirmation", "receipt", "resume"],
+      );
+    }
+  });
+
+  it("makes profile data feeds explicit across pillars", () => {
+    expect(workflowProfileDataSources(CONCIERGE_FLOW_REFERENCES.transportBooking)).toEqual([
+      "trusted_providers",
+      "mobility",
+      "home_address",
+      "basic_profile",
+    ]);
+    expect(workflowProfileDataSources(CONCIERGE_FLOW_REFERENCES.shoppingSupport)).toEqual([
+      "home_address",
+      "basic_profile",
+    ]);
+    expect(workflowProfileDataSources(APP_WORKFLOW_REFERENCES.medicationAdherence)).toEqual([
+      "medications",
+    ]);
+    expect(workflowProfileDataSources(APP_WORKFLOW_REFERENCES.vitalsTracking)).toEqual([
+      "health_profile",
+      "vitals",
+    ]);
+    expect(workflowProfileDataSourceLabels(APP_WORKFLOW_REFERENCES.learningPlan)).toContain("learning interests");
+    expect(workflowProfileDataSourceLabels(APP_WORKFLOW_REFERENCES.visualScan)).toContain("care team");
   });
 
   it("surfaces the next incomplete implementation candidates from the registry", () => {
