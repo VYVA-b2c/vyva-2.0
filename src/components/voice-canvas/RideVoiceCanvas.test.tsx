@@ -12,7 +12,7 @@ const copy:RideCanvasCopy={
   listening:{status:"Listening",title:"How can I help?",helper:"Take your time.",start:"Arrange a ride",cancel:"Cancel"},
   place:{title:"Where are you going?",helper:"Choose one place.",newAddress:"A new address",newAddressHelper:"Enter another place",continue:"Continue",back:"Back"},
   provider:{title:"Which ride option looks best?",helper:"Compare the company details before choosing.",back:"Back"},
-  details:{savedPlace:"Saved place",newAddress:"New destination",provider:"Ride company",estimatedPickup:"Estimated pickup",estimatedArrival:"Estimated arrival",estimatedPrice:"Estimated price",reputation:"Reputation",accessibility:"Accessibility",recommended:"Recommended"},
+  details:{savedPlace:"Saved place",newAddress:"New destination",provider:"Ride company",estimatedPickup:"Estimated pickup",estimatedArrival:"Estimated arrival",estimatedPrice:"Estimated price",reputation:"Reputation",accessibility:"Accessibility",recommended:"Recommended",reviewBeforeBooking:"Review before booking",noBookingYet:"No booking yet"},
   address:{title:"What address?",helper:"Enter the destination.",label:"Address",placeholder:"Start typing",continue:"Continue",back:"Back"},
   dateTime:{title:"When?",helper:"Choose a day and time.",timeLabel:"Time",continue:"Continue",back:"Back"},
   review:{title:"Review the ride",helper:"Nothing happens until you confirm.",destination:"Destination",provider:"Ride option",date:"Date",time:"Time",confirm:"Confirm ride",change:"Make a change"},
@@ -73,6 +73,8 @@ it("shows rich destination and provider option cards without executing a ride ac
   expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("$12-$16");
   expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("4.8 / 5");
   expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("Door help available");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("Review before booking");
+  expect(screen.getByRole("button",{name:/Home/})).toHaveTextContent("No booking yet");
   click(/Home/);
   expect(screen.getByRole("button",{name:/CareCab/})).toHaveTextContent("Best reputation");
   expect(screen.getByRole("button",{name:/CareCab/})).toHaveTextContent("10:48 AM");

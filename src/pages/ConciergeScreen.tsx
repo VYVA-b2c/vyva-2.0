@@ -16719,6 +16719,8 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       reputation: isSpanish ? "Reputacion" : "Reputation",
       accessibility: isSpanish ? "Accesibilidad" : "Accessibility",
       recommended: isSpanish ? "Recomendada" : "Recommended",
+      reviewBeforeBooking: isSpanish ? "Revisar antes de reservar" : "Review before booking",
+      noBookingYet: isSpanish ? "Sin reserva todavia" : "No booking yet",
     },
     address: {
       title: isSpanish ? "¿Que direccion usamos?" : "What address should we use?",
