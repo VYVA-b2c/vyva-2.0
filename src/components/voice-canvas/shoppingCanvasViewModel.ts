@@ -1,12 +1,21 @@
 import {
+  BadgeCheck,
   Building2,
+  CircleDollarSign,
+  ClipboardCheck,
+  ListPlus,
   MapPin,
   PackageCheck,
   Plus,
   ShoppingBasket,
+  ShieldCheck,
   Truck,
 } from "lucide-react";
-import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasViewModel } from "./types";
+import type {
+  VoiceCanvasAgentPresenceCopy,
+  VoiceCanvasOptionCardDetail,
+  VoiceCanvasViewModel,
+} from "./types";
 import type {
   ShoppingAddress,
   ShoppingCanvasState,
@@ -130,6 +139,24 @@ export interface ShoppingCanvasCopy {
     continue: string;
     back: string;
   };
+  details: {
+    savedRetailer: string;
+    savedAddress: string;
+    retailerType: string;
+    estimateConfidence: string;
+    fees: string;
+    fulfillment: string;
+    deliveryBoundary: string;
+    collectionBoundary: string;
+    substitutionRule: string;
+    availability: string;
+    unverified: string;
+    reviewBeforeAction: string;
+    noPaymentOrOrder: string;
+    manualEntry: string;
+    recommended: string;
+    itemsInBasket: string;
+  };
   review: {
     title: string;
     helper: string;
@@ -176,6 +203,12 @@ export interface ShoppingCanvasCopy {
   progress: (current: number, total: number) => string;
   itemsSummary: (items: Array<{ name: string; quantity: string }>) => string;
 }
+const detail = (
+  id: string,
+  label: string,
+  value?: string,
+  tone?: "good" | "neutral" | "caution",
+): VoiceCanvasOptionCardDetail[] => value ? [{ id, label, value, tone }] : [];
 export function shoppingCanvasViewModel(
   state: ShoppingCanvasState,
   copy: ShoppingCanvasCopy,
@@ -207,21 +240,39 @@ export function shoppingCanvasViewModel(
         title: copy.retailer.title,
         helperText: copy.retailer.helper,
         progress: progress(1),
-        choices: [
+        blocks: [
           ...retailers.map((item) => ({
+            kind: "option-card" as const,
             id: `retailer:${item.id}`,
-            label: item.label,
+            title: item.label,
+            subtitle: item.subtitle || item.savedLabel || copy.details.savedRetailer,
             description: item.description,
-            accessibleLabel: item.label,
+            badge: item.recommended ? copy.details.recommended : undefined,
+            recommended: item.recommended,
+            accessibleLabel: [
+              item.label,
+              item.subtitle || item.savedLabel || copy.details.savedRetailer,
+              item.description,
+            ].filter(Boolean).join(". "),
             selected: state.draft.retailerId === item.id,
             icon: Building2,
+            voiceAliases: item.voiceAliases,
+            details: [
+              ...detail("type", copy.details.retailerType, item.retailerType),
+              ...detail("estimate", copy.details.estimateConfidence, item.estimateLabel || copy.details.unverified, item.estimateLabel ? "neutral" : "caution"),
+              ...detail("fees", copy.details.fees, item.feeLabel || copy.details.unverified, item.feeLabel ? "neutral" : "caution"),
+              ...detail("review", copy.details.reviewBeforeAction, item.reviewReminder || copy.details.reviewBeforeAction),
+            ],
           })),
           {
+            kind: "option-card" as const,
             id: "retailer:other",
-            label: copy.retailer.other,
+            title: copy.retailer.other,
+            subtitle: copy.details.manualEntry,
             description: copy.retailer.otherHelper,
             accessibleLabel: copy.retailer.other,
             icon: Plus,
+            details: detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
           },
         ],
         secondaryAction: back(copy.retailer.back),
@@ -297,18 +348,29 @@ export function shoppingCanvasViewModel(
             value: copy.itemsSummary(state.draft.items),
           },
         ],
-        choices: [
+        blocks: [
           {
+            kind: "option-card",
             id: "items:add",
-            label: copy.moreItems.add,
+            title: copy.moreItems.add,
+            subtitle: copy.details.itemsInBasket,
+            description: copy.itemsSummary(state.draft.items),
             accessibleLabel: copy.moreItems.add,
-            icon: Plus,
+            icon: ListPlus,
+            details: detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
           },
           {
+            kind: "option-card",
             id: "items:finish",
-            label: copy.moreItems.finish,
+            title: copy.moreItems.finish,
+            subtitle: copy.details.reviewBeforeAction,
+            description: copy.moreItems.helper,
             accessibleLabel: copy.moreItems.finish,
             icon: ShoppingBasket,
+            details: [
+              ...detail("items", copy.details.itemsInBasket, String(state.draft.items.length)),
+              ...detail("boundary", copy.details.noPaymentOrOrder, copy.details.noPaymentOrOrder, "good"),
+            ],
           },
         ],
         secondaryAction: back(copy.moreItems.back),
@@ -320,20 +382,32 @@ export function shoppingCanvasViewModel(
         title: copy.fulfillment.title,
         helperText: copy.fulfillment.helper,
         progress: progress(4),
-        choices: [
+        blocks: [
           {
+            kind: "option-card",
             id: "fulfillment:delivery",
-            label: copy.fulfillment.delivery,
+            title: copy.fulfillment.delivery,
+            subtitle: copy.details.deliveryBoundary,
             description: copy.fulfillment.deliveryHelper,
             accessibleLabel: copy.fulfillment.delivery,
             icon: Truck,
+            details: [
+              ...detail("fulfillment", copy.details.fulfillment, copy.review.delivery),
+              ...detail("boundary", copy.details.noPaymentOrOrder, copy.details.noPaymentOrOrder, "good"),
+            ],
           },
           {
+            kind: "option-card",
             id: "fulfillment:collection",
-            label: copy.fulfillment.collection,
+            title: copy.fulfillment.collection,
+            subtitle: copy.details.collectionBoundary,
             description: copy.fulfillment.collectionHelper,
             accessibleLabel: copy.fulfillment.collection,
             icon: PackageCheck,
+            details: [
+              ...detail("fulfillment", copy.details.fulfillment, copy.review.collection),
+              ...detail("boundary", copy.details.noPaymentOrOrder, copy.details.noPaymentOrOrder, "good"),
+            ],
           },
         ],
         secondaryAction: back(copy.fulfillment.back),
@@ -348,26 +422,38 @@ export function shoppingCanvasViewModel(
             : copy.location.collectionTitle,
         helperText: copy.location.helper,
         progress: progress(5),
-        choices: [
+        blocks: [
           ...(state.draft.fulfillment === "delivery"
             ? addresses.map((item) => ({
+                kind: "option-card" as const,
                 id: `location:${item.id}`,
-                label: item.label,
+                title: item.label,
+                subtitle: item.savedLabel || copy.details.savedAddress,
                 description: item.description || item.address,
-                accessibleLabel: item.label,
+                badge: item.recommended ? copy.details.recommended : undefined,
+                recommended: item.recommended,
+                accessibleLabel: [item.label, item.savedLabel || copy.details.savedAddress, item.address].filter(Boolean).join(". "),
                 selected: state.draft.locationId === item.id,
                 icon: MapPin,
+                voiceAliases: item.voiceAliases,
+                details: [
+                  ...detail("delivery", copy.details.deliveryBoundary, item.deliveryNote || copy.details.deliveryBoundary),
+                  ...detail("review", copy.details.reviewBeforeAction, item.reviewReminder || copy.details.reviewBeforeAction),
+                ],
               }))
             : []),
           {
+            kind: "option-card" as const,
             id: "location:other",
-            label: copy.location.other,
+            title: copy.location.other,
+            subtitle: copy.details.manualEntry,
             description:
               state.draft.fulfillment === "delivery"
                 ? copy.location.otherDelivery
                 : copy.location.otherCollection,
             accessibleLabel: copy.location.other,
             icon: Plus,
+            details: detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
           },
         ],
         secondaryAction: back(copy.location.back),
@@ -420,24 +506,36 @@ export function shoppingCanvasViewModel(
         title: copy.substitutions.title,
         helperText: copy.substitutions.helper,
         progress: progress(7),
-        choices: [
+        blocks: [
           {
+            kind: "option-card",
             id: "substitutions:none",
-            label: copy.substitutions.none,
+            title: copy.substitutions.none,
+            subtitle: copy.details.substitutionRule,
             description: copy.substitutions.noneHelper,
             accessibleLabel: copy.substitutions.none,
+            icon: ShieldCheck,
+            details: detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
           },
           {
+            kind: "option-card",
             id: "substitutions:ask",
-            label: copy.substitutions.ask,
+            title: copy.substitutions.ask,
+            subtitle: copy.details.substitutionRule,
             description: copy.substitutions.askHelper,
             accessibleLabel: copy.substitutions.ask,
+            icon: ClipboardCheck,
+            details: detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
           },
           {
+            kind: "option-card",
             id: "substitutions:allow",
-            label: copy.substitutions.allow,
+            title: copy.substitutions.allow,
+            subtitle: copy.details.substitutionRule,
             description: copy.substitutions.allowHelper,
             accessibleLabel: copy.substitutions.allow,
+            icon: BadgeCheck,
+            details: detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
           },
         ],
         secondaryAction: back(copy.substitutions.back),
@@ -449,18 +547,32 @@ export function shoppingCanvasViewModel(
         title: copy.estimate.title,
         helperText: copy.estimate.helper,
         progress: progress(8),
-        choices: [
+        blocks: [
           {
+            kind: "option-card",
             id: "estimate:provided",
-            label: copy.estimate.provided,
+            title: copy.estimate.provided,
+            subtitle: copy.details.estimateConfidence,
             description: copy.estimate.providedHelper,
             accessibleLabel: copy.estimate.provided,
+            icon: CircleDollarSign,
+            details: [
+              ...detail("availability", copy.details.availability, copy.details.unverified, "caution"),
+              ...detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
+            ],
           },
           {
+            kind: "option-card",
             id: "estimate:unverified",
-            label: copy.estimate.unverified,
+            title: copy.estimate.unverified,
+            subtitle: copy.details.unverified,
             description: copy.estimate.unverifiedHelper,
             accessibleLabel: copy.estimate.unverified,
+            icon: ShieldCheck,
+            details: [
+              ...detail("availability", copy.details.availability, copy.details.unverified, "caution"),
+              ...detail("boundary", copy.details.noPaymentOrOrder, copy.details.noPaymentOrOrder, "good"),
+            ],
           },
         ],
         secondaryAction: back(copy.estimate.back),
@@ -472,6 +584,19 @@ export function shoppingCanvasViewModel(
         title: copy.cost.title,
         helperText: copy.cost.helper,
         progress: progress(8),
+        blocks: [{
+          kind: "option-card",
+          id: "cost-guidance",
+          title: copy.details.estimateConfidence,
+          subtitle: copy.details.reviewBeforeAction,
+          description: copy.details.noPaymentOrOrder,
+          icon: CircleDollarSign,
+          disabled: true,
+          details: [
+            ...detail("availability", copy.details.availability, copy.details.unverified, "caution"),
+            ...detail("review", copy.details.reviewBeforeAction, copy.details.reviewBeforeAction),
+          ],
+        }],
         textEntry: {
           label: copy.cost.label,
           value: state.draft.estimatedCost,
@@ -491,6 +616,19 @@ export function shoppingCanvasViewModel(
         title: copy.fees.title,
         helperText: copy.fees.helper,
         progress: progress(8),
+        blocks: [{
+          kind: "option-card",
+          id: "fees-guidance",
+          title: copy.details.fees,
+          subtitle: copy.details.reviewBeforeAction,
+          description: copy.details.noPaymentOrOrder,
+          icon: CircleDollarSign,
+          disabled: true,
+          details: [
+            ...detail("estimate", copy.details.estimateConfidence, state.draft.estimatedCost),
+            ...detail("boundary", copy.details.noPaymentOrOrder, copy.details.noPaymentOrOrder, "good"),
+          ],
+        }],
         textEntry: {
           label: copy.fees.label,
           value: state.draft.fees,
