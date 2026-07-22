@@ -330,7 +330,10 @@ export function ShoppingVoiceCanvas({
         item = { type: "RETRY" };
       else if (state.step === "retailer") {
         const retailer = retailers.find(
-          (candidate) => text === normalize(candidate.label),
+          (candidate) =>
+            [candidate.label, ...(candidate.voiceAliases ?? [])].some(
+              (value) => text === normalize(value),
+            ),
         );
         if (retailer) item = { type: "CHOOSE_RETAILER", retailer };
         else if (matches(text, voiceCommands.other))
@@ -338,8 +341,9 @@ export function ShoppingVoiceCanvas({
       } else if (state.step === "location") {
         const address = addresses.find(
           (candidate) =>
-            text === normalize(candidate.label) ||
-            text === normalize(candidate.address),
+            [candidate.label, candidate.address, ...(candidate.voiceAliases ?? [])].some(
+              (value) => text === normalize(value),
+            ),
         );
         if (address) item = { type: "CHOOSE_LOCATION", address };
         else if (matches(text, voiceCommands.other))

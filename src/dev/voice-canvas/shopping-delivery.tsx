@@ -126,11 +126,22 @@ export default function ShoppingDeliveryGallery() {
                     id: "market",
                     label: "Fuente guardada",
                     description: "Etiqueta de demostración",
+                    subtitle: "Tienda guardada",
+                    retailerType: "Supermercado",
+                    estimateLabel: "No verificado",
+                    feeLabel: "No verificado",
+                    reviewReminder: "Revisar antes de actuar",
+                    recommended: true,
                   },
                   {
                     id: "long",
                     label: "Fuente guardada con una etiqueta traducida especialmente larga",
                     description: "Etiqueta de demostración",
+                    subtitle: "Tienda guardada",
+                    retailerType: "Comercio",
+                    estimateLabel: "No verificado",
+                    feeLabel: "No verificado",
+                    reviewReminder: "Revisar antes de actuar",
                   },
                 ]
               : [
@@ -138,11 +149,22 @@ export default function ShoppingDeliveryGallery() {
                     id: "market",
                     label: "Mercado del Barrio",
                     description: "Guardado en tu perfil",
+                    subtitle: "Tienda guardada",
+                    retailerType: "Supermercado local",
+                    estimateLabel: "No verificado",
+                    feeLabel: "No verificado",
+                    reviewReminder: "Revisar antes de actuar",
+                    recommended: true,
                   },
                   {
                     id: "long",
                     label: "Supermercado Cooperativo de Productos Locales y Entrega Accesible",
                     description: "Nombre traducido largo",
+                    subtitle: "Tienda guardada",
+                    retailerType: "Cooperativa",
+                    estimateLabel: "No verificado",
+                    feeLabel: "No verificado",
+                    reviewReminder: "Revisar antes de actuar",
                   },
                 ]
           }
@@ -153,9 +175,13 @@ export default function ShoppingDeliveryGallery() {
                     id: "home",
                     label: "Opción guardada",
                     address: "Opción de entrega guardada",
+                    savedLabel: "Dirección guardada",
+                    deliveryNote: "Entrega preparada, no pedida",
+                    reviewReminder: "Revisar antes de actuar",
+                    recommended: true,
                   },
                 ]
-              : [{ id: "home", label: "Casa", address: "Calle Mayor 14, Madrid" }]
+              : [{ id: "home", label: "Casa", address: "Calle Mayor 14, Madrid", savedLabel: "Dirección guardada", deliveryNote: "Entrega preparada, no pedida", reviewReminder: "Revisar antes de actuar", recommended: true }]
           }
           initialState={mode === "interactive" ? undefined : evidenceSafe ? sanitizedReview : review}
           onConfirm={confirm}
