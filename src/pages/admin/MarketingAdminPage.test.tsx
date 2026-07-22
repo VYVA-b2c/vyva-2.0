@@ -1521,26 +1521,20 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("button-marketing-toggle-audience-members-audience-1")).toHaveTextContent("Collapse members");
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Needs setup");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Import from Lovable");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Test connection");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Import now");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Endpoint source: default");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Bearer token available: no");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN: no");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("SOURCE_MARKETING_API_KEY: no");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Sync API build: marketing-sync-status-2026-07-12-no-cache");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Email is enabled through VYVA");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
-    expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
-    expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Manual Run due emails button only");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("What is usable now");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Campaign planning, imported content, lists, contacts, and explicit email sends are ready");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Needs review");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Email publishing");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Manual approval");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Other channels");
-    expect(screen.getByTestId("marketing-engine-operational-status")).toHaveTextContent("Next build step");
-    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Setup run sheet");
-    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Needs token");
-    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Manual due-email run");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Send channels");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Can send");
+    expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Off");
+    expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Due emails can still be sent manually");
+    expect(screen.getByTestId("marketing-source-sync-setup-run-sheet")).toHaveTextContent("Debug note");
     const syncSetupRunSheet = screen.getByTestId("textarea-marketing-source-sync-setup-run-sheet") as HTMLTextAreaElement;
     expect(syncSetupRunSheet.value).toContain("VYVA Source sync setup run sheet");
     expect(syncSetupRunSheet.value).toContain("Configured: no");
@@ -1593,8 +1587,8 @@ describe("MarketingAdminPage", () => {
     expect(syncDestinationMap).toHaveTextContent("Campaigns");
     expect(syncDestinationMap).toHaveTextContent("Dashboard, Campaigns, Calendar");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
-    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY");
-    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Source export endpoint is already built in");
+    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Import is not ready yet");
+    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Add the Source access token in production secrets");
   }, 120_000);
 
   it("turns dashboard audience summaries into contact and campaign actions", async () => {
@@ -1668,7 +1662,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contact-consent-triage")).toHaveTextContent("Clear the first blockers");
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-source"));
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Import from Lovable");
 
     fireEvent.click(screen.getByTestId("button-marketing-saved-view-publish"));
     expect(screen.getByTestId("marketing-calendar-tab")).toBeInTheDocument();
@@ -2252,7 +2246,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-cockpit")).toHaveTextContent("Audience");
     expect(screen.getByTestId("marketing-cockpit")).toHaveTextContent("Creative");
     fireEvent.click(screen.getByTestId("button-marketing-cockpit-primary"));
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Import from Lovable");
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-command-priority-strip")).toHaveTextContent("Next best move");
@@ -2306,7 +2300,7 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-operator-brief-feedback")).toHaveTextContent("Daily operator brief copied.");
     fireEvent.click(screen.getByTestId("button-marketing-priority-action-sync-config"));
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Import from Lovable");
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     expect(screen.getByTestId("marketing-source-coverage-review-panel")).toHaveTextContent("Review imported Source data");
@@ -2810,7 +2804,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Run the one-way sync in Settings");
 
     fireEvent.click(screen.getByTestId("button-marketing-open-sync-settings"));
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Source sync");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Import from Lovable");
   });
 
   it("explains when content exists but filters hide every asset", async () => {

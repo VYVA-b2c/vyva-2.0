@@ -27632,7 +27632,7 @@ export default function MarketingAdminPage() {
   }
 
   const syncBlockedReason = !syncState.configured
-    ? "Set VYVA_MARKETING_EXPORT_TOKEN or SOURCE_MARKETING_API_KEY before running a sync. The default Source export endpoint is already built in, and can be overridden with VYVA_MARKETING_EXPORT_URL."
+    ? "Import is not ready yet. Add the Source access token in production secrets, publish again, then come back here."
     : syncState.canRunSync === false
       ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Source sync.`
       : "";
@@ -27653,7 +27653,7 @@ export default function MarketingAdminPage() {
   const sourceReviewActions = useMemo(() => sourceReviewSummary
     ? sourceReviewActionsConfig.map((action) => ({ ...action, count: sourceReviewActionCount(sourceReviewSummary, action) }))
     : [], [sourceReviewSummary]);
-  const sourceReviewTitle = sourceReviewMode === "preview" ? "Review available Source data" : "Review imported data";
+  const sourceReviewTitle = sourceReviewMode === "preview" ? "Review available data" : "Review imported data";
   const sourceReviewSubtitle = sourceReviewMode === "preview"
     ? "The export is reachable. Use these shortcuts to see where each Source object will land after sync."
     : "Sync completed. Open the VYVA areas that were updated.";
@@ -44504,182 +44504,160 @@ export default function MarketingAdminPage() {
           )}
 
           {activeTab === "settings" && (
-            <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]" data-testid="marketing-settings-tab">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" data-testid="marketing-settings-tab">
               <SectionCard
-                title="Source sync"
-                subtitle="One-way import into VYVA. Nothing is written back to Source."
-                action={<Pill className={syncState.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}>{syncState.configured ? "Configured" : "Not configured"}</Pill>}
+                title="Import from Lovable"
+                subtitle="Bring campaigns, contacts, lists, content, media, and journey history into VYVA."
+                action={<Pill className={syncState.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}>{syncState.configured ? "Ready" : "Needs setup"}</Pill>}
               >
                 <div className="grid gap-3">
                   <div className="rounded-xl bg-[#fffaf4] p-4">
-                    <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
-                    <p className="font-black">{syncState.mode}</p>
-                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Source export endpoint"}</p>
-                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
-                      <p className="text-sm font-black text-[#2f2135]">Server configuration check</p>
-                      {syncDiagnostics ? (
-                        <div className="mt-2 grid gap-1">
-                          <p>Endpoint source: {syncDiagnostics.apiUrlSource ?? "unknown"}{syncDiagnostics.hasDefaultEndpoint ? " (built-in default)" : ""}</p>
-                          <p>Bearer token available: {yesNo(syncDiagnostics.hasBearerToken)}</p>
-                          <p>VYVA_MARKETING_EXPORT_TOKEN: {yesNo(tokenAliasPresent.VYVA_MARKETING_EXPORT_TOKEN)}</p>
-                          <p>SOURCE_MARKETING_API_KEY: {yesNo(tokenAliasPresent.SOURCE_MARKETING_API_KEY)}</p>
-                          <p>VYVA_MARKETING_EXPORT_URL: {yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}</p>
-                          <p>SOURCE_MARKETING_API_URL: {yesNo(urlAliasPresent.SOURCE_MARKETING_API_URL)}</p>
-                          <p>Token source: {syncDiagnostics.tokenSource ?? "none"}</p>
-                          <p>Sync API build: {syncState.backendBuild ?? "unavailable"}</p>
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-red-700">Sync configuration status is unavailable. A marketing data request may have failed before this status loaded, or the deployment may still be running an older backend bundle.</p>
-                      )}
-                    </div>
-                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-black text-[#2f2135]">Scheduled email automation</p>
-                        <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
-                          {emailScheduler.enabled ? "Enabled" : "Disabled"}
-                        </Pill>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Connection</p>
+                        <p className="mt-1 text-lg font-black text-[#241133]">{syncState.configured ? "Ready" : "Needs token"}</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">{syncState.configured ? "Lovable can be imported." : "Add the Lovable token in production secrets."}</p>
                       </div>
-                      <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
-                        {emailScheduler.enabled
-                          ? `Runs every ${emailScheduler.intervalMinutes} min after a ${emailScheduler.initialDelaySeconds}s startup delay.`
-                          : "Manual Run due emails button only. Set MARKETING_EMAIL_SCHEDULER_ENABLED=true to automate scheduled email campaigns."}
+                      <div className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Last import</p>
+                        <p className="mt-1 text-lg font-black text-[#241133]">{latestSyncRun ? latestSyncRun.status : "None yet"}</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">{latestSyncRun ? formatDate(latestSyncRun.completedAt || latestSyncRun.createdAt) : "Run an import when ready."}</p>
+                      </div>
+                      <div className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.1em] text-[#7d6b65]">Imported now</p>
+                        <p className="mt-1 text-lg font-black text-[#241133]">{campaigns.length + content.length + contacts.length + audiences.length}</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">{campaigns.length} campaigns, {content.length} content, {contacts.length} contacts, {audiences.length} lists</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        disabled={exportPreviewButtonDisabled}
+                        onClick={() => void previewSourceExport()}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                        data-testid="button-marketing-preview-export"
+                      >
+                        <Eye size={16} /> {exportPreviewRunning ? "Checking..." : "Test connection"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={syncButtonDisabled}
+                        onClick={() => void runSourceSync()}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        data-testid="button-marketing-run-sync"
+                      >
+                        <RefreshCw size={16} className={syncRunning ? "animate-spin" : ""} /> {syncRunning ? "Importing..." : "Import now"}
+                      </button>
+                    </div>
+                    {syncFeedbackText ? (
+                      <p
+                        className={`mt-3 rounded-xl px-4 py-3 text-sm font-bold ${syncFeedbackIsError ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
+                        data-testid="marketing-sync-feedback"
+                      >
+                        {syncFeedbackText}
                       </p>
-                      <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
-                    </div>
-                    <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50/60 p-3" data-testid="marketing-engine-operational-status">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">What is usable now</p>
-                          <p className="mt-1 text-sm font-black text-[#241133]">Campaign planning, imported content, lists, contacts, and explicit email sends are ready from this admin module.</p>
+                    ) : null}
+                    {exportPreviewFeedback ? (
+                      <p
+                        className={`mt-3 rounded-xl px-4 py-3 text-sm font-bold ${exportPreviewFeedbackIsError ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`}
+                        data-testid="marketing-export-preview-feedback"
+                      >
+                        {exportPreviewFeedback}
+                      </p>
+                    ) : null}
+                    <details className="mt-4 rounded-xl border border-[#eadfd5] bg-white p-3 text-sm font-bold text-[#7d6b65]">
+                      <summary className="cursor-pointer font-black text-[#241133]">Advanced details</summary>
+                      <div className="mt-3 grid gap-3">
+                        <div data-testid="marketing-sync-env-diagnostics">
+                          <p className="font-black text-[#2f2135]">Connection details</p>
+                          {syncDiagnostics ? (
+                            <div className="mt-2 grid gap-1 text-xs">
+                              <p>Endpoint: {syncState.apiUrl ?? "Default Source export endpoint"}</p>
+                              <p>Endpoint source: {syncDiagnostics.apiUrlSource ?? "unknown"}{syncDiagnostics.hasDefaultEndpoint ? " (built-in default)" : ""}</p>
+                              <p>Bearer token available: {yesNo(syncDiagnostics.hasBearerToken)}</p>
+                              <p>VYVA_MARKETING_EXPORT_TOKEN: {yesNo(tokenAliasPresent.VYVA_MARKETING_EXPORT_TOKEN)}</p>
+                              <p>SOURCE_MARKETING_API_KEY: {yesNo(tokenAliasPresent.SOURCE_MARKETING_API_KEY)}</p>
+                              <p>VYVA_MARKETING_EXPORT_URL: {yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}</p>
+                              <p>SOURCE_MARKETING_API_URL: {yesNo(urlAliasPresent.SOURCE_MARKETING_API_URL)}</p>
+                              <p>Token source: {syncDiagnostics.tokenSource ?? "none"}</p>
+                              <p>Sync API build: {syncState.backendBuild ?? "unavailable"}</p>
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-xs text-red-700">Connection details are not available from this backend build.</p>
+                          )}
                         </div>
-                        <Pill className={syncState.configured && latestSyncRun?.status === "succeeded" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
-                          {syncState.configured && latestSyncRun?.status === "succeeded" ? "Production ready" : "Needs review"}
-                        </Pill>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-4">
-                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
-                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Imported data</p>
-                          <p className="mt-1 text-base font-black text-[#241133]">
-                            {latestSyncRun ? `${latestSyncRun.status} ${formatDate(latestSyncRun.completedAt || latestSyncRun.createdAt)}` : "No sync yet"}
+                        <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-email-scheduler-status">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-black text-[#2f2135]">Automatic email sending</p>
+                            <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                              {emailScheduler.enabled ? "On" : "Off"}
+                            </Pill>
+                          </div>
+                          <p className="mt-2 text-xs">
+                            {emailScheduler.enabled
+                              ? `Runs every ${emailScheduler.intervalMinutes} min after a ${emailScheduler.initialDelaySeconds}s startup delay.`
+                              : "Due emails can still be sent manually from the campaign tools."}
                           </p>
-                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{campaigns.length} campaigns, {content.length} content, {contacts.length} contacts, {audiences.length} lists</p>
                         </div>
-                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
-                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Email publishing</p>
-                          <p className="mt-1 text-base font-black text-[#241133]">Manual approval</p>
-                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Email can send from campaign details after content, recipients, consent, and confirmation are reviewed.</p>
-                        </div>
-                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
-                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Other channels</p>
-                          <p className="mt-1 text-base font-black text-[#241133]">{syncState.lockedSendCapabilities.filter((item) => item.locked).length} planning routes</p>
-                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">WhatsApp, social, phone, print, and event routes are tracked as handoffs until provider controls are enabled.</p>
-                        </div>
-                        <div className="rounded-lg border border-white/80 bg-white px-3 py-2">
-                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#7d6b65]">Next build step</p>
-                          <p className="mt-1 text-base font-black text-[#241133]">{emailScheduler.enabled ? "Automated journeys" : "Due email scheduler"}</p>
-                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{emailScheduler.enabled ? "Wire journey automation after campaign sending is stable." : "Enable MARKETING_EMAIL_SCHEDULER_ENABLED when unattended scheduled sends are wanted."}</p>
+                        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3" data-testid="marketing-source-sync-setup-run-sheet">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="font-black text-[#241133]">Debug note</p>
+                            <button
+                              type="button"
+                              onClick={() => void copySourceSyncSetupRunSheet()}
+                              className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 text-xs font-black text-blue-800"
+                              data-testid="button-marketing-copy-source-sync-setup-run-sheet"
+                            >
+                              <Copy size={13} /> Copy
+                            </button>
+                          </div>
+                          <textarea
+                            className={`${textareaClass} mt-3 min-h-[120px] font-mono text-xs`}
+                            value={sourceSyncSetupRunSheetText}
+                            readOnly
+                            data-testid="textarea-marketing-source-sync-setup-run-sheet"
+                          />
+                          {syncSetupRunSheetFeedback ? (
+                            <p className={`mt-2 rounded-xl px-3 py-2 text-xs font-black ${syncSetupRunSheetFeedback.includes("Could not") || syncSetupRunSheetFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-source-sync-setup-run-sheet-feedback">
+                              {syncSetupRunSheetFeedback}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
+                    </details>
+                    {exportPreview ? <SourceExportPreviewDiagnostics preview={exportPreview} /> : null}
+                    <SourceReviewShortcuts
+                      title={sourceReviewTitle}
+                      subtitle={sourceReviewSubtitle}
+                      actions={sourceReviewShortcuts}
+                    />
+                    <div className="mt-3 grid gap-2">
+                      {syncState.runs.length === 0 ? <EmptyState text="No imports yet." /> : syncState.runs.map((run) => (
+                        <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Pill className={statusClass(run.status)}>{run.status}</Pill>
+                            <span className="text-xs font-bold text-[#7d6b65]">{formatDate(run.createdAt)}</span>
+                          </div>
+                          {run.error ? <p className="mt-2 text-sm font-bold text-red-700">{run.error}</p> : null}
+                          <SyncRunDiagnostics run={run} />
+                        </div>
+                      ))}
                     </div>
-                    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3" data-testid="marketing-source-sync-setup-run-sheet">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-800">Setup run sheet</p>
-                          <p className="mt-1 text-sm font-black text-[#241133]">Copy this when sync setup, publish, or permissions need debugging.</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void copySourceSyncSetupRunSheet()}
-                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 text-xs font-black text-blue-800"
-                          data-testid="button-marketing-copy-source-sync-setup-run-sheet"
-                        >
-                          <Copy size={13} /> Copy setup
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-3">
-                        <Pill className={syncState.configured ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}>{syncState.configured ? "Configured" : "Needs token"}</Pill>
-                        <Pill className={syncState.canRunSync === false ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}>{syncState.canRunSync === false ? "Super admin only" : "Runner ready"}</Pill>
-                        <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-white text-[#5b4a46]"}>{emailScheduler.enabled ? "Auto email scheduler" : "Manual due-email run"}</Pill>
-                      </div>
-                      <textarea
-                        className={`${textareaClass} mt-3 min-h-[160px] font-mono text-xs`}
-                        value={sourceSyncSetupRunSheetText}
-                        readOnly
-                        data-testid="textarea-marketing-source-sync-setup-run-sheet"
-                      />
-                      {syncSetupRunSheetFeedback ? (
-                        <p className={`mt-2 rounded-xl px-3 py-2 text-xs font-black ${syncSetupRunSheetFeedback.includes("Could not") || syncSetupRunSheetFeedback.includes("empty") ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" aria-live="polite" data-testid="marketing-source-sync-setup-run-sheet-feedback">
-                          {syncSetupRunSheetFeedback}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      disabled={exportPreviewButtonDisabled}
-                      onClick={() => void previewSourceExport()}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                      data-testid="button-marketing-preview-export"
-                    >
-                      <Eye size={16} /> {exportPreviewRunning ? "Checking export..." : "Check Source export"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={syncButtonDisabled}
-                      onClick={() => void runSourceSync()}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                      data-testid="button-marketing-run-sync"
-                    >
-                      <RefreshCw size={16} className={syncRunning ? "animate-spin" : ""} /> {syncRunning ? "Running sync..." : "Run one-way sync"}
-                    </button>
-                  </div>
-                  {exportPreviewFeedback ? (
-                    <p
-                      className={`rounded-xl px-4 py-3 text-sm font-bold ${exportPreviewFeedbackIsError ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`}
-                      data-testid="marketing-export-preview-feedback"
-                    >
-                      {exportPreviewFeedback}
-                    </p>
-                  ) : null}
-                  {exportPreview ? <SourceExportPreviewDiagnostics preview={exportPreview} /> : null}
-                  {syncFeedbackText ? (
-                    <p
-                      className={`rounded-xl px-4 py-3 text-sm font-bold ${syncFeedbackIsError ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
-                      data-testid="marketing-sync-feedback"
-                    >
-                      {syncFeedbackText}
-                    </p>
-                  ) : null}
-                  <SourceReviewShortcuts
-                    title={sourceReviewTitle}
-                    subtitle={sourceReviewSubtitle}
-                    actions={sourceReviewShortcuts}
-                  />
-                  <div className="grid gap-2">
-                    {syncState.runs.length === 0 ? <EmptyState text="No Source sync runs yet." /> : syncState.runs.map((run) => (
-                      <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Pill className={statusClass(run.status)}>{run.status}</Pill>
-                          <span className="text-xs font-bold text-[#7d6b65]">{formatDate(run.createdAt)}</span>
-                        </div>
-                        {run.error ? <p className="mt-2 text-sm font-bold text-red-700">{run.error}</p> : null}
-                        <SyncRunDiagnostics run={run} />
-                      </div>
-                    ))}
                   </div>
                 </div>
               </SectionCard>
 
-              <SectionCard title="Channel send readiness" subtitle="Email is enabled through VYVA. Other channels remain locked for now.">
+              <SectionCard title="Send channels" subtitle="What can be sent from VYVA now.">
                 <div className="grid gap-3">
                   {syncState.lockedSendCapabilities.map((item) => (
-                    <div key={item.channel} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <div key={item.channel} className="rounded-xl border border-[#eadfd5] bg-white p-3">
                       <div className="flex items-center justify-between gap-3">
                         <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                        <Pill className={item.locked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>{item.locked ? "Locked" : "Enabled"}</Pill>
+                        <Pill className={item.locked ? "bg-[#fff4d7] text-[#8a5b00]" : "bg-emerald-50 text-emerald-800"}>{item.locked ? "Plan only" : "Can send"}</Pill>
                       </div>
-                      <p className="mt-2 text-sm font-semibold text-[#7d6b65]">{item.note}</p>
+                      <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                        {item.locked ? "Use this channel for planning and handoff. It will not send automatically." : "Use campaign details to review recipients and send approved email."}
+                      </p>
                     </div>
                   ))}
                 </div>
