@@ -32,7 +32,9 @@ import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/Sho
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
 import {
   prepareShowVyvaEvidenceFile,
   reviewShowVyvaVisualEvidence,
@@ -42,6 +44,7 @@ import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { languageText } from "../../shared/language";
 import {
   SHOW_VYVA_USE_CASE_IDS,
@@ -52,6 +55,7 @@ import {
 import { showVyvaReviewContractFromScamResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import type { ShowVyvaFollowUpAction } from "../../shared/showVyvaFollowUp";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type ScamCheck = {
   id: string;
@@ -291,8 +295,14 @@ export function ScamGuardActionButtons({
           });
           void saveShowVyvaActionExecutionPlan(plan)
             .then(async () => {
+              const preparedReceipt = buildWorkflowReceiptMoment({
+                workflowReference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+                status: "prepared",
+                capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+                locale: language === "es" ? "es" : "en",
+              });
               await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-              toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+              toast({ title: preparedReceipt.title, description: preparedReceipt.message });
               onOpenConcierge(context);
             })
             .catch(() => {
@@ -665,8 +675,15 @@ const ScamGuardScreen = () => {
     });
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
+        const preparedReceipt = buildWorkflowReceiptMoment({
+          workflowReference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+          status: "prepared",
+          capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+          locale: language === "es" ? "es" : "en",
+        });
+        markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
         setShowVyvaPasteReview(null);
         setShowVyvaEvidenceReview(null);
         if (reviewContract.followUpContext === "scam") {
@@ -901,6 +918,10 @@ const ScamGuardScreen = () => {
               busy={analyzing || scamCapturePreparing}
               onChooseFileSource={(source, useCase, question) => openScamFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedScamReview(payload)}
+            />
+            <ShowVyvaReviewHistory
+              className="mt-[14px]"
+              onResume={(item) => navigate(item.resumeRoute)}
             />
 
             {analyzing && (

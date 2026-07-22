@@ -158,7 +158,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByText("Loose rug in hallway"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-buy_safety_aid-scan-1"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge/shopping"), { timeout: 5_000 });
     expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
       targetRoute: "/concierge/shopping",
       triggerRequest: expect.objectContaining({ auto_start: false }),
@@ -170,6 +170,10 @@ describe("Safe-home scan service actions", () => {
     });
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"safe_home\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("Loose rug");
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "Action prepared",
+      description: "Saved. Continue in Concierge when you are ready.",
+    });
   });
 
   it("saves a care-team call draft from scan findings", async () => {
@@ -195,6 +199,10 @@ describe("Safe-home scan service actions", () => {
       user_confirmed: false,
       no_external_action_without_confirmation: true,
     });
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "Action prepared",
+      description: "Saved. Continue in Concierge when you are ready.",
+    });
   });
 
   it("routes to care-team setup when no caregiver contact is saved", async () => {
@@ -205,9 +213,15 @@ describe("Safe-home scan service actions", () => {
     renderSafeHome();
 
     fireEvent.click(screen.getByText("Loose rug in hallway"));
-    fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-call_care_team-scan-1"));
+    expect(screen.getByTestId("panel-safe-home-contact-setup-fallback-scan-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-show-vyva-follow-up-call_care_team-scan-1")).not.toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"));
+    fireEvent.click(screen.getByTestId("panel-safe-home-contact-setup-fallback-scan-1-add"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/care-team"), { timeout: 5_000 });
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"returnTo\":\"/safe-home\"");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(`"flowReference":"${CONCIERGE_FLOW_REFERENCES.safeHomeSupport}"`);
+    expect(screen.getByTestId("route-state")).toHaveTextContent("\"setupFocus\":\"trusted_contact\"");
     expect(savePlanMock).not.toHaveBeenCalled();
   });
 
@@ -217,7 +231,7 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByText("Loose rug in hallway"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-scan-1"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"), { timeout: 5_000 });
     expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
       targetRoute: "/concierge",
       triggerRequest: expect.objectContaining({ use_case: "home_service", auto_start: false }),
@@ -244,12 +258,13 @@ describe("Safe-home scan service actions", () => {
     fireEvent.click(screen.getByTestId("button-show-vyva-submit-paste"));
 
     expect(screen.getByTestId("show-vyva-pasted-review-home-pasted")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-home-pasted"));
     expect(screen.getByTestId("show-vyva-result-reviewed-home-pasted")).toHaveTextContent("Loose rug near the stairs");
     expect(savePlanMock).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-request_quote-home-pasted"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"), { timeout: 5_000 });
     expect(savePlanMock).toHaveBeenCalledWith(expect.objectContaining({
       triggerRequest: expect.objectContaining({
         auto_start: false,

@@ -85,6 +85,7 @@ function flowForAction(actionId: ShowVyvaFollowUpActionId, context: ShowVyvaRevi
     case "schedule_appointment":
       return CONCIERGE_FLOW_REFERENCES.medicalAppointment;
     case "buy_safety_aid":
+    case "find_alternatives":
     case "compare_price":
     case "compare_proximity":
     case "check_reputation":
@@ -98,12 +99,17 @@ function flowForAction(actionId: ShowVyvaFollowUpActionId, context: ShowVyvaRevi
     case "summarize_document":
     case "draft_reply":
     case "prepare_call":
+    case "ask_provider":
+    case "compare_options":
       return CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
     case "forward_email":
     case "check_company":
     case "check_number":
     case "check_link":
     case "call_trusted_contact":
+    case "do_not_reply":
+    case "block_or_report":
+    case "ask_someone":
     case "save_report":
     case "scam_concierge":
       return CONCIERGE_FLOW_REFERENCES.scamCheck;
@@ -124,6 +130,9 @@ function executorUseCaseForFlow(actionId: ShowVyvaFollowUpActionId, flow: Concie
     actionId === "check_number" ||
     actionId === "check_link" ||
     actionId === "forward_email" ||
+    actionId === "do_not_reply" ||
+    actionId === "block_or_report" ||
+    actionId === "ask_someone" ||
     actionId === "save_report" ||
     actionId === "scam_concierge" ||
     actionId === "call_trusted_contact"
@@ -141,6 +150,7 @@ function executorUseCaseForFlow(actionId: ShowVyvaFollowUpActionId, flow: Concie
 function toolForAction(actionId: ShowVyvaFollowUpActionId): ConciergeToolRequirement {
   switch (actionId) {
     case "call_trusted_contact":
+    case "ask_someone":
     case "call_gp":
     case "call_care_team":
     case "prepare_call":
@@ -148,6 +158,7 @@ function toolForAction(actionId: ShowVyvaFollowUpActionId): ConciergeToolRequire
     case "email_gp":
     case "draft_reply":
     case "forward_email":
+    case "ask_provider":
       return "email";
     case "schedule_appointment":
       return "booking_link";
@@ -162,7 +173,7 @@ function toolForAction(actionId: ShowVyvaFollowUpActionId): ConciergeToolRequire
 }
 
 function routeForAction(actionId: ShowVyvaFollowUpActionId): "/concierge" | "/concierge/shopping" {
-  return actionId === "buy_safety_aid" || actionId === "compare_price" || actionId === "compare_proximity" || actionId === "check_reputation" || actionId === "check_terms"
+  return actionId === "buy_safety_aid" || actionId === "find_alternatives" || actionId === "compare_price" || actionId === "compare_proximity" || actionId === "check_reputation" || actionId === "check_terms"
     ? "/concierge/shopping"
     : "/concierge";
 }
@@ -172,6 +183,7 @@ function providerNameForAction(actionId: ShowVyvaFollowUpActionId, target: ShowV
   if (targetName) return targetName;
   switch (actionId) {
     case "call_trusted_contact":
+    case "ask_someone":
       return "Trusted contact";
     case "call_care_team":
       return "Care team";
@@ -194,7 +206,18 @@ function summaryForAction(action: ShowVyvaFollowUpAction, contract: ShowVyvaRevi
   const concern = clean(contract.concernSummary) || "VYVA review";
   switch (action.id) {
     case "call_trusted_contact":
+    case "ask_someone":
       return `Ask a trusted contact about: ${concern}.`;
+    case "do_not_reply":
+      return `Keep this paused and do not reply yet: ${concern}.`;
+    case "block_or_report":
+      return `Prepare a safe block or report step for: ${concern}.`;
+    case "ask_provider":
+      return `Prepare a provider question from: ${concern}.`;
+    case "compare_options":
+      return `Compare options before acting on: ${concern}.`;
+    case "find_alternatives":
+      return `Find safer alternatives for: ${concern}.`;
     case "request_quote":
       return `Prepare a home-service quote request for: ${concern}.`;
     case "doctor_help":
@@ -367,10 +390,15 @@ function payloadDetailsForAction(
       };
     case "draft_reply":
     case "forward_email":
+    case "ask_provider":
       return {
         ...common,
         recipient_email: targetEmail || null,
-        email_subject: action.id === "forward_email" ? "Please help me check this safely" : `Draft reply: ${reviewed.slice(0, 60)}`,
+        email_subject: action.id === "forward_email"
+          ? "Please help me check this safely"
+          : action.id === "ask_provider"
+            ? `Question about ${reviewed.slice(0, 50)}`
+            : `Draft reply: ${reviewed.slice(0, 60)}`,
         email_body: draftMessage,
         message_body: draftMessage,
       };
@@ -423,14 +451,19 @@ function payloadDetailsForAction(
         scam_check_type: "company_or_provider",
       };
     case "save_report":
+    case "do_not_reply":
+    case "block_or_report":
+    case "ask_someone":
       return {
         ...common,
         evidence_summary: draftMessage,
-        report_status: "saved_private",
+        report_status: action.id === "do_not_reply" ? "paused_no_reply" : "saved_private",
       };
     case "compare_price":
     case "compare_proximity":
     case "check_terms":
+    case "compare_options":
+    case "find_alternatives":
       return {
         ...common,
         provider_search_query: reviewed,

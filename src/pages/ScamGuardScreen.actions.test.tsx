@@ -114,6 +114,10 @@ describe("Scam Guard service actions", () => {
       no_external_action_without_confirmation: true,
     });
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["/api/concierge/actions/pending"] });
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "Action prepared",
+      description: "Saved. Continue in Concierge when you are ready.",
+    });
     expect(onStartGuidance).not.toHaveBeenCalled();
     expect(onAddTrustedContact).not.toHaveBeenCalled();
   });

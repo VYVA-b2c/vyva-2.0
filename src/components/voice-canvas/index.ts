@@ -117,6 +117,29 @@ export {
 export type * from "./shoppingCanvasRollout";
 export { executeShoppingPreparation } from "./shoppingCanvasActions";
 export type * from "./shoppingCanvasActions";
+export { default as ProviderReplyVoiceCanvas } from "./ProviderReplyVoiceCanvas";
+export type * from "./ProviderReplyVoiceCanvas";
+export {
+  providerReplyCanvasReducer,
+  initialProviderReplyCanvasState,
+  emptyProviderReplyDraft,
+  isRestorableProviderReplyCanvasState,
+} from "./providerReplyCanvasMachine";
+export type * from "./providerReplyCanvasMachine";
+export { providerReplyCanvasViewModel } from "./providerReplyCanvasViewModel";
+export type * from "./providerReplyCanvasViewModel";
+export {
+  trackProviderReplyCanvasEvent,
+  VYVA_PROVIDER_REPLY_CANVAS_TELEMETRY_EVENT,
+} from "./providerReplyCanvasTelemetry";
+export type * from "./providerReplyCanvasTelemetry";
+export {
+  isProviderReplyCanvasEnabled,
+  parseProviderReplyCanvasRolloutConfig,
+} from "./providerReplyCanvasRollout";
+export type * from "./providerReplyCanvasRollout";
 export * from "./canvasPlatform";
+export * from "./canvasLaunchTelemetry";
+export * from "./canvasLaunchReadiness";
 export * from "./useVoiceCanvasPlatform";
 export * from "./homeServiceCanvasRollout";

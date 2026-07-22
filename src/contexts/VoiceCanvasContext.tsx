@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import type { VoiceCanvasOptionCardBlock, VoiceCanvasViewModel } from "@/components/voice-canvas";
 import {
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceUserMessageDetail,
@@ -50,6 +51,14 @@ type VoiceCanvasContextValue = {
 };
 
 const VoiceCanvasContext = createContext<VoiceCanvasContextValue | null>(null);
+
+function optionCardBlocks(viewModel: VoiceCanvasViewModel): VoiceCanvasOptionCardBlock[] {
+  return viewModel.blocks?.filter((block): block is VoiceCanvasOptionCardBlock => block.kind === "option-card") ?? [];
+}
+
+function matchesSpokenOption(value: string, spoken: string) {
+  return value.trim().toLocaleLowerCase() === spoken;
+}
 
 export function voiceCanvasStateReducer(state: VoiceCanvasState, action: VoiceCanvasStateAction): VoiceCanvasState {
   if (action.type === "clear") {
@@ -120,9 +129,14 @@ export function VoiceCanvasProvider({ children }: { children: ReactNode }) {
       }
 
       const normalized = utterance.toLocaleLowerCase();
-      const choice = scene.viewModel.choices?.find((item) => (
-        item.label.trim().toLocaleLowerCase() === normalized
-        || item.id.replace(/_/g, " ").toLocaleLowerCase() === normalized
+      const choice = scene.viewModel.choices?.find((item) => !item.disabled && (
+        matchesSpokenOption(item.label, normalized)
+        || matchesSpokenOption(item.id.replace(/_/g, " "), normalized)
+      ));
+      const optionCard = optionCardBlocks(scene.viewModel).find((item) => !item.disabled && (
+        matchesSpokenOption(item.title, normalized)
+        || matchesSpokenOption(item.id.replace(/[_:-]/g, " "), normalized)
+        || item.voiceAliases?.some((alias) => matchesSpokenOption(alias, normalized))
       ));
       const primaryMatches = scene.viewModel.primaryAction?.label.trim().toLocaleLowerCase() === normalized;
       const secondaryMatches = scene.viewModel.secondaryAction?.label.trim().toLocaleLowerCase() === normalized;
@@ -130,10 +144,10 @@ export function VoiceCanvasProvider({ children }: { children: ReactNode }) {
       emitVoiceCanvasResponse({
         sceneId: scene.viewModel.sceneId,
         revision: scene.revision,
-        kind: choice ? "choice" : primaryMatches ? "primary" : secondaryMatches ? "secondary" : "text",
+        kind: choice || optionCard ? "choice" : primaryMatches ? "primary" : secondaryMatches ? "secondary" : "text",
         utterance,
-        value: choice?.label ?? utterance,
-        choiceId: choice?.id,
+        value: choice?.label ?? optionCard?.title ?? utterance,
+        choiceId: choice?.id ?? optionCard?.id,
         at: detail.at || new Date().toISOString(),
       });
     };

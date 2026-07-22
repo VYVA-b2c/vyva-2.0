@@ -62,7 +62,10 @@ import {
   type ProfileReadColumn,
 } from "../lib/profileReadCompatibility.js";
 import { upsertProfileToleratingMissingColumns } from "../lib/profileWriteCompatibility.js";
-import { savedProviderIsTrusted } from "../../shared/conciergeSavedProviders.js";
+import {
+  savedProviderContactReadiness,
+  savedProviderIsTrusted,
+} from "../../shared/conciergeSavedProviders.js";
 
 const DEMO_USER_ID = "demo-user";
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
@@ -240,6 +243,7 @@ const channelPreferencesPatchSchema = z.object({
   whatsapp_available_until: channelPreferenceTimeSchema.optional(),
   max_outbound_calls_per_day: channelPreferenceLimitSchema.optional(),
   max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
+  concierge_task_notifications_enabled: z.boolean().optional(),
 });
 
 const coveragePatchSchema = z.object({
@@ -262,6 +266,7 @@ const channelPreferencesDefaults = {
   whatsapp_available_until: "22:00",
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
+  concierge_task_notifications_enabled: true,
 };
 
 function normalizeContactChannel(value: unknown, fallback: ContactChannel): ContactChannel {
@@ -317,6 +322,9 @@ function serializeChannelPreferences(row?: ChannelPreferencesRow | null, consent
       row && row.max_whatsapp_messages_per_day !== undefined
         ? row.max_whatsapp_messages_per_day
         : channelPreferencesDefaults.max_whatsapp_messages_per_day,
+    concierge_task_notifications_enabled:
+      row?.concierge_task_notifications_enabled
+      ?? channelPreferencesDefaults.concierge_task_notifications_enabled,
   };
 }
 
@@ -489,7 +497,7 @@ function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
 }
 
 function providerMatches(provider: SavedProviderSummary, terms: string[]): boolean {
-  if (!savedProviderIsTrusted(provider)) return false;
+  if (!savedProviderIsTrusted(provider) || !savedProviderContactReadiness(provider).conciergeUsable) return false;
   const searchable = [provider.role, provider.category, provider.name]
     .join(" ")
     .toLowerCase();

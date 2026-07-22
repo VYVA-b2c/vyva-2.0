@@ -20,6 +20,9 @@ export const SHOW_VYVA_FOLLOW_UP_ACTION_IDS = {
   callTrusted: "call_trusted_contact",
   saveReport: "save_report",
   scamConcierge: "scam_concierge",
+  doNotReply: "do_not_reply",
+  blockOrReport: "block_or_report",
+  askSomeone: "ask_someone",
   callGp: "call_gp",
   emailGp: "email_gp",
   doctorHelp: "doctor_help",
@@ -35,10 +38,13 @@ export const SHOW_VYVA_FOLLOW_UP_ACTION_IDS = {
   summarizeDocument: "summarize_document",
   draftReply: "draft_reply",
   prepareCall: "prepare_call",
+  askProvider: "ask_provider",
+  compareOptions: "compare_options",
   comparePrice: "compare_price",
   compareProximity: "compare_proximity",
   checkReputation: "check_reputation",
   checkTerms: "check_terms",
+  findAlternatives: "find_alternatives",
   continueConcierge: "continue_concierge",
 } as const;
 
@@ -136,6 +142,33 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     icon: "concierge",
     tone: "primary",
     externalAction: false,
+    requiresConfirmation: true,
+  },
+  do_not_reply: {
+    id: "do_not_reply",
+    label: "Do not reply",
+    detail: "Keep it paused for now.",
+    icon: "shield",
+    tone: "safe",
+    externalAction: false,
+    requiresConfirmation: false,
+  },
+  block_or_report: {
+    id: "block_or_report",
+    label: "Block or report",
+    detail: "Prepare a safe report.",
+    icon: "shield",
+    tone: "warm",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  ask_someone: {
+    id: "ask_someone",
+    label: "Ask someone",
+    detail: "Share only after confirming.",
+    icon: "phone",
+    tone: "quiet",
+    externalAction: true,
     requiresConfirmation: true,
   },
   call_gp: {
@@ -273,6 +306,24 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     externalAction: true,
     requiresConfirmation: true,
   },
+  ask_provider: {
+    id: "ask_provider",
+    label: "Ask provider",
+    detail: "Prepare a clear question.",
+    icon: "reply",
+    tone: "warm",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  compare_options: {
+    id: "compare_options",
+    label: "Compare options",
+    detail: "Check choices first.",
+    icon: "price",
+    tone: "quiet",
+    externalAction: false,
+    requiresConfirmation: true,
+  },
   compare_price: {
     id: "compare_price",
     label: "Compare price",
@@ -309,6 +360,15 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     externalAction: false,
     requiresConfirmation: true,
   },
+  find_alternatives: {
+    id: "find_alternatives",
+    label: "Find alternatives",
+    detail: "Look for safer options.",
+    icon: "basket",
+    tone: "primary",
+    externalAction: false,
+    requiresConfirmation: true,
+  },
   continue_concierge: {
     id: "continue_concierge",
     label: "Continue with VYVA",
@@ -321,12 +381,12 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
 };
 
 const CONTEXT_ACTIONS: Record<ShowVyvaFollowUpContext, ShowVyvaFollowUpActionId[]> = {
-  scam: ["forward_email", "check_company", "check_number", "check_link", "call_trusted_contact", "save_report", "scam_concierge"],
+  scam: ["do_not_reply", "block_or_report", "ask_someone", "forward_email", "check_company", "check_number", "check_link", "call_trusted_contact", "save_report", "scam_concierge"],
   health_visual: ["doctor_help", "save_note", "call_gp", "email_gp", "schedule_appointment", "book_ride"],
   home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "save_note", "mark_safe_now"],
-  medicine: ["pharmacist_questions", "medicine_safety", "save_note", "continue_concierge"],
-  document: ["summarize_document", "draft_reply", "prepare_call", "continue_concierge"],
-  provider_deal: ["compare_price", "compare_proximity", "check_reputation", "check_terms", "continue_concierge"],
+  medicine: ["save_note", "pharmacist_questions", "call_gp", "medicine_safety", "continue_concierge"],
+  document: ["save_note", "ask_provider", "compare_options", "summarize_document", "draft_reply", "prepare_call", "continue_concierge"],
+  provider_deal: ["find_alternatives", "save_note", "compare_price", "compare_proximity", "check_reputation", "check_terms", "continue_concierge"],
 };
 
 export function showVyvaFollowUpContextForUseCase(useCaseId: ShowVyvaUseCaseId): ShowVyvaFollowUpContext {

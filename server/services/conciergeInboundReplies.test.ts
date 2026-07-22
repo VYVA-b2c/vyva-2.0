@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConciergeInboundReplyClassification } from "../../shared/conciergeInboundReplies";
+import {
+  classifyConciergeInboundReply,
+  type ConciergeInboundReplyClassification,
+} from "../../shared/conciergeInboundReplies";
 import { conciergeReplyAddressForPendingTask } from "./conciergeInboundEmailRouting";
 import {
   ingestConciergeInboundReply,
@@ -22,12 +25,22 @@ function pending(overrides: Partial<ConciergeInboundPendingMatch> = {}): Concier
     actionPayload: {
       provider_task_status: "waiting",
       waiting_for_provider: true,
+      execution_adapter: {
+        version: 1,
+        channel: "email",
+        mode: "live",
+        status: "sent",
+      },
+      email_outcome: "sent",
       execution_task: {
         version: 1,
         lifecycle_status: "confirmed",
         user_confirmed: true,
         external_action_allowed: true,
         execution_mode: "live",
+        confirmed_at: "2026-07-18T10:00:00.000Z",
+        approval_fingerprint: { version: 1, fingerprint: "old-approval" },
+        adapter_result: { status: "sent" },
         updated_at: "2026-07-18T10:00:00.000Z",
       },
     },
@@ -103,12 +116,17 @@ describe("Concierge inbound reply ingestion", () => {
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,
+      execution_adapter: null,
+      email_outcome: null,
       execution_task: {
         user_confirmed: false,
         external_action_allowed: false,
         execution_mode: "blocked",
       },
     });
+    expect(repository.attached?.patch.execution_task).not.toHaveProperty("confirmed_at");
+    expect(repository.attached?.patch.execution_task).not.toHaveProperty("approval_fingerprint");
+    expect(repository.attached?.patch.execution_task).not.toHaveProperty("adapter_result");
   });
 
   it("ignores a duplicate provider event", async () => {
@@ -163,12 +181,9 @@ describe("Concierge inbound reply ingestion", () => {
     const client = { query, release: vi.fn() };
     const database = { connect: vi.fn().mockResolvedValue(client) };
     const repository = new PostgresConciergeInboundReplyRepository(database as never);
-    const classification: ConciergeInboundReplyClassification = {
-      status: "reply_received",
-      reply: "Tuesday at 10 works.",
-      summary: "Tuesday at 10 works.",
-      actionNeeded: false,
-    };
+    const classification = classifyConciergeInboundReply({
+      text: "The booking is confirmed for Tuesday at 10.",
+    });
     const patch = {
       ...pending().actionPayload,
       provider_task_status: "reply_received",
@@ -190,12 +205,16 @@ describe("Concierge inbound reply ingestion", () => {
     const historyParams = historyCall?.[1] as unknown[] | undefined;
     expect(JSON.parse(String(historyParams?.[2]))).toMatchObject({
       provider_task_status: "reply_received",
-      provider_reply: "Tuesday at 10 works.",
+      provider_reply: "The booking is confirmed for Tuesday at 10.",
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,
       no_external_action_without_confirmation: true,
     });
     expect(query.mock.calls.some(([sqlValue]) => String(sqlValue).includes("update concierge_pending"))).toBe(true);
+    const notificationCall = query.mock.calls.find(([sqlValue]) => String(sqlValue).includes("insert into concierge_task_notifications"));
+    expect(notificationCall).toBeDefined();
+    expect(notificationCall?.[1]).toContain("ready");
+    expect(notificationCall?.[1]).toContain(`/concierge/tasks/pending%3A${pendingId}`);
     expect(client.release).toHaveBeenCalledOnce();
   });
 });

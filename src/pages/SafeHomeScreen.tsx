@@ -25,7 +25,10 @@ import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/Sho
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
 import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
 import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
+import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
 import {
   prepareShowVyvaEvidenceFile,
   reviewShowVyvaVisualEvidence,
@@ -46,6 +49,7 @@ import {
 } from "../../shared/showVyvaFlow";
 import { showVyvaReviewContractFromSafeHomeResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
 import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type HomeScan = {
   id: string;
@@ -501,6 +505,19 @@ const SafeHomeScreen = () => {
 
   const caregiverName = profile?.caregiverName?.trim() || t("safeHome.actions.caregiverFallback", "care team");
   const caregiverHref = sanitizePhoneHref(profile?.caregiverContact);
+  const openCareTeamSetup = () => {
+    navigate("/onboarding/profile/care-team", {
+      state: {
+        returnTo: "/safe-home",
+        notice: t("safeHome.actions.careTeamSetupNotice", "Add someone trusted for safety moments. VYVA will bring you back afterwards."),
+        providerSetupHelpRequested: {
+          flowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+          setupFocus: "trusted_contact",
+          setupReason: t("safeHome.actions.careTeamSetupReason", "Ask someone trusted to help with safety moments."),
+        },
+      },
+    });
+  };
 
   const handleSafeHomeReviewAction = (
     action: Parameters<typeof buildShowVyvaActionExecutionPlan>[0]["action"],
@@ -508,7 +525,7 @@ const SafeHomeScreen = () => {
     actionScan?: SafeHomeActionScan,
   ) => {
     if (action.id === "call_care_team" && !caregiverHref) {
-      navigate("/onboarding/profile/care-team");
+      openCareTeamSetup();
       return;
     }
     const plan = buildShowVyvaActionExecutionPlan({
@@ -525,11 +542,18 @@ const SafeHomeScreen = () => {
       hazards: reviewContract.noticed,
       advice: reviewContract.safeNextSteps.join(" "),
     };
+    const preparedReceipt = buildWorkflowReceiptMoment({
+      workflowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+      status: "prepared",
+      capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+      locale: language === "es" ? "es" : "en",
+    });
 
     void saveShowVyvaActionExecutionPlan(plan)
       .then(async () => {
+        markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
         await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-        toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
         setResult(null);
         setShowVyvaPasteReview(null);
         if (action.id === "mark_safe_now") {
@@ -573,17 +597,35 @@ const SafeHomeScreen = () => {
 
     return (
       <div data-testid={`safe-home-service-actions-${testIdSuffix}`}>
+        {!caregiverHref ? (
+          <div className="mb-3">
+            <ProviderSetupFallbackPanel
+              testId={`panel-safe-home-contact-setup-fallback-${testIdSuffix}`}
+              workflowReference={CONCIERGE_FLOW_REFERENCES.safeHomeSupport}
+              returnTo="/safe-home"
+              title={t("safeHome.actions.contactFallbackTitle", "Need a safety contact first?")}
+              description={t("safeHome.actions.contactFallbackDescription", "Save a care-team contact, ask VYVA for home-safety options, or ask someone trusted to help set it up.")}
+              addLabel={t("safeHome.actions.contactFallbackAdd", "Add my safety contact")}
+              findLabel={t("safeHome.actions.contactFallbackFind", "Find home-safety options")}
+              helperLabel={t("safeHome.actions.contactFallbackHelper", "Ask family/caregiver")}
+              confirmation={t("safeHome.actions.contactFallbackConfirm", "VYVA still asks before calling, booking, buying, or sharing details.")}
+              onAddProvider={openCareTeamSetup}
+              onFindOptions={() => navigate("/concierge", { state: safeHomeQuoteState(scan, language) })}
+              onAskHelper={openCareTeamSetup}
+            />
+          </div>
+        ) : null}
         <ShowVyvaFollowUpPanel
           context="home_safety"
           testIdSuffix={testIdSuffix}
           title={t("showVyva.followUp.title.home_safety", "Next home-safety step")}
           subtitle={t("showVyva.followUp.subtitle.home_safety", "Choose one practical step. VYVA asks before buying, booking, or calling.")}
           confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
-          actions={actions}
+          actions={actions.filter((action) => caregiverHref || action.id !== "call_care_team")}
           onSelect={(action) => {
             if (action.id === "call_care_team") {
               if (!caregiverHref) {
-                navigate("/onboarding/profile/care-team");
+                openCareTeamSetup();
                 return;
               }
             }
@@ -598,8 +640,15 @@ const SafeHomeScreen = () => {
             });
             void saveShowVyvaActionExecutionPlan(plan)
               .then(async () => {
+                const preparedReceipt = buildWorkflowReceiptMoment({
+                  workflowReference: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
+                  status: "prepared",
+                  capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+                  locale: language === "es" ? "es" : "en",
+                });
+                markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
                 await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
-                toast({ description: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready.") });
+                toast({ title: preparedReceipt.title, description: preparedReceipt.message });
                 if (testIdSuffix === "current") setResult(null);
                 if (action.id === "mark_safe_now") return;
                 navigate(plan.targetRoute, {
@@ -789,6 +838,10 @@ const SafeHomeScreen = () => {
               busy={analyzing || homeCapturePreparing}
               onChooseFileSource={(source, useCase, question) => openHomeScanFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedHomeReview(payload)}
+            />
+            <ShowVyvaReviewHistory
+              className="mt-[14px]"
+              onResume={(item) => navigate(item.resumeRoute)}
             />
 
             {/* Analyzing state */}

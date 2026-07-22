@@ -11,7 +11,12 @@ import {
   buildConciergeProviderActionNeededPatch,
   buildConciergeProviderReplyPatch,
 } from "../../shared/conciergeProviderReplies.js";
+import {
+  buildConciergeProviderReplyResolution,
+  resetConciergeProviderReplyExternalExecution,
+} from "../../shared/conciergeProviderReplyResolution.js";
 import { pendingIdFromConciergeReplyRecipient } from "./conciergeInboundEmailRouting.js";
+import { createConciergeTaskNotificationWithClient } from "./conciergeTaskNotifications.js";
 
 export type ConciergeInboundProviderEmail = {
   channel: "email";
@@ -123,15 +128,17 @@ function dateString(value: Date | string): string {
 function withInboundReplySafetyReset(
   patch: Record<string, unknown>,
   classification: ConciergeInboundReplyClassification,
-  message: Pick<ConciergeInboundProviderEmail, "providerEventId" | "senderEmail" | "receivedAt">,
+  message: Pick<ConciergeInboundProviderEmail, "providerEventId" | "senderEmail" | "subject" | "receivedAt">,
 ): Record<string, unknown> {
-  const executionTask = record(patch.execution_task);
-  const audit = Array.isArray(patch.execution_audit) ? patch.execution_audit : [];
+  const safePatch = resetConciergeProviderReplyExternalExecution(patch, message.receivedAt);
+  const executionTask = record(safePatch.execution_task);
+  const audit = Array.isArray(safePatch.execution_audit) ? safePatch.execution_audit : [];
   return {
-    ...patch,
+    ...safePatch,
     provider_inbound_message_id: message.providerEventId,
     provider_inbound_channel: "email",
     provider_inbound_sender: message.senderEmail,
+    provider_inbound_subject: message.subject,
     provider_inbound_received_at: message.receivedAt,
     provider_follow_up_requires_confirmation: true,
     provider_follow_up_confirmed: false,
@@ -169,21 +176,38 @@ function providerReplyPatch(
   classification: ConciergeInboundReplyClassification,
   message: ConciergeInboundProviderEmail,
 ): Record<string, unknown> {
-  const base = classification.actionNeeded
+  const resolution = buildConciergeProviderReplyResolution({
+    reply: classification.reply,
+    summary: classification.summary,
+    subject: message.subject,
+    channel: message.channel,
+    knownFacts: pending.actionPayload,
+  });
+  const actionNeeded = resolution.primaryAction !== "mark_complete";
+  const resolvedClassification: ConciergeInboundReplyClassification = {
+    ...classification,
+    status: actionNeeded ? "action_needed" : "reply_received",
+    actionNeeded,
+    summary: resolution.summary,
+    resolution,
+  };
+  const base = actionNeeded
     ? buildConciergeProviderActionNeededPatch({
         payload: pending.actionPayload,
         question: classification.reply,
         source: "live",
         receivedAt: message.receivedAt,
+        resolution,
       })
     : buildConciergeProviderReplyPatch({
         payload: pending.actionPayload,
         reply: classification.reply,
-        summary: classification.summary,
+        summary: resolution.summary,
         source: "live",
         receivedAt: message.receivedAt,
+        resolution,
       });
-  return withInboundReplySafetyReset(base, classification, message);
+  return withInboundReplySafetyReset(base, resolvedClassification, message);
 }
 
 function signedPendingId(recipients: string[]): string | null {
@@ -379,9 +403,13 @@ async function attachWithClient(client: PoolClient, input: Parameters<ConciergeI
     input.pending.id,
     JSON.stringify(input.patch),
     JSON.stringify({
-      provider_task_status: input.classification.status,
+      provider_task_status: input.patch.provider_task_status ?? input.classification.status,
       provider_reply: input.classification.reply,
-      provider_response_summary: input.classification.summary,
+      provider_response_summary: input.patch.provider_response_summary ?? input.classification.summary,
+      provider_reply_resolution: input.patch.provider_reply_resolution ?? input.classification.resolution,
+      ...(Array.isArray(input.patch.provider_reply_decisions) ? {
+        provider_reply_decisions: input.patch.provider_reply_decisions,
+      } : {}),
       provider_reply_source: "live",
       provider_follow_up_requires_confirmation: true,
       provider_follow_up_confirmed: false,
@@ -405,6 +433,18 @@ async function attachWithClient(client: PoolClient, input: Parameters<ConciergeI
       updated_at = now()
     where id = $1::uuid
   `, [input.messageId, input.pending.id, input.matchMethod, input.classification.actionNeeded, input.reviewedBy ?? null]);
+
+  await createConciergeTaskNotificationWithClient(client, {
+    userId: input.pending.userId,
+    pendingId: input.pending.id,
+    inboundMessageId: input.messageId,
+    channel: "email",
+    providerName: input.pending.providerName,
+    summary: typeof input.patch.provider_response_summary === "string"
+      ? input.patch.provider_response_summary
+      : input.classification.summary,
+    actionNeeded: input.patch.provider_task_status === "action_needed",
+  });
   return true;
 }
 

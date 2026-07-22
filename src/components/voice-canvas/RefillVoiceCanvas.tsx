@@ -30,6 +30,7 @@ import {
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
+  useVoiceCanvasAgentPresence,
 } from "./useVoiceCanvasPlatform";
 export interface RefillVoiceCommands {
   start: string[];
@@ -93,7 +94,7 @@ export function RefillVoiceCanvas({
   });
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const viewModel = useMemo(
+  const baseViewModel = useMemo(
     () =>
       refillCanvasViewModel(
         state,
@@ -101,9 +102,10 @@ export function RefillVoiceCanvas({
         medications,
         providers,
         contactChoices,
-      ),
+    ),
     [state, copy, medications, providers, contactChoices],
   );
+  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
   const urgentText = useCallback(
     (value: string) =>
       urgentTerms.some((term) => normalize(value).includes(normalize(term))),

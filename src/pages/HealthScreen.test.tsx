@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { TFunction } from "i18next";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { translate } from "@/i18n";
 import {
@@ -58,19 +59,20 @@ describe("DailyCheckinCard", () => {
     expect(screen.queryByText("You checked in today. VYVA has a fresh wellbeing signal.")).not.toBeInTheDocument();
   });
 });
-
 describe("VisualHealthScanCardContent", () => {
   it("uses the shared Show VYVA review chooser and category chips", () => {
     const onScanSource = vi.fn();
     const onPasteReview = vi.fn();
 
     render(
-      <VisualHealthScanCardContent
-        t={englishT}
-        analyzing={false}
-        onScanSource={onScanSource}
-        onPasteReview={onPasteReview}
-      />,
+      <MemoryRouter>
+        <VisualHealthScanCardContent
+          t={englishT}
+          analyzing={false}
+          onScanSource={onScanSource}
+          onPasteReview={onPasteReview}
+        />
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Show VYVA")).toBeInTheDocument();
@@ -127,6 +129,8 @@ describe("VisualScanResultPanel", () => {
       />,
     );
 
+    expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-health-current"));
     expect(screen.getByText("X-ray")).toBeInTheDocument();
     expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
     expect(screen.getByText("What is visible")).toBeInTheDocument();
@@ -192,7 +196,7 @@ describe("VisualScanResultPanel", () => {
     );
 
     expect(screen.getByTestId("show-vyva-follow-up-health-current")).toBeInTheDocument();
-    expect(screen.getByText("Ask VYVA to help or save for later")).toBeInTheDocument();
+    expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-doctor_help-health-current"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-schedule_appointment-health-current"));

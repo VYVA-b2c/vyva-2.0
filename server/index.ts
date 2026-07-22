@@ -39,6 +39,7 @@ import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
 import adminConciergeInboundRepliesRouter from "./routes/adminConciergeInboundReplies.js";
+import adminProviderDirectoryRouter from "./routes/adminProviderDirectory.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
 import adminCognitiveAssessmentRouter from "./routes/adminCognitiveAssessment.js";
 import adminLearningRouter from "./routes/adminLearning.js";
@@ -67,6 +68,7 @@ import {
 } from "./routes/concierge.js";
 import conciergeActionsRouter from "./routes/conciergeActions.js";
 import conciergeTasksRouter from "./routes/conciergeTasks.js";
+import conciergeNotificationsRouter from "./routes/conciergeNotifications.js";
 import appointmentsRouter from "./routes/appointments.js";
 import conciergeShoppingRouter from "./routes/conciergeShopping.js";
 import transportRouter from "./routes/transport.js";
@@ -113,6 +115,11 @@ import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
+import {
+  CANVAS_FEATURE_FLAG_ENDPOINTS,
+  resolveCanvasFeatureFlag,
+  type CanvasFeatureFlagKey,
+} from "./lib/canvasFeatureFlags.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
@@ -208,6 +215,7 @@ app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser,
 app.use("/api/concierge/shopping", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeShoppingRouter);
 app.use("/api/concierge/actions", conciergeActionsRouter);
 app.use("/api/concierge/tasks", conciergeTasksRouter);
+app.use("/api/concierge/notifications", conciergeNotificationsRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/transport", transportRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
@@ -224,6 +232,7 @@ app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, admin
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
 app.use("/api/admin/concierge/inbound-replies", authMiddleware, requireAdminUser, adminConciergeInboundRepliesRouter);
+app.use("/api/admin/providers", authMiddleware, requireAdminUser, adminProviderDirectoryRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
 app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adminCognitiveAssessmentRouter);
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
@@ -303,20 +312,14 @@ app.get("/api/config/places-key", (_req, res) => {
   return res.json({ configured: true, source: getGooglePlacesApiKeySource() });
 });
 
-app.get("/api/config/features/ride-voice-canvas", (_req, res) => {
-  const enabled = process.env.VYVA_ENABLE_RIDE_VOICE_CANVAS === "true";
-  const configuredRollout = Number(process.env.VYVA_RIDE_VOICE_CANVAS_ROLLOUT_PERCENT ?? "0");
-  const rolloutPercent = Number.isFinite(configuredRollout)
-    ? Math.min(100, Math.max(0, Math.round(configuredRollout)))
-    : 0;
+function sendCanvasFeatureFlag(res: express.Response, feature: CanvasFeatureFlagKey) {
   res.setHeader("cache-control", "no-store");
-  return res.json({ enabled, rolloutPercent });
+  return res.json(resolveCanvasFeatureFlag(feature));
+}
+
+CANVAS_FEATURE_FLAG_ENDPOINTS.forEach(({ endpoint, feature }) => {
+  app.get(endpoint, (_req, res) => sendCanvasFeatureFlag(res, feature));
 });
-app.get("/api/config/features/appointment-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_APPOINTMENT_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_APPOINTMENT_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/medication-refill-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_MEDICATION_REFILL_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_MEDICATION_REFILL_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/prescription-follow-up-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_PRESCRIPTION_FOLLOW_UP_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_PRESCRIPTION_FOLLOW_UP_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/shopping-delivery-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_SHOPPING_DELIVERY_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_SHOPPING_DELIVERY_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
-app.get("/api/config/features/home-service-voice-canvas",(_req,res)=>{const enabled=process.env.VYVA_ENABLE_HOME_SERVICE_VOICE_CANVAS==="true";const configured=Number(process.env.VYVA_HOME_SERVICE_VOICE_CANVAS_ROLLOUT_PERCENT??"0");const rolloutPercent=Number.isFinite(configured)?Math.min(100,Math.max(0,Math.round(configured))):0;res.setHeader("cache-control","no-store");return res.json({enabled,rolloutPercent})});
 
 app.post("/api/places/autocomplete", async (req, res) => {
   const key = getGooglePlacesApiKey();

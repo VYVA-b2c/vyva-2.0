@@ -279,6 +279,10 @@ describe("LearnSomethingNewPage", () => {
         source: "learn_hub",
       }),
     })));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Today's lesson done",
+      description: "Nice. Tomorrow's snippet will keep the thread going.",
+    })));
     expect(screen.queryByText("Curious Minds")).not.toBeInTheDocument();
   });
 

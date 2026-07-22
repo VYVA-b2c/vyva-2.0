@@ -1,7 +1,8 @@
 import{CalendarDays,Stethoscope,UserRoundPlus}from"lucide-react";
-import type{VoiceCanvasViewModel}from"./types";
+import type{VoiceCanvasAgentPresenceCopy,VoiceCanvasViewModel}from"./types";
 import type{AppointmentCanvasState,AppointmentProvider}from"./appointmentCanvasMachine";
 export interface AppointmentCanvasCopy{
+ agentPresence:VoiceCanvasAgentPresenceCopy;
  listening:{status:string;title:string;helper:string;start:string;cancel:string};provider:{title:string;helper:string;newProvider:string;newProviderHelper:string;back:string};providerEntry:{title:string;helper:string;label:string;placeholder:string;continue:string;back:string};reason:{title:string;helper:string;label:string;placeholder:string;continue:string;back:string};dateTime:{title:string;helper:string;timeLabel:string;continue:string;back:string};review:{title:string;helper:string;provider:string;reason:string;date:string;time:string;confirm:string;change:string};waiting:{status:string;title:string;helper:string;action:string};completed:{status:string;title:string;helper:string;reference:string;done:string};blocked:{status:string;title:string;helper:string;retry:string;cancel:string};cancelled:{status:string;title:string;helper:string;restart:string};progress:(current:number,total:number)=>string}
 export interface AppointmentDateChoice{id:string;label:string;value:string}
 export function appointmentCanvasViewModel(state:AppointmentCanvasState,copy:AppointmentCanvasCopy,providers:AppointmentProvider[],dates:AppointmentDateChoice[]):VoiceCanvasViewModel{

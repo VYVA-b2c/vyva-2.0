@@ -56,6 +56,7 @@ const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
+const ConciergeTaskInboxPage = lazy(() => import("./pages/ConciergeTaskInboxPage"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
 const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
 const ScamGuardScreen = lazy(() => import("./pages/ScamGuardScreen"));
@@ -140,6 +141,7 @@ const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeRe
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
 const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
+const ProviderDirectoryAdminPage = lazy(() => import("./pages/admin/ProviderDirectoryAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
@@ -657,6 +659,7 @@ const App = () => (
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/providers" element={<AdminRoute><ProviderDirectoryAdminPage /></AdminRoute>} />
                 <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />
@@ -744,6 +747,8 @@ const App = () => (
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="home" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />

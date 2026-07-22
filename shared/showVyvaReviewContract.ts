@@ -226,15 +226,15 @@ function defaultActionIdsForInput(
   if (followUpContext !== "scam") return null;
 
   if (inputType === "phone_number") {
-    return ["check_number", "call_trusted_contact", "save_report", "scam_concierge"];
+    return ["do_not_reply", "block_or_report", "ask_someone", "check_number", "call_trusted_contact", "save_report", "scam_concierge"];
   }
   if (inputType === "pasted_link") {
-    return ["check_link", "call_trusted_contact", "save_report", "scam_concierge"];
+    return ["do_not_reply", "block_or_report", "ask_someone", "check_link", "call_trusted_contact", "save_report", "scam_concierge"];
   }
   if (inputType === "company_name") {
-    return ["check_company", "call_trusted_contact", "save_report", "scam_concierge"];
+    return ["do_not_reply", "block_or_report", "ask_someone", "check_company", "call_trusted_contact", "save_report", "scam_concierge"];
   }
-  return ["forward_email", "check_company", "save_report", "call_trusted_contact", "scam_concierge"];
+  return ["do_not_reply", "block_or_report", "ask_someone", "forward_email", "check_company", "save_report", "call_trusted_contact", "scam_concierge"];
 }
 
 export function buildShowVyvaReviewContract(input: ShowVyvaReviewDraftInput): ShowVyvaReviewContract {

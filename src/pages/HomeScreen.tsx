@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, PackageCheck, History, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -43,7 +43,21 @@ import {
 } from "@/lib/homeFastHelpOutcome";
 import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
 import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
+import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
+import {
+  readShowVyvaReviewHistory,
+  SHOW_VYVA_REVIEW_HISTORY_EVENT,
+  type ShowVyvaReviewHistoryItem,
+} from "@/lib/showVyvaReviewHistory";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import {
+  conciergeCanvasExplainability,
+  conciergeCanvasStateLabel,
+  deriveConciergeCanvasState,
+  type ConciergeCanvasStateSummary,
+} from "../../shared/conciergeCanvasState";
+import { buildConciergeConfirmationReceipt } from "../../shared/conciergeConfirmationReceipt";
+import type { ConciergeExecutionTask } from "../../shared/conciergeActionExecution";
 import { HOME_FAST_HELP_RANKING_VERSION } from "../../shared/homeFastHelpSync";
 import {
   isShowVyvaPreparedTask,
@@ -129,6 +143,7 @@ type ConciergePendingHomeItem = {
   confirmed_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  task_path?: string | null;
 };
 
 type ConciergeCompletedHomeItem = {
@@ -455,6 +470,54 @@ function conciergeHomePayloadString(item: ConciergePendingHomeItem, keys: string
   return "";
 }
 
+function conciergeHomeExecutionTask(item: ConciergePendingHomeItem): Partial<ConciergeExecutionTask> | null {
+  const task = item.action_payload?.execution_task;
+  return task && typeof task === "object" && !Array.isArray(task)
+    ? task as Partial<ConciergeExecutionTask>
+    : null;
+}
+
+function conciergeHomePayloadBoolean(item: ConciergePendingHomeItem, keys: string[]) {
+  const payload = item.action_payload;
+  if (!payload) return false;
+  return keys.some((key) => payload[key] === true);
+}
+
+function conciergeHomeHasMissingDetails(item: ConciergePendingHomeItem) {
+  const task = conciergeHomeExecutionTask(item);
+  const missingRequirements = Array.isArray(task?.missing_requirements)
+    ? task.missing_requirements
+    : [];
+  const missingDetails = item.action_payload?.missingDetails ?? item.action_payload?.missing_details;
+  return missingRequirements.length > 0
+    || (Array.isArray(missingDetails) && missingDetails.length > 0);
+}
+
+function conciergeHomeCanvasState(item: ConciergePendingHomeItem): ConciergeCanvasStateSummary {
+  const executionTask = conciergeHomeExecutionTask(item);
+  const hasMissingDetails = conciergeHomeHasMissingDetails(item);
+  const requiresConfirmation = conciergeHomePayloadBoolean(item, [
+    "confirmation_required_before_action",
+    "no_external_action_without_confirmation",
+  ]);
+  const status = conciergeHomeStatus(item);
+
+  return deriveConciergeCanvasState({
+    status,
+    useCase: item.use_case,
+    flowReference: executionTask?.flow_reference
+      ?? conciergeHomePayloadString(item, ["flow_reference"]),
+    actionType: executionTask?.action_type
+      ?? conciergeHomePayloadString(item, ["action_type", "task_type"]),
+    executionTask,
+    hasMissingDetails,
+    hasReviewSummary: !hasMissingDetails,
+    reviewPresented: status === "pending" && !hasMissingDetails && (requiresConfirmation || Boolean(executionTask)),
+    waitingForProvider: conciergeHomeIsWaitingOnProvider(item),
+    missionStatus: conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]),
+  });
+}
+
 function conciergeCompletedPayloadString(item: ConciergeCompletedHomeItem, keys: string[]) {
   const payload = item.outcome_payload;
   if (!payload) return "";
@@ -539,35 +602,32 @@ function conciergeHomeWaitingLabel(
   return t("home.conciergeResume.waitingSince", "Waiting since {{time}}", { time });
 }
 
-function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate, isSpanish = false) {
   if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.step.providerShortlist", "Review saved options");
   if (isShowVyvaPreparedTask(item.action_payload)) {
     return t("home.showVyvaResume.step", "Review first");
   }
-  const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
-  if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.step.waiting", "Waiting for reply");
-  if (missionStatus.includes("form")) return t("home.conciergeResume.step.form", "Preparing form");
-  if (missionStatus.includes("save") || missionStatus.includes("booked")) return t("home.conciergeResume.step.save", "Ready to save");
-  if (conciergeHomeStatus(item) === "failed") return t("home.conciergeResume.step.attention", "Needs your review");
-  return t("home.conciergeResume.step.confirm", "Waiting for your confirmation");
+  return conciergeCanvasStateLabel(conciergeHomeCanvasState(item).state, isSpanish);
 }
 
-function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate, isSpanish = false) {
   if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.kickerProviderShortlist", "Saved shortlist");
   if (isShowVyvaPreparedTask(item.action_payload)) return t("home.showVyvaResume.kicker", "VYVA prepared this");
-  const status = conciergeHomeStatus(item);
-  if (status === "failed") return t("home.conciergeResume.kickerReview", "Needs review");
-  if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.kickerWaiting", "Waiting");
-  if (status === "pending") return t("home.conciergeResume.kickerConfirm", "Needs your OK");
-  return t("home.conciergeResume.kicker", "Right now");
+  return conciergeCanvasStateLabel(conciergeHomeCanvasState(item).state, isSpanish);
 }
 
 function conciergeHomeTitlePrefix(item: ConciergePendingHomeItem, t: HomeTranslate) {
   if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.titleProviderShortlistPrefix", "Review your");
-  const status = conciergeHomeStatus(item);
-  if (status === "failed") return t("home.conciergeResume.titleReviewPrefix", "Review your");
-  if (status === "pending") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
+  const state = conciergeHomeCanvasState(item).state;
+  if (state === "collecting") return t("home.conciergeResume.titleCollectPrefix", "Add detail for your");
+  if (state === "ready_to_review") return t("home.conciergeResume.titleReviewPrefix", "Review your");
+  if (state === "awaiting_confirmation") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
+  if (state === "failed") return t("home.conciergeResume.titleTryAgainPrefix", "Try another way for your");
   return t("home.conciergeResume.titlePrefix", "VYVA is working on your");
+}
+
+function conciergeCompletedCanvasLabel(isSpanish: boolean) {
+  return conciergeCanvasStateLabel("completed", isSpanish);
 }
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
@@ -652,6 +712,10 @@ const HomeScreen = () => {
   const [homeFastHelpJourneys, setHomeFastHelpJourneys] = useState<HomeFastHelpJourney[]>(() => (
     readHomeFastHelpJourneys(homeFastHelpJourneyKey)
   ));
+  const [showVyvaReviewHistory, setShowVyvaReviewHistory] = useState<ShowVyvaReviewHistoryItem[]>(() => (
+    readShowVyvaReviewHistory()
+  ));
+  const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
@@ -688,6 +752,16 @@ const HomeScreen = () => {
       window.removeEventListener("storage", handleStorage);
     };
   }, [homeFastHelpJourneyKey]);
+
+  useEffect(() => {
+    const refresh = () => setShowVyvaReviewHistory(readShowVyvaReviewHistory());
+    window.addEventListener(SHOW_VYVA_REVIEW_HISTORY_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(SHOW_VYVA_REVIEW_HISTORY_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -1185,6 +1259,16 @@ const HomeScreen = () => {
 
   const conciergeResumeItems = conciergeHomeItems(conciergePendingHomeSignal);
   const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
+  const reusableConciergeReceipt = reusableConciergeHomeTask
+    ? buildConciergeConfirmationReceipt({
+        useCase: reusableConciergeHomeTask.use_case,
+        providerName: reusableConciergeHomeTask.provider_name,
+        outcome: reusableConciergeHomeTask.outcome,
+        outcomeSummary: reusableConciergeHomeTask.outcome_summary,
+        completedAt: reusableConciergeHomeTask.completed_at,
+        payload: reusableConciergeHomeTask.outcome_payload,
+      }, language === "es")
+    : null;
   const remoteFastHelpActivityFingerprint = JSON.stringify(
     contextualFastHelpRemoteActivity(conciergeCompletedHomeSignal),
   );
@@ -1220,14 +1304,22 @@ const HomeScreen = () => {
       ? showVyvaResumeActionLabel(activeConciergeHomeTask.action_payload, language)
       : conciergeHomeTaskLabel(activeConciergeHomeTask, t)
     : "";
-  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
-  const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
+  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t, language === "es") : "";
+  const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t, language === "es") : "";
   const conciergeHomeTitlePrefixText = activeConciergeHomeTask ? conciergeHomeTitlePrefix(activeConciergeHomeTask, t) : "";
   const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
   const activeConciergeWaitingText = activeConciergeHomeTask && activeConciergeWaitingOnProvider
     ? conciergeHomeWaitingLabel(activeConciergeHomeTask, conciergeClockMs, language, t)
     : conciergeHomeStepText;
+  const activeConciergeCanvasState = activeConciergeHomeTask
+    ? conciergeHomeCanvasState(activeConciergeHomeTask)
+    : null;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
+  const activeConciergeCanvasCopy = activeConciergeCanvasState
+    ? conciergeCanvasExplainability(activeConciergeCanvasState, language === "es", {
+        providerName: activeConciergeProviderText,
+      })
+    : null;
   const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
     ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, language)
     : "";
@@ -1243,7 +1335,7 @@ const HomeScreen = () => {
     : "";
   const openActiveConciergeTask = (mode?: "follow_up" | "reply") => {
     if (!activeConciergeHomeTask?.id) return;
-    handleNavigate("/concierge", {
+    handleNavigate(activeConciergeHomeTask.task_path || conciergeTaskPath(activeConciergeHomeTask.id), {
       state: mode
         ? {
             focusRightNow: true,
@@ -1323,6 +1415,7 @@ const HomeScreen = () => {
     }
   }, [contextualFastHelpImpressionFingerprint, contextualFastHelpRanking, profile?.profileId]);
   const homeMasterFastHelpActionsWithStatus = contextualHomeMasterFastHelpActions;
+  const conciergeCompletedCanvasCopy = conciergeCanvasExplainability("completed", language === "es");
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div
       data-testid="card-home-concierge-resume"
@@ -1346,6 +1439,22 @@ const HomeScreen = () => {
               ? `${activeConciergeShowVyvaSourceText} · ${activeConciergeTaskText}`
               : activeConciergeWaitingText}
           </span>
+          {activeConciergeCanvasCopy ? (
+            <span
+              className="mt-1 block line-clamp-2 font-body text-[12px] font-bold leading-tight text-[#115E59]"
+              data-testid="text-home-concierge-state-explanation"
+            >
+              {activeConciergeCanvasCopy.stateExplanation}
+            </span>
+          ) : null}
+          {activeConciergeCanvasCopy && activeConciergeCanvasState?.state !== "completed" ? (
+            <span
+              className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#0F766E]"
+              data-testid="text-home-concierge-safety-rule"
+            >
+              {activeConciergeCanvasCopy.safetyRule}
+            </span>
+          ) : null}
           {activeConciergeShowVyvaSummary ? (
             <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
               {activeConciergeShowVyvaSummary}
@@ -1385,38 +1494,125 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  const conciergeReuseNudge = reusableConciergeHomeTask ? (
+  const conciergeReuseNudge = reusableConciergeHomeTask && reusableConciergeReceipt ? (
+    <div
+      data-testid="card-home-concierge-reuse"
+      className="w-full min-w-0 rounded-[22px] border border-[#DDD6FE] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBF8FF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(107,33,168,0.07)] min-[390px]:p-4"
+    >
+      <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
+          <PackageCheck size={24} strokeWidth={2.55} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-vyva-purple">
+            {t("home.conciergeReuse.kicker", "Useful again")}
+          </span>
+          <span
+            className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]"
+            data-testid="badge-home-concierge-completed-state"
+          >
+            {conciergeCompletedCanvasLabel(language === "es")}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+            {t("home.conciergeReuse.title", "Use last {{task}} again", {
+              task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t),
+            })}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+            {reusableConciergeReceipt.subjectValue}
+          </span>
+          <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#115E59]" data-testid="text-home-concierge-reuse-explanation">
+            {conciergeCompletedCanvasCopy.stateExplanation}
+          </span>
+          <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#115E59]" data-testid="text-home-concierge-receipt-status">
+            {t("home.conciergeReuse.receiptStatus", "Receipt: {{status}}", { status: reusableConciergeReceipt.statusLabel })}
+          </span>
+        </span>
+      </div>
+
+      {conciergeReceiptDetailsOpen ? (
+        <div className="mt-3 rounded-[18px] border border-[#E9D5FF] bg-white px-3 py-2" data-testid="panel-home-concierge-receipt-details">
+          <p className="font-body text-[12px] font-black text-vyva-text-1">
+            {reusableConciergeReceipt.whatVyvaDid}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">
+            {reusableConciergeReceipt.nextStep}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {reusableConciergeReceipt.details.slice(0, 3).map((detail) => (
+              <span key={detail.key} className="rounded-full bg-[#F8F5FF] px-2 py-1 font-body text-[11px] font-black text-vyva-text-2">
+                {detail.label}: {detail.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          data-testid="button-home-concierge-use-template"
+          onClick={() => handleNavigate("/concierge", {
+            state: {
+              conciergeCompletedTemplate: conciergeCompletedHomeTemplate(reusableConciergeHomeTask),
+            },
+          })}
+          className="vyva-tap inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+        >
+          {t("home.conciergeReuse.action", "Use template")}
+          <ChevronRight size={16} strokeWidth={2.6} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          data-testid="button-home-concierge-show-receipt"
+          onClick={() => setConciergeReceiptDetailsOpen((open) => !open)}
+          className="vyva-tap inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full bg-[#F5F3FF] px-3 font-body text-[12px] font-black text-vyva-purple transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+        >
+          {conciergeReceiptDetailsOpen
+            ? t("home.conciergeReuse.hideDetails", "Hide details")
+            : t("home.conciergeReuse.showDetails", "Show details")}
+          {conciergeReceiptDetailsOpen
+            ? <ChevronUp size={16} strokeWidth={2.6} aria-hidden="true" />
+            : <ChevronDown size={16} strokeWidth={2.6} aria-hidden="true" />}
+        </button>
+      </div>
+    </div>
+  ) : null;
+  const latestPendingShowVyvaReview = showVyvaReviewHistory.find((item) => !item.actionSaved) ?? null;
+  const showVyvaReviewNudge = latestPendingShowVyvaReview ? (
     <button
       type="button"
-      data-testid="card-home-concierge-reuse"
-      onClick={() => handleNavigate("/concierge", {
+      data-testid="card-home-show-vyva-review-resume"
+      onClick={() => handleNavigate(latestPendingShowVyvaReview.resumeRoute, {
         state: {
-          conciergeCompletedTemplate: conciergeCompletedHomeTemplate(reusableConciergeHomeTask),
+          showVyvaReviewHistoryId: latestPendingShowVyvaReview.id,
+          showVyvaResume: true,
         },
       })}
-      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#DDD6FE] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBF8FF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(107,33,168,0.07)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
-      aria-label={`${t("home.conciergeReuse.kicker", "Useful again")}: ${t("home.conciergeReuse.title", "Use last {{task}} again", { task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t) })}`}
+      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#BFE7E1] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_58%,#F7FBFF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(15,118,110,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
+      aria-label={`${t("home.showVyvaReviewResume.kicker", "Recent Show VYVA")}: ${latestPendingShowVyvaReview.decision}`}
     >
-      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
-        <PackageCheck size={24} strokeWidth={2.55} aria-hidden="true" />
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F0FDFA] text-[#0F766E] min-[390px]:h-[54px] min-[390px]:w-[54px]">
+        <ShieldCheck size={24} strokeWidth={2.45} aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-vyva-purple">
-          {t("home.conciergeReuse.kicker", "Useful again")}
+        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-[#0F766E]">
+          {t("home.showVyvaReviewResume.kicker", "Recent Show VYVA")}
         </span>
         <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
-          {t("home.conciergeReuse.title", "Use last {{task}} again", {
-            task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t),
-          })}
+          {t("home.showVyvaReviewResume.title", "Continue this review")}
         </span>
         <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
-          {conciergeCompletedHomeProvider(reusableConciergeHomeTask, t)}
+          {latestPendingShowVyvaReview.decision}
+        </span>
+        <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+          {latestPendingShowVyvaReview.summary}
         </span>
       </span>
-      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] min-[390px]:inline-flex">
-        {t("home.conciergeReuse.action", "Use template")}
+      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)] min-[390px]:inline-flex">
+        {t("home.showVyvaReviewResume.action", "Open")}
       </span>
-      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-[#0F766E]" aria-hidden="true" />
     </button>
   ) : null;
   const recoveryAction = recoveryNudge
@@ -1537,7 +1733,7 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  const homeNudge = conciergeRightNowNudge ?? fastHelpRecoveryNudge ?? conciergeReuseNudge;
+  const homeNudge = conciergeRightNowNudge ?? fastHelpRecoveryNudge ?? showVyvaReviewNudge ?? conciergeReuseNudge;
 
   return (
     <MasterDashboardLayout

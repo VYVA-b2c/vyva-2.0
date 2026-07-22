@@ -13,6 +13,14 @@ import type {
 } from "./canvasPlatform";
 import { CanvasSafetyError } from "./canvasPlatform";
 import { VYVA_VOICE_USER_MESSAGE_EVENT } from "@/lib/voiceNavigation";
+import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
+import type {
+  VoiceCanvasAgentPresence,
+  VoiceCanvasAgentPresenceCopy,
+  VoiceCanvasAgentPresenceState,
+  VoiceCanvasViewModel,
+} from "./types";
 
 /** Keeps one stable global voice listener while always invoking the latest scene handler. */
 export function useCanvasVoiceSynchronization(handler: (event: Event) => void) {
@@ -80,6 +88,101 @@ export function useCanvasAccessibility(step: string) {
     rootRef.current?.querySelector<HTMLElement>("h2")?.focus();
   }, [step]);
   return rootRef;
+}
+
+type VoiceCanvasAgentPresenceVoiceState = {
+  status?: "idle" | "connecting" | "connected";
+  isSpeaking?: boolean;
+  isConnecting?: boolean;
+  isMicMuted?: boolean;
+  voiceSessionPhase?: VoiceSessionPhase;
+};
+
+const emptyVoiceState: VoiceCanvasAgentPresenceVoiceState = {
+  status: "idle",
+  isSpeaking: false,
+  isConnecting: false,
+  isMicMuted: false,
+  voiceSessionPhase: "idle",
+};
+
+function useOptionalCanvasVoiceState(): VoiceCanvasAgentPresenceVoiceState {
+  try {
+    const voice = useVyvaVoice();
+    return {
+      status: voice.status,
+      isSpeaking: voice.isSpeaking,
+      isConnecting: voice.isConnecting,
+      isMicMuted: voice.isMicMuted,
+      voiceSessionPhase: voice.voiceSessionPhase,
+    };
+  } catch {
+    return emptyVoiceState;
+  }
+}
+
+export function voiceCanvasAgentPresenceStateFor(
+  viewModel: Pick<VoiceCanvasViewModel, "kind" | "status">,
+  voice: VoiceCanvasAgentPresenceVoiceState,
+): VoiceCanvasAgentPresenceState {
+  if (viewModel.kind === "waiting" || viewModel.status === "loading" || voice.isConnecting || voice.voiceSessionPhase === "connecting" || voice.voiceSessionPhase === "transferring") {
+    return "thinking";
+  }
+  if (voice.isSpeaking || voice.voiceSessionPhase === "speaking") return "speaking";
+  if (voice.status === "connected" && !voice.isMicMuted && voice.voiceSessionPhase !== "muted") return "listening";
+  return "idle";
+}
+
+function presenceCopyForState(copy: VoiceCanvasAgentPresenceCopy, state: VoiceCanvasAgentPresenceState) {
+  if (state === "speaking") return { label: copy.speakingLabel, description: copy.speakingDescription };
+  if (state === "thinking") return { label: copy.thinkingLabel, description: copy.thinkingDescription };
+  if (state === "listening") return { label: copy.listeningLabel, description: copy.listeningDescription };
+  return { label: copy.idleLabel, description: copy.idleDescription };
+}
+
+export function applyVoiceCanvasAgentPresence(
+  viewModel: VoiceCanvasViewModel,
+  voice: VoiceCanvasAgentPresenceVoiceState,
+  suppliedCopy?: VoiceCanvasAgentPresenceCopy,
+): VoiceCanvasViewModel {
+  if (viewModel.kind === "listening") return viewModel;
+  const copy = suppliedCopy ?? viewModel.agentPresenceCopy;
+  if (!copy && !viewModel.agentPresence) return viewModel;
+  const state = voiceCanvasAgentPresenceStateFor(viewModel, voice);
+  if (!copy) return { ...viewModel, agentPresence: { ...viewModel.agentPresence!, state } };
+  const stateCopy = presenceCopyForState(copy, state);
+  const agentPresence: VoiceCanvasAgentPresence = {
+    state,
+    label: stateCopy.label,
+    description: stateCopy.description,
+    accessibleLabel: copy.accessibleLabel,
+    ariaLive: copy.ariaLive,
+  };
+  return { ...viewModel, agentPresence };
+}
+
+export function useVoiceCanvasAgentPresence(
+  viewModel: VoiceCanvasViewModel | null | undefined,
+  copy?: VoiceCanvasAgentPresenceCopy,
+) {
+  const voice = useOptionalCanvasVoiceState();
+  const {
+    isConnecting,
+    isMicMuted,
+    isSpeaking,
+    status,
+    voiceSessionPhase,
+  } = voice;
+  return useMemo(
+    () => viewModel ? applyVoiceCanvasAgentPresence(viewModel, {
+      isConnecting,
+      isMicMuted,
+      isSpeaking,
+      status,
+      voiceSessionPhase,
+    }, copy) : viewModel,
+    [copy, isConnecting, isMicMuted, isSpeaking, status, viewModel, voiceSessionPhase],
+  );
 }
 
 export function CanvasLiveStatus({

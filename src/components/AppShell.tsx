@@ -37,6 +37,7 @@ import {
   type VoiceOverlayPresenceDetail,
 } from "@/lib/voiceOverlayFocus";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 
 type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
@@ -142,6 +143,13 @@ type VoiceSessionDockProps = {
 
 function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
   return phase === "speaking" ? "Speaking" : voiceSessionPhaseLabel(phase);
+}
+
+function canvasSelectableLabel(viewModel: VoiceCanvasViewModel | undefined, id: string) {
+  const choice = viewModel?.choices?.find((item) => item.id === id);
+  if (choice) return choice.label;
+  const optionCard = viewModel?.blocks?.find((block) => block.kind === "option-card" && block.id === id);
+  return optionCard?.title;
 }
 
 function voicePayloadString(action: VoiceAppAction, key: string) {
@@ -566,9 +574,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   }, [activeCanvasKey]);
 
   const handleCanvasChoice = useCallback((choiceId: string) => {
-    const choice = activeCanvasScene?.viewModel.choices?.find((item) => item.id === choiceId);
-    if (!choice) return;
-    submitCanvasResponse({ kind: "choice", choiceId, value: choice.label, utterance: choice.label });
+    const label = canvasSelectableLabel(activeCanvasScene?.viewModel, choiceId);
+    if (!label) return;
+    submitCanvasResponse({ kind: "choice", choiceId, value: label, utterance: label });
   }, [activeCanvasScene, submitCanvasResponse]);
 
   const handleCanvasPrimary = useCallback((value?: string) => {

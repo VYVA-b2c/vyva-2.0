@@ -27,9 +27,15 @@ const props = (
     {
       id: "market",
       label: "Neighbourhood Market With A Very Long Translated Name",
+      subtitle: "Saved retailer",
+      retailerType: "Grocery",
+      estimateLabel: "Unverified",
+      feeLabel: "Unverified",
+      reviewReminder: "Review before action",
+      recommended: true,
     },
   ],
-  addresses: [{ id: "home", label: "Home", address: "1 Main Street" }],
+  addresses: [{ id: "home", label: "Home", address: "1 Main Street", savedLabel: "Saved address", deliveryNote: "Delivery prepared, not ordered", reviewReminder: "Review before action", recommended: true }],
   onConfirm: vi
     .fn()
     .mockResolvedValue({ outcome: "pending", reference: "shop-1" }),
@@ -59,6 +65,32 @@ const reviewState: ShoppingCanvasState = {
 };
 describe("ShoppingVoiceCanvas", () => {
   beforeEach(() => sessionStorage.clear());
+  it("shows rich shopping decision-card aids without confirming", () => {
+    const onConfirm = vi.fn();
+    render(<ShoppingVoiceCanvas {...props({ onConfirm })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(screen.getByText("Saved retailer")).toBeInTheDocument();
+    expect(screen.getByText("Grocery")).toBeInTheDocument();
+    expect(screen.getAllByText("Unverified").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Review before action").length).toBeGreaterThan(0);
+    expect(screen.getByText("Recommended")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Neighbourhood Market/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Exact item" }), {
+      target: { value: "Milk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Quantity" }), {
+      target: { value: "2 x 1 litre" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+    expect(screen.getAllByText("Items to review").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /everything/ }));
+    expect(screen.getByText("Delivery prepared, not ordered")).toBeInTheDocument();
+    expect(screen.getAllByText("No order or payment").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+    expect(screen.getByText("Saved address")).toBeInTheDocument();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
   it("synchronizes a saved retailer choice from voice", () => {
     render(<ShoppingVoiceCanvas {...props()} />);
     const say = (text: string) =>
@@ -95,7 +127,7 @@ describe("ShoppingVoiceCanvas", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add item" }));
     fireEvent.click(screen.getByRole("button", { name: "That’s everything" }));
     fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
-    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    fireEvent.click(screen.getByRole("button", { name: /Home/ }));
     fireEvent.change(
       screen.getByRole("textbox", { name: "Date and time window" }),
       { target: { value: "Tuesday 10–12" } },
@@ -134,6 +166,65 @@ describe("ShoppingVoiceCanvas", () => {
     await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
     resolve();
     await screen.findByText("Your request is prepared");
+  });
+  it("emits closed privacy-safe telemetry for shopping details", async () => {
+    const events: unknown[] = [];
+    const onConfirm = vi
+      .fn()
+      .mockResolvedValue({ outcome: "pending", reference: "SHOP-PRIVATE-42" });
+    render(
+      <ShoppingVoiceCanvas
+        {...props({ initialState: reviewState, onConfirm, onTelemetry: (event) => events.push(event) })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm and prepare request" }),
+    );
+
+    await screen.findByText("Your request is pending");
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "confirmation_submitted",
+        step: "review",
+        input: "touch_or_keyboard",
+        attempt: 1,
+        revision: 0,
+        restored: false,
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "pending",
+        step: "pending",
+        input: "system",
+        attempt: 1,
+        revision: 0,
+        restored: false,
+      }),
+    );
+
+    const allowedKeys = new Set([
+      "name",
+      "step",
+      "input",
+      "attempt",
+      "revision",
+      "restored",
+    ]);
+    for (const event of events) {
+      expect(Object.keys(event as Record<string, unknown>).every((key) =>
+        allowedKeys.has(key),
+      )).toBe(true);
+    }
+
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain("Milk");
+    expect(serialized).not.toContain("2 x 1 litre");
+    expect(serialized).not.toContain("1 Main Street");
+    expect(serialized).not.toContain("Tuesday");
+    expect(serialized).not.toContain("SHOP-PRIVATE-42");
   });
   it("returns to review and requires a second confirmation after material changes", async () => {
     const onConfirm = vi

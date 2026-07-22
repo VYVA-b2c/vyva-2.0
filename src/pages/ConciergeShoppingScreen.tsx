@@ -122,6 +122,7 @@ type ShoppingRoutePrefill = {
 
 type ShoppingLocationState = {
   shoppingPrefill?: ShoppingRoutePrefill;
+  resumeCanvas?: "shopping" | boolean;
 } | null;
 
 const COPY: Record<"en" | "es", Copy> = {
@@ -829,8 +830,10 @@ const ConciergeShoppingScreen = () => {
     [profileNeeds],
   );
   const shoppingCanvasEnabled = isShoppingCanvasEnabled(shoppingCanvasConfig, String(shoppingProfile?.id ?? "anonymous"));
-  const canvasRetailers = useMemo<ShoppingRetailer[]>(() => (shoppingProfile?.savedProviders ?? []).filter((item) => /supermarket|grocery|food|store|retail/i.test(item.category ?? "")).map((item, index) => ({ id: String(item.id ?? `retailer-${index}`), label: item.name ?? item.providerName ?? "" })).filter((item) => item.label), [shoppingProfile]);
-  const canvasAddresses = useMemo<ShoppingAddress[]>(() => { const address = [shoppingProfile?.address ?? shoppingProfile?.addressLine1, shoppingProfile?.city].filter(Boolean).join(", "); return address ? [{ id: "home", label: locale === "es" ? "Casa" : "Home", address }] : []; }, [shoppingProfile, locale]);
+  const shouldResumeShoppingCanvas = (location.state as ShoppingLocationState)?.resumeCanvas === true
+    || (location.state as ShoppingLocationState)?.resumeCanvas === "shopping";
+  const canvasRetailers = useMemo<ShoppingRetailer[]>(() => (shoppingProfile?.savedProviders ?? []).filter((item) => /supermarket|grocery|food|store|retail/i.test(item.category ?? "")).map((item, index) => ({ id: String(item.id ?? `retailer-${index}`), label: item.name ?? item.providerName ?? "", subtitle: locale === "es" ? "Tienda guardada" : "Saved retailer", description: item.isTrusted ? (locale === "es" ? "Guardado en tu perfil" : "Saved in your profile") : undefined, retailerType: item.category ?? (locale === "es" ? "Tienda" : "Retailer"), estimateLabel: locale === "es" ? "No verificado" : "Unverified", feeLabel: locale === "es" ? "No verificado" : "Unverified", savedLabel: locale === "es" ? "Tienda guardada" : "Saved retailer", reviewReminder: locale === "es" ? "Revisar antes de actuar" : "Review before action", recommended: index === 0 })).filter((item) => item.label), [shoppingProfile, locale]);
+  const canvasAddresses = useMemo<ShoppingAddress[]>(() => { const address = [shoppingProfile?.address ?? shoppingProfile?.addressLine1, shoppingProfile?.city].filter(Boolean).join(", "); return address ? [{ id: "home", label: locale === "es" ? "Casa" : "Home", address, savedLabel: locale === "es" ? "Dirección guardada" : "Saved address", deliveryNote: locale === "es" ? "Entrega preparada, no pedida" : "Delivery prepared, not ordered", reviewReminder: locale === "es" ? "Revisar antes de actuar" : "Review before action", recommended: true }] : []; }, [shoppingProfile, locale]);
 
   const savedRecommendations = useMemo(
     () => result?.recommendations.filter((item) => savedIds.includes(item.product.id)) ?? [],
@@ -857,7 +860,9 @@ const ConciergeShoppingScreen = () => {
     return () => { active = false; window.clearInterval(interval); window.removeEventListener("focus", refresh); };
   }, []);
   useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
-  useEffect(() => { if (!shoppingCanvasEnabled) setShoppingCanvasOpen(false); }, [shoppingCanvasEnabled]);
+  useEffect(() => {
+    if (shoppingCanvasEnabled && shouldResumeShoppingCanvas) setShoppingCanvasOpen(true);
+  }, [shoppingCanvasEnabled, shouldResumeShoppingCanvas]);
 
   useEffect(() => {
     let active = true;

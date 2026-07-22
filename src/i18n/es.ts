@@ -1639,6 +1639,11 @@ const es = {
       later: "Mas tarde",
       dismiss: "Descartar",
     },
+    showVyvaReviewResume: {
+      kicker: "Show VYVA reciente",
+      title: "Continuar esta revision",
+      action: "Abrir",
+    },
   },
   concierge: {
     fastHelp: {
@@ -1759,6 +1764,9 @@ const es = {
       saved: "Guardado. Continua en Concierge cuando quieras.",
       error: "No he podido guardar ese paso. Intentalo de nuevo.",
     },
+        handoff: { kicker: "Mejor siguiente paso", explain: "Explicar", hideExplain: "Ocultar explicacion", actionsTitle: "Elige una accion segura", title: { scam: "Esto parece riesgoso", document: "Esto necesita revision", medicine: "Revisar antes de usar", health_visual: "Revisar antes de actuar", home_safety: "Hacer esto mas seguro", provider_deal: "Comparar antes de decidir" } },
+        evidence: { kicker: "Por que VYVA piensa esto", factsFound: "Datos encontrados", stillUncertain: "Aun incierto", noFacts: "Aun no hay un dato solido.", noUncertainty: "Nada mas marcado en este elemento.", confidence: { clear_risk: "Riesgo claro", needs_checking: "Necesita revision", not_enough_information: "Informacion insuficiente" } },
+        history: { kicker: "Show VYVA reciente", title: "Volver a una revision", actionSaved: "Accion guardada", noActionSaved: "Sin accion guardada", context: { scam: "Revision de estafa", document: "Documento", medicine: "Etiqueta de medicina", provider_deal: "Proveedor u oferta", home_safety: "Foto de casa", health_visual: "Foto de salud" } },
     contract: {
       finalConfirmation: "VYVA prepara primero. Tu confirmas antes de enviar, comprar, reservar, llamar, subir, entregar o compartir nada.",
       sections: {
@@ -1819,6 +1827,12 @@ const es = {
       },
       confirmation: "VYVA prepara primero el siguiente paso. Tu confirmas antes de enviar, comprar, reservar, llamar, subir o compartir nada.",
       action: {
+                do_not_reply: { label: "No responder", detail: "Mantenerlo en pausa por ahora." },
+        block_or_report: { label: "Bloquear o reportar", detail: "Preparar un reporte seguro." },
+        ask_someone: { label: "Preguntar a alguien", detail: "Compartir solo tras confirmar." },
+        ask_provider: { label: "Preguntar al proveedor", detail: "Preparar una pregunta clara." },
+        compare_options: { label: "Comparar opciones", detail: "Revisar alternativas primero." },
+        find_alternatives: { label: "Buscar alternativas", detail: "Buscar opciones mas seguras." },
         check_company: { label: "Revisar empresa", detail: "Mirar reputacion primero." },
         call_trusted_contact: { label: "Llamar a confianza", detail: "Pregunta a alguien de confianza." },
         save_report: { label: "Guardar o reportar", detail: "Conserva registro antes de actuar." },

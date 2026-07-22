@@ -5,6 +5,10 @@ import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice"
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback ?? key,
   }),

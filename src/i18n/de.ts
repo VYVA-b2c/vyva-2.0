@@ -1509,6 +1509,11 @@ const de = {
       later: "Spater",
       dismiss: "Ausblenden",
     },
+    showVyvaReviewResume: {
+      kicker: "Aktuelle Show VYVA",
+      title: "Diese Prufung fortsetzen",
+      action: "Offnen",
+    },
   },
   concierge: {
     fastHelp: {
@@ -1629,6 +1634,9 @@ const de = {
       saved: "Gespeichert. Weiter im Concierge, wenn du bereit bist.",
       error: "Ich konnte diesen Schritt nicht speichern. Bitte versuche es erneut.",
     },
+        handoff: { kicker: "Bester nachster Schritt", explain: "Erklaren", hideExplain: "Erklarung ausblenden", actionsTitle: "Sichere Aktion wahlen", title: { scam: "Das wirkt riskant", document: "Das muss gepruft werden", medicine: "Vor Nutzung prufen", health_visual: "Vor dem Handeln prufen", home_safety: "Das sicherer machen", provider_deal: "Vor Entscheidung vergleichen" } },
+        evidence: { kicker: "Warum VYVA das denkt", factsFound: "Gefundene Fakten", stillUncertain: "Noch unklar", noFacts: "Noch kein sicherer Fakt gefunden.", noUncertainty: "Nichts Weiteres an diesem Element markiert.", confidence: { clear_risk: "Klares Risiko", needs_checking: "Muss gepruft werden", not_enough_information: "Nicht genug Informationen" } },
+        history: { kicker: "Aktuelle Show VYVA", title: "Zu einer Prufung zuruckkehren", actionSaved: "Aktion gespeichert", noActionSaved: "Keine Aktion gespeichert", context: { scam: "Betrugscheck", document: "Dokument", medicine: "Medikamentenetikett", provider_deal: "Anbieter oder Angebot", home_safety: "Zuhause-Foto", health_visual: "Gesundheitsfoto" } },
     contract: {
       finalConfirmation: "VYVA bereitet zuerst vor. Sie bestatigen, bevor etwas gesendet, gekauft, gebucht, angerufen, hochgeladen, eingereicht oder geteilt wird.",
       sections: {
@@ -1689,6 +1697,12 @@ const de = {
       },
       confirmation: "VYVA bereitet zuerst den nachsten Schritt vor. Sie bestatigen, bevor etwas gesendet, gekauft, gebucht, angerufen, hochgeladen oder geteilt wird.",
       action: {
+                do_not_reply: { label: "Nicht antworten", detail: "Erst pausieren." },
+        block_or_report: { label: "Blockieren oder melden", detail: "Sichere Meldung vorbereiten." },
+        ask_someone: { label: "Jemanden fragen", detail: "Nur nach Bestatigung teilen." },
+        ask_provider: { label: "Anbieter fragen", detail: "Klare Frage vorbereiten." },
+        compare_options: { label: "Optionen vergleichen", detail: "Erst Auswahl prufen." },
+        find_alternatives: { label: "Alternativen finden", detail: "Sicherere Optionen suchen." },
         check_company: { label: "Firma prufen", detail: "Ruf zuerst ansehen." },
         call_trusted_contact: { label: "Vertrauen anrufen", detail: "Jemand Vertrautes fragen." },
         save_report: { label: "Speichern/melden", detail: "Vor dem Handeln sichern." },

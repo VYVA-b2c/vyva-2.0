@@ -8,6 +8,7 @@ import {
   mergeSyncedHomeFastHelpJourneys,
   startHomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
+import { SHOW_VYVA_REVIEW_HISTORY_KEY } from "@/lib/showVyvaReviewHistory";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -407,9 +408,10 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
-    expect(nudge).toHaveTextContent("Needs your OK");
-    expect(nudge).toHaveTextContent("Confirm your ride");
-    expect(nudge).toHaveTextContent("Waiting for your confirmation");
+    expect(nudge).toHaveTextContent("Ready to review");
+    expect(nudge).toHaveTextContent("Review your ride");
+    expect(screen.getByTestId("text-home-concierge-state-explanation")).toHaveTextContent("Check the summary before VYVA moves ahead with the ride.");
+    expect(nudge).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
     expect(screen.queryByTestId("button-home-concierge-follow-up")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-concierge-got-reply")).not.toBeInTheDocument();
@@ -420,7 +422,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
   });
 
   it("selects the actionable form instead of the first passive provider wait", () => {
@@ -459,12 +461,13 @@ describe("Home fast service actions", () => {
 
     const card = screen.getByTestId("card-home-concierge-resume");
     expect(card).toHaveAttribute("data-resume-kind", "form");
-    expect(card).toHaveTextContent("Confirm your admin task");
+    expect(card).toHaveTextContent("Review your admin task");
+    expect(card).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(card).not.toHaveTextContent("Radio Taxi");
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/insurance-form", {
       state: { focusRightNow: true, conciergePendingId: "insurance-form" },
     });
   });
@@ -506,7 +509,7 @@ describe("Home fast service actions", () => {
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_setup");
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/provider-setup", {
       state: { focusRightNow: true, conciergePendingId: "provider-setup" },
     });
   });
@@ -557,7 +560,58 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/show-vyva-scam-1", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
+  });
+
+  it("surfaces the latest unresolved Show VYVA review from Home without exposing raw reviewed content", () => {
+    window.localStorage.setItem(SHOW_VYVA_REVIEW_HISTORY_KEY, JSON.stringify([
+      {
+        id: "review-unresolved",
+        reviewedAt: "2026-07-19T10:00:00.000Z",
+        useCaseId: "provider_or_deal",
+        followUpContext: "provider_deal",
+        inputType: "company_name",
+        source: "paste_text",
+        summary: "Possible overcharging in a service quote.",
+        decision: "Check before agreeing",
+        confidenceLabel: "Needs review",
+        actionSaved: false,
+        savedActionLabel: null,
+        resumeRoute: "/scam-guard",
+      },
+      {
+        id: "review-saved",
+        reviewedAt: "2026-07-18T10:00:00.000Z",
+        useCaseId: "scam_check",
+        followUpContext: "scam",
+        inputType: "phone_number",
+        source: "paste_text",
+        summary: "Suspicious phone number.",
+        decision: "Do not call back yet",
+        confidenceLabel: "Clear risk",
+        actionSaved: true,
+        savedActionLabel: "Block or report",
+        resumeRoute: "/scam-guard",
+      },
+    ]));
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-show-vyva-review-resume");
+    expect(nudge).toHaveTextContent("Recent Show VYVA");
+    expect(nudge).toHaveTextContent("Continue this review");
+    expect(nudge).toHaveTextContent("Check before agreeing");
+    expect(nudge).toHaveTextContent("Possible overcharging in a service quote.");
+    expect(nudge).not.toHaveTextContent("+34 600 111 222");
+
+    fireEvent.click(nudge);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/scam-guard", {
+      state: {
+        showVyvaReviewHistoryId: "review-unresolved",
+        showVyvaResume: true,
+      },
+    });
   });
 
   it("surfaces a saved provider shortlist and opens the exact Concierge task", () => {
@@ -596,7 +650,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_shortlist");
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/shortlist-7", {
       state: { focusRightNow: true, conciergePendingId: "shortlist-7" },
     });
   });
@@ -632,8 +686,8 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
-    expect(nudge).toHaveTextContent("Confirm your home service");
-    expect(nudge).toHaveTextContent("Ready to save");
+    expect(nudge).toHaveTextContent("Review your home service");
+    expect(nudge).toHaveTextContent("Ready to review");
     expect(nudge).toHaveAttribute("data-resume-kind", "booking");
   });
 
@@ -682,7 +736,8 @@ describe("Home fast service actions", () => {
 
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Confirm your admin task");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your admin task");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "form");
     expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
@@ -724,10 +779,18 @@ describe("Home fast service actions", () => {
 
     const card = screen.getByTestId("card-home-concierge-reuse");
     expect(card).toHaveTextContent("Useful again");
+    expect(screen.getByTestId("badge-home-concierge-completed-state")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("text-home-concierge-reuse-explanation")).toHaveTextContent("saved");
     expect(card).toHaveTextContent("Use last ride again");
     expect(card).toHaveTextContent("Radio Taxi");
+    expect(screen.getByTestId("text-home-concierge-receipt-status")).toHaveTextContent("Receipt: Completed");
 
-    fireEvent.click(card);
+    fireEvent.click(screen.getByTestId("button-home-concierge-show-receipt"));
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("Ride saved with Radio Taxi.");
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("You can review this receipt");
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("City Clinic");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-use-template"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
       state: {
@@ -793,11 +856,11 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
 
     fireEvent.click(screen.getByTestId("button-home-concierge-follow-up"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", {
       state: {
         focusRightNow: true,
         conciergeProviderAction: {
@@ -809,7 +872,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-got-reply"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", {
       state: {
         focusRightNow: true,
         conciergeProviderAction: {

@@ -1,3 +1,10 @@
+import {
+  buildConciergeProviderReplyResolution,
+  parseConciergeProviderReplyResolution,
+  resetConciergeProviderReplyExternalExecution,
+  type ConciergeProviderReplyResolution,
+} from "./conciergeProviderReplyResolution";
+
 export const CONCIERGE_PROVIDER_TASK_STATUSES = [
   "waiting",
   "reply_received",
@@ -15,6 +22,7 @@ export type ConciergeProviderReplySnapshot = {
   source: ConciergeProviderReplySource;
   receivedAt: string | null;
   followUpRequiresConfirmation: boolean;
+  resolution: ConciergeProviderReplyResolution | null;
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -74,6 +82,16 @@ export function conciergeProviderReplySnapshot(
   }
   if (!status) return null;
 
+  const resolution = parseConciergeProviderReplyResolution(
+    payload.provider_reply_resolution || response.resolution,
+  ) || (reply ? buildConciergeProviderReplyResolution({
+    reply,
+    summary,
+    subject: text(payload.provider_inbound_subject) || text(payload.email_subject),
+    channel: text(payload.provider_inbound_channel) || text(payload.execution_channel),
+    knownFacts: payload,
+  }) : null);
+
   return {
     status,
     summary,
@@ -82,6 +100,7 @@ export function conciergeProviderReplySnapshot(
     receivedAt,
     followUpRequiresConfirmation: status !== "done"
       && payload.provider_follow_up_confirmed !== true,
+    resolution,
   };
 }
 
@@ -92,25 +111,39 @@ export function buildConciergeProviderReplyPatch(input: {
   source: ConciergeProviderReplySource;
   receivedAt?: string;
   details?: Record<string, unknown>;
+  resolution?: ConciergeProviderReplyResolution;
 }): Record<string, unknown> {
   const receivedAt = input.receivedAt ?? new Date().toISOString();
   const reply = input.reply.trim();
   const summary = input.summary.trim() || reply;
-  return {
+  const payload = {
     ...record(input.payload),
     ...record(input.details),
+  };
+  const resolution = input.resolution ?? buildConciergeProviderReplyResolution({
+    reply,
+    summary,
+    subject: text(payload.provider_inbound_subject) || text(payload.email_subject),
+    channel: text(payload.provider_inbound_channel) || text(payload.execution_channel),
+    knownFacts: payload,
+  });
+  const safePayload = resetConciergeProviderReplyExternalExecution(payload, receivedAt);
+  return {
+    ...safePayload,
     provider_task_status: "reply_received",
     provider_reply_status: "confirmed",
     provider_reply: reply,
     provider_response_summary: summary,
     provider_reply_received_at: receivedAt,
     provider_reply_source: input.source,
+    provider_reply_resolution: resolution,
     provider_response: {
       status: "reply_received",
       reply,
       summary,
       source: input.source,
       received_at: receivedAt,
+      resolution,
     },
     waiting_for_provider: false,
     provider_follow_up_requires_confirmation: true,
@@ -127,23 +160,35 @@ export function buildConciergeProviderActionNeededPatch(input: {
   question: string;
   source: ConciergeProviderReplySource;
   receivedAt?: string;
+  resolution?: ConciergeProviderReplyResolution;
 }): Record<string, unknown> {
   const receivedAt = input.receivedAt ?? new Date().toISOString();
   const question = input.question.trim();
+  const payload = record(input.payload);
+  const resolution = input.resolution ?? buildConciergeProviderReplyResolution({
+    reply: question,
+    summary: question,
+    subject: text(payload.provider_inbound_subject) || text(payload.email_subject),
+    channel: text(payload.provider_inbound_channel) || text(payload.execution_channel),
+    knownFacts: payload,
+  });
+  const safePayload = resetConciergeProviderReplyExternalExecution(payload, receivedAt);
   return {
-    ...record(input.payload),
+    ...safePayload,
     provider_task_status: "action_needed",
     provider_reply_status: "needs_more_info",
     provider_reply: question,
     provider_response_summary: question,
     provider_reply_received_at: receivedAt,
     provider_reply_source: input.source,
+    provider_reply_resolution: resolution,
     provider_response: {
       status: "action_needed",
       reply: question,
       summary: question,
       source: input.source,
       received_at: receivedAt,
+      resolution,
     },
     waiting_for_provider: false,
     provider_follow_up_requires_confirmation: true,
