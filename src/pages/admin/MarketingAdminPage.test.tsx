@@ -4805,6 +4805,11 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-1")).toHaveTextContent("Email send candidate");
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-1")).toHaveTextContent("2 reachable contacts match this audience");
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-2")).toHaveTextContent("Manual publishing asset");
+    expect(screen.getByTestId("marketing-content-channel-guidance-content-2")).toHaveTextContent("Use this for LinkedIn publishing");
+
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
     expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
