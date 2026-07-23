@@ -13250,7 +13250,12 @@ export default function MarketingAdminPage() {
   }, [campaignMetrics]);
 
   const scrollCampaignDetailIntoView = useCallback(() => {
-    window.setTimeout(() => campaignDetailPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      const panel = campaignDetailPanelRef.current;
+      if (typeof panel?.scrollIntoView === "function") {
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
   }, []);
 
   const startCampaignEdit = useCallback((campaign: Campaign) => {
@@ -31348,8 +31353,8 @@ export default function MarketingAdminPage() {
       key: "build-campaign",
       eyebrow: "Campaign",
       title: "Build a campaign",
-      value: campaigns.length ? `${campaigns.length}` : "New",
-      detail: "Choose who it is for, what message they get, and when it should go out.",
+      value: "Start",
+      detail: "Choose audience, channel, message, and timing.",
       state: "ready",
       actionLabel: "Start",
       icon: Sparkles,
@@ -31360,11 +31365,30 @@ export default function MarketingAdminPage() {
       },
     },
     {
+      key: "review-send",
+      eyebrow: "Email",
+      title: "Review/send email",
+      value: firstReadyEmailCampaign ? "Ready" : "Review",
+      detail: firstReadyEmailCampaign ? "Open the next campaign that can be reviewed for email send." : "Review campaign details before sending.",
+      state: firstReadyEmailCampaign ? "ready" : "planning",
+      actionLabel: "Open",
+      icon: Send,
+      onSelect: () => {
+        if (firstReadyEmailCampaign) {
+          openCampaignForNextAction(firstReadyEmailCampaign);
+          return;
+        }
+        setShowSimpleCampaignBuilder(false);
+        setActiveTab("dashboard");
+        setMessage("No email campaign is ready to send yet. Build or open a campaign first.");
+      },
+    },
+    {
       key: "manage-contacts",
       eyebrow: "Contacts",
-      title: "Manage people",
-      value: `${contactHealthTotal}`,
-      detail: "Review contacts, lists, consent, email, phone, and WhatsApp reachability.",
+      title: "Fix audience data",
+      value: "Open",
+      detail: "Clean contacts, lists, consent, email, phone, and WhatsApp.",
       state: contactHealthTotal > 0 ? "ready" : "planning",
       actionLabel: "Open",
       icon: UsersRound,
@@ -31377,29 +31401,15 @@ export default function MarketingAdminPage() {
     {
       key: "manage-content",
       eyebrow: "Content",
-      title: "Manage messages",
-      value: `${content.length}`,
-      detail: "Edit email templates, WhatsApp copy, social posts, and campaign message drafts.",
+      title: "Improve content",
+      value: "Open",
+      detail: "Edit templates, copy, social posts, and message drafts.",
       state: content.length > 0 ? "ready" : "planning",
       actionLabel: "Open",
       icon: FileText,
       onSelect: () => {
         setActiveTab("content");
         setMessage("Opened Content.");
-      },
-    },
-    {
-      key: "import-source",
-      eyebrow: "Import",
-      title: "Import from Source",
-      value: syncState.configured ? "Ready" : "Setup",
-      detail: "Pull the latest campaigns, contacts, content, audiences, and journeys into VYVA.",
-      state: syncState.configured ? "ready" : "needs_action",
-      actionLabel: "Open",
-      icon: RefreshCw,
-      onSelect: () => {
-        setActiveTab("settings");
-        setMessage(syncState.configured ? "Opened Import settings." : "Open Settings to finish Source import setup.");
       },
     },
   ];
@@ -32014,10 +32024,7 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
               </div>
 
-              <SectionCard
-                title="Choose a job"
-                subtitle="Pick one job. Everything detailed lives inside the next screen."
-              >
+              <SectionCard title="What do you want to do?">
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-quick-task-launcher">
                   {marketingQuickTaskItems.map((item) => {
                     const Icon = item.icon;
@@ -32027,18 +32034,15 @@ export default function MarketingAdminPage() {
                         type="button"
                         onClick={item.onSelect}
                         disabled={item.disabled}
-                        className="flex min-h-[150px] flex-col rounded-2xl border border-[#eadfd5] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="flex min-h-[112px] flex-col rounded-2xl border border-[#eadfd5] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
                         data-testid={`button-marketing-quick-task-${item.key}`}
                       >
                         <span className="flex items-start justify-between gap-3">
                           <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
                             <Icon size={18} aria-hidden="true" />
                           </span>
-                          <Pill className="bg-[#f5eefb] text-purple-800">{item.value}</Pill>
                         </span>
-                        <span className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-purple-800">{item.eyebrow}</span>
-                        <span className="mt-1 text-base font-black text-[#241133]">{item.title}</span>
-                        <span className="mt-2 line-clamp-3 text-xs font-bold leading-relaxed text-[#6b5b54]">{item.detail}</span>
+                        <span className="mt-3 text-base font-black text-[#241133]">{item.title}</span>
                         <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-black text-purple-700">
                           {item.actionLabel} <ExternalLink size={12} aria-hidden="true" />
                         </span>
@@ -37509,7 +37513,7 @@ export default function MarketingAdminPage() {
                 </div>
               </SectionCard>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
+              <div className="hidden">
                 <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
                   {campaignPriorityLane ? (
                     <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${readinessClass(campaignPriorityLane.readiness.state)}`} data-testid="marketing-campaign-priority-lane">
