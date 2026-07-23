@@ -7,6 +7,17 @@ import "./gallery.css";
 import "./integration.css";
 
 const en: RefillCanvasCopy = {
+  agentPresence: {
+    idleLabel: "VYVA is ready",
+    idleDescription: "You can speak or use the screen.",
+    listeningLabel: "Listening with you",
+    listeningDescription: "You can say the medication or tap a card.",
+    speakingLabel: "VYVA is speaking",
+    speakingDescription: "The screen will stay on the same step.",
+    thinkingLabel: "Checking refill details",
+    thinkingDescription: "VYVA is keeping the safe refill boundary visible.",
+    accessibleLabel: "VYVA refill voice status",
+  },
   listening: {
     status: "Listening",
     title: "Let's prepare your medication refill",
@@ -151,6 +162,17 @@ const en: RefillCanvasCopy = {
 
 const es: RefillCanvasCopy = {
   ...en,
+  agentPresence: {
+    idleLabel: "VYVA lista",
+    idleDescription: "Puedes hablar o tocar la pantalla.",
+    listeningLabel: "Escuchando contigo",
+    listeningDescription: "Puedes decir el medicamento o tocar una tarjeta.",
+    speakingLabel: "VYVA está hablando",
+    speakingDescription: "La pantalla seguirá en el mismo paso.",
+    thinkingLabel: "Revisando la renovación",
+    thinkingDescription: "VYVA mantiene visible el límite seguro de la renovación.",
+    accessibleLabel: "Estado de voz de VYVA para la renovación",
+  },
   listening: {
     status: "Escuchando",
     title: "Preparemos la renovación de tu medicamento",

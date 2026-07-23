@@ -262,6 +262,16 @@ describe("ProviderReplyVoiceCanvas", () => {
     expect(onSaveReply).not.toHaveBeenCalled();
   });
 
+  it("shows the VYVA voice-status band on the first provider reply decision", () => {
+    render(<ProviderReplyVoiceCanvas {...props({ context: richIntentContext })} />);
+
+    click("Start");
+
+    expect(screen.getByLabelText("VYVA provider reply voice status")).toHaveTextContent("Voice ready");
+    expect(screen.getByLabelText("VYVA provider reply voice status")).toHaveTextContent("Use voice or touch.");
+    expect(screen.getByTestId("voice-canvas-agent-orb-provider-reply-context")).toBeInTheDocument();
+  });
+
   it("keeps urgent provider reply intent blocked and safe", () => {
     const onSaveReply = vi.fn();
     render(<ProviderReplyVoiceCanvas {...props({ context: richIntentContext, onSaveReply })} />);
