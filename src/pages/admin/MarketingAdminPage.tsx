@@ -1820,9 +1820,10 @@ function formatChannelList(channels: Channel[]) {
   return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
-function simpleCampaignObjective(goalTitle: string, channel: Channel) {
+function simpleCampaignObjective(goalTitle: string, channels: Channel | Channel[]) {
   const goal = goalTitle.trim() || "this campaign";
-  return `Create one ${channelLabel[channel]} campaign for "${goal}". Use the selected message only for ${channelLabel[channel]}. Keep the CTA, owner, and follow-up route clear.`;
+  const selectedChannels = Array.isArray(channels) ? channels : [channels];
+  return `Internal notes for "${goal}". Selected channels: ${formatChannelList(selectedChannels)}. Keep the CTA, owner, approval, and follow-up route clear. Customer-facing copy is selected separately for each channel.`;
 }
 
 function isGeneratedSimpleCampaignObjective(value: string) {
@@ -22068,21 +22069,24 @@ export default function MarketingAdminPage() {
   function applyCampaignPlannerGoalStarter(starter: CampaignPlannerGoalStarter) {
     const primaryChannel = starter.channels[0] ?? starter.play.defaultChannel;
     const scheduleStartsAt = campaignStudioDefaultSchedule(starter.play);
-    const matchedContent = bestCampaignPlannerContent(starter.play, primaryChannel, content);
-    const contentIds = { [primaryChannel]: matchedContent?.id ?? "" } as Partial<Record<Channel, string>>;
+    const selectedChannels = uniqueChannels(starter.channels.length ? starter.channels : [primaryChannel]);
+    const contentIds = Object.fromEntries(selectedChannels.map((channel) => [
+      channel,
+      bestCampaignPlannerContent(starter.play, channel, content)?.id ?? "",
+    ])) as Partial<Record<Channel, string>>;
     const starterContent = contentIds[primaryChannel] ?? "";
     setCampaignDraft({
       ...emptyCampaignDraft(),
       name: starter.preset.title,
       audienceType: starter.play.audienceType,
       channel: primaryChannel,
-      channels: [primaryChannel],
+      channels: selectedChannels,
       contentAssetId: starterContent,
       channelContentAssetIds: contentIds,
       status: scheduleStartsAt ? "scheduled" : "draft",
       scheduleStartsAt,
       scheduleEndsAt: "",
-      objective: simpleCampaignObjective(starter.preset.title, primaryChannel),
+      objective: simpleCampaignObjective(starter.preset.title, selectedChannels),
       targetAudienceId: starter.targetAudience?.id ?? "",
       recipientFilter: "",
       snapshotRecipients: starter.reachableContacts > 0,
@@ -22095,7 +22099,7 @@ export default function MarketingAdminPage() {
       setContentTemplateAudienceFilter("all");
       setContentTemplateCategoryFilter("all");
     }
-    setCampaignStudioFeedback(`Goal loaded: ${starter.preset.title} as a ${channelLabel[primaryChannel]} campaign.`);
+    setCampaignStudioFeedback(`Goal loaded: ${starter.preset.title} with ${formatChannelList(selectedChannels)}.`);
     setMessage(`${starter.preset.title} loaded into the planner. Review content, audience, and preflight before adding the campaign.`);
   }
 
@@ -32147,72 +32151,151 @@ export default function MarketingAdminPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <div data-testid="marketing-simple-channel-question">
-                        <p className="text-sm font-black text-[#241133]">3. Which channel?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one primary channel for this campaign.</p>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                          {CHANNELS.map((channel) => (
-                            <button
-                              key={channel}
-                              type="button"
-                              onClick={() => setCampaignDraft((draft) => {
-                                const shouldRefreshNote = !draft.objective.trim()
-                                  || isGeneratedSimpleCampaignObjective(draft.objective)
-                                  || campaignGoalPresets.some((preset) => preset.brief === draft.objective);
-                                return {
-                                  ...draft,
-                                  channel,
-                                  channels: [channel],
-                                  contentAssetId: draft.channelContentAssetIds[channel] ?? "",
-                                  objective: shouldRefreshNote ? simpleCampaignObjective(draft.name, channel) : draft.objective,
-                                };
-                              })}
-                              className={`min-h-11 rounded-xl border px-3 text-sm font-black ${campaignDraft.channel === channel ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-300"}`}
-                              data-testid={`button-marketing-simple-channel-${channel}`}
-                            >
-                              {channelLabel[channel]}
-                            </button>
-                          ))}
+                    <div className="grid gap-4" data-testid="marketing-simple-channel-plan">
+                      <div>
+                        <p className="text-sm font-black text-[#241133]">3. Channels</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Choose one channel or build a multi-channel campaign. Each channel gets its own message/template.</p>
+                        <div className="mt-3 grid gap-2 md:grid-cols-5">
+                          {campaignPlannerChannelPacks.map((pack) => {
+                            const isSelected = pack.channels.length === campaignDraftSelectedChannels.length
+                              && pack.channels.every((channel, index) => campaignDraftSelectedChannels[index] === channel);
+                            return (
+                              <button
+                                key={pack.id}
+                                type="button"
+                                onClick={() => setCampaignDraft((draft) => {
+                                  const nextContentIds = { ...draft.channelContentAssetIds };
+                                  const nextPrimary = pack.channels[0] ?? "email";
+                                  return {
+                                    ...draft,
+                                    channel: nextPrimary,
+                                    channels: pack.channels,
+                                    contentAssetId: nextContentIds[nextPrimary] ?? "",
+                                    channelContentAssetIds: nextContentIds,
+                                  };
+                                })}
+                                className={`min-h-[72px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 ${isSelected ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133]"}`}
+                                data-testid={`button-marketing-simple-channel-pack-${pack.id}`}
+                              >
+                                <span className="block text-sm font-black">{pack.label}</span>
+                                <span className={`mt-1 block text-xs font-bold ${isSelected ? "text-white/80" : "text-[#7d6b65]"}`}>{formatChannelList(pack.channels)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {CHANNELS.map((channel) => {
+                            const isSelected = campaignDraftSelectedChannels.includes(channel);
+                            return (
+                              <button
+                                key={channel}
+                                type="button"
+                                onClick={() => setCampaignDraft((draft) => {
+                                  const currentChannels = campaignDraftChannels(draft);
+                                  const nextChannels = isSelected
+                                    ? currentChannels.filter((item) => item !== channel)
+                                    : [...currentChannels, channel];
+                                  const safeChannels = nextChannels.length ? nextChannels : [channel];
+                                  const nextPrimary = safeChannels.includes(draft.channel) ? draft.channel : safeChannels[0];
+                                  return {
+                                    ...draft,
+                                    channel: nextPrimary,
+                                    channels: safeChannels,
+                                    contentAssetId: draft.channelContentAssetIds[nextPrimary] ?? (nextPrimary === draft.channel ? draft.contentAssetId : ""),
+                                  };
+                                })}
+                                className={`inline-flex min-h-10 items-center justify-center rounded-xl border px-3 text-sm font-black ${isSelected ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-300"}`}
+                                data-testid={`button-marketing-simple-channel-${channel}`}
+                              >
+                                {isSelected ? "Selected: " : "+ "}{channelLabel[channel]}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
                       <div data-testid="marketing-simple-message-question">
-                        <p className="text-sm font-black text-[#241133]">4. What message should they get?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">This is the actual content/template the person will receive. Choose one, or write it later.</p>
-                        <Field label="Message/content">
-                          <select
-                            className={inputClass}
-                            value={campaignDraft.contentAssetId}
-                            onChange={(event) => {
-                              const contentAssetId = event.target.value;
-                              setCampaignDraft((draft) => ({
-                                ...draft,
-                                contentAssetId,
-                                channelContentAssetIds: {
-                                  ...draft.channelContentAssetIds,
-                                  [draft.channel]: contentAssetId,
-                                },
-                              }));
-                            }}
-                            data-testid="select-marketing-simple-message"
-                          >
-                            <option value="">Draft message later</option>
-                            {campaignDraftContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                          </select>
-                        </Field>
+                        <p className="text-sm font-black text-[#241133]">4. Messages/templates</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick an existing content-library item per channel, or leave a channel as write later.</p>
+                        <div className="mt-3 grid gap-3">
+                          {campaignDraftSelectedChannels.map((channel) => {
+                            const options = campaignDraftContentOptionsByChannel.get(channel) ?? [];
+                            const selectedId = campaignDraftContentIdByChannel[channel] ?? "";
+                            const selectedAsset = selectedId ? contentById.get(selectedId) ?? null : null;
+                            return (
+                              <div key={channel} className="grid gap-3 rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-3 lg:grid-cols-[160px_minmax(0,1fr)_auto] lg:items-center" data-testid={`marketing-simple-channel-row-${channel}`}>
+                                <div>
+                                  <Pill className={channelClass(channel)}>{channelLabel[channel]}</Pill>
+                                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">{channel === "email" ? "Can be sent by VYVA after review" : "Saved for manual handoff/tracking"}</p>
+                                </div>
+                                <select
+                                  className={inputClass}
+                                  value={selectedId}
+                                  onChange={(event) => {
+                                    const contentAssetId = event.target.value;
+                                    setCampaignDraft((draft) => ({
+                                      ...draft,
+                                      contentAssetId: channel === draft.channel ? contentAssetId : draft.contentAssetId,
+                                      channelContentAssetIds: {
+                                        ...draft.channelContentAssetIds,
+                                        [channel]: contentAssetId,
+                                      },
+                                    }));
+                                  }}
+                                  data-testid={`select-marketing-simple-message-${channel}`}
+                                >
+                                  <option value="">Write {channelLabel[channel]} message later</option>
+                                  {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                                </select>
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedAsset ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => previewContent(selectedAsset)}
+                                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                                        data-testid={`button-marketing-simple-preview-message-${channel}`}
+                                      >
+                                        <Eye size={13} /> Preview
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => startContentEdit(selectedAsset)}
+                                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                                        data-testid={`button-marketing-simple-edit-message-${channel}`}
+                                      >
+                                        <Pencil size={13} /> Edit
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => void createCampaignPlannerContentForChannel(channel)}
+                                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={contentSaving}
+                                      data-testid={`button-marketing-simple-create-message-${channel}`}
+                                    >
+                                      <Plus size={13} /> Create draft
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
-                      <Field label="5. Notes">
+                      <Field label="5. Internal notes">
                         <textarea
                           className={`${textareaClass} min-h-[110px]`}
                           value={campaignDraft.objective}
                           onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))}
-                          placeholder={`What should this ${channelLabel[campaignDraft.channel]} campaign say or achieve?`}
+                          placeholder="Internal notes only: goal, owner, approval, follow-up, constraints. Not sent to the customer."
                           data-testid="textarea-marketing-simple-objective"
                         />
+                        <p className="mt-2 text-xs font-bold text-[#7d6b65]">These notes stay inside admin. The customer-facing message is selected above per channel.</p>
                       </Field>
                       <div className="grid gap-3">
                         {campaignDraft.status === "scheduled" ? (
@@ -32239,6 +32322,15 @@ export default function MarketingAdminPage() {
                         <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={campaignSaving} data-testid="button-marketing-simple-create-campaign">
                           <Plus size={16} /> {campaignSaving ? "Saving..." : "Save campaign"}
                         </button>
+                        <div className="rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-simple-review-summary">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Review</p>
+                          <p className="mt-1 text-sm font-black text-[#241133]">{formatChannelList(campaignDraftSelectedChannels)}</p>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                            {campaignDraftMissingContentChannels.length
+                              ? `${formatChannelList(campaignDraftMissingContentChannels)} still need message/template choices.`
+                              : "Every selected channel has a message/template."}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </form>
