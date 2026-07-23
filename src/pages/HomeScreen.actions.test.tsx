@@ -276,6 +276,7 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
@@ -289,6 +290,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
     expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("home-fast-help")).getAllByRole("button")).toHaveLength(3);
   });
 
   it("uses live signals for concise pillar card nudges", () => {
