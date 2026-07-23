@@ -4559,7 +4559,7 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign audience reach brief copied.");
     });
     const plannerTemplateRecommendations = within(screen.getByTestId("marketing-campaign-planner-template-recommendations"));
-    fireEvent.click(plannerTemplateRecommendations.getAllByRole("button", { name: /Apply to planner/i })[0]);
+    fireEvent.click(plannerTemplateRecommendations.getAllByTestId(/^button-marketing-campaign-planner-apply-template-pack-/)[0]);
     expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).toContain("campaign");
     expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Planner kit loaded:");
   });
@@ -4570,8 +4570,7 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
 
     const goalStarterPanel = within(screen.getByTestId("marketing-campaign-planner-goal-starters"));
-    const [firstGoalStarter] = goalStarterPanel.getAllByRole("button");
-    fireEvent.click(firstGoalStarter);
+    fireEvent.click(goalStarterPanel.getAllByTestId(/^button-marketing-campaign-planner-goal-/)[0]);
 
     expect((screen.getByTestId("input-marketing-campaign-name") as HTMLInputElement).value).not.toEqual("");
     expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("Create");
