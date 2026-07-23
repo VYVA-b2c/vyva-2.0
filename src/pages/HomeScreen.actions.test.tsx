@@ -291,6 +291,8 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("home-fast-help")).getAllByRole("button")).toHaveLength(3);
+    expect(screen.getByTestId("home-master-start-nudge")).toHaveTextContent("Not sure where to start?");
+    expect(screen.getByTestId("button-home-start-nudge-voice")).toHaveTextContent("Ask");
   });
 
   it("uses live signals for concise pillar card nudges", () => {

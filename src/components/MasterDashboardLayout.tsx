@@ -236,7 +236,7 @@ export default function MasterDashboardLayout({
                 onClick={card.onClick}
                 data-testid={card.testId}
                 aria-label={cardAriaLabel}
-                className="vyva-tap group flex min-h-[126px] flex-col items-start justify-between rounded-[18px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[138px] min-[390px]:rounded-[20px] min-[390px]:p-3.5 sm:min-h-[148px] sm:p-4"
+                className="vyva-tap group flex min-h-[108px] flex-col items-start justify-between rounded-[18px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[118px] min-[390px]:rounded-[20px] min-[390px]:p-3.5 sm:min-h-[126px] sm:p-4"
                 style={{ borderColor: card.tone.border, background: card.tone.surface ?? "#FFFFFF" }}
               >
                 <span className="flex w-full items-start justify-between gap-2">
@@ -255,7 +255,7 @@ export default function MasterDashboardLayout({
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-5 min-w-0 pr-1">
+                <span className="mt-3 min-w-0 pr-1">
                   <span className="block font-body text-[18px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[20px]">
                     {card.title}
                   </span>
@@ -310,7 +310,7 @@ export default function MasterDashboardLayout({
                 aria-label={actionAriaLabel}
                 aria-expanded={action.expanded}
                 aria-controls={action.controls}
-                className="vyva-tap flex !min-h-[66px] w-full min-w-0 items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[72px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
+                className="vyva-tap flex !min-h-[62px] w-full min-w-0 items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[68px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
                 style={{ borderColor: action.tone.border }}
               >
                 <span
