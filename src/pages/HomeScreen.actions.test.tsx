@@ -278,17 +278,18 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Mind");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Community");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Concierge");
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Today");
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("5 min");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Join");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Help");
-    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
-    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes, thinking");
-    expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
-    expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
+    expect(screen.getByTestId("home-pillar-cards")).toHaveTextContent("Choose a category");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Medication, vitals, symptoms");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Memory, reflexes");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Rooms, matches");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Help, rides, orders");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("home-fast-help")).getAllByRole("button")).toHaveLength(3);
     expect(screen.getByTestId("home-master-start-nudge")).toHaveTextContent("Not sure where to start?");
@@ -891,7 +892,7 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
@@ -1252,8 +1253,8 @@ describe("Home fast service actions", () => {
   it("renders the session-aware main hero CTA", () => {
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
-    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveTextContent("Talk to VYVA");
   });
 
   it("keeps the Home hero greeting on the user's first name", () => {

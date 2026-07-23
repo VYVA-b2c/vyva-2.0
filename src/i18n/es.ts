@@ -1597,7 +1597,9 @@ const es = {
   home: {
     master: {
       heroEyebrow: "Hoy",
+      heroSubtitle: "Estoy aqui para salud, memoria, personas y ayuda diaria.",
       voiceSupport: "Hablar cuando quieras",
+      chooseCategory: "Elige una categoria",
       startNudge: {
         title: "No sabes por donde empezar?",
         detail: "Cuenta a VYVA que tienes en mente.",
@@ -1607,13 +1609,21 @@ const es = {
       },
       cards: {
         health: "Mi salud",
+        healthShortTitle: "Mi salud",
         healthDetail: "Medicacion, constantes y sintomas",
+        healthDetailShort: "Medicacion, constantes, sintomas",
         mindMemory: "Mi mente",
+        mindMemoryShortTitle: "Mente",
         mindMemoryDetail: "Memoria, reflejos y calma",
+        mindMemoryDetailShort: "Memoria, reflejos",
         community: "Mi comunidad",
+        communityShortTitle: "Comunidad",
         communityDetail: "Salas, encuentros y momentos",
+        communityDetailShort: "Salas, encuentros",
         concierge: "Mi concierge",
+        conciergeShortTitle: "Concierge",
         conciergeDetail: "Reservas, recados y ayuda",
+        conciergeDetailShort: "Ayuda, viajes, pedidos",
       },
       badges: {
         today: "Hoy",

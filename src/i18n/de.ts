@@ -1467,7 +1467,9 @@ const de = {
   home: {
     master: {
       heroEyebrow: "Heute",
+      heroSubtitle: "Ich bin fur Gesundheit, Gedachtnis, Menschen und Alltagshilfe da.",
       voiceSupport: "Jederzeit sprechen",
+      chooseCategory: "Kategorie auswahlen",
       startNudge: {
         title: "Nicht sicher, wo anfangen?",
         detail: "Sagen Sie VYVA, was Sie beschaftigt.",
@@ -1477,13 +1479,21 @@ const de = {
       },
       cards: {
         health: "Meine Gesundheit",
+        healthShortTitle: "Gesundheit",
         healthDetail: "Medikamente, Vitalwerte und Symptome",
+        healthDetailShort: "Medikamente, Werte, Symptome",
         mindMemory: "Mein Geist",
+        mindMemoryShortTitle: "Geist",
         mindMemoryDetail: "Gedachtnis, Reflexe und Ruhe",
+        mindMemoryDetailShort: "Gedachtnis, Reflexe",
         community: "Meine Gemeinschaft",
+        communityShortTitle: "Gemeinschaft",
         communityDetail: "Raume, Treffen und Momente",
+        communityDetailShort: "Raume, Treffen",
         concierge: "Mein Concierge",
+        conciergeShortTitle: "Concierge",
         conciergeDetail: "Buchungen, Erledigungen und Hilfe",
+        conciergeDetailShort: "Hilfe, Fahrten, Bestellungen",
       },
       badges: {
         today: "Heute",
