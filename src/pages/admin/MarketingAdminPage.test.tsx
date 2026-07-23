@@ -902,9 +902,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("9% click rate");
     expect(screen.getByTestId("marketing-performance-insights")).toHaveTextContent("Deliverability clean");
     expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Build a campaign");
-    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Manage people");
-    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Manage messages");
-    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Import from Source");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Review/send email");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Fix audience data");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).toHaveTextContent("Improve content");
+    expect(screen.getByTestId("marketing-quick-task-launcher")).not.toHaveTextContent("Import from Source");
     fireEvent.click(screen.getByTestId("button-marketing-quick-task-manage-contacts"));
     expect(screen.getByTestId("marketing-contacts-tab")).toBeInTheDocument();
     expect(screen.getByText("Opened Contacts.")).toBeInTheDocument();
