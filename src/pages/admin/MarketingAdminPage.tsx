@@ -12288,122 +12288,151 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   const fieldCoverage = syncFieldCoverageItems(run.summary);
   const exportMetadata = syncExportMetadata(run.summary);
   const hasExportMetadata = Boolean(exportMetadata.dataset || exportMetadata.exportedAt || exportMetadata.cursor || exportMetadata.apiUrl || exportMetadata.topLevelKeys.length);
+  const importedPreview = imported.slice(0, 4);
+  const importedExtraCount = Math.max(imported.length - importedPreview.length, 0);
+  const reviewCount = skipped.reduce((total, item) => total + item.value, 0) + unmappedCount + unmappedCampaignRecipientCount;
+  const completeCount = parity.filter((item) => item.status === "complete").length;
   if (!exported.length && !imported.length && !skipped.length && !parity.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length && !hasExportMetadata) return null;
   return (
-    <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
-      {hasExportMetadata ? (
-        <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-950" data-testid={`marketing-sync-export-metadata-${run.id}`}>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p className="uppercase tracking-[0.12em] text-blue-800">Source export snapshot</p>
-              <p className="mt-1 font-black">Dataset: {exportMetadata.dataset || "unknown"}</p>
-              {exportMetadata.exportedAt ? <p className="mt-1 font-semibold">Exported at {formatDate(exportMetadata.exportedAt)}</p> : null}
-              {exportMetadata.apiUrl ? <p className="mt-1 font-semibold">Endpoint: {exportMetadata.apiUrl}</p> : null}
-              {exportMetadata.cursor ? <p className="mt-1 font-semibold">Cursor: {exportMetadata.cursor}</p> : null}
+    <div className="mt-3 grid gap-2 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {importedPreview.length ? importedPreview.map((item) => (
+            <Pill key={`sync-compact-imported-${run.id}-${item.key}`} className="bg-emerald-50 text-emerald-800">{item.label}: {item.value}</Pill>
+          )) : <Pill className="bg-[#f5eee8] text-[#7d6b65]">No counts reported</Pill>}
+          {importedExtraCount ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{importedExtraCount} more</Pill> : null}
+        </div>
+        <Pill className={reviewCount ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>
+          {reviewCount ? `${reviewCount} to review` : completeCount ? `${completeCount} checks ok` : "Imported"}
+        </Pill>
+      </div>
+      <details>
+        <summary className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-3 text-xs font-black text-[#241133]">
+          View import details
+        </summary>
+        <div className="mt-3 grid gap-2" data-testid={`marketing-sync-details-${run.id}`}>
+          {hasExportMetadata ? (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-950" data-testid={`marketing-sync-export-metadata-${run.id}`}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="uppercase tracking-[0.12em] text-blue-800">Source export snapshot</p>
+                  <p className="mt-1 font-black">Dataset: {exportMetadata.dataset || "unknown"}</p>
+                  {exportMetadata.exportedAt ? <p className="mt-1 font-semibold">Exported at {formatDate(exportMetadata.exportedAt)}</p> : null}
+                  {exportMetadata.apiUrl ? <p className="mt-1 font-semibold">Endpoint: {exportMetadata.apiUrl}</p> : null}
+                  {exportMetadata.cursor ? <p className="mt-1 font-semibold">Cursor: {exportMetadata.cursor}</p> : null}
+                </div>
+                <Pill className="bg-white text-blue-800">imported snapshot</Pill>
+              </div>
+              {exportMetadata.topLevelKeys.length ? (
+                <p className="mt-2 rounded-lg bg-white p-2 font-semibold text-[#5b4a46]">
+                  Top-level export keys: {exportMetadata.topLevelKeys.slice(0, 18).join(", ")}{exportMetadata.topLevelKeys.length > 18 ? `, +${exportMetadata.topLevelKeys.length - 18} more` : ""}
+                </p>
+              ) : null}
             </div>
-            <Pill className="bg-white text-blue-800">imported snapshot</Pill>
-          </div>
-          {exportMetadata.topLevelKeys.length ? (
-            <p className="mt-2 rounded-lg bg-white p-2 font-semibold text-[#5b4a46]">
-              Top-level export keys: {exportMetadata.topLevelKeys.slice(0, 18).join(", ")}{exportMetadata.topLevelKeys.length > 18 ? `, +${exportMetadata.topLevelKeys.length - 18} more` : ""}
-            </p>
+          ) : null}
+          {parity.length ? (
+            <div data-testid={`marketing-sync-parity-${run.id}`}>
+              <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Parity checklist</p>
+              <div className="mt-1 grid gap-1.5 sm:grid-cols-2">
+                {parity.map((item) => {
+                  const className = item.status === "missing"
+                    ? "border-red-100 bg-red-50 text-red-800"
+                    : item.status === "review"
+                      ? "border-amber-100 bg-amber-50 text-amber-800"
+                      : item.status === "derived"
+                        ? "border-blue-100 bg-blue-50 text-blue-800"
+                        : "border-emerald-100 bg-emerald-50 text-emerald-800";
+                  const detail = item.status === "missing"
+                    ? `${item.missing} missing`
+                    : item.status === "review"
+                      ? `${item.skipped} skipped`
+                      : item.status === "derived"
+                        ? "VYVA-only"
+                        : "complete";
+                  return (
+                    <div key={item.key} className={`rounded-lg border px-3 py-2 ${className}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-black">{item.label}</span>
+                        <span>{detail}</span>
+                      </div>
+                      <p className="mt-1 font-semibold">Source {item.exported} / VYVA {item.imported}</p>
+                      <p className="mt-1 font-semibold opacity-80">{syncParityExplanation(item)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+          {exported.length ? (
+            <div>
+              <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Exported by source</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {exported.map((item) => <Pill key={`exported-${item.key}`} className="bg-blue-50 text-blue-800">{item.label}: {item.value}</Pill>)}
+              </div>
+            </div>
+          ) : null}
+          {imported.length ? (
+            <div>
+              <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Imported into VYVA</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {imported.map((item) => <Pill key={`imported-${item.key}`} className="bg-emerald-50 text-emerald-800">{item.label}: {item.value}</Pill>)}
+              </div>
+            </div>
+          ) : null}
+          {skipped.length || unmappedCount || unmappedCampaignRecipientCount ? (
+            <div>
+              <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Needs review</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {skipped.map((item) => <Pill key={`skipped-${item.key}`} className="bg-amber-50 text-amber-800">Skipped {item.label}: {item.value}</Pill>)}
+                {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
+                {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
+              </div>
+              {unmappedSample.length ? <p className="mt-2 font-semibold">Examples: {unmappedSample.join(", ")}</p> : null}
+            </div>
+          ) : null}
+          {fieldCoverage.length ? (
+            <div>
+              <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Field coverage</p>
+              <div className="mt-1 grid gap-1.5">
+                {fieldCoverage.map((item) => (
+                  <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
+                    <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
+                    {item.metadataOnly ? (
+                      <p className="mt-1 font-semibold">Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 6)}</p>
+                    ) : (
+                      <p className="mt-1 font-semibold text-emerald-700">All exported fields are editable first-class fields.</p>
+                    )}
+                    {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
+                      <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-sync-field-coverage-${run.id}-${item.entity}`}>
+                        <summary className="cursor-pointer font-black text-[#241133]">View field map</summary>
+                        <div className="mt-2 grid gap-2">
+                          {item.metadataOnlyFields.length ? (
+                            <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
+                          ) : null}
+                          {item.firstClassFields.length ? (
+                            <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
+                          ) : null}
+                          {item.exportedFields.length ? (
+                            <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
+                          ) : null}
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : null}
         </div>
-      ) : null}
-      {parity.length ? (
-        <div data-testid={`marketing-sync-parity-${run.id}`}>
-          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Parity checklist</p>
-          <div className="mt-1 grid gap-1.5 sm:grid-cols-2">
-            {parity.map((item) => {
-              const className = item.status === "missing"
-                ? "border-red-100 bg-red-50 text-red-800"
-                : item.status === "review"
-                  ? "border-amber-100 bg-amber-50 text-amber-800"
-                  : item.status === "derived"
-                    ? "border-blue-100 bg-blue-50 text-blue-800"
-                    : "border-emerald-100 bg-emerald-50 text-emerald-800";
-              const detail = item.status === "missing"
-                ? `${item.missing} missing`
-                : item.status === "review"
-                  ? `${item.skipped} skipped`
-                  : item.status === "derived"
-                    ? "VYVA-only"
-                    : "complete";
-              return (
-                <div key={item.key} className={`rounded-lg border px-3 py-2 ${className}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-black">{item.label}</span>
-                    <span>{detail}</span>
-                  </div>
-                  <p className="mt-1 font-semibold">Source {item.exported} / VYVA {item.imported}</p>
-                  <p className="mt-1 font-semibold opacity-80">{syncParityExplanation(item)}</p>
-                </div>
-              );
-            })}
-          </div>
+      </details>
+      <details>
+        <summary className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700">
+          Where data appears
+        </summary>
+        <div className="mt-3">
+          <SourceDestinationMap summary={run.summary} />
         </div>
-      ) : null}
-      {exported.length ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Exported by source</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {exported.map((item) => <Pill key={`exported-${item.key}`} className="bg-blue-50 text-blue-800">{item.label}: {item.value}</Pill>)}
-          </div>
-        </div>
-      ) : null}
-      {imported.length ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Imported into VYVA</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {imported.map((item) => <Pill key={`imported-${item.key}`} className="bg-emerald-50 text-emerald-800">{item.label}: {item.value}</Pill>)}
-          </div>
-        </div>
-      ) : null}
-      {skipped.length || unmappedCount || unmappedCampaignRecipientCount ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Needs review</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {skipped.map((item) => <Pill key={`skipped-${item.key}`} className="bg-amber-50 text-amber-800">Skipped {item.label}: {item.value}</Pill>)}
-            {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
-            {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
-          </div>
-          {unmappedSample.length ? <p className="mt-2 font-semibold">Examples: {unmappedSample.join(", ")}</p> : null}
-        </div>
-      ) : null}
-      {fieldCoverage.length ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Field coverage</p>
-          <div className="mt-1 grid gap-1.5">
-            {fieldCoverage.map((item) => (
-              <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
-                <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
-                {item.metadataOnly ? (
-                  <p className="mt-1 font-semibold">Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 6)}</p>
-                ) : (
-                  <p className="mt-1 font-semibold text-emerald-700">All exported fields are editable first-class fields.</p>
-                )}
-                {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
-                  <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-sync-field-coverage-${run.id}-${item.entity}`}>
-                    <summary className="cursor-pointer font-black text-[#241133]">View field map</summary>
-                    <div className="mt-2 grid gap-2">
-                      {item.metadataOnlyFields.length ? (
-                        <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
-                      ) : null}
-                      {item.firstClassFields.length ? (
-                        <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
-                      ) : null}
-                      {item.exportedFields.length ? (
-                        <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
-                      ) : null}
-                    </div>
-                  </details>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <SourceDestinationMap summary={run.summary} />
+      </details>
     </div>
   );
 }
