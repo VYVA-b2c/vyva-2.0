@@ -177,12 +177,11 @@ export default function MasterDashboardLayout({
       {showLauncher ? <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
-          "mt-4 overflow-hidden border bg-white shadow-[0_14px_32px_rgba(63,45,35,0.07)]",
           isHomeMaster
-            ? "rounded-[24px] p-4 min-[390px]:rounded-[26px] min-[390px]:p-4"
-            : "rounded-[24px] p-4 min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
+            ? "mt-3"
+            : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
-        style={{
+        style={isHomeMaster ? undefined : {
           borderColor: heroTone.border,
           backgroundColor: heroTone.surface ?? "#FFFFFF",
           backgroundImage: heroBackgroundImage.join(", "),
