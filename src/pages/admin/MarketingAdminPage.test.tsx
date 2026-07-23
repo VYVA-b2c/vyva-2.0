@@ -1591,6 +1591,22 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Add the Source access token in production secrets");
   }, 120_000);
 
+  it("keeps the simple Build campaign notes aligned to one selected channel", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Marketing" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-quick-task-build-campaign"));
+    fireEvent.click(screen.getByTestId("button-marketing-simple-goal-launch-new-announcement"));
+
+    expect((screen.getByTestId("textarea-marketing-simple-objective") as HTMLTextAreaElement).value).toContain("Create one Email campaign");
+    expect((screen.getByTestId("textarea-marketing-simple-objective") as HTMLTextAreaElement).value).not.toContain("WhatsApp, SMS");
+
+    fireEvent.click(screen.getByTestId("button-marketing-simple-channel-whatsapp"));
+
+    expect((screen.getByTestId("textarea-marketing-simple-objective") as HTMLTextAreaElement).value).toContain("Create one WhatsApp campaign");
+    expect((screen.getByTestId("textarea-marketing-simple-objective") as HTMLTextAreaElement).value).not.toContain("Facebook, Instagram");
+  });
+
   it("turns dashboard audience summaries into contact and campaign actions", async () => {
     renderPage();
 

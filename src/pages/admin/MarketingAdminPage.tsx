@@ -1820,6 +1820,15 @@ function formatChannelList(channels: Channel[]) {
   return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
+function simpleCampaignObjective(goalTitle: string, channel: Channel) {
+  const goal = goalTitle.trim() || "this campaign";
+  return `Create one ${channelLabel[channel]} campaign for "${goal}". Use the selected message only for ${channelLabel[channel]}. Keep the CTA, owner, and follow-up route clear.`;
+}
+
+function isGeneratedSimpleCampaignObjective(value: string) {
+  return /^Create one .+ campaign for ".+"\./.test(value.trim());
+}
+
 function normalizeMarketingLanguage(value?: string | null) {
   const normalized = (value ?? "").trim().toLowerCase();
   if (!normalized) return "unknown";
@@ -22054,23 +22063,21 @@ export default function MarketingAdminPage() {
   function applyCampaignPlannerGoalStarter(starter: CampaignPlannerGoalStarter) {
     const primaryChannel = starter.channels[0] ?? starter.play.defaultChannel;
     const scheduleStartsAt = campaignStudioDefaultSchedule(starter.play);
-    const contentIds = Object.fromEntries(starter.channels.map((channel) => {
-      const matchedContent = bestCampaignPlannerContent(starter.play, channel, content);
-      return [channel, matchedContent?.id ?? ""];
-    })) as Partial<Record<Channel, string>>;
+    const matchedContent = bestCampaignPlannerContent(starter.play, primaryChannel, content);
+    const contentIds = { [primaryChannel]: matchedContent?.id ?? "" } as Partial<Record<Channel, string>>;
     const starterContent = contentIds[primaryChannel] ?? "";
     setCampaignDraft({
       ...emptyCampaignDraft(),
       name: starter.preset.title,
       audienceType: starter.play.audienceType,
       channel: primaryChannel,
-      channels: starter.channels.length ? starter.channels : [primaryChannel],
+      channels: [primaryChannel],
       contentAssetId: starterContent,
       channelContentAssetIds: contentIds,
       status: scheduleStartsAt ? "scheduled" : "draft",
       scheduleStartsAt,
       scheduleEndsAt: "",
-      objective: starter.preset.brief,
+      objective: simpleCampaignObjective(starter.preset.title, primaryChannel),
       targetAudienceId: starter.targetAudience?.id ?? "",
       recipientFilter: "",
       snapshotRecipients: starter.reachableContacts > 0,
@@ -22083,7 +22090,7 @@ export default function MarketingAdminPage() {
       setContentTemplateAudienceFilter("all");
       setContentTemplateCategoryFilter("all");
     }
-    setCampaignStudioFeedback(`Goal loaded: ${starter.preset.title} with ${formatChannelList(starter.channels)}.`);
+    setCampaignStudioFeedback(`Goal loaded: ${starter.preset.title} as a ${channelLabel[primaryChannel]} campaign.`);
     setMessage(`${starter.preset.title} loaded into the planner. Review content, audience, and preflight before adding the campaign.`);
   }
 
@@ -32139,18 +32146,24 @@ export default function MarketingAdminPage() {
                     <div className="grid gap-4 xl:grid-cols-2">
                       <div data-testid="marketing-simple-channel-question">
                         <p className="text-sm font-black text-[#241133]">3. Which channel?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one channel for this campaign.</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one primary channel for this campaign.</p>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           {CHANNELS.map((channel) => (
                             <button
                               key={channel}
                               type="button"
-                              onClick={() => setCampaignDraft((draft) => ({
-                                ...draft,
-                                channel,
-                                channels: [channel],
-                                contentAssetId: draft.channelContentAssetIds[channel] ?? "",
-                              }))}
+                              onClick={() => setCampaignDraft((draft) => {
+                                const shouldRefreshNote = !draft.objective.trim()
+                                  || isGeneratedSimpleCampaignObjective(draft.objective)
+                                  || campaignGoalPresets.some((preset) => preset.brief === draft.objective);
+                                return {
+                                  ...draft,
+                                  channel,
+                                  channels: [channel],
+                                  contentAssetId: draft.channelContentAssetIds[channel] ?? "",
+                                  objective: shouldRefreshNote ? simpleCampaignObjective(draft.name, channel) : draft.objective,
+                                };
+                              })}
                               className={`min-h-11 rounded-xl border px-3 text-sm font-black ${campaignDraft.channel === channel ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-300"}`}
                               data-testid={`button-marketing-simple-channel-${channel}`}
                             >
@@ -32193,7 +32206,7 @@ export default function MarketingAdminPage() {
                           className={`${textareaClass} min-h-[110px]`}
                           value={campaignDraft.objective}
                           onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))}
-                          placeholder="What should this campaign say or achieve? Example: invite caregivers to finish onboarding and book support if needed."
+                          placeholder={`What should this ${channelLabel[campaignDraft.channel]} campaign say or achieve?`}
                           data-testid="textarea-marketing-simple-objective"
                         />
                       </Field>
