@@ -129,6 +129,24 @@ it("supports keyboard navigation between option-card blocks and honors disabled 
   expect(disabled).toBeDisabled();
 });
 
+it("focuses and announces a spoken-selected option card", () => {
+  render(<VoiceCanvasScene viewModel={base("choice", {
+    spokenChoiceFeedback: {
+      choiceId: "clinic",
+      message: "VYVA heard Clinic",
+      accessibleMessage: "VYVA heard Clinic and selected it",
+    },
+    blocks: [
+      { kind: "option-card", id: "clinic", title: "Clinic", accessibleLabel: "Choose Clinic", selected: true, spokenSelected: true },
+      { kind: "option-card", id: "pharmacy", title: "Pharmacy", accessibleLabel: "Choose Pharmacy" },
+    ],
+  })} />);
+  const card = screen.getByRole("button", { name: "Choose Clinic" });
+  expect(card).toHaveAttribute("data-spoken-selected", "true");
+  expect(card).toHaveFocus();
+  expect(screen.getByText("VYVA heard Clinic and selected it")).toHaveAttribute("aria-live", "polite");
+});
+
 it("exposes progress and loading semantics", () => {
   render(<VoiceCanvasScene viewModel={base("waiting",{status:"loading",progress:{current:2,total:4,label:"Step 2 of 4"},primaryAction:{label:"Saving",loading:true}})} />);
   expect(screen.getByRole("progressbar",{name:"Step 2 of 4"})).toHaveAttribute("aria-valuenow","2"); expect(screen.getByRole("region")).toHaveAttribute("aria-busy","true"); expect(screen.getByRole("button",{name:"Saving"})).toBeDisabled();

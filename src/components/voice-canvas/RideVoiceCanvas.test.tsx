@@ -8,7 +8,7 @@ import type { RideCanvasCopy } from "./rideCanvasViewModel";
 vi.mock("@/components/ZamoraVoiceOrb", () => ({ default: () => <div data-testid="mock-vyva-orb" /> }));
 
 const copy:RideCanvasCopy={
-  agentPresence:{idleLabel:"Voice ready",idleDescription:"Use voice or touch.",listeningLabel:"Listening with you",listeningDescription:"Say or tap a ride detail.",speakingLabel:"VYVA is speaking",speakingDescription:"Follow the screen.",thinkingLabel:"Thinking through ride options",thinkingDescription:"Checking ride details.",accessibleLabel:"VYVA ride voice status"},
+  agentPresence:{idleLabel:"Voice ready",idleDescription:"Use voice or touch.",listeningLabel:"Listening with you",listeningDescription:"Say or tap a ride detail.",speakingLabel:"VYVA is speaking",speakingDescription:"Follow the screen.",thinkingLabel:"Thinking through ride options",thinkingDescription:"Checking ride details.",accessibleLabel:"VYVA ride voice status",spokenChoiceMessage:label=>`VYVA heard ${label}`},
   listening:{status:"Listening",title:"How can I help?",helper:"Take your time.",start:"Arrange a ride",cancel:"Cancel"},
   place:{title:"Where are you going?",helper:"Choose one place.",newAddress:"A new address",newAddressHelper:"Enter another place",continue:"Continue",back:"Back"},
   provider:{title:"Which ride option looks best?",helper:"Compare the company details before choosing.",back:"Back"},
@@ -119,8 +119,36 @@ it("does not restore an in-flight external request after reconnect",()=>{
   sessionStorage.setItem("ride-test",JSON.stringify({step:"waiting",requestId:4,draft:{placeId:"home",destination:"12 Garden Lane",providerId:"carecab",providerName:"CareCab",dateChoice:"2026-07-18",time:"10:30"}}));render(<RideVoiceCanvas {...props()}/>);expect(screen.getByRole("heading",{name:"How can I help?"})).toBeInTheDocument();
 });
 
-it("synchronizes voice commands and place choices with the visual scene",()=>{
-  render(<RideVoiceCanvas {...props()}/>);const emit=(text:string)=>act(()=>window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT,{detail:{text,transcriptEntry:{from:"user",text}}})));emit("start");expect(screen.getByRole("heading",{name:"Where are you going?"})).toBeInTheDocument();emit("Please take me to Riverside Clinic");expect(screen.getByRole("heading",{name:"Which ride option looks best?"})).toBeInTheDocument();emit("CareCab please");expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument();emit("Tomorrow");expect(screen.getByRole("button",{name:"Tomorrow"})).toHaveAttribute("aria-pressed","true");
+it("synchronizes voice commands and place choices with the visual scene",async()=>{
+  render(<RideVoiceCanvas {...props()}/>);
+  const emit=(text:string)=>act(()=>window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT,{detail:{text,transcriptEntry:{from:"user",text}}})));
+  emit("start");
+  expect(screen.getByRole("heading",{name:"Where are you going?"})).toBeInTheDocument();
+  emit("Please take me to Riverside Clinic");
+  const clinic=screen.getByRole("button",{name:/Clinic with an intentionally long/});
+  expect(clinic).toHaveAttribute("data-spoken-selected","true");
+  expect(clinic).toHaveFocus();
+  expect(screen.getByRole("status")).toHaveTextContent("VYVA heard Clinic with an intentionally long translated saved destination label");
+  await waitFor(()=>expect(screen.getByRole("heading",{name:"Which ride option looks best?"})).toBeInTheDocument());
+  emit("CareCab please");
+  const careCab=screen.getByRole("button",{name:/CareCab/});
+  expect(careCab).toHaveAttribute("data-spoken-selected","true");
+  expect(careCab).toHaveFocus();
+  await waitFor(()=>expect(screen.getByRole("heading",{name:"When?"})).toBeInTheDocument());
+  emit("Tomorrow");
+  expect(screen.getByRole("button",{name:"Tomorrow"})).toHaveAttribute("aria-pressed","true");
+});
+
+it("cancels stale spoken-choice feedback before it can advance",async()=>{
+  render(<RideVoiceCanvas {...props()}/>);
+  const emit=(text:string)=>act(()=>window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT,{detail:{text,transcriptEntry:{from:"user",text}}})));
+  emit("start");
+  emit("Please take me to Riverside Clinic");
+  expect(screen.getByRole("button",{name:/Clinic with an intentionally long/})).toHaveAttribute("data-spoken-selected","true");
+  click("Back");
+  await new Promise(resolve=>setTimeout(resolve,720));
+  expect(screen.getByRole("heading",{name:"Where are you going?"})).toBeInTheDocument();
+  expect(screen.queryByRole("heading",{name:"Which ride option looks best?"})).not.toBeInTheDocument();
 });
 
 it("ignores an unrelated voice interruption without losing the current scene",()=>{

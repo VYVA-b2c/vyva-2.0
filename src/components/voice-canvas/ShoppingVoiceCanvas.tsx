@@ -25,11 +25,13 @@ import {
 } from "./shoppingCanvasTelemetry";
 import {
   CanvasLiveStatus,
+  applyVoiceCanvasSpokenChoiceFeedback,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
   useVoiceCanvasAgentPresence,
+  useVoiceCanvasSpokenChoiceFeedback,
 } from "./useVoiceCanvasPlatform";
 export interface ShoppingVoiceCommands {
   start: string[];
@@ -94,13 +96,26 @@ export function ShoppingVoiceCanvas({
     storageKey,
     isRestorable: isRestorableShoppingCanvasState,
   });
+  const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
+  const {
+    feedback: spokenChoiceFeedback,
+    acknowledge: acknowledgeSpokenChoice,
+    clear: clearSpokenChoice,
+  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () => shoppingCanvasViewModel(state, copy, retailers, addresses),
     [state, copy, retailers, addresses],
   );
-  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const viewModel = useMemo(
+    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
+    [agentViewModel, spokenChoiceFeedback],
+  );
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {
       restoreTrackedRef.current = true;
@@ -127,6 +142,7 @@ export function ShoppingVoiceCanvas({
   }, [state.step, state.requestId, state.revision, onTelemetry, restoredRef]);
   const choose = useCallback(
     (id: string) => {
+      clearSpokenChoice();
       inputRef.current = "touch_or_keyboard";
       if (id.startsWith("retailer:"))
         dispatch(
@@ -166,9 +182,54 @@ export function ShoppingVoiceCanvas({
           value: id.endsWith("provided") ? "provided" : "unverified",
         });
     },
-    [retailers, addresses, dispatch],
+    [retailers, addresses, dispatch, clearSpokenChoice],
+  );
+  const spokenChoiceMessage = useCallback(
+    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
+    [copy.agentPresence],
+  );
+  const acknowledgeShoppingChoice = useCallback(
+    (
+      choiceId: string,
+      label: string,
+      expectedStep: ShoppingCanvasState["step"],
+      eventToDispatch: ShoppingCanvasEvent,
+      detail: VoiceUserMessageDetail,
+    ) => {
+      const message = spokenChoiceMessage(label);
+      acknowledgeSpokenChoice(
+        { choiceId, message, accessibleMessage: message },
+        () => {
+          const current = stateRef.current;
+          if (current.step !== expectedStep) return;
+          const next = shoppingCanvasReducer(current, eventToDispatch);
+          dispatch(eventToDispatch);
+          emitVoiceTriageTouchAnswer({
+            conversationId: ensureVoiceSessionId(),
+            utterance: detail.text,
+            choiceId,
+            nextQuestion: shoppingCanvasViewModel(
+              next,
+              copy,
+              retailers,
+              addresses,
+            ).title,
+            status: next.step,
+          });
+        },
+      );
+    },
+    [
+      acknowledgeSpokenChoice,
+      addresses,
+      copy,
+      dispatch,
+      retailers,
+      spokenChoiceMessage,
+    ],
   );
   const primary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     const event: ShoppingCanvasEvent | undefined =
       state.step === "listening" || state.step === "cancelled"
@@ -216,8 +277,9 @@ export function ShoppingVoiceCanvas({
       dispatch(event);
     } else if (state.step === "completed" || state.step === "pending")
       onDone?.();
-  }, [state, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
+  }, [state, onDone, onTelemetry, actionGate, dispatch, restoredRef, clearSpokenChoice]);
   const secondary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
       onTelemetry({
@@ -231,9 +293,10 @@ export function ShoppingVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state, onCancel, onTelemetry, dispatch, restoredRef]);
+  }, [state, onCancel, onTelemetry, dispatch, restoredRef, clearSpokenChoice]);
   const change = useCallback(
     (value: string) => {
+      clearSpokenChoice();
       inputRef.current = "touch_or_keyboard";
       const types: Partial<
         Record<typeof state.step, ShoppingCanvasEvent["type"]>
@@ -249,7 +312,7 @@ export function ShoppingVoiceCanvas({
       const type = types[state.step];
       if (type) dispatch({ type, value } as ShoppingCanvasEvent);
     },
-    [state, dispatch],
+    [state, dispatch, clearSpokenChoice],
   );
   useEffect(() => {
     if (state.step !== "waiting") return;
@@ -318,6 +381,7 @@ export function ShoppingVoiceCanvas({
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
       if (!detail?.text) return;
+      clearSpokenChoice();
       inputRef.current = "voice";
       const text = normalize(detail.text);
       let item: ShoppingCanvasEvent | undefined;
@@ -335,9 +399,26 @@ export function ShoppingVoiceCanvas({
               (value) => text === normalize(value),
             ),
         );
-        if (retailer) item = { type: "CHOOSE_RETAILER", retailer };
-        else if (matches(text, voiceCommands.other))
-          item = { type: "CHOOSE_RETAILER", manual: true };
+        if (retailer) {
+          acknowledgeShoppingChoice(
+            `retailer:${retailer.id}`,
+            retailer.label,
+            "retailer",
+            { type: "CHOOSE_RETAILER", retailer },
+            detail,
+          );
+          return;
+        }
+        else if (matches(text, voiceCommands.other)) {
+          acknowledgeShoppingChoice(
+            "retailer:other",
+            copy.retailer.other,
+            "retailer",
+            { type: "CHOOSE_RETAILER", manual: true },
+            detail,
+          );
+          return;
+        }
       } else if (state.step === "location") {
         const address = addresses.find(
           (candidate) =>
@@ -345,41 +426,136 @@ export function ShoppingVoiceCanvas({
               (value) => text === normalize(value),
             ),
         );
-        if (address) item = { type: "CHOOSE_LOCATION", address };
-        else if (matches(text, voiceCommands.other))
-          item = { type: "CHOOSE_LOCATION", manual: true };
+        if (address) {
+          acknowledgeShoppingChoice(
+            `location:${address.id}`,
+            address.label,
+            "location",
+            { type: "CHOOSE_LOCATION", address },
+            detail,
+          );
+          return;
+        }
+        else if (matches(text, voiceCommands.other)) {
+          acknowledgeShoppingChoice(
+            "location:other",
+            state.draft.fulfillment === "collection"
+              ? copy.location.otherCollection
+              : copy.location.otherDelivery,
+            "location",
+            { type: "CHOOSE_LOCATION", manual: true },
+            detail,
+          );
+          return;
+        }
       } else if (
         state.step === "fulfillment" &&
         matches(text, voiceCommands.delivery)
       )
-        item = { type: "CHOOSE_FULFILLMENT", value: "delivery" };
+        {
+          acknowledgeShoppingChoice(
+            "fulfillment:delivery",
+            copy.fulfillment.delivery,
+            "fulfillment",
+            { type: "CHOOSE_FULFILLMENT", value: "delivery" },
+            detail,
+          );
+          return;
+        }
       else if (
         state.step === "fulfillment" &&
         matches(text, voiceCommands.collection)
       )
-        item = { type: "CHOOSE_FULFILLMENT", value: "collection" };
+        {
+          acknowledgeShoppingChoice(
+            "fulfillment:collection",
+            copy.fulfillment.collection,
+            "fulfillment",
+            { type: "CHOOSE_FULFILLMENT", value: "collection" },
+            detail,
+          );
+          return;
+        }
       else if (
         state.step === "moreItems" &&
         matches(text, voiceCommands.addItem)
       )
-        item = { type: "ADD_ITEM" };
+        {
+          acknowledgeShoppingChoice(
+            "items:add",
+            copy.moreItems.add,
+            "moreItems",
+            { type: "ADD_ITEM" },
+            detail,
+          );
+          return;
+        }
       else if (
         state.step === "moreItems" &&
         matches(text, voiceCommands.finishItems)
       )
-        item = { type: "FINISH_ITEMS" };
+        {
+          acknowledgeShoppingChoice(
+            "items:finish",
+            copy.moreItems.finish,
+            "moreItems",
+            { type: "FINISH_ITEMS" },
+            detail,
+          );
+          return;
+        }
       else if (state.step === "substitutions") {
-        if (matches(text, voiceCommands.noSubstitutions))
-          item = { type: "CHOOSE_SUBSTITUTIONS", value: "none" };
-        else if (matches(text, voiceCommands.askSubstitutions))
-          item = { type: "CHOOSE_SUBSTITUTIONS", value: "ask" };
-        else if (matches(text, voiceCommands.allowSubstitutions))
-          item = { type: "CHOOSE_SUBSTITUTIONS", value: "allow" };
+        if (matches(text, voiceCommands.noSubstitutions)) {
+          acknowledgeShoppingChoice(
+            "substitutions:none",
+            copy.substitutions.none,
+            "substitutions",
+            { type: "CHOOSE_SUBSTITUTIONS", value: "none" },
+            detail,
+          );
+          return;
+        }
+        else if (matches(text, voiceCommands.askSubstitutions)) {
+          acknowledgeShoppingChoice(
+            "substitutions:ask",
+            copy.substitutions.ask,
+            "substitutions",
+            { type: "CHOOSE_SUBSTITUTIONS", value: "ask" },
+            detail,
+          );
+          return;
+        }
+        else if (matches(text, voiceCommands.allowSubstitutions)) {
+          acknowledgeShoppingChoice(
+            "substitutions:allow",
+            copy.substitutions.allow,
+            "substitutions",
+            { type: "CHOOSE_SUBSTITUTIONS", value: "allow" },
+            detail,
+          );
+          return;
+        }
       } else if (state.step === "estimate") {
-        if (matches(text, voiceCommands.estimateProvided))
-          item = { type: "CHOOSE_ESTIMATE", value: "provided" };
-        else if (matches(text, voiceCommands.estimateUnverified))
-          item = { type: "CHOOSE_ESTIMATE", value: "unverified" };
+        if (matches(text, voiceCommands.estimateProvided)) {
+          acknowledgeShoppingChoice(
+            "estimate:provided",
+            copy.estimate.provided,
+            "estimate",
+            { type: "CHOOSE_ESTIMATE", value: "provided" },
+            detail,
+          );
+          return;
+        }
+        else if (matches(text, voiceCommands.estimateUnverified)) {
+          acknowledgeShoppingChoice(
+            "estimate:unverified",
+            copy.estimate.unverified,
+            "estimate",
+            { type: "CHOOSE_ESTIMATE", value: "unverified" },
+            detail,
+          );
+          return;
+        }
       } else {
         const changes: Partial<
           Record<typeof state.step, ShoppingCanvasEvent["type"]>

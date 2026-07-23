@@ -1,8 +1,10 @@
 import {
   useEffect,
+  useCallback,
   useMemo,
   useReducer,
   useRef,
+  useState,
   type Dispatch,
   type Reducer,
   type RefObject,
@@ -19,6 +21,7 @@ import type {
   VoiceCanvasAgentPresence,
   VoiceCanvasAgentPresenceCopy,
   VoiceCanvasAgentPresenceState,
+  VoiceCanvasSpokenChoiceFeedback,
   VoiceCanvasViewModel,
 } from "./types";
 
@@ -183,6 +186,69 @@ export function useVoiceCanvasAgentPresence(
     }, copy) : viewModel,
     [copy, isConnecting, isMicMuted, isSpeaking, status, viewModel, voiceSessionPhase],
   );
+}
+
+export function applyVoiceCanvasSpokenChoiceFeedback(
+  viewModel: VoiceCanvasViewModel,
+  feedback?: VoiceCanvasSpokenChoiceFeedback,
+): VoiceCanvasViewModel {
+  if (!feedback) return viewModel;
+  const choices = viewModel.choices?.map((choice) =>
+    choice.id === feedback.choiceId
+      ? { ...choice, selected: true, spokenSelected: true }
+      : choice,
+  );
+  const blocks = viewModel.blocks?.map((block) =>
+    block.kind === "option-card" && block.id === feedback.choiceId
+      ? { ...block, selected: true, spokenSelected: true }
+      : block,
+  );
+  const matched =
+    choices?.some((choice) => choice.id === feedback.choiceId) ||
+    blocks?.some((block) => block.kind === "option-card" && block.id === feedback.choiceId);
+  if (!matched) return viewModel;
+  return {
+    ...viewModel,
+    choices,
+    blocks,
+    spokenChoiceFeedback: feedback,
+  };
+}
+
+export function useVoiceCanvasSpokenChoiceFeedback(delayMs = 650) {
+  const [feedback, setFeedback] = useState<VoiceCanvasSpokenChoiceFeedback | undefined>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tokenRef = useRef(0);
+
+  const clear = useCallback(() => {
+    tokenRef.current += 1;
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = null;
+    setFeedback(undefined);
+  }, []);
+
+  const acknowledge = useCallback((
+    next: Omit<VoiceCanvasSpokenChoiceFeedback, "token">,
+    commit: () => void,
+  ) => {
+    const token = tokenRef.current + 1;
+    tokenRef.current = token;
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    setFeedback({ ...next, token });
+    timeoutRef.current = window.setTimeout(() => {
+      if (tokenRef.current !== token) return;
+      timeoutRef.current = null;
+      commit();
+      setFeedback(undefined);
+    }, delayMs);
+  }, [delayMs]);
+
+  useEffect(() => () => {
+    tokenRef.current += 1;
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+  }, []);
+
+  return { feedback, acknowledge, clear };
 }
 
 export function CanvasLiveStatus({

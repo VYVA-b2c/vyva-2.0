@@ -25,11 +25,13 @@ import {
 } from "./rideCanvasTelemetry";
 import {
   CanvasLiveStatus,
+  applyVoiceCanvasSpokenChoiceFeedback,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
   useVoiceCanvasAgentPresence,
+  useVoiceCanvasSpokenChoiceFeedback,
 } from "./useVoiceCanvasPlatform";
 
 export interface RideVoiceCommands {
@@ -84,13 +86,27 @@ export function RideVoiceCanvas({
     storageKey,
     isRestorable: isRestorableRideState,
   });
+  const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
+  const {
+    feedback: spokenChoiceFeedback,
+    acknowledge: acknowledgeSpokenChoice,
+    clear: clearSpokenChoice,
+  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () => rideCanvasViewModel(state, copy, places, providers, dateChoices),
     [state, copy, places, providers, dateChoices],
   );
-  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const viewModel = useMemo(
+    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
+    [agentViewModel, spokenChoiceFeedback],
+  );
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     onTelemetry({
@@ -105,6 +121,7 @@ export function RideVoiceCanvas({
 
   const choose = useCallback(
     (id: string) => {
+      clearSpokenChoice();
       inputRef.current = "touch_or_keyboard";
       if (id === "new-address")
         dispatch({ type: "CHOOSE_PLACE", newAddress: true });
@@ -123,10 +140,59 @@ export function RideVoiceCanvas({
         if (date) dispatch({ type: "CHOOSE_DATE", value: date.value });
       }
     },
-    [places, providers, dateChoices, dispatch],
+    [places, providers, dateChoices, dispatch, clearSpokenChoice],
+  );
+
+  const spokenChoiceMessage = useCallback(
+    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
+    [copy.agentPresence],
+  );
+
+  const acknowledgeRideChoice = useCallback(
+    (
+      choiceId: string,
+      label: string,
+      expectedStep: RideCanvasState["step"],
+      eventToDispatch: Parameters<typeof rideCanvasReducer>[1],
+      detail: VoiceUserMessageDetail,
+    ) => {
+      const message = spokenChoiceMessage(label);
+      acknowledgeSpokenChoice(
+        { choiceId, message, accessibleMessage: message },
+        () => {
+          const current = stateRef.current;
+          if (current.step !== expectedStep) return;
+          const next = rideCanvasReducer(current, eventToDispatch);
+          dispatch(eventToDispatch);
+          emitVoiceTriageTouchAnswer({
+            conversationId: ensureVoiceSessionId(),
+            utterance: detail.text,
+            choiceId,
+            nextQuestion: rideCanvasViewModel(
+              next,
+              copy,
+              places,
+              providers,
+              dateChoices,
+            ).title,
+            status: next.step,
+          });
+        },
+      );
+    },
+    [
+      acknowledgeSpokenChoice,
+      copy,
+      dateChoices,
+      dispatch,
+      places,
+      providers,
+      spokenChoiceMessage,
+    ],
   );
 
   const primary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "review")
       onTelemetry({
@@ -154,8 +220,9 @@ export function RideVoiceCanvas({
       dispatch({ type: "CONFIRM" });
     } else if (state.step === "blocked") dispatch({ type: "RETRY" });
     else if (state.step === "completed") onDone?.();
-  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef, clearSpokenChoice]);
   const secondary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked")
       onTelemetry({
@@ -169,7 +236,7 @@ export function RideVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef, clearSpokenChoice]);
 
   useEffect(() => {
     if (state.step !== "waiting") return;
@@ -226,6 +293,7 @@ export function RideVoiceCanvas({
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
       if (!detail?.text) return;
+      clearSpokenChoice();
       inputRef.current = "voice";
       const text = normalized(detail.text);
       let handled = true;
@@ -288,12 +356,34 @@ export function RideVoiceCanvas({
         const date = dateChoices.find((item) =>
           text.includes(normalized(item.label)),
         );
-        if (state.step === "place" && place)
-          dispatch({ type: "CHOOSE_PLACE", place });
-        else if (state.step === "provider" && provider)
-          dispatch({ type: "CHOOSE_PROVIDER", provider });
-        else if (state.step === "dateTime" && date)
-          dispatch({ type: "CHOOSE_DATE", value: date.value });
+        if (state.step === "place" && place) {
+          acknowledgeRideChoice(
+            `place:${place.id}`,
+            place.label,
+            "place",
+            { type: "CHOOSE_PLACE", place },
+            detail,
+          );
+          return;
+        } else if (state.step === "provider" && provider) {
+          acknowledgeRideChoice(
+            `provider:${provider.id}`,
+            provider.label,
+            "provider",
+            { type: "CHOOSE_PROVIDER", provider },
+            detail,
+          );
+          return;
+        } else if (state.step === "dateTime" && date) {
+          acknowledgeRideChoice(
+            `date:${date.id}`,
+            date.label,
+            "dateTime",
+            { type: "CHOOSE_DATE", value: date.value },
+            detail,
+          );
+          return;
+        }
         else handled = false;
       }
       if (handled)
@@ -314,6 +404,7 @@ export function RideVoiceCanvas({
         onPrimary={primary}
         onSecondary={secondary}
         onTextChange={(value) => {
+          clearSpokenChoice();
           inputRef.current = "touch_or_keyboard";
           dispatch({
             type: state.step === "dateTime" ? "CHANGE_TIME" : "CHANGE_ADDRESS",

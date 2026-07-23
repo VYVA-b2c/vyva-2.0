@@ -21,6 +21,7 @@ const copy: ProviderReplyVoiceCanvasProps["copy"] = {
     thinkingLabel: "Thinking through provider reply",
     thinkingDescription: "Checking provider reply details.",
     accessibleLabel: "VYVA provider reply voice status",
+    spokenChoiceMessage: (label) => `VYVA heard ${label}`,
   },
   listening: {
     status: "Listening",
@@ -286,12 +287,15 @@ describe("ProviderReplyVoiceCanvas", () => {
     expect(screen.getByRole("heading", { name: "Provider context" })).toBeInTheDocument();
   });
 
-  it("supports voice intent selection before composing the draft", () => {
+  it("supports voice intent selection before composing the draft", async () => {
     render(<ProviderReplyVoiceCanvas {...props({ context: richIntentContext })} />);
 
     say("start");
     say("confirm");
     expect(screen.getByRole("button", { name: /Confirm appointment/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Confirm appointment/ })).toHaveAttribute("data-spoken-selected", "true");
+    expect(screen.getByText("VYVA heard Confirm appointment")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled());
     say("continue");
     expect(screen.getByRole("heading", { name: "What did they say?" })).toBeInTheDocument();
   });
