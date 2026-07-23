@@ -293,8 +293,8 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
-    expect(screen.getByTestId("home-master-start-nudge")).toHaveTextContent("Not sure where to start?");
-    expect(screen.getByTestId("button-home-start-nudge-voice")).toHaveTextContent("Ask");
+    expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
   });
 
   it("uses live signals for concise pillar card nudges", () => {

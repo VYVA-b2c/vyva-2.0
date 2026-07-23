@@ -178,7 +178,7 @@ export default function MasterDashboardLayout({
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
-            ? "mt-3"
+            ? "mt-5 py-4 min-[390px]:py-5"
             : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
         style={isHomeMaster ? undefined : {
@@ -197,7 +197,7 @@ export default function MasterDashboardLayout({
               className={[
                 "text-balance leading-[0.98] text-vyva-text-1",
                 isHomeMaster
-                  ? "max-w-[8.2em] font-display text-[31px] font-semibold tracking-normal min-[390px]:text-[35px]"
+                  ? "max-w-[8.4em] font-display text-[35px] font-semibold tracking-normal min-[390px]:text-[40px]"
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
               ].join(" ")}
             >
@@ -207,7 +207,7 @@ export default function MasterDashboardLayout({
               <p
                 className={[
                   "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
-                  isHomeMaster ? "text-[13px] font-medium min-[390px]:text-[14px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
+                  isHomeMaster ? "text-[15px] font-medium min-[390px]:max-w-[18rem] min-[390px]:text-[16px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
                 ].join(" ")}
               >
                 {hero.subtitle}
@@ -253,7 +253,7 @@ export default function MasterDashboardLayout({
             disabled={hero.action.disabled}
             testId={hero.action.testId}
             supportingLabel={hero.action.supportingLabel}
-            className="vyva-tap mt-6 inline-flex !min-h-[54px] w-full items-center justify-center gap-3 rounded-[26px] bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_28px_rgba(107,33,168,0.20)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[58px] min-[390px]:text-[18px]"
+            className="vyva-tap mt-8 inline-flex !min-h-[62px] w-full items-center justify-center gap-3 rounded-[28px] bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_18px_32px_rgba(107,33,168,0.22)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[66px] min-[390px]:text-[19px]"
           />
         ) : !isVoiceAction ? (
           <button

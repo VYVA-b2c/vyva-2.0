@@ -1,9 +1,9 @@
 import { CircleUser } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import vyvaLogo from "@/assets/vyva-logo.png";
-import vyvaWordmark from "@/assets/vyva-logo-wordmark-v2.png";
 import { useLanguage } from "@/i18n";
 import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
+import { VyvaWordmark } from "./VyvaWordmark";
 
 type StatusBarProps = {
   wide?: boolean;
@@ -37,7 +37,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             className="vyva-tap flex h-10 items-center"
             aria-label="VYVA"
           >
-            <img src={vyvaWordmark} alt="VYVA" className="h-7 w-auto object-contain" />
+            <VyvaWordmark className="h-auto w-[106px]" />
           </button>
           <button
             onClick={() => navigate("/settings")}
