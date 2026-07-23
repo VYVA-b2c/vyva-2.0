@@ -7592,8 +7592,11 @@ describe("MarketingAdminPage", () => {
       }],
     });
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
-    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("review the email send panel");
-    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("confirm the schedule");
+    expect(screen.getByTestId("marketing-simple-campaign-send-feedback")).toHaveTextContent("review the email send panel");
+    expect(screen.getByTestId("marketing-simple-campaign-send-feedback")).toHaveTextContent("confirm the schedule");
+    expect(screen.queryByTestId("marketing-simple-campaign-builder")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-simple-campaign-detail")).toHaveTextContent("New draft");
+    expect(screen.getByTestId("select-marketing-simple-edit-campaign-content")).toHaveValue("content-1");
   });
 
   it("creates multi-channel planner packs without auto-dispatching", async () => {
@@ -7649,8 +7652,8 @@ describe("MarketingAdminPage", () => {
     ]));
     expect(postBody.recipients).toHaveLength(2);
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
-    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("review the email send panel");
-    expect(screen.getByText(/Campaign created and opened\./)).toHaveTextContent("prepare LinkedIn handoff");
+    expect(screen.getByTestId("marketing-simple-campaign-send-feedback")).toHaveTextContent("review the email send panel");
+    expect(screen.getByTestId("marketing-simple-campaign-send-feedback")).toHaveTextContent("prepare LinkedIn handoff");
   });
 
   it("runs due scheduled email campaigns from the calendar tab", async () => {
