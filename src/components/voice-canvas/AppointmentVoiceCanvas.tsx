@@ -10,6 +10,7 @@ import {
   initialAppointmentCanvasState,
   isRestorableAppointmentState,
   type AppointmentCanvasDraft,
+  type AppointmentCanvasEvent,
   type AppointmentCanvasState,
   type AppointmentProvider,
 } from "./appointmentCanvasMachine";
@@ -24,11 +25,13 @@ import {
 } from "./appointmentCanvasTelemetry";
 import {
   CanvasLiveStatus,
+  findVoiceCanvasSpokenOption,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
-  useVoiceCanvasAgentPresence,
+  useVoiceCanvasMultimodalInteraction,
+  voiceCanvasTextMatchesAny,
 } from "./useVoiceCanvasPlatform";
 export interface AppointmentVoiceCommands {
   start: string[];
@@ -56,6 +59,8 @@ export interface AppointmentVoiceCanvasProps {
   onTelemetry?: (event: AppointmentCanvasTelemetryEvent) => void;
 }
 const normalized = (value: string) => value.trim().toLocaleLowerCase();
+const matches = (text: string, commands: string[]) =>
+  voiceCanvasTextMatchesAny(text, commands, "exact");
 export function AppointmentVoiceCanvas({
   copy,
   providers,
@@ -76,13 +81,30 @@ export function AppointmentVoiceCanvas({
     storageKey,
     isRestorable: isRestorableAppointmentState,
   });
+  const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
   const baseViewModel = useMemo(
     () => appointmentCanvasViewModel(state, copy, providers, dateChoices),
     [state, copy, providers, dateChoices],
   );
-  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const {
+    viewModel,
+    acknowledgeChoice,
+    clearFeedback,
+  } = useVoiceCanvasMultimodalInteraction<AppointmentCanvasState, AppointmentCanvasEvent>({
+    viewModel: baseViewModel,
+    agentPresenceCopy: copy.agentPresence,
+    stateRef,
+    reducer: appointmentCanvasReducer,
+    dispatch,
+    getStep: (nextState) => nextState.step,
+    getViewModel: (nextState) =>
+      appointmentCanvasViewModel(nextState, copy, providers, dateChoices),
+  });
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   useEffect(() => {
     onTelemetry({
       name: "scene_viewed",
@@ -95,6 +117,7 @@ export function AppointmentVoiceCanvas({
   }, [state.step, state.requestId, onTelemetry, restoredRef]);
   const choose = useCallback(
     (id: string) => {
+      clearFeedback();
       inputRef.current = "touch_or_keyboard";
       if (id === "new-provider")
         dispatch({ type: "CHOOSE_PROVIDER", newProvider: true });
@@ -108,9 +131,10 @@ export function AppointmentVoiceCanvas({
         if (date) dispatch({ type: "CHOOSE_DATE", value: date.value });
       }
     },
-    [providers, dateChoices, dispatch],
+    [providers, dateChoices, dispatch, clearFeedback],
   );
   const primary = useCallback(() => {
+    clearFeedback();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "review")
       onTelemetry({
@@ -140,8 +164,9 @@ export function AppointmentVoiceCanvas({
       dispatch({ type: "CONFIRM" });
     } else if (state.step === "blocked") dispatch({ type: "RETRY" });
     else if (state.step === "completed") onDone?.();
-  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef, clearFeedback]);
   const secondary = useCallback(() => {
+    clearFeedback();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
       onTelemetry({
@@ -154,7 +179,7 @@ export function AppointmentVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef, clearFeedback]);
   useEffect(() => {
     if (state.step !== "waiting") return;
     const controller = actionGate.begin(state.requestId);
@@ -209,12 +234,11 @@ export function AppointmentVoiceCanvas({
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
       if (!detail?.text) return;
+      clearFeedback();
       inputRef.current = "voice";
       const text = normalized(detail.text);
       let handled = true;
-      if (
-        voiceCommands.cancel.some((command) => text === normalized(command))
-      ) {
+      if (matches(text, voiceCommands.cancel)) {
         onTelemetry({
           name: "abandoned",
           step: state.step,
@@ -224,16 +248,12 @@ export function AppointmentVoiceCanvas({
         });
         dispatch({ type: "CANCEL" });
         onCancel?.();
-      } else if (
-        voiceCommands.back.some((command) => text === normalized(command))
-      )
+      } else if (matches(text, voiceCommands.back))
         dispatch({ type: "BACK" });
-      else if (
-        voiceCommands.start.some((command) => text === normalized(command))
-      )
+      else if (matches(text, voiceCommands.start))
         dispatch({ type: "START" });
       else if (
-        voiceCommands.confirm.some((command) => text === normalized(command)) &&
+        matches(text, voiceCommands.confirm) &&
         state.step === "review"
       ) {
         actionGate.authorize(state.requestId + 1);
@@ -246,7 +266,7 @@ export function AppointmentVoiceCanvas({
         });
         dispatch({ type: "CONFIRM" });
       } else if (
-        voiceCommands.retry.some((command) => text === normalized(command)) &&
+        matches(text, voiceCommands.retry) &&
         state.step === "blocked"
       ) {
         onTelemetry({
@@ -258,16 +278,40 @@ export function AppointmentVoiceCanvas({
         });
         dispatch({ type: "RETRY" });
       } else {
-        const provider = providers.find((item) =>
-            text.includes(normalized(item.label)),
+        const provider = findVoiceCanvasSpokenOption(
+            providers,
+            text,
+            (item) => [item.label, item.description],
+            "contains",
           ),
-          date = dateChoices.find((item) =>
-            text.includes(normalized(item.label)),
+          date = findVoiceCanvasSpokenOption(
+            dateChoices,
+            text,
+            (item) => [item.label],
+            "contains",
           );
         if (state.step === "provider" && provider)
-          dispatch({ type: "CHOOSE_PROVIDER", provider });
+          {
+            acknowledgeChoice({
+              choiceId: `provider:${provider.id}`,
+              label: provider.label,
+              expectedStep: "provider",
+              event: { type: "CHOOSE_PROVIDER", provider },
+              detail,
+            });
+            return;
+          }
         else if (state.step === "dateTime" && date)
-          dispatch({ type: "CHOOSE_DATE", value: date.value });
+          {
+            acknowledgeChoice({
+              choiceId: `date:${date.id}`,
+              label: date.label,
+              expectedStep: "dateTime",
+              event: { type: "CHOOSE_DATE", value: date.value },
+              detail,
+            });
+            return;
+          }
         else handled = false;
       }
       if (handled)
@@ -280,6 +324,7 @@ export function AppointmentVoiceCanvas({
         });
   });
   const textChange = (value: string) => {
+    clearFeedback();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "providerEntry")
       dispatch({ type: "CHANGE_PROVIDER", value });

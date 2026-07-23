@@ -24,11 +24,13 @@ import {
 } from "./prescriptionFollowUpTelemetry";
 import {
   CanvasLiveStatus,
+  findVoiceCanvasSpokenOption,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
-  useVoiceCanvasAgentPresence,
+  useVoiceCanvasMultimodalInteraction,
+  voiceCanvasTextMatchesAny,
 } from "./useVoiceCanvasPlatform";
 export interface PrescriptionFollowUpCommands {
   start: string[];
@@ -61,6 +63,8 @@ export interface PrescriptionFollowUpVoiceCanvasProps {
   onTelemetry?: (event: PrescriptionFollowUpTelemetryEvent) => void;
 }
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
+const matches = (text: string, commands: string[]) =>
+  voiceCanvasTextMatchesAny(text, commands, "exact");
 export function PrescriptionFollowUpVoiceCanvas({
   source,
   copy,
@@ -83,13 +87,29 @@ export function PrescriptionFollowUpVoiceCanvas({
       isRestorablePrescriptionFollowUpState(value) &&
       value.source.preparationReference === source.preparationReference,
   });
+  const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
   const baseViewModel = useMemo(
     () => prescriptionFollowUpViewModel(state, copy),
     [state, copy],
   );
-  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const {
+    viewModel,
+    acknowledgeChoice,
+    clearFeedback,
+  } = useVoiceCanvasMultimodalInteraction<PrescriptionFollowUpState, PrescriptionFollowUpEvent>({
+    viewModel: baseViewModel,
+    agentPresenceCopy: copy.agentPresence,
+    stateRef,
+    reducer: prescriptionFollowUpReducer,
+    dispatch,
+    getStep: (nextState) => nextState.step,
+    getViewModel: (nextState) => prescriptionFollowUpViewModel(nextState, copy),
+  });
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {
       restoreTrackedRef.current = true;
@@ -113,14 +133,16 @@ export function PrescriptionFollowUpVoiceCanvas({
     inputRef.current = "system";
   }, [state.step, state.requestId, onTelemetry, restoredRef]);
   const choose = useCallback((id: string) => {
+    clearFeedback();
     inputRef.current = "touch_or_keyboard";
     if (["clinician", "pharmacy", "status", "update"].includes(id))
       dispatch({
         type: "CHOOSE_ACTION",
         action: id as Exclude<PrescriptionFollowUpAction, "">,
       });
-  }, [dispatch]);
+  }, [dispatch, clearFeedback]);
   const primary = useCallback(() => {
+    clearFeedback();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "cancelled")
       dispatch({ type: "START" });
@@ -146,8 +168,9 @@ export function PrescriptionFollowUpVoiceCanvas({
       dispatch({ type: "RETRY" });
     } else if (state.step === "completed" || state.step === "pending")
       onDone?.();
-  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onDone, onTelemetry, actionGate, dispatch, restoredRef, clearFeedback]);
   const secondary = useCallback(() => {
+    clearFeedback();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
       onTelemetry({
@@ -160,7 +183,7 @@ export function PrescriptionFollowUpVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef, clearFeedback]);
   useEffect(() => {
     if (state.step !== "waiting") return;
     const controller = actionGate.begin(state.requestId);
@@ -216,6 +239,7 @@ export function PrescriptionFollowUpVoiceCanvas({
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
       if (!detail?.text) return;
+      clearFeedback();
       inputRef.current = "voice";
       const text = normalize(detail.text);
       let handled = true,
@@ -224,7 +248,7 @@ export function PrescriptionFollowUpVoiceCanvas({
         nextState = prescriptionFollowUpReducer(nextState, item);
         dispatch(item);
       };
-      if (voiceCommands.cancel.some((command) => text === normalize(command))) {
+      if (matches(text, voiceCommands.cancel)) {
         onTelemetry({
           name: "abandoned",
           step: state.step,
@@ -235,15 +259,15 @@ export function PrescriptionFollowUpVoiceCanvas({
         apply({ type: "CANCEL" });
         onCancel?.();
       } else if (
-        voiceCommands.back.some((command) => text === normalize(command))
+        matches(text, voiceCommands.back)
       )
         apply({ type: "BACK" });
       else if (
-        voiceCommands.start.some((command) => text === normalize(command))
+        matches(text, voiceCommands.start)
       )
         apply({ type: "START" });
       else if (
-        voiceCommands.confirm.some((command) => text === normalize(command)) &&
+        matches(text, voiceCommands.confirm) &&
         state.step === "review"
       ) {
         actionGate.authorize(state.requestId + 1);
@@ -256,19 +280,30 @@ export function PrescriptionFollowUpVoiceCanvas({
         });
         apply({ type: "CONFIRM" });
       } else if (
-        voiceCommands.retry.some((command) => text === normalize(command)) &&
+        matches(text, voiceCommands.retry) &&
         state.step === "blocked"
       )
         apply({ type: "RETRY" });
       else if (state.step === "nextStep") {
-        const action = (
-          ["clinician", "pharmacy", "status", "update"] as const
-        ).find((key) =>
-          voiceCommands[key].some((command) =>
-            text.includes(normalize(command)),
-          ),
+        const action = findVoiceCanvasSpokenOption(
+          ["clinician", "pharmacy", "status", "update"] as const,
+          text,
+          (key) => [
+            copy.nextStep[key],
+            ...(voiceCommands[key] ?? []),
+          ],
+          "contains",
         );
-        if (action) apply({ type: "CHOOSE_ACTION", action });
+        if (action) {
+          acknowledgeChoice({
+            choiceId: action,
+            label: copy.nextStep[action],
+            expectedStep: "nextStep",
+            event: { type: "CHOOSE_ACTION", action },
+            detail,
+          });
+          return;
+        }
         else handled = false;
       } else if (state.step === "missingInfo") {
         apply({ type: "CHANGE_MISSING_INFO", value: detail.text.trim() });
@@ -297,6 +332,7 @@ export function PrescriptionFollowUpVoiceCanvas({
         onPrimary={primary}
         onSecondary={secondary}
         onTextChange={(value) => {
+          clearFeedback();
           inputRef.current = "touch_or_keyboard";
           dispatch({ type: "CHANGE_MISSING_INFO", value });
         }}
