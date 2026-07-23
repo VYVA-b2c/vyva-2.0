@@ -1853,6 +1853,13 @@
     master: {
       heroEyebrow: "Today",
       voiceSupport: "Speak anytime",
+      startNudge: {
+        title: "Not sure where to start?",
+        detail: "Tell VYVA what is on your mind.",
+        action: "Ask",
+        support: "Ask VYVA",
+        context: "Home screen. Ask what the user needs and suggest one clear next step.",
+      },
       cards: {
         health: "My Health",
         healthDetail: "Medication, vitals, symptoms",
