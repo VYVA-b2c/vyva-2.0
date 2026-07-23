@@ -474,6 +474,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
+  const isHomeRoute = location.pathname === "/";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
@@ -486,6 +487,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? "max-w-none"
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
+      : isHomeRoute
+        ? "max-w-[520px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
@@ -766,8 +769,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         data-layout={appShellLayout}
         className={`relative w-full ${shellMaxWidthClassName}`}
       >
-        {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        {!isFullScreen && (
+          <StatusBar
+            wide={!isHomeRoute && (isWideRoute || isVitalsRoute)}
+            variant={isHomeRoute ? "homeMaster" : "default"}
+          />
+        )}
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[96px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -781,7 +789,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </main>
         {!isFullScreen && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
-            <BottomNav wide={isWideRoute || isVitalsRoute} onSosClick={() => {
+            <BottomNav wide={!isHomeRoute && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);
             }} />
           </div>
@@ -795,7 +803,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {!isFullScreen && !isHomeRoute && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}

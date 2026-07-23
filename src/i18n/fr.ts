@@ -1435,7 +1435,9 @@ const fr = {
   home: {
     master: {
       heroEyebrow: "Aujourd'hui",
+      heroSubtitle: "Je suis la pour la sante, la memoire, les proches et l'aide du quotidien.",
       voiceSupport: "Parler quand vous voulez",
+      chooseCategory: "Choisir une categorie",
       startNudge: {
         title: "Vous ne savez pas par ou commencer?",
         detail: "Dites a VYVA ce que vous avez en tete.",
@@ -1445,13 +1447,21 @@ const fr = {
       },
       cards: {
         health: "Ma sante",
+        healthShortTitle: "Sante",
         healthDetail: "Medicaments, constantes et symptomes",
+        healthDetailShort: "Medicaments, constantes, symptomes",
         mindMemory: "Mon esprit",
+        mindMemoryShortTitle: "Esprit",
         mindMemoryDetail: "Memoire, reflexes et calme",
+        mindMemoryDetailShort: "Memoire, reflexes",
         community: "Ma communaute",
+        communityShortTitle: "Communaute",
         communityDetail: "Salons, rencontres et moments",
+        communityDetailShort: "Salons, rencontres",
         concierge: "Mon concierge",
+        conciergeShortTitle: "Concierge",
         conciergeDetail: "Reservations, courses et aide",
+        conciergeDetailShort: "Aide, trajets, commandes",
       },
       badges: {
         today: "Aujourd'hui",

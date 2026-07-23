@@ -70,6 +70,8 @@ type MasterDashboardLayoutProps = {
   cards: MasterDashboardCard[];
   fastHelpTitle: string;
   fastHelpActions: MasterFastHelpAction[];
+  launcherVariant?: "default" | "homeMaster";
+  cardSectionTitle?: string;
   testId?: string;
   cardGridTestId?: string;
   fastHelpTestId?: string;
@@ -98,6 +100,8 @@ export default function MasterDashboardLayout({
   cards,
   fastHelpTitle,
   fastHelpActions,
+  launcherVariant = "default",
+  cardSectionTitle,
   testId,
   cardGridTestId,
   fastHelpTestId,
@@ -109,6 +113,7 @@ export default function MasterDashboardLayout({
 }: MasterDashboardLayoutProps) {
   const heroTone = hero.tone ?? defaultHeroTone;
   const isVoiceAction = hero.action.kind === "voice";
+  const isHomeMaster = launcherVariant === "homeMaster";
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -162,11 +167,21 @@ export default function MasterDashboardLayout({
   }, [fastHelpRotationMs, isFastHelpPaused, prefersReducedMotion, rotatingFastHelpActions.length, rotatingSlots]);
 
   return (
-    <div className="vyva-page px-4 pb-7 min-[390px]:px-[22px] sm:pb-10" data-testid={testId}>
+    <div
+      className={[
+        "vyva-page px-4 pb-7 min-[390px]:px-[22px] sm:pb-10",
+        isHomeMaster ? "mx-auto max-w-[460px]" : "",
+      ].join(" ")}
+      data-testid={testId}
+    >
       {showLauncher ? <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
-        className="mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6"
-        style={{
+        className={[
+          isHomeMaster
+            ? "mt-5 py-4 min-[390px]:py-5"
+            : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
+        ].join(" ")}
+        style={isHomeMaster ? undefined : {
           borderColor: heroTone.border,
           backgroundColor: heroTone.surface ?? "#FFFFFF",
           backgroundImage: heroBackgroundImage.join(", "),
@@ -176,19 +191,31 @@ export default function MasterDashboardLayout({
         }}
         data-testid={hero.testId}
       >
-        <div className={`flex gap-4 min-[390px]:gap-5 ${isVoiceAction ? "items-center justify-between" : "items-start"}`}>
+        <div className={`flex gap-4 min-[390px]:gap-5 ${isVoiceAction && !isHomeMaster ? "items-center justify-between" : "items-start"}`}>
           <span className="min-w-0 flex-1 text-left">
-            <h1 className="max-w-[8.6em] text-balance font-body text-[29px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]">
+            <h1
+              className={[
+                "text-balance leading-[0.98] text-vyva-text-1",
+                isHomeMaster
+                  ? "max-w-[8.4em] font-display text-[35px] font-semibold tracking-normal min-[390px]:text-[40px]"
+                  : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
+              ].join(" ")}
+            >
               {hero.title}
             </h1>
             {hero.subtitle ? (
-              <p className="mt-2 line-clamp-1 max-w-[13rem] font-body text-[15px] font-extrabold leading-snug text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]">
+              <p
+                className={[
+                  "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
+                  isHomeMaster ? "text-[15px] font-medium min-[390px]:max-w-[18rem] min-[390px]:text-[16px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
+                ].join(" ")}
+              >
                 {hero.subtitle}
               </p>
             ) : null}
           </span>
 
-          {isVoiceAction ? (
+          {isVoiceAction && !isHomeMaster ? (
             <VyvaSessionCta
               label={hero.action.label}
               activeLabel={hero.action.activeLabel}
@@ -210,7 +237,25 @@ export default function MasterDashboardLayout({
           ) : null}
         </div>
 
-        {isVoiceAction ? null : (
+        {isVoiceAction && isHomeMaster ? (
+          <VyvaSessionCta
+            label={hero.action.label}
+            activeLabel={hero.action.activeLabel}
+            connectingLabel={hero.action.connectingLabel}
+            preparingLabel={hero.action.preparingLabel}
+            errorLabel={hero.action.errorLabel}
+            contextHint={hero.action.contextHint}
+            voiceAgentSlug={hero.action.voiceAgentSlug}
+            voiceDynamicVariables={hero.action.voiceDynamicVariables}
+            autoStartListening={hero.action.autoStartListening}
+            canStartVoice={hero.action.canStartVoice}
+            hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
+            disabled={hero.action.disabled}
+            testId={hero.action.testId}
+            supportingLabel={hero.action.supportingLabel}
+            className="vyva-tap mt-8 inline-flex !min-h-[62px] w-full items-center justify-center gap-3 rounded-[28px] bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_18px_32px_rgba(107,33,168,0.22)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[66px] min-[390px]:text-[19px]"
+          />
+        ) : !isVoiceAction ? (
           <button
             type="button"
             onClick={hero.action.onClick}
@@ -221,11 +266,16 @@ export default function MasterDashboardLayout({
             {hero.action.isLoading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
             {hero.action.label}
           </button>
-        )}
+        ) : null}
       </section> : null}
 
-      {showLauncher ? <section className="mt-4" aria-label="Today tray" data-testid={cardGridTestId}>
-        <div className="grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4">
+      {showLauncher ? <section className={isHomeMaster ? "mt-5" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
+        {cardSectionTitle ? (
+          <h2 className={isHomeMaster ? "mb-3 font-body text-[14px] font-black leading-tight text-vyva-text-1" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
+            {cardSectionTitle}
+          </h2>
+        ) : null}
+        <div className={isHomeMaster ? "grid grid-cols-2 gap-2.5 min-[390px]:gap-3" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -236,21 +286,29 @@ export default function MasterDashboardLayout({
                 onClick={card.onClick}
                 data-testid={card.testId}
                 aria-label={cardAriaLabel}
-                className="vyva-tap group flex min-h-[96px] items-center gap-3 rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[104px] min-[390px]:p-3.5 md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]"
+                className={[
+                  "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
+                  isHomeMaster
+                    ? "flex min-h-[102px] flex-col items-start justify-between rounded-[18px] p-3 shadow-[0_8px_18px_rgba(63,45,35,0.04)] min-[390px]:min-h-[108px] min-[390px]:rounded-[20px] min-[390px]:p-3"
+                    : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
+                ].join(" ")}
                 style={{
                   borderColor: card.tone.border,
                   background: `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                 }}
               >
-                <span className="flex min-w-0 flex-1 items-center gap-3 md:w-full md:items-start md:justify-between">
+                <span className={`flex min-w-0 flex-1 items-center gap-3 ${isHomeMaster ? "w-full items-start justify-between" : "md:w-full md:items-start md:justify-between"}`}>
                   <span
-                    className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)] min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]"
+                    className={[
+                      "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
+                      isHomeMaster ? "h-[42px] w-[42px] rounded-[16px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
+                    ].join(" ")}
                     style={{ background: "#FFFFFF", color: card.tone.iconColor }}
                   >
                     <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" />
-                    <Icon className="relative" size={28} strokeWidth={2.55} aria-hidden="true" />
+                    <Icon className="relative" size={isHomeMaster ? 25 : 28} strokeWidth={2.45} aria-hidden="true" />
                   </span>
-                  <span className="min-w-0 flex-1 md:hidden">
+                  <span className={`min-w-0 flex-1 ${isHomeMaster ? "hidden" : "md:hidden"}`}>
                     <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
                       {card.title}
                     </span>
@@ -262,18 +320,25 @@ export default function MasterDashboardLayout({
                   </span>
                   {card.accent ? (
                     <span
-                      className="hidden min-w-0 max-w-[92px] truncate rounded-full px-2 py-1.5 text-center font-body text-[11px] font-black leading-none md:inline-block"
+                      className={[
+                        "min-w-0 max-w-[92px] truncate rounded-full px-2 py-1.5 text-center font-body text-[10px] font-black leading-none",
+                        isHomeMaster ? "inline-block" : "hidden md:inline-block",
+                      ].join(" ")}
                       style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
                     >
                       {card.accent}
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-3 hidden min-w-0 pr-1 md:block">
-                  <span className="block font-body text-[18px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[20px]">
+                <span className={`mt-3 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
+                  <span className="block font-body text-[16px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[18px]">
                     {card.title}
                   </span>
-                  {card.chips?.length ? (
+                  {isHomeMaster && card.detail ? (
+                    <span className="mt-1 block line-clamp-2 font-body text-[10px] font-semibold leading-snug text-vyva-text-2 min-[390px]:text-[11px]">
+                      {card.detail}
+                    </span>
+                  ) : card.chips?.length ? (
                     <span className="mt-2 flex flex-wrap gap-1">
                       {card.chips.slice(0, 3).map((chip) => (
                         <span
@@ -295,7 +360,7 @@ export default function MasterDashboardLayout({
 
       {showLauncher && beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
 
-      {showLauncher ? <section
+      {showLauncher && !isHomeMaster ? <section
         className="mt-4 rounded-[24px] border border-[#E6E0F4] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] min-[390px]:rounded-[26px] min-[390px]:p-4"
         data-testid={fastHelpTestId}
         onMouseEnter={() => setFastHelpPaused(true)}

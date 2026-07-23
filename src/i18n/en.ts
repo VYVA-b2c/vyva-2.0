@@ -1852,7 +1852,9 @@
   home: {
     master: {
       heroEyebrow: "Today",
+      heroSubtitle: "I'm here for health, memory, people and everyday help.",
       voiceSupport: "Speak anytime",
+      chooseCategory: "Choose a category",
       startNudge: {
         title: "Not sure where to start?",
         detail: "Tell VYVA what is on your mind.",
@@ -1862,13 +1864,21 @@
       },
       cards: {
         health: "My Health",
+        healthShortTitle: "My Health",
         healthDetail: "Medication, vitals, symptoms",
+        healthDetailShort: "Medication, vitals, symptoms",
         mindMemory: "My Mind",
+        mindMemoryShortTitle: "Mind",
         mindMemoryDetail: "Memory, reflexes, thinking",
+        mindMemoryDetailShort: "Memory, reflexes",
         community: "My Community",
+        communityShortTitle: "Community",
         communityDetail: "Rooms, matches, activities",
+        communityDetailShort: "Rooms, matches",
         concierge: "My Concierge",
+        conciergeShortTitle: "Concierge",
         conciergeDetail: "Help, rides, orders, schedules",
+        conciergeDetailShort: "Help, rides, orders",
       },
       badges: {
         today: "Today",

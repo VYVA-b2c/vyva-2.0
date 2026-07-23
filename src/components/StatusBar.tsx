@@ -3,8 +3,14 @@ import { useNavigate } from "react-router-dom";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { useLanguage } from "@/i18n";
 import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
+import { VyvaWordmark } from "./VyvaWordmark";
 
-const StatusBar = ({ wide = false }: { wide?: boolean }) => {
+type StatusBarProps = {
+  wide?: boolean;
+  variant?: "default" | "homeMaster";
+};
+
+const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
   const navigate = useNavigate();
   const { language, t } = useLanguage();
   const now = new Date();
@@ -20,6 +26,31 @@ const StatusBar = ({ wide = false }: { wide?: boolean }) => {
   const locale = localeByLanguage[languageCode] ?? "es-ES";
   const time = now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+
+  if (variant === "homeMaster") {
+    return (
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[520px] -translate-x-1/2 bg-[#fffcf8]/95 px-6 py-4 backdrop-blur">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="vyva-tap flex h-10 items-center"
+            aria-label="VYVA"
+          >
+            <VyvaWordmark className="h-auto w-[106px]" />
+          </button>
+          <button
+            onClick={() => navigate("/settings")}
+            className="flex h-10 min-h-0 w-10 shrink-0 items-center justify-center rounded-full border border-vyva-border bg-white shadow-[0_8px_22px_rgba(63,45,35,0.08)]"
+            data-testid="button-my-profile"
+            aria-label={t("nav.myProfile")}
+          >
+            <CircleUser size={21} className="text-vyva-text-2" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`fixed left-1/2 top-0 z-50 w-full -translate-x-1/2 border-b border-vyva-border bg-white/95 px-4 py-2 backdrop-blur min-[390px]:px-[22px] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`}>

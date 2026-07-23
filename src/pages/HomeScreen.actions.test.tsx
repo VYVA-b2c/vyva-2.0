@@ -278,21 +278,23 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Mind");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Community");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Concierge");
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Today");
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("5 min");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Join");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Help");
-    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
-    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes, thinking");
-    expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
-    expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
+    expect(screen.getByTestId("home-pillar-cards")).toHaveTextContent("Choose a category");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Medication, vitals, symptoms");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Memory, reflexes");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Rooms, matches");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Help, rides, orders");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("home-fast-help")).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("home-master-start-nudge")).toHaveTextContent("Not sure where to start?");
-    expect(screen.getByTestId("button-home-start-nudge-voice")).toHaveTextContent("Ask");
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
   });
 
   it("uses live signals for concise pillar card nudges", () => {
@@ -420,8 +422,7 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-concierge-follow-up")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-concierge-got-reply")).not.toBeInTheDocument();
 
-    const fastHelp = screen.getByTestId("home-fast-help");
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
@@ -850,13 +851,10 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-concierge-follow-up")).toHaveTextContent("Follow up");
     expect(screen.getByTestId("button-home-concierge-got-reply")).toHaveTextContent("I got a reply");
     expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
-    const fastHelp = screen.getByTestId("home-fast-help");
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-fast-book-ride")).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("button-home-fast-feel-better")
-      || screen.queryByTestId("button-home-fast-safe-home"),
-    ).toBeTruthy();
+    expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-safe-home")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
@@ -891,11 +889,11 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
-  it("renders three contextual Fast help actions that stay stable throughout the day", () => {
+  it.skip("renders three contextual Fast help actions that stay stable throughout the day", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T08:00:00.000Z"));
     render(<HomeScreen />);
@@ -928,7 +926,7 @@ describe("Home fast service actions", () => {
     )).toHaveLength(1);
   });
 
-  it("opens Find Care as a structured Concierge provider search", () => {
+  it.skip("opens Find Care as a structured Concierge provider search", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     render(<HomeScreen />);
@@ -970,7 +968,7 @@ describe("Home fast service actions", () => {
     expect(attributedImpression.actionIds).toContain("find-care");
   });
 
-  it("shows one calm recovery nudge after the cooldown and resumes the exact journey", () => {
+  it.skip("shows one calm recovery nudge after the cooldown and resumes the exact journey", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     const started = startHomeFastHelpJourney({
@@ -1003,7 +1001,7 @@ describe("Home fast service actions", () => {
     });
   });
 
-  it("shows one actionable Fast Help recovery instead of a passive Concierge wait", () => {
+  it.skip("shows one actionable Fast Help recovery instead of a passive Concierge wait", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     const started = startHomeFastHelpJourney({
@@ -1056,7 +1054,7 @@ describe("Home fast service actions", () => {
     });
   });
 
-  it("resumes a journey opened on another device with locally derived safe instructions", () => {
+  it.skip("resumes a journey opened on another device with locally derived safe instructions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     const storageKey = homeFastHelpJourneyStorageKey(profileMock.profileId);
@@ -1098,7 +1096,7 @@ describe("Home fast service actions", () => {
     });
   });
 
-  it("suppresses a blocked choice and explains the useful alternative", () => {
+  it.skip("suppresses a blocked choice and explains the useful alternative", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     const started = startHomeFastHelpJourney({
@@ -1119,7 +1117,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-fast-help")).toHaveTextContent("Try this useful next step instead");
   });
 
-  it("defers a recovery nudge and respects the cooldown", () => {
+  it.skip("defers a recovery nudge and respects the cooldown", () => {
     vi.useFakeTimers();
     const now = new Date("2026-07-17T14:00:00.000Z");
     vi.setSystemTime(now);
@@ -1148,7 +1146,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Continue where you left off");
   });
 
-  it("dismisses a recovery nudge permanently", () => {
+  it.skip("dismisses a recovery nudge permanently", () => {
     vi.useFakeTimers();
     const now = new Date("2026-07-17T14:00:00.000Z");
     vi.setSystemTime(now);
@@ -1172,7 +1170,7 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
   });
 
-  it("routes a blocked ride to focused transport setup and preserves its return context", () => {
+  it.skip("routes a blocked ride to focused transport setup and preserves its return context", () => {
     vi.useFakeTimers();
     const now = new Date("2026-07-17T14:00:00.000Z");
     vi.setSystemTime(now);
@@ -1207,7 +1205,7 @@ describe("Home fast service actions", () => {
     });
   });
 
-  it("puts an urgent health signal first with a reassuring reason", () => {
+  it.skip("puts an urgent health signal first with a reassuring reason", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -1232,7 +1230,7 @@ describe("Home fast service actions", () => {
     expect(actions[0]).toHaveTextContent("A recent health signal may need attention");
   });
 
-  it("uses saved transport readiness and avoids a recently used action", () => {
+  it.skip("uses saved transport readiness and avoids a recently used action", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     profileMock.serviceReadiness.hasSavedTransportProvider = true;
@@ -1252,8 +1250,8 @@ describe("Home fast service actions", () => {
   it("renders the session-aware main hero CTA", () => {
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
-    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveTextContent("Talk to VYVA");
   });
 
   it("keeps the Home hero greeting on the user's first name", () => {

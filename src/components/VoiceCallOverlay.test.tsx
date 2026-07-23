@@ -161,26 +161,30 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
     expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
-    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Speaking");
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic on");
-    expect(screen.getByTestId("button-end-call")).toHaveTextContent("End");
-    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Touch");
+    expect(screen.queryByTestId("text-call-status")).not.toBeInTheDocument();
+    expect(screen.getByAltText("VYVA")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-private-listening-pill")).toHaveTextContent("Private listening on");
+    expect(screen.queryByTestId("button-toggle-call-mic")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-end-call")).toHaveTextContent("Pause");
+    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Type");
   });
 
   it("keeps user transcript as a small preview instead of a giant word", () => {
     renderOverlay([{ from: "user", text: "Hello VYVA", timestamp: 1 }]);
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("I'm listening");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Listening");
     expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: Hello VYVA");
   });
 
-  it("shows mic off when the microphone is muted", () => {
+  it("keeps the simple listening shell when the microphone is muted", () => {
     renderOverlay([], {
       isMicMuted: true,
       onMicToggle: vi.fn(),
     });
 
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic off");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Mic is off");
+    expect(screen.queryByTestId("button-toggle-call-mic")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-end-call")).toHaveTextContent("Pause");
   });
 
   it("keeps the latest VYVA caption visible after the user replies", () => {
@@ -331,7 +335,10 @@ describe("VoiceCallOverlay voice room", () => {
     const onSos = vi.fn();
     window.addEventListener(VYVA_OPEN_SOS_EVENT, onSos);
 
-    renderOverlay([]);
+    renderOverlay([], {
+      connectionError: "Microphone permission was denied.",
+      connectionErrorCode: "MICROPHONE_PERMISSION_DENIED",
+    });
     fireEvent.click(screen.getByTestId("button-voice-sos"));
 
     expect(onSos).toHaveBeenCalledTimes(1);
