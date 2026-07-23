@@ -3,6 +3,19 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
+
+const overlayVoiceState = vi.hoisted(() => ({
+  status: "idle" as "idle" | "connecting" | "connected",
+  isSpeaking: false,
+  isConnecting: false,
+  isMicMuted: false,
+  voiceSessionPhase: "idle" as VoiceSessionPhase,
+}));
+
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useVyvaVoice: () => overlayVoiceState,
+}));
 
 vi.mock("react-i18next", () => ({
   initReactI18next: {
@@ -117,6 +130,11 @@ describe("VoiceCallOverlay voice room", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    overlayVoiceState.status = "idle";
+    overlayVoiceState.isSpeaking = false;
+    overlayVoiceState.isConnecting = false;
+    overlayVoiceState.isMicMuted = false;
+    overlayVoiceState.voiceSessionPhase = "idle";
     baseProps.onEnd.mockClear();
     baseProps.onMinimize.mockClear();
     canvasMocks.forEach((mock) => mock.mockClear());
@@ -255,6 +273,48 @@ describe("VoiceCallOverlay voice room", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(onCanvasPrimary).toHaveBeenCalledWith("10 Market Street");
+  });
+
+  it("keeps the VYVA agent presence visible inside an active Canvas scene", () => {
+    overlayVoiceState.status = "connected";
+    overlayVoiceState.isSpeaking = true;
+    overlayVoiceState.voiceSessionPhase = "speaking";
+
+    renderOverlay([], {
+      canvasViewModel: {
+        sceneId: "ride-provider",
+        kind: "choice",
+        title: "Which ride option looks best?",
+        helperText: "Compare the visible options while VYVA explains them.",
+        agentPresenceCopy: {
+          idleLabel: "VYVA is ready",
+          idleDescription: "Use voice or touch.",
+          listeningLabel: "Listening with you",
+          listeningDescription: "Say or tap one option.",
+          speakingLabel: "VYVA is speaking",
+          speakingDescription: "The screen stays on the same choice.",
+          thinkingLabel: "Checking options",
+          thinkingDescription: "Review the screen.",
+          accessibleLabel: "VYVA ride voice status",
+        },
+        blocks: [{
+          kind: "option-card",
+          id: "carecab",
+          title: "CareCab",
+          subtitle: "Best reputation",
+          accessibleLabel: "Choose CareCab",
+        }],
+      },
+    });
+
+    expect(screen.getByTestId("voice-canvas-surface")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-mode-zamora-orb")).not.toBeInTheDocument();
+    const canvas = screen.getByRole("region", { name: "Which ride option looks best?" });
+    expect(canvas).toHaveAttribute("data-agent-presence", "true");
+    expect(canvas).toHaveAttribute("data-agent-state", "speaking");
+    expect(screen.getByLabelText("VYVA ride voice status")).toHaveTextContent("VYVA is speaking");
+    expect(screen.getByText("The screen stays on the same choice.")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-canvas-agent-orb-ride-provider")).toBeInTheDocument();
   });
 
   it("calls the type escape when available", () => {

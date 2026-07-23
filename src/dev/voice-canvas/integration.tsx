@@ -212,16 +212,41 @@ export function VoiceCanvasIntegrationGallery() {
   const isSpanish = params.get("locale") === "es";
   const evidenceSafe = params.get("evidence") === "sanitized";
   const copy = isSpanish ? spanishCopy : englishCopy;
+  const galleryText = isSpanish
+    ? {
+        eyebrow: "VYVA · Integración v1",
+        title: "Canvas de compañía en vivo",
+        subtitle: "Flujo de viaje seguro · voz, pantalla táctil y teclado",
+        toolbarLabel: "Simulación del resultado",
+        success: "Resultado correcto",
+        blocked: "Resultado bloqueado",
+        savedDestination: "Opción de destino guardada",
+        selectedRide: "Opción de viaje seleccionada",
+        selectedDay: "Día seleccionado",
+        selectedTime: "Hora seleccionada",
+      }
+    : {
+        eyebrow: "VYVA · Integration v1",
+        title: "Live Companion Canvas",
+        subtitle: "Safe ride workflow · voice, touch, and keyboard",
+        toolbarLabel: "Result simulation",
+        success: "Successful result",
+        blocked: "Blocked result",
+        savedDestination: "Saved destination option",
+        selectedRide: "Selected ride option",
+        selectedDay: "Selected day",
+        selectedTime: "Selected time",
+      };
   const reviewState: RideCanvasState = {
     step: "review",
     requestId: 0,
     draft: {
       placeId: "home",
-      destination: evidenceSafe ? "Saved destination option" : "12 Garden Lane",
+      destination: evidenceSafe ? galleryText.savedDestination : "12 Garden Lane",
       providerId: "carecab",
-      providerName: evidenceSafe ? "Selected ride option" : "CareCab",
-      dateChoice: evidenceSafe ? "Selected day" : "Saturday, 18 July",
-      time: evidenceSafe ? "Selected time" : "10:30",
+      providerName: evidenceSafe ? galleryText.selectedRide : "CareCab",
+      dateChoice: evidenceSafe ? galleryText.selectedDay : "Saturday, 18 July",
+      time: evidenceSafe ? galleryText.selectedTime : "10:30",
     },
   };
   const confirm = useCallback(
@@ -403,24 +428,24 @@ export function VoiceCanvasIntegrationGallery() {
   return (
     <main className="vc-gallery vc-integration-gallery">
       <header>
-        <p>VYVA · Integration v1</p>
-        <h1>Live Companion Canvas</h1>
-        <span>Safe ride workflow · voice, touch, and keyboard</span>
+        <p>{galleryText.eyebrow}</p>
+        <h1>{galleryText.title}</h1>
+        <span>{galleryText.subtitle}</span>
       </header>
-      <div className="vc-demo-toolbar" role="group" aria-label="Result simulation">
+      <div className="vc-demo-toolbar" role="group" aria-label={galleryText.toolbarLabel}>
         <button
           type="button"
           aria-pressed={mode === "success"}
           onClick={() => setMode("success")}
         >
-          Successful result
+          {galleryText.success}
         </button>
         <button
           type="button"
           aria-pressed={mode === "failure"}
           onClick={() => setMode("failure")}
         >
-          Blocked result
+          {galleryText.blocked}
         </button>
       </div>
       <div className="vc-gallery-stage">

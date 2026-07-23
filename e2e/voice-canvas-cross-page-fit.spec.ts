@@ -9,7 +9,7 @@ const viewports = [
 const flowPages = [
   {
     name: "ride",
-    path: "/voice-canvas-integration.html?review&evidence=sanitized",
+    path: "/voice-canvas-integration.html?review&locale=es&evidence=sanitized",
   },
   {
     name: "appointment",
@@ -17,7 +17,7 @@ const flowPages = [
   },
   {
     name: "provider-reply",
-    path: "/provider-reply-canvas.html?evidence=sanitized",
+    path: "/provider-reply-canvas.html?locale=es&evidence=sanitized",
   },
   {
     name: "shopping",
@@ -25,7 +25,7 @@ const flowPages = [
   },
   {
     name: "refill",
-    path: "/medication-refill-canvas-integration.html?evidence=sanitized",
+    path: "/medication-refill-canvas-integration.html?locale=es&evidence=sanitized",
   },
   {
     name: "prescription-follow-up",

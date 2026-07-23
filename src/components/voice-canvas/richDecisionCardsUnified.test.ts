@@ -8,6 +8,7 @@ import { initialShoppingCanvasState } from "./shoppingCanvasMachine";
 import { shoppingCanvasViewModel, type ShoppingCanvasCopy } from "./shoppingCanvasViewModel";
 import { initialProviderReplyCanvasState } from "./providerReplyCanvasMachine";
 import { providerReplyCanvasViewModel, type ProviderReplyCanvasCopy } from "./providerReplyCanvasViewModel";
+import { applyVoiceCanvasAgentPresence } from "./useVoiceCanvasPlatform";
 
 const agentPresence: VoiceCanvasAgentPresenceCopy = {
   idleLabel: "Voice ready",
@@ -137,6 +138,38 @@ const providerReplyCopy: ProviderReplyCanvasCopy = {
 };
 
 describe("unified rich decision card contracts", () => {
+  it("keeps the shared VYVA agent presence visible across live decision flows", () => {
+    const scenes = [
+      rideCanvasViewModel({ ...initialRideCanvasState, step: "place" }, rideCopy, [{
+        id: "clinic",
+        label: "Clinic",
+        address: "12 Garden Lane",
+      }], [], []),
+      refillCanvasViewModel({ ...initialRefillCanvasState, step: "medication" }, refillCopy, [], [], []),
+      shoppingCanvasViewModel({ ...initialShoppingCanvasState, step: "retailer" }, shoppingCopy, [], []),
+      providerReplyCanvasViewModel({ ...initialProviderReplyCanvasState, step: "context" }, providerReplyCopy, {
+        providerName: "Riverside Clinic",
+        providerType: "Clinic",
+        replyIntents: [{ id: "confirm", label: "Confirm appointment" }],
+      }),
+    ];
+
+    for (const scene of scenes) {
+      const withPresence = applyVoiceCanvasAgentPresence(scene, {
+        status: "connected",
+        isMicMuted: false,
+        voiceSessionPhase: "idle",
+      }, agentPresence);
+
+      expect(withPresence.agentPresence).toMatchObject({
+        state: "listening",
+        label: agentPresence.listeningLabel,
+        description: agentPresence.listeningDescription,
+        accessibleLabel: agentPresence.accessibleLabel,
+      });
+    }
+  });
+
   it("keeps ride rich cards aligned with the cross-flow review and no-action boundary", () => {
     const viewModel = rideCanvasViewModel({ ...initialRideCanvasState, step: "place" }, rideCopy, [{
       id: "clinic",
