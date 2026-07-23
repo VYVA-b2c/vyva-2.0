@@ -19232,7 +19232,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
 
             {activeActionCanRecordProviderReply || providerReplyMode ? (
               usesProviderReplyVoiceCanvas && !providerReplyMode ? (
-                <div className="mt-3" data-testid="panel-concierge-provider-reply-canvas">
+                <div className="mt-3 flex min-w-0 justify-center rounded-[28px] bg-[#F8F4FA] p-2 sm:p-4" data-testid="panel-concierge-provider-reply-canvas">
                   <ProviderReplyVoiceCanvas
                     copy={providerReplyCanvasCopy}
                     context={providerReplyCanvasContext}

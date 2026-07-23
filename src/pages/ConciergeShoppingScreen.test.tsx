@@ -109,6 +109,7 @@ describe("ConciergeShoppingScreen", () => {
     renderScreen();
     const open = await screen.findByTestId("button-open-shopping-delivery-canvas");
     fireEvent.click(open);
+    expect(screen.getByTestId("shopping-delivery-canvas-frame")).toHaveClass("justify-center");
     expect(screen.getByTestId("shopping-voice-canvas")).toHaveAttribute("data-step", "listening");
   });
 

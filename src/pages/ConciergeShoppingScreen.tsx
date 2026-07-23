@@ -1321,7 +1321,9 @@ const ConciergeShoppingScreen = () => {
       {shoppingCanvasEnabled && (
         <section className="mt-4 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_12px_28px_rgba(15,118,110,0.10)]" data-testid="shopping-delivery-canvas-entry">
           {shoppingCanvasOpen ? (
-            <ShoppingVoiceCanvas copy={SHOPPING_CANVAS_COPY[locale]} voiceCommands={SHOPPING_CANVAS_COMMANDS[locale]} retailers={canvasRetailers} addresses={canvasAddresses} onCancel={() => setShoppingCanvasOpen(false)} onDone={() => setShoppingCanvasOpen(false)} onConfirm={(draft, context) => executeShoppingPreparation(apiFetch, draft, { signal: context.signal, language: language || locale, messages: { prepareFailed: locale === "es" ? "No pudimos preparar la solicitud." : "We couldn’t prepare the request." } })} />
+            <div className="flex min-w-0 justify-center" data-testid="shopping-delivery-canvas-frame">
+              <ShoppingVoiceCanvas copy={SHOPPING_CANVAS_COPY[locale]} voiceCommands={SHOPPING_CANVAS_COMMANDS[locale]} retailers={canvasRetailers} addresses={canvasAddresses} onCancel={() => setShoppingCanvasOpen(false)} onDone={() => setShoppingCanvasOpen(false)} onConfirm={(draft, context) => executeShoppingPreparation(apiFetch, draft, { signal: context.signal, language: language || locale, messages: { prepareFailed: locale === "es" ? "No pudimos preparar la solicitud." : "We couldn’t prepare the request." } })} />
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
               <div><h2 className="font-body text-[19px] font-extrabold text-vyva-text-1">{locale === "es" ? "Prepara una compra o entrega" : "Prepare shopping or delivery"}</h2><p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">{locale === "es" ? "Confirma artículos, cantidades, precio y entrega antes de preparar cualquier solicitud." : "Confirm items, quantities, cost, and delivery before any request is prepared."}</p></div>
