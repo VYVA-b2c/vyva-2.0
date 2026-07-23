@@ -26,11 +26,13 @@ import {
 } from "./refillCanvasTelemetry";
 import {
   CanvasLiveStatus,
+  applyVoiceCanvasSpokenChoiceFeedback,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
   useVoiceCanvasAgentPresence,
+  useVoiceCanvasSpokenChoiceFeedback,
 } from "./useVoiceCanvasPlatform";
 export interface RefillVoiceCommands {
   start: string[];
@@ -92,8 +94,14 @@ export function RefillVoiceCanvas({
     storageKey,
     isRestorable: isRestorableRefillState,
   });
+  const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
+  const {
+    feedback: spokenChoiceFeedback,
+    acknowledge: acknowledgeSpokenChoice,
+    clear: clearSpokenChoice,
+  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () =>
       refillCanvasViewModel(
@@ -105,7 +113,14 @@ export function RefillVoiceCanvas({
     ),
     [state, copy, medications, providers, contactChoices],
   );
-  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const viewModel = useMemo(
+    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
+    [agentViewModel, spokenChoiceFeedback],
+  );
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   const urgentText = useCallback(
     (value: string) =>
       urgentTerms.some((term) => normalize(value).includes(normalize(term))),
@@ -143,6 +158,7 @@ export function RefillVoiceCanvas({
   }, [state.step, state.requestId, onTelemetry, restoredRef]);
   const choose = useCallback(
     (id: string) => {
+      clearSpokenChoice();
       inputRef.current = "touch_or_keyboard";
       if (id === "manual-medication")
         dispatch({ type: "CHOOSE_MEDICATION", manual: true });
@@ -166,9 +182,56 @@ export function RefillVoiceCanvas({
         if (contact) dispatch({ type: "CHOOSE_CONTACT", value: contact.label });
       }
     },
-    [medications, providers, contactChoices, dispatch],
+    [medications, providers, contactChoices, dispatch, clearSpokenChoice],
+  );
+  const spokenChoiceMessage = useCallback(
+    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
+    [copy.agentPresence],
+  );
+  const acknowledgeRefillChoice = useCallback(
+    (
+      choiceId: string,
+      label: string,
+      expectedStep: RefillCanvasState["step"],
+      eventToDispatch: RefillCanvasEvent,
+      detail: VoiceUserMessageDetail,
+    ) => {
+      const message = spokenChoiceMessage(label);
+      acknowledgeSpokenChoice(
+        { choiceId, message, accessibleMessage: message },
+        () => {
+          const current = stateRef.current;
+          if (current.step !== expectedStep) return;
+          const next = refillCanvasReducer(current, eventToDispatch);
+          dispatch(eventToDispatch);
+          emitVoiceTriageTouchAnswer({
+            conversationId: ensureVoiceSessionId(),
+            utterance: detail.text,
+            choiceId,
+            nextQuestion: refillCanvasViewModel(
+              next,
+              copy,
+              medications,
+              providers,
+              contactChoices,
+            ).title,
+            status: next.step,
+          });
+        },
+      );
+    },
+    [
+      acknowledgeSpokenChoice,
+      contactChoices,
+      copy,
+      dispatch,
+      medications,
+      providers,
+      spokenChoiceMessage,
+    ],
   );
   const primary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "review")
       onTelemetry({
@@ -210,8 +273,10 @@ export function RefillVoiceCanvas({
     actionGate,
     dispatch,
     restoredRef,
+    clearSpokenChoice,
   ]);
   const secondary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
       onTelemetry({
@@ -224,7 +289,7 @@ export function RefillVoiceCanvas({
       dispatch({ type: "CANCEL" });
       onCancel?.();
     } else dispatch({ type: "BACK" });
-  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef]);
+  }, [state.step, state.requestId, onCancel, onTelemetry, dispatch, restoredRef, clearSpokenChoice]);
   useEffect(() => {
     if (state.step !== "waiting") return;
     const controller = actionGate.begin(state.requestId);
@@ -284,6 +349,7 @@ export function RefillVoiceCanvas({
   useCanvasVoiceSynchronization((event: Event) => {
       const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
       if (!detail?.text) return;
+      clearSpokenChoice();
       inputRef.current = "voice";
       const text = normalize(detail.text);
       let handled = true,
@@ -345,8 +411,16 @@ export function RefillVoiceCanvas({
       } else if (
         voiceCommands.routine.some((command) => text === normalize(command)) &&
         state.step === "safety"
-      )
-        apply({ type: "ROUTINE_REFILL" });
+      ) {
+        acknowledgeRefillChoice(
+          "routine",
+          copy.safety.routine,
+          "safety",
+          { type: "ROUTINE_REFILL" },
+          detail,
+        );
+        return;
+      }
       else {
         const medication = medications.find((item) =>
             text.includes(normalize(item.label)),
@@ -360,15 +434,31 @@ export function RefillVoiceCanvas({
         if (
           state.step === "medication" &&
           text.includes(normalize(copy.medication.manual))
-        )
-          apply({ type: "CHOOSE_MEDICATION", manual: true });
+        ) {
+          acknowledgeRefillChoice(
+            "manual-medication",
+            copy.medication.manual,
+            "medication",
+            { type: "CHOOSE_MEDICATION", manual: true },
+            detail,
+          );
+          return;
+        }
         else if (
           state.step === "medication" &&
           text.includes(normalize(copy.medication.cannotIdentify))
         )
           apply({ type: "CANNOT_IDENTIFY" });
-        else if (state.step === "medication" && medication)
-          apply({ type: "CHOOSE_MEDICATION", medication });
+        else if (state.step === "medication" && medication) {
+          acknowledgeRefillChoice(
+            `medication:${medication.id}`,
+            medication.label,
+            "medication",
+            { type: "CHOOSE_MEDICATION", medication },
+            detail,
+          );
+          return;
+        }
         else if (state.step === "medicationEntry") {
           apply({ type: "CHANGE_MEDICATION", value: detail.text.trim() });
           apply({ type: "CONTINUE_MEDICATION" });
@@ -378,10 +468,26 @@ export function RefillVoiceCanvas({
         } else if (
           state.step === "provider" &&
           text.includes(normalize(copy.provider.manual))
-        )
-          apply({ type: "CHOOSE_PROVIDER", manual: true });
-        else if (state.step === "provider" && provider)
-          apply({ type: "CHOOSE_PROVIDER", provider });
+        ) {
+          acknowledgeRefillChoice(
+            "manual-provider",
+            copy.provider.manual,
+            "provider",
+            { type: "CHOOSE_PROVIDER", manual: true },
+            detail,
+          );
+          return;
+        }
+        else if (state.step === "provider" && provider) {
+          acknowledgeRefillChoice(
+            `provider:${provider.id}`,
+            provider.label,
+            "provider",
+            { type: "CHOOSE_PROVIDER", provider },
+            detail,
+          );
+          return;
+        }
         else if (state.step === "providerEntry") {
           apply({ type: "CHANGE_PROVIDER", value: detail.text.trim() });
           apply({ type: "CONTINUE_PROVIDER" });
@@ -391,8 +497,16 @@ export function RefillVoiceCanvas({
         } else if (state.step === "notes") {
           apply({ type: "CHANGE_NOTES", value: detail.text.trim() });
           apply({ type: "CONTINUE_NOTES" });
-        } else if (state.step === "contact" && contact)
-          apply({ type: "CHOOSE_CONTACT", value: contact.label });
+        } else if (state.step === "contact" && contact) {
+          acknowledgeRefillChoice(
+            `contact:${contact.id}`,
+            contact.label,
+            "contact",
+            { type: "CHOOSE_CONTACT", value: contact.label },
+            detail,
+          );
+          return;
+        }
         else handled = false;
       }
       if (handled) {
@@ -413,6 +527,7 @@ export function RefillVoiceCanvas({
       }
   });
   const textChange = (value: string) => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "notes" && urgentText(value)) {
       dispatch({ type: "URGENT" });

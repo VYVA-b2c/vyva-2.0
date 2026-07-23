@@ -26,11 +26,13 @@ import {
 } from "./providerReplyCanvasTelemetry";
 import {
   CanvasLiveStatus,
+  applyVoiceCanvasSpokenChoiceFeedback,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
   useVoiceCanvasAgentPresence,
+  useVoiceCanvasSpokenChoiceFeedback,
 } from "./useVoiceCanvasPlatform";
 
 export interface ProviderReplyVoiceCommands {
@@ -114,13 +116,27 @@ export function ProviderReplyVoiceCanvas({
     storageKey,
     isRestorable: isRestorableProviderReplyCanvasState,
   });
+  const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
+  const {
+    feedback: spokenChoiceFeedback,
+    acknowledge: acknowledgeSpokenChoice,
+    clear: clearSpokenChoice,
+  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () => providerReplyCanvasViewModel(state, copy, context),
     [state, copy, context],
   );
-  const viewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
+  const viewModel = useMemo(
+    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
+    [agentViewModel, spokenChoiceFeedback],
+  );
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     if (restoredRef.current && !restoreTrackedRef.current) {
@@ -183,6 +199,7 @@ export function ProviderReplyVoiceCanvas({
   }, [actionGate, dispatch, onTelemetry, restoredRef, state.requestId, state.revision]);
 
   const choose = useCallback((id: string) => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (!id.startsWith("intent:")) return;
     const intent = context.replyIntents?.find((item) => item.id === id.slice(7));
@@ -192,9 +209,46 @@ export function ProviderReplyVoiceCanvas({
       intent,
       blockedMessage: copy.blocked.urgentBoundaryHelper,
     });
-  }, [context.replyIntents, copy.blocked.urgentBoundaryHelper, submit]);
+  }, [context.replyIntents, copy.blocked.urgentBoundaryHelper, submit, clearSpokenChoice]);
+
+  const spokenChoiceMessage = useCallback(
+    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
+    [copy.agentPresence],
+  );
+
+  const acknowledgeProviderReplyChoice = useCallback((
+    choiceId: string,
+    label: string,
+    eventToDispatch: ProviderReplyCanvasEvent,
+    detail: VoiceUserMessageDetail,
+  ) => {
+    const message = spokenChoiceMessage(label);
+    acknowledgeSpokenChoice(
+      { choiceId, message, accessibleMessage: message },
+      () => {
+        const current = stateRef.current;
+        if (current.step !== "context") return;
+        const next = providerReplyCanvasReducer(current, eventToDispatch);
+        submit(eventToDispatch);
+        emitVoiceTriageTouchAnswer({
+          conversationId: ensureVoiceSessionId(),
+          utterance: detail.text,
+          choiceId,
+          nextQuestion: providerReplyCanvasViewModel(next, copy, context).title,
+          status: next.step,
+        });
+      },
+    );
+  }, [
+    acknowledgeSpokenChoice,
+    context,
+    copy,
+    spokenChoiceMessage,
+    submit,
+  ]);
 
   const primary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "cancelled") submit({ type: "START" });
     else if (state.step === "context")
@@ -213,9 +267,10 @@ export function ProviderReplyVoiceCanvas({
     else if (state.step === "saved") submit({ type: "COMPLETE" });
     else if (state.step === "blocked") submit({ type: "RETRY" });
     else if (state.step === "completed") onDone?.();
-  }, [context.replyIntents, context.requiresScheduledFor, onDone, state.step, submit]);
+  }, [context.replyIntents, context.requiresScheduledFor, onDone, state.step, submit, clearSpokenChoice]);
 
   const secondary = useCallback(() => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "listening" || state.step === "blocked") {
       onTelemetry({
@@ -233,15 +288,16 @@ export function ProviderReplyVoiceCanvas({
     } else {
       dispatch({ type: "BACK" });
     }
-  }, [dispatch, onCancel, onTelemetry, restoredRef, state.requestId, state.revision, state.step]);
+  }, [dispatch, onCancel, onTelemetry, restoredRef, state.requestId, state.revision, state.step, clearSpokenChoice]);
 
   const change = useCallback((value: string) => {
+    clearSpokenChoice();
     inputRef.current = "touch_or_keyboard";
     if (state.step === "reply") dispatch({ type: "CHANGE_REPLY", value });
     else if (state.step === "scheduledFor")
       dispatch({ type: "CHANGE_SCHEDULED_FOR", value });
     else if (state.step === "details") dispatch({ type: "CHANGE_NOTES", value });
-  }, [dispatch, state.step]);
+  }, [dispatch, state.step, clearSpokenChoice]);
 
   useEffect(() => {
     if (state.step !== "saving" && state.step !== "completing") return;
@@ -313,6 +369,7 @@ export function ProviderReplyVoiceCanvas({
   useCanvasVoiceSynchronization((event: Event) => {
     const detail = (event as CustomEvent<VoiceUserMessageDetail>).detail;
     if (!detail?.text) return;
+    clearSpokenChoice();
     inputRef.current = "voice";
     const text = normalize(detail.text);
     let eventToDispatch: ProviderReplyCanvasEvent | null = null;
@@ -327,11 +384,21 @@ export function ProviderReplyVoiceCanvas({
     else if (state.step === "context") {
       const intent = context.replyIntents?.find((item) => matchesIntent(text, item));
       if (intent) {
-        eventToDispatch = {
+        const choiceEvent: ProviderReplyCanvasEvent = {
           type: "CHOOSE_INTENT",
           intent,
           blockedMessage: copy.blocked.urgentBoundaryHelper,
         };
+        if (intent.urgent) eventToDispatch = choiceEvent;
+        else {
+          acknowledgeProviderReplyChoice(
+            `intent:${intent.id}`,
+            intent.label,
+            choiceEvent,
+            detail,
+          );
+          return;
+        }
       }
     }
     else if (state.step === "reply" && matches(text, voiceCommands.continue))

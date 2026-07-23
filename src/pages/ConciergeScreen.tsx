@@ -15170,6 +15170,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       thinkingLabel: isSpanish ? "Guardando la respuesta" : "Thinking through the provider reply",
       thinkingDescription: isSpanish ? "Revisando el registro antes de guardar." : "Checking the record before saving.",
       accessibleLabel: isSpanish ? "Estado de voz de VYVA para la respuesta del proveedor" : "VYVA voice status for the provider reply",
+      spokenChoiceMessage: (label) => isSpanish ? `VYVA escuchó ${label}` : `VYVA heard ${label}`,
     },
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",
@@ -16688,6 +16689,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       thinkingLabel: isSpanish ? "Preparando opciones" : "Thinking through ride options",
       thinkingDescription: isSpanish ? "Revisando los detalles del viaje." : "Checking the ride details.",
       accessibleLabel: isSpanish ? "Estado de voz de VYVA para el viaje" : "VYVA voice status for the ride",
+      spokenChoiceMessage: (label) => isSpanish ? `VYVA escuchó ${label}` : `VYVA heard ${label}`,
     },
     listening: {
       status: isSpanish ? "Escuchando" : "Listening",

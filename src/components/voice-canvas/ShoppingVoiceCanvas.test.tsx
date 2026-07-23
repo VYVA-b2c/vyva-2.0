@@ -91,7 +91,7 @@ describe("ShoppingVoiceCanvas", () => {
     expect(screen.getByText("Saved address")).toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
   });
-  it("synchronizes a saved retailer choice from voice", () => {
+  it("synchronizes a saved retailer choice from voice", async () => {
     render(<ShoppingVoiceCanvas {...props()} />);
     const say = (text: string) =>
       act(() =>
@@ -104,9 +104,12 @@ describe("ShoppingVoiceCanvas", () => {
       );
     say("start");
     say("Neighbourhood Market With A Very Long Translated Name");
-    expect(
+    const retailer = screen.getByRole("button", { name: /Neighbourhood Market/ });
+    expect(retailer).toHaveAttribute("data-spoken-selected", "true");
+    expect(retailer).toHaveFocus();
+    await waitFor(() => expect(
       screen.getByRole("heading", { name: "What item do you need?" }),
-    ).toBeInTheDocument();
+    ).toBeInTheDocument());
   });
   it("completes saved-retailer and saved-address path with keyboard-accessible controls", async () => {
     const onConfirm = vi

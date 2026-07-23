@@ -19,6 +19,7 @@ export interface VoiceCanvasChoice {
   label: string;
   description?: string;
   selected?: boolean;
+  spokenSelected?: boolean;
   disabled?: boolean;
   icon?: LucideIcon;
   accessibleLabel?: string;
@@ -46,6 +47,7 @@ export interface VoiceCanvasOptionCardBlock {
   badge?: string;
   recommended?: boolean;
   selected?: boolean;
+  spokenSelected?: boolean;
   disabled?: boolean;
   icon?: LucideIcon;
   details?: VoiceCanvasOptionCardDetail[];
@@ -110,6 +112,14 @@ export interface VoiceCanvasAgentPresenceCopy {
   thinkingDescription?: string;
   accessibleLabel: string;
   ariaLive?: "off" | "polite" | "assertive";
+  spokenChoiceMessage?: (choiceLabel: string) => string;
+}
+
+export interface VoiceCanvasSpokenChoiceFeedback {
+  choiceId: string;
+  message: string;
+  accessibleMessage?: string;
+  token?: number;
 }
 
 export interface VoiceCanvasViewModel {
@@ -119,6 +129,7 @@ export interface VoiceCanvasViewModel {
   helperText?: string;
   agentPresence?: VoiceCanvasAgentPresence;
   agentPresenceCopy?: VoiceCanvasAgentPresenceCopy;
+  spokenChoiceFeedback?: VoiceCanvasSpokenChoiceFeedback;
   progress?: VoiceCanvasProgress;
   choices?: VoiceCanvasChoice[];
   blocks?: VoiceCanvasBlock[];

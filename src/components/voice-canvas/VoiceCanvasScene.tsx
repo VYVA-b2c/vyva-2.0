@@ -1,5 +1,5 @@
 import { Camera, Check, CircleAlert, LoaderCircle, MapPin, Trash2, type LucideIcon } from "lucide-react";
-import type { ChangeEvent, KeyboardEvent } from "react";
+import { useEffect, useRef, type ChangeEvent, type KeyboardEvent } from "react";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
 import type { VoiceCanvasAgentPresence, VoiceCanvasChoice, VoiceCanvasOptionCardBlock, VoiceCanvasViewModel } from "./types";
 import "./voice-canvas.css";
@@ -59,6 +59,7 @@ function ChoiceButton({ choice, onChoice }: { choice: VoiceCanvasChoice; onChoic
       type="button"
       className="vc-choice"
       data-selected={choice.selected || undefined}
+      data-spoken-selected={choice.spokenSelected || undefined}
       aria-pressed={choice.selected}
       aria-label={choice.accessibleLabel}
       disabled={choice.disabled}
@@ -81,6 +82,7 @@ function OptionCardBlock({ block, onChoice }: { block: VoiceCanvasOptionCardBloc
       type="button"
       className="vc-option-card"
       data-selected={block.selected || undefined}
+      data-spoken-selected={block.spokenSelected || undefined}
       data-recommended={block.recommended || undefined}
       aria-pressed={block.selected}
       aria-label={block.accessibleLabel}
@@ -112,7 +114,8 @@ function OptionCardBlock({ block, onChoice }: { block: VoiceCanvasOptionCardBloc
 }
 
 export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, onTextChange, onFileChange, className = "" }: VoiceCanvasSceneProps) {
-  const { kind, title, helperText, agentPresence, progress, choices = [], blocks = [], summaryRows = [], textEntry, fileEntry, statusLabel } = viewModel;
+  const { kind, title, helperText, agentPresence, spokenChoiceFeedback, progress, choices = [], blocks = [], summaryRows = [], textEntry, fileEntry, statusLabel } = viewModel;
+  const sectionRef = useRef<HTMLElement>(null);
   const StatusIcon = statusIcons[kind];
   const isWaiting = kind === "waiting" || viewModel.status === "loading";
   const titleId = `voice-canvas-title-${viewModel.sceneId}`;
@@ -130,8 +133,16 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
 
   const handleTextChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onTextChange?.(event.target.value);
 
+  useEffect(() => {
+    if (!spokenChoiceFeedback) return;
+    sectionRef.current
+      ?.querySelector<HTMLElement>("[data-spoken-selected='true']")
+      ?.focus();
+  }, [spokenChoiceFeedback]);
+
   return (
     <section
+      ref={sectionRef}
       className={`voice-canvas ${className}`.trim()}
       data-kind={kind}
       data-status={viewModel.status ?? "idle"}
@@ -142,6 +153,12 @@ export function VoiceCanvasScene({ viewModel, onChoice, onPrimary, onSecondary, 
       aria-busy={isWaiting}
     >
       {agentPresence && <AgentPresence presence={agentPresence} sceneId={viewModel.sceneId} />}
+
+      {spokenChoiceFeedback && (
+        <p className="vc-spoken-feedback" role="status" aria-live="polite" aria-atomic="true">
+          {spokenChoiceFeedback.accessibleMessage ?? spokenChoiceFeedback.message}
+        </p>
+      )}
 
       {progress && (
         <div className="vc-progress" aria-label={progress.label} role="progressbar" aria-valuemin={1} aria-valuemax={progress.total} aria-valuenow={progress.current}>
