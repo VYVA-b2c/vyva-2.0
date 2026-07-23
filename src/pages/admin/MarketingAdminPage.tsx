@@ -12776,6 +12776,7 @@ export default function MarketingAdminPage() {
   const [templateGapPackRunning, setTemplateGapPackRunning] = useState(false);
   const [templateGapPackProgress, setTemplateGapPackProgress] = useState("");
   const [confirmingContentDeleteId, setConfirmingContentDeleteId] = useState<string | null>(null);
+  const campaignDetailPanelRef = useRef<HTMLDivElement | null>(null);
   const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
   const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
@@ -13239,6 +13240,10 @@ export default function MarketingAdminPage() {
     return new Map(Array.from(grouped.entries()).map(([campaignId, metrics]) => [campaignId, summarizeCampaignMetrics(metrics)]));
   }, [campaignMetrics]);
 
+  const scrollCampaignDetailIntoView = useCallback(() => {
+    window.setTimeout(() => campaignDetailPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, []);
+
   const startCampaignEdit = useCallback((campaign: Campaign) => {
     const firstManualChannel = campaign.channels.find((channel) => channel.channel !== "email" && channel.contentAssetId)?.channel
       ?? campaign.channels.find((channel) => channel.channel !== "email")?.channel
@@ -13252,7 +13257,9 @@ export default function MarketingAdminPage() {
     setMessage("");
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
-  }, [audiences]);
+    setShowSimpleCampaignBuilder(false);
+    scrollCampaignDetailIntoView();
+  }, [audiences, scrollCampaignDetailIntoView]);
 
   const openCampaignForNextAction = useCallback((campaign: Campaign) => {
     const readiness = campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId);
@@ -22826,6 +22833,7 @@ export default function MarketingAdminPage() {
       setCampaigns((current) => [result.campaign, ...current.filter((campaign) => campaign.id !== result.campaign.id)]);
       setEditingCampaignId(result.campaign.id);
       setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      setShowSimpleCampaignBuilder(false);
       setCampaignDraft(emptyCampaignDraft());
       const recipientMessage = campaignDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
       const savedEmailRoutes = result.campaign.channels.filter((channel) => channel.channel === "email");
@@ -22845,7 +22853,13 @@ export default function MarketingAdminPage() {
       const postCreateMessage = `Campaign created and opened. Next: ${postCreateNextSteps.join("; ")}.`;
       setCampaignEmailFeedback(postCreateMessage);
       setMessage(`${postCreateMessage}${recipientMessage}`);
+      scrollCampaignDetailIntoView();
       await refreshAll();
+      setCampaigns((current) => current.some((campaign) => campaign.id === result.campaign.id)
+        ? current
+        : [result.campaign, ...current]);
+      setEditingCampaignId(result.campaign.id);
+      setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Campaign could not be created.");
     } finally {
@@ -22967,7 +22981,9 @@ export default function MarketingAdminPage() {
       setCampaigns((current) => [result.campaign, ...current.filter((item) => item.id !== result.campaign.id)]);
       setEditingCampaignId(result.campaign.id);
       setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      setShowSimpleCampaignBuilder(false);
       setMessage(`Duplicated "${campaign.name}" as a clean draft. Add a fresh schedule or recipient snapshot when ready.`);
+      scrollCampaignDetailIntoView();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Campaign could not be duplicated.");
     } finally {
@@ -32210,6 +32226,274 @@ export default function MarketingAdminPage() {
                     </div>
                   </form>
                 </SectionCard>
+              ) : null}
+
+              {editingCampaign ? (
+                <div ref={campaignDetailPanelRef} tabIndex={-1} className="scroll-mt-4 outline-none" data-testid="marketing-simple-campaign-detail">
+                  <SectionCard
+                    title="Campaign detail"
+                    subtitle="Review the basics, save changes, then send when the campaign is ready."
+                    action={(
+                      <button
+                        type="button"
+                        onClick={cancelCampaignEdit}
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46] hover:bg-[#fbf8f5]"
+                        data-testid="button-marketing-simple-campaign-detail-close"
+                      >
+                        <X size={13} /> Close
+                      </button>
+                    )}
+                  >
+                    <form className="grid gap-5" onSubmit={(event) => saveCampaignEdit(event, editingCampaign.id).catch((error) => setMessage(error.message))} data-testid="marketing-simple-campaign-detail-form">
+                      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-800">Open campaign</p>
+                          <h3 className="mt-1 break-words text-xl font-black text-[#241133]">{editingCampaign.name}</h3>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Pill className={statusClass(editingCampaign.status)}>{editingCampaign.status}</Pill>
+                            <Pill className="bg-purple-50 text-purple-800">{editingCampaign.audienceType.toUpperCase()}</Pill>
+                            <Pill className="bg-blue-50 text-blue-800">{savedCampaignRecipientCount} recipients</Pill>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => duplicateCampaignAsDraft(editingCampaign).catch((error) => setMessage(error.message))}
+                          disabled={campaignSaving}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          data-testid="button-marketing-simple-campaign-duplicate"
+                        >
+                          <Copy size={14} /> Duplicate
+                        </button>
+                      </div>
+
+                      {(campaignEmailFeedback || testEmailFeedback || campaignEmailBlockedReason || testEmailBlockedReason) ? (
+                        <div className="grid gap-2">
+                          {campaignEmailFeedback || campaignEmailBlockedReason ? (
+                            <div
+                              className={`rounded-xl px-4 py-3 text-sm font-bold ${campaignEmailFeedbackIsError ? "bg-red-50 text-red-800" : campaignEmailPromptIsBlocked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}
+                              data-testid="marketing-simple-campaign-send-feedback"
+                            >
+                              {campaignEmailFeedback || campaignEmailBlockedReason}
+                            </div>
+                          ) : null}
+                          {testEmailFeedback || testEmailBlockedReason ? (
+                            <div
+                              className={`rounded-xl px-4 py-3 text-sm font-bold ${testEmailFeedbackIsError ? "bg-red-50 text-red-800" : testEmailPromptIsBlocked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}
+                              data-testid="marketing-simple-campaign-test-feedback"
+                            >
+                              {testEmailFeedback || testEmailBlockedReason}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="grid gap-4 xl:grid-cols-2">
+                        <Field label="Campaign name">
+                          <input
+                            className={inputClass}
+                            value={campaignEditDraft.name}
+                            onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, name: event.target.value }))}
+                            disabled={campaignSaving}
+                            data-testid="input-marketing-simple-edit-campaign-name"
+                          />
+                        </Field>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <Field label="Audience">
+                            <select className={inputClass} value={campaignEditDraft.audienceType} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} disabled={campaignSaving} data-testid="select-marketing-simple-edit-campaign-audience">
+                              {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Status">
+                            <select className={inputClass} value={campaignEditDraft.status} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, status: event.target.value as CampaignStatus }))} disabled={campaignSaving} data-testid="select-marketing-simple-edit-campaign-status">
+                              {CAMPAIGN_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="List">
+                            <select className={inputClass} value={campaignEditDraft.targetAudienceId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))} disabled={campaignSaving} data-testid="select-marketing-simple-edit-campaign-target-audience">
+                              <option value="">All eligible contacts</option>
+                              {audiences.map((audience) => <option key={audience.id} value={audience.id}>{audience.name}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+                        <div>
+                          <p className="text-sm font-black text-[#241133]">Channel</p>
+                          <p className="mt-1 text-xs font-bold text-[#7d6b65]">Choose the primary route for this campaign.</p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            {CHANNELS.map((channel) => (
+                              <button
+                                key={channel}
+                                type="button"
+                                onClick={() => setCampaignEditDraft((draft) => {
+                                  const existingContentAssetId = draft.channels.find((item) => item.channel === channel)?.contentAssetId ?? "";
+                                  const updatedChannels = campaignChannelsWithPrimary(draft).map((item, index) => (
+                                    index === 0
+                                      ? {
+                                          ...item,
+                                          channel,
+                                          contentAssetId: existingContentAssetId,
+                                          status: draft.status,
+                                          scheduledAt: draft.scheduleStartsAt,
+                                        }
+                                      : item
+                                  ));
+                                  return {
+                                    ...draft,
+                                    channel,
+                                    contentAssetId: existingContentAssetId,
+                                    channels: updatedChannels,
+                                  };
+                                })}
+                                disabled={campaignSaving}
+                                className={`min-h-11 rounded-xl border px-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60 ${campaignEditDraft.channel === channel ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-300"}`}
+                                data-testid={`button-marketing-simple-edit-campaign-channel-${channel}`}
+                              >
+                                {channelLabel[channel]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <Field label="Schedule">
+                          <input
+                            className={inputClass}
+                            type="datetime-local"
+                            value={campaignEditDraft.scheduleStartsAt}
+                            onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value, status: event.target.value ? "scheduled" : draft.status }))}
+                            disabled={campaignSaving}
+                            data-testid="input-marketing-simple-edit-campaign-schedule"
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
+                        <Field label="Message/content">
+                          <select
+                            className={inputClass}
+                            value={campaignEditDraft.contentAssetId}
+                            onChange={(event) => {
+                              const contentAssetId = event.target.value;
+                              setCampaignEditDraft((draft) => ({
+                                ...draft,
+                                contentAssetId,
+                                channels: campaignChannelsWithPrimary(draft).map((item, index) => (
+                                  index === 0 ? { ...item, contentAssetId } : item
+                                )),
+                              }));
+                            }}
+                            disabled={campaignSaving}
+                            data-testid="select-marketing-simple-edit-campaign-content"
+                          >
+                            <option value="">Choose message later</option>
+                            {campaignEditPrimaryContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                          </select>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {campaignEditDraft.contentAssetId ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const asset = contentById.get(campaignEditDraft.contentAssetId);
+                                    if (asset) previewContent(asset);
+                                  }}
+                                  className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700"
+                                  data-testid="button-marketing-simple-edit-campaign-preview-content"
+                                >
+                                  <Eye size={13} /> Preview message
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const asset = contentById.get(campaignEditDraft.contentAssetId);
+                                    if (asset) startContentEdit(asset);
+                                  }}
+                                  className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700"
+                                  data-testid="button-marketing-simple-edit-campaign-edit-content"
+                                >
+                                  <Pencil size={13} /> Edit message
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs font-bold text-[#7d6b65]">No message selected yet.</span>
+                            )}
+                          </div>
+                        </Field>
+
+                        <div className="rounded-2xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+                          <p className="text-sm font-black text-[#241133]">Recipients</p>
+                          <p className="mt-1 text-2xl font-black text-[#241133]">{savedCampaignRecipientCount}</p>
+                          <p className="mt-1 text-xs font-bold text-[#6b5b54]">saved recipient routes</p>
+                          <label className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-purple-700"
+                              checked={campaignEditDraft.snapshotRecipients}
+                              onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: event.target.checked }))}
+                              disabled={campaignSaving}
+                              data-testid="checkbox-marketing-simple-edit-campaign-snapshot"
+                            />
+                            Update recipient list on save
+                          </label>
+                          <p className="mt-2 text-xs font-bold text-[#7d6b65]">
+                            {campaignEditDraft.snapshotRecipients
+                              ? `${campaignRecipientPreviewSnapshotCount} routes will be saved.`
+                              : "Leave unchecked to keep the existing list."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Field label="Notes">
+                        <textarea
+                          className={`${textareaClass} min-h-[96px]`}
+                          value={campaignEditDraft.objective}
+                          onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, objective: event.target.value }))}
+                          disabled={campaignSaving}
+                          placeholder="What should this campaign achieve?"
+                          data-testid="textarea-marketing-simple-edit-campaign-objective"
+                        />
+                      </Field>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="submit"
+                          disabled={campaignSaving}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          data-testid="button-marketing-simple-edit-campaign-save"
+                        >
+                          <Save size={15} /> {campaignSaving ? "Saving..." : campaignEditDraft.snapshotRecipients ? "Save + update recipients" : "Save campaign"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={testEmailDisabled || campaignSaving}
+                          onClick={() => void sendTestCampaignEmail(editingCampaign.id)}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          data-testid="button-marketing-simple-edit-campaign-test-email"
+                        >
+                          <Send size={15} /> {testEmailSending ? "Sending test..." : "Send test email"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={campaignEmailDisabled || campaignSaving}
+                          onClick={() => void sendCampaignEmails(editingCampaign)}
+                          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8] ${confirmingCampaignSendId === editingCampaign.id ? "bg-red-700" : "bg-purple-700"}`}
+                          data-testid="button-marketing-simple-edit-campaign-send"
+                        >
+                          <Send size={15} /> {campaignEmailSending ? "Sending..." : confirmingCampaignSendId === editingCampaign.id ? "Confirm send" : "Send campaign emails"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={campaignSaving || campaignEmailSending}
+                          onClick={() => void deleteCampaign(editingCampaign)}
+                          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60 ${confirmingCampaignDeleteId === editingCampaign.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`}
+                          data-testid="button-marketing-simple-edit-campaign-delete"
+                        >
+                          <Trash2 size={15} /> {confirmingCampaignDeleteId === editingCampaign.id ? "Confirm delete" : "Delete"}
+                        </button>
+                      </div>
+                    </form>
+                  </SectionCard>
+                </div>
               ) : null}
 
               <div className="hidden" aria-hidden="true">
