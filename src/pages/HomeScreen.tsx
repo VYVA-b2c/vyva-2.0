@@ -1737,16 +1737,16 @@ const HomeScreen = () => {
   const defaultHomeStartNudge = (
     <div
       data-testid="home-master-start-nudge"
-      className="flex min-w-0 items-center gap-3 rounded-[22px] border border-[#D7F1EC] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_56%,#F8F5FF_100%)] p-3 shadow-[0_12px_28px_rgba(15,118,110,0.06)] min-[390px]:gap-4 min-[390px]:p-4"
+      className="flex min-w-0 flex-wrap items-center gap-3 rounded-[22px] border border-[#D7F1EC] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_56%,#F8F5FF_100%)] p-3 shadow-[0_12px_28px_rgba(15,118,110,0.06)] min-[390px]:gap-4 min-[390px]:p-4"
     >
       <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#EAFBF7] text-[#0F766E] min-[390px]:h-[54px] min-[390px]:w-[54px]">
         <MessageCircle size={24} strokeWidth={2.45} aria-hidden="true" />
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+      <span className="min-w-[150px] flex-1">
+        <span className="block text-balance font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
           {t("home.master.startNudge.title", "Not sure where to start?")}
         </span>
-        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+        <span className="mt-0.5 block line-clamp-2 font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
           {t("home.master.startNudge.detail", "Tell VYVA what is on your mind.")}
         </span>
       </span>
@@ -1758,7 +1758,7 @@ const HomeScreen = () => {
         autoStartListening
         testId="button-home-start-nudge-voice"
         supportingLabel={t("home.master.startNudge.support", "Ask VYVA")}
-        className="vyva-tap inline-flex min-h-[44px] flex-shrink-0 items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[14px] font-black text-white shadow-[0_10px_20px_rgba(15,118,110,0.14)] transition-transform hover:-translate-y-0.5"
+        className="vyva-tap ml-auto inline-flex min-h-[44px] flex-shrink-0 items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[14px] font-black text-white shadow-[0_10px_20px_rgba(15,118,110,0.14)] transition-transform hover:-translate-y-0.5"
       />
     </div>
   );

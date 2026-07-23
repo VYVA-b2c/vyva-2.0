@@ -225,7 +225,7 @@ export default function MasterDashboardLayout({
       </section> : null}
 
       {showLauncher ? <section className="mt-4" aria-label="Today tray" data-testid={cardGridTestId}>
-        <div className="grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:grid-cols-4">
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -236,49 +236,39 @@ export default function MasterDashboardLayout({
                 onClick={card.onClick}
                 data-testid={card.testId}
                 aria-label={cardAriaLabel}
-                className="vyva-tap group flex min-h-[96px] items-center gap-3 rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[104px] min-[390px]:p-3.5 md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]"
+                className="vyva-tap group flex min-h-[118px] flex-col items-start justify-between gap-3 rounded-[22px] border bg-white p-3.5 text-left shadow-[0_12px_28px_rgba(63,45,35,0.06)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[128px] sm:min-h-[150px] sm:rounded-[24px] sm:p-4 md:min-h-[158px]"
                 style={{
                   borderColor: card.tone.border,
-                  background: `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
+                  background: `radial-gradient(circle at 22% 22%, ${card.tone.iconBg} 0%, rgba(255,255,255,0) 34%), linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 66%, ${card.tone.iconBg} 100%)`,
                 }}
               >
-                <span className="flex min-w-0 flex-1 items-center gap-3 md:w-full md:items-start md:justify-between">
+                <span className="flex w-full min-w-0 items-start justify-between gap-2">
                   <span
-                    className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)] min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]"
+                    className="relative flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[21px] shadow-[0_10px_20px_rgba(63,45,35,0.06)] min-[390px]:h-[62px] min-[390px]:w-[62px] sm:h-[66px] sm:w-[66px] sm:rounded-[24px]"
                     style={{ background: "#FFFFFF", color: card.tone.iconColor }}
                   >
-                    <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" />
-                    <Icon className="relative" size={28} strokeWidth={2.55} aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1 md:hidden">
-                    <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
-                      {card.title}
-                    </span>
-                    {card.accent ? (
-                      <span className="mt-1 block truncate font-body text-[12px] font-black leading-tight" style={{ color: card.tone.iconColor }}>
-                        {card.accent}
-                      </span>
-                    ) : null}
+                    <span className="absolute inset-2 rounded-[17px] opacity-90" style={{ background: card.tone.iconBg }} aria-hidden="true" />
+                    <Icon className="relative" size={30} strokeWidth={2.55} aria-hidden="true" />
                   </span>
                   {card.accent ? (
                     <span
-                      className="hidden min-w-0 max-w-[92px] truncate rounded-full px-2 py-1.5 text-center font-body text-[11px] font-black leading-none md:inline-block"
+                      className="max-w-[108px] rounded-full bg-white/80 px-2 py-1.5 text-center font-body text-[9px] font-black leading-none shadow-[0_7px_16px_rgba(63,45,35,0.05)] min-[390px]:max-w-[116px] min-[390px]:text-[10px] sm:max-w-[96px]"
                       style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
                     >
                       {card.accent}
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-3 hidden min-w-0 pr-1 md:block">
-                  <span className="block font-body text-[18px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[20px]">
+                <span className="block min-w-0 pr-1">
+                  <span className="block text-balance font-body text-[18px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[20px] sm:text-[19px]">
                     {card.title}
                   </span>
                   {card.chips?.length ? (
-                    <span className="mt-2 flex flex-wrap gap-1">
-                      {card.chips.slice(0, 3).map((chip) => (
+                    <span className="mt-2 hidden flex-wrap gap-1 min-[390px]:flex sm:hidden">
+                      {card.chips.slice(0, 2).map((chip) => (
                         <span
                           key={chip}
-                          className="rounded-full px-1.5 py-0.5 font-body text-[9px] font-black leading-none min-[390px]:px-2 min-[390px]:text-[10px]"
+                          className="rounded-full px-2 py-0.5 font-body text-[10px] font-black leading-none"
                           style={{ background: "#F4EFE7", color: "#7A6A5D" }}
                         >
                           {chip}
