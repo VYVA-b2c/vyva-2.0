@@ -31320,109 +31320,66 @@ export default function MarketingAdminPage() {
       onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
     }] : []),
   ].slice(0, 6);
-  const publishQuickTaskTarget = firstReadyEmailCampaign
-    ?? firstConsentReviewCampaign
-    ?? campaignNeedingAudience
-    ?? scheduledEmailCampaignWithoutRecipients
-    ?? firstManualHandoffCampaign
-    ?? null;
   const marketingQuickTaskItems: MarketingWorkflowCoachItem[] = [
     {
       key: "build-campaign",
-      eyebrow: "Create",
+      eyebrow: "Campaign",
       title: "Build a campaign",
-      value: topCampaignRecommendation ? "AI pick" : "Studio",
-      detail: topCampaignRecommendation
-        ? `Use ${topCampaignRecommendation.recommendation.play.label} with ${topCampaignRecommendation.recommendation.reachableContacts} reachable contact${topCampaignRecommendation.recommendation.reachableContacts === 1 ? "" : "s"}.`
-        : "Open the AI campaign command, choose a template pack, and create the next launch plan.",
-      state: topCampaignRecommendation?.recommendation.state ?? "planning",
-      actionLabel: topCampaignRecommendation ? "Load best plan" : "Open AI studio",
+      value: campaigns.length ? `${campaigns.length}` : "New",
+      detail: "Choose who it is for, what message they get, and when it should go out.",
+      state: "ready",
+      actionLabel: "Start",
       icon: Sparkles,
       onSelect: () => {
         setShowSimpleCampaignBuilder(true);
-        if (topCampaignRecommendation) {
-          applyCampaignStudioPlayRecommendation(topCampaignRecommendation.recommendation);
-          return;
-        }
         setActiveTab("dashboard");
         setMessage("Answer the campaign questions, then save the draft.");
       },
     },
     {
-      key: "publish-email",
-      eyebrow: "Publish",
-      title: "Publish or review email",
-      value: firstReadyEmailCampaign ? "Ready" : publishQuickTaskTarget ? "Review" : "None",
-      detail: firstReadyEmailCampaign
-        ? `"${firstReadyEmailCampaign.name}" has email content and saved recipients ready for final review.`
-        : publishQuickTaskTarget
-          ? `"${publishQuickTaskTarget.name}" needs one review step before publishing.`
-          : "No email campaign is ready yet. Create a campaign or attach recipients and content first.",
-      state: firstReadyEmailCampaign ? "ready" : publishQuickTaskTarget ? "needs_action" : "planning",
-      actionLabel: firstReadyEmailCampaign ? "Open send review" : publishQuickTaskTarget ? "Open campaign" : "Create campaign",
-      icon: Send,
-      onSelect: () => {
-        if (publishQuickTaskTarget) {
-          openCampaignForNextAction(publishQuickTaskTarget);
-          return;
-        }
-        setShowSimpleCampaignBuilder(true);
-        setActiveTab("dashboard");
-        setMessage("Create or complete a campaign before publishing email.");
-      },
-    },
-    {
-      key: "fix-audience",
-      eyebrow: "Audience",
-      title: "Fix audience data",
-      value: contactHealthNeedsConsent > 0 ? `${contactHealthNeedsConsent} consent` : contactHealthDirectReachable > 0 ? `${contactHealthDirectReachable} reachable` : "Review",
-      detail: contactHealthNeedsConsent > 0
-        ? `${contactHealthNeedsConsent} contact${contactHealthNeedsConsent === 1 ? "" : "s"} need consent cleanup before outreach.`
-        : contactHealthUnmappedListMembers > 0
-          ? `${contactHealthUnmappedListMembers} imported list member${contactHealthUnmappedListMembers === 1 ? "" : "s"} need contact mapping.`
-          : "Open contacts to review list membership, consent, channels, and relationship queues.",
-      state: contactHealthTotal === 0 ? "blocked" : contactHealthNeedsConsent > 0 || contactHealthUnmappedListMembers > 0 ? "needs_action" : "ready",
-      actionLabel: contactHealthUnmappedListMembers > 0 ? "Open lists" : "Open contacts",
+      key: "manage-contacts",
+      eyebrow: "Contacts",
+      title: "Manage people",
+      value: `${contactHealthTotal}`,
+      detail: "Review contacts, lists, consent, email, phone, and WhatsApp reachability.",
+      state: contactHealthTotal > 0 ? "ready" : "planning",
+      actionLabel: "Open",
       icon: UsersRound,
       onSelect: () => {
         setActiveTab("contacts");
-        setContactView(contactHealthUnmappedListMembers > 0 ? "lists" : "contacts");
-        setMessage("Opened Contacts to review audience readiness.");
+        setContactView("contacts");
+        setMessage("Opened Contacts.");
       },
     },
     {
-      key: "improve-content",
-      eyebrow: "Creative",
-      title: "Improve content",
-      value: missingSourceReferenceCount > 0 ? `${missingSourceReferenceCount} gaps` : `${launchLaneContentReadyCount} ready`,
-      detail: missingSourceReferenceCount > 0
-        ? "Replace imported placeholders with real copy, HTML, design, and media before launch."
-        : "Open the content library to polish templates, localize copy, and prepare channel variants.",
-      state: missingSourceReferenceCount > 0 ? "blocked" : launchLaneContentReadyCount > 0 ? "ready" : "planning",
-      actionLabel: missingSourceReferenceCount > 0 ? "Fix gaps" : "Open content",
+      key: "manage-content",
+      eyebrow: "Content",
+      title: "Manage messages",
+      value: `${content.length}`,
+      detail: "Edit email templates, WhatsApp copy, social posts, and campaign message drafts.",
+      state: content.length > 0 ? "ready" : "planning",
+      actionLabel: "Open",
       icon: FileText,
       onSelect: () => {
-        if (missingSourceReferenceCount > 0) {
-          openMissingLovableContentRepair();
-          return;
-        }
         setActiveTab("content");
-        setMessage("Opened Content to improve reusable campaign assets.");
+        setMessage("Opened Content.");
       },
     },
-    ...(contactRelationshipPriorityQueue ? [{
-      key: "relationship-work",
-      eyebrow: "Relationships",
-      title: "Work a relationship queue",
-      value: contactRelationshipPriorityQueue.countLabel,
-      detail: contactRelationshipPriorityQueue.detail,
-      state: contactRelationshipPriorityQueue.state,
-      actionLabel: contactRelationshipPriorityQueue.studioLabel,
-      icon: contactRelationshipPriorityQueue.icon,
-      disabled: contactRelationshipPriorityQueue.count === 0,
-      onSelect: () => loadContactWorkQueueInStudio(contactRelationshipPriorityQueue),
-    }] : []),
-  ].slice(0, 5);
+    {
+      key: "import-source",
+      eyebrow: "Import",
+      title: "Import from Source",
+      value: syncState.configured ? "Ready" : "Setup",
+      detail: "Pull the latest campaigns, contacts, content, audiences, and journeys into VYVA.",
+      state: syncState.configured ? "ready" : "needs_action",
+      actionLabel: "Open",
+      icon: RefreshCw,
+      onSelect: () => {
+        setActiveTab("settings");
+        setMessage(syncState.configured ? "Opened Import settings." : "Open Settings to finish Source import setup.");
+      },
+    },
+  ];
   const marketingCockpitItems = marketingWorkflowCoachItems.slice(0, 5);
   const marketingCockpitReadyCount = marketingCockpitItems.filter((item) => item.state === "ready").length;
   const marketingCockpitHasBlocker = marketingCockpitItems.some((item) => item.state === "blocked");
@@ -31860,7 +31817,7 @@ export default function MarketingAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Marketing"
-          subtitle="Campaign planning, Source migration, audiences, content, schedules, and email dispatch through the existing VYVA provider stack."
+          subtitle="Create campaigns, manage contacts and messages, and import Source data."
         >
           <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((error) => setMessage(error.message))}>
             <RefreshCw size={16} /> Refresh
@@ -32035,11 +31992,10 @@ export default function MarketingAdminPage() {
               </div>
 
               <SectionCard
-                title="What do you want to do?"
-                subtitle="Choose the plain-language job first. VYVA routes you to the right campaign, audience, content, or publishing workspace."
-                action={<Pill className="bg-purple-50 text-purple-800"><Sparkles size={13} className="mr-1" /> Guided</Pill>}
+                title="Choose a job"
+                subtitle="Pick one job. Everything detailed lives inside the next screen."
               >
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" data-testid="marketing-quick-task-launcher">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="marketing-quick-task-launcher">
                   {marketingQuickTaskItems.map((item) => {
                     const Icon = item.icon;
                     return (
@@ -32048,14 +32004,14 @@ export default function MarketingAdminPage() {
                         type="button"
                         onClick={item.onSelect}
                         disabled={item.disabled}
-                        className={`flex min-h-[164px] flex-col rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60 ${readinessClass(item.state)}`}
+                        className="flex min-h-[150px] flex-col rounded-2xl border border-[#eadfd5] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
                         data-testid={`button-marketing-quick-task-${item.key}`}
                       >
                         <span className="flex items-start justify-between gap-3">
                           <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-purple-700 shadow-sm">
                             <Icon size={18} aria-hidden="true" />
                           </span>
-                          <Pill className={readinessPillClass(item.state)}>{item.value}</Pill>
+                          <Pill className="bg-[#f5eefb] text-purple-800">{item.value}</Pill>
                         </span>
                         <span className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-purple-800">{item.eyebrow}</span>
                         <span className="mt-1 text-base font-black text-[#241133]">{item.title}</span>
@@ -32071,8 +32027,8 @@ export default function MarketingAdminPage() {
 
               {showSimpleCampaignBuilder ? (
                 <SectionCard
-                  title="Build campaign"
-                  subtitle="Answer the basics. The detailed review and email send stay inside the saved campaign."
+                  title="Create campaign"
+                  subtitle="Fill in the basics. You can edit details later before anything is sent."
                   action={(
                     <button
                       type="button"
@@ -32119,8 +32075,8 @@ export default function MarketingAdminPage() {
 
                     <div className="grid gap-4 xl:grid-cols-2">
                       <div data-testid="marketing-simple-goal-question">
-                        <p className="text-sm font-black text-[#241133]">1. What is the goal?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one campaign outcome. This fills helpful defaults, but you can still edit them.</p>
+                        <p className="text-sm font-black text-[#241133]">1. What is this campaign for?</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one. This only helps prefill the draft.</p>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
                           {campaignPlannerGoalStarters.slice(0, 4).map((starter) => (
                             <button
@@ -32139,7 +32095,7 @@ export default function MarketingAdminPage() {
 
                       <div data-testid="marketing-simple-audience-question">
                         <p className="text-sm font-black text-[#241133]">2. Who is it for?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Single select. Choose the audience type first, then optionally narrow by list.</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one audience type. Use the list field only if you want to narrow it.</p>
                         <div className="mt-3 grid grid-cols-3 gap-2">
                           {AUDIENCES.map((audience) => (
                             <button
@@ -32167,7 +32123,7 @@ export default function MarketingAdminPage() {
                     <div className="grid gap-4 xl:grid-cols-2">
                       <div data-testid="marketing-simple-channel-question">
                         <p className="text-sm font-black text-[#241133]">3. Which channel?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Single select for now. Email can be sent from VYVA; the others are saved as planning records.</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one channel for this campaign.</p>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           {CHANNELS.map((channel) => (
                             <button
@@ -32190,7 +32146,7 @@ export default function MarketingAdminPage() {
 
                       <div data-testid="marketing-simple-message-question">
                         <p className="text-sm font-black text-[#241133]">4. What message should they get?</p>
-                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Message means the actual content/template the recipient will receive. Choose one, or save without content and write it later.</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">This is the actual content/template the person will receive. Choose one, or write it later.</p>
                         <Field label="Message/content">
                           <select
                             className={inputClass}
@@ -32216,7 +32172,7 @@ export default function MarketingAdminPage() {
                     </div>
 
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
-                      <Field label="5. Notes or message brief">
+                      <Field label="5. Notes">
                         <textarea
                           className={`${textareaClass} min-h-[110px]`}
                           value={campaignDraft.objective}
