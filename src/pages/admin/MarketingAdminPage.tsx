@@ -42770,143 +42770,86 @@ export default function MarketingAdminPage() {
                   >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
-                      <div className="rounded-xl border border-purple-100 bg-purple-50/70 p-3" data-testid="marketing-content-preview-next-actions">
+                      <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-content-customer-preview">
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Preview opened</p>
-                            <h4 className="mt-1 font-black text-[#241133]">Choose the next move for this asset</h4>
-                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#6b5b54]">
-                              Review the source, edit a VYVA copy, duplicate a draft, or start a campaign route from this content.
-                            </p>
+                          <div className="min-w-0">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Customer preview</p>
+                            <h4 className="mt-1 break-words text-xl font-black text-[#241133]">{selectedContent.subject || selectedContent.title}</h4>
                           </div>
-                          <Pill className={selectedContent.source === "lovable" ? "bg-white text-violet-800" : "bg-white text-[#5b4a46]"}>
-                            {contentOriginLabel(selectedContent)}
-                          </Pill>
+                          <div className="flex flex-wrap gap-2">
+                            <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
+                            <Pill className={statusClass(selectedContent.status)}>{selectedContent.status}</Pill>
+                            <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
+                          </div>
                         </div>
-                        <div className="mt-3 grid gap-2 text-xs font-black text-[#241133] md:grid-cols-4">
-                          <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-edit">
-                            <Pencil size={14} /> Edit copy
-                          </button>
-                          <button type="button" onClick={() => void duplicateContentAsDraft(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-duplicate">
-                            <Copy size={14} /> Duplicate draft
-                          </button>
-                          <button type="button" onClick={() => startCampaignFromContentAsset(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-white transition hover:bg-purple-800 disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid="button-marketing-preview-next-campaign">
-                            <Megaphone size={14} /> Use in campaign
-                          </button>
-                          <button type="button" onClick={() => void copySelectedContentReuseBrief()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-50" data-testid="button-marketing-preview-next-reuse-brief">
-                            <Sparkles size={14} /> Copy AI brief
-                          </button>
-                        </div>
-                        <p className="mt-2 text-[11px] font-bold leading-relaxed text-[#6b5b54]">
-                          Source imports stay untouched. Edits and duplicates save only inside VYVA marketing.
+                        {selectedContent.htmlBody ? (
+                          <iframe
+                            title={`Preview ${selectedContent.title}`}
+                            sandbox=""
+                            srcDoc={selectedContent.htmlBody}
+                            className="mt-4 h-[520px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                          />
+                        ) : (
+                          <div className="mt-4 min-h-[260px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
+                            {selectedContent.body || "No body copy yet."}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 rounded-xl border border-purple-100 bg-purple-50/70 p-3" data-testid="marketing-content-preview-actions">
+                        <button type="button" onClick={() => startCampaignFromContentAsset(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white transition hover:bg-purple-800 disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid="button-marketing-preview-next-campaign">
+                          <Megaphone size={14} /> Use in campaign
+                        </button>
+                        <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-edit">
+                          <Pencil size={14} /> Edit copy
+                        </button>
+                        <button type="button" onClick={() => void duplicateContentAsDraft(selectedContent)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-100" disabled={contentSaving} data-testid="button-marketing-preview-next-duplicate">
+                          <Copy size={14} /> Duplicate draft
+                        </button>
+                        <button type="button" onClick={() => void copySelectedContentReuseBrief()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 transition hover:border-emerald-300 hover:bg-emerald-50" data-testid="button-marketing-preview-next-reuse-brief">
+                          <Sparkles size={14} /> Copy AI brief
+                        </button>
+                      </div>
+                      {contentReuseBriefFeedback ? (
+                        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800" role="status" data-testid="marketing-content-reuse-brief-feedback">
+                          {contentReuseBriefFeedback}
                         </p>
-                      </div>
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
-                        <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
-                      </div>
-                      {selectedContent.source === "lovable" ? (
-                        <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
-                          Imported from {contentOriginLabel(selectedContent)}
-                          {selectedContent.lovableExternalId ? (
-                            <span className="break-all"> - Source ID: {selectedContent.lovableExternalId}</span>
-                          ) : null}
-                        </div>
                       ) : null}
-                      <SourceContentSourceDetails content={selectedContent} />
                       <ContentUsageList
                         usages={selectedContentUsage}
                         testId="marketing-selected-content-usage"
                         onOpenCampaign={openContentUsageCampaign}
                         onOpenJourney={openContentUsageJourney}
                       />
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="marketing-content-reuse-brief">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-800">Reuse brief</p>
-                            <h4 className="mt-1 font-black text-[#241133]">Adapt this asset into the next channel</h4>
-                            <p className="mt-1 text-xs font-bold leading-relaxed text-[#5f6f62]">
-                              Copy an AI-ready plan with usage, design/media, CTA, tokens, and suggested channel variants.
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void copySelectedContentReuseBrief()}
-                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-                            data-testid="button-marketing-copy-content-reuse-brief"
-                          >
-                            <Copy size={14} aria-hidden="true" /> Copy reuse brief
-                          </button>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-content-reuse-brief-channels">
-                          {selectedContentReuseChannelSuggestions.map((channel) => (
-                            <Pill key={channel} className={channelClass(channel)}>{channelLabel[channel]}</Pill>
-                          ))}
-                          {selectedContentReuseTokens.length ? (
-                            <Pill className="bg-white text-emerald-800">
-                              {selectedContentReuseTokens.length} merge token{selectedContentReuseTokens.length === 1 ? "" : "s"}
-                            </Pill>
-                          ) : (
-                            <Pill className="bg-white text-[#7d6b65]">No merge tokens</Pill>
-                          )}
-                        </div>
-                        {contentReuseBriefFeedback ? (
-                          <p className={`mt-3 rounded-xl px-3 py-2 text-xs font-black ${contentReuseBriefFeedback.includes("Could not") || contentReuseBriefFeedback.includes("empty") || contentReuseBriefFeedback.includes("failed") ? "bg-red-50 text-red-800" : "bg-emerald-100 text-emerald-900"}`} role="status" aria-live="polite" data-testid="marketing-content-reuse-brief-feedback">
-                            {contentReuseBriefFeedback}
-                          </p>
-                        ) : null}
-                      </div>
-                      {selectedContent.htmlBody ? (
-                        <iframe
-                          title={`Preview ${selectedContent.title}`}
-                          sandbox=""
-                          srcDoc={selectedContent.htmlBody}
-                          className="h-[360px] w-full rounded-xl border border-[#eadfd5] bg-white"
-                        />
-                      ) : (
-                        <div className="min-h-[180px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
-                          {selectedContent.body || "No body copy yet."}
-                        </div>
-                      )}
-                      <SourceDesignPreview contentAsset={selectedContent} />
-                      <div className="grid gap-2 md:grid-cols-3">
-                        <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
-                        <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
-                        <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
-                      </div>
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-design-media-summary">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Source design/media</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {selectedContentDesignSummary?.arrayKeys.length ? selectedContentDesignSummary.arrayKeys.map((item) => (
-                            <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
-                          )) : (
-                            <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
-                          )}
-                          {selectedContentDesignSummary?.topLevelKeys.length ? (
-                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
+                      <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-admin-details">
+                        <summary className="cursor-pointer text-sm font-black text-purple-700">Admin/source details</summary>
+                        <div className="mt-3 grid gap-3">
+                          {selectedContent.source === "lovable" ? (
+                            <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
+                              Imported from {contentOriginLabel(selectedContent)}
+                              {selectedContent.lovableExternalId ? (
+                                <span className="break-all"> - Source ID: {selectedContent.lovableExternalId}</span>
+                              ) : null}
+                            </div>
                           ) : null}
-                          <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
-                            Media refs: {selectedContentMediaPreviewUrls.length}
-                          </Pill>
+                          <SourceContentSourceDetails content={selectedContent} />
+                          <div className="rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-content-design-media-summary">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Source design/media</p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {selectedContentDesignSummary?.arrayKeys.length ? selectedContentDesignSummary.arrayKeys.map((item) => (
+                                <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
+                              )) : (
+                                <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
+                              )}
+                              {selectedContentMediaPreviewUrls.length ? (
+                                <Pill className="bg-emerald-50 text-emerald-800">Media refs: {selectedContentMediaPreviewUrls.length}</Pill>
+                              ) : (
+                                <Pill className="bg-[#f5eee8] text-[#7d6b65]">No media refs</Pill>
+                              )}
+                            </div>
+                          </div>
+                          <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
                         </div>
-                        {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-content-media-previews">
-                            {selectedContentMediaPreviewUrls.map((url) => (
-                              <MediaPreviewTile key={url} url={url} testId={`marketing-content-media-preview-${url}`} />
-                            ))}
-                          </div>
-                        ) : null}
-                        {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-3 grid gap-1">
-                            {selectedContentMediaPreviewUrls.map((url) => (
-                              <a key={url} className="break-all text-xs font-bold text-purple-700 underline" href={url} target="_blank" rel="noreferrer">{url}</a>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
-                        )}
-                      </div>
-                      <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
+                      </details>
                       </div>
                     ) : (
                       <EmptyState text="No content available." />

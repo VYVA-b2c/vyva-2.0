@@ -1151,20 +1151,19 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
-    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Source design preview");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Partner hero");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Source builder copy");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("CTA: Book a demo -> https://v2.vyva.life/demo");
-    expect(within(screen.getByTestId("marketing-content-design-preview")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
-    expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
-    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("VYVA updated");
+    expect(screen.getByTestId("marketing-content-customer-preview")).toHaveTextContent("Customer preview");
+    expect(screen.getByTestId("marketing-content-customer-preview")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-customer-preview")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-content-customer-preview")).toHaveTextContent("draft");
+    expect(screen.getByTestId("marketing-content-preview-actions")).toHaveTextContent("Use in campaign");
+    expect(screen.getByTestId("marketing-content-preview-actions")).toHaveTextContent("Edit copy");
+    expect(screen.getByTestId("marketing-content-preview-actions")).toHaveTextContent("Duplicate draft");
+    expect(screen.getByTestId("marketing-content-admin-details")).toHaveTextContent("Admin/source details");
+    expect(screen.getByTestId("marketing-content-admin-details")).toHaveTextContent("Imported from Social post");
+    expect(screen.getByTestId("marketing-content-admin-details")).toHaveTextContent("VYVA updated");
     expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Used in campaigns and journeys");
     expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Caregiver welcome");
-    expect(screen.getByTestId("marketing-content-reuse-brief")).toHaveTextContent("Adapt this asset into the next channel");
-    expect(screen.getByTestId("marketing-content-reuse-brief-channels")).toHaveTextContent("Email");
-    expect(screen.getByTestId("marketing-content-reuse-brief-channels")).toHaveTextContent("WhatsApp");
-    fireEvent.click(screen.getByTestId("button-marketing-copy-content-reuse-brief"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-next-reuse-brief"));
     await waitFor(() => {
       expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("VYVA content reuse brief"));
     });
@@ -1173,10 +1172,7 @@ describe("MarketingAdminPage", () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining("AI task: Reuse this content asset"));
     expect(screen.getByTestId("marketing-content-reuse-brief-feedback")).toHaveTextContent("Content reuse brief copied.");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
-    expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
-    expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("https://cdn.example.test/partner.png");
-    expect(within(screen.getByTestId("marketing-content-preview-panel")).getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraSourceOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Source ID: media-1");
