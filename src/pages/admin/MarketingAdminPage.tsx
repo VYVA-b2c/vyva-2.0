@@ -12663,6 +12663,7 @@ function SmartContactField({
 
 export default function MarketingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [showSimpleCampaignBuilder, setShowSimpleCampaignBuilder] = useState(false);
   const [contactView, setContactView] = useState<ContactView>("contacts");
   const [summary, setSummary] = useState<MarketingSummary>(emptySummary);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -31338,12 +31339,13 @@ export default function MarketingAdminPage() {
       actionLabel: topCampaignRecommendation ? "Load best plan" : "Open AI studio",
       icon: Sparkles,
       onSelect: () => {
+        setShowSimpleCampaignBuilder(true);
         if (topCampaignRecommendation) {
           applyCampaignStudioPlayRecommendation(topCampaignRecommendation.recommendation);
           return;
         }
         setActiveTab("dashboard");
-        setMessage("Use AI campaign command to describe the campaign you want to build.");
+        setMessage("Answer the campaign questions, then save the draft.");
       },
     },
     {
@@ -31364,6 +31366,7 @@ export default function MarketingAdminPage() {
           openCampaignForNextAction(publishQuickTaskTarget);
           return;
         }
+        setShowSimpleCampaignBuilder(true);
         setActiveTab("dashboard");
         setMessage("Create or complete a campaign before publishing email.");
       },
@@ -31868,7 +31871,7 @@ export default function MarketingAdminPage() {
         <AdminMenu />
 
         <section className="mt-5 grid gap-4">
-          <div className="overflow-hidden rounded-[18px] border border-purple-200 bg-[#2f2135] text-white shadow-sm">
+          <div className={activeTab === "dashboard" ? "hidden" : "overflow-hidden rounded-[18px] border border-purple-200 bg-[#2f2135] text-white shadow-sm"}>
             <div className="flex flex-wrap items-center justify-between gap-4 p-5">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.18em] text-purple-200">Marketing engine foundation</p>
@@ -31879,7 +31882,9 @@ export default function MarketingAdminPage() {
             </div>
           </div>
 
-          <LockedSendPanel />
+          <div className={activeTab === "dashboard" ? "hidden" : ""}>
+            <LockedSendPanel />
+          </div>
 
           <div className="rounded-[14px] border border-[#eadfd5] bg-white p-2 shadow-sm">
             <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Marketing admin sections">
@@ -31901,6 +31906,7 @@ export default function MarketingAdminPage() {
             </div>
           </div>
 
+          <div className={activeTab === "dashboard" ? "hidden" : ""}>
           <div className="grid gap-3 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm xl:grid-cols-[1fr_180px_180px]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]" aria-hidden="true" />
@@ -31915,7 +31921,9 @@ export default function MarketingAdminPage() {
               {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
             </select>
           </div>
+          </div>
 
+          <div className={activeTab === "dashboard" ? "hidden" : ""}>
           <section className="rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="marketing-saved-views">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -31949,8 +31957,10 @@ export default function MarketingAdminPage() {
               })}
             </div>
           </section>
+          </div>
 
           {smartSearchQuery ? (
+            <div className={activeTab === "dashboard" ? "hidden" : ""}>
             <section className="rounded-[14px] border border-purple-100 bg-purple-50/60 p-4 shadow-sm" data-testid="marketing-smart-search-results">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -32004,11 +32014,12 @@ export default function MarketingAdminPage() {
                 </div>
               )}
             </section>
+            </div>
           ) : null}
 
           {activeTab === "dashboard" && (
             <div className="grid gap-4" data-testid="marketing-dashboard-tab">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="hidden">
                 <MetricCard label="Total campaigns" value={summary.totals.campaigns} icon={Megaphone} />
                 <MetricCard label="Audiences" value={summary.totals.audiences} icon={UsersRound} />
                 <MetricCard label="This week" value={summary.totals.thisWeek} icon={CalendarDays} />
@@ -32016,7 +32027,7 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Published" value={summary.totals.published} icon={CheckCircle2} />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="hidden">
                 <MetricCard label="Imported media refs" value={summary.totals.mediaAssets ?? mediaAssets.length} icon={ImageIcon} />
                 <MetricCard label="Journey enrollments" value={summary.totals.journeyEnrollments ?? journeyEnrollments.length} icon={Activity} />
                 <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
@@ -32057,6 +32068,195 @@ export default function MarketingAdminPage() {
                   })}
                 </div>
               </SectionCard>
+
+              {showSimpleCampaignBuilder ? (
+                <SectionCard
+                  title="Build campaign"
+                  subtitle="Answer the basics. The detailed review and email send stay inside the saved campaign."
+                  action={(
+                    <button
+                      type="button"
+                      onClick={() => setShowSimpleCampaignBuilder(false)}
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#5b4a46] hover:bg-[#fbf8f5]"
+                      data-testid="button-marketing-simple-builder-close"
+                    >
+                      <X size={13} /> Close
+                    </button>
+                  )}
+                >
+                  <form className="grid gap-5" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))} data-testid="marketing-simple-campaign-builder">
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+                      <Field label="Campaign name">
+                        <input
+                          className={inputClass}
+                          value={campaignDraft.name}
+                          onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))}
+                          placeholder="Example: July caregiver onboarding"
+                          data-testid="input-marketing-simple-campaign-name"
+                        />
+                      </Field>
+                      <Field label="When">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCampaignDraft((draft) => ({ ...draft, status: "draft", scheduleStartsAt: "" }))}
+                            className={`min-h-11 rounded-xl border px-3 text-sm font-black ${campaignDraft.scheduleStartsAt ? "border-[#eadfd5] bg-white text-[#5b4a46]" : "border-purple-300 bg-purple-700 text-white"}`}
+                            data-testid="button-marketing-simple-timing-draft"
+                          >
+                            Draft
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCampaignDraft((draft) => ({ ...draft, status: "scheduled" }))}
+                            className={`min-h-11 rounded-xl border px-3 text-sm font-black ${campaignDraft.scheduleStartsAt || campaignDraft.status === "scheduled" ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#5b4a46]"}`}
+                            data-testid="button-marketing-simple-timing-schedule"
+                          >
+                            Schedule
+                          </button>
+                        </div>
+                      </Field>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div data-testid="marketing-simple-goal-question">
+                        <p className="text-sm font-black text-[#241133]">1. What is the goal?</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Pick one campaign outcome. This fills helpful defaults, but you can still edit them.</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {campaignPlannerGoalStarters.slice(0, 4).map((starter) => (
+                            <button
+                              key={starter.preset.id}
+                              type="button"
+                              onClick={() => applyCampaignPlannerGoalStarter(starter)}
+                              className={`min-h-[110px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 ${campaignDraft.name.includes(starter.preset.title) ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133]"}`}
+                              data-testid={`button-marketing-simple-goal-${starter.preset.id}`}
+                            >
+                              <span className="block text-sm font-black">{starter.preset.title}</span>
+                              <span className={`mt-1 line-clamp-2 block text-xs font-bold ${campaignDraft.name.includes(starter.preset.title) ? "text-white/80" : "text-[#6b5b54]"}`}>{starter.preset.detail}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div data-testid="marketing-simple-audience-question">
+                        <p className="text-sm font-black text-[#241133]">2. Who is it for?</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Single select. Choose the audience type first, then optionally narrow by list.</p>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {AUDIENCES.map((audience) => (
+                            <button
+                              key={audience}
+                              type="button"
+                              onClick={() => setCampaignDraft((draft) => ({ ...draft, audienceType: audience }))}
+                              className={`min-h-12 rounded-xl border px-3 text-sm font-black ${campaignDraft.audienceType === audience ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-300"}`}
+                              data-testid={`button-marketing-simple-audience-${audience}`}
+                            >
+                              {audience.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                        <Field label="Optional list">
+                          <select className={inputClass} value={campaignDraft.targetAudienceId} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))} data-testid="select-marketing-simple-target-audience">
+                            <option value="">All eligible contacts</option>
+                            {audiences.map((audience) => (
+                              <option key={audience.id} value={audience.id}>{audience.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div data-testid="marketing-simple-channel-question">
+                        <p className="text-sm font-black text-[#241133]">3. Which channel?</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Single select for now. Email can be sent from VYVA; the others are saved as planning records.</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          {CHANNELS.map((channel) => (
+                            <button
+                              key={channel}
+                              type="button"
+                              onClick={() => setCampaignDraft((draft) => ({
+                                ...draft,
+                                channel,
+                                channels: [channel],
+                                contentAssetId: draft.channelContentAssetIds[channel] ?? "",
+                              }))}
+                              className={`min-h-11 rounded-xl border px-3 text-sm font-black ${campaignDraft.channel === channel ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133] hover:border-purple-300"}`}
+                              data-testid={`button-marketing-simple-channel-${channel}`}
+                            >
+                              {channelLabel[channel]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div data-testid="marketing-simple-message-question">
+                        <p className="text-sm font-black text-[#241133]">4. What message should they get?</p>
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Message means the actual content/template the recipient will receive. Choose one, or save without content and write it later.</p>
+                        <Field label="Message/content">
+                          <select
+                            className={inputClass}
+                            value={campaignDraft.contentAssetId}
+                            onChange={(event) => {
+                              const contentAssetId = event.target.value;
+                              setCampaignDraft((draft) => ({
+                                ...draft,
+                                contentAssetId,
+                                channelContentAssetIds: {
+                                  ...draft.channelContentAssetIds,
+                                  [draft.channel]: contentAssetId,
+                                },
+                              }));
+                            }}
+                            data-testid="select-marketing-simple-message"
+                          >
+                            <option value="">Draft message later</option>
+                            {campaignDraftContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+                      <Field label="5. Notes or message brief">
+                        <textarea
+                          className={`${textareaClass} min-h-[110px]`}
+                          value={campaignDraft.objective}
+                          onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))}
+                          placeholder="What should this campaign say or achieve? Example: invite caregivers to finish onboarding and book support if needed."
+                          data-testid="textarea-marketing-simple-objective"
+                        />
+                      </Field>
+                      <div className="grid gap-3">
+                        {campaignDraft.status === "scheduled" ? (
+                          <Field label="Schedule date">
+                            <input
+                              className={inputClass}
+                              type="datetime-local"
+                              value={campaignDraft.scheduleStartsAt}
+                              onChange={(event) => setCampaignDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value, status: event.target.value ? "scheduled" : "draft" }))}
+                              data-testid="input-marketing-simple-schedule"
+                            />
+                          </Field>
+                        ) : null}
+                        <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-purple-700"
+                            checked={campaignDraft.snapshotRecipients}
+                            onChange={(event) => setCampaignDraft((draft) => ({ ...draft, snapshotRecipients: event.target.checked }))}
+                            data-testid="checkbox-marketing-simple-snapshot"
+                          />
+                          Save recipient list now
+                        </label>
+                        <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={campaignSaving} data-testid="button-marketing-simple-create-campaign">
+                          <Plus size={16} /> {campaignSaving ? "Saving..." : "Save campaign"}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </SectionCard>
+              ) : null}
+
+              <div className="hidden" aria-hidden="true">
 
               <SectionCard
                 title="Marketing cockpit"
@@ -39113,6 +39313,7 @@ export default function MarketingAdminPage() {
                     <EmptyState text="No campaign selected." />
                   )}
                 </SectionCard>
+              </div>
               </div>
             </div>
           )}

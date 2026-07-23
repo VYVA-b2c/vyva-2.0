@@ -2972,7 +2972,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     fireEvent.click(screen.getByTestId("button-marketing-run-sync"));
 
-    expect(screen.getByTestId("button-marketing-run-sync")).toHaveTextContent("Running sync...");
+    expect(screen.getByTestId("button-marketing-run-sync")).toHaveTextContent("Importing...");
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/source/run", expect.objectContaining({ method: "POST" }));
     });
@@ -2996,7 +2996,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     fireEvent.click(screen.getByTestId("button-marketing-preview-export"));
 
-    expect(screen.getByTestId("button-marketing-preview-export")).toHaveTextContent("Checking export...");
+    expect(screen.getByTestId("button-marketing-preview-export")).toHaveTextContent("Checking...");
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/source/preview", undefined);
     });
@@ -3019,7 +3019,7 @@ describe("MarketingAdminPage", () => {
     expect(previewDestinationMap).toHaveTextContent("Content tab");
     expect(previewDestinationMap).toHaveTextContent("Journeys");
     expect(previewDestinationMap).toHaveTextContent("Journeys tab");
-    expect(screen.getByTestId("marketing-source-review-panel")).toHaveTextContent("Review available Source data");
+    expect(screen.getByTestId("marketing-source-review-panel")).toHaveTextContent("Review available data");
 
     fireEvent.click(screen.getByTestId("button-marketing-source-review-lists"));
 
