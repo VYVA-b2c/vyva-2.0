@@ -14,7 +14,11 @@ import type {
   CanvasTelemetryEnvelope,
 } from "./canvasPlatform";
 import { CanvasSafetyError } from "./canvasPlatform";
-import { VYVA_VOICE_USER_MESSAGE_EVENT } from "@/lib/voiceNavigation";
+import { VYVA_VOICE_USER_MESSAGE_EVENT, type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
+import {
+  emitVoiceTriageTouchAnswer,
+  ensureVoiceSessionId,
+} from "@/lib/voiceSessionBridge";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import type {
@@ -249,6 +253,117 @@ export function useVoiceCanvasSpokenChoiceFeedback(delayMs = 650) {
   }, []);
 
   return { feedback, acknowledge, clear };
+}
+
+export function normalizeVoiceCanvasText(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+export type VoiceCanvasSpokenMatchMode = "exact" | "contains" | "exact-or-contains";
+
+export function voiceCanvasTextMatchesAny(
+  utterance: string,
+  candidates: Array<string | null | undefined>,
+  mode: VoiceCanvasSpokenMatchMode = "exact-or-contains",
+) {
+  const text = normalizeVoiceCanvasText(utterance);
+  return candidates.some((candidate) => {
+    const value = normalizeVoiceCanvasText(candidate ?? "");
+    if (!value) return false;
+    if (mode === "exact") return text === value;
+    if (mode === "contains") return text.includes(value);
+    return text === value || text.includes(value);
+  });
+}
+
+export function findVoiceCanvasSpokenOption<T>(
+  items: T[],
+  utterance: string,
+  candidatesForItem: (item: T) => Array<string | null | undefined>,
+  mode: VoiceCanvasSpokenMatchMode = "exact-or-contains",
+) {
+  return items.find((item) =>
+    voiceCanvasTextMatchesAny(utterance, candidatesForItem(item), mode),
+  );
+}
+
+export interface VoiceCanvasMultimodalChoice<State, Event> {
+  choiceId: string;
+  label: string;
+  expectedStep: string | ((state: State) => boolean);
+  event: Event;
+  detail: VoiceUserMessageDetail;
+}
+
+export function useVoiceCanvasMultimodalInteraction<State, Event>({
+  viewModel,
+  agentPresenceCopy,
+  stateRef,
+  reducer,
+  dispatch,
+  getStep,
+  getViewModel,
+  getStatus = getStep,
+  delayMs,
+}: {
+  viewModel: VoiceCanvasViewModel;
+  agentPresenceCopy?: VoiceCanvasAgentPresenceCopy;
+  stateRef: RefObject<State>;
+  reducer: (state: State, event: Event) => State;
+  dispatch: Dispatch<Event>;
+  getStep: (state: State) => string;
+  getViewModel: (state: State) => Pick<VoiceCanvasViewModel, "title">;
+  getStatus?: (state: State) => string;
+  delayMs?: number;
+}) {
+  const {
+    feedback,
+    acknowledge,
+    clear,
+  } = useVoiceCanvasSpokenChoiceFeedback(delayMs);
+  const agentViewModel = useVoiceCanvasAgentPresence(viewModel, agentPresenceCopy);
+  const multimodalViewModel = useMemo(
+    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, feedback),
+    [agentViewModel, feedback],
+  );
+  const spokenChoiceMessage = useCallback(
+    (label: string) => agentPresenceCopy?.spokenChoiceMessage?.(label) ?? label,
+    [agentPresenceCopy],
+  );
+
+  const acknowledgeChoice = useCallback(
+    ({ choiceId, label, expectedStep, event, detail }: VoiceCanvasMultimodalChoice<State, Event>) => {
+      const message = spokenChoiceMessage(label);
+      acknowledge(
+        { choiceId, message, accessibleMessage: message },
+        () => {
+          const current = stateRef.current;
+          if (!current) return;
+          const isStillExpected =
+            typeof expectedStep === "function"
+              ? expectedStep(current)
+              : getStep(current) === expectedStep;
+          if (!isStillExpected) return;
+          const next = reducer(current, event);
+          dispatch(event);
+          emitVoiceTriageTouchAnswer({
+            conversationId: ensureVoiceSessionId(),
+            utterance: detail.text,
+            choiceId,
+            nextQuestion: getViewModel(next).title,
+            status: getStatus(next),
+          });
+        },
+      );
+    },
+    [acknowledge, dispatch, getStatus, getStep, getViewModel, reducer, spokenChoiceMessage, stateRef],
+  );
+
+  return {
+    viewModel: multimodalViewModel,
+    acknowledgeChoice,
+    clearFeedback: clear,
+  };
 }
 
 export function CanvasLiveStatus({

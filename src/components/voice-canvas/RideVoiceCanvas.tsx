@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
 import {
-  emitVoiceTriageTouchAnswer,
   ensureVoiceSessionId,
+  emitVoiceTriageTouchAnswer,
 } from "@/lib/voiceSessionBridge";
 import VoiceCanvasScene from "./VoiceCanvasScene";
 import {
@@ -25,13 +25,12 @@ import {
 } from "./rideCanvasTelemetry";
 import {
   CanvasLiveStatus,
-  applyVoiceCanvasSpokenChoiceFeedback,
+  findVoiceCanvasSpokenOption,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
-  useVoiceCanvasAgentPresence,
-  useVoiceCanvasSpokenChoiceFeedback,
+  useVoiceCanvasMultimodalInteraction,
 } from "./useVoiceCanvasPlatform";
 
 export interface RideVoiceCommands {
@@ -89,20 +88,24 @@ export function RideVoiceCanvas({
   const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const {
-    feedback: spokenChoiceFeedback,
-    acknowledge: acknowledgeSpokenChoice,
-    clear: clearSpokenChoice,
-  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () => rideCanvasViewModel(state, copy, places, providers, dateChoices),
     [state, copy, places, providers, dateChoices],
   );
-  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
-  const viewModel = useMemo(
-    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
-    [agentViewModel, spokenChoiceFeedback],
-  );
+  const {
+    viewModel,
+    acknowledgeChoice,
+    clearFeedback: clearSpokenChoice,
+  } = useVoiceCanvasMultimodalInteraction({
+    viewModel: baseViewModel,
+    agentPresenceCopy: copy.agentPresence,
+    stateRef,
+    reducer: rideCanvasReducer,
+    dispatch,
+    getStep: (nextState) => nextState.step,
+    getViewModel: (nextState) =>
+      rideCanvasViewModel(nextState, copy, places, providers, dateChoices),
+  });
 
   useEffect(() => {
     stateRef.current = state;
@@ -141,54 +144,6 @@ export function RideVoiceCanvas({
       }
     },
     [places, providers, dateChoices, dispatch, clearSpokenChoice],
-  );
-
-  const spokenChoiceMessage = useCallback(
-    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
-    [copy.agentPresence],
-  );
-
-  const acknowledgeRideChoice = useCallback(
-    (
-      choiceId: string,
-      label: string,
-      expectedStep: RideCanvasState["step"],
-      eventToDispatch: Parameters<typeof rideCanvasReducer>[1],
-      detail: VoiceUserMessageDetail,
-    ) => {
-      const message = spokenChoiceMessage(label);
-      acknowledgeSpokenChoice(
-        { choiceId, message, accessibleMessage: message },
-        () => {
-          const current = stateRef.current;
-          if (current.step !== expectedStep) return;
-          const next = rideCanvasReducer(current, eventToDispatch);
-          dispatch(eventToDispatch);
-          emitVoiceTriageTouchAnswer({
-            conversationId: ensureVoiceSessionId(),
-            utterance: detail.text,
-            choiceId,
-            nextQuestion: rideCanvasViewModel(
-              next,
-              copy,
-              places,
-              providers,
-              dateChoices,
-            ).title,
-            status: next.step,
-          });
-        },
-      );
-    },
-    [
-      acknowledgeSpokenChoice,
-      copy,
-      dateChoices,
-      dispatch,
-      places,
-      providers,
-      spokenChoiceMessage,
-    ],
   );
 
   const primary = useCallback(() => {
@@ -343,44 +298,55 @@ export function RideVoiceCanvas({
         });
         dispatch({ type: "RETRY" });
       } else {
-        const place = places.find((item) =>
-          [item.label, item.address, ...(item.voiceAliases ?? [])].some((value) =>
-            text.includes(normalized(value)),
-          ),
+        const place = findVoiceCanvasSpokenOption(
+          places,
+          text,
+          (item) => [item.label, item.address, ...(item.voiceAliases ?? [])],
+          "contains",
         );
-        const provider = providers.find((item) =>
-          [item.label, item.description ?? "", ...(item.voiceAliases ?? [])].some((value) =>
-            value && text.includes(normalized(value)),
-          ),
+        const provider = findVoiceCanvasSpokenOption(
+          providers,
+          text,
+          (item) => [item.label, item.description, ...(item.voiceAliases ?? [])],
+          "contains",
         );
-        const date = dateChoices.find((item) =>
-          text.includes(normalized(item.label)),
+        const date = findVoiceCanvasSpokenOption(
+          dateChoices,
+          text,
+          (item) => [item.label],
+          "contains",
         );
         if (state.step === "place" && place) {
-          acknowledgeRideChoice(
-            `place:${place.id}`,
-            place.label,
-            "place",
-            { type: "CHOOSE_PLACE", place },
-            detail,
+          acknowledgeChoice(
+            {
+              choiceId: `place:${place.id}`,
+              label: place.label,
+              expectedStep: "place",
+              event: { type: "CHOOSE_PLACE", place },
+              detail,
+            },
           );
           return;
         } else if (state.step === "provider" && provider) {
-          acknowledgeRideChoice(
-            `provider:${provider.id}`,
-            provider.label,
-            "provider",
-            { type: "CHOOSE_PROVIDER", provider },
-            detail,
+          acknowledgeChoice(
+            {
+              choiceId: `provider:${provider.id}`,
+              label: provider.label,
+              expectedStep: "provider",
+              event: { type: "CHOOSE_PROVIDER", provider },
+              detail,
+            },
           );
           return;
         } else if (state.step === "dateTime" && date) {
-          acknowledgeRideChoice(
-            `date:${date.id}`,
-            date.label,
-            "dateTime",
-            { type: "CHOOSE_DATE", value: date.value },
-            detail,
+          acknowledgeChoice(
+            {
+              choiceId: `date:${date.id}`,
+              label: date.label,
+              expectedStep: "dateTime",
+              event: { type: "CHOOSE_DATE", value: date.value },
+              detail,
+            },
           );
           return;
         }

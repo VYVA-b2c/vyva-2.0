@@ -26,13 +26,13 @@ import {
 } from "./refillCanvasTelemetry";
 import {
   CanvasLiveStatus,
-  applyVoiceCanvasSpokenChoiceFeedback,
+  findVoiceCanvasSpokenOption,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
-  useVoiceCanvasAgentPresence,
-  useVoiceCanvasSpokenChoiceFeedback,
+  useVoiceCanvasMultimodalInteraction,
+  voiceCanvasTextMatchesAny,
 } from "./useVoiceCanvasPlatform";
 export interface RefillVoiceCommands {
   start: string[];
@@ -97,11 +97,6 @@ export function RefillVoiceCanvas({
   const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const {
-    feedback: spokenChoiceFeedback,
-    acknowledge: acknowledgeSpokenChoice,
-    clear: clearSpokenChoice,
-  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () =>
       refillCanvasViewModel(
@@ -113,11 +108,26 @@ export function RefillVoiceCanvas({
     ),
     [state, copy, medications, providers, contactChoices],
   );
-  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
-  const viewModel = useMemo(
-    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
-    [agentViewModel, spokenChoiceFeedback],
-  );
+  const {
+    viewModel,
+    acknowledgeChoice,
+    clearFeedback: clearSpokenChoice,
+  } = useVoiceCanvasMultimodalInteraction<RefillCanvasState, RefillCanvasEvent>({
+    viewModel: baseViewModel,
+    agentPresenceCopy: copy.agentPresence,
+    stateRef,
+    reducer: refillCanvasReducer,
+    dispatch,
+    getStep: (nextState) => nextState.step,
+    getViewModel: (nextState) =>
+      refillCanvasViewModel(
+        nextState,
+        copy,
+        medications,
+        providers,
+        contactChoices,
+      ),
+  });
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -183,52 +193,6 @@ export function RefillVoiceCanvas({
       }
     },
     [medications, providers, contactChoices, dispatch, clearSpokenChoice],
-  );
-  const spokenChoiceMessage = useCallback(
-    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
-    [copy.agentPresence],
-  );
-  const acknowledgeRefillChoice = useCallback(
-    (
-      choiceId: string,
-      label: string,
-      expectedStep: RefillCanvasState["step"],
-      eventToDispatch: RefillCanvasEvent,
-      detail: VoiceUserMessageDetail,
-    ) => {
-      const message = spokenChoiceMessage(label);
-      acknowledgeSpokenChoice(
-        { choiceId, message, accessibleMessage: message },
-        () => {
-          const current = stateRef.current;
-          if (current.step !== expectedStep) return;
-          const next = refillCanvasReducer(current, eventToDispatch);
-          dispatch(eventToDispatch);
-          emitVoiceTriageTouchAnswer({
-            conversationId: ensureVoiceSessionId(),
-            utterance: detail.text,
-            choiceId,
-            nextQuestion: refillCanvasViewModel(
-              next,
-              copy,
-              medications,
-              providers,
-              contactChoices,
-            ).title,
-            status: next.step,
-          });
-        },
-      );
-    },
-    [
-      acknowledgeSpokenChoice,
-      contactChoices,
-      copy,
-      dispatch,
-      medications,
-      providers,
-      spokenChoiceMessage,
-    ],
   );
   const primary = useCallback(() => {
     clearSpokenChoice();
@@ -412,51 +376,60 @@ export function RefillVoiceCanvas({
         voiceCommands.routine.some((command) => text === normalize(command)) &&
         state.step === "safety"
       ) {
-        acknowledgeRefillChoice(
-          "routine",
-          copy.safety.routine,
-          "safety",
-          { type: "ROUTINE_REFILL" },
+        acknowledgeChoice({
+          choiceId: "routine",
+          label: copy.safety.routine,
+          expectedStep: "safety",
+          event: { type: "ROUTINE_REFILL" },
           detail,
-        );
+        });
         return;
       }
       else {
-        const medication = medications.find((item) =>
-            text.includes(normalize(item.label)),
+        const medication = findVoiceCanvasSpokenOption(
+            medications,
+            text,
+            (item) => [item.label, item.description, ...(item.voiceAliases ?? [])],
+            "contains",
           ),
-          provider = providers.find((item) =>
-            text.includes(normalize(item.label)),
+          provider = findVoiceCanvasSpokenOption(
+            providers,
+            text,
+            (item) => [item.label, item.description, ...(item.voiceAliases ?? [])],
+            "contains",
           ),
-          contact = contactChoices.find((item) =>
-            text.includes(normalize(item.label)),
+          contact = findVoiceCanvasSpokenOption(
+            contactChoices,
+            text,
+            (item) => [item.label],
+            "contains",
           );
         if (
           state.step === "medication" &&
-          text.includes(normalize(copy.medication.manual))
+          voiceCanvasTextMatchesAny(text, [copy.medication.manual], "contains")
         ) {
-          acknowledgeRefillChoice(
-            "manual-medication",
-            copy.medication.manual,
-            "medication",
-            { type: "CHOOSE_MEDICATION", manual: true },
+          acknowledgeChoice({
+            choiceId: "manual-medication",
+            label: copy.medication.manual,
+            expectedStep: "medication",
+            event: { type: "CHOOSE_MEDICATION", manual: true },
             detail,
-          );
+          });
           return;
         }
         else if (
           state.step === "medication" &&
-          text.includes(normalize(copy.medication.cannotIdentify))
+          voiceCanvasTextMatchesAny(text, [copy.medication.cannotIdentify], "contains")
         )
           apply({ type: "CANNOT_IDENTIFY" });
         else if (state.step === "medication" && medication) {
-          acknowledgeRefillChoice(
-            `medication:${medication.id}`,
-            medication.label,
-            "medication",
-            { type: "CHOOSE_MEDICATION", medication },
+          acknowledgeChoice({
+            choiceId: `medication:${medication.id}`,
+            label: medication.label,
+            expectedStep: "medication",
+            event: { type: "CHOOSE_MEDICATION", medication },
             detail,
-          );
+          });
           return;
         }
         else if (state.step === "medicationEntry") {
@@ -467,25 +440,25 @@ export function RefillVoiceCanvas({
           apply({ type: "CONTINUE_STRENGTH" });
         } else if (
           state.step === "provider" &&
-          text.includes(normalize(copy.provider.manual))
+          voiceCanvasTextMatchesAny(text, [copy.provider.manual], "contains")
         ) {
-          acknowledgeRefillChoice(
-            "manual-provider",
-            copy.provider.manual,
-            "provider",
-            { type: "CHOOSE_PROVIDER", manual: true },
+          acknowledgeChoice({
+            choiceId: "manual-provider",
+            label: copy.provider.manual,
+            expectedStep: "provider",
+            event: { type: "CHOOSE_PROVIDER", manual: true },
             detail,
-          );
+          });
           return;
         }
         else if (state.step === "provider" && provider) {
-          acknowledgeRefillChoice(
-            `provider:${provider.id}`,
-            provider.label,
-            "provider",
-            { type: "CHOOSE_PROVIDER", provider },
+          acknowledgeChoice({
+            choiceId: `provider:${provider.id}`,
+            label: provider.label,
+            expectedStep: "provider",
+            event: { type: "CHOOSE_PROVIDER", provider },
             detail,
-          );
+          });
           return;
         }
         else if (state.step === "providerEntry") {
@@ -498,13 +471,13 @@ export function RefillVoiceCanvas({
           apply({ type: "CHANGE_NOTES", value: detail.text.trim() });
           apply({ type: "CONTINUE_NOTES" });
         } else if (state.step === "contact" && contact) {
-          acknowledgeRefillChoice(
-            `contact:${contact.id}`,
-            contact.label,
-            "contact",
-            { type: "CHOOSE_CONTACT", value: contact.label },
+          acknowledgeChoice({
+            choiceId: `contact:${contact.id}`,
+            label: contact.label,
+            expectedStep: "contact",
+            event: { type: "CHOOSE_CONTACT", value: contact.label },
             detail,
-          );
+          });
           return;
         }
         else handled = false;

@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, type VoiceTriageTouchAnswerDetail } from "@/lib/voiceSessionBridge";
 import {
   CanvasSafetyError,
   canvasLaunchSignalForTelemetry,
@@ -12,7 +13,10 @@ import {
 import { CANVAS_LAUNCH_FORBIDDEN_TELEMETRY_FIELDS } from "./canvasLaunchReadiness";
 import {
   applyVoiceCanvasAgentPresence,
+  findVoiceCanvasSpokenOption,
   useCanvasExternalActionGate,
+  useVoiceCanvasMultimodalInteraction,
+  voiceCanvasTextMatchesAny,
   voiceCanvasAgentPresenceStateFor,
 } from "./useVoiceCanvasPlatform";
 import type { VoiceCanvasAgentPresenceCopy, VoiceCanvasViewModel } from "./types";
@@ -165,5 +169,107 @@ describe("Canvas agent presence adapter", () => {
       title: "Listening",
     };
     expect(applyVoiceCanvasAgentPresence(listening, { status: "connected", voiceSessionPhase: "listening" }, copy)).toBe(listening);
+  });
+});
+
+describe("Canvas multimodal interaction layer", () => {
+  type TestState = { step: "choice" | "next" | "other" };
+  type TestEvent = { type: "PICK" };
+  const reducer = (state: TestState, event: TestEvent): TestState =>
+    event.type === "PICK" ? { step: "next" } : state;
+  const viewModelFor = (state: TestState): VoiceCanvasViewModel => ({
+    sceneId: state.step,
+    kind: state.step === "choice" ? "choice" : "review",
+    title: state.step === "next" ? "Next question" : "Choose one",
+    choices: [{ id: "clinic", label: "Clinic" }],
+  });
+
+  it("standardizes spoken option matching", () => {
+    const option = findVoiceCanvasSpokenOption(
+      [{ label: "Riverside Clinic", voiceAliases: ["clinic"] }],
+      "please choose clinic",
+      (item) => [item.label, ...(item.voiceAliases ?? [])],
+    );
+    expect(option?.label).toBe("Riverside Clinic");
+    expect(voiceCanvasTextMatchesAny("Back", ["back"], "exact")).toBe(true);
+  });
+
+  it("delays spoken choice commit, marks the selected choice, and emits the next visual prompt", () => {
+    vi.useFakeTimers();
+    const dispatch = vi.fn();
+    const stateRef = { current: { step: "choice" } as TestState };
+    let bridgeDetail: VoiceTriageTouchAnswerDetail | undefined;
+    window.addEventListener(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, (event) => {
+      bridgeDetail = (event as CustomEvent<VoiceTriageTouchAnswerDetail>).detail;
+    }, { once: true });
+    const { result } = renderHook(() => useVoiceCanvasMultimodalInteraction({
+      viewModel: viewModelFor(stateRef.current),
+      agentPresenceCopy: {
+        idleLabel: "Ready",
+        listeningLabel: "Listening",
+        speakingLabel: "Speaking",
+        thinkingLabel: "Thinking",
+        accessibleLabel: "VYVA status",
+        spokenChoiceMessage: (label) => `VYVA heard ${label}`,
+      },
+      stateRef,
+      reducer,
+      dispatch,
+      getStep: (state) => state.step,
+      getViewModel: viewModelFor,
+    }));
+
+    act(() => result.current.acknowledgeChoice({
+      choiceId: "clinic",
+      label: "Clinic",
+      expectedStep: "choice",
+      event: { type: "PICK" },
+      detail: { text: "clinic", transcriptEntry: { from: "user", text: "clinic" } },
+    }));
+
+    expect(result.current.viewModel.spokenChoiceFeedback?.message).toBe("VYVA heard Clinic");
+    expect(result.current.viewModel.choices?.[0]).toMatchObject({
+      selected: true,
+      spokenSelected: true,
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(650));
+
+    expect(dispatch).toHaveBeenCalledWith({ type: "PICK" });
+    expect(bridgeDetail).toMatchObject({
+      choiceId: "clinic",
+      utterance: "clinic",
+      nextQuestion: "Next question",
+      status: "next",
+    });
+    vi.useRealTimers();
+  });
+
+  it("drops stale spoken choices when the scene changes before the feedback delay completes", () => {
+    vi.useFakeTimers();
+    const dispatch = vi.fn();
+    const stateRef = { current: { step: "choice" } as TestState };
+    const { result } = renderHook(() => useVoiceCanvasMultimodalInteraction({
+      viewModel: viewModelFor(stateRef.current),
+      stateRef,
+      reducer,
+      dispatch,
+      getStep: (state) => state.step,
+      getViewModel: viewModelFor,
+    }));
+
+    act(() => result.current.acknowledgeChoice({
+      choiceId: "clinic",
+      label: "Clinic",
+      expectedStep: "choice",
+      event: { type: "PICK" },
+      detail: { text: "clinic", transcriptEntry: { from: "user", text: "clinic" } },
+    }));
+    stateRef.current = { step: "other" };
+    act(() => vi.advanceTimersByTime(650));
+
+    expect(dispatch).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

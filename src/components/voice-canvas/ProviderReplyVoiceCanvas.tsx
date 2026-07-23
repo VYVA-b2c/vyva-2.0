@@ -12,7 +12,6 @@ import {
   providerReplyCanvasReducer,
   type ProviderReplyCanvasDraft,
   type ProviderReplyCanvasEvent,
-  type ProviderReplyIntent,
   type ProviderReplyCanvasState,
 } from "./providerReplyCanvasMachine";
 import {
@@ -26,13 +25,13 @@ import {
 } from "./providerReplyCanvasTelemetry";
 import {
   CanvasLiveStatus,
-  applyVoiceCanvasSpokenChoiceFeedback,
+  findVoiceCanvasSpokenOption,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
-  useVoiceCanvasAgentPresence,
-  useVoiceCanvasSpokenChoiceFeedback,
+  useVoiceCanvasMultimodalInteraction,
+  voiceCanvasTextMatchesAny,
 } from "./useVoiceCanvasPlatform";
 
 export interface ProviderReplyVoiceCommands {
@@ -77,11 +76,7 @@ export interface ProviderReplyVoiceCanvasProps {
 
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
 const matches = (text: string, commands: string[]) =>
-  commands.some((command) => text === normalize(command));
-const matchesIntent = (text: string, intent: ProviderReplyIntent) =>
-  [intent.label, ...(intent.voiceAliases ?? [])].some((value) =>
-    text === normalize(value) || text.includes(normalize(value)),
-  );
+  voiceCanvasTextMatchesAny(text, commands, "exact");
 
 function freezeDraft(draft: ProviderReplyCanvasDraft) {
   return Object.freeze({ ...draft });
@@ -119,20 +114,24 @@ export function ProviderReplyVoiceCanvas({
   const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const {
-    feedback: spokenChoiceFeedback,
-    acknowledge: acknowledgeSpokenChoice,
-    clear: clearSpokenChoice,
-  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () => providerReplyCanvasViewModel(state, copy, context),
     [state, copy, context],
   );
-  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
-  const viewModel = useMemo(
-    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
-    [agentViewModel, spokenChoiceFeedback],
-  );
+  const {
+    viewModel,
+    acknowledgeChoice,
+    clearFeedback: clearSpokenChoice,
+  } = useVoiceCanvasMultimodalInteraction<ProviderReplyCanvasState, ProviderReplyCanvasEvent>({
+    viewModel: baseViewModel,
+    agentPresenceCopy: copy.agentPresence,
+    stateRef,
+    reducer: providerReplyCanvasReducer,
+    dispatch,
+    getStep: (nextState) => nextState.step,
+    getViewModel: (nextState) =>
+      providerReplyCanvasViewModel(nextState, copy, context),
+  });
 
   useEffect(() => {
     stateRef.current = state;
@@ -210,42 +209,6 @@ export function ProviderReplyVoiceCanvas({
       blockedMessage: copy.blocked.urgentBoundaryHelper,
     });
   }, [context.replyIntents, copy.blocked.urgentBoundaryHelper, submit, clearSpokenChoice]);
-
-  const spokenChoiceMessage = useCallback(
-    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
-    [copy.agentPresence],
-  );
-
-  const acknowledgeProviderReplyChoice = useCallback((
-    choiceId: string,
-    label: string,
-    eventToDispatch: ProviderReplyCanvasEvent,
-    detail: VoiceUserMessageDetail,
-  ) => {
-    const message = spokenChoiceMessage(label);
-    acknowledgeSpokenChoice(
-      { choiceId, message, accessibleMessage: message },
-      () => {
-        const current = stateRef.current;
-        if (current.step !== "context") return;
-        const next = providerReplyCanvasReducer(current, eventToDispatch);
-        submit(eventToDispatch);
-        emitVoiceTriageTouchAnswer({
-          conversationId: ensureVoiceSessionId(),
-          utterance: detail.text,
-          choiceId,
-          nextQuestion: providerReplyCanvasViewModel(next, copy, context).title,
-          status: next.step,
-        });
-      },
-    );
-  }, [
-    acknowledgeSpokenChoice,
-    context,
-    copy,
-    spokenChoiceMessage,
-    submit,
-  ]);
 
   const primary = useCallback(() => {
     clearSpokenChoice();
@@ -382,7 +345,11 @@ export function ProviderReplyVoiceCanvas({
         requiresIntent: Boolean(context.replyIntents?.length),
       };
     else if (state.step === "context") {
-      const intent = context.replyIntents?.find((item) => matchesIntent(text, item));
+      const intent = findVoiceCanvasSpokenOption(
+        context.replyIntents ?? [],
+        text,
+        (item) => [item.label, ...(item.voiceAliases ?? [])],
+      );
       if (intent) {
         const choiceEvent: ProviderReplyCanvasEvent = {
           type: "CHOOSE_INTENT",
@@ -391,12 +358,13 @@ export function ProviderReplyVoiceCanvas({
         };
         if (intent.urgent) eventToDispatch = choiceEvent;
         else {
-          acknowledgeProviderReplyChoice(
-            `intent:${intent.id}`,
-            intent.label,
-            choiceEvent,
+          acknowledgeChoice({
+            choiceId: `intent:${intent.id}`,
+            label: intent.label,
+            expectedStep: "context",
+            event: choiceEvent,
             detail,
-          );
+          });
           return;
         }
       }

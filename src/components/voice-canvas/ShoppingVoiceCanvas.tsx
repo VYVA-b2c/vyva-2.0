@@ -25,13 +25,13 @@ import {
 } from "./shoppingCanvasTelemetry";
 import {
   CanvasLiveStatus,
-  applyVoiceCanvasSpokenChoiceFeedback,
+  findVoiceCanvasSpokenOption,
   useCanvasAccessibility,
   useCanvasExternalActionGate,
   useCanvasSessionReducer,
   useCanvasVoiceSynchronization,
-  useVoiceCanvasAgentPresence,
-  useVoiceCanvasSpokenChoiceFeedback,
+  useVoiceCanvasMultimodalInteraction,
+  voiceCanvasTextMatchesAny,
 } from "./useVoiceCanvasPlatform";
 export interface ShoppingVoiceCommands {
   start: string[];
@@ -74,7 +74,7 @@ export interface ShoppingVoiceCanvasProps {
 }
 const normalize = (value: string) => value.trim().toLocaleLowerCase();
 const matches = (text: string, commands: string[]) =>
-  commands.some((command) => text === normalize(command));
+  voiceCanvasTextMatchesAny(text, commands, "exact");
 export function ShoppingVoiceCanvas({
   copy,
   voiceCommands,
@@ -99,20 +99,24 @@ export function ShoppingVoiceCanvas({
   const stateRef = useRef(state);
   const rootRef = useCanvasAccessibility(state.step);
   const actionGate = useCanvasExternalActionGate();
-  const {
-    feedback: spokenChoiceFeedback,
-    acknowledge: acknowledgeSpokenChoice,
-    clear: clearSpokenChoice,
-  } = useVoiceCanvasSpokenChoiceFeedback();
   const baseViewModel = useMemo(
     () => shoppingCanvasViewModel(state, copy, retailers, addresses),
     [state, copy, retailers, addresses],
   );
-  const agentViewModel = useVoiceCanvasAgentPresence(baseViewModel, copy.agentPresence);
-  const viewModel = useMemo(
-    () => applyVoiceCanvasSpokenChoiceFeedback(agentViewModel, spokenChoiceFeedback),
-    [agentViewModel, spokenChoiceFeedback],
-  );
+  const {
+    viewModel,
+    acknowledgeChoice,
+    clearFeedback: clearSpokenChoice,
+  } = useVoiceCanvasMultimodalInteraction<ShoppingCanvasState, ShoppingCanvasEvent>({
+    viewModel: baseViewModel,
+    agentPresenceCopy: copy.agentPresence,
+    stateRef,
+    reducer: shoppingCanvasReducer,
+    dispatch,
+    getStep: (nextState) => nextState.step,
+    getViewModel: (nextState) =>
+      shoppingCanvasViewModel(nextState, copy, retailers, addresses),
+  });
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -183,50 +187,6 @@ export function ShoppingVoiceCanvas({
         });
     },
     [retailers, addresses, dispatch, clearSpokenChoice],
-  );
-  const spokenChoiceMessage = useCallback(
-    (label: string) => copy.agentPresence.spokenChoiceMessage?.(label) ?? label,
-    [copy.agentPresence],
-  );
-  const acknowledgeShoppingChoice = useCallback(
-    (
-      choiceId: string,
-      label: string,
-      expectedStep: ShoppingCanvasState["step"],
-      eventToDispatch: ShoppingCanvasEvent,
-      detail: VoiceUserMessageDetail,
-    ) => {
-      const message = spokenChoiceMessage(label);
-      acknowledgeSpokenChoice(
-        { choiceId, message, accessibleMessage: message },
-        () => {
-          const current = stateRef.current;
-          if (current.step !== expectedStep) return;
-          const next = shoppingCanvasReducer(current, eventToDispatch);
-          dispatch(eventToDispatch);
-          emitVoiceTriageTouchAnswer({
-            conversationId: ensureVoiceSessionId(),
-            utterance: detail.text,
-            choiceId,
-            nextQuestion: shoppingCanvasViewModel(
-              next,
-              copy,
-              retailers,
-              addresses,
-            ).title,
-            status: next.step,
-          });
-        },
-      );
-    },
-    [
-      acknowledgeSpokenChoice,
-      addresses,
-      copy,
-      dispatch,
-      retailers,
-      spokenChoiceMessage,
-    ],
   );
   const primary = useCallback(() => {
     clearSpokenChoice();
@@ -393,59 +353,59 @@ export function ShoppingVoiceCanvas({
       else if (state.step === "blocked" && matches(text, voiceCommands.retry))
         item = { type: "RETRY" };
       else if (state.step === "retailer") {
-        const retailer = retailers.find(
-          (candidate) =>
-            [candidate.label, ...(candidate.voiceAliases ?? [])].some(
-              (value) => text === normalize(value),
-            ),
+        const retailer = findVoiceCanvasSpokenOption(
+          retailers,
+          text,
+          (candidate) => [candidate.label, ...(candidate.voiceAliases ?? [])],
+          "exact",
         );
         if (retailer) {
-          acknowledgeShoppingChoice(
-            `retailer:${retailer.id}`,
-            retailer.label,
-            "retailer",
-            { type: "CHOOSE_RETAILER", retailer },
+          acknowledgeChoice({
+            choiceId: `retailer:${retailer.id}`,
+            label: retailer.label,
+            expectedStep: "retailer",
+            event: { type: "CHOOSE_RETAILER", retailer },
             detail,
-          );
+          });
           return;
         }
         else if (matches(text, voiceCommands.other)) {
-          acknowledgeShoppingChoice(
-            "retailer:other",
-            copy.retailer.other,
-            "retailer",
-            { type: "CHOOSE_RETAILER", manual: true },
+          acknowledgeChoice({
+            choiceId: "retailer:other",
+            label: copy.retailer.other,
+            expectedStep: "retailer",
+            event: { type: "CHOOSE_RETAILER", manual: true },
             detail,
-          );
+          });
           return;
         }
       } else if (state.step === "location") {
-        const address = addresses.find(
-          (candidate) =>
-            [candidate.label, candidate.address, ...(candidate.voiceAliases ?? [])].some(
-              (value) => text === normalize(value),
-            ),
+        const address = findVoiceCanvasSpokenOption(
+          addresses,
+          text,
+          (candidate) => [candidate.label, candidate.address, ...(candidate.voiceAliases ?? [])],
+          "exact",
         );
         if (address) {
-          acknowledgeShoppingChoice(
-            `location:${address.id}`,
-            address.label,
-            "location",
-            { type: "CHOOSE_LOCATION", address },
+          acknowledgeChoice({
+            choiceId: `location:${address.id}`,
+            label: address.label,
+            expectedStep: "location",
+            event: { type: "CHOOSE_LOCATION", address },
             detail,
-          );
+          });
           return;
         }
         else if (matches(text, voiceCommands.other)) {
-          acknowledgeShoppingChoice(
-            "location:other",
-            state.draft.fulfillment === "collection"
+          acknowledgeChoice({
+            choiceId: "location:other",
+            label: state.draft.fulfillment === "collection"
               ? copy.location.otherCollection
               : copy.location.otherDelivery,
-            "location",
-            { type: "CHOOSE_LOCATION", manual: true },
+            expectedStep: "location",
+            event: { type: "CHOOSE_LOCATION", manual: true },
             detail,
-          );
+          });
           return;
         }
       } else if (
@@ -453,13 +413,13 @@ export function ShoppingVoiceCanvas({
         matches(text, voiceCommands.delivery)
       )
         {
-          acknowledgeShoppingChoice(
-            "fulfillment:delivery",
-            copy.fulfillment.delivery,
-            "fulfillment",
-            { type: "CHOOSE_FULFILLMENT", value: "delivery" },
+          acknowledgeChoice({
+            choiceId: "fulfillment:delivery",
+            label: copy.fulfillment.delivery,
+            expectedStep: "fulfillment",
+            event: { type: "CHOOSE_FULFILLMENT", value: "delivery" },
             detail,
-          );
+          });
           return;
         }
       else if (
@@ -467,13 +427,13 @@ export function ShoppingVoiceCanvas({
         matches(text, voiceCommands.collection)
       )
         {
-          acknowledgeShoppingChoice(
-            "fulfillment:collection",
-            copy.fulfillment.collection,
-            "fulfillment",
-            { type: "CHOOSE_FULFILLMENT", value: "collection" },
+          acknowledgeChoice({
+            choiceId: "fulfillment:collection",
+            label: copy.fulfillment.collection,
+            expectedStep: "fulfillment",
+            event: { type: "CHOOSE_FULFILLMENT", value: "collection" },
             detail,
-          );
+          });
           return;
         }
       else if (
@@ -481,13 +441,13 @@ export function ShoppingVoiceCanvas({
         matches(text, voiceCommands.addItem)
       )
         {
-          acknowledgeShoppingChoice(
-            "items:add",
-            copy.moreItems.add,
-            "moreItems",
-            { type: "ADD_ITEM" },
+          acknowledgeChoice({
+            choiceId: "items:add",
+            label: copy.moreItems.add,
+            expectedStep: "moreItems",
+            event: { type: "ADD_ITEM" },
             detail,
-          );
+          });
           return;
         }
       else if (
@@ -495,65 +455,65 @@ export function ShoppingVoiceCanvas({
         matches(text, voiceCommands.finishItems)
       )
         {
-          acknowledgeShoppingChoice(
-            "items:finish",
-            copy.moreItems.finish,
-            "moreItems",
-            { type: "FINISH_ITEMS" },
+          acknowledgeChoice({
+            choiceId: "items:finish",
+            label: copy.moreItems.finish,
+            expectedStep: "moreItems",
+            event: { type: "FINISH_ITEMS" },
             detail,
-          );
+          });
           return;
         }
       else if (state.step === "substitutions") {
         if (matches(text, voiceCommands.noSubstitutions)) {
-          acknowledgeShoppingChoice(
-            "substitutions:none",
-            copy.substitutions.none,
-            "substitutions",
-            { type: "CHOOSE_SUBSTITUTIONS", value: "none" },
+          acknowledgeChoice({
+            choiceId: "substitutions:none",
+            label: copy.substitutions.none,
+            expectedStep: "substitutions",
+            event: { type: "CHOOSE_SUBSTITUTIONS", value: "none" },
             detail,
-          );
+          });
           return;
         }
         else if (matches(text, voiceCommands.askSubstitutions)) {
-          acknowledgeShoppingChoice(
-            "substitutions:ask",
-            copy.substitutions.ask,
-            "substitutions",
-            { type: "CHOOSE_SUBSTITUTIONS", value: "ask" },
+          acknowledgeChoice({
+            choiceId: "substitutions:ask",
+            label: copy.substitutions.ask,
+            expectedStep: "substitutions",
+            event: { type: "CHOOSE_SUBSTITUTIONS", value: "ask" },
             detail,
-          );
+          });
           return;
         }
         else if (matches(text, voiceCommands.allowSubstitutions)) {
-          acknowledgeShoppingChoice(
-            "substitutions:allow",
-            copy.substitutions.allow,
-            "substitutions",
-            { type: "CHOOSE_SUBSTITUTIONS", value: "allow" },
+          acknowledgeChoice({
+            choiceId: "substitutions:allow",
+            label: copy.substitutions.allow,
+            expectedStep: "substitutions",
+            event: { type: "CHOOSE_SUBSTITUTIONS", value: "allow" },
             detail,
-          );
+          });
           return;
         }
       } else if (state.step === "estimate") {
         if (matches(text, voiceCommands.estimateProvided)) {
-          acknowledgeShoppingChoice(
-            "estimate:provided",
-            copy.estimate.provided,
-            "estimate",
-            { type: "CHOOSE_ESTIMATE", value: "provided" },
+          acknowledgeChoice({
+            choiceId: "estimate:provided",
+            label: copy.estimate.provided,
+            expectedStep: "estimate",
+            event: { type: "CHOOSE_ESTIMATE", value: "provided" },
             detail,
-          );
+          });
           return;
         }
         else if (matches(text, voiceCommands.estimateUnverified)) {
-          acknowledgeShoppingChoice(
-            "estimate:unverified",
-            copy.estimate.unverified,
-            "estimate",
-            { type: "CHOOSE_ESTIMATE", value: "unverified" },
+          acknowledgeChoice({
+            choiceId: "estimate:unverified",
+            label: copy.estimate.unverified,
+            expectedStep: "estimate",
+            event: { type: "CHOOSE_ESTIMATE", value: "unverified" },
             detail,
-          );
+          });
           return;
         }
       } else {
