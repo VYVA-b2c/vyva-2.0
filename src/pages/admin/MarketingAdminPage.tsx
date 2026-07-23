@@ -41740,7 +41740,7 @@ export default function MarketingAdminPage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
-                      <table className="min-w-[1180px] border-collapse text-left text-sm">
+                      <table className="min-w-[760px] border-collapse text-left text-sm [&_td:nth-child(2)]:hidden [&_td:nth-child(4)]:hidden [&_td:nth-child(6)]:hidden [&_td:nth-child(7)]:hidden [&_td:nth-child(8)]:hidden [&_th:nth-child(2)]:hidden [&_th:nth-child(4)]:hidden [&_th:nth-child(6)]:hidden [&_th:nth-child(7)]:hidden [&_th:nth-child(8)]:hidden">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
                             <th className="px-4 py-3">Content</th>
@@ -43311,7 +43311,9 @@ export default function MarketingAdminPage() {
 
               {contactView === "contacts" ? (
                 <>
-                  <SectionCard title="Contact draft" subtitle="Create B2B contacts or planning records before sync/cutover.">
+                  <details className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+                    <summary className="cursor-pointer text-sm font-black text-purple-700">Add contact</summary>
+                  <SectionCard title="New contact" subtitle="Create a contact only when it is not already imported.">
                     <form className="grid gap-3" onSubmit={(event) => createContact(event).catch((error) => {
                       setContactFeedback(error.message);
                       setMessage(error.message);
@@ -43403,6 +43405,7 @@ export default function MarketingAdminPage() {
                   ) : null}
                     </form>
                   </SectionCard>
+                  </details>
                   {contactEditDraft ? (
                     <div ref={contactEditorPanelRef} tabIndex={-1}>
                     <SectionCard
@@ -43535,7 +43538,9 @@ export default function MarketingAdminPage() {
                     </div>
                   ) : null}
                   <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
-                    <div className="mb-3 rounded-xl border border-purple-100 bg-purple-50 p-4" data-testid="marketing-contact-relationship-panel">
+                    <details className="mb-3 rounded-xl border border-purple-100 bg-purple-50 p-4">
+                      <summary className="cursor-pointer text-sm font-black text-purple-700">Relationship tools</summary>
+                    <div className="mt-3" data-testid="marketing-contact-relationship-panel">
                       {selectedRelationshipContact ? (
                         <div className="grid gap-4 xl:grid-cols-[1.15fr_1fr]">
                           <div>
@@ -43906,7 +43911,10 @@ export default function MarketingAdminPage() {
                         </div>
                       )}
                     </div>
-                    <div className="mb-3 grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-contact-segmentation-filters">
+                    </details>
+                    <details className="mb-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                      <summary className="cursor-pointer text-sm font-black text-purple-700">Filters</summary>
+                    <div className="mt-3 grid gap-3" data-testid="marketing-contact-segmentation-filters">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-black text-[#241133]">Contact segmentation</p>
@@ -43980,7 +43988,10 @@ export default function MarketingAdminPage() {
                         </Field>
                       </div>
                     </div>
-                    <div className="mb-3 grid gap-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm xl:grid-cols-[minmax(0,1fr)_360px]" data-testid="marketing-filtered-audience-builder">
+                    </details>
+                    <details className="mb-3 rounded-xl border border-purple-100 bg-white p-3 shadow-sm">
+                      <summary className="cursor-pointer text-sm font-black text-purple-700">Save current view as audience</summary>
+                    <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]" data-testid="marketing-filtered-audience-builder">
                       <div>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
@@ -44071,8 +44082,9 @@ export default function MarketingAdminPage() {
                         </div>
                       </div>
                     </div>
+                    </details>
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-contacts-table">
-                      <table className="min-w-[1650px] border-collapse text-left text-sm">
+                      <table className="min-w-[820px] border-collapse text-left text-sm [&_td:nth-child(4)]:hidden [&_td:nth-child(6)]:hidden [&_td:nth-child(7)]:hidden [&_td:nth-child(8)]:hidden [&_td:nth-child(9)]:hidden [&_td:nth-child(10)]:hidden [&_td:nth-child(11)]:hidden [&_td:nth-child(12)]:hidden [&_td:nth-child(13)]:hidden [&_td:nth-child(15)]:hidden [&_th:nth-child(4)]:hidden [&_th:nth-child(6)]:hidden [&_th:nth-child(7)]:hidden [&_th:nth-child(8)]:hidden [&_th:nth-child(9)]:hidden [&_th:nth-child(10)]:hidden [&_th:nth-child(11)]:hidden [&_th:nth-child(12)]:hidden [&_th:nth-child(13)]:hidden [&_th:nth-child(15)]:hidden">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
                             <th className="px-4 py-3">Contact</th>
@@ -44782,12 +44794,24 @@ export default function MarketingAdminPage() {
                         </div>
                       </div>
                     </details>
-                    {exportPreview ? <SourceExportPreviewDiagnostics preview={exportPreview} /> : null}
-                    <SourceReviewShortcuts
-                      title={sourceReviewTitle}
-                      subtitle={sourceReviewSubtitle}
-                      actions={sourceReviewShortcuts}
-                    />
+                    {exportPreview ? (
+                      <details className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                        <summary className="cursor-pointer text-sm font-black text-blue-800">Connection preview details</summary>
+                        <div className="mt-3">
+                          <SourceExportPreviewDiagnostics preview={exportPreview} />
+                        </div>
+                      </details>
+                    ) : null}
+                    <details className="mt-4 rounded-xl border border-[#eadfd5] bg-white p-3">
+                      <summary className="cursor-pointer text-sm font-black text-purple-700">Import review shortcuts</summary>
+                      <div className="mt-3">
+                        <SourceReviewShortcuts
+                          title={sourceReviewTitle}
+                          subtitle={sourceReviewSubtitle}
+                          actions={sourceReviewShortcuts}
+                        />
+                      </div>
+                    </details>
                     <div className="mt-3 grid gap-2">
                       {syncState.runs.length === 0 ? <EmptyState text="No imports yet." /> : syncState.runs.map((run) => (
                         <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
@@ -44796,7 +44820,12 @@ export default function MarketingAdminPage() {
                             <span className="text-xs font-bold text-[#7d6b65]">{formatDate(run.createdAt)}</span>
                           </div>
                           {run.error ? <p className="mt-2 text-sm font-bold text-red-700">{run.error}</p> : null}
-                          <SyncRunDiagnostics run={run} />
+                          <details className="mt-2 rounded-lg border border-[#eadfd5] bg-[#fffaf4] px-3 py-2">
+                            <summary className="cursor-pointer text-xs font-black text-purple-700">Import details</summary>
+                            <div className="mt-2">
+                              <SyncRunDiagnostics run={run} />
+                            </div>
+                          </details>
                         </div>
                       ))}
                     </div>
