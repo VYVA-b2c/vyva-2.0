@@ -42164,10 +42164,7 @@ export default function MarketingAdminPage() {
                             <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
                               <td className="max-w-[360px] px-4 py-3">
                                 <p className="font-black text-[#241133]">{item.title}</p>
-                                <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
-                                {item.body && item.body !== item.subject ? (
-                                  <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#8b7a73]">{item.body}</p>
-                                ) : null}
+                                <p className="mt-1 line-clamp-1 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
                               </td>
                               <td className="px-4 py-3">
                                 <Pill className={item.source === "lovable" ? "bg-violet-50 text-violet-700" : "bg-[#f5eee8] text-[#5b4a46]"}>
@@ -44459,7 +44456,6 @@ export default function MarketingAdminPage() {
                               <tr key={contact.id} className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}>
                                 <td className="px-4 py-3">
                                   <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
-                                  {contact.profileId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p> : null}
                                 </td>
                                 <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.email || "-"}</td>
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.phoneNumber || "-"}</td>
@@ -45206,75 +45202,75 @@ function SourceExportPreviewDiagnostics({ preview }: { preview: SourceExportPrev
   );
 
   return (
-    <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold text-blue-950" data-testid="marketing-export-preview">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="uppercase tracking-[0.12em] text-blue-800">Source export preview</p>
-          <p className="mt-1 text-sm font-black">Dataset: {preview.dataset || "unknown"}</p>
-          {preview.exportedAt ? <p className="mt-1 text-xs font-semibold">Exported at {formatDate(preview.exportedAt)}</p> : null}
-        </div>
-        <Pill className="bg-white text-blue-800">Preview only</Pill>
-      </div>
+    <div className="grid gap-2 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold text-blue-950" data-testid="marketing-export-preview">
       {exported.length ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-blue-800">Available to import</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-black">Source export ready</p>
+            {preview.exportedAt ? <p className="mt-0.5 text-xs font-semibold text-blue-800">Updated {formatDate(preview.exportedAt)}</p> : null}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
             {exported.map((item) => <Pill key={`preview-exported-${item.key}`} className="bg-white text-blue-800">{item.label}: {item.value}</Pill>)}
           </div>
         </div>
       ) : <p className="rounded-lg bg-white p-3 text-sm font-black text-amber-800">Source returned no recognized marketing rows.</p>}
-      {contentSourceCounts.length ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-blue-800">Content source buckets</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {contentSourceCounts.map((item) => <Pill key={item.key} className="bg-white text-purple-800">{item.key}: {item.value}</Pill>)}
-          </div>
-        </div>
-      ) : null}
-      {preview.topLevelKeys.length ? (
-        <p className="rounded-lg bg-white p-3 font-semibold text-[#5b4a46]">
-          Top-level export keys: {preview.topLevelKeys.slice(0, 18).join(", ")}{preview.topLevelKeys.length > 18 ? `, +${preview.topLevelKeys.length - 18} more` : ""}
-        </p>
-      ) : null}
-      {fieldCoverage.length ? (
-        <div>
-          <p className="uppercase tracking-[0.12em] text-blue-800">Field coverage before import</p>
-          <div className="mt-1 grid gap-1.5">
-            {fieldCoverage.map((item) => (
-              <div key={item.entity} className="rounded-lg bg-white px-3 py-2">
-                <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
-                {item.firstClassFields.length ? (
-                  <p className="mt-1 font-semibold text-emerald-800">
-                    Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
-                  </p>
-                ) : null}
-                {item.metadataOnly ? (
-                  <p className="mt-1 font-semibold">Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 6)}</p>
-                ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are editable first-class fields.</p>}
-                {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
-                  <details className="mt-2 rounded-lg border border-[#eadfd5] bg-blue-50 p-2" data-testid={`marketing-export-field-coverage-${item.entity}`}>
-                    <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
-                    <div className="mt-2 grid gap-2">
-                      {item.metadataOnlyFields.length ? (
-                        <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
-                      ) : null}
-                      {item.firstClassFields.length ? (
-                        <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
-                      ) : null}
-                      {item.exportedFields.length ? (
-                        <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
-                      ) : null}
-                    </div>
-                  </details>
-                ) : null}
+      <details className="rounded-lg border border-blue-100 bg-white p-3" data-testid="marketing-export-preview-details">
+        <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.12em] text-blue-800">Import diagnostics</summary>
+        <div className="mt-3 grid gap-3">
+          {contentSourceCounts.length ? (
+            <div>
+              <p className="uppercase tracking-[0.12em] text-blue-800">Content source buckets</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {contentSourceCounts.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.key}: {item.value}</Pill>)}
               </div>
-            ))}
+            </div>
+          ) : null}
+          {preview.topLevelKeys.length ? (
+            <p className="rounded-lg bg-blue-50 p-3 font-semibold text-[#5b4a46]">
+              Top-level export keys: {preview.topLevelKeys.slice(0, 18).join(", ")}{preview.topLevelKeys.length > 18 ? `, +${preview.topLevelKeys.length - 18} more` : ""}
+            </p>
+          ) : null}
+          {fieldCoverage.length ? (
+            <div>
+              <p className="uppercase tracking-[0.12em] text-blue-800">Field coverage before import</p>
+              <div className="mt-1 grid gap-1.5">
+                {fieldCoverage.map((item) => (
+                  <div key={item.entity} className="rounded-lg bg-blue-50 px-3 py-2">
+                    <p className="font-black text-[#241133]">{syncFieldCoverageSummary(item)}</p>
+                    {item.firstClassFields.length ? (
+                      <p className="mt-1 font-semibold text-emerald-800">
+                        Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
+                      </p>
+                    ) : null}
+                    {item.metadataOnly ? (
+                      <p className="mt-1 font-semibold">Preserved in Source metadata: {syncFieldCoveragePreservedPreview(item, 6)}</p>
+                    ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are editable first-class fields.</p>}
+                    {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
+                      <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-export-field-coverage-${item.entity}`}>
+                        <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
+                        <div className="mt-2 grid gap-2">
+                          {item.metadataOnlyFields.length ? (
+                            <p><span className="text-amber-800">Preserved in Source metadata:</span> {item.metadataOnlyFields.join(", ")}</p>
+                          ) : null}
+                          {item.firstClassFields.length ? (
+                            <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
+                          ) : null}
+                          {item.exportedFields.length ? (
+                            <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
+                          ) : null}
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <SourceDestinationMap summary={preview.summary} />
+          <MetadataPanel title="Recognized sample rows from Source" value={sampleRows} testId="marketing-export-preview-samples" />
+          <MetadataPanel title="Raw top-level Source array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
           </div>
-        </div>
-      ) : null}
-      <SourceDestinationMap summary={preview.summary} />
-      <MetadataPanel title="Recognized sample rows from Source" value={sampleRows} testId="marketing-export-preview-samples" />
-      <MetadataPanel title="Raw top-level Source array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
+      </details>
     </div>
   );
 }
@@ -45440,8 +45436,6 @@ function CampaignTable({
             <th className="px-4 py-3">Audience</th>
             <th className="px-4 py-3">Channels</th>
             <th className="px-4 py-3">Schedule</th>
-            <th className="px-4 py-3">Performance</th>
-            <th className="px-4 py-3">Launch readiness</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Recipients</th>
             {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
@@ -45449,7 +45443,7 @@ function CampaignTable({
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 9 : 8} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
@@ -45459,7 +45453,6 @@ function CampaignTable({
             const rowReadiness = campaignRowReadiness(campaign, contentById, audiences, contactByCampaignRecipientId);
             const publishPath = campaignRowPublishPath(campaign, contentById, audiences, contactByCampaignRecipientId);
             const rowConfidence = campaignRowConfidence(rowReadiness, publishPath);
-            const rowNextActionLabel = campaignRowReadinessActionLabel(rowReadiness);
             return (
             <tr
               key={campaign.id}
@@ -45478,7 +45471,56 @@ function CampaignTable({
             >
               <td className="px-4 py-3">
                 <p className="font-black">{campaign.name}</p>
-                <p className="text-xs font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
+                {campaign.objective ? <p className="mt-1 line-clamp-1 text-xs font-semibold text-[#7d6b65]">{campaign.objective}</p> : null}
+                <details className="mt-2 text-xs font-bold text-[#5b4a46]" data-testid={`marketing-campaign-row-details-${campaign.id}`}>
+                  <summary className="cursor-pointer text-purple-700">Details</summary>
+                  <div className="mt-2 grid max-w-[440px] gap-2 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <p><span className="font-black">Source:</span> {campaign.source}</p>
+                    <CampaignPerformanceSummary summary={metricSummary} manualResults={manualResults} testId={`marketing-campaign-performance-${campaign.id}`} />
+                    <div className={`rounded-xl border p-2 ${readinessClass(rowReadiness.state)}`} data-testid={`marketing-campaign-row-readiness-${campaign.id}`}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill className={readinessPillClass(rowReadiness.state)}>{rowReadiness.label}</Pill>
+                        <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
+                      </div>
+                      <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
+                      <div className="mt-2 rounded-lg border border-white/70 bg-white px-2 py-1.5" data-testid={`marketing-campaign-row-confidence-${campaign.id}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-black uppercase tracking-[0.08em] text-[#6b5b54]">Confidence</span>
+                          <Pill className={readinessPillClass(rowConfidence.state)}>{rowConfidence.score}%</Pill>
+                        </div>
+                        <p className="mt-1 text-xs font-black text-[#241133]">{rowConfidence.label}</p>
+                      </div>
+                      <div className="mt-2 grid gap-1.5" data-testid={`marketing-campaign-row-publish-path-${campaign.id}`}>
+                        {publishPath.map((step) => (
+                          <div key={step.key} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1">
+                            <span className="min-w-0 truncate text-[11px] font-black text-[#241133]">{step.label}</span>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className={`h-2 w-2 shrink-0 rounded-full ${step.state === "ready" ? "bg-emerald-500" : step.state === "needs_action" ? "bg-amber-500" : step.state === "planning" ? "bg-blue-500" : "bg-red-500"}`} aria-hidden="true" />
+                              <span className="max-w-[140px] truncate text-[11px] font-bold text-[#6b5b54]">{step.detail}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void copyCampaignRowNextActionBrief(campaign, rowReadiness, targetAudience, metricSummary, manualResults);
+                      }}
+                      disabled={actionsDisabled}
+                      className="inline-flex min-h-8 w-fit items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 text-xs font-black text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                      data-testid={`button-marketing-campaign-row-copy-next-brief-${campaign.id}`}
+                    >
+                      <Sparkles size={12} /> Copy AI next step
+                    </button>
+                    {copiedBriefCampaignId === campaign.id ? (
+                      <p className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid={`marketing-campaign-row-copy-next-brief-feedback-${campaign.id}`}>
+                        AI next-step brief copied.
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
               </td>
               <td className="px-4 py-3">
                 <p className="font-black">{campaign.audienceType.toUpperCase()}</p>
@@ -45537,70 +45579,6 @@ function CampaignTable({
               <td className="px-4 py-3 font-bold text-[#7d6b65]">
                 <p>{formatDate(campaign.scheduleStartsAt)}</p>
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
-              </td>
-              <td className="px-4 py-3">
-                <CampaignPerformanceSummary summary={metricSummary} manualResults={manualResults} testId={`marketing-campaign-performance-${campaign.id}`} />
-              </td>
-              <td className="px-4 py-3">
-                <div className={`min-w-[190px] rounded-xl border p-2 ${readinessClass(rowReadiness.state)}`} data-testid={`marketing-campaign-row-readiness-${campaign.id}`}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Pill className={readinessPillClass(rowReadiness.state)}>{rowReadiness.label}</Pill>
-                    <span className="text-xs font-black">{rowReadiness.readyCount}/{rowReadiness.totalCount}</span>
-                  </div>
-                  <p className="mt-1 text-xs font-bold leading-relaxed">{rowReadiness.detail}</p>
-                  <div className="mt-2 rounded-lg border border-white/70 bg-white px-2 py-1.5" data-testid={`marketing-campaign-row-confidence-${campaign.id}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-[#6b5b54]">Confidence</span>
-                      <Pill className={readinessPillClass(rowConfidence.state)}>{rowConfidence.score}%</Pill>
-                    </div>
-                    <p className="mt-1 text-xs font-black text-[#241133]">{rowConfidence.label}</p>
-                    {rowConfidence.reasons.length ? (
-                      <p className="mt-1 line-clamp-2 text-[11px] font-bold leading-relaxed text-[#6b5b54]">{rowConfidence.reasons.join(" | ")}</p>
-                    ) : null}
-                  </div>
-                  <div className="mt-2 grid gap-1.5" data-testid={`marketing-campaign-row-publish-path-${campaign.id}`}>
-                    {publishPath.map((step) => (
-                      <div key={step.key} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1">
-                        <span className="min-w-0 truncate text-[11px] font-black text-[#241133]">{step.label}</span>
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className={`h-2 w-2 shrink-0 rounded-full ${step.state === "ready" ? "bg-emerald-500" : step.state === "needs_action" ? "bg-amber-500" : step.state === "planning" ? "bg-blue-500" : "bg-red-500"}`} aria-hidden="true" />
-                          <span className="max-w-[110px] truncate text-[11px] font-bold text-[#6b5b54]">{step.detail}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {onEdit ? (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onEdit(campaign);
-                      }}
-                      disabled={actionsDisabled}
-                      className="mt-2 inline-flex min-h-8 items-center justify-center rounded-lg border border-purple-200 bg-white px-2.5 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                      data-testid={`button-marketing-campaign-row-next-${campaign.id}`}
-                    >
-                      {rowNextActionLabel}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void copyCampaignRowNextActionBrief(campaign, rowReadiness, targetAudience, metricSummary, manualResults);
-                    }}
-                    disabled={actionsDisabled}
-                    className="mt-2 inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 text-xs font-black text-emerald-800 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                    data-testid={`button-marketing-campaign-row-copy-next-brief-${campaign.id}`}
-                  >
-                    <Sparkles size={12} /> Copy AI next step
-                  </button>
-                  {copiedBriefCampaignId === campaign.id ? (
-                    <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-800" role="status" aria-live="polite" data-testid={`marketing-campaign-row-copy-next-brief-feedback-${campaign.id}`}>
-                      AI next-step brief copied.
-                    </p>
-                  ) : null}
-                </div>
               </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
