@@ -163,6 +163,16 @@ describe("unified rich decision card contracts", () => {
     expectCardText(viewModel, "Urgent safety boundary");
   });
 
+  it("exposes refill agent presence copy on the first medication decision", () => {
+    const viewModel = refillCanvasViewModel({ ...initialRefillCanvasState, step: "medication" }, refillCopy, [], [], []);
+
+    expect(viewModel).toMatchObject({
+      sceneId: "refill-medication",
+      kind: "choice",
+      agentPresenceCopy: agentPresence,
+    });
+  });
+
   it("keeps shopping cards explicit about review and no payment/order boundaries", () => {
     const viewModel = shoppingCanvasViewModel({
       ...initialShoppingCanvasState,
@@ -192,5 +202,19 @@ describe("unified rich decision card contracts", () => {
     expectCardText(viewModel, "No message sent yet");
     expectCardText(viewModel, "Review before send");
     expectCardText(viewModel, "Urgent safety boundary");
+  });
+
+  it("exposes provider reply agent presence copy on the first context decision", () => {
+    const viewModel = providerReplyCanvasViewModel({ ...initialProviderReplyCanvasState, step: "context" }, providerReplyCopy, {
+      providerName: "Riverside Clinic",
+      providerType: "Clinic",
+      replyIntents: [{ id: "confirm", label: "Confirm appointment" }],
+    });
+
+    expect(viewModel).toMatchObject({
+      sceneId: "provider-reply-context",
+      kind: "choice",
+      agentPresenceCopy: agentPresence,
+    });
   });
 });

@@ -254,6 +254,7 @@ export function providerReplyCanvasViewModel(
         kind: context.replyIntents?.length ? "choice" : "review",
         title: copy.context.title,
         helperText: copy.context.helper,
+        agentPresenceCopy: copy.agentPresence,
         progress: progress(copy, 1),
         blocks: context.replyIntents?.map((intent) => ({
           kind: "option-card" as const,

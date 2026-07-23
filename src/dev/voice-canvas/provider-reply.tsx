@@ -8,6 +8,17 @@ import "./gallery.css";
 import "./integration.css";
 
 const en: ProviderReplyCanvasCopy = {
+  agentPresence: {
+    idleLabel: "VYVA is ready",
+    idleDescription: "You can speak or use the screen.",
+    listeningLabel: "Listening with you",
+    listeningDescription: "You can say the reply intent or tap a card.",
+    speakingLabel: "VYVA is speaking",
+    speakingDescription: "The screen will stay on the same step.",
+    thinkingLabel: "Checking provider reply details",
+    thinkingDescription: "VYVA is keeping the draft-only boundary visible.",
+    accessibleLabel: "VYVA provider reply voice status",
+  },
   listening: {
     status: "Listening",
     title: "Review the provider reply",
@@ -123,6 +134,17 @@ const en: ProviderReplyCanvasCopy = {
 
 const es: ProviderReplyCanvasCopy = {
   ...en,
+  agentPresence: {
+    idleLabel: "VYVA lista",
+    idleDescription: "Puedes hablar o tocar la pantalla.",
+    listeningLabel: "Escuchando contigo",
+    listeningDescription: "Puedes decir la intención de respuesta o tocar una tarjeta.",
+    speakingLabel: "VYVA está hablando",
+    speakingDescription: "La pantalla seguirá en el mismo paso.",
+    thinkingLabel: "Revisando la respuesta",
+    thinkingDescription: "VYVA mantiene visible el límite de solo borrador.",
+    accessibleLabel: "Estado de voz de VYVA para la respuesta del proveedor",
+  },
   listening: {
     status: "Escuchando",
     title: "Revisemos la respuesta",
