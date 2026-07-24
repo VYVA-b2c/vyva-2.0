@@ -492,7 +492,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
       : isHomeRoute
-        ? "max-w-[430px] sm:max-w-[560px] md:max-w-[720px]"
+        ? "max-w-[430px] sm:max-w-[560px] md:max-w-[820px] lg:max-w-[980px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
