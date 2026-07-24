@@ -331,12 +331,12 @@ export default function MasterDashboardLayout({
                   <span
                     className={[
                       "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
-                      isHomeMaster ? "h-[30px] w-[30px] rounded-[10px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
+                      isHomeMaster ? "h-7 w-7 rounded-[9px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
                     ].join(" ")}
-                    style={{ background: isHomeMasterDark ? "rgba(255,255,255,0.10)" : "#FFFFFF", color: card.tone.iconColor }}
+                    style={{ background: isHomeMaster ? card.tone.iconBg : "#FFFFFF", color: card.tone.iconColor }}
                   >
-                    <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" />
-                    <Icon className="relative" size={isHomeMaster ? 17 : 28} strokeWidth={2.45} aria-hidden="true" />
+                    {!isHomeMaster ? <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" /> : null}
+                    <Icon className="relative" size={isHomeMaster ? 15 : 28} strokeWidth={2.55} aria-hidden="true" />
                   </span>
                   <span className={`min-w-0 flex-1 ${isHomeMaster ? "hidden" : "md:hidden"}`}>
                     <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
@@ -369,7 +369,7 @@ export default function MasterDashboardLayout({
                   />
                 ) : null}
                 <span className={`mt-2 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
-                  <span className={isHomeMasterDark ? "block font-body text-[11px] font-extrabold leading-[1.02] !text-[#FFF8FF]" : "block font-body text-[11px] font-extrabold leading-[1.02] text-vyva-text-1"}>
+                  <span className={isHomeMasterDark ? "block font-body text-[13px] font-extrabold leading-[1.04] !text-[#FFF8FF]" : "block font-body text-[13px] font-extrabold leading-[1.04] text-vyva-text-1"}>
                     {card.title}
                   </span>
                   {!isHomeMaster && card.chips?.length ? (
