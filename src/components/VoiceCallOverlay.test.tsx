@@ -238,8 +238,8 @@ describe("VoiceCallOverlay voice room", () => {
 
     expect(screen.queryByTestId("text-call-transcript-preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-call-transcript")).toHaveStyle({
-      maxWidth: "min(88vw, 560px)",
-      maxHeight: "min(34vh, 260px)",
+      maxWidth: "min(92vw, 760px)",
+      maxHeight: "min(42vh, 340px)",
       overflowWrap: "anywhere",
       margin: "0",
     });

@@ -435,7 +435,7 @@ const VoiceCallOverlay = ({
           display: "grid",
           gridTemplateColumns: "56px minmax(0, 1fr) 56px",
           alignItems: "center",
-          width: "min(100%, 520px)",
+          width: "min(100%, 760px)",
           gap: 8,
           position: "relative",
           zIndex: 2,
@@ -554,17 +554,17 @@ const VoiceCallOverlay = ({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          gap: isNeutralListeningShell ? 16 : 18,
+          gap: isNeutralListeningShell ? 14 : 18,
           boxSizing: "border-box",
           paddingTop: visibleCanvasViewModel
             ? "clamp(18px, 4vh, 42px)"
             : isNeutralListeningShell
-            ? "clamp(34px, 9vh, 92px)"
+            ? "clamp(18px, 5vh, 54px)"
             : "clamp(30px, 8vh, 86px)",
           paddingBottom: visibleCanvasViewModel
             ? "clamp(250px, 31vh, 310px)"
             : isNeutralListeningShell
-            ? "clamp(168px, 22vh, 230px)"
+            ? "clamp(128px, 17vh, 190px)"
             : "clamp(310px, 39vh, 382px)",
           overflowY: "auto",
           scrollbarWidth: "none",
@@ -618,16 +618,16 @@ const VoiceCallOverlay = ({
           style={{
             color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
             fontSize: isNeutralListeningShell && !activeVyvaCaption
-              ? "clamp(44px, 12vw, 72px)"
+              ? "clamp(38px, 8vw, 64px)"
               : hasConnectionError
               ? "clamp(34px, 8vw, 48px)"
               : activeVyvaCaption
-              ? "clamp(34px, 8.5vw, 58px)"
-              : "clamp(42px, 11vw, 82px)",
+              ? "clamp(30px, 6vw, 52px)"
+              : "clamp(38px, 8vw, 70px)",
             lineHeight: activeVyvaCaption ? 1.08 : 1.04,
             textAlign: "center",
-            maxWidth: activeVyvaCaption ? "min(88vw, 560px)" : "min(92vw, 620px)",
-            maxHeight: activeVyvaCaption ? "min(34vh, 260px)" : undefined,
+            maxWidth: activeVyvaCaption ? "min(92vw, 760px)" : "min(92vw, 720px)",
+            maxHeight: activeVyvaCaption ? "min(42vh, 340px)" : undefined,
             fontWeight: isNeutralListeningShell && !activeVyvaCaption ? 800 : 850,
             overflow: activeVyvaCaption ? "hidden" : undefined,
             overflowWrap: "anywhere",
@@ -647,7 +647,7 @@ const VoiceCallOverlay = ({
               fontSize: 22,
               lineHeight: 1.35,
               textAlign: "center",
-              maxWidth: "min(88vw, 360px)",
+              maxWidth: "min(92vw, 560px)",
               fontWeight: 500,
               margin: 0,
               overflowWrap: "anywhere",
@@ -947,7 +947,7 @@ const VoiceCallOverlay = ({
               display: "grid",
               gridTemplateColumns: `repeat(${neutralControlCount}, minmax(0, 1fr))`,
               gap: 12,
-              width: "min(100%, 360px)",
+              width: "min(100%, 420px)",
             }}
           >
             <button

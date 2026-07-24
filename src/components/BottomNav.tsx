@@ -46,22 +46,22 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         key={tab.id}
         data-testid={`nav-tab-${tab.id}`}
         onClick={() => navigate(tab.path)}
-        className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${isHomeRoute ? "min-h-[58px]" : ""}`}
+        className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${isHomeRoute ? "min-h-[66px] sm:min-h-[70px] md:min-h-[74px]" : ""}`}
       >
         <div
-          className={`flex h-7 w-9 items-center justify-center rounded-full transition-all ${
+          className={`flex h-8 w-10 items-center justify-center rounded-full transition-all ${
             active ? "bg-vyva-purple-light shadow-sm" : ""
           }`}
         >
           <Icon
-            size={20}
+            size={isHomeRoute ? 21 : 20}
             className={active ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"}
             strokeWidth={active ? 2.25 : 1.9}
             style={!active && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
           />
         </div>
         <span
-          className={`max-w-[58px] text-center font-body text-[10px] font-bold leading-[1.05] transition-colors ${
+          className={`max-w-[68px] text-center font-body text-[11px] font-bold leading-[1.05] transition-colors ${
             active ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"
           }`}
           style={!active && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
@@ -78,24 +78,24 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         "left-1/2 z-50 w-full -translate-x-1/2 backdrop-blur",
         isHomeRoute
           ? isHomeMasterDark
-            ? "fixed bottom-[18px] max-w-[276px] rounded-[18px] border border-white/10 bg-[#171225]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)]"
-            : "fixed bottom-[18px] max-w-[276px] rounded-[18px] border border-[#EEE4F6] bg-white/95 shadow-[0_12px_28px_rgba(63,45,35,0.10)]"
+            ? "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-white/10 bg-[#171225]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[500px] md:h-[76px] md:max-w-[620px]"
+            : "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-[#EEE4F6] bg-white/95 shadow-[0_12px_28px_rgba(63,45,35,0.10)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[500px] md:h-[76px] md:max-w-[620px]"
           : `fixed bottom-0 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`,
       ].join(" ")}
-      style={isHomeRoute ? { height: 58 } : { height: "calc(88px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={isHomeRoute ? undefined : { height: "calc(88px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className={`mx-auto grid h-full w-full grid-cols-3 items-center gap-2 ${isHomeRoute ? "px-4" : `px-7 ${wide ? "max-w-[560px]" : ""}`}`}>
+      <div className={`mx-auto grid h-full w-full grid-cols-3 items-center gap-2 ${isHomeRoute ? "px-5 sm:px-7 md:px-8" : `px-7 ${wide ? "max-w-[560px]" : ""}`}`}>
         {renderTab(tabs[0])}
         <button
           data-testid="nav-tab-sos"
           onClick={onSosClick}
-          className={`relative flex flex-col items-center justify-center gap-1 rounded-[18px] ${isHomeRoute ? "-mt-4 min-h-[60px]" : "-mt-3 min-h-[78px]"}`}
+          className={`relative flex flex-col items-center justify-center gap-1 rounded-[18px] ${isHomeRoute ? "-mt-5 min-h-[68px] sm:min-h-[72px] md:min-h-[76px]" : "-mt-3 min-h-[78px]"}`}
           aria-label="SOS"
         >
-          <div className={`sos-btn flex items-center justify-center rounded-full bg-[#D92020] shadow-[0_8px_20px_rgba(185,28,28,0.32)] ${isHomeRoute ? "h-[38px] w-[38px]" : "h-[52px] w-[52px]"}`}>
-            <AlertCircle size={isHomeRoute ? 19 : 25} className="text-white" />
+          <div className={`sos-btn flex items-center justify-center rounded-full bg-[#D92020] shadow-[0_8px_20px_rgba(185,28,28,0.32)] ${isHomeRoute ? "h-[44px] w-[44px]" : "h-[52px] w-[52px]"}`}>
+            <AlertCircle size={isHomeRoute ? 21 : 25} className="text-white" />
           </div>
-          <span className="font-body text-[10px] font-extrabold leading-tight text-[#B91C1C]">SOS</span>
+          <span className="font-body text-[11px] font-extrabold leading-tight text-[#B91C1C]">SOS</span>
         </button>
         {renderTab(tabs[1])}
       </div>
