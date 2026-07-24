@@ -1378,6 +1378,7 @@ const pt = {
     master: {
       heroEyebrow: "Hoje",
       heroSubtitle: "VYVA esta pronta quando quiser.",
+      touchOrbToBegin: "Toque no orbe para comecar.",
       nextMedicationNudge: "Em {{minutes}} min: {{name}}.",
       medicationNudge: "{{count}} doses por tomar hoje.",
       voiceSupport: "Toque no orbe e fale.",

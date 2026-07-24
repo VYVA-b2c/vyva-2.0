@@ -1468,6 +1468,7 @@ const de = {
     master: {
       heroEyebrow: "Heute",
       heroSubtitle: "VYVA ist bereit, wenn Sie es sind.",
+      touchOrbToBegin: "Tippen Sie auf die Kugel, um zu beginnen.",
       nextMedicationNudge: "In {{minutes}} Min.: {{name}}.",
       medicationNudge: "{{count}} Dosen heute offen.",
       voiceSupport: "Tippen Sie auf die Kugel und sprechen Sie.",

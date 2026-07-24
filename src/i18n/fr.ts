@@ -1436,6 +1436,7 @@ const fr = {
     master: {
       heroEyebrow: "Aujourd'hui",
       heroSubtitle: "VYVA est prete quand vous l'etes.",
+      touchOrbToBegin: "Touchez l'orbe pour commencer.",
       nextMedicationNudge: "Dans {{minutes}} min : {{name}}.",
       medicationNudge: "{{count}} doses restantes aujourd'hui.",
       voiceSupport: "Touchez l'orbe et parlez.",
