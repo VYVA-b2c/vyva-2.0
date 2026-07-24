@@ -301,7 +301,7 @@ export default function MasterDashboardLayout({
             {cardSectionTitle}
           </h2>
         ) : null}
-        <div className={isHomeMaster ? "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5 lg:gap-6" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
+        <div className={isHomeMaster ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -315,7 +315,7 @@ export default function MasterDashboardLayout({
                 className={[
                   "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   isHomeMaster
-                    ? "relative flex min-h-[92px] flex-col items-start justify-between rounded-[17px] p-3 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[100px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 sm:min-h-[118px] sm:rounded-[22px] sm:p-4 md:min-h-[140px] md:p-5 lg:min-h-[156px] lg:p-6"
+                    ? "relative flex min-h-[74px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[82px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[92px] sm:rounded-[22px] sm:p-4 sm:pr-12 md:min-h-[104px] md:p-5 md:pr-14 lg:min-h-[112px] lg:p-5 lg:pr-14"
                     : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
                 ].join(" ")}
                 style={{
@@ -327,7 +327,7 @@ export default function MasterDashboardLayout({
                     : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                 }}
               >
-                <span className={`flex min-w-0 flex-1 items-center gap-3 ${isHomeMaster ? "w-full items-start justify-between" : "md:w-full md:items-start md:justify-between"}`}>
+                <span className={`flex min-w-0 items-center gap-3 ${isHomeMaster ? "flex-none" : "flex-1 md:w-full md:items-start md:justify-between"}`}>
                   <span
                     className={[
                       "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
@@ -368,7 +368,7 @@ export default function MasterDashboardLayout({
                     aria-hidden="true"
                   />
                 ) : null}
-                <span className={`mt-3 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
+                <span className={`min-w-0 pr-1 ${isHomeMaster ? "block flex-1" : "mt-3 hidden md:block"}`}>
                   <span className={isHomeMasterDark ? "block font-body text-[16px] font-extrabold leading-[1.06] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]" : "block font-body text-[16px] font-extrabold leading-[1.06] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]"}>
                     {card.title}
                   </span>
