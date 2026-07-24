@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, type LucideIcon } from "lucide-react";
+import { Activity, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -174,6 +174,8 @@ type HomeFastAction = {
   mobileSub?: string;
   href?: string;
 };
+
+type HomeIntentLayer = "home" | "health";
 
 
 const COORDS_WEATHER_CACHE_KEY = "vyva_coords_weather_cache";
@@ -640,6 +642,7 @@ const HomeScreen = () => {
   const [showVyvaReviewHistory, setShowVyvaReviewHistory] = useState<ShowVyvaReviewHistoryItem[]>(() => (
     readShowVyvaReviewHistory()
   ));
+  const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>("home");
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
 
   useEffect(() => {
@@ -934,7 +937,7 @@ const HomeScreen = () => {
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
-      handleNavigate(card.path);
+      setHomeIntentLayer("health");
       return;
     }
     handleNavigate(card.path, SECTION_VOICE_AUTO_START_OPTIONS);
@@ -1030,7 +1033,7 @@ const HomeScreen = () => {
       title: t("home.master.cards.healthShortTitle", "My Health"),
       detail: t("home.master.cards.healthDetailShort", "Check in and stay on track"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/health"),
+      onClick: () => setHomeIntentLayer("health"),
       testId: "card-home-agent-health",
     },
     {
@@ -1062,6 +1065,77 @@ const HomeScreen = () => {
     },
   ];
 
+  const openHealthPath = (path: string, options?: NavigateOptions) => {
+    handleNavigate(path, options);
+  };
+
+  const homeMasterHealthCards: MasterDashboardCard[] = [
+    {
+      id: "health-symptoms",
+      icon: HeartPulse,
+      title: t("home.master.healthIntent.symptoms", "Symptoms"),
+      detail: t("home.master.healthIntent.symptomsDetail", "Say what you feel"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/symptom-check", SECTION_VOICE_AUTO_START_OPTIONS),
+      testId: "card-home-health-symptoms",
+    },
+    {
+      id: "health-vitals",
+      icon: Activity,
+      title: t("home.master.healthIntent.vitals", "Vitals"),
+      detail: t("home.master.healthIntent.vitalsDetail", "Blood pressure and readings"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/vitals"),
+      testId: "card-home-health-vitals",
+    },
+    {
+      id: "health-meds",
+      icon: Pill,
+      title: t("home.master.healthIntent.meds", "Medications"),
+      detail: t("home.master.healthIntent.medsDetail", "Doses and reminders"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/meds"),
+      testId: "card-home-health-meds",
+    },
+    {
+      id: "health-doctor",
+      icon: Stethoscope,
+      title: t("home.master.healthIntent.doctor", "Doctor next step"),
+      detail: t("home.master.healthIntent.doctorDetail", "Prepare what to say"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: homeDoctorContext,
+        },
+      }),
+      testId: "card-home-health-doctor",
+    },
+    {
+      id: "health-prevention",
+      icon: ShieldCheck,
+      title: t("home.master.healthIntent.prevention", "Prevention"),
+      detail: t("home.master.healthIntent.preventionDetail", "Stay well today"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#C15B08", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/prevention"),
+      testId: "card-home-health-prevention",
+    },
+    {
+      id: "health-visual-scan",
+      icon: Camera,
+      title: t("home.master.healthIntent.visualScan", "Visual scan"),
+      detail: t("home.master.healthIntent.visualScanDetail", "Show VYVA a concern"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health", {
+        state: {
+          openVisualScan: true,
+          source: "home_health_intent",
+        },
+      }),
+      testId: "card-home-health-visual-scan",
+    },
+  ];
+
   const remainingMedicineCount = medicationHomeSignal?.todaySummary?.remaining ?? 0;
   const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
   const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
@@ -1079,10 +1153,24 @@ const HomeScreen = () => {
         { count: remainingMedicineCount },
       )
     : t("home.master.heroSubtitle", "VYVA is ready when you are.");
-  const homeMasterHeroSubtitle = isHomeMasterVoiceAlive
-    ? homeMasterScheduledSubtitle
-    : t("home.master.touchOrbToBegin", "Touch the orb to begin.");
-  const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
+  const homeMasterHealthSubtitle = isHomeMasterVoiceAlive
+    ? t("home.master.healthIntent.voiceSubtitle", "Okay, health. Choose one, or tell VYVA.")
+    : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb and speak.");
+  const homeMasterHeroSubtitle = homeIntentLayer === "health"
+    ? homeMasterHealthSubtitle
+    : isHomeMasterVoiceAlive
+      ? homeMasterScheduledSubtitle
+      : t("home.master.touchOrbToBegin", "Touch the orb to begin.");
+  const homeMasterGreetingText = homeIntentLayer === "health"
+    ? t("home.master.healthIntent.title", "Are you OK?")
+    : greetingText.replace(/[.]$/, "");
+  const homeMasterVisibleCards = homeIntentLayer === "health" ? homeMasterHealthCards : homeMasterCards;
+  const homeMasterCardSectionTitle = homeIntentLayer === "health"
+    ? t("home.master.healthIntent.sectionTitle", "What do you need?")
+    : t("home.master.chooseCategory", "App shortcuts");
+  const homeMasterCardSectionDescription = homeIntentLayer === "health"
+    ? t("home.master.healthIntent.sectionDescription", "Choose a card, or keep talking to VYVA.")
+    : undefined;
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
     {
@@ -1664,7 +1752,13 @@ const HomeScreen = () => {
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
       isDarkMode={isHomeMasterDark}
-      cardSectionTitle={t("home.master.chooseCategory", "App shortcuts")}
+      cardSectionTitle={homeMasterCardSectionTitle}
+      cardSectionDescription={homeMasterCardSectionDescription}
+      cardSectionBackLabel={t("home.master.intentBack", "Back")}
+      onCardSectionBack={homeIntentLayer === "health" ? () => setHomeIntentLayer("home") : undefined}
+      cardSectionMoreLabel={homeIntentLayer === "health" ? t("home.master.healthIntent.more", "More health options") : undefined}
+      onCardSectionMore={homeIntentLayer === "health" ? () => openHealthPath("/health") : undefined}
+      cardSectionMoreTestId={homeIntentLayer === "health" ? "button-home-health-more" : undefined}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
       hero={{
         icon: MessageCircle,
@@ -1689,7 +1783,7 @@ const HomeScreen = () => {
           surface: "#FFFFFF",
         },
       }}
-      cards={homeMasterCards}
+      cards={homeMasterVisibleCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
       beforeFastHelp={null}
     />

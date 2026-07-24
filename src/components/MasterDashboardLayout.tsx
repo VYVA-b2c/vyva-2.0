@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bell, ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 
 type MasterTone = {
@@ -72,6 +72,12 @@ type MasterDashboardLayoutProps = {
   fastHelpActions: MasterFastHelpAction[];
   launcherVariant?: "default" | "homeMaster";
   cardSectionTitle?: string;
+  cardSectionDescription?: string;
+  cardSectionBackLabel?: string;
+  onCardSectionBack?: () => void;
+  cardSectionMoreLabel?: string;
+  onCardSectionMore?: () => void;
+  cardSectionMoreTestId?: string;
   testId?: string;
   cardGridTestId?: string;
   fastHelpTestId?: string;
@@ -103,6 +109,11 @@ export default function MasterDashboardLayout({
   fastHelpActions,
   launcherVariant = "default",
   cardSectionTitle,
+  cardSectionBackLabel,
+  onCardSectionBack,
+  cardSectionMoreLabel,
+  onCardSectionMore,
+  cardSectionMoreTestId,
   testId,
   cardGridTestId,
   fastHelpTestId,
@@ -117,6 +128,7 @@ export default function MasterDashboardLayout({
   const isVoiceAction = hero.action.kind === "voice";
   const isHomeMaster = launcherVariant === "homeMaster";
   const isHomeMasterDark = isHomeMaster && isDarkMode;
+  const isHomeMasterIntentLayer = isHomeMaster && Boolean(onCardSectionBack);
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -295,13 +307,28 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showLauncher ? <section className={isHomeMaster ? "mt-6 sm:mt-7 md:mt-8 lg:mt-10" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
+      {showLauncher ? <section className={isHomeMaster ? (isHomeMasterIntentLayer ? "mt-4 sm:mt-5 md:mt-6" : "mt-6 sm:mt-7 md:mt-8 lg:mt-10") : "mt-4"} aria-label={cardSectionTitle || "Today tray"} data-testid={cardGridTestId}>
         {cardSectionTitle ? (
-          <h2 className={isHomeMaster ? "sr-only" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
-            {cardSectionTitle}
-          </h2>
+          <div className={isHomeMaster && onCardSectionBack ? "mb-2 flex justify-start" : ""}>
+            {isHomeMaster && onCardSectionBack ? null : (
+              <h2 className={isHomeMaster ? "sr-only" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
+                {cardSectionTitle}
+              </h2>
+            )}
+            {isHomeMaster && onCardSectionBack ? (
+              <button
+                type="button"
+                onClick={onCardSectionBack}
+                data-testid="button-home-master-intent-back"
+                aria-label={cardSectionBackLabel ?? "Back"}
+                className={isHomeMasterDark ? "vyva-tap flex h-9 !min-h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/10 text-[#FFF8FF]" : "vyva-tap flex h-9 !min-h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)]"}
+              >
+                <ChevronLeft size={18} strokeWidth={2.6} aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
         ) : null}
-        <div className={isHomeMaster ? "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
+        <div className={isHomeMaster ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5") : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -315,7 +342,9 @@ export default function MasterDashboardLayout({
                 className={[
                   "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   isHomeMaster
-                    ? "relative flex min-h-[74px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[82px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[92px] sm:rounded-[22px] sm:p-4 sm:pr-12 md:min-h-[104px] md:p-5 md:pr-14 lg:min-h-[112px] lg:p-5 lg:pr-14"
+                    ? isHomeMasterIntentLayer
+                      ? "relative flex min-h-[64px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[70px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[78px] sm:rounded-[20px] sm:p-4 sm:pr-12 md:min-h-[86px] md:p-5 md:pr-14 lg:min-h-[92px] lg:p-5 lg:pr-14"
+                      : "relative flex min-h-[74px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[82px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[92px] sm:rounded-[22px] sm:p-4 sm:pr-12 md:min-h-[104px] md:p-5 md:pr-14 lg:min-h-[112px] lg:p-5 lg:pr-14"
                     : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
                 ].join(" ")}
                 style={{
@@ -390,6 +419,17 @@ export default function MasterDashboardLayout({
             );
           })}
         </div>
+        {isHomeMaster && onCardSectionMore ? (
+          <button
+            type="button"
+            onClick={onCardSectionMore}
+            data-testid={cardSectionMoreTestId}
+            className={isHomeMasterDark ? "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-white/14 bg-white/10 px-4 py-2.5 font-body text-[13px] font-black text-[#FFF8FF]" : "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-2.5 font-body text-[13px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)]"}
+          >
+            {cardSectionMoreLabel ?? "More"}
+            <ChevronRight size={14} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        ) : null}
       </section> : null}
 
       {showLauncher && beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}

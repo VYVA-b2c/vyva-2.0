@@ -1395,17 +1395,54 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("qm@4cksa.com");
   });
 
-  it("opens each pillar from the master cards", () => {
+  it("opens each non-health pillar from the master cards", () => {
     render(<HomeScreen />);
 
-    fireEvent.click(screen.getByTestId("card-home-agent-health"));
     fireEvent.click(screen.getByTestId("card-home-agent-cognitive"));
     fireEvent.click(screen.getByTestId("card-home-agent-social"));
     fireEvent.click(screen.getByTestId("card-home-agent-concierge"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/health", undefined);
     expect(guardPathMock).toHaveBeenCalledWith("/mind-memory", undefined);
     expect(guardPathMock).toHaveBeenCalledWith("/social-rooms", undefined);
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", undefined);
+  });
+
+  it("opens a focused Health intent layer before routing to health actions", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("card-home-agent-health"));
+
+    expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Are you OK?");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Choose a health option, or touch the orb and speak.");
+    expect(screen.getByTestId("home-pillar-cards")).not.toHaveTextContent("What do you need?");
+    expect(screen.getByTestId("card-home-health-symptoms")).toHaveTextContent("Symptoms");
+    expect(screen.getByTestId("card-home-health-vitals")).toHaveTextContent("Vitals");
+    expect(screen.getByTestId("card-home-health-meds")).toHaveTextContent("Medications");
+    expect(screen.getByTestId("card-home-health-doctor")).toHaveTextContent("Doctor next step");
+    expect(screen.queryByTestId("card-home-health-prevention")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-health-visual-scan")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
+
+    fireEvent.click(screen.getByTestId("card-home-health-symptoms"));
+    fireEvent.click(screen.getByTestId("card-home-health-vitals"));
+    fireEvent.click(screen.getByTestId("card-home-health-meds"));
+    fireEvent.click(screen.getByTestId("card-home-health-doctor"));
+    fireEvent.click(screen.getByTestId("button-home-health-more"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/health/symptom-check", expect.objectContaining({
+      state: expect.objectContaining({ autoStartSectionVoice: true }),
+    }));
+    expect(guardPathMock).toHaveBeenCalledWith("/health/vitals", undefined);
+    expect(guardPathMock).toHaveBeenCalledWith("/meds", undefined);
+    expect(guardPathMock).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
+      state: expect.objectContaining({ autoStartVoice: true }),
+    }));
+    expect(guardPathMock).toHaveBeenCalledWith("/health", undefined);
+
+    fireEvent.click(screen.getByTestId("button-home-master-intent-back"));
+
+    expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();
   });
 });
