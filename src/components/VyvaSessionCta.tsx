@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, MessageCircle, Mic } from "lucide-react";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
+import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
 import {
   type VoiceConnectionErrorCode,
   type VoiceDiagnosticStep,
@@ -29,7 +30,7 @@ type VyvaSessionCtaProps = {
   className?: string;
   iconClassName?: string;
   supportingLabel?: string;
-  visual?: "default" | "voiceRail";
+  visual?: "default" | "voiceRail" | "voiceOrb";
 };
 
 type VoiceControls = {
@@ -223,6 +224,7 @@ export function VyvaSessionCta({
 
   const Icon = isPreparing ? Loader2 : isActive || isConnecting ? MessageCircle : Mic;
   const isVoiceRail = visual === "voiceRail";
+  const isVoiceOrb = visual === "voiceOrb";
   const railSupportingLabel = isPreparing
     ? preparingLabel ?? "Checking voice"
     : isConnecting
@@ -261,7 +263,16 @@ export function VyvaSessionCta({
           aria-label={accessibleLabel}
           className={className}
         >
-          {isVoiceRail ? (
+          {isVoiceOrb ? (
+            <>
+              <ZamoraVoiceOrb
+                state={isPreparing || isConnecting ? "listening" : isActive ? (isSpeaking ? "speaking" : "listening") : "idle"}
+                size={144}
+                isDark={false}
+                testId="home-dormant-zamora-orb"
+              />
+            </>
+          ) : isVoiceRail ? (
             <>
               <span className="absolute inset-[-7px] rounded-full bg-[#F3E8FF] opacity-50" aria-hidden="true" />
               <span className="absolute inset-[-2px] rounded-full bg-[radial-gradient(circle,#FFFFFF_0%,#F8F2FF_62%,#FFF9F2_100%)] shadow-[0_10px_22px_rgba(107,33,168,0.10)]" aria-hidden="true" />
