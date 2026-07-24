@@ -32114,11 +32114,15 @@ export default function MarketingAdminPage() {
                               key={starter.preset.id}
                               type="button"
                               onClick={() => applyCampaignPlannerGoalStarter(starter)}
-                              className={`min-h-[110px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 ${campaignDraft.name.includes(starter.preset.title) ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133]"}`}
+                              title={starter.preset.detail}
+                              aria-label={`${starter.preset.title}. ${starter.preset.detail}`}
+                              className={`group relative min-h-[72px] rounded-xl border p-3 text-left shadow-sm transition hover:border-purple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-300 ${campaignDraft.name.includes(starter.preset.title) ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#241133]"}`}
                               data-testid={`button-marketing-simple-goal-${starter.preset.id}`}
                             >
                               <span className="block text-sm font-black">{starter.preset.title}</span>
-                              <span className={`mt-1 line-clamp-2 block text-xs font-bold ${campaignDraft.name.includes(starter.preset.title) ? "text-white/80" : "text-[#6b5b54]"}`}>{starter.preset.detail}</span>
+                              <span className={`pointer-events-none absolute left-3 right-3 top-[calc(100%+6px)] z-30 hidden rounded-xl border p-3 text-xs font-bold leading-relaxed shadow-xl group-hover:block group-focus-visible:block ${campaignDraft.name.includes(starter.preset.title) ? "border-purple-200 bg-white text-[#241133]" : "border-[#eadfd5] bg-[#fffaf4] text-[#6b5b54]"}`}>
+                                {starter.preset.detail}
+                              </span>
                             </button>
                           ))}
                         </div>
