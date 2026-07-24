@@ -36,7 +36,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
       : "vyva-tap flex h-7 !min-h-7 w-7 items-center justify-center rounded-[9px] border bg-white/92 shadow-[0_8px_16px_rgba(63,45,35,0.06)]";
     const darkIconStyle = isDark ? { color: "#F6F0FF" } : undefined;
     return (
-      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-4 min-[390px]:max-w-[366px] sm:max-w-[390px]">
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-4 min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[640px]">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"
