@@ -28,6 +28,8 @@ import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { useVoiceCanvasContext } from "@/contexts/VoiceCanvasContext";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
@@ -475,6 +477,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
+  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const { size: readableTextSize } = useReadableTextSize();
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
@@ -762,12 +766,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className={`flex min-h-screen justify-center ${isHomeRoute ? "bg-white" : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
+      <div className={`flex min-h-screen justify-center ${isHomeRoute ? (isHomeMasterDark ? "bg-[#080715]" : "bg-white") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
-        className={`relative w-full ${shellMaxWidthClassName} ${isHomeRoute ? "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]" : ""}`}
+        data-home-master-theme={isHomeRoute && isHomeMasterDark ? "dark" : "light"}
+        data-vyva-text-size={readableTextSize}
+        className={`relative w-full ${shellMaxWidthClassName} ${isHomeRoute ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
       >
         {!isFullScreen && (
           <StatusBar
