@@ -1,6 +1,7 @@
 import { AlertCircle, ClipboardList, House, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 
 type BottomNavTab = {
   id: string;
@@ -15,6 +16,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   const navigate = useNavigate();
   const { t } = useLanguage();
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
+  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
 
   const tabs: BottomNavTab[] = [
     {
@@ -37,6 +39,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
     const active = tab.isActive(location.pathname);
     const Icon = tab.icon;
     const label = isHomeRoute && tab.id === "reports" ? t("nav.reportsShort", "Informes") : tab.label;
+    const inactiveDarkColor = "#CFC4E8";
 
     return (
       <button
@@ -52,14 +55,16 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         >
           <Icon
             size={20}
-            className={active ? "text-vyva-purple" : "text-vyva-text-3"}
+            className={active ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"}
             strokeWidth={active ? 2.25 : 1.9}
+            style={!active && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
           />
         </div>
         <span
           className={`max-w-[58px] text-center font-body text-[10px] font-bold leading-[1.05] transition-colors ${
-            active ? "text-vyva-purple" : "text-vyva-text-3"
+            active ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"
           }`}
+          style={!active && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
         >
           {label}
         </span>
@@ -70,10 +75,12 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   return (
     <nav
       className={[
-        "left-1/2 z-50 w-full -translate-x-1/2 bg-white/95 backdrop-blur",
+        "left-1/2 z-50 w-full -translate-x-1/2 backdrop-blur",
         isHomeRoute
-          ? "absolute top-[552px] max-w-[276px] rounded-[18px] border border-[#EEE4F6] shadow-[0_12px_28px_rgba(63,45,35,0.10)]"
-          : `fixed bottom-0 border-t border-vyva-border shadow-[0_-8px_28px_rgba(63,45,35,0.08)] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`,
+          ? isHomeMasterDark
+            ? "fixed bottom-[18px] max-w-[276px] rounded-[18px] border border-white/10 bg-[#171225]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)]"
+            : "fixed bottom-[18px] max-w-[276px] rounded-[18px] border border-[#EEE4F6] bg-white/95 shadow-[0_12px_28px_rgba(63,45,35,0.10)]"
+          : `fixed bottom-0 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`,
       ].join(" ")}
       style={isHomeRoute ? { height: 58 } : { height: "calc(88px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
     >

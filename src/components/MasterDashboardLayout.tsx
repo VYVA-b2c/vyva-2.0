@@ -79,6 +79,7 @@ type MasterDashboardLayoutProps = {
   fastHelpRotationMs?: number;
   beforeFastHelp?: ReactNode;
   showLauncher?: boolean;
+  isDarkMode?: boolean;
   children?: ReactNode;
 };
 
@@ -109,11 +110,13 @@ export default function MasterDashboardLayout({
   fastHelpRotationMs = 9000,
   beforeFastHelp,
   showLauncher = true,
+  isDarkMode = false,
   children,
 }: MasterDashboardLayoutProps) {
   const heroTone = hero.tone ?? defaultHeroTone;
   const isVoiceAction = hero.action.kind === "voice";
   const isHomeMaster = launcherVariant === "homeMaster";
+  const isHomeMasterDark = isHomeMaster && isDarkMode;
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -171,10 +174,11 @@ export default function MasterDashboardLayout({
       className={[
         "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
         isHomeMaster
-          ? "mx-auto min-h-[calc(100svh-174px)] max-w-[302px] !px-0"
+          ? "mx-auto min-h-[calc(100svh-128px)] max-w-[302px] !px-0 pb-[88px]"
           : "",
       ].join(" ")}
       data-testid={testId}
+      data-home-master-theme={isHomeMasterDark ? "dark" : "light"}
     >
       {showLauncher ? <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
@@ -199,7 +203,10 @@ export default function MasterDashboardLayout({
               className={[
                 "text-balance leading-[0.98] text-vyva-text-1",
                 isHomeMaster
-                  ? "mx-auto max-w-[17rem] font-body text-[18px] font-bold tracking-normal text-[#24113D] min-[390px]:text-[19px]"
+                  ? [
+                      "mx-auto max-w-[17rem] font-body text-[18px] font-bold tracking-normal min-[390px]:text-[19px]",
+                      isHomeMasterDark ? "!text-[#FFF8FF] drop-shadow-[0_2px_12px_rgba(0,0,0,0.22)]" : "!text-[#24113D]",
+                    ].join(" ")
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
               ].join(" ")}
             >
@@ -210,6 +217,7 @@ export default function MasterDashboardLayout({
                 className={[
                   "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
                   isHomeMaster ? "mx-auto !mt-1 text-[10px] font-extrabold text-[#E3A11B] min-[390px]:max-w-[19rem] min-[390px]:text-[11px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
+                  isHomeMasterDark ? "!text-[#FFD977]" : "",
                 ].join(" ")}
               >
                 {hero.subtitle}
@@ -257,10 +265,16 @@ export default function MasterDashboardLayout({
               testId={hero.action.testId}
               supportingLabel={hero.action.supportingLabel}
               visual="voiceOrb"
+              voiceOrbDark={isHomeMasterDark}
               className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
             />
             <span
-              className="pointer-events-none absolute right-[-2px] top-3 flex h-7 w-7 items-center justify-center rounded-[10px] border border-[#E9D5FF] bg-white/92 text-vyva-purple shadow-[0_10px_20px_rgba(107,33,168,0.10)]"
+              className={[
+                "pointer-events-none absolute right-[-2px] top-3 flex h-7 w-7 items-center justify-center rounded-[10px] border shadow-[0_10px_20px_rgba(107,33,168,0.10)]",
+                isHomeMasterDark
+                  ? "border-white/12 bg-white/10 text-[#F0D9FF]"
+                  : "border-[#E9D5FF] bg-white/92 text-vyva-purple",
+              ].join(" ")}
               aria-hidden="true"
             >
               <Bell size={14} strokeWidth={2.3} />
@@ -281,7 +295,7 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showLauncher ? <section className={isHomeMaster ? "mt-6" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
+      {showLauncher ? <section className={isHomeMaster ? "mt-5" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
         {cardSectionTitle ? (
           <h2 className={isHomeMaster ? "sr-only" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
             {cardSectionTitle}
@@ -301,13 +315,15 @@ export default function MasterDashboardLayout({
                 className={[
                   "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   isHomeMaster
-                    ? "relative flex min-h-[72px] flex-col items-start justify-between rounded-[13px] p-2 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[78px] min-[390px]:rounded-[14px] min-[390px]:p-2.5"
+                    ? "relative flex min-h-[72px] flex-col items-start justify-between rounded-[13px] p-2 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[76px] min-[390px]:rounded-[14px] min-[390px]:p-2.5"
                     : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
                 ].join(" ")}
                 style={{
-                  borderColor: card.tone.border,
+                  borderColor: isHomeMasterDark ? "rgba(255,255,255,0.14)" : card.tone.border,
                   background: isHomeMaster
-                    ? "rgba(255,255,255,0.92)"
+                    ? isHomeMasterDark
+                      ? "linear-gradient(145deg, rgba(255,255,255,0.105) 0%, rgba(255,255,255,0.07) 100%)"
+                      : "rgba(255,255,255,0.92)"
                     : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                 }}
               >
@@ -317,7 +333,7 @@ export default function MasterDashboardLayout({
                       "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
                       isHomeMaster ? "h-[30px] w-[30px] rounded-[10px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
                     ].join(" ")}
-                    style={{ background: "#FFFFFF", color: card.tone.iconColor }}
+                    style={{ background: isHomeMasterDark ? "rgba(255,255,255,0.10)" : "#FFFFFF", color: card.tone.iconColor }}
                   >
                     <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" />
                     <Icon className="relative" size={isHomeMaster ? 17 : 28} strokeWidth={2.45} aria-hidden="true" />
@@ -348,12 +364,12 @@ export default function MasterDashboardLayout({
                   <ChevronRight
                     size={14}
                     strokeWidth={2.4}
-                    className="absolute right-2.5 top-2.5 text-vyva-text-3"
+                    className={isHomeMasterDark ? "absolute right-2.5 top-2.5 text-white/50" : "absolute right-2.5 top-2.5 text-vyva-text-3"}
                     aria-hidden="true"
                   />
                 ) : null}
                 <span className={`mt-2 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
-                  <span className="block font-body text-[11px] font-extrabold leading-[1.02] text-vyva-text-1">
+                  <span className={isHomeMasterDark ? "block font-body text-[11px] font-extrabold leading-[1.02] !text-[#FFF8FF]" : "block font-body text-[11px] font-extrabold leading-[1.02] text-vyva-text-1"}>
                     {card.title}
                   </span>
                   {!isHomeMaster && card.chips?.length ? (

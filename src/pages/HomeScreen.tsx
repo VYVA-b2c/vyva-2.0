@@ -13,6 +13,7 @@ import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
 import {
@@ -620,6 +621,7 @@ const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { firstName: profileFirstName, profile } = useProfile();
   const activeFastHelpImpressionIdRef = useRef<string | null>(null);
   const fastHelpImpressionIdsByFingerprintRef = useRef(new Map<string, string>());
@@ -1655,6 +1657,7 @@ const HomeScreen = () => {
       cardGridTestId="home-pillar-cards"
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
+      isDarkMode={isHomeMasterDark}
       cardSectionTitle={t("home.master.chooseCategory", "App shortcuts")}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
       hero={{

@@ -1,7 +1,9 @@
-import { CircleUser, Settings, Shield, Sun } from "lucide-react";
+import { ALargeSmall, CircleUser, Moon, Settings, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { useLanguage } from "@/i18n";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
 
 type StatusBarProps = {
@@ -12,6 +14,8 @@ type StatusBarProps = {
 const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
   const navigate = useNavigate();
   const { language, t } = useLanguage();
+  const { isDark, toggleTheme } = useHomeMasterTheme();
+  const { isLarge: isReadableTextLarge, toggleSize: toggleReadableTextSize } = useReadableTextSize();
   const now = new Date();
   const localeByLanguage: Record<string, string> = {
     es: "es-ES",
@@ -27,8 +31,12 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
 
   if (variant === "homeMaster") {
+    const homeIconButtonClass = isDark
+      ? "vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-white/18 bg-white/[0.09] shadow-[0_8px_16px_rgba(0,0,0,0.16)]"
+      : "vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border bg-white/92 shadow-[0_8px_16px_rgba(63,45,35,0.06)]";
+    const darkIconStyle = isDark ? { color: "#F6F0FF" } : undefined;
     return (
-      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[302px] -translate-x-1/2 bg-transparent px-0 py-5">
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[302px] -translate-x-1/2 bg-transparent px-0 py-4">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"
@@ -36,22 +44,15 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             className="vyva-tap flex h-8 !min-h-8 items-center"
             aria-label="VYVA"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-vyva-purple font-body text-[15px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]">
+            <span className={isDark ? "flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#7C3AED] font-body text-[15px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.36)]" : "flex h-7 w-7 items-center justify-center rounded-[9px] bg-vyva-purple font-body text-[15px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]"}>
               V
             </span>
           </button>
           <div className="flex shrink-0 items-center gap-1">
             <button
-              type="button"
-              onClick={() => navigate("/health")}
-              className="vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-[#FFDCD9] bg-white/92 text-[#E74C43] shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
-              aria-label={t("home.master.header.health", "Health")}
-            >
-              <Shield size={12} strokeWidth={2.25} />
-            </button>
-            <button
               onClick={() => navigate("/settings")}
-              className="vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-[#E9D5FF] bg-white/92 text-vyva-purple shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
+              className={`${homeIconButtonClass} ${isDark ? "" : "border-[#E9D5FF] text-vyva-purple"}`}
+              style={darkIconStyle}
               data-testid="button-my-profile"
               aria-label={t("nav.myProfile")}
             >
@@ -59,11 +60,24 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/settings/notifications")}
-              className="vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-[#FDE68A] bg-white/92 text-[#B7791F] shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
-              aria-label={t("home.master.header.display", "Display")}
+              onClick={toggleReadableTextSize}
+              className={`${homeIconButtonClass} ${isDark ? isReadableTextLarge ? "!border-white/28 !bg-white/16 !text-white" : "" : isReadableTextLarge ? "border-[#8B5CF6] bg-[#F4ECFF] text-vyva-purple" : "border-[#E9D5FF] text-vyva-purple"}`}
+              style={darkIconStyle}
+              data-testid="button-readable-text-size"
+              aria-pressed={isReadableTextLarge}
+              aria-label={isReadableTextLarge ? t("home.master.header.normalText", "Use normal text") : t("home.master.header.largeText", "Use larger text")}
             >
-              <Sun size={12} strokeWidth={2.25} />
+              <ALargeSmall size={13} strokeWidth={2.35} />
+            </button>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`${homeIconButtonClass} ${isDark ? "" : "border-[#FDE68A] text-[#B7791F]"}`}
+              style={darkIconStyle}
+              data-testid="button-home-master-theme"
+              aria-label={isDark ? t("home.master.header.lightMode", "Use light mode") : t("home.master.header.darkMode", "Use dark mode")}
+            >
+              {isDark ? <Sun size={12} strokeWidth={2.25} /> : <Moon size={12} strokeWidth={2.25} />}
             </button>
           </div>
         </div>
