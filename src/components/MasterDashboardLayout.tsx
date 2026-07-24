@@ -174,7 +174,7 @@ export default function MasterDashboardLayout({
       className={[
         "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
         isHomeMaster
-          ? "mx-auto min-h-[calc(100svh-128px)] max-w-[302px] !px-0 pb-[88px]"
+          ? "mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[100px] min-[390px]:max-w-[366px] sm:max-w-[390px]"
           : "",
       ].join(" ")}
       data-testid={testId}
@@ -204,7 +204,7 @@ export default function MasterDashboardLayout({
                 "text-balance leading-[0.98] text-vyva-text-1",
                 isHomeMaster
                   ? [
-                      "mx-auto max-w-[17rem] font-body text-[18px] font-bold tracking-normal min-[390px]:text-[19px]",
+                      "mx-auto max-w-[19rem] font-body text-[21px] font-bold tracking-normal min-[390px]:text-[23px] sm:text-[24px]",
                       isHomeMasterDark ? "!text-[#FFF8FF] drop-shadow-[0_2px_12px_rgba(0,0,0,0.22)]" : "!text-[#24113D]",
                     ].join(" ")
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
@@ -216,7 +216,7 @@ export default function MasterDashboardLayout({
               <p
                 className={[
                   "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
-                  isHomeMaster ? "mx-auto !mt-1 text-[10px] font-extrabold text-[#E3A11B] min-[390px]:max-w-[19rem] min-[390px]:text-[11px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
+                  isHomeMaster ? "mx-auto !mt-1 text-[12px] font-extrabold text-[#E3A11B] min-[390px]:max-w-[20rem] min-[390px]:text-[13px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
                   isHomeMasterDark ? "!text-[#FFD977]" : "",
                 ].join(" ")}
               >
@@ -248,7 +248,7 @@ export default function MasterDashboardLayout({
         </div>
 
         {isVoiceAction && isHomeMaster ? (
-          <div className="relative mx-auto mt-3 w-[144px]">
+          <div className="relative mx-auto mt-4 w-[168px] min-[390px]:w-[184px] sm:w-[194px]">
             <VyvaSessionCta
               label={hero.action.label}
               activeLabel={hero.action.activeLabel}
@@ -270,14 +270,14 @@ export default function MasterDashboardLayout({
             />
             <span
               className={[
-                "pointer-events-none absolute right-[-2px] top-3 flex h-7 w-7 items-center justify-center rounded-[10px] border shadow-[0_10px_20px_rgba(107,33,168,0.10)]",
+                "pointer-events-none absolute right-[-4px] top-4 flex h-8 w-8 items-center justify-center rounded-[11px] border shadow-[0_10px_20px_rgba(107,33,168,0.10)]",
                 isHomeMasterDark
                   ? "border-white/12 bg-white/10 text-[#F0D9FF]"
                   : "border-[#E9D5FF] bg-white/92 text-vyva-purple",
               ].join(" ")}
               aria-hidden="true"
             >
-              <Bell size={14} strokeWidth={2.3} />
+              <Bell size={15} strokeWidth={2.3} />
               <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#F43F5E]" />
             </span>
           </div>
@@ -295,13 +295,13 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showLauncher ? <section className={isHomeMaster ? "mt-5" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
+      {showLauncher ? <section className={isHomeMaster ? "mt-6" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
         {cardSectionTitle ? (
           <h2 className={isHomeMaster ? "sr-only" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
             {cardSectionTitle}
           </h2>
         ) : null}
-        <div className={isHomeMaster ? "grid grid-cols-2 gap-2.5" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
+        <div className={isHomeMaster ? "grid grid-cols-2 gap-3 min-[390px]:gap-3.5" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -315,7 +315,7 @@ export default function MasterDashboardLayout({
                 className={[
                   "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   isHomeMaster
-                    ? "relative flex min-h-[72px] flex-col items-start justify-between rounded-[13px] p-2 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[76px] min-[390px]:rounded-[14px] min-[390px]:p-2.5"
+                    ? "relative flex min-h-[92px] flex-col items-start justify-between rounded-[17px] p-3 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[100px] min-[390px]:rounded-[18px] min-[390px]:p-3.5"
                     : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
                 ].join(" ")}
                 style={{
@@ -331,7 +331,7 @@ export default function MasterDashboardLayout({
                   <span
                     className={[
                       "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
-                      isHomeMaster ? "h-7 w-7 rounded-[9px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
+                      isHomeMaster ? "h-7 w-7 rounded-[9px] min-[390px]:h-8 min-[390px]:w-8" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
                     ].join(" ")}
                     style={{ background: isHomeMaster ? card.tone.iconBg : "#FFFFFF", color: card.tone.iconColor }}
                   >
@@ -368,8 +368,8 @@ export default function MasterDashboardLayout({
                     aria-hidden="true"
                   />
                 ) : null}
-                <span className={`mt-2 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
-                  <span className={isHomeMasterDark ? "block font-body text-[13px] font-extrabold leading-[1.04] !text-[#FFF8FF]" : "block font-body text-[13px] font-extrabold leading-[1.04] text-vyva-text-1"}>
+                <span className={`mt-3 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
+                  <span className={isHomeMasterDark ? "block font-body text-[16px] font-extrabold leading-[1.06] !text-[#FFF8FF] min-[390px]:text-[17px]" : "block font-body text-[16px] font-extrabold leading-[1.06] text-vyva-text-1 min-[390px]:text-[17px]"}>
                     {card.title}
                   </span>
                   {!isHomeMaster && card.chips?.length ? (

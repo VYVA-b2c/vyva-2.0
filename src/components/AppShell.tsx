@@ -492,7 +492,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
       : isHomeRoute
-        ? "max-w-[390px]"
+        ? "max-w-[430px] sm:max-w-[460px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
@@ -781,7 +781,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             variant={isHomeRoute ? "homeMaster" : "default"}
           />
         )}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[66px] pb-[92px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard

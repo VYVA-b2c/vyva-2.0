@@ -32,11 +32,11 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
 
   if (variant === "homeMaster") {
     const homeIconButtonClass = isDark
-      ? "vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-white/18 bg-white/[0.09] shadow-[0_8px_16px_rgba(0,0,0,0.16)]"
-      : "vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border bg-white/92 shadow-[0_8px_16px_rgba(63,45,35,0.06)]";
+      ? "vyva-tap flex h-7 !min-h-7 w-7 items-center justify-center rounded-[9px] border border-white/18 bg-white/[0.09] shadow-[0_8px_16px_rgba(0,0,0,0.16)]"
+      : "vyva-tap flex h-7 !min-h-7 w-7 items-center justify-center rounded-[9px] border bg-white/92 shadow-[0_8px_16px_rgba(63,45,35,0.06)]";
     const darkIconStyle = isDark ? { color: "#F6F0FF" } : undefined;
     return (
-      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[302px] -translate-x-1/2 bg-transparent px-0 py-4">
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-4 min-[390px]:max-w-[366px] sm:max-w-[390px]">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"
@@ -44,7 +44,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             className="vyva-tap flex h-8 !min-h-8 items-center"
             aria-label="VYVA"
           >
-            <span className={isDark ? "flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#7C3AED] font-body text-[15px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.36)]" : "flex h-7 w-7 items-center justify-center rounded-[9px] bg-vyva-purple font-body text-[15px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]"}>
+            <span className={isDark ? "flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#7C3AED] font-body text-[18px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.36)]" : "flex h-9 w-9 items-center justify-center rounded-[11px] bg-vyva-purple font-body text-[18px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]"}>
               V
             </span>
           </button>
@@ -56,7 +56,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
               data-testid="button-my-profile"
               aria-label={t("nav.myProfile")}
             >
-              <Settings size={12} strokeWidth={2.25} />
+              <Settings size={13} strokeWidth={2.25} />
             </button>
             <button
               type="button"
@@ -67,7 +67,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
               aria-pressed={isReadableTextLarge}
               aria-label={isReadableTextLarge ? t("home.master.header.normalText", "Use normal text") : t("home.master.header.largeText", "Use larger text")}
             >
-              <ALargeSmall size={13} strokeWidth={2.35} />
+              <ALargeSmall size={14} strokeWidth={2.35} />
             </button>
             <button
               type="button"
@@ -77,7 +77,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
               data-testid="button-home-master-theme"
               aria-label={isDark ? t("home.master.header.lightMode", "Use light mode") : t("home.master.header.darkMode", "Use dark mode")}
             >
-              {isDark ? <Sun size={12} strokeWidth={2.25} /> : <Moon size={12} strokeWidth={2.25} />}
+              {isDark ? <Sun size={13} strokeWidth={2.25} /> : <Moon size={13} strokeWidth={2.25} />}
             </button>
           </div>
         </div>
