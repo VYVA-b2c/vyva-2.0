@@ -443,11 +443,11 @@ function normalizeTranscriptText(text: string) {
 
 function formatDisconnectDetails(details: DisconnectionDetails) {
   if (details.reason === "user") return null;
+  if (details.reason !== "error") return null;
 
   const closeCode = "closeCode" in details && details.closeCode ? ` code ${details.closeCode}` : "";
   const closeReason = "closeReason" in details && details.closeReason ? `: ${details.closeReason}` : "";
-  const message = details.reason === "error" ? details.message : "Agent ended the session";
-  return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${message}`;
+  return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${details.message}`;
 }
 
 async function requestVoiceMicrophonePermission() {

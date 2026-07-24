@@ -591,7 +591,7 @@ const VoiceCallOverlay = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            marginBottom: isNeutralListeningShell ? 12 : 18,
+            marginBottom: isNeutralListeningShell ? 42 : 24,
           }}
         >
           <div
