@@ -1,9 +1,8 @@
-import { CircleUser } from "lucide-react";
+import { CircleUser, Settings, Shield, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { useLanguage } from "@/i18n";
 import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
-import { VyvaWordmark } from "./VyvaWordmark";
 
 type StatusBarProps = {
   wide?: boolean;
@@ -29,24 +28,44 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
 
   if (variant === "homeMaster") {
     return (
-      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[520px] -translate-x-1/2 bg-[#fffcf8]/95 px-6 py-4 backdrop-blur">
-        <div className="flex min-w-0 items-center justify-between gap-3">
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[302px] -translate-x-1/2 bg-transparent px-0 py-5">
+        <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="vyva-tap flex h-10 items-center"
+            className="vyva-tap flex h-8 !min-h-8 items-center"
             aria-label="VYVA"
           >
-            <VyvaWordmark className="h-auto w-[106px]" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-vyva-purple font-body text-[15px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]">
+              V
+            </span>
           </button>
-          <button
-            onClick={() => navigate("/settings")}
-            className="flex h-10 min-h-0 w-10 shrink-0 items-center justify-center rounded-full border border-vyva-border bg-white shadow-[0_8px_22px_rgba(63,45,35,0.08)]"
-            data-testid="button-my-profile"
-            aria-label={t("nav.myProfile")}
-          >
-            <CircleUser size={21} className="text-vyva-text-2" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => navigate("/health")}
+              className="vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-[#FFDCD9] bg-white/92 text-[#E74C43] shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
+              aria-label={t("home.master.header.health", "Health")}
+            >
+              <Shield size={12} strokeWidth={2.25} />
+            </button>
+            <button
+              onClick={() => navigate("/settings")}
+              className="vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-[#E9D5FF] bg-white/92 text-vyva-purple shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
+              data-testid="button-my-profile"
+              aria-label={t("nav.myProfile")}
+            >
+              <Settings size={12} strokeWidth={2.25} />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/settings/notifications")}
+              className="vyva-tap flex h-6 !min-h-6 w-6 items-center justify-center rounded-[8px] border border-[#FDE68A] bg-white/92 text-[#B7791F] shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
+              aria-label={t("home.master.header.display", "Display")}
+            >
+              <Sun size={12} strokeWidth={2.25} />
+            </button>
+          </div>
         </div>
       </div>
     );

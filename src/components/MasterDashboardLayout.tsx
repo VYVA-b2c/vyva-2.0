@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import { Bell, ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 
 type MasterTone = {
@@ -169,8 +169,10 @@ export default function MasterDashboardLayout({
   return (
     <div
       className={[
-        "vyva-page px-4 pb-7 min-[390px]:px-[22px] sm:pb-10",
-        isHomeMaster ? "mx-auto max-w-[460px]" : "",
+        "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
+        isHomeMaster
+          ? "mx-auto min-h-[calc(100svh-174px)] max-w-[302px] !px-0"
+          : "",
       ].join(" ")}
       data-testid={testId}
     >
@@ -178,7 +180,7 @@ export default function MasterDashboardLayout({
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
-            ? "mt-5 py-4 min-[390px]:py-5"
+            ? "relative text-center"
             : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
         style={isHomeMaster ? undefined : {
@@ -191,13 +193,13 @@ export default function MasterDashboardLayout({
         }}
         data-testid={hero.testId}
       >
-        <div className={`flex gap-4 min-[390px]:gap-5 ${isVoiceAction && !isHomeMaster ? "items-center justify-between" : "items-start"}`}>
-          <span className="min-w-0 flex-1 text-left">
+        <div className={`flex gap-4 min-[390px]:gap-5 ${isHomeMaster ? "flex-col items-center" : isVoiceAction ? "items-center justify-between" : "items-start"}`}>
+          <span className={`min-w-0 flex-1 ${isHomeMaster ? "text-center" : "text-left"}`}>
             <h1
               className={[
                 "text-balance leading-[0.98] text-vyva-text-1",
                 isHomeMaster
-                  ? "max-w-[8.4em] font-display text-[35px] font-semibold tracking-normal min-[390px]:text-[40px]"
+                  ? "mx-auto max-w-[17rem] font-body text-[18px] font-bold tracking-normal text-[#24113D] min-[390px]:text-[19px]"
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
               ].join(" ")}
             >
@@ -207,7 +209,7 @@ export default function MasterDashboardLayout({
               <p
                 className={[
                   "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
-                  isHomeMaster ? "text-[15px] font-medium min-[390px]:max-w-[18rem] min-[390px]:text-[16px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
+                  isHomeMaster ? "mx-auto !mt-1 text-[10px] font-extrabold text-[#E3A11B] min-[390px]:max-w-[19rem] min-[390px]:text-[11px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
                 ].join(" ")}
               >
                 {hero.subtitle}
@@ -238,23 +240,33 @@ export default function MasterDashboardLayout({
         </div>
 
         {isVoiceAction && isHomeMaster ? (
-          <VyvaSessionCta
-            label={hero.action.label}
-            activeLabel={hero.action.activeLabel}
-            connectingLabel={hero.action.connectingLabel}
-            preparingLabel={hero.action.preparingLabel}
-            errorLabel={hero.action.errorLabel}
-            contextHint={hero.action.contextHint}
-            voiceAgentSlug={hero.action.voiceAgentSlug}
-            voiceDynamicVariables={hero.action.voiceDynamicVariables}
-            autoStartListening={hero.action.autoStartListening}
-            canStartVoice={hero.action.canStartVoice}
-            hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
-            disabled={hero.action.disabled}
-            testId={hero.action.testId}
-            supportingLabel={hero.action.supportingLabel}
-            className="vyva-tap mt-8 inline-flex !min-h-[62px] w-full items-center justify-center gap-3 rounded-[28px] bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_18px_32px_rgba(107,33,168,0.22)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[66px] min-[390px]:text-[19px]"
-          />
+          <div className="relative mx-auto mt-3 w-[144px]">
+            <VyvaSessionCta
+              label={hero.action.label}
+              activeLabel={hero.action.activeLabel}
+              connectingLabel={hero.action.connectingLabel}
+              preparingLabel={hero.action.preparingLabel}
+              errorLabel={hero.action.errorLabel}
+              contextHint={hero.action.contextHint}
+              voiceAgentSlug={hero.action.voiceAgentSlug}
+              voiceDynamicVariables={hero.action.voiceDynamicVariables}
+              autoStartListening={hero.action.autoStartListening}
+              canStartVoice={hero.action.canStartVoice}
+              hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
+              disabled={hero.action.disabled}
+              testId={hero.action.testId}
+              supportingLabel={hero.action.supportingLabel}
+              visual="voiceOrb"
+              className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
+            />
+            <span
+              className="pointer-events-none absolute right-[-2px] top-3 flex h-7 w-7 items-center justify-center rounded-[10px] border border-[#E9D5FF] bg-white/92 text-vyva-purple shadow-[0_10px_20px_rgba(107,33,168,0.10)]"
+              aria-hidden="true"
+            >
+              <Bell size={14} strokeWidth={2.3} />
+              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#F43F5E]" />
+            </span>
+          </div>
         ) : !isVoiceAction ? (
           <button
             type="button"
@@ -269,13 +281,13 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showLauncher ? <section className={isHomeMaster ? "mt-5" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
+      {showLauncher ? <section className={isHomeMaster ? "mt-6" : "mt-4"} aria-label="Today tray" data-testid={cardGridTestId}>
         {cardSectionTitle ? (
-          <h2 className={isHomeMaster ? "mb-3 font-body text-[14px] font-black leading-tight text-vyva-text-1" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
+          <h2 className={isHomeMaster ? "sr-only" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
             {cardSectionTitle}
           </h2>
         ) : null}
-        <div className={isHomeMaster ? "grid grid-cols-2 gap-2.5 min-[390px]:gap-3" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
+        <div className={isHomeMaster ? "grid grid-cols-2 gap-2.5" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -289,24 +301,26 @@ export default function MasterDashboardLayout({
                 className={[
                   "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
                   isHomeMaster
-                    ? "flex min-h-[102px] flex-col items-start justify-between rounded-[18px] p-3 shadow-[0_8px_18px_rgba(63,45,35,0.04)] min-[390px]:min-h-[108px] min-[390px]:rounded-[20px] min-[390px]:p-3"
+                    ? "relative flex min-h-[72px] flex-col items-start justify-between rounded-[13px] p-2 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[78px] min-[390px]:rounded-[14px] min-[390px]:p-2.5"
                     : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
                 ].join(" ")}
                 style={{
                   borderColor: card.tone.border,
-                  background: `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
+                  background: isHomeMaster
+                    ? "rgba(255,255,255,0.92)"
+                    : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                 }}
               >
                 <span className={`flex min-w-0 flex-1 items-center gap-3 ${isHomeMaster ? "w-full items-start justify-between" : "md:w-full md:items-start md:justify-between"}`}>
                   <span
                     className={[
                       "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
-                      isHomeMaster ? "h-[42px] w-[42px] rounded-[16px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
+                      isHomeMaster ? "h-[30px] w-[30px] rounded-[10px]" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
                     ].join(" ")}
                     style={{ background: "#FFFFFF", color: card.tone.iconColor }}
                   >
                     <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" />
-                    <Icon className="relative" size={isHomeMaster ? 25 : 28} strokeWidth={2.45} aria-hidden="true" />
+                    <Icon className="relative" size={isHomeMaster ? 17 : 28} strokeWidth={2.45} aria-hidden="true" />
                   </span>
                   <span className={`min-w-0 flex-1 ${isHomeMaster ? "hidden" : "md:hidden"}`}>
                     <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
@@ -322,7 +336,7 @@ export default function MasterDashboardLayout({
                     <span
                       className={[
                         "min-w-0 max-w-[92px] truncate rounded-full px-2 py-1.5 text-center font-body text-[10px] font-black leading-none",
-                        isHomeMaster ? "inline-block" : "hidden md:inline-block",
+                      isHomeMaster ? "hidden" : "hidden md:inline-block",
                       ].join(" ")}
                       style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
                     >
@@ -330,15 +344,19 @@ export default function MasterDashboardLayout({
                     </span>
                   ) : null}
                 </span>
-                <span className={`mt-3 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
-                  <span className="block font-body text-[16px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[18px]">
+                {isHomeMaster ? (
+                  <ChevronRight
+                    size={14}
+                    strokeWidth={2.4}
+                    className="absolute right-2.5 top-2.5 text-vyva-text-3"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <span className={`mt-2 min-w-0 pr-1 ${isHomeMaster ? "block" : "hidden md:block"}`}>
+                  <span className="block font-body text-[11px] font-extrabold leading-[1.02] text-vyva-text-1">
                     {card.title}
                   </span>
-                  {isHomeMaster && card.detail ? (
-                    <span className="mt-1 block line-clamp-2 font-body text-[10px] font-semibold leading-snug text-vyva-text-2 min-[390px]:text-[11px]">
-                      {card.detail}
-                    </span>
-                  ) : card.chips?.length ? (
+                  {!isHomeMaster && card.chips?.length ? (
                     <span className="mt-2 flex flex-wrap gap-1">
                       {card.chips.slice(0, 3).map((chip) => (
                         <span
