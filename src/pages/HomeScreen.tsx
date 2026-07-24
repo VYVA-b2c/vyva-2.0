@@ -14,6 +14,7 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
 import {
@@ -622,6 +623,7 @@ const HomeScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const voice = useOptionalVyvaVoice();
   const { firstName: profileFirstName, profile } = useProfile();
   const activeFastHelpImpressionIdRef = useRef<string | null>(null);
   const fastHelpImpressionIdsByFingerprintRef = useRef(new Map<string, string>());
@@ -1063,7 +1065,8 @@ const HomeScreen = () => {
   const remainingMedicineCount = medicationHomeSignal?.todaySummary?.remaining ?? 0;
   const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
   const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
-  const homeMasterHeroSubtitle = nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0
+  const isHomeMasterVoiceAlive = Boolean(voice && (voice.status === "connected" || voice.isConnecting));
+  const homeMasterScheduledSubtitle = nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0
     ? t(
         "home.master.nextMedicationNudge",
         "In {{minutes}} min: {{name}}.",
@@ -1076,6 +1079,9 @@ const HomeScreen = () => {
         { count: remainingMedicineCount },
       )
     : t("home.master.heroSubtitle", "VYVA is ready when you are.");
+  const homeMasterHeroSubtitle = isHomeMasterVoiceAlive
+    ? homeMasterScheduledSubtitle
+    : t("home.master.touchOrbToBegin", "Touch the orb to begin.");
   const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [

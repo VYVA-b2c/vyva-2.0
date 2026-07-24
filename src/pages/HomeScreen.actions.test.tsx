@@ -14,6 +14,10 @@ const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
+const voiceMock = vi.hoisted(() => ({
+  status: "idle" as "idle" | "connecting" | "connected",
+  isConnecting: false,
+}));
 const profileMock = vi.hoisted(() => ({
   firstName: "Karim",
   profileId: "profile-home",
@@ -59,6 +63,10 @@ vi.mock("@/hooks/useServiceGate", () => ({
     canUseService: canUseServiceMock,
     readiness: { services: {} },
   }),
+}));
+
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useOptionalVyvaVoice: () => voiceMock,
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
@@ -131,6 +139,7 @@ const labels: Record<string, string> = {
   "home.mode.voiceCta": "Talk to VYVA",
   "home.master.chooseCategory": "Today tray",
   "home.master.heroSubtitle": "VYVA is ready when you are.",
+  "home.master.touchOrbToBegin": "Touch the orb to begin.",
   "home.master.voiceSupport": "Tap the orb and speak.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
@@ -247,6 +256,8 @@ describe("Home fast service actions", () => {
     guardPathMock.mockReturnValue(true);
     canUseServiceMock.mockReturnValue(true);
     voiceHeroMock.mockClear();
+    voiceMock.status = "idle";
+    voiceMock.isConnecting = false;
     profileMock.firstName = "Karim";
     profileMock.withGpContact = true;
     profileMock.serviceReadiness.hasSavedDoctor = undefined;
@@ -288,7 +299,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
     expect(screen.queryByTestId("card-home-agent-meds")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-doctor")).not.toBeInTheDocument();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("VYVA is ready when you are.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Tell VYVA what you need.");
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
@@ -339,6 +350,35 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mental");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+  });
+
+  it("shows schedule nudges only once the voice session is alive", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return {
+          data: { todaySummary: { scheduled: 1, remaining: 1 }, nextDose: { name: "Monoprost", minutesUntil: 25 } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    const idle = render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+
+    idle.unmount();
+    voiceMock.status = "connected";
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
   });
 
   it("keeps the master home free of legacy fast help and resume blocks", () => {

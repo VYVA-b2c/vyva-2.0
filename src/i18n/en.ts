@@ -1853,6 +1853,7 @@
     master: {
       heroEyebrow: "Today",
       heroSubtitle: "VYVA is ready when you are.",
+      touchOrbToBegin: "Touch the orb to begin.",
       nextMedicationNudge: "In {{minutes}} min: {{name}}.",
       medicationNudge: "{{count}} doses left today.",
       voiceSupport: "Tap the orb and speak.",
