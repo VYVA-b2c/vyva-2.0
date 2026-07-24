@@ -1424,11 +1424,17 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("card-home-health-visual-scan")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
 
+    fireEvent.click(screen.getByTestId("button-home-health-more"));
+
+    expect(screen.getByTestId("card-home-health-prevention")).toHaveTextContent("Prevention");
+    expect(screen.getByTestId("card-home-health-visual-scan")).toHaveTextContent("Visual scan");
+    expect(screen.queryByTestId("button-home-health-more")).not.toBeInTheDocument();
+    expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
+
     fireEvent.click(screen.getByTestId("card-home-health-symptoms"));
     fireEvent.click(screen.getByTestId("card-home-health-vitals"));
     fireEvent.click(screen.getByTestId("card-home-health-meds"));
     fireEvent.click(screen.getByTestId("card-home-health-doctor"));
-    fireEvent.click(screen.getByTestId("button-home-health-more"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/health/symptom-check", expect.objectContaining({
       state: expect.objectContaining({ autoStartSectionVoice: true }),
@@ -1438,7 +1444,6 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
       state: expect.objectContaining({ autoStartVoice: true }),
     }));
-    expect(guardPathMock).toHaveBeenCalledWith("/health", undefined);
 
     fireEvent.click(screen.getByTestId("button-home-master-intent-back"));
 
