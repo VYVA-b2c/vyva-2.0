@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -84,6 +84,10 @@ type MedicationHomeSignal = {
   todaySummary?: {
     scheduled: number;
     remaining: number;
+  };
+  nextDose?: {
+    name?: string | null;
+    minutesUntil?: number | null;
   };
 };
 
@@ -220,10 +224,10 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 ];
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
-  health: { title: "Health Plan", subtitle: "Care today" },
-  cognitive: { title: "Mind & Memory", subtitle: "Memory and reflexes" },
-  social: { title: "Community", subtitle: "Rooms and chats" },
-  concierge: { title: "Concierge", subtitle: "Help and errands" },
+  health: { title: "My Health", subtitle: "Care today" },
+  cognitive: { title: "My Mental", subtitle: "Memory and focus" },
+  social: { title: "My Community", subtitle: "Rooms and chats" },
+  concierge: { title: "My Concierge", subtitle: "Help and errands" },
 };
 
 const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { label: string; sub: string }> = {
@@ -244,90 +248,6 @@ function baseLanguageCode(language?: string | null) {
   const code = language?.split("-")[0]?.toLowerCase();
   if (code === "es" || code === "de") return code;
   return "en";
-}
-
-function homeDueBadge(count: number, t: HomeTranslate) {
-  return count === 1
-    ? t("home.master.badges.oneDue", "1 due")
-    : t("home.master.badges.due", "{{count}} due", { count });
-}
-
-function homeCountBadge(count: number, one: string, manyKey: string, manyFallback: string, t: HomeTranslate) {
-  return count === 1 ? one : t(manyKey, manyFallback, { count });
-}
-
-function healthCardAccent(input: {
-  checkin?: DailyCheckinHomeSignal | null;
-  medication?: MedicationHomeSignal | null;
-  prevention?: PreventionHomeSignal | null;
-  vitals?: LatestVitalsHomeSignal | null;
-}, t: HomeTranslate) {
-  const status = input.vitals?.analysis?.recommended_action || input.vitals?.analysis?.safety_status || "";
-  const alertSeverity = input.vitals?.latest_alert?.severity || "";
-  const vitalsNeedsAttention = Boolean(
-    (status && status !== "steady") ||
-    (alertSeverity && alertSeverity !== "info"),
-  );
-  if (vitalsNeedsAttention) return t("home.master.badges.vitals", "Vitals");
-  if (input.checkin?.status === "overdue") return t("home.master.badges.checkIn", "Check-in");
-
-  const remaining = input.medication?.todaySummary?.remaining ?? 0;
-  if (remaining > 0) return homeDueBadge(remaining, t);
-
-  if (input.checkin?.status === "due_now") return t("home.master.badges.checkIn", "Check-in");
-  const focus = input.prevention?.focus;
-  if (focus && focus !== "Plan") return focus;
-  if ((input.medication?.todaySummary?.scheduled ?? 0) > 0) return t("home.master.badges.allSet", "All set");
-  return t("home.master.badges.today", "Today");
-}
-
-function mindMemoryCardAccent(progress: BrainCoachHomeSignal | null | undefined, t: HomeTranslate) {
-  if ((progress?.today?.completedCount ?? 0) > 0) return t("home.master.badges.done", "Done");
-  const streakDays = progress?.summary?.streakDays ?? 0;
-  if (streakDays > 1) {
-    return homeCountBadge(
-      streakDays,
-      t("home.master.badges.oneDay", "1 day"),
-      "home.master.badges.streakDays",
-      "{{count}} days",
-      t,
-    );
-  }
-  return t("home.master.badges.fiveMin", "5 min");
-}
-
-function communityCardAccent(pulse: ParticipationPulseHomeSignal | null | undefined, t: HomeTranslate) {
-  const notifications = pulse?.pulse?.notifications?.length ?? 0;
-  if (notifications > 0) return t("home.master.badges.new", "New");
-  const saved = pulse?.pulse?.savedEvents?.length ?? 0;
-  if (saved > 0) {
-    return homeCountBadge(
-      saved,
-      t("home.master.badges.saved", "Saved"),
-      "home.master.badges.savedCount",
-      "{{count}} saved",
-      t,
-    );
-  }
-  const format = pulse?.pulse?.featuredEvent?.format;
-  if (format === "online") return t("home.master.badges.online", "Online");
-  if (format === "nearby" || format === "hybrid") return t("home.master.badges.nearby", "Nearby");
-  if (pulse?.pulse?.emptyProfileNudge) return t("home.master.badges.interests", "Interests");
-  return t("home.master.badges.join", "Join");
-}
-
-function conciergeCardAccent(pending: ConciergePendingHomeSignal | null | undefined, t: HomeTranslate) {
-  const count = conciergeHomeItems(pending).length;
-  if (count > 0) {
-    return homeCountBadge(
-      count,
-      t("home.master.badges.oneTask", "1 task"),
-      "home.master.badges.tasks",
-      "{{count}} tasks",
-      t,
-    );
-  }
-  return t("home.master.badges.help", "Help");
 }
 
 function conciergeHomeItems(pending: ConciergePendingHomeSignal | null | undefined) {
@@ -1080,27 +1000,6 @@ const HomeScreen = () => {
     setFastHelpStartIndex(0);
   }, [fastHelpStartIndex, homeFastActions.length]);
 
-  const homeMasterCardAccents = useMemo(() => ({
-    health: healthCardAccent({
-      checkin: checkinHomeSignal,
-      medication: medicationHomeSignal,
-      prevention: preventionHomeSignal,
-      vitals: latestVitalsHomeSignal,
-    }, t),
-    mindMemory: mindMemoryCardAccent(brainCoachHomeSignal, t),
-    community: communityCardAccent(participationPulseHomeSignal, t),
-    concierge: conciergeCardAccent(conciergePendingHomeSignal, t),
-  }), [
-    brainCoachHomeSignal,
-    checkinHomeSignal,
-    conciergePendingHomeSignal,
-    latestVitalsHomeSignal,
-    medicationHomeSignal,
-    participationPulseHomeSignal,
-    preventionHomeSignal,
-    t,
-  ]);
-
   const visibleFastActions = useMemo(() => {
     if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return homeFastActions;
     return Array.from({ length: HOME_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
@@ -1125,8 +1024,7 @@ const HomeScreen = () => {
       id: "health",
       icon: Heart,
       title: t("home.master.cards.healthShortTitle", "My Health"),
-      detail: t("home.master.cards.healthDetailShort", "Medication, vitals, symptoms"),
-      accent: homeMasterCardAccents.health,
+      detail: t("home.master.cards.healthDetailShort", "Check in and stay on track"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/health"),
       testId: "card-home-agent-health",
@@ -1134,34 +1032,49 @@ const HomeScreen = () => {
     {
       id: "mind-memory",
       icon: Brain,
-      title: t("home.master.cards.mindMemoryShortTitle", "Mind"),
-      detail: t("home.master.cards.mindMemoryDetailShort", "Memory, reflexes"),
-      accent: homeMasterCardAccents.mindMemory,
+      title: t("home.master.cards.mindMemoryShortTitle", "My Mental"),
+      detail: t("home.master.cards.mindMemoryDetailShort", "Memory and focus"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/mind-memory"),
       testId: "card-home-agent-cognitive",
     },
     {
-      id: "community",
+      id: "social",
       icon: Users,
-      title: t("home.master.cards.communityShortTitle", "Community"),
-      detail: t("home.master.cards.communityDetailShort", "Rooms, matches"),
-      accent: homeMasterCardAccents.community,
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      title: t("home.master.cards.communityShortTitle", "My Community"),
+      detail: t("home.master.cards.communityDetailShort", "Rooms and chats"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/social-rooms"),
       testId: "card-home-agent-social",
     },
     {
       id: "concierge",
       icon: ConciergeBell,
-      title: t("home.master.cards.conciergeShortTitle", "Concierge"),
-      detail: t("home.master.cards.conciergeDetailShort", "Help, rides, orders"),
-      accent: homeMasterCardAccents.concierge,
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      title: t("home.master.cards.conciergeShortTitle", "My Concierge"),
+      detail: t("home.master.cards.conciergeDetailShort", "Help and errands"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/concierge"),
       testId: "card-home-agent-concierge",
     },
   ];
+
+  const remainingMedicineCount = medicationHomeSignal?.todaySummary?.remaining ?? 0;
+  const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
+  const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
+  const homeMasterHeroSubtitle = nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0
+    ? t(
+        "home.master.nextMedicationNudge",
+        "In {{minutes}} min: {{name}}.",
+        { minutes: nextMedicineMinutes, name: nextMedicineName },
+      )
+    : remainingMedicineCount > 0
+    ? t(
+        "home.master.medicationNudge",
+        remainingMedicineCount === 1 ? "1 dose left today." : "{{count}} doses left today.",
+        { count: remainingMedicineCount },
+      )
+    : t("home.master.heroSubtitle", "VYVA is ready when you are.");
+  const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
     {
@@ -1734,27 +1647,25 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  const homeNudge = conciergeRightNowNudge ?? fastHelpRecoveryNudge ?? showVyvaReviewNudge ?? conciergeReuseNudge ?? null;
-
-  // Home master design: latest VYVA wordmark header, large greeting, primary Talk to VYVA CTA,
-  // four pillar cards, and only contextual resume nudges. Do not add permanent Fast Help here.
+  // Home master design: latest VYVA wordmark header, greeting, dormant voice orb, four app-mode
+  // shortcuts, and no extra Fast Help/nudge blocks on the landing screen.
   return (
     <MasterDashboardLayout
       testId="home-master-layout"
       cardGridTestId="home-pillar-cards"
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
-      cardSectionTitle={t("home.master.chooseCategory", "Choose a category")}
+      cardSectionTitle={t("home.master.chooseCategory", "App shortcuts")}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
       hero={{
         icon: MessageCircle,
         eyebrow: t("home.master.heroEyebrow", "Today"),
-        title: greetingText,
-        subtitle: t("home.master.heroSubtitle", "I'm here for health, memory, people and everyday help."),
+        title: homeMasterGreetingText,
+        subtitle: homeMasterHeroSubtitle,
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
-          supportingLabel: t("home.master.voiceSupport", "Speak anytime"),
+          supportingLabel: t("home.master.voiceSupport", "Tell VYVA what you need."),
           contextHint: t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step."),
           voiceAgentSlug: "main-vyva",
           voiceDynamicVariables: { app_entrypoint: "home_master_hero" },
@@ -1771,7 +1682,7 @@ const HomeScreen = () => {
       }}
       cards={homeMasterCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={homeNudge}
+      beforeFastHelp={null}
     />
   );
 };

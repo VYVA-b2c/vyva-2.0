@@ -474,7 +474,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
-  const isHomeRoute = location.pathname === "/";
+  const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
@@ -488,7 +488,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
       : isHomeRoute
-        ? "max-w-[520px]"
+        ? "max-w-[390px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
@@ -762,12 +762,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
+      <div className={`flex min-h-screen justify-center ${isHomeRoute ? "bg-white" : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
-        className={`relative w-full ${shellMaxWidthClassName}`}
+        className={`relative w-full ${shellMaxWidthClassName} ${isHomeRoute ? "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]" : ""}`}
       >
         {!isFullScreen && (
           <StatusBar
@@ -775,7 +775,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             variant={isHomeRoute ? "homeMaster" : "default"}
           />
         )}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[96px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[66px] pb-[92px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
