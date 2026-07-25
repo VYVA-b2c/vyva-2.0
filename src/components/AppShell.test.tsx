@@ -385,6 +385,27 @@ describe("app shell voice dock", () => {
     }
   });
 
+  it("turns natural broad Health speech into the Home Health choice layer", () => {
+    const homeIntentHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+
+    try {
+      renderShell("/dev/home-master");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "Quiero ayuda con mi salud",
+          transcriptEntry: { from: "user", text: "Quiero ayuda con mi salud", timestamp: 4 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    }
+  });
+
   it("keeps non-health voice actions visible on their route", () => {
     voiceActionState.activeAction = makeVoiceAction();
 

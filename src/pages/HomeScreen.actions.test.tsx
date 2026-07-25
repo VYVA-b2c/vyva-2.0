@@ -1456,10 +1456,8 @@ describe("Home fast service actions", () => {
       state: expect.objectContaining({ autoStartVoice: true }),
     }));
 
-    fireEvent.click(screen.getByTestId("button-home-master-intent-back"));
-
-    expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
-    expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
+    expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
   });
 
   it("opens the Health choices when voice detects the broad Health intent", () => {

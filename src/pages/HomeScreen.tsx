@@ -1784,14 +1784,10 @@ const HomeScreen = () => {
       cardGridTestId="home-pillar-cards"
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
+      intentLayer={homeIntentLayer === "health"}
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}
-      cardSectionBackLabel={t("home.master.intentBack", "Back")}
-      onCardSectionBack={homeIntentLayer === "health" ? () => {
-        setHomeHealthExpanded(false);
-        setHomeIntentLayer("home");
-      } : undefined}
       cardSectionMoreLabel={homeIntentLayer === "health" && !homeHealthExpanded ? t("home.master.healthIntent.more", "More health options") : undefined}
       onCardSectionMore={homeIntentLayer === "health" && !homeHealthExpanded ? () => setHomeHealthExpanded(true) : undefined}
       cardSectionMoreTestId={homeIntentLayer === "health" && !homeHealthExpanded ? "button-home-health-more" : undefined}
