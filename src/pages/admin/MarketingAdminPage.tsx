@@ -4647,7 +4647,7 @@ export default function MarketingAdminPage() {
               </SectionCard>
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-                <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
+                <SectionCard title="Campaigns" subtitle={`${visibleCampaigns.length} of ${campaigns.length} shown. Select one to edit details.`}>
                   <CampaignTable
                     campaigns={visibleCampaigns}
                     contentById={contentById}
@@ -4665,8 +4665,8 @@ export default function MarketingAdminPage() {
                 </SectionCard>
 
                 <SectionCard
-                  title="Campaign details"
-                  subtitle={editingCampaign ? "Edit metadata, channel content, schedule, and recipient snapshots." : "Select a campaign from the list to edit it."}
+                  title="Details"
+                  subtitle={editingCampaign ? "Edit the selected campaign." : "Select a campaign from the list."}
                   action={editingCampaign ? (
                     campaignEditDraft.channel === "email" ? <Pill className="bg-emerald-50 text-emerald-800">Email enabled</Pill> : <Pill className="bg-amber-50 text-amber-800">Planning only</Pill>
                   ) : null}
@@ -4676,17 +4676,14 @@ export default function MarketingAdminPage() {
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-detail-panel">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Selected campaign</p>
                             <h3 className="mt-1 text-lg font-black text-[#241133]">{editingCampaign.name}</h3>
-                            <p className="mt-1 text-sm font-bold text-[#7d6b65]">{editingCampaign.objective || "No objective yet."}</p>
+                            {editingCampaign.objective ? (
+                              <p className="mt-1 line-clamp-2 text-sm font-bold text-[#7d6b65]">{editingCampaign.objective}</p>
+                            ) : null}
                           </div>
                           <Pill className={statusClass(editingCampaign.status)}>{editingCampaign.status}</Pill>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65]">
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="uppercase tracking-[0.12em]">Source</p>
-                            <p className="mt-1 text-[#241133]">{editingCampaign.source}</p>
-                          </div>
                           <div className="rounded-lg bg-white p-2">
                             <p className="uppercase tracking-[0.12em]">Schedule</p>
                             <p className="mt-1 text-[#241133]">{formatDate(editingCampaign.scheduleStartsAt)}</p>
@@ -4703,22 +4700,22 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 text-[#241133]">{editingCampaign.recipientCount}</p>
                           </div>
                         </div>
-                        {editingCampaign.lovableExternalId ? (
-                          <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
-                        ) : null}
                       </div>
 
-                      <div className="grid gap-3 xl:grid-cols-2">
-                        <Field label="Source">
-                          <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
+                      <details className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                        <summary className="cursor-pointer text-sm font-black text-purple-700">Advanced source fields</summary>
+                        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                          <Field label="Source">
+                            <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
+                          </Field>
+                          <Field label="Lovable ID">
+                            <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
+                          </Field>
+                        </div>
+                        <Field label="Campaign metadata JSON">
+                          <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
                         </Field>
-                        <Field label="Lovable ID">
-                          <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
-                        </Field>
-                      </div>
-                      <Field label="Campaign metadata JSON">
-                        <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
-                      </Field>
+                      </details>
 
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
                         <div className="flex items-start justify-between gap-3">
@@ -7333,29 +7330,32 @@ function CampaignTable({
   confirmingDeleteId?: string | null;
 }) {
   const showActions = Boolean(onEdit || onDelete);
+  void contentById;
+  void contentTitleById;
+  void metricsByCampaignId;
+  void onPreviewContent;
+  void onEditContent;
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
           <tr>
-            <th className="px-4 py-3">Campaign</th>
-            <th className="px-4 py-3">Audience</th>
-            <th className="px-4 py-3">Channels</th>
-            <th className="px-4 py-3">Schedule</th>
-            <th className="px-4 py-3">Performance</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Recipients</th>
-            {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
+            <th className="w-[30%] px-4 py-3">Campaign</th>
+            <th className="w-[16%] px-4 py-3">Audience</th>
+            <th className="w-[18%] px-4 py-3">Channels</th>
+            <th className="w-[14%] px-4 py-3">Schedule</th>
+            <th className="w-[12%] px-4 py-3">Status</th>
+            <th className="w-[10%] px-4 py-3 text-right">Recipients</th>
+            {showActions ? <th className="sticky right-0 z-20 w-[120px] border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 8 : 7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
             const targetAudience = campaignTargetAudience(campaign, audiences);
-            const metricSummary = metricsByCampaignId.get(campaign.id);
             return (
             <tr
               key={campaign.id}
@@ -7372,59 +7372,26 @@ function CampaignTable({
               aria-selected={isActive || undefined}
               data-testid={`row-marketing-campaign-${campaign.id}`}
             >
-              <td className="px-4 py-3">
-                <p className="font-black">{campaign.name}</p>
-                <p className="text-xs font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
+              <td className="max-w-[260px] px-4 py-3">
+                <p className="truncate font-black text-[#241133]">{campaign.name}</p>
+                <p className="mt-1 text-xs font-bold text-[#8b7a73]">{campaign.source}</p>
               </td>
-              <td className="px-4 py-3">
-                <p className="font-black">{campaign.audienceType.toUpperCase()}</p>
+              <td className="px-4 py-3 align-top">
+                <p className="font-black text-[#241133]">{campaign.audienceType.toUpperCase()}</p>
                 {targetAudience ? (
-                  <div className="mt-1 grid gap-1 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-campaign-target-list-${campaign.id}`}>
-                    <span className="text-purple-800">List: {targetAudience.name}</span>
-                    <span>{targetAudience.mappedMemberCount}/{targetAudience.memberCount} mapped</span>
-                  </div>
+                  <p className="mt-1 truncate text-xs font-bold text-purple-800" data-testid={`marketing-campaign-target-list-${campaign.id}`}>
+                    {targetAudience.name}
+                  </p>
                 ) : (
-                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All eligible contacts</p>
+                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All contacts</p>
                 )}
               </td>
               <td className="px-4 py-3">
-                <div className="grid gap-1.5">
+                <div className="flex max-w-[220px] flex-wrap gap-1.5">
                   {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
-                    const contentAsset = item.contentAssetId ? contentById.get(item.contentAssetId) : null;
-                    const contentTitle = contentAsset?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
-                    const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
                     return (
-                      <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-campaign-channel-link-${item.id}`}>
+                      <div key={item.id} data-testid={`marketing-campaign-channel-link-${item.id}`}>
                         <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                        <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
-                          {contentLabel}
-                        </span>
-                        {contentAsset && onPreviewContent ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onPreviewContent(contentAsset);
-                            }}
-                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
-                            data-testid={`button-marketing-preview-campaign-content-${item.id}`}
-                          >
-                            <Eye size={11} /> Preview
-                          </button>
-                        ) : null}
-                        {contentAsset && onEditContent ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onEditContent(contentAsset);
-                            }}
-                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
-                            data-testid={`button-marketing-edit-campaign-content-${item.id}`}
-                          >
-                            <Pencil size={11} /> Edit
-                          </button>
-                        ) : null}
                       </div>
                     );
                   })}
@@ -7434,22 +7401,19 @@ function CampaignTable({
                 <p>{formatDate(campaign.scheduleStartsAt)}</p>
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
               </td>
-              <td className="px-4 py-3">
-                <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
-              </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
-              <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
+              <td className="px-4 py-3 text-right font-black">{campaign.recipientCount}</td>
               {showActions ? (
-                <td className={`sticky right-0 z-10 w-[230px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${isActive || deleteIsArmed ? "bg-purple-50" : "bg-white"}`}>
-                  <div className="flex w-[190px] flex-wrap gap-2">
+                <td className={`sticky right-0 z-10 w-[120px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${isActive || deleteIsArmed ? "bg-purple-50" : "bg-white"}`}>
+                  <div className="flex w-[88px] flex-col gap-2">
                     {onEdit ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" title="Edit campaign" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
                         <Pencil size={14} /> Edit
                       </button>
                     ) : null}
                     {onDelete ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300 ${deleteIsArmed ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
-                        <Trash2 size={14} /> {deleteIsArmed ? "Confirm delete" : "Delete"}
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300 ${deleteIsArmed ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} title={deleteIsArmed ? "Confirm delete" : "Delete campaign"} data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
+                        <Trash2 size={14} /> {deleteIsArmed ? "Confirm" : "Delete"}
                       </button>
                     ) : null}
                     {deleteIsArmed ? (
