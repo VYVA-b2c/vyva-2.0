@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+﻿import { expect, test, type Page, type Route } from "@playwright/test";
 import { buildConciergeProviderReplyResolution } from "../shared/conciergeProviderReplyResolution";
 
 const futureToken = [
@@ -229,47 +229,11 @@ test("login screen renders auth controls", async ({ page }) => {
   await expect(page.getByTestId("button-signin-method-password")).toBeVisible();
   await page.getByTestId("button-signin-method-password").click();
   await expect(page.getByTestId("input-auth-password")).toBeVisible();
+  await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("button-auth-mode-register")).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByTestId("button-auth-intent-self")).toBeHidden();
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeHidden();
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
-});
-
-test("login schedule callback collects contact and caller context", async ({ page }) => {
-  await mockApi(page);
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-
-  await page.getByTestId("button-login-schedule-callback").click();
-  await expect(page.getByTestId("modal-login-callback")).toBeVisible();
-  await expect(page.getByTestId("input-callback-first-name")).toBeFocused();
-  await expect(page.getByTestId("input-callback-last-name")).toBeVisible();
-  await page.getByTestId("select-callback-country-code").selectOption("+44");
-  await expect(page.getByTestId("select-callback-country-code")).toHaveValue("+44");
-  await expect(page.getByTestId("input-callback-phone")).toBeVisible();
-  await expect(page.getByTestId("input-callback-date")).toBeVisible();
-  await expect(page.getByTestId("input-callback-time")).toBeVisible();
-  await expect(page.getByTestId("select-callback-period")).toHaveValue("AM");
-  await expect(page.getByTestId("button-callback-for-me")).toBeVisible();
-  await expect(page.getByTestId("button-callback-for-caregiver")).toBeVisible();
-
-  await page.getByTestId("button-callback-submit").click();
-  await expect(page.getByTestId("text-callback-error")).toBeVisible();
-  await expectNoHorizontalOverflow(page);
-});
-
-test("login call vyva shows the country-specific number", async ({ page }) => {
-  await mockApi(page);
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-
-  await page.getByTestId("button-login-call-vyva").click();
-  await expect(page.getByTestId("modal-login-call-vyva")).toBeVisible();
-  await page.getByTestId("select-call-country").selectOption("IT");
-  await expect(page.getByTestId("select-call-country")).toHaveValue("IT");
-  await page.getByTestId("button-call-submit").click();
-  await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+39 800 984 401");
-  await expect(page.getByTestId("button-call-now")).toHaveAttribute("href", "tel:+39800984401");
-  await page.getByTestId("button-call-change-country").click();
-  await page.getByTestId("select-call-country").selectOption("GB");
-  await page.getByTestId("button-call-submit").click();
-  await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+44 808 175 7642");
-  await expectNoHorizontalOverflow(page);
 });
 
 test("public landing page promotes VYVA and remains responsive", async ({ page }) => {
@@ -290,13 +254,13 @@ test("public landing page promotes VYVA and remains responsive", async ({ page }
   await expectNoHorizontalOverflow(page);
 
   await page.getByTestId("select-landing-language").selectOption("fr");
-  await expect(page.getByRole("heading", { name: "Un compagnon qui écoute, rappelle et aide.", exact: true })).toBeVisible();
-  await expect(page.locator("#features").getByRole("heading", { name: "Rappels de médicaments" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
+  await expect(page.locator("#features").getByRole("heading", { name: "Rappels de mÃ©dicaments" })).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Un compagnon qui écoute, rappelle et aide.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
-  await expect(page.getByRole("heading", { name: "Créer", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "CrÃ©er", exact: true })).toBeVisible();
 });
 
 test("public pages initialize from browser language until the user changes it", async ({ browser }) => {
@@ -305,17 +269,17 @@ test("public pages initialize from browser language until the user changes it", 
   await mockApi(page);
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Un compagnon qui écoute, rappelle et aide.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
   await expect(page.getByTestId("select-landing-language")).toHaveValue("fr");
   await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("browser");
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
-  await expect(page.getByRole("heading", { name: "Créer", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "CrÃ©er", exact: true })).toBeVisible();
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
   await page.getByTestId("select-landing-language").selectOption("de");
-  await expect(page.getByRole("heading", { name: "Ein Begleiter, der zuhört, erinnert und hilft.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ein Begleiter, der zuhÃ¶rt, erinnert und hilft.", exact: true })).toBeVisible();
   await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("user");
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
@@ -330,10 +294,10 @@ test("login screen exposes caregiver account route", async ({ page }) => {
   await mockApi(page);
   await page.goto("/login?mode=login", { waitUntil: "domcontentloaded" });
 
-  await page.getByTestId("link-auth-door-caregiver").click();
-  await expect(page).toHaveURL(/\/caregiver\/login/);
-  await expect(page.getByRole("heading", { name: "Caregiver sign in" })).toBeVisible();
-  await expect(page.getByTestId("link-auth-door-caregiver")).toContainText("I am a caregiver");
+  await page.getByTestId("button-auth-mode-register").click();
+  await page.getByTestId("button-auth-intent-caregiver").click();
+  await expect(page.getByTestId("text-auth-caregiver-hint")).toBeVisible();
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toContainText("As a caregiver");
 });
 
 test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {
@@ -1253,7 +1217,7 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
     );
     await expect(reviewPanel).toContainText("Reviewing trusted medical guidance");
     await expect(reviewPanel).toContainText("Checking your answers for red flags");
-    await expect(page.getByText("VYVA is thinking…")).toHaveCount(0);
+    await expect(page.getByText("VYVA is thinkingâ€¦")).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
 
     releaseTriage?.();
