@@ -4571,8 +4571,17 @@ export default function MarketingAdminPage() {
                 )}
               </SectionCard>
 
-              <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
-                <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
+              <details className="rounded-2xl border border-[#eadfd5] bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden">
+                  <span>
+                    <span className="block font-serif text-xl font-black text-[#241133]">New campaign</span>
+                    <span className="text-sm font-bold text-[#7d6b65]">Open only when you need to create one.</span>
+                  </span>
+                  <span className="inline-flex min-h-9 items-center justify-center rounded-xl bg-purple-700 px-4 text-sm font-black text-white">
+                    <Plus size={15} className="mr-1.5" /> Create
+                  </span>
+                </summary>
+                <form className="grid gap-3 border-t border-[#eadfd5] p-4" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
                       <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
@@ -4644,7 +4653,7 @@ export default function MarketingAdminPage() {
                   ) : null}
                   <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" />
                 </form>
-              </SectionCard>
+              </details>
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
                 <SectionCard title="Campaigns" subtitle={`${visibleCampaigns.length} of ${campaigns.length} shown. Select one to edit details.`}>
@@ -4665,8 +4674,8 @@ export default function MarketingAdminPage() {
                 </SectionCard>
 
                 <SectionCard
-                  title="Details"
-                  subtitle={editingCampaign ? "Edit the selected campaign." : "Select a campaign from the list."}
+                  title="Campaign details"
+                  subtitle={editingCampaign ? "Edit essentials first. Extra source and metrics are below." : "Select a campaign from the list."}
                   action={editingCampaign ? (
                     campaignEditDraft.channel === "email" ? <Pill className="bg-emerald-50 text-emerald-800">Email enabled</Pill> : <Pill className="bg-amber-50 text-amber-800">Planning only</Pill>
                   ) : null}
@@ -4717,14 +4726,14 @@ export default function MarketingAdminPage() {
                         </Field>
                       </details>
 
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-black text-[#241133]">Performance</p>
-                            <p className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} imported metric rows linked to this campaign.</p>
-                          </div>
-                          <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
-                        </div>
+                      <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 marker:hidden">
+                          <span className="text-sm font-black text-[#241133]">Performance</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} rows</span>
+                            <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
+                          </span>
+                        </summary>
                         {selectedCampaignMetrics.length === 0 ? (
                           <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No performance metrics imported for this campaign yet.</p>
                         ) : (
@@ -4760,7 +4769,7 @@ export default function MarketingAdminPage() {
                             </div>
                           </div>
                         )}
-                      </div>
+                      </details>
 
                       <div className="grid gap-3">
                         <Field label="Campaign name">
@@ -7043,8 +7052,8 @@ export default function MarketingAdminPage() {
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
                     <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Lovable export endpoint"}</p>
-                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
-                      <p className="text-sm font-black text-[#2f2135]">Server configuration check</p>
+                    <details className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
+                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">Server configuration</summary>
                       {syncDiagnostics ? (
                         <div className="mt-2 grid gap-1">
                           <p>Endpoint source: {syncDiagnostics.apiUrlSource ?? "unknown"}{syncDiagnostics.hasDefaultEndpoint ? " (built-in default)" : ""}</p>
@@ -7059,10 +7068,12 @@ export default function MarketingAdminPage() {
                       ) : (
                         <p className="mt-2 text-red-700">Sync configuration status is unavailable. A marketing data request may have failed before this status loaded, or the deployment may still be running an older backend bundle.</p>
                       )}
-                    </div>
-                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
+                    </details>
+                    <details className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
+                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">
+                        Scheduled email automation
+                      </summary>
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-black text-[#2f2135]">Scheduled email automation</p>
                         <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
                           {emailScheduler.enabled ? "Enabled" : "Disabled"}
                         </Pill>
@@ -7073,7 +7084,7 @@ export default function MarketingAdminPage() {
                           : "Manual Run due emails button only. Set MARKETING_EMAIL_SCHEDULER_ENABLED=true to automate scheduled email campaigns."}
                       </p>
                       <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
-                    </div>
+                    </details>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <button
@@ -7114,14 +7125,14 @@ export default function MarketingAdminPage() {
                   ) : null}
                   <div className="grid gap-2">
                     {syncRuns.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncRuns.map((run) => (
-                      <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                      <details key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 marker:hidden">
                           <Pill className={statusClass(run.status)}>{run.status}</Pill>
                           <span className="text-xs font-bold text-[#7d6b65]">{formatDate(run.createdAt)}</span>
-                        </div>
+                        </summary>
                         {run.error ? <p className="mt-2 text-sm font-bold text-red-700">{run.error}</p> : null}
                         <SyncRunDiagnostics run={run} />
-                      </div>
+                      </details>
                     ))}
                   </div>
                 </div>
