@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+﻿import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -180,6 +180,18 @@ function normalizeReturnPath(value: string | undefined): string | null {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
   if (value === "/onboarding" || value.startsWith("/login")) return null;
   return value;
+}
+
+function obscureContact(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.includes("@")) {
+    const [name, domain] = trimmed.split("@");
+    const visibleName = name.slice(0, 2);
+    return `${visibleName}${"â€¢".repeat(Math.max(3, Math.min(8, name.length - visibleName.length)))}@${domain}`;
+  }
+  const digits = trimmed.replace(/\s/g, "");
+  if (digits.length <= 4) return digits;
+  return `${digits.slice(0, 3)} ${"â€¢".repeat(Math.max(4, digits.length - 7))} ${digits.slice(-4)}`;
 }
 
 function setupInviteParamsFromPath(path: string | null): URLSearchParams | null {
@@ -407,34 +419,34 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
   },
   es: {
     privateDailySupport: "Apoyo de salud y bienestar",
-    heroTitle: "Una compañera que escucha, recuerda y ayuda.",
-    heroSubtitle: "Habla con VYVA para controles de salud, recordatorios de medicación, ejercicios de memoria o ayuda para planificar tu día.",
-    signInHeroEyebrow: "Tu compañera de salud y bienestar",
+    heroTitle: "Una compaÃ±era que escucha, recuerda y ayuda.",
+    heroSubtitle: "Habla con VYVA para controles de salud, recordatorios de medicaciÃ³n, ejercicios de memoria o ayuda para planificar tu dÃ­a.",
+    signInHeroEyebrow: "Tu compaÃ±era de salud y bienestar",
     signInHeroTitle: "Bienvenido de nuevo a VYVA.",
-    signInHeroSubtitle: "Inicia sesión para continuar con tus controles de salud, recordatorios, actividades mentales y apoyo diario.",
+    signInHeroSubtitle: "Inicia sesiÃ³n para continuar con tus controles de salud, recordatorios, actividades mentales y apoyo diario.",
     chips: ["Primero voz", "Perfil privado", "Listo para familia"],
     language: "Idioma",
     createTab: "Registro",
     signInTab: "Entrar",
-    titles: { register: "Crear cuenta", login: "Bienvenido de nuevo", forgot: "Recuperar acceso", magic: "Enlace mágico" },
+    titles: { register: "Crear cuenta", login: "Bienvenido de nuevo", forgot: "Recuperar acceso", magic: "Enlace mÃ¡gico" },
     subtitles: {
-      register: "Usa email o móvil.",
-      login: "Continúa con email o móvil.",
+      register: "Usa email o mÃ³vil.",
+      login: "ContinÃºa con email o mÃ³vil.",
       forgot: "Introduce tu email y enviaremos un enlace seguro.",
-      magic: "Sin contraseña.",
+      magic: "Sin contraseÃ±a.",
     },
     email: "Email",
-    mobile: "Móvil",
-    mobileNumber: "Número móvil",
-    password: "Contraseña",
+    mobile: "MÃ³vil",
+    mobileNumber: "NÃºmero mÃ³vil",
+    password: "ContraseÃ±a",
     passwordHint: "8+ caracteres",
-    forgot: "¿Olvidaste?",
+    forgot: "Â¿Olvidaste?",
     emailPlaceholder: "tu@email.com",
     phonePlaceholder: "+34 600 000 000",
     combinedContact: "Movil o email",
     combinedContactPlaceholder: "+34600111222 o tu@email.com",
-    createPassword: "Crear contraseña",
-    yourPassword: "Tu contraseña",
+    createPassword: "Crear contraseÃ±a",
+    yourPassword: "Tu contraseÃ±a",
     creating: "Creando...",
     signingIn: "Entrando...",
     sending: "Enviando...",
@@ -442,12 +454,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     signIn: "Entrar",
     or: "o",
     sendResetLink: "Enviar enlace",
-    sendMagicLink: "Enviar enlace mágico",
-    signInWithMagicLink: "Entrar con enlace mágico",
+    sendMagicLink: "Enviar enlace mÃ¡gico",
+    signInWithMagicLink: "Entrar con enlace mÃ¡gico",
     continueWithGoogle: "Continuar con Google",
-    usePasswordInstead: "Usar contraseña",
+    usePasswordInstead: "Usar contraseÃ±a",
     profilePrivate: "Tu perfil sigue siendo privado.",
-    privacyPolicy: "Política de privacidad",
+    privacyPolicy: "PolÃ­tica de privacidad",
     signupOptions: {
       call: "Llamar a VYVA",
       callActive: "Terminar llamada",
@@ -457,7 +469,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     setupIntentLabel: "Uso VYVA",
     setupIntent: {
       self: {
-        title: "Para mí",
+        title: "Para mÃ­",
         subtitle: "Mi cuenta y mi perfil de cuidado.",
       },
       caregiver: {
@@ -465,72 +477,72 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
         subtitle: "Configurar o acceder al cuidado en nombre de otra persona.",
       },
     },
-    caregiverHint: "Las cuentas de cuidadores se mantienen separadas del perfil de cuidado. La persona que recibe apoyo conserva el control del consentimiento y la confirmación.",
+    caregiverHint: "Las cuentas de cuidadores se mantienen separadas del perfil de cuidado. La persona que recibe apoyo conserva el control del consentimiento y la confirmaciÃ³n.",
     checkInbox: "Revisa tu bandeja",
     resetSentBody: "Si existe una cuenta, el enlace ya va en camino.",
     backToSignIn: "Volver a entrar",
     linkSent: "Enlace enviado",
-    useWithin: "Úsalo antes de 15 minutos.",
-    alreadyHaveAccount: "¿Ya tienes cuenta?",
-    dontHaveAccount: "¿No tienes cuenta?",
-    backToPassword: "Volver a contraseña",
+    useWithin: "Ãšsalo antes de 15 minutos.",
+    alreadyHaveAccount: "Â¿Ya tienes cuenta?",
+    dontHaveAccount: "Â¿No tienes cuenta?",
+    backToPassword: "Volver a contraseÃ±a",
     guide: {
-      notSure: "¿Dudas?",
+      notSure: "Â¿Dudas?",
       title: "Pregunta a VYVA",
-      helperSubtitle: "Habla con VYVA, elige una pregunta rápida o escribe la tuya.",
-      quickAnswer: "Respuesta rápida",
+      helperSubtitle: "Habla con VYVA, elige una pregunta rÃ¡pida o escribe la tuya.",
+      quickAnswer: "Respuesta rÃ¡pida",
       talk: "Hablar",
       end: "Terminar",
       connecting: "...",
       typeQuestion: "Escribe una pregunta",
       ask: "Pregunta...",
       topics: {
-        why: { label: "¿Por qué cuenta?", body: "Para que VYVA recuerde tu contexto de cuidado con seguridad." },
-        privacy: { label: "¿Es privado?", body: "Salud y medicación quedan protegidas en tu cuenta." },
-        family: { label: "Ayuda familiar", body: "La familia puede ayudar, pero tú controlas lo que se comparte." },
+        why: { label: "Â¿Por quÃ© cuenta?", body: "Para que VYVA recuerde tu contexto de cuidado con seguridad." },
+        privacy: { label: "Â¿Es privado?", body: "Salud y medicaciÃ³n quedan protegidas en tu cuenta." },
+        family: { label: "Ayuda familiar", body: "La familia puede ayudar, pero tÃº controlas lo que se comparte." },
       },
     },
     errors: {
-      generic: "Algo salió mal. Inténtalo de nuevo.",
-      requestFailed: "No se pudo enviar. Inténtalo de nuevo.",
+      generic: "Algo saliÃ³ mal. IntÃ©ntalo de nuevo.",
+      requestFailed: "No se pudo enviar. IntÃ©ntalo de nuevo.",
       magicFailed: "No se pudo enviar el enlace.",
-      signInLinkFailed: "Este enlace de acceso no funcionó.",
-      noAgent: "Añade ELEVENLABS_LOGIN_GUIDE_AGENT_ID para activar esta guía.",
-      noApiKey: "La guía de voz necesita la clave de ElevenLabs.",
+      signInLinkFailed: "Este enlace de acceso no funcionÃ³.",
+      noAgent: "AÃ±ade ELEVENLABS_LOGIN_GUIDE_AGENT_ID para activar esta guÃ­a.",
+      noApiKey: "La guÃ­a de voz necesita la clave de ElevenLabs.",
     },
   },
   fr: {
-    privateDailySupport: "Soutien santé et bien-être",
-    heroTitle: "Un compagnon qui écoute, rappelle et aide.",
-    heroSubtitle: "Parlez à VYVA pour les points santé, les rappels de médicaments, les exercices de mémoire ou l'organisation de votre journée.",
-    signInHeroEyebrow: "Votre compagne santé et bien-être",
+    privateDailySupport: "Soutien santÃ© et bien-Ãªtre",
+    heroTitle: "Un compagnon qui Ã©coute, rappelle et aide.",
+    heroSubtitle: "Parlez Ã  VYVA pour les points santÃ©, les rappels de mÃ©dicaments, les exercices de mÃ©moire ou l'organisation de votre journÃ©e.",
+    signInHeroEyebrow: "Votre compagne santÃ© et bien-Ãªtre",
     signInHeroTitle: "Bon retour sur VYVA.",
-    signInHeroSubtitle: "Connectez-vous pour continuer vos points santé, rappels, activités pour l'esprit et soutien quotidien.",
-    chips: ["Voix d'abord", "Profil privé", "Prêt pour la famille"],
+    signInHeroSubtitle: "Connectez-vous pour continuer vos points santÃ©, rappels, activitÃ©s pour l'esprit et soutien quotidien.",
+    chips: ["Voix d'abord", "Profil privÃ©", "PrÃªt pour la famille"],
     language: "Langue",
-    createTab: "Créer",
+    createTab: "CrÃ©er",
     signInTab: "Connexion",
-    titles: { register: "Créer un compte", login: "Bon retour", forgot: "Récupérer l'accès", magic: "Lien magique" },
+    titles: { register: "CrÃ©er un compte", login: "Bon retour", forgot: "RÃ©cupÃ©rer l'accÃ¨s", magic: "Lien magique" },
     subtitles: {
       register: "Utilisez email ou mobile.",
       login: "Continuez avec email ou mobile.",
-      forgot: "Saisissez votre email et nous enverrons un lien sécurisé.",
+      forgot: "Saisissez votre email et nous enverrons un lien sÃ©curisÃ©.",
       magic: "Sans mot de passe.",
     },
     email: "Email",
     mobile: "Mobile",
-    mobileNumber: "Numéro mobile",
+    mobileNumber: "NumÃ©ro mobile",
     password: "Mot de passe",
-    passwordHint: "8+ caractères",
-    forgot: "Oublié ?",
+    passwordHint: "8+ caractÃ¨res",
+    forgot: "OubliÃ© ?",
     emailPlaceholder: "vous@example.com",
     phonePlaceholder: "+34 600 000 000",
-    createPassword: "Créer un mot de passe",
+    createPassword: "CrÃ©er un mot de passe",
     yourPassword: "Votre mot de passe",
-    creating: "Création...",
+    creating: "CrÃ©ation...",
     signingIn: "Connexion...",
     sending: "Envoi...",
-    createAccount: "Créer un compte",
+    createAccount: "CrÃ©er un compte",
     signIn: "Connexion",
     or: "ou",
     sendResetLink: "Envoyer le lien",
@@ -538,8 +550,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     signInWithMagicLink: "Connexion avec lien magique",
     continueWithGoogle: "Continuer avec Google",
     usePasswordInstead: "Utiliser le mot de passe",
-    profilePrivate: "Votre profil reste privé.",
-    privacyPolicy: "Politique de confidentialité",
+    profilePrivate: "Votre profil reste privÃ©.",
+    privacyPolicy: "Politique de confidentialitÃ©",
     signupOptions: {
       call: "Appeler VYVA",
       callActive: "Terminer l'appel",
@@ -554,60 +566,60 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       },
       caregiver: {
         title: "Comme aidant",
-        subtitle: "Configurer ou accéder aux soins au nom de quelqu'un.",
+        subtitle: "Configurer ou accÃ©der aux soins au nom de quelqu'un.",
       },
     },
-    caregiverHint: "Les comptes aidants restent séparés du profil de soin. La personne accompagnée garde le contrôle du consentement et de la confirmation.",
-    checkInbox: "Vérifiez votre boîte mail",
+    caregiverHint: "Les comptes aidants restent sÃ©parÃ©s du profil de soin. La personne accompagnÃ©e garde le contrÃ´le du consentement et de la confirmation.",
+    checkInbox: "VÃ©rifiez votre boÃ®te mail",
     resetSentBody: "Si le compte existe, le lien est en route.",
-    backToSignIn: "Retour à la connexion",
-    linkSent: "Lien envoyé",
-    useWithin: "À utiliser dans les 15 minutes.",
+    backToSignIn: "Retour Ã  la connexion",
+    linkSent: "Lien envoyÃ©",
+    useWithin: "Ã€ utiliser dans les 15 minutes.",
     backToPassword: "Retour au mot de passe",
-    alreadyHaveAccount: "Vous avez déjà un compte ?",
+    alreadyHaveAccount: "Vous avez dÃ©jÃ  un compte ?",
     dontHaveAccount: "Vous n'avez pas encore de compte ?",
     guide: {
       notSure: "Un doute ?",
-      title: "Demander à VYVA",
-      helperSubtitle: "Parlez à VYVA, choisissez une question rapide ou écrivez la vôtre.",
-      quickAnswer: "Réponse rapide",
+      title: "Demander Ã  VYVA",
+      helperSubtitle: "Parlez Ã  VYVA, choisissez une question rapide ou Ã©crivez la vÃ´tre.",
+      quickAnswer: "RÃ©ponse rapide",
       talk: "Parler",
       end: "Terminer",
       connecting: "...",
-      typeQuestion: "Écrivez une question",
+      typeQuestion: "Ã‰crivez une question",
       ask: "Demander...",
       topics: {
-        why: { label: "Pourquoi un compte ?", body: "Pour que VYVA mémorise votre contexte de soin en sécurité." },
-        privacy: { label: "Est-ce privé ?", body: "Santé et médicaments restent protégés dans votre compte." },
-        family: { label: "Aide familiale", body: "La famille peut aider, mais vous contrôlez le partage." },
+        why: { label: "Pourquoi un compte ?", body: "Pour que VYVA mÃ©morise votre contexte de soin en sÃ©curitÃ©." },
+        privacy: { label: "Est-ce privÃ© ?", body: "SantÃ© et mÃ©dicaments restent protÃ©gÃ©s dans votre compte." },
+        family: { label: "Aide familiale", body: "La famille peut aider, mais vous contrÃ´lez le partage." },
       },
     },
     errors: {
-      generic: "Une erreur est survenue. Réessayez.",
-      requestFailed: "Demande impossible. Réessayez.",
+      generic: "Une erreur est survenue. RÃ©essayez.",
+      requestFailed: "Demande impossible. RÃ©essayez.",
       magicFailed: "Impossible d'envoyer le lien.",
-      signInLinkFailed: "Ce lien de connexion n'a pas fonctionné.",
+      signInLinkFailed: "Ce lien de connexion n'a pas fonctionnÃ©.",
       noAgent: "Ajoutez ELEVENLABS_LOGIN_GUIDE_AGENT_ID pour activer ce guide.",
-      noApiKey: "Le guide vocal a besoin de la clé ElevenLabs.",
+      noApiKey: "Le guide vocal a besoin de la clÃ© ElevenLabs.",
     },
   },
   de: {
     privateDailySupport: "Gesundheit und Wohlbefinden",
-    heroTitle: "Ein Begleiter, der zuhört, erinnert und hilft.",
-    heroSubtitle: "Sprechen Sie mit VYVA über Gesundheits-Check-ins, Medikamentenerinnerungen, Gedächtnisübungen oder Hilfe bei der Tagesplanung.",
-    signInHeroEyebrow: "Ihr Begleiter für Gesundheit und Wohlbefinden",
-    signInHeroTitle: "Willkommen zurück bei VYVA.",
-    signInHeroSubtitle: "Melden Sie sich an, um Gesundheits-Check-ins, Erinnerungen, Denkübungen und tägliche Unterstützung fortzusetzen.",
+    heroTitle: "Ein Begleiter, der zuhÃ¶rt, erinnert und hilft.",
+    heroSubtitle: "Sprechen Sie mit VYVA Ã¼ber Gesundheits-Check-ins, Medikamentenerinnerungen, GedÃ¤chtnisÃ¼bungen oder Hilfe bei der Tagesplanung.",
+    signInHeroEyebrow: "Ihr Begleiter fÃ¼r Gesundheit und Wohlbefinden",
+    signInHeroTitle: "Willkommen zurÃ¼ck bei VYVA.",
+    signInHeroSubtitle: "Melden Sie sich an, um Gesundheits-Check-ins, Erinnerungen, DenkÃ¼bungen und tÃ¤gliche UnterstÃ¼tzung fortzusetzen.",
     chips: ["Stimme zuerst", "Privates Profil", "Familienbereit"],
     language: "Sprache",
     createTab: "Erstellen",
     signInTab: "Anmelden",
-    titles: { register: "Konto erstellen", login: "Willkommen zurück", forgot: "Zugang zurücksetzen", magic: "Magischer Link" },
+    titles: { register: "Konto erstellen", login: "Willkommen zurÃ¼ck", forgot: "Zugang zurÃ¼cksetzen", magic: "Magischer Link" },
     subtitles: {
       register: "Mit E-Mail oder Mobilnummer.",
       login: "Mit E-Mail oder Mobilnummer fortfahren.",
       forgot: "E-Mail eingeben, wir senden einen sicheren Link.",
-      magic: "Kein Passwort nötig.",
+      magic: "Kein Passwort nÃ¶tig.",
     },
     email: "E-Mail",
     mobile: "Mobil",
@@ -631,7 +643,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     continueWithGoogle: "Mit Google fortfahren",
     usePasswordInstead: "Passwort verwenden",
     profilePrivate: "Dein Profil bleibt privat.",
-    privacyPolicy: "Datenschutzerklärung",
+    privacyPolicy: "DatenschutzerklÃ¤rung",
     signupOptions: {
       call: "VYVA anrufen",
       callActive: "Anruf beenden",
@@ -641,27 +653,27 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     setupIntentLabel: "Ich nutze VYVA",
     setupIntent: {
       self: {
-        title: "Für mich",
+        title: "FÃ¼r mich",
         subtitle: "Mein Konto und mein Pflegeprofil.",
       },
       caregiver: {
         title: "Als Betreuungsperson",
-        subtitle: "Pflege für eine andere Person einrichten oder aufrufen.",
+        subtitle: "Pflege fÃ¼r eine andere Person einrichten oder aufrufen.",
       },
     },
-    caregiverHint: "Konten für Betreuungspersonen bleiben vom Pflegeprofil getrennt. Die unterstützte Person behält Kontrolle über Zustimmung und Bestätigung.",
-    checkInbox: "Posteingang prüfen",
+    caregiverHint: "Konten fÃ¼r Betreuungspersonen bleiben vom Pflegeprofil getrennt. Die unterstÃ¼tzte Person behÃ¤lt Kontrolle Ã¼ber Zustimmung und BestÃ¤tigung.",
+    checkInbox: "Posteingang prÃ¼fen",
     resetSentBody: "Falls ein Konto existiert, ist der Link unterwegs.",
-    backToSignIn: "Zurück zur Anmeldung",
+    backToSignIn: "ZurÃ¼ck zur Anmeldung",
     linkSent: "Link gesendet",
     useWithin: "Innerhalb von 15 Minuten verwenden.",
-    backToPassword: "Zurück zum Passwort",
+    backToPassword: "ZurÃ¼ck zum Passwort",
     alreadyHaveAccount: "Sie haben bereits ein Konto?",
     dontHaveAccount: "Noch kein Konto?",
     guide: {
       notSure: "Unsicher?",
       title: "VYVA fragen",
-      helperSubtitle: "Sprich mit VYVA, wähle eine kurze Frage oder tippe deine eigene.",
+      helperSubtitle: "Sprich mit VYVA, wÃ¤hle eine kurze Frage oder tippe deine eigene.",
       quickAnswer: "Kurze Antwort",
       talk: "Sprechen",
       end: "Beenden",
@@ -670,7 +682,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       ask: "Fragen...",
       topics: {
         why: { label: "Warum ein Konto?", body: "Damit VYVA deinen Pflegekontext sicher behalten kann." },
-        privacy: { label: "Ist es privat?", body: "Gesundheit und Medikamente bleiben im Konto geschützt." },
+        privacy: { label: "Ist es privat?", body: "Gesundheit und Medikamente bleiben im Konto geschÃ¼tzt." },
         family: { label: "Familienhilfe", body: "Familie kann helfen, aber du steuerst die Freigabe." },
       },
     },
@@ -679,8 +691,8 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       requestFailed: "Anfrage fehlgeschlagen. Bitte erneut versuchen.",
       magicFailed: "Link konnte nicht gesendet werden.",
       signInLinkFailed: "Dieser Anmeldelink hat nicht funktioniert.",
-      noAgent: "ELEVENLABS_LOGIN_GUIDE_AGENT_ID hinzufügen, um diesen Guide zu aktivieren.",
-      noApiKey: "Der Sprachguide braucht den ElevenLabs-API-Schlüssel.",
+      noAgent: "ELEVENLABS_LOGIN_GUIDE_AGENT_ID hinzufÃ¼gen, um diesen Guide zu aktivieren.",
+      noApiKey: "Der Sprachguide braucht den ElevenLabs-API-SchlÃ¼ssel.",
     },
   },
   it: {
@@ -689,7 +701,7 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     heroSubtitle: "Parla con VYVA per controlli di salute, promemoria farmaci, esercizi di memoria o aiuto per organizzare la giornata.",
     signInHeroEyebrow: "La tua compagna per salute e benessere",
     signInHeroTitle: "Bentornato su VYVA.",
-    signInHeroSubtitle: "Accedi per continuare con controlli di salute, promemoria, attività mentali e supporto quotidiano.",
+    signInHeroSubtitle: "Accedi per continuare con controlli di salute, promemoria, attivitÃ  mentali e supporto quotidiano.",
     chips: ["Prima la voce", "Profilo privato", "Pronto per la famiglia"],
     language: "Lingua",
     createTab: "Crea",
@@ -743,12 +755,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
     caregiverHint: "Gli account caregiver restano separati dal profilo di cura. La persona assistita mantiene il controllo di consenso e conferma.",
     checkInbox: "Controlla la posta",
-    resetSentBody: "Se l'account esiste, il link è in arrivo.",
+    resetSentBody: "Se l'account esiste, il link Ã¨ in arrivo.",
     backToSignIn: "Torna all'accesso",
     linkSent: "Link inviato",
     useWithin: "Usalo entro 15 minuti.",
     backToPassword: "Torna alla password",
-    alreadyHaveAccount: "Hai già un account?",
+    alreadyHaveAccount: "Hai giÃ  un account?",
     dontHaveAccount: "Non hai ancora un account?",
     guide: {
       notSure: "Dubbi?",
@@ -761,13 +773,13 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
       typeQuestion: "Scrivi una domanda",
       ask: "Chiedi...",
       topics: {
-        why: { label: "Perché un account?", body: "Così VYVA può ricordare il contesto di cura in sicurezza." },
-        privacy: { label: "È privato?", body: "Salute e farmaci restano protetti nell'account." },
-        family: { label: "Aiuto famiglia", body: "La famiglia può aiutare, ma controlli tu cosa condividere." },
+        why: { label: "PerchÃ© un account?", body: "CosÃ¬ VYVA puÃ² ricordare il contesto di cura in sicurezza." },
+        privacy: { label: "Ãˆ privato?", body: "Salute e farmaci restano protetti nell'account." },
+        family: { label: "Aiuto famiglia", body: "La famiglia puÃ² aiutare, ma controlli tu cosa condividere." },
       },
     },
     errors: {
-      generic: "Qualcosa è andato storto. Riprova.",
+      generic: "Qualcosa Ã¨ andato storto. Riprova.",
       requestFailed: "Richiesta non riuscita. Riprova.",
       magicFailed: "Impossibile inviare il link.",
       signInLinkFailed: "Questo link di accesso non ha funzionato.",
@@ -776,26 +788,26 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     },
   },
   pt: {
-    privateDailySupport: "Apoio à saúde e bem-estar",
+    privateDailySupport: "Apoio Ã  saÃºde e bem-estar",
     heroTitle: "Uma companhia que ouve, lembra e ajuda.",
-    heroSubtitle: "Fale com a VYVA para check-ins de saúde, lembretes de medicação, exercícios de memória ou ajuda a planear o dia.",
-    signInHeroEyebrow: "A sua companhia de saúde e bem-estar",
-    signInHeroTitle: "Bem-vindo de volta à VYVA.",
-    signInHeroSubtitle: "Entre para continuar os check-ins de saúde, lembretes, atividades mentais e apoio diário.",
-    chips: ["Voz primeiro", "Perfil privado", "Pronto para família"],
+    heroSubtitle: "Fale com a VYVA para check-ins de saÃºde, lembretes de medicaÃ§Ã£o, exercÃ­cios de memÃ³ria ou ajuda a planear o dia.",
+    signInHeroEyebrow: "A sua companhia de saÃºde e bem-estar",
+    signInHeroTitle: "Bem-vindo de volta Ã  VYVA.",
+    signInHeroSubtitle: "Entre para continuar os check-ins de saÃºde, lembretes, atividades mentais e apoio diÃ¡rio.",
+    chips: ["Voz primeiro", "Perfil privado", "Pronto para famÃ­lia"],
     language: "Idioma",
     createTab: "Criar",
     signInTab: "Entrar",
-    titles: { register: "Criar conta", login: "Bem-vindo de volta", forgot: "Recuperar acesso", magic: "Link mágico" },
+    titles: { register: "Criar conta", login: "Bem-vindo de volta", forgot: "Recuperar acesso", magic: "Link mÃ¡gico" },
     subtitles: {
-      register: "Use email ou telemóvel.",
-      login: "Continue com email ou telemóvel.",
+      register: "Use email ou telemÃ³vel.",
+      login: "Continue com email ou telemÃ³vel.",
       forgot: "Introduza o email e enviaremos um link seguro.",
       magic: "Sem palavra-passe.",
     },
     email: "Email",
-    mobile: "Telemóvel",
-    mobileNumber: "Número de telemóvel",
+    mobile: "TelemÃ³vel",
+    mobileNumber: "NÃºmero de telemÃ³vel",
     password: "Palavra-passe",
     passwordHint: "8+ caracteres",
     forgot: "Esqueceu?",
@@ -810,12 +822,12 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
     signIn: "Entrar",
     or: "ou",
     sendResetLink: "Enviar link",
-    sendMagicLink: "Enviar link mágico",
-    signInWithMagicLink: "Entrar com link mágico",
+    sendMagicLink: "Enviar link mÃ¡gico",
+    signInWithMagicLink: "Entrar com link mÃ¡gico",
     continueWithGoogle: "Continuar com Google",
     usePasswordInstead: "Usar palavra-passe",
     profilePrivate: "O seu perfil continua privado.",
-    privacyPolicy: "Política de privacidade",
+    privacyPolicy: "PolÃ­tica de privacidade",
     signupOptions: {
       call: "Ligar a VYVA",
       callActive: "Terminar chamada",
@@ -833,36 +845,36 @@ const LOGIN_COPY: Record<LanguageCode, LoginCopy> = {
         subtitle: "Configurar ou aceder ao cuidado em nome de outra pessoa.",
       },
     },
-    caregiverHint: "As contas de cuidadores ficam separadas do perfil de cuidado. A pessoa apoiada mantém o controlo do consentimento e da confirmação.",
+    caregiverHint: "As contas de cuidadores ficam separadas do perfil de cuidado. A pessoa apoiada mantÃ©m o controlo do consentimento e da confirmaÃ§Ã£o.",
     checkInbox: "Verifique o email",
-    resetSentBody: "Se existir uma conta, o link está a caminho.",
-    backToSignIn: "Voltar ao início de sessão",
+    resetSentBody: "Se existir uma conta, o link estÃ¡ a caminho.",
+    backToSignIn: "Voltar ao inÃ­cio de sessÃ£o",
     linkSent: "Link enviado",
-    useWithin: "Use-o nos próximos 15 minutos.",
-    backToPassword: "Voltar à palavra-passe",
-    alreadyHaveAccount: "Já tem uma conta?",
-    dontHaveAccount: "Ainda não tem uma conta?",
+    useWithin: "Use-o nos prÃ³ximos 15 minutos.",
+    backToPassword: "Voltar Ã  palavra-passe",
+    alreadyHaveAccount: "JÃ¡ tem uma conta?",
+    dontHaveAccount: "Ainda nÃ£o tem uma conta?",
     guide: {
-      notSure: "Dúvidas?",
-      title: "Pergunte à VYVA",
-      helperSubtitle: "Fale com a VYVA, escolha uma pergunta rápida ou escreva a sua.",
-      quickAnswer: "Resposta rápida",
+      notSure: "DÃºvidas?",
+      title: "Pergunte Ã  VYVA",
+      helperSubtitle: "Fale com a VYVA, escolha uma pergunta rÃ¡pida ou escreva a sua.",
+      quickAnswer: "Resposta rÃ¡pida",
       talk: "Falar",
       end: "Terminar",
       connecting: "...",
       typeQuestion: "Escreva uma pergunta",
       ask: "Perguntar...",
       topics: {
-        why: { label: "Porquê uma conta?", body: "Para a VYVA se lembrar do contexto de cuidado em segurança." },
-        privacy: { label: "É privado?", body: "Saúde e medicação ficam protegidas na sua conta." },
-        family: { label: "Ajuda da família", body: "A família pode ajudar, mas a partilha é controlada por si." },
+        why: { label: "PorquÃª uma conta?", body: "Para a VYVA se lembrar do contexto de cuidado em seguranÃ§a." },
+        privacy: { label: "Ã‰ privado?", body: "SaÃºde e medicaÃ§Ã£o ficam protegidas na sua conta." },
+        family: { label: "Ajuda da famÃ­lia", body: "A famÃ­lia pode ajudar, mas a partilha Ã© controlada por si." },
       },
     },
     errors: {
       generic: "Algo correu mal. Tente novamente.",
       requestFailed: "Pedido falhou. Tente novamente.",
-      magicFailed: "Não foi possível enviar o link.",
-      signInLinkFailed: "Este link de acesso não funcionou.",
+      magicFailed: "NÃ£o foi possÃ­vel enviar o link.",
+      signInLinkFailed: "Este link de acesso nÃ£o funcionou.",
       noAgent: "Adicione ELEVENLABS_LOGIN_GUIDE_AGENT_ID para ativar este guia.",
       noApiKey: "O guia de voz precisa da chave ElevenLabs.",
     },
@@ -892,36 +904,36 @@ const CALLBACK_MODAL_COPY = {
   es: {
     eyebrow: "Solicitud de llamada",
     title: "Programa una llamada con VYVA",
-    subtitle: "Dinos para quién es la llamada y dónde podemos contactar.",
+    subtitle: "Dinos para quiÃ©n es la llamada y dÃ³nde podemos contactar.",
     fullName: "Nombre completo",
     fullNamePlaceholder: "p. ej. Margaret Collins",
-    phone: "Número de teléfono",
+    phone: "NÃºmero de telÃ©fono",
     phonePlaceholder: "p. ej. +34 612 345 678",
-    callFor: "¿Para quién es esta llamada?",
+    callFor: "Â¿Para quiÃ©n es esta llamada?",
     options: {
-      elder: { title: "Para la persona mayor directamente", subtitle: "VYVA hablará con la persona que recibirá apoyo." },
-      caregiver: { title: "Para cuidador/a o familiar", subtitle: "VYVA hablará con alguien que ayuda a organizar el cuidado." },
+      elder: { title: "Para la persona mayor directamente", subtitle: "VYVA hablarÃ¡ con la persona que recibirÃ¡ apoyo." },
+      caregiver: { title: "Para cuidador/a o familiar", subtitle: "VYVA hablarÃ¡ con alguien que ayuda a organizar el cuidado." },
     },
     cancel: "Cancelar",
     submit: "Solicitar llamada",
-    error: "Añade nombre completo y teléfono.",
+    error: "AÃ±ade nombre completo y telÃ©fono.",
   },
   fr: {
     eyebrow: "Demande de rappel",
     title: "Planifier un appel avec VYVA",
-    subtitle: "Indiquez pour qui est l'appel et où vous joindre.",
+    subtitle: "Indiquez pour qui est l'appel et oÃ¹ vous joindre.",
     fullName: "Nom complet",
     fullNamePlaceholder: "ex. Margaret Collins",
-    phone: "Numéro de téléphone",
+    phone: "NumÃ©ro de tÃ©lÃ©phone",
     phonePlaceholder: "ex. +33 6 12 34 56 78",
     callFor: "Pour qui est cet appel ?",
     options: {
-      elder: { title: "Pour la personne âgée directement", subtitle: "VYVA parlera avec la personne accompagnée." },
+      elder: { title: "Pour la personne Ã¢gÃ©e directement", subtitle: "VYVA parlera avec la personne accompagnÃ©e." },
       caregiver: { title: "Pour un aidant ou un membre de la famille", subtitle: "VYVA parlera avec la personne qui organise l'aide." },
     },
     cancel: "Annuler",
     submit: "Demander un rappel",
-    error: "Ajoutez un nom complet et un numéro de téléphone.",
+    error: "Ajoutez un nom complet et un numÃ©ro de tÃ©lÃ©phone.",
   },
   de: {
     eyebrow: "Ruckrufanfrage",
@@ -1444,7 +1456,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [showPasswordSignIn, setShowPasswordSignIn] = useState(false);
+  const [showPasswordSignIn, setShowPasswordSignIn] = useState(initialAuthMode === "login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const guideTopic: GuideTopic = "why";
@@ -1871,142 +1883,20 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const selectedDialOption = COUNTRY_DIAL_OPTIONS.find((option) => option.dialCode === callbackCountryCode) ?? COUNTRY_DIAL_OPTIONS[0];
   const selectedCallNumber = VYVA_CALL_NUMBERS[callCountry] ?? VYVA_CALL_NUMBERS.ES;
   const activeView: View = view === "forgot" || view === "magic" ? view : mode;
-  const audience: AuthAudience = adminOnly
-    ? "admin"
-    : isCaregiverEntryRoute || isCareTeamInviteAuth || setupIntent === "caregiver"
-      ? "caregiver"
-      : "member";
-  const audienceCopy = audienceCopyFor({
-    audience,
-    activeView,
-    isCareTeamInviteAuth,
-    isPasswordFreeSignIn,
-    language,
-    copy,
-  });
-  const authTitle = audienceCopy.authTitle;
-  const authSubtitle = audienceCopy.authSubtitle;
-  const heroEyebrow = audienceCopy.heroEyebrow;
-  const heroTitle = audienceCopy.heroTitle;
-  const heroSubtitle = audienceCopy.heroSubtitle;
-  const switchPrompt = mode === "register" ? copy.alreadyHaveAccount : copy.dontHaveAccount;
-  const magicSubmitLabel = language === "en" ? "Send sign-in link" : copy.sendMagicLink;
-  const shouldShowSignInMethods = !adminOnly && mode === "login" && view !== "forgot";
-  const trustItems = audienceCopy.trustItems;
-  const isCaregiverAudience = audience === "caregiver";
-  const publicPrimaryClass = isCaregiverAudience
-    ? "bg-[#00847F] shadow-[0_14px_26px_rgba(0,132,127,0.24)] hover:bg-[#00716D]"
-    : "bg-[#6B21A8] shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95]";
-  const signInMethodChooser = shouldShowSignInMethods ? (
-    <div className="space-y-2" data-testid="signin-methods">
-      <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={language === "en" ? "Sign-in method" : copy.signInTab}>
-        <button
-          type="button"
-          aria-pressed={isPasswordFreeSignIn}
-          onClick={() => {
-            setView("login");
-            setMode("login");
-            setShowPasswordSignIn(false);
-            setMagicError(null);
-            setError(null);
-            if (!contact.trim().includes("@")) setContact("");
-          }}
-          data-testid="button-signin-method-link"
-          className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
-            isPasswordFreeSignIn
-              ? isCaregiverAudience
-                ? "border-[#00847F] bg-[#00847F] text-white shadow-[0_12px_24px_rgba(0,132,127,0.18)]"
-                : "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
-              : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
-          }`}
-        >
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${isPasswordFreeSignIn ? "bg-white/18 text-white" : "bg-white text-vyva-purple"}`}>
-            <Link2 size={18} />
-          </span>
-          <span className="min-w-0">
-            <span className="block font-body text-[15px] font-black leading-tight">
-              {language === "en" ? "Email link" : copy.signInWithMagicLink}
-            </span>
-            <span className={`mt-1 block font-body text-[12px] font-semibold leading-4 ${isPasswordFreeSignIn ? "text-white/76" : "text-vyva-text-3"}`}>
-              {language === "en" ? "Email only. No password." : copy.subtitles.forgot}
-            </span>
-          </span>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={showPasswordSignIn}
-          onClick={() => {
-            setView("login");
-            setMode("login");
-            setShowPasswordSignIn(true);
-            setMagicError(null);
-          }}
-          data-testid="button-signin-method-password"
-          className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
-            showPasswordSignIn
-              ? isCaregiverAudience
-                ? "border-[#00847F] bg-[#00847F] text-white shadow-[0_12px_24px_rgba(0,132,127,0.18)]"
-                : "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
-              : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
-          }`}
-        >
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${showPasswordSignIn ? "bg-white/18 text-white" : "bg-white text-vyva-purple"}`}>
-            <KeyRound size={18} />
-          </span>
-          <span className="min-w-0">
-            <span className="block font-body text-[15px] font-black leading-tight">
-              {language === "en" ? "Password sign-in" : copy.usePasswordInstead}
-            </span>
-            <span className={`mt-1 block font-body text-[12px] font-semibold leading-4 ${showPasswordSignIn ? "text-white/76" : "text-vyva-text-3"}`}>
-              {language === "en" ? "Mobile or email." : `${copy.mobileNumber} / ${copy.email}`}
-            </span>
-          </span>
-        </button>
-      </div>
-    </div>
-  ) : null;
-  const googleButton = (
-    <button
-      type="button"
-      aria-disabled="true"
-      title="Google OAuth is not connected yet"
-      className="inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-vyva-text-1 shadow-vyva-input transition hover:border-[#D8C2EF]"
-      data-testid="button-google-auth"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F8F3EA] font-body text-[18px] font-black text-[#4285F4]">
-        G
-      </span>
-      {copy.continueWithGoogle}
-    </button>
-  );
-  const authDivider = (
-    <div className="flex items-center gap-3">
-      <span className="h-px flex-1 bg-[#EEE4D8]" />
-      <span className="font-body text-[12px] font-bold text-vyva-text-3">{copy.or}</span>
-      <span className="h-px flex-1 bg-[#EEE4D8]" />
-    </div>
-  );
-  const pageClass = audience === "admin"
-    ? "relative min-h-screen overflow-x-hidden bg-[#F7F2EB] text-vyva-text-1"
-    : isCaregiverAudience
-      ? "relative min-h-screen overflow-x-hidden bg-[#F6FBF8] text-vyva-text-1"
-      : "relative min-h-screen overflow-x-hidden bg-[#FBF8F3] text-vyva-text-1";
-  const ambientBackgroundClass = isCaregiverAudience
-    ? "pointer-events-none fixed inset-0 overflow-hidden bg-[#F6FBF8]"
-    : "pointer-events-none fixed inset-0 overflow-hidden bg-[#FBF8F3]";
-  const ambientGradientClass = isCaregiverAudience
-    ? "absolute inset-0 bg-[linear-gradient(118deg,#FFFEF8_0%,#F6FBF8_54%,#EEF8F6_100%)]"
-    : "absolute inset-0 bg-[linear-gradient(118deg,#FFFDF6_0%,#FBF8F3_58%,#F7F1FB_100%)]";
-  const mainMaxClass = audience === "admin" ? "max-w-5xl" : "max-w-6xl";
-  const layoutClass = audience === "admin"
-    ? "grid w-full max-w-[960px] gap-6 lg:grid-cols-[minmax(280px,0.78fr)_minmax(420px,520px)] lg:items-center lg:gap-10"
-    : "grid w-full max-w-[580px] gap-6 lg:max-w-[1120px] lg:grid-cols-[minmax(320px,420px)_minmax(480px,560px)] lg:items-start lg:gap-10";
-  const authCardClass = audience === "admin"
-    ? "w-full rounded-[24px] border border-[#E4D8CD] bg-white p-5 shadow-[0_18px_48px_rgba(47,24,63,0.10)] sm:p-7 md:justify-self-end"
-    : "w-full rounded-[28px] border border-[#E4D8CD] bg-white p-5 shadow-[0_22px_58px_rgba(79,43,116,0.13)] sm:p-7 md:justify-self-end";
-  const memberAuthHref = mode === "login" ? "/login?mode=login" : "/login?mode=register";
-  const caregiverAuthHref = mode === "login" ? "/caregiver/login" : "/caregiver/register";
+  const authTitle = adminOnly && activeView === "login"
+    ? "Admin sign in"
+    : activeView === "register"
+      ? copy.createTab
+      : activeView === "login"
+        ? copy.signInTab
+        : copy.titles[activeView];
+  const authSubtitle = adminOnly && activeView === "login"
+    ? "Access the VYVA operations panel."
+    : copy.subtitles[activeView];
+  const isSignupHero = mode === "register" && view !== "magic";
+  const heroEyebrow = isSignupHero ? copy.privateDailySupport : copy.signInHeroEyebrow;
+  const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
+  const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
 
   return (
     <>
@@ -2365,46 +2255,39 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         </PurpleModal>
       )}
 
-      <div className={pageClass}>
+      <div className="relative min-h-screen overflow-x-hidden bg-[#E8DDF7] text-vyva-text-1">
         {!adminOnly && (
-          <div aria-hidden="true" className={ambientBackgroundClass}>
-            <div className={ambientGradientClass} />
+          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#E8DDF7]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.78)_0%,rgba(255,255,255,0)_34%),linear-gradient(125deg,#E5D8F6_0%,#EEE7F8_48%,#DFEAF1_100%)]" />
+            <div className="absolute -right-24 top-24 h-80 w-80 rounded-full bg-[#CBB5ED]/45 blur-3xl" />
+            <div className="absolute -bottom-32 left-[18%] h-96 w-96 rounded-full bg-[#BFDCD8]/35 blur-3xl" />
           </div>
         )}
-        <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 pb-4 pt-5 sm:px-8 sm:py-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <VyvaWordmark className="h-auto w-[140px] sm:w-[162px]" />
-            <span className={`hidden rounded-full px-3 py-1.5 font-body text-[12px] font-black sm:inline-flex ${
-              isCaregiverAudience
-                ? "bg-[#E9F8F6] text-[#007C78]"
-                : audience === "admin"
-                  ? "bg-[#F2E8FF] text-vyva-purple"
-                  : "bg-[#F7F0FF] text-vyva-purple"
-            }`}>
-              {audienceCopy.headerTagline}
-            </span>
-          </div>
+        <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:px-10 lg:py-7">
+          <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
           <div className="flex items-center gap-2">
             {!adminOnly && (
-              <Link
-                to={isCaregiverAudience ? "/login" : "/caregiver/login"}
-                className={`hidden min-h-[48px] items-center justify-center rounded-[16px] border bg-white px-4 font-body text-[13px] font-black shadow-[0_10px_26px_rgba(77,45,20,0.06)] transition sm:inline-flex ${
-                  isCaregiverAudience
-                    ? "border-[#BEE7E4] text-[#007C78] hover:bg-[#F2FCFB]"
-                    : "border-[#E8DDF3] text-vyva-purple hover:bg-[#FBF8FF]"
-                }`}
+              <button
+                type="button"
+                onClick={() => {
+                  switchTab("register");
+                  setSetupIntent("caregiver");
+                  contactInputRef.current?.focus();
+                }}
+                className="hidden min-h-[44px] items-center rounded-full px-3 font-body text-[13px] font-extrabold text-vyva-purple transition hover:bg-white/70 sm:inline-flex"
+                data-testid="button-caregiver-access"
               >
-                {isCaregiverAudience ? audienceCopy.switchMember : audienceCopy.switchCaregiver}
-              </Link>
+                {copy.setupIntent.caregiver.title}
+              </button>
             )}
-            <label className="flex min-h-[52px] items-center gap-2 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-2 shadow-[0_10px_26px_rgba(77,45,20,0.08)]">
-              <Globe2 size={17} className={isCaregiverAudience ? "text-[#007C78]" : "text-vyva-purple"} />
+            <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/90 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
+              <Globe2 size={15} className="text-vyva-purple" />
               <span className="sr-only">{copy.language}</span>
               <select
                 value={language}
                 onChange={(event) => setLanguage(event.target.value)}
                 aria-label={copy.language}
-                className={`bg-transparent font-body text-[15px] font-extrabold outline-none ${isCaregiverAudience ? "text-[#007C78]" : "text-vyva-purple"}`}
+                className="bg-transparent font-body text-[13px] font-extrabold text-vyva-purple outline-none"
                 data-testid="select-login-language"
               >
                 {languages.map((item) => (
@@ -2420,7 +2303,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         <main className={`relative z-10 mx-auto flex min-h-[calc(100vh-104px)] w-full ${mainMaxClass} items-start justify-center px-5 pb-8 pt-3 sm:px-8 md:min-h-[calc(100vh-116px)] md:pt-0 lg:px-8 lg:pb-12`}>
           <section
             data-testid="auth-layout"
-            className={layoutClass}
+            className="grid w-full max-w-[560px] gap-6 lg:max-w-[980px] lg:grid-cols-[minmax(300px,0.72fr)_minmax(420px,500px)] lg:items-center lg:gap-10"
           >
             {adminOnly ? (
               <div className="rounded-[28px] border border-[#E7DCD2] bg-[#FFFCF8] p-6 text-center shadow-[0_18px_50px_rgba(47,24,63,0.08)] md:text-left lg:p-8">
@@ -2446,80 +2329,35 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               </div>
             ) : (
-              <div className={`relative hidden overflow-hidden rounded-[28px] border shadow-[0_22px_64px_rgba(79,43,116,0.16)] lg:block ${
-                isCaregiverAudience ? "border-[#CBECE8] bg-[#0E4E4B]" : "border-white/80 bg-[#2F183F]"
-              }`}>
-                <img
-                  src="/assets/vyva/cozy-home-room.png"
-                  alt=""
-                  aria-hidden="true"
-                  className="absolute inset-0 h-full w-full object-cover object-[30%_center]"
-                />
-                <div className={`absolute inset-0 ${
-                  isCaregiverAudience
-                    ? "bg-[linear-gradient(145deg,rgba(8,83,79,0.78)_0%,rgba(0,132,127,0.42)_50%,rgba(255,247,232,0.08)_100%)]"
-                    : "bg-[linear-gradient(145deg,rgba(47,24,63,0.72)_0%,rgba(107,33,168,0.38)_48%,rgba(255,247,232,0.06)_100%)]"
-                }`} />
-                <div className={`absolute inset-x-0 bottom-0 h-[62%] ${
-                  isCaregiverAudience
-                    ? "bg-[linear-gradient(0deg,rgba(8,83,79,0.90)_0%,rgba(8,83,79,0.56)_62%,rgba(8,83,79,0)_100%)]"
-                    : "bg-[linear-gradient(0deg,rgba(47,24,63,0.86)_0%,rgba(47,24,63,0.54)_62%,rgba(47,24,63,0)_100%)]"
-                }`} />
-                <div className="relative z-10 flex min-h-[540px] flex-col justify-between p-7 text-left text-white xl:min-h-[560px] xl:p-8">
-                  <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/14 px-4 py-2 font-body text-[13px] font-extrabold text-white ring-1 ring-white/18">
+              <div
+                data-testid="auth-hero-panel"
+                className="relative hidden min-h-[390px] overflow-hidden rounded-[32px] border border-[#E9DDCF] bg-[#FFFCF7] p-8 shadow-[0_24px_64px_rgba(79,43,116,0.12)] lg:flex lg:flex-col lg:justify-between"
+              >
+                <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#6B21A8_0%,#10B981_52%,#F2C94C_100%)]" />
+                <div className="relative flex items-center justify-between gap-4">
+                  <span className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#D9C7F8] bg-white px-4 font-body text-[12px] font-black text-vyva-purple shadow-[0_10px_28px_rgba(107,33,168,0.10)]">
                     <ShieldCheck size={16} />
-                    {audienceCopy.secureFooter}
-                  </div>
-                  <div>
-                  <div className={`mb-5 h-1.5 w-20 rounded-full ${isCaregiverAudience ? "bg-[#8FE2D8]" : "bg-[#FFDF61]"}`} />
-                  <p className={`mb-3 font-body text-[12px] font-extrabold uppercase tracking-[0.2em] ${isCaregiverAudience ? "text-[#B9F0EA]" : "text-[#FFE98B]"}`}>
+                    {copy.profilePrivate}
+                  </span>
+                </div>
+
+                <div className="relative my-auto py-8">
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.22em] text-[#9B7100]">
                     {heroEyebrow}
                   </p>
-                  <h1 className="max-w-[390px] font-body text-[2.9rem] font-black leading-[1.02] text-white drop-shadow-[0_8px_24px_rgba(47,24,63,0.28)] xl:text-[3.2rem]">
+                  <h1 className="mt-3 max-w-[390px] font-body text-[2.4rem] font-black leading-[1.02] text-[#2F183F]">
                     {heroTitle}
                   </h1>
-                  <p className="mt-5 max-w-[390px] font-body text-[18px] font-semibold leading-8 text-white/90">
+                  <p className="mt-4 max-w-[420px] font-body text-[14px] font-bold leading-6 text-vyva-text-2">
                     {heroSubtitle}
                   </p>
-                  <div className="mt-5 space-y-2">
-                    {trustItems.map((item) => (
-                      <div key={item} className="flex items-start gap-2.5 rounded-[16px] bg-white/12 px-3.5 py-3 ring-1 ring-white/12">
-                        <CheckCircle2 size={18} className={`mt-0.5 shrink-0 ${isCaregiverAudience ? "text-[#8FE2D8]" : "text-[#FFE98B]"}`} />
-                        <span className="font-body text-[14px] font-bold leading-5 text-white/92">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {mode === "register" && view !== "magic" && (
-                    <div className="mt-7 grid gap-2 xl:grid-cols-2" aria-label="Ways to start with VYVA">
-                      <button
-                        type="button"
-                        onClick={openCallModal}
-                        className={`inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full px-4 font-body text-sm font-black text-white transition ${publicPrimaryClass}`}
-                        data-testid="button-login-call-vyva"
-                      >
-                        <PhoneCall size={16} />
-                        {copy.signupOptions.call}
-                      </button>
+                </div>
 
-                      <button
-                        type="button"
-                        onClick={openCallbackModal}
-                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full border border-white bg-white px-4 font-body text-sm font-black text-vyva-purple shadow-[0_12px_28px_rgba(35,13,56,0.18)] transition hover:border-[#FFE98B]"
-                        data-testid="button-login-schedule-callback"
-                      >
-                        <CalendarClock size={16} />
-                        {copy.signupOptions.schedule}
-                      </button>
-
-                    </div>
-                  )}
-
-                  {guideVoiceErrorText && (
-                    <p className="mt-3 max-w-[520px] rounded-[16px] bg-[#FFF9E8]/95 px-4 py-3 text-center font-body text-[12px] leading-[1.5] text-[#855F00] md:text-left">
-                      {guideVoiceErrorText}
-                    </p>
-                  )}
-                  </div>
+                <div className="relative flex items-center gap-3 border-t border-[#EEE4D8] pt-5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+                    <ShieldCheck size={18} />
+                  </span>
+                  <p className="font-body text-[13px] font-bold leading-5 text-vyva-text-2">{copy.profilePrivate}</p>
                 </div>
               </div>
             )}
@@ -2528,6 +2366,29 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               data-testid="auth-card"
               className={authCardClass}
             >
+              {!adminOnly && view !== "forgot" && view !== "magic" && (
+                <div className="mb-6 grid grid-cols-2 rounded-[18px] bg-[#F5F0F8] p-1" role="tablist" aria-label="Authentication mode">
+                  {(["login", "register"] as const).map((tab) => {
+                    const active = mode === tab;
+                    return (
+                      <button
+                        key={tab}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => switchTab(tab)}
+                        data-testid={`button-auth-mode-${tab}`}
+                        className={`min-h-[46px] rounded-[14px] px-4 font-body text-[14px] font-black transition ${
+                          active ? "bg-white text-vyva-purple shadow-sm" : "text-vyva-text-2 hover:text-vyva-purple"
+                        }`}
+                      >
+                        {tab === "login" ? copy.signInTab : copy.createTab}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="mb-5">
                 <h2 className="font-body text-[36px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
                 <p className="mt-1.5 font-body text-[16px] font-semibold leading-6 text-vyva-text-2">{authSubtitle}</p>
@@ -2739,8 +2600,6 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         {!loading && <ArrowRight size={17} />}
                       </button>
 
-                      {authDivider}
-                      {googleButton}
                     </>
                   ) : showPasswordSignIn && view !== "magic" ? (
                     <>
@@ -2798,8 +2657,16 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
                       {!adminOnly && (
                         <>
-                          {authDivider}
-                          {googleButton}
+                          <button
+                            type="button"
+                            onClick={showMagic}
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-3 font-body text-[13px] font-extrabold text-vyva-purple"
+                            data-testid="button-show-magic-link"
+                          >
+                            <KeyRound size={15} />
+                            {copy.signInWithMagicLink}
+                          </button>
+
                         </>
                       )}
                     </>
@@ -2809,7 +2676,20 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         <div data-testid="text-magic-success" className="rounded-[24px] bg-[#ECFDF5] px-5 py-6 text-center">
                           <CheckCircle2 size={34} className="mx-auto mb-3 text-vyva-green" />
                           <p className="font-body text-[16px] font-bold">{copy.linkSent}</p>
-                          <p className="mt-1 font-body text-[13px] leading-[1.55] text-vyva-text-2">{copy.useWithin}</p>
+                          <p className="mt-1 font-body text-[13px] leading-[1.55] text-vyva-text-2">
+                            {obscureContact(contact)} Â· {copy.useWithin}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMagicSent(false);
+                              setMagicError(null);
+                            }}
+                            className="mt-4 min-h-[44px] rounded-full border border-[#CDEADB] bg-white px-5 font-body text-[13px] font-extrabold text-[#047857]"
+                            data-testid="button-magic-resend"
+                          >
+                            {copy.sendMagicLink}
+                          </button>
                         </div>
                       ) : (
                         <>
@@ -2831,33 +2711,25 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         </>
                       )}
 
-                      {authDivider}
-                      {googleButton}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setView("login");
+                          setMode("login");
+                          setShowPasswordSignIn(true);
+                          setMagicError(null);
+                        }}
+                        className="inline-flex items-center justify-center rounded-full px-4 py-2 font-body text-[13px] font-extrabold text-vyva-purple"
+                      >
+                        {copy.usePasswordInstead}
+                      </button>
                     </>
                   )}
 
-                  {!adminOnly && (
-                    <p className="text-center font-body text-[15px] text-vyva-text-2">
-                      {switchPrompt}{" "}
-                      <button
-                        type="button"
-                        onClick={() => switchTab(mode === "register" ? "login" : "register")}
-                        className="font-extrabold text-vyva-purple"
-                        data-testid="button-auth-switch-mode"
-                      >
-                        {mode === "register" ? copy.signInTab : copy.createTab}
-                      </button>
-                    </p>
-                  )}
-
-                  <div className={`flex flex-col items-center justify-center gap-1 rounded-[18px] px-4 py-3 text-center sm:flex-row sm:gap-2 ${
-                    isCaregiverAudience ? "bg-[#F2FCFB]" : "bg-[#FFF9E8]"
-                  }`}>
+                  <div className="flex flex-col items-center justify-center gap-1 border-t border-[#EEE4D8] px-2 pt-4 text-center sm:flex-row sm:gap-2">
                     <span className="inline-flex items-center justify-center gap-2">
-                      <ShieldCheck size={16} className={isCaregiverAudience ? "text-[#007C78]" : "text-[#B98900]"} />
-                      <span className={`font-body text-[12px] font-bold ${isCaregiverAudience ? "text-[#007C78]" : "text-[#8A6500]"}`}>
-                        {audienceCopy.secureFooter}
-                      </span>
+                      <ShieldCheck size={15} className="text-vyva-purple" />
+                      <span className="font-body text-[12px] font-bold text-vyva-text-2">{copy.profilePrivate}</span>
                     </span>
                     <a
                       href="https://vyva.life/privacypolicy"
