@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Flower2, Info, Loader2, MessageCircle, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { VyvaMark } from "@/components/VyvaMark";
 import foodImage from "@/assets/scent-memory/food.jpg";
 import breadImage from "@/assets/scent-memory/fresh-bread.jpg";
 import homeImage from "@/assets/scent-memory/home.jpg";
@@ -377,7 +377,7 @@ export default function ScentMemory({ userId, onExit }) {
     <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
       <div className="mx-auto w-full max-w-[780px]">
         <header className="flex items-center justify-between gap-4">
-          <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
+          <VyvaMark className="h-12 w-12" />
           {screen !== "close" ? (
             <button
               type="button"
