@@ -1898,6 +1898,8 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
   const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
 
+  const mainMaxClass = "max-w-[1180px]";
+
   return (
     <>
       {isGuideVoiceOverlayVisible && (
