@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 
 type MasterTone = {
@@ -71,10 +71,9 @@ type MasterDashboardLayoutProps = {
   fastHelpTitle: string;
   fastHelpActions: MasterFastHelpAction[];
   launcherVariant?: "default" | "homeMaster";
+  intentLayer?: boolean;
   cardSectionTitle?: string;
   cardSectionDescription?: string;
-  cardSectionBackLabel?: string;
-  onCardSectionBack?: () => void;
   cardSectionMoreLabel?: string;
   onCardSectionMore?: () => void;
   cardSectionMoreTestId?: string;
@@ -108,9 +107,8 @@ export default function MasterDashboardLayout({
   fastHelpTitle,
   fastHelpActions,
   launcherVariant = "default",
+  intentLayer = false,
   cardSectionTitle,
-  cardSectionBackLabel,
-  onCardSectionBack,
   cardSectionMoreLabel,
   onCardSectionMore,
   cardSectionMoreTestId,
@@ -128,7 +126,7 @@ export default function MasterDashboardLayout({
   const isVoiceAction = hero.action.kind === "voice";
   const isHomeMaster = launcherVariant === "homeMaster";
   const isHomeMasterDark = isHomeMaster && isDarkMode;
-  const isHomeMasterIntentLayer = isHomeMaster && Boolean(onCardSectionBack);
+  const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -196,7 +194,7 @@ export default function MasterDashboardLayout({
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
-            ? "relative text-center"
+            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-0" : ""}`
             : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
         style={isHomeMaster ? undefined : {
@@ -216,7 +214,7 @@ export default function MasterDashboardLayout({
                 "text-balance leading-[0.98] text-vyva-text-1",
                 isHomeMaster
                   ? [
-                      "mx-auto max-w-[19rem] font-body text-[21px] font-bold tracking-normal min-[390px]:text-[23px] sm:max-w-[28rem] sm:text-[28px] md:max-w-[36rem] md:text-[34px] lg:text-[36px]",
+                      `mx-auto max-w-[19rem] font-body font-bold tracking-normal ${isHomeMasterIntentLayer ? "text-[24px] min-[390px]:text-[27px] sm:max-w-[30rem] sm:text-[31px] md:text-[34px]" : "text-[21px] min-[390px]:text-[23px] sm:max-w-[28rem] sm:text-[28px] md:max-w-[36rem] md:text-[34px] lg:text-[36px]"}`,
                       isHomeMasterDark ? "!text-[#FFF8FF] drop-shadow-[0_2px_12px_rgba(0,0,0,0.22)]" : "!text-[#24113D]",
                     ].join(" ")
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
@@ -229,7 +227,7 @@ export default function MasterDashboardLayout({
                 className={[
                   "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
                   isHomeMaster
-                    ? "mx-auto mt-2 max-w-[21rem] text-[14px] font-bold text-[#6C5369] min-[390px]:text-[15px] sm:max-w-[28rem] sm:text-[17px] md:max-w-[34rem] md:text-[18px]"
+                    ? `mx-auto max-w-[21rem] font-bold text-[#6C5369] ${isHomeMasterIntentLayer ? "mt-1 text-[13px] min-[390px]:text-[14px] sm:max-w-[30rem] sm:text-[16px]" : "mt-2 text-[14px] min-[390px]:text-[15px] sm:max-w-[28rem] sm:text-[17px] md:max-w-[34rem] md:text-[18px]"}`
                     : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
                   isHomeMasterDark ? "!text-[#E8DDF3]" : "",
                 ].join(" ")}
@@ -262,7 +260,7 @@ export default function MasterDashboardLayout({
         </div>
 
         {isVoiceAction && isHomeMaster ? (
-          <div className="relative mx-auto mt-4 flex w-[min(100%,22rem)] flex-col items-center">
+          <div className={`relative mx-auto flex w-[min(100%,22rem)] flex-col items-center ${isHomeMasterIntentLayer ? "mt-1.5" : "mt-4"}`}>
             <VyvaSessionCta
               label={hero.action.label}
               activeLabel={hero.action.activeLabel}
@@ -280,6 +278,7 @@ export default function MasterDashboardLayout({
               supportingLabel={hero.action.supportingLabel}
               visual="voiceOrb"
               voiceOrbDark={isHomeMasterDark}
+              voiceOrbSize={isHomeMasterIntentLayer ? 104 : 144}
               className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
             />
           </div>
@@ -297,25 +296,14 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showLauncher ? <section className={isHomeMaster ? (isHomeMasterIntentLayer ? "mt-4 sm:mt-5 md:mt-6" : "mt-6 sm:mt-7 md:mt-8 lg:mt-10") : "mt-4"} aria-label={cardSectionTitle || "Today tray"} data-testid={cardGridTestId}>
+      {showLauncher ? <section className={isHomeMaster ? (isHomeMasterIntentLayer ? "mt-2 sm:mt-3 md:mt-4" : "mt-6 sm:mt-7 md:mt-8 lg:mt-10") : "mt-4"} aria-label={cardSectionTitle || "Today tray"} data-testid={cardGridTestId}>
         {cardSectionTitle ? (
-          <div className={isHomeMaster && onCardSectionBack ? "mb-2 flex justify-start" : ""}>
-            {isHomeMaster && onCardSectionBack ? null : (
+          <div>
+            {isHomeMasterIntentLayer ? null : (
               <h2 className={isHomeMaster ? "sr-only" : "mb-3 font-body text-[15px] font-black leading-tight text-vyva-text-1"}>
                 {cardSectionTitle}
               </h2>
             )}
-            {isHomeMaster && onCardSectionBack ? (
-              <button
-                type="button"
-                onClick={onCardSectionBack}
-                data-testid="button-home-master-intent-back"
-                aria-label={cardSectionBackLabel ?? "Back"}
-                className={isHomeMasterDark ? "vyva-tap flex h-9 !min-h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/10 text-[#FFF8FF]" : "vyva-tap flex h-9 !min-h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)]"}
-              >
-                <ChevronLeft size={18} strokeWidth={2.6} aria-hidden="true" />
-              </button>
-            ) : null}
           </div>
         ) : null}
         <div className={isHomeMaster ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5") : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>

@@ -6,8 +6,10 @@ import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/age
 import { apiFetch } from "@/lib/queryClient";
 import {
   actionForVoiceToolCall,
+  homeIntentForVoiceToolCall,
   emitVoiceAppAction,
   emitVoiceAppActionResult,
+  emitVoiceHomeIntent,
   emitVoiceSpecialistTransfer,
   emitVoiceUserMessage,
   isVoiceAppActionDomain,
@@ -1442,6 +1444,11 @@ function useVyvaVoiceController() {
             ...(sessionOptions.clientTools ?? {}),
             open_app_action: async (parameters: unknown) => {
               const params = toolParameters(parameters);
+              const homeIntent = homeIntentForVoiceToolCall(params);
+              if (homeIntent) {
+                emitVoiceHomeIntent(homeIntent);
+                return "Showing the Health choices.";
+              }
               const action = actionForVoiceToolCall(params);
               if (!action) {
                 return "App action was not opened because the route, domain, or action type was not recognised.";

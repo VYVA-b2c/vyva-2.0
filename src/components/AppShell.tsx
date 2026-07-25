@@ -655,7 +655,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (!isActionableVoiceText(detail.text)) return;
 
       const homeIntent = homeIntentForVoiceUtterance(detail.text);
-      if (location.pathname === "/" && homeIntent) {
+      if ((location.pathname === "/" || location.pathname === "/dev/home-master") && homeIntent) {
         emitVoiceHomeIntent(homeIntent);
         return;
       }

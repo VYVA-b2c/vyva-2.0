@@ -32,6 +32,7 @@ type VyvaSessionCtaProps = {
   supportingLabel?: string;
   visual?: "default" | "voiceRail" | "voiceOrb";
   voiceOrbDark?: boolean;
+  voiceOrbSize?: number;
 };
 
 type VoiceControls = {
@@ -114,6 +115,7 @@ export function VyvaSessionCta({
   supportingLabel,
   visual = "default",
   voiceOrbDark = false,
+  voiceOrbSize = 144,
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
   const {
@@ -269,7 +271,7 @@ export function VyvaSessionCta({
             <>
               <ZamoraVoiceOrb
                 state={isPreparing || isConnecting ? "listening" : isActive ? (isSpeaking ? "speaking" : "listening") : "idle"}
-                size={144}
+                size={voiceOrbSize}
                 isDark={voiceOrbDark}
                 testId="home-dormant-zamora-orb"
               />

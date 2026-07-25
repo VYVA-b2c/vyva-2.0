@@ -121,26 +121,49 @@ export function homeIntentForVoiceUtterance(text: string): VoiceHomeIntent | nul
   const normalized = normalizeIntentText(text)
     .replace(/[!?.,;:]+/g, "")
     .trim();
-  const broadHealthRequests = [
-    "health",
-    "my health",
-    "health help",
-    "help with my health",
-    "salud",
-    "mi salud",
-    "ayuda con mi salud",
-    "gesundheit",
-    "meine gesundheit",
-    "sante",
-    "ma sante",
-    "aide sante",
-    "salute",
-    "la mia salute",
-    "saude",
-    "minha saude",
+  const specificHealthSignals = [
+    /\b(?:symptom|pain|fever|dizzy|blood pressure|pulse|oxygen|temperature|weight|glucose|doctor|appointment|medication|medicine|pill|dose)\b/,
+    /\b(?:sintoma|dolor|fiebre|mareo|presion|tension|pulso|oxigeno|temperatura|peso|glucosa|medico|doctor|cita|medicacion|medicina|pastilla|dosis)\b/,
+    /\b(?:symptome|douleur|fievre|vertige|tension|pouls|oxygene|temperature|poids|glycemie|medecin|rendez-vous|medicament|dose)\b/,
+    /\b(?:symptom|schmerz|fieber|schwindel|blutdruck|puls|sauerstoff|temperatur|gewicht|glukose|arzt|termin|medikament|tablette|dosis)\b/,
+    /\b(?:sintomo|dolore|febbre|vertigine|pressione|polso|ossigeno|temperatura|peso|glucosio|medico|appuntamento|medicina|farmaco|pillola|dose)\b/,
+    /\b(?:sintoma|dor|febre|tontura|pressao|pulso|oxigenio|temperatura|peso|glicose|medico|consulta|medicamento|remedio|comprimido|dose)\b/,
   ];
 
-  return broadHealthRequests.includes(normalized) ? "health" : null;
+  if (specificHealthSignals.some((pattern) => pattern.test(normalized))) return null;
+
+  const broadHealthRequests = [
+    /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?health(?:\s+(?:page|menu|options|section|help|support))?$/,
+    /^(?:could|can|would)\s+you\s+(?:open|show)\s+(?:me\s+)?(?:my\s+)?health(?:\s+(?:page|menu|options|section))?$/,
+    /^(?:i\s+(?:need|want|would like)\s+)?(?:some\s+)?(?:help|support)\s+with\s+(?:my\s+)?health$/,
+    /^(?:i\s+(?:need|want|would like)\s+)?health\s+(?:help|support)$/,
+    /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?salud(?:\s+(?:pagina|menu|opciones|seccion|ayuda|apoyo))?$/,
+    /^(?:muestra|muestrame|ensena|ensename|abre)\s+(?:las\s+)?(?:opciones|pagina|seccion|menu)\s+de\s+(?:mi\s+)?salud$/,
+    /^(?:quiero|necesito|me gustaria)?\s*(?:ayuda|apoyo)\s+(?:con|para)\s+mi\s+salud$/,
+    /^(?:(?:offne|zeige|gehe zu)\s+)?(?:meine\s+)?gesundheit(?:\s+(?:seite|menu|optionen|bereich|hilfe|unterstutzung))?$/,
+    /^(?:ich\s+(?:brauche|mochte)\s+)?(?:hilfe|unterstutzung)\s+(?:fur|bei)\s+(?:meine[r]?\s+)?gesundheit$/,
+    /^(?:(?:ouvre|affiche|va a)\s+)?(?:ma\s+)?sante(?:\s+(?:page|menu|options|rubrique|aide|soutien))?$/,
+    /^(?:je\s+(?:veux|voudrais|souhaite)\s+)?(?:de l[' ]?)?(?:aide|soutien)\s+(?:pour|avec)\s+ma\s+sante$/,
+    /^(?:(?:apri|mostra|vai a)\s+)?(?:la\s+mia\s+)?salute(?:\s+(?:pagina|menu|opzioni|sezione|aiuto|supporto))?$/,
+    /^(?:voglio|vorrei|ho bisogno di)?\s*(?:aiuto|supporto)\s+(?:con|per)\s+la\s+mia\s+salute$/,
+    /^(?:(?:abre|mostra|va para)\s+)?(?:a\s+minha\s+|minha\s+)?saude(?:\s+(?:pagina|menu|opcoes|secao|ajuda|apoio))?$/,
+    /^(?:quero|preciso de|gostaria de)?\s*(?:ajuda|apoio)\s+(?:com|para)\s+a\s+minha\s+saude$/,
+  ];
+
+  return broadHealthRequests.some((pattern) => pattern.test(normalized)) ? "health" : null;
+}
+
+export function homeIntentForVoiceToolCall(parameters: Record<string, unknown>): VoiceHomeIntent | null {
+  const domain = stringParam(parameters, "domain").replace(/-/g, "_");
+  const actionType = stringParam(parameters, "action_type");
+  const actionId = stringParam(parameters, "action_id");
+  const route = normalizeVoiceActionRoute(stringParam(parameters, "route"));
+
+  if (domain === "health" && !actionType && !actionId && (!route || route === "/")) {
+    return "health";
+  }
+
+  return null;
 }
 
 const VOICE_NON_ACTIONABLE_FILLERS = new Set([

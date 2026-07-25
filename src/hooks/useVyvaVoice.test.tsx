@@ -5,6 +5,7 @@ import {
   VYVA_VOICE_SESSION_STORAGE_KEY,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
 } from "@/lib/voiceSessionBridge";
+import { VYVA_VOICE_HOME_INTENT_EVENT } from "@/lib/voiceNavigation";
 
 const voiceMocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -48,6 +49,7 @@ type MockConversation = {
 };
 
 type MockStartSessionOptions = {
+  clientTools?: Record<string, (parameters: unknown) => Promise<string>>;
   onConversationCreated?: (conversation: MockConversation) => void;
   onConnect?: () => void;
   onMessage?: (payload: unknown) => void;
@@ -321,6 +323,41 @@ describe("useVyvaVoice", () => {
     });
 
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
+  });
+
+  it("shows the Home Health choices when the agent sends a broad Health tool call", async () => {
+    let controller: VoiceController | null = null;
+    const homeIntentHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+
+    try {
+      render(
+        <VyvaVoiceProvider>
+          <VoiceHarness onController={(nextController) => {
+            controller = nextController;
+          }} />
+        </VyvaVoiceProvider>,
+      );
+
+      await waitFor(() => expect(controller).not.toBeNull());
+
+      await act(async () => {
+        await controller?.startVoice("app_open", undefined, {
+          agentId: "agent_test",
+          autoStartListening: true,
+          skipMicrophone: true,
+        });
+      });
+
+      const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+      const result = await sessionOptions?.clientTools?.open_app_action?.({ domain: "health" });
+
+      expect(result).toBe("Showing the Health choices.");
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    }
   });
 
   it("adds raw ElevenLabs agent response events to the visible VYVA transcript", async () => {

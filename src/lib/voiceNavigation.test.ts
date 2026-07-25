@@ -3,6 +3,7 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceToolCall,
   actionForVoiceUtterance,
+  homeIntentForVoiceToolCall,
   homeIntentForVoiceUtterance,
   isActionableVoiceText,
   routeForVoiceUtterance,
@@ -14,19 +15,42 @@ describe("voice navigation actions", () => {
   it.each([
     "Health",
     "My health",
+    "I need help with my health",
+    "Could you show my health options?",
     "Salud",
     "Mi salud",
+    "Quiero ayuda con mi salud",
+    "Muéstrame las opciones de mi salud",
     "Meine Gesundheit",
+    "Ich brauche Hilfe bei meiner Gesundheit",
     "Ma santé",
+    "Je voudrais de l'aide pour ma santé",
     "La mia salute",
+    "Ho bisogno di aiuto con la mia salute",
     "Minha saúde",
+    "Preciso de ajuda com a minha saúde",
   ])("opens the Health choice layer for broad pillar request %s", (utterance) => {
     expect(homeIntentForVoiceUtterance(utterance)).toBe("health");
   });
 
   it("keeps specific health requests on their exact action", () => {
     expect(homeIntentForVoiceUtterance("Check my blood pressure")).toBeNull();
+    expect(homeIntentForVoiceUtterance("Necesito ayuda con dolor de pecho")).toBeNull();
+    expect(homeIntentForVoiceUtterance("Je veux prendre rendez-vous avec mon médecin")).toBeNull();
     expect(actionForVoiceUtterance("Check my blood pressure")?.id).toBeTruthy();
+  });
+
+  it("turns a broad Health client-tool call into the Home Health choice layer", () => {
+    expect(homeIntentForVoiceToolCall({ domain: "health" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({ domain: "health", route: "/" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({
+      domain: "health",
+      action_type: "health.vitals_review",
+    })).toBeNull();
+    expect(homeIntentForVoiceToolCall({
+      domain: "health",
+      route: "/health/symptom-check",
+    })).toBeNull();
   });
 
   it("ignores punctuation-only and filler transcript noise", () => {
