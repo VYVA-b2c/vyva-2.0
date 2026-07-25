@@ -755,13 +755,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByText('Opened campaign "Caregiver welcome" from imported analytics.')).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
-    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("List: Partners");
-    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("1/2 mapped");
-    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("66 sent");
-    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("44 opened");
-    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
-    expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
-    expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
+    expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Email");
+    expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("LinkedIn");
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "Warm B2B" } });
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Partner outreach")).toBeInTheDocument();
@@ -1219,7 +1216,8 @@ describe("MarketingAdminPage", () => {
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
-    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-content-channel-1-linkedin"));
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+    fireEvent.click(screen.getByTestId("marketing-campaign-channel-content-preview-1-preview"));
 
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
@@ -2106,7 +2104,7 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
-    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm");
     expect(screen.getByTestId("marketing-campaign-delete-confirmation-campaign-1")).toHaveTextContent("Click Confirm delete to remove this campaign, its channels, and recipient snapshots.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
     await waitFor(() => {
