@@ -404,6 +404,17 @@ type SyncState = {
   runs: SyncRun[];
 };
 
+const normalizeSyncState = (state: SyncState | null | undefined): SyncState => ({
+  ...emptySync,
+  ...(state ?? {}),
+  endpointDiagnostics: {
+    ...emptySync.endpointDiagnostics,
+    ...(state?.endpointDiagnostics ?? {}),
+  },
+  lockedSendCapabilities: Array.isArray(state?.lockedSendCapabilities) ? state.lockedSendCapabilities : emptySync.lockedSendCapabilities,
+  runs: Array.isArray(state?.runs) ? state.runs : [],
+});
+
 type CampaignDraft = {
   name: string;
   audienceType: Audience;
@@ -2843,7 +2854,7 @@ export default function MarketingAdminPage() {
     });
 
     const syncRequest = api<SyncState>("/api/admin/marketing/sync/lovable").then((syncBody) => {
-      setSyncState(syncBody);
+      setSyncState(normalizeSyncState(syncBody));
     });
 
     const [marketingResult, syncResult] = await Promise.allSettled([marketingDataRequest, syncRequest]);
@@ -3198,7 +3209,8 @@ export default function MarketingAdminPage() {
   }, [mediaAssets, selectedContent]);
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
-  const latestSyncRun = syncState.runs[0] ?? null;
+  const syncRuns = Array.isArray(syncState.runs) ? syncState.runs : [];
+  const latestSyncRun = syncRuns[0] ?? null;
   const missingLovableReferenceContent = useMemo(
     () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
     [content],
@@ -7104,7 +7116,7 @@ export default function MarketingAdminPage() {
                     </p>
                   ) : null}
                   <div className="grid gap-2">
-                    {syncState.runs.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncState.runs.map((run) => (
+                    {syncRuns.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncRuns.map((run) => (
                       <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Pill className={statusClass(run.status)}>{run.status}</Pill>
