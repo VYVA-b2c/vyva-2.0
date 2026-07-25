@@ -22,7 +22,7 @@ type ConciergeTaskNotificationResponse = {
 
 const notificationQueryKey = ["/api/concierge/notifications"] as const;
 
-export default function ConciergeTaskNotificationBell() {
+export default function ConciergeTaskNotificationBell({ compact = false }: { compact?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useLanguage();
@@ -68,14 +68,18 @@ export default function ConciergeTaskNotificationBell() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="vyva-tap relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-vyva-text-2 hover:bg-vyva-warm"
+          className={compact
+            ? "vyva-tap relative flex h-7 !min-h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border border-[#E9D5FF] bg-white/92 text-vyva-purple shadow-[0_8px_16px_rgba(63,45,35,0.06)]"
+            : "vyva-tap relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-vyva-text-2 hover:bg-vyva-warm"}
           aria-label={t("concierge.notifications.title", "Task updates")}
           data-testid="button-concierge-task-notifications"
         >
-          <Bell size={20} />
+          <Bell size={compact ? 13 : 20} strokeWidth={compact ? 2.25 : 2} />
           {unreadCount > 0 && (
             <span
-              className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-vyva-purple px-1 font-body text-[10px] font-black leading-none text-white"
+              className={`absolute flex items-center justify-center rounded-full bg-vyva-purple font-body font-black leading-none text-white ${
+                compact ? "-right-1 -top-1 h-3.5 min-w-3.5 px-0.5 text-[8px]" : "right-0.5 top-0.5 h-4 min-w-4 px-1 text-[10px]"
+              }`}
               data-testid="concierge-task-notification-count"
             >
               {unreadCount > 9 ? "9+" : unreadCount}

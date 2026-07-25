@@ -3,6 +3,7 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceToolCall,
   actionForVoiceUtterance,
+  homeIntentForVoiceUtterance,
   isActionableVoiceText,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
@@ -10,6 +11,24 @@ import {
 } from "./voiceNavigation";
 
 describe("voice navigation actions", () => {
+  it.each([
+    "Health",
+    "My health",
+    "Salud",
+    "Mi salud",
+    "Meine Gesundheit",
+    "Ma santé",
+    "La mia salute",
+    "Minha saúde",
+  ])("opens the Health choice layer for broad pillar request %s", (utterance) => {
+    expect(homeIntentForVoiceUtterance(utterance)).toBe("health");
+  });
+
+  it("keeps specific health requests on their exact action", () => {
+    expect(homeIntentForVoiceUtterance("Check my blood pressure")).toBeNull();
+    expect(actionForVoiceUtterance("Check my blood pressure")?.id).toBeTruthy();
+  });
+
   it("ignores punctuation-only and filler transcript noise", () => {
     expect(isActionableVoiceText("'")).toBe(false);
     expect(isActionableVoiceText("...")).toBe(false);

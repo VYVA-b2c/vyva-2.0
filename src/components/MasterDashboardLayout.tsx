@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bell, ChevronLeft, ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 
 type MasterTone = {
@@ -228,8 +228,10 @@ export default function MasterDashboardLayout({
               <p
                 className={[
                   "mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2",
-                  isHomeMaster ? "mx-auto !mt-1 text-[12px] font-extrabold text-[#E3A11B] min-[390px]:max-w-[20rem] min-[390px]:text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px]" : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
-                  isHomeMasterDark ? "!text-[#FFD977]" : "",
+                  isHomeMaster
+                    ? "mx-auto mt-2 max-w-[21rem] text-[14px] font-bold text-[#6C5369] min-[390px]:text-[15px] sm:max-w-[28rem] sm:text-[17px] md:max-w-[34rem] md:text-[18px]"
+                    : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
+                  isHomeMasterDark ? "!text-[#E8DDF3]" : "",
                 ].join(" ")}
               >
                 {hero.subtitle}
@@ -260,7 +262,7 @@ export default function MasterDashboardLayout({
         </div>
 
         {isVoiceAction && isHomeMaster ? (
-          <div className="relative mx-auto mt-4 w-[168px] min-[390px]:w-[184px] sm:w-[220px] md:w-[260px] lg:w-[280px]">
+          <div className="relative mx-auto mt-4 flex w-[min(100%,22rem)] flex-col items-center">
             <VyvaSessionCta
               label={hero.action.label}
               activeLabel={hero.action.activeLabel}
@@ -280,18 +282,6 @@ export default function MasterDashboardLayout({
               voiceOrbDark={isHomeMasterDark}
               className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
             />
-            <span
-              className={[
-                "pointer-events-none absolute right-[-4px] top-4 flex h-8 w-8 items-center justify-center rounded-[11px] border shadow-[0_10px_20px_rgba(107,33,168,0.10)]",
-                isHomeMasterDark
-                  ? "border-white/12 bg-white/10 text-[#F0D9FF]"
-                  : "border-[#E9D5FF] bg-white/92 text-vyva-purple",
-              ].join(" ")}
-              aria-hidden="true"
-            >
-              <Bell size={15} strokeWidth={2.3} />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#F43F5E]" />
-            </span>
           </div>
         ) : !isVoiceAction ? (
           <button
@@ -349,6 +339,8 @@ export default function MasterDashboardLayout({
                 ].join(" ")}
                 style={{
                   borderColor: isHomeMasterDark ? "rgba(255,255,255,0.14)" : card.tone.border,
+                  borderLeftColor: card.tone.iconColor,
+                  borderLeftWidth: isHomeMaster ? "5px" : undefined,
                   background: isHomeMaster
                     ? isHomeMasterDark
                       ? "linear-gradient(145deg, rgba(255,255,255,0.105) 0%, rgba(255,255,255,0.07) 100%)"
@@ -401,6 +393,11 @@ export default function MasterDashboardLayout({
                   <span className={isHomeMasterDark ? "block font-body text-[16px] font-extrabold leading-[1.06] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]" : "block font-body text-[16px] font-extrabold leading-[1.06] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]"}>
                     {card.title}
                   </span>
+                  {isHomeMaster && card.detail ? (
+                    <span className={isHomeMasterDark ? "mt-1 block font-body text-[12px] font-semibold leading-tight text-[#D5CBE5] min-[390px]:text-[13px] sm:text-[14px]" : "mt-1 block font-body text-[12px] font-semibold leading-tight text-vyva-text-2 min-[390px]:text-[13px] sm:text-[14px]"}>
+                      {card.detail}
+                    </span>
+                  ) : null}
                   {!isHomeMaster && card.chips?.length ? (
                     <span className="mt-2 flex flex-wrap gap-1">
                       {card.chips.slice(0, 3).map((chip) => (
