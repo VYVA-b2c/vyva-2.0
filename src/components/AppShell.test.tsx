@@ -6,6 +6,7 @@ import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState,
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
+  VYVA_VOICE_HOME_INTENT_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppAction,
 } from "@/lib/voiceNavigation";
@@ -355,6 +356,31 @@ describe("app shell voice dock", () => {
         route: "/mind-memory",
       });
     } finally {
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
+  it("turns a broad Health transcript into the Home Health choice layer", () => {
+    const homeIntentHandler = vi.fn();
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell("/");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "Mi salud",
+          transcriptEntry: { from: "user", text: "Mi salud", timestamp: 3 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
       window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
     }
   });

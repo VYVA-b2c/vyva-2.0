@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Headphones, Info, Loader2, Play, Volume2, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { gameData } from "./shared/gameDataApi";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
@@ -552,7 +552,7 @@ export default function ListenClosely({ userId, onExit }) {
       <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
           <div className="flex items-center justify-between gap-4">
-            <img src={vyvaLogo} alt="VYVA" className="h-[54px] w-auto" />
+            <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
             <button
               type="button"
               onClick={handleExit}
@@ -666,7 +666,7 @@ export default function ListenClosely({ userId, onExit }) {
       <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
           <div className="flex items-center justify-between gap-4">
-            <img src={vyvaLogo} alt="VYVA" className="h-[54px] w-auto" />
+            <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
             <button
               type="button"
               onClick={handleExit}

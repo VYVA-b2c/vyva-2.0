@@ -14,7 +14,9 @@ import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
+  emitVoiceHomeIntent,
   emitVoiceAppAction,
+  homeIntentForVoiceUtterance,
   isActionableVoiceText,
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
@@ -652,6 +654,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (!detail?.text) return;
       if (!isActionableVoiceText(detail.text)) return;
 
+      const homeIntent = homeIntentForVoiceUtterance(detail.text);
+      if (location.pathname === "/" && homeIntent) {
+        emitVoiceHomeIntent(homeIntent);
+        return;
+      }
+
       const action = actionForVoiceUtterance(detail.text);
       if (!action) return;
 
@@ -666,7 +674,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
     return () => window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleVoiceAppAction = (event: Event) => {

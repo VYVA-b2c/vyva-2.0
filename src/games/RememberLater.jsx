@@ -19,7 +19,7 @@ import {
   Triangle,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { VyvaMark } from "@/components/VyvaMark";
 import { gameData } from "./shared/gameDataApi";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
@@ -925,7 +925,7 @@ export default function RememberLater({
     <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
       <div className="mx-auto w-full max-w-[980px]">
         <header className="flex items-center justify-between gap-4">
-          <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
+          <VyvaMark className="h-12 w-12" />
           <button
             type="button"
             onClick={exitGame}

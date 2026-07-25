@@ -9,6 +9,7 @@ import {
   startHomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
 import { SHOW_VYVA_REVIEW_HISTORY_KEY } from "@/lib/showVyvaReviewHistory";
+import { VYVA_VOICE_HOME_INTENT_EVENT } from "@/lib/voiceNavigation";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -140,6 +141,9 @@ const labels: Record<string, string> = {
   "home.master.chooseCategory": "Today tray",
   "home.master.heroSubtitle": "VYVA is ready when you are.",
   "home.master.touchOrbToBegin": "Touch the orb to begin.",
+  "home.master.proactiveGreeting.morning": "How are you feeling?",
+  "home.master.proactiveGreeting.afternoon": "How are you feeling?",
+  "home.master.proactiveGreeting.evening": "How are you feeling?",
   "home.master.voiceSupport": "Tap the orb and speak.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
@@ -284,6 +288,7 @@ describe("Home fast service actions", () => {
   it("renders the four pillar launcher without the old movement routine card", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+    profileMock.firstName = "karim";
 
     render(<HomeScreen />);
 
@@ -294,12 +299,18 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mental");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Health assistance");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Cognitive exercises");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Connect with others");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Bookings and services");
     expect(screen.queryByTestId("card-home-agent-meds")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-doctor")).not.toBeInTheDocument();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
+    expect(screen.queryByTestId("home-master-orb-message")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Tell VYVA what you need.");
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
@@ -347,7 +358,7 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mental");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
   });
@@ -370,7 +381,7 @@ describe("Home fast service actions", () => {
 
     const idle = render(<HomeScreen />);
 
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
     expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
 
     idle.unmount();
@@ -1449,5 +1460,18 @@ describe("Home fast service actions", () => {
 
     expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
     expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();
+  });
+
+  it("opens the Health choices when voice detects the broad Health intent", () => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
+    });
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Are you OK?");
+    expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
+    expect(guardPathMock).not.toHaveBeenCalled();
   });
 });

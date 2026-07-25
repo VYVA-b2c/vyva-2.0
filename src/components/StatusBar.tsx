@@ -1,10 +1,10 @@
 import { ALargeSmall, CircleUser, Moon, Settings, Sun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import vyvaLogo from "@/assets/vyva-logo.png";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
+import { VyvaMark } from "./VyvaMark";
 
 type StatusBarProps = {
   wide?: boolean;
@@ -44,8 +44,8 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             className="vyva-tap flex h-8 !min-h-8 items-center"
             aria-label="VYVA"
           >
-            <span className={isDark ? "flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#7C3AED] font-body text-[18px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.36)]" : "flex h-9 w-9 items-center justify-center rounded-[11px] bg-vyva-purple font-body text-[18px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]"}>
-              V
+            <span className={isDark ? "flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#7C3AED] shadow-[0_10px_24px_rgba(124,58,237,0.36)]" : "flex h-9 w-9 items-center justify-center rounded-[11px] bg-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.18)]"}>
+              <VyvaMark variant="white" className="h-[22px] w-[23px]" />
             </span>
           </button>
           <div className="flex shrink-0 items-center gap-1">
@@ -89,7 +89,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
     <div className={`fixed left-1/2 top-0 z-50 w-full -translate-x-1/2 border-b border-vyva-border bg-white/95 px-4 py-2 backdrop-blur min-[390px]:px-[22px] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`}>
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <img src={vyvaLogo} alt="VYVA" className="h-8 w-8 rounded-full object-cover shadow-md" />
+          <VyvaMark className="h-8 w-8 shrink-0" />
           <div className="min-w-0">
             <div className="whitespace-nowrap font-display text-[21px] leading-tight text-vyva-text-1">{time}</div>
             <div className="truncate font-body text-[12px] leading-tight text-vyva-text-2">{date}</div>

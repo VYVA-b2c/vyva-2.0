@@ -22,11 +22,14 @@ export const VYVA_VOICE_USER_MESSAGE_EVENT = "vyva:voice-user-message";
 export const VYVA_VOICE_APP_ACTION_EVENT = "vyva:voice-app-action";
 export const VYVA_VOICE_APP_ACTION_RESULT_EVENT = "vyva:voice-app-action-result";
 export const VYVA_VOICE_SPECIALIST_TRANSFER_EVENT = "vyva:voice-specialist-transfer";
+export const VYVA_VOICE_HOME_INTENT_EVENT = "vyva:voice-home-intent";
 
 export type VoiceUserMessageDetail = {
   text: string;
   transcriptEntry: TranscriptEntry;
 };
+
+export type VoiceHomeIntent = "health";
 
 export type VoiceAppActionDomain =
   | "meds"
@@ -89,6 +92,10 @@ export function emitVoiceUserMessage(detail: VoiceUserMessageDetail) {
   window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT, { detail }));
 }
 
+export function emitVoiceHomeIntent(intent: VoiceHomeIntent) {
+  window.dispatchEvent(new CustomEvent<VoiceHomeIntent>(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
+}
+
 export function emitVoiceAppAction(action: VoiceAppAction) {
   window.dispatchEvent(new CustomEvent<VoiceAppAction>(VYVA_VOICE_APP_ACTION_EVENT, { detail: action }));
 }
@@ -108,6 +115,32 @@ function normalizeIntentText(text: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function homeIntentForVoiceUtterance(text: string): VoiceHomeIntent | null {
+  const normalized = normalizeIntentText(text)
+    .replace(/[!?.,;:]+/g, "")
+    .trim();
+  const broadHealthRequests = [
+    "health",
+    "my health",
+    "health help",
+    "help with my health",
+    "salud",
+    "mi salud",
+    "ayuda con mi salud",
+    "gesundheit",
+    "meine gesundheit",
+    "sante",
+    "ma sante",
+    "aide sante",
+    "salute",
+    "la mia salute",
+    "saude",
+    "minha saude",
+  ];
+
+  return broadHealthRequests.includes(normalized) ? "health" : null;
 }
 
 const VOICE_NON_ACTIONABLE_FILLERS = new Set([
