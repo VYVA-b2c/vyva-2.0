@@ -643,6 +643,7 @@ const HomeScreen = () => {
     readShowVyvaReviewHistory()
   ));
   const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>("home");
+  const [homeHealthExpanded, setHomeHealthExpanded] = useState(false);
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
 
   useEffect(() => {
@@ -937,6 +938,7 @@ const HomeScreen = () => {
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
+      setHomeHealthExpanded(false);
       setHomeIntentLayer("health");
       return;
     }
@@ -1033,7 +1035,10 @@ const HomeScreen = () => {
       title: t("home.master.cards.healthShortTitle", "My Health"),
       detail: t("home.master.cards.healthDetailShort", "Check in and stay on track"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
-      onClick: () => setHomeIntentLayer("health"),
+      onClick: () => {
+        setHomeHealthExpanded(false);
+        setHomeIntentLayer("health");
+      },
       testId: "card-home-agent-health",
     },
     {
@@ -1164,7 +1169,11 @@ const HomeScreen = () => {
   const homeMasterGreetingText = homeIntentLayer === "health"
     ? t("home.master.healthIntent.title", "Are you OK?")
     : greetingText.replace(/[.]$/, "");
-  const homeMasterVisibleCards = homeIntentLayer === "health" ? homeMasterHealthCards : homeMasterCards;
+  const homeMasterVisibleCards = homeIntentLayer === "health"
+    ? homeHealthExpanded
+      ? homeMasterHealthCards
+      : homeMasterHealthCards.slice(0, 4)
+    : homeMasterCards;
   const homeMasterCardSectionTitle = homeIntentLayer === "health"
     ? t("home.master.healthIntent.sectionTitle", "What do you need?")
     : t("home.master.chooseCategory", "App shortcuts");
@@ -1755,10 +1764,13 @@ const HomeScreen = () => {
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}
       cardSectionBackLabel={t("home.master.intentBack", "Back")}
-      onCardSectionBack={homeIntentLayer === "health" ? () => setHomeIntentLayer("home") : undefined}
-      cardSectionMoreLabel={homeIntentLayer === "health" ? t("home.master.healthIntent.more", "More health options") : undefined}
-      onCardSectionMore={homeIntentLayer === "health" ? () => openHealthPath("/health") : undefined}
-      cardSectionMoreTestId={homeIntentLayer === "health" ? "button-home-health-more" : undefined}
+      onCardSectionBack={homeIntentLayer === "health" ? () => {
+        setHomeHealthExpanded(false);
+        setHomeIntentLayer("home");
+      } : undefined}
+      cardSectionMoreLabel={homeIntentLayer === "health" && !homeHealthExpanded ? t("home.master.healthIntent.more", "More health options") : undefined}
+      onCardSectionMore={homeIntentLayer === "health" && !homeHealthExpanded ? () => setHomeHealthExpanded(true) : undefined}
+      cardSectionMoreTestId={homeIntentLayer === "health" && !homeHealthExpanded ? "button-home-health-more" : undefined}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
       hero={{
         icon: MessageCircle,

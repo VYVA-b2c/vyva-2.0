@@ -329,7 +329,7 @@ export default function MasterDashboardLayout({
           </div>
         ) : null}
         <div className={isHomeMaster ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5") : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
-          {cards.slice(0, 4).map((card) => {
+          {cards.map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
             return (
