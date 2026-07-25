@@ -171,53 +171,11 @@ test("login screen renders auth controls", async ({ page }) => {
 
   await expect(page.getByTestId("input-auth-contact")).toBeVisible();
   await expect(page.getByTestId("input-auth-password")).toBeVisible();
-  await expect(page.getByTestId("button-auth-intent-self")).toBeVisible();
-  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeVisible();
+  await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("button-auth-mode-register")).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByTestId("button-auth-intent-self")).toBeHidden();
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeHidden();
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
-});
-
-test("login schedule callback collects contact and caller context", async ({ page }) => {
-  await mockApi(page);
-  await page.route("https://freeipapi.com/api/json/", async (route) => {
-    await fulfillJson(route, 200, { countryCode: "GB" });
-  });
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-
-  await page.getByTestId("button-login-schedule-callback").click();
-  await expect(page.getByTestId("modal-login-callback")).toBeVisible();
-  await expect(page.getByTestId("input-callback-first-name")).toBeFocused();
-  await expect(page.getByTestId("input-callback-last-name")).toBeVisible();
-  await expect(page.getByTestId("select-callback-country-code")).toHaveValue("+44");
-  await expect(page.getByTestId("input-callback-phone")).toBeVisible();
-  await expect(page.getByTestId("input-callback-date")).toBeVisible();
-  await expect(page.getByTestId("input-callback-time")).toBeVisible();
-  await expect(page.getByTestId("select-callback-period")).toHaveValue("AM");
-  await expect(page.getByTestId("button-callback-for-me")).toBeVisible();
-  await expect(page.getByTestId("button-callback-for-caregiver")).toBeVisible();
-
-  await page.getByTestId("button-callback-submit").click();
-  await expect(page.getByTestId("text-callback-error")).toBeVisible();
-  await expectNoHorizontalOverflow(page);
-});
-
-test("login call vyva shows the country-specific number", async ({ page }) => {
-  await mockApi(page);
-  await page.route("https://freeipapi.com/api/json/", async (route) => {
-    await fulfillJson(route, 200, { countryCode: "IT" });
-  });
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-
-  await page.getByTestId("button-login-call-vyva").click();
-  await expect(page.getByTestId("modal-login-call-vyva")).toBeVisible();
-  await expect(page.getByTestId("select-call-country")).toHaveValue("IT");
-  await page.getByTestId("button-call-submit").click();
-  await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+39 800 984 401");
-  await expect(page.getByTestId("button-call-now")).toHaveAttribute("href", "tel:+39800984401");
-  await page.getByTestId("button-call-change-country").click();
-  await page.getByTestId("select-call-country").selectOption("GB");
-  await page.getByTestId("button-call-submit").click();
-  await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+44 808 175 7642");
-  await expectNoHorizontalOverflow(page);
 });
 
 test("public landing page promotes VYVA and remains responsive", async ({ page }) => {
@@ -278,9 +236,10 @@ test("login screen exposes caregiver and on-behalf account intent", async ({ pag
   await mockApi(page);
   await page.goto("/login", { waitUntil: "domcontentloaded" });
 
+  await page.getByTestId("button-auth-mode-register").click();
   await page.getByTestId("button-auth-intent-caregiver").click();
   await expect(page.getByTestId("text-auth-caregiver-hint")).toBeVisible();
-  await expect(page.getByText("As a caregiver")).toBeVisible();
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toContainText("As a caregiver");
 });
 
 test("login screen scales from mobile card to tablet and desktop auth layout", async ({ page }) => {
