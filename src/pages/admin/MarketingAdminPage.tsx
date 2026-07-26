@@ -612,6 +612,8 @@ const emptySync: SyncState = {
   runs: [],
 };
 
+const MARKETING_SYNC_ENDPOINT = "/api/admin/marketing/sync/source";
+
 const channelLabel: Record<Channel, string> = {
   email: "Email",
   whatsapp: "WhatsApp",
@@ -2253,6 +2255,100 @@ function LovableDesignPreview({
   );
 }
 
+function ContentTemplatePreview({
+  contentAsset,
+  linkedMediaAssets = [],
+  className = "",
+  testId = "marketing-content-template-preview",
+}: {
+  contentAsset: ContentAsset;
+  linkedMediaAssets?: MarketingMediaAsset[];
+  className?: string;
+  testId?: string;
+}) {
+  const mediaUrls = contentMediaPreviewUrls(contentAsset, linkedMediaAssets);
+  const hasVisualTemplate = Boolean(contentAsset.htmlBody?.trim()) || contentAsset.hasDesign || mediaUrls.length > 0;
+
+  return (
+    <div className={`grid gap-4 ${className}`} data-testid={testId}>
+      <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Customer preview</p>
+            <h3 className="mt-1 font-serif text-2xl leading-tight text-[#241133]">{contentAsset.subject || contentAsset.title}</h3>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill className={channelClass(contentAsset.channel)}>{channelLabel[contentAsset.channel]}</Pill>
+            <Pill className={statusClass(contentAsset.status)}>{contentAsset.status}</Pill>
+            <Pill className="bg-blue-50 text-blue-800">{contentAsset.language}</Pill>
+          </div>
+        </div>
+
+        {contentAsset.htmlBody ? (
+          <div className="grid gap-3">
+            <iframe
+              title={`Preview ${contentAsset.title}`}
+              sandbox=""
+              srcDoc={contentAsset.htmlBody}
+              className="h-[640px] w-full rounded-xl border border-[#eadfd5] bg-white"
+            />
+            {contentAsset.body ? (
+              <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3">
+                <summary className="cursor-pointer text-sm font-black text-[#241133]">Plain text copy</summary>
+                <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-relaxed text-[#2f2135]">{contentAsset.body}</p>
+              </details>
+            ) : null}
+          </div>
+        ) : contentAsset.body ? (
+          <div className="min-h-[260px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-5 text-base font-semibold leading-relaxed text-[#2f2135]">
+            {contentAsset.body}
+          </div>
+        ) : (
+          <div className="min-h-[260px] rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-5 text-sm font-bold text-[#8b7a73]">
+            No visible copy imported for this item yet.
+          </div>
+        )}
+
+        {contentAsset.ctaLabel || contentAsset.ctaUrl ? (
+          <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50 px-4 py-3 text-sm font-black text-purple-800">
+            CTA: {[contentAsset.ctaLabel, contentAsset.ctaUrl].filter(Boolean).join(" -> ")}
+          </div>
+        ) : null}
+      </div>
+
+      {contentAsset.hasDesign ? (
+        contentAsset.htmlBody ? (
+          <details className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3">
+            <summary className="cursor-pointer text-sm font-black text-[#241133]">Imported design fallback</summary>
+            <div className="mt-3">
+              <LovableDesignPreview contentAsset={contentAsset} testId={`${testId}-design`} mediaTestIdPrefix={`${testId}-design-media`} />
+            </div>
+          </details>
+        ) : (
+          <LovableDesignPreview contentAsset={contentAsset} testId={`${testId}-design`} mediaTestIdPrefix={`${testId}-design-media`} />
+        )
+      ) : null}
+
+      {mediaUrls.length ? (
+        <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+          <summary className="cursor-pointer text-sm font-black text-[#241133]">Media references ({mediaUrls.length})</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {mediaUrls.map((url, index) => (
+              <MediaPreviewTile key={url} url={url} testId={`${testId}-media-${index}`} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {!hasVisualTemplate ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+          This item exists in the library, but the import did not include HTML/design/media. Edit it here or re-sync after the source exports the full template.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function LinkedContentPreview({
   contentAsset,
   linkedMediaAssets,
@@ -2855,7 +2951,7 @@ export default function MarketingAdminPage() {
       setAudiences(audienceBody.audiences);
     });
 
-    const syncRequest = api<SyncState>("/api/admin/marketing/sync/lovable").then((syncBody) => {
+    const syncRequest = api<SyncState>(MARKETING_SYNC_ENDPOINT).then((syncBody) => {
       setSyncState(normalizeSyncState(syncBody));
     });
 
@@ -4317,7 +4413,7 @@ export default function MarketingAdminPage() {
     setMessage("Running Lovable sync...");
     setSyncRunning(true);
     try {
-      const result = await api<{ summary?: Record<string, unknown> }>("/api/admin/marketing/sync/lovable/run", { method: "POST" });
+      const result = await api<{ summary?: Record<string, unknown> }>(`${MARKETING_SYNC_ENDPOINT}/run`, { method: "POST" });
       const completionMessage = syncCompletionMessage(result.summary);
       await refreshAll();
       setMessage(completionMessage);
@@ -4336,7 +4432,7 @@ export default function MarketingAdminPage() {
     setMessage("Checking Lovable export...");
     setExportPreviewRunning(true);
     try {
-      const result = await api<LovableExportPreview>("/api/admin/marketing/sync/lovable/preview");
+      const result = await api<LovableExportPreview>(`${MARKETING_SYNC_ENDPOINT}/preview`);
       const completionMessage = exportPreviewMessage(result.summary);
       setExportPreview(result);
       setExportPreviewFeedback(completionMessage);
@@ -4527,11 +4623,23 @@ export default function MarketingAdminPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title="Analytics snapshots" subtitle={`${visibleCampaignMetrics.length} visible of ${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
-                {visibleCampaignMetrics.length === 0 ? (
-                  <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
+              <details className="rounded-2xl border border-[#eadfd5] bg-white shadow-sm" data-testid="marketing-analytics-panel">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden">
+                  <span>
+                    <span className="block font-serif text-xl font-black text-[#241133]">Analytics</span>
+                    <span className="text-sm font-bold text-[#7d6b65]">
+                      {campaignMetrics.length ? `${visibleCampaignMetrics.length} visible performance rows` : "No imported performance rows yet"}
+                    </span>
+                  </span>
+                  <Pill className={campaignMetrics.length ? "bg-blue-50 text-blue-800" : "bg-[#fffaf4] text-[#8b7a73]"}>
+                    {campaignMetrics.length}
+                  </Pill>
+                </summary>
+                <div className="border-t border-[#eadfd5] p-4">
+                  {visibleCampaignMetrics.length === 0 ? (
+                    <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
                     <table className="w-full border-collapse text-left text-sm">
                       <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                         <tr>
@@ -4586,9 +4694,10 @@ export default function MarketingAdminPage() {
                         })}
                       </tbody>
                     </table>
-                  </div>
-                )}
-              </SectionCard>
+                    </div>
+                  )}
+                </div>
+              </details>
 
               <details className="rounded-2xl border border-[#eadfd5] bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden">
@@ -5716,7 +5825,6 @@ export default function MarketingAdminPage() {
                             const isEditingContent = item.id === editingContentId && contentDrawerMode === "edit";
                             const isConfirmingDelete = confirmingContentDeleteId === item.id;
                             const rowMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.id);
-                            const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
                             const timelineParts = recordTimelineParts(item);
                             const usageItems = contentUsageById.get(item.id) ?? [];
                             return (
@@ -5866,36 +5974,12 @@ export default function MarketingAdminPage() {
                                           </button>
                                         </div>
                                       </div>
-                                      <div className="mt-4 grid gap-3" data-testid={`marketing-content-inline-preview-${item.id}`}>
-                                        <div className="whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
-                                          {item.body || item.subject || "No body copy yet."}
-                                        </div>
-                                        {item.htmlBody ? (
-                                          <iframe
-                                            title={`Inline preview ${item.title}`}
-                                            sandbox=""
-                                            srcDoc={item.htmlBody}
-                                            className="h-[320px] w-full rounded-xl border border-[#eadfd5] bg-white"
-                                          />
-                                        ) : null}
-                                        <LovableDesignPreview
-                                          contentAsset={item}
-                                          testId={`marketing-content-inline-design-preview-${item.id}`}
-                                          mediaTestIdPrefix={`marketing-content-inline-design-media-${item.id}`}
-                                        />
-                                        <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Media references</p>
-                                          {rowMediaPreviewUrls.length ? (
-                                            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                              {rowMediaPreviewUrls.map((url, index) => (
-                                                <MediaPreviewTile key={url} url={url} label={`${item.title} inline media ${index + 1}`} testId={`marketing-content-inline-media-preview-${item.id}-${index}`} />
-                                              ))}
-                                            </div>
-                                          ) : (
-                                            <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
-                                          )}
-                                        </div>
-                                      </div>
+                                      <ContentTemplatePreview
+                                        contentAsset={item}
+                                        linkedMediaAssets={rowMediaAssets}
+                                        className="mt-4"
+                                        testId={`marketing-content-inline-preview-${item.id}`}
+                                      />
                                     </div>
                                   ) : null}
                                   {isEditingContent ? (
@@ -6141,76 +6225,48 @@ export default function MarketingAdminPage() {
                   >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
-                        <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
-                      </div>
-                      {selectedContent.source === "lovable" ? (
-                        <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
-                          Imported from {contentOriginLabel(selectedContent)}
-                          {selectedContent.lovableExternalId ? (
-                            <span className="break-all"> - Lovable ID: {selectedContent.lovableExternalId}</span>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      <LovableContentSourceDetails content={selectedContent} />
-                      <ContentUsageList
-                        usages={selectedContentUsage}
-                        testId="marketing-selected-content-usage"
-                        onOpenCampaign={openContentUsageCampaign}
-                        onOpenJourney={openContentUsageJourney}
-                      />
-                      {selectedContent.htmlBody ? (
-                        <iframe
-                          title={`Preview ${selectedContent.title}`}
-                          sandbox=""
-                          srcDoc={selectedContent.htmlBody}
-                          className="h-[360px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                        <ContentTemplatePreview
+                          contentAsset={selectedContent}
+                          linkedMediaAssets={selectedContentMediaAssets}
+                          testId="marketing-content-customer-preview"
                         />
-                      ) : (
-                        <div className="min-h-[180px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
-                          {selectedContent.body || "No body copy yet."}
-                        </div>
-                      )}
-                      <LovableDesignPreview contentAsset={selectedContent} />
-                      <div className="grid gap-2 md:grid-cols-3">
-                        <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
-                        <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
-                        <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
-                      </div>
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-design-media-summary">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable design/media</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {selectedContentDesignSummary?.arrayKeys.length ? selectedContentDesignSummary.arrayKeys.map((item) => (
-                            <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
-                          )) : (
-                            <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
-                          )}
-                          {selectedContentDesignSummary?.topLevelKeys.length ? (
-                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
-                          ) : null}
-                          <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
-                            Media refs: {selectedContentMediaPreviewUrls.length}
-                          </Pill>
-                        </div>
-                        {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-content-media-previews">
-                            {selectedContentMediaPreviewUrls.map((url) => (
-                              <MediaPreviewTile key={url} url={url} testId={`marketing-content-media-preview-${url}`} />
-                            ))}
+                        <ContentUsageList
+                          usages={selectedContentUsage}
+                          testId="marketing-selected-content-usage"
+                          onOpenCampaign={openContentUsageCampaign}
+                          onOpenJourney={openContentUsageJourney}
+                        />
+                        <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-admin-details">
+                          <summary className="cursor-pointer text-sm font-black text-[#241133]">Admin/source details</summary>
+                          <div className="mt-3 grid gap-3">
+                            {selectedContent.source === "lovable" ? (
+                              <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
+                                Imported from {contentOriginLabel(selectedContent)}
+                                {selectedContent.lovableExternalId ? (
+                                  <span className="break-all"> - Lovable ID: {selectedContent.lovableExternalId}</span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            {selectedContentDesignSummary?.arrayKeys.length || selectedContentDesignSummary?.topLevelKeys.length || selectedContentMediaPreviewUrls.length ? (
+                              <div className="rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-content-design-media-summary">
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Imported structure</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {selectedContentDesignSummary?.arrayKeys.map((item) => (
+                                    <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
+                                  ))}
+                                  {selectedContentDesignSummary?.topLevelKeys.length ? (
+                                    <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
+                                  ) : null}
+                                  <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
+                                    Media refs: {selectedContentMediaPreviewUrls.length}
+                                  </Pill>
+                                </div>
+                              </div>
+                            ) : null}
+                            <LovableContentSourceDetails content={selectedContent} />
+                            <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
                           </div>
-                        ) : null}
-                        {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-3 grid gap-1">
-                            {selectedContentMediaPreviewUrls.map((url) => (
-                              <a key={url} className="break-all text-xs font-bold text-purple-700 underline" href={url} target="_blank" rel="noreferrer">{url}</a>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
-                        )}
-                      </div>
-                      <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
+                        </details>
                       </div>
                     ) : (
                       <EmptyState text="No content available." />
