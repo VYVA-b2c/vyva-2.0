@@ -15,15 +15,18 @@ import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
+import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
 import {
+  decideHomeContextMessage,
   readHomeContextMessageHistory,
-  selectHomeContextMessage,
   stripAgentStageDirections,
   writeHomeContextMessageSeen,
   type HomeContextMessage,
 } from "@/lib/homeContextMessages";
+import { adaptHeroMessageForHome } from "@/lib/homeAdminMessages";
+import { normalizeHeroLanguage, recordHeroEvent, recordHeroImpression } from "@/lib/heroMessages";
 import {
   VYVA_VOICE_HOME_INTENT_EVENT,
   type VoiceHomeIntent,
@@ -662,6 +665,14 @@ const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const managedHomeHeroMessage = useHeroMessage("home_voice", {
+    language,
+    trackImpression: false,
+  });
+  const adminHomeContextMessage = useMemo(
+    () => adaptHeroMessageForHome(managedHomeHeroMessage),
+    [managedHomeHeroMessage],
+  );
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const voice = useOptionalVyvaVoice();
   const { firstName: profileFirstName, profile } = useProfile();
@@ -685,6 +696,7 @@ const HomeScreen = () => {
   const [homeHealthExpanded, setHomeHealthExpanded] = useState(false);
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
   const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
+  const activeVoiceHomeContextFingerprintRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleVoiceHomeIntent = (event: Event) => {
@@ -840,63 +852,72 @@ const HomeScreen = () => {
   const { data: medicationHomeSignal } = useQuery<MedicationHomeSignal>({
     queryKey: ["/api/meds/adherence-report"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: latestVitalsHomeSignal } = useQuery<LatestVitalsHomeSignal>({
     queryKey: ["/api/vitals-engine/latest"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: preventionHomeSignal } = useQuery<PreventionHomeSignal>({
     queryKey: ["/api/health/prevention"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: checkinHomeSignal } = useQuery<DailyCheckinHomeSignal>({
     queryKey: ["/api/checkins/today"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: brainCoachHomeSignal } = useQuery<BrainCoachHomeSignal>({
     queryKey: ["/api/games/progress"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: participationPulseHomeSignal } = useQuery<ParticipationPulseHomeSignal>({
     queryKey: [`/api/social/participate/pulse?lang=${participationLanguage}`],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: scheduledEventsHomeSignal } = useQuery<ScheduledEventsHomeSignal>({
     queryKey: ["/api/profile/scheduled-events"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: conciergePendingHomeSignal } = useQuery<ConciergePendingHomeSignal>({
     queryKey: ["/api/concierge/actions/pending"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: conciergeCompletedHomeSignal } = useQuery<ConciergeCompletedHomeSignal>({
     queryKey: ["/api/concierge/actions/sessions"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const timeGreetingKey = useMemo(() => {
-    const hour = new Date().getHours();
+    const hour = new Date(conciergeClockMs).getHours();
     if (hour >= 5 && hour <= 11) return "morning";
     if (hour >= 12 && hour <= 16) return "afternoon";
     return "evening";
-  }, []);
+  }, [conciergeClockMs]);
 
   const greetingText = useMemo(() => {
     const period = timeGreetingKey;
@@ -1228,7 +1249,7 @@ const HomeScreen = () => {
       }, language === "es")
     : null;
   const nextScheduledEvent = useMemo(() => {
-    const now = Date.now();
+    const now = conciergeClockMs;
     return (scheduledEventsHomeSignal?.events ?? [])
       .filter((event) => {
         const scheduledAt = Date.parse(event.scheduled_for ?? "");
@@ -1237,7 +1258,7 @@ const HomeScreen = () => {
           && !["cancelled", "completed", "dismissed"].includes(String(event.status ?? "").toLowerCase());
       })
       .sort((left, right) => Date.parse(left.scheduled_for ?? "") - Date.parse(right.scheduled_for ?? ""))[0] ?? null;
-  }, [scheduledEventsHomeSignal]);
+  }, [conciergeClockMs, scheduledEventsHomeSignal]);
   const remainingMedicineCount = medicationHomeSignal?.todaySummary?.remaining ?? 0;
   const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
   const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
@@ -1284,7 +1305,7 @@ const HomeScreen = () => {
     }
     if (reusableConciergeHomeTask && reusableConciergeReceipt) {
       const completedAt = Date.parse(reusableConciergeHomeTask.completed_at ?? "");
-      if (!Number.isFinite(completedAt) || Date.now() - completedAt < 7 * 24 * 60 * 60 * 1000) {
+      if (!Number.isFinite(completedAt) || conciergeClockMs - completedAt < 7 * 24 * 60 * 60 * 1000) {
         messages.push({
           id: `receipt:${reusableConciergeHomeTask.id ?? reusableConciergeHomeTask.pending_id ?? "latest"}`,
           kind: "receipt",
@@ -1346,7 +1367,7 @@ const HomeScreen = () => {
         actionRoute: "/meds",
         dismissible: true,
         priority: 70,
-        expiresAt: Date.now() + Math.max(15, nextMedicineMinutes + 15) * 60 * 1000,
+        expiresAt: conciergeClockMs + Math.max(15, nextMedicineMinutes + 15) * 60 * 1000,
         repeatAfterMs: 30 * 60 * 1000,
       });
     } else if (isHomeMasterVoiceAlive && remainingMedicineCount > 0) {
@@ -1385,7 +1406,7 @@ const HomeScreen = () => {
     }
     if (nextScheduledEvent) {
       const startsAt = Date.parse(nextScheduledEvent.scheduled_for ?? "");
-      const minutesUntil = Math.max(0, Math.round((startsAt - Date.now()) / 60_000));
+      const minutesUntil = Math.max(0, Math.round((startsAt - conciergeClockMs) / 60_000));
       messages.push({
         id: `scheduled-event:${nextScheduledEvent.id ?? nextScheduledEvent.scheduled_for ?? "next"}`,
         kind: "reminder",
@@ -1398,7 +1419,7 @@ const HomeScreen = () => {
         actionRoute: "/settings/scheduled-support",
         dismissible: true,
         priority: minutesUntil <= 60 ? 72 : 45,
-        startsAt: Math.min(Date.now(), startsAt - 24 * 60 * 60 * 1000),
+        startsAt: Math.min(conciergeClockMs, startsAt - 24 * 60 * 60 * 1000),
         expiresAt: startsAt + 60 * 60 * 1000,
         repeatAfterMs: 2 * 60 * 60 * 1000,
       });
@@ -1460,6 +1481,9 @@ const HomeScreen = () => {
         repeatAfterMs: 7 * 24 * 60 * 60 * 1000,
       });
     }
+    if (adminHomeContextMessage) {
+      messages.push(adminHomeContextMessage);
+    }
     messages.push({
       id: `default:${timeGreetingKey}`,
       kind: "default",
@@ -1471,6 +1495,8 @@ const HomeScreen = () => {
   }, [
     checkinHomeSignal?.status,
     brainCoachHomeSignal,
+    conciergeClockMs,
+    adminHomeContextMessage,
     nextConciergeTask,
     nextScheduledEvent,
     preventionHomeSignal,
@@ -1489,10 +1515,78 @@ const HomeScreen = () => {
     timeGreetingKey,
     voice?.transcript,
   ]);
-  const selectedHomeContextMessage = useMemo(
-    () => selectHomeContextMessage(homeContextMessages, readHomeContextMessageHistory()),
-    [homeContextHistoryRevision, homeContextMessages],
+  const selectedHomeContextDecision = useMemo(
+    () => decideHomeContextMessage(
+      homeContextMessages,
+      readHomeContextMessageHistory(),
+      conciergeClockMs,
+    ),
+    [conciergeClockMs, homeContextHistoryRevision, homeContextMessages],
   );
+  const selectedHomeContextMessage = selectedHomeContextDecision?.message ?? null;
+  const selectedHomeVoiceContext = useMemo(() => ({
+    id: selectedHomeContextMessage?.id ?? "default",
+    kind: selectedHomeContextMessage?.kind ?? "default",
+    title: selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, ""),
+    supportingText: selectedHomeContextMessage?.spokenText
+      ?? selectedHomeContextMessage?.supportingText
+      ?? "",
+    actionLabel: selectedHomeContextMessage?.actionLabel ?? "",
+    actionRoute: selectedHomeContextMessage?.actionRoute ?? "",
+    reason: selectedHomeContextDecision?.reason ?? "default_greeting",
+    score: selectedHomeContextDecision?.score ?? 0,
+  }), [
+    greetingText,
+    selectedHomeContextDecision?.reason,
+    selectedHomeContextDecision?.score,
+    selectedHomeContextMessage,
+  ]);
+  const selectedHomeVoiceContextFingerprint = useMemo(
+    () => JSON.stringify(selectedHomeVoiceContext),
+    [selectedHomeVoiceContext],
+  );
+  useEffect(() => {
+    const voiceStatus = voice?.status;
+    if (voiceStatus !== "connecting" && voiceStatus !== "connected") {
+      activeVoiceHomeContextFingerprintRef.current = null;
+      return;
+    }
+
+    if (!activeVoiceHomeContextFingerprintRef.current) {
+      activeVoiceHomeContextFingerprintRef.current = selectedHomeVoiceContextFingerprint;
+      return;
+    }
+
+    if (
+      voiceStatus !== "connected"
+      || activeVoiceHomeContextFingerprintRef.current === selectedHomeVoiceContextFingerprint
+    ) {
+      return;
+    }
+
+    const contextUpdate = [
+      "Silent app context update. The Home message changed while this voice session is active.",
+      `Message kind: ${selectedHomeVoiceContext.kind}.`,
+      `Visible message: ${selectedHomeVoiceContext.title}.`,
+      selectedHomeVoiceContext.supportingText
+        ? `Supporting message: ${selectedHomeVoiceContext.supportingText}.`
+        : "",
+      selectedHomeVoiceContext.actionLabel
+        ? `Available action: ${selectedHomeVoiceContext.actionLabel}${selectedHomeVoiceContext.actionRoute ? ` (${selectedHomeVoiceContext.actionRoute})` : ""}.`
+        : "",
+      `Selection reason: ${selectedHomeVoiceContext.reason}.`,
+      "Use this as context only. Do not repeat or announce it unless it helps answer the user or requires timely attention.",
+    ].filter(Boolean).join("\n");
+
+    if (voice?.sendContextUpdate(contextUpdate)) {
+      activeVoiceHomeContextFingerprintRef.current = selectedHomeVoiceContextFingerprint;
+    }
+  }, [
+    selectedHomeVoiceContext,
+    selectedHomeVoiceContextFingerprint,
+    voice?.sendContextUpdate,
+    voice?.status,
+  ]);
   useEffect(() => {
     if (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default" || selectedHomeContextMessage.kind === "flow") return;
     const seenTimer = window.setTimeout(
@@ -1501,13 +1595,46 @@ const HomeScreen = () => {
     );
     return () => window.clearTimeout(seenTimer);
   }, [selectedHomeContextMessage?.id]);
+  useEffect(() => {
+    if (!selectedHomeContextMessage?.id.startsWith("admin:") || !managedHomeHeroMessage) return;
+    recordHeroImpression(managedHomeHeroMessage.messageId);
+    recordHeroEvent({
+      messageId: managedHomeHeroMessage.messageId,
+      surface: managedHomeHeroMessage.surface,
+      language: normalizeHeroLanguage(language),
+      eventType: "impression",
+      reason: managedHomeHeroMessage.reason,
+      source: managedHomeHeroMessage.source,
+    });
+  }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
   const dismissSelectedHomeContextMessage = () => {
     if (!selectedHomeContextMessage?.dismissible) return;
+    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+      recordHeroEvent({
+        messageId: managedHomeHeroMessage.messageId,
+        surface: managedHomeHeroMessage.surface,
+        language: normalizeHeroLanguage(language),
+        eventType: "dismiss",
+        reason: managedHomeHeroMessage.reason,
+        source: managedHomeHeroMessage.source,
+      });
+    }
     writeHomeContextMessageSeen(selectedHomeContextMessage.id);
     setHomeContextHistoryRevision((current) => current + 1);
   };
   const openSelectedHomeContextMessage = () => {
     if (!selectedHomeContextMessage?.actionRoute) return;
+    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+      recordHeroEvent({
+        messageId: managedHomeHeroMessage.messageId,
+        surface: managedHomeHeroMessage.surface,
+        language: normalizeHeroLanguage(language),
+        eventType: "cta_click",
+        reason: managedHomeHeroMessage.reason,
+        source: managedHomeHeroMessage.source,
+        route: selectedHomeContextMessage.actionRoute,
+      });
+    }
     handleNavigate(selectedHomeContextMessage.actionRoute, {
       state: selectedHomeContextMessage.actionState,
     });
@@ -2186,6 +2313,8 @@ const HomeScreen = () => {
             app_entrypoint: "home_master_hero",
             home_context_kind: selectedHomeContextMessage?.kind ?? "default",
             home_context_message: selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? "",
+            home_context_decision_reason: selectedHomeContextDecision?.reason ?? "default_greeting",
+            home_context_decision_score: String(selectedHomeContextDecision?.score ?? 0),
           },
           autoStartListening: true,
           testId: "button-home-hero-talk",

@@ -1852,7 +1852,7 @@
   },
   home: {
     context: {
-      actions: { review: "Review", view: "View", continue: "Continue", start: "Start", open: "Open", dismiss: "Dismiss this message" },
+      actions: { review: "Review", view: "View", continue: "Continue", start: "Start", open: "Open", dismiss: "Not now" },
       vitals: { title: "Your health reading needs attention.", support: "Open My Health to review the safest next step." },
       receipt: { title: "Your request is complete.", titleWithSubject: "{{subject}} is complete.", support: "You can review what happened." },
       concierge: { title: "Your request is still in progress.", support: "Continue where you left off." },

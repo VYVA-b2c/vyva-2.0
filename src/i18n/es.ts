@@ -1602,7 +1602,7 @@ const es = {
   },
   home: {
     context: {
-      actions: { review: "Revisar", view: "Ver", continue: "Continuar", start: "Empezar", open: "Abrir", dismiss: "Descartar este mensaje" },
+      actions: { review: "Revisar", view: "Ver", continue: "Continuar", start: "Empezar", open: "Abrir", dismiss: "Ahora no" },
       vitals: { title: "Una lectura de salud necesita atención.", support: "Abre Mi salud para revisar el siguiente paso más seguro." },
       receipt: { title: "Tu solicitud está completada.", titleWithSubject: "{{subject}} está completado.", support: "Puedes revisar lo que ocurrió." },
       concierge: { title: "Tu solicitud sigue en curso.", support: "Continúa donde lo dejaste." },

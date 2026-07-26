@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  decideHomeContextMessage,
   selectHomeContextMessage,
   stripAgentStageDirections,
   type HomeContextMessage,
@@ -20,6 +21,50 @@ describe("home context messages", () => {
       message({ id: "dose", priority: 60 }),
       message({ id: "flow", priority: 90 }),
     ])?.id).toBe("flow");
+  });
+
+  it("uses named business tiers before numeric tie-breakers", () => {
+    expect(decideHomeContextMessage([
+      message({ id: "admin:campaign", kind: "feature", priority: 999 }),
+      message({ id: "dose", kind: "reminder", priority: 1 }),
+      message({ id: "flow", kind: "flow", priority: 1 }),
+      message({ id: "safety", kind: "urgent", priority: 1 }),
+    ])).toMatchObject({
+      message: { id: "safety" },
+      reason: "urgent_safety",
+      score: 5001,
+    });
+  });
+
+  it("keeps active flows ahead of reminders and admin messages", () => {
+    expect(decideHomeContextMessage([
+      message({ id: "admin:campaign", kind: "feature", priority: 999 }),
+      message({ id: "dose", kind: "reminder", priority: 999 }),
+      message({ id: "flow", kind: "flow", priority: 1 }),
+    ])?.reason).toBe("active_flow");
+  });
+
+  it("returns an auditable decision with expiry and safe action", () => {
+    expect(decideHomeContextMessage([
+      message({
+        id: "dose",
+        kind: "reminder",
+        priority: 20,
+        expiresAt: 500,
+        actionLabel: "Open medicines",
+        actionRoute: "/meds",
+        actionState: { source: "home" },
+      }),
+    ], {}, 100)).toMatchObject({
+      reason: "due_personal",
+      evaluatedAt: 100,
+      expiresAt: 500,
+      action: {
+        label: "Open medicines",
+        route: "/meds",
+        state: { source: "home" },
+      },
+    });
   });
 
   it("ignores messages outside their active window", () => {

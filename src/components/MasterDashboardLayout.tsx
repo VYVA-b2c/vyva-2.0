@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronRight, Loader2, Mic, X, type LucideIcon } from "lucide-react";
+import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 
 type MasterTone = {
@@ -137,6 +137,7 @@ export default function MasterDashboardLayout({
   const isHomeMaster = launcherVariant === "homeMaster";
   const isHomeMasterDark = isHomeMaster && isDarkMode;
   const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
+  const isHomeMasterContextMessage = isHomeMaster && Boolean(hero.messageActionLabel || hero.onMessageDismiss);
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -224,10 +225,10 @@ export default function MasterDashboardLayout({
           <span className={`min-w-0 flex-1 ${isHomeMaster ? "px-5 text-center min-[390px]:px-7 sm:px-10" : "text-left"}`}>
             <h1
               className={[
-                `text-balance leading-[0.98] text-vyva-text-1 ${isHomeMaster ? "vyva-home-master-readable" : ""}`,
+                `text-balance leading-[0.98] text-vyva-text-1 ${isHomeMaster ? "vyva-home-master-readable" : ""} ${isHomeMasterContextMessage ? "vyva-home-master-context-title" : ""}`,
                 isHomeMaster
                   ? [
-                      `mx-auto max-w-[19rem] font-body font-bold tracking-normal ${isHomeMasterIntentLayer ? "text-[27px] min-[390px]:text-[29px] sm:max-w-[30rem] sm:text-[33px] md:text-[36px]" : "text-[25px] min-[390px]:text-[27px] sm:max-w-[28rem] sm:text-[31px] md:max-w-[36rem] md:text-[36px] lg:text-[38px]"}`,
+                      `mx-auto font-body font-bold tracking-normal ${isHomeMasterContextMessage ? "max-w-[20rem] text-[26px] leading-[1.04] min-[390px]:text-[28px] sm:max-w-[34rem] sm:text-[32px] md:max-w-[40rem] md:text-[35px]" : isHomeMasterIntentLayer ? "max-w-[19rem] text-[27px] min-[390px]:text-[29px] sm:max-w-[30rem] sm:text-[33px] md:text-[36px]" : "max-w-[19rem] text-[25px] min-[390px]:text-[27px] sm:max-w-[28rem] sm:text-[31px] md:max-w-[36rem] md:text-[36px] lg:text-[38px]"}`,
                       isHomeMasterDark ? "!text-[#FFF8FF] drop-shadow-[0_2px_12px_rgba(0,0,0,0.22)]" : "!text-[#24113D]",
                     ].join(" ")
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
@@ -238,45 +239,40 @@ export default function MasterDashboardLayout({
             {hero.subtitle ? (
               <div
                 className={[
-                  `mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2 ${isHomeMaster ? "vyva-home-master-readable" : ""}`,
+                  `relative mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2 ${isHomeMaster ? "vyva-home-master-readable" : ""}`,
                   isHomeMaster
                     ? `mx-auto max-w-[21rem] font-bold text-[#6C5369] ${isHomeMasterIntentLayer ? "mt-2 text-[15px] min-[390px]:text-[16px] sm:max-w-[30rem] sm:text-[18px]" : "mt-3 text-[16px] min-[390px]:text-[17px] sm:max-w-[28rem] sm:text-[19px] md:max-w-[34rem] md:text-[20px]"}`
                     : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
                   isHomeMasterDark ? "!text-[#E8DDF3]" : "",
                 ].join(" ")}
               >
-                <span>{hero.subtitle}</span>
                 {hero.messageActionLabel && hero.onMessageAction ? (
-                  <>
-                    {" "}
-                    <button
-                      type="button"
-                      onClick={hero.onMessageAction}
-                      className={[
-                        "vyva-tap inline font-black underline decoration-2 underline-offset-4",
-                        isHomeMasterDark ? "text-[#D7C1FF]" : "text-vyva-purple",
-                      ].join(" ")}
-                      data-testid="button-home-context-action"
-                    >
-                      {hero.messageActionLabel}
-                    </button>
-                  </>
-                ) : null}
+                  <button
+                    type="button"
+                    onClick={hero.onMessageAction}
+                    aria-label={hero.messageActionLabel}
+                    className="vyva-tap block w-full rounded-md px-1 py-0.5 text-center transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vyva-purple focus-visible:ring-offset-2"
+                    data-testid="button-home-context-action"
+                  >
+                    {hero.subtitle}
+                  </button>
+                ) : (
+                  <span>{hero.subtitle}</span>
+                )}
                 {hero.onMessageDismiss ? (
                   <button
                     type="button"
                     onClick={hero.onMessageDismiss}
                     aria-label={hero.messageDismissLabel}
-                    title={hero.messageDismissLabel}
                     className={[
-                      "vyva-tap ml-2 inline-flex size-7 translate-y-1 items-center justify-center rounded-full border",
+                      "vyva-tap mt-2 inline-flex min-h-8 items-center justify-center px-2 text-[13px] font-semibold underline decoration-1 underline-offset-4 transition-opacity hover:opacity-75 focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vyva-purple focus-visible:ring-offset-2 sm:text-[14px]",
                       isHomeMasterDark
-                        ? "border-white/20 bg-white/10 text-[#E8DDF3]"
-                        : "border-[#E6DDF1] bg-white/75 text-[#6C5369]",
+                        ? "text-[#D8CBE7]"
+                        : "text-[#715C70]",
                     ].join(" ")}
                     data-testid="button-home-context-dismiss"
                   >
-                    <X size={15} aria-hidden="true" />
+                    {hero.messageDismissLabel}
                   </button>
                 ) : null}
               </div>

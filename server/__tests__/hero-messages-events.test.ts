@@ -73,4 +73,28 @@ describe("hero message aggregate events", () => {
 
     expect(dbMocks.insert).not.toHaveBeenCalled();
   });
+
+  it("accepts dismiss events without user-level data", async () => {
+    await request(app)
+      .post("/api/hero-messages/events")
+      .send({
+        message_id: "home-voice-managed",
+        surface: "home_voice",
+        language: "en",
+        event_type: "dismiss",
+        reason: "evergreen",
+        source: "managed",
+      })
+      .expect(204);
+
+    expect(dbMocks.values).toHaveBeenCalledWith({
+      message_id: "home-voice-managed",
+      surface: "home_voice",
+      language: "en",
+      event_type: "dismiss",
+      reason: "evergreen",
+      source: "managed",
+      route: "",
+    });
+  });
 });

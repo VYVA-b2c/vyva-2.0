@@ -140,7 +140,8 @@ describe("MasterDashboardLayout contextual message", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Good morning, Karim" })).toBeInTheDocument();
-    expect(screen.getByText("Your medicine is due soon.")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-context-action")).toHaveTextContent("Your medicine is due soon.");
+    expect(screen.queryByText("View")).not.toBeInTheDocument();
 
     screen.getByTestId("button-home-context-action").click();
     screen.getByTestId("button-home-context-dismiss").click();

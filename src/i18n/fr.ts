@@ -1440,7 +1440,7 @@ const fr = {
   },
   home: {
     context: {
-      actions: { review: "Vérifier", view: "Voir", continue: "Continuer", start: "Commencer", open: "Ouvrir", dismiss: "Masquer ce message" },
+      actions: { review: "Vérifier", view: "Voir", continue: "Continuer", start: "Commencer", open: "Ouvrir", dismiss: "Pas maintenant" },
       vitals: { title: "Une mesure de santé demande votre attention.", support: "Ouvrez Ma santé pour voir la prochaine étape la plus sûre." },
       receipt: { title: "Votre demande est terminée.", titleWithSubject: "{{subject}} est terminé.", support: "Vous pouvez vérifier ce qui a été fait." },
       concierge: { title: "Votre demande est toujours en cours.", support: "Reprenez là où vous vous êtes arrêté." },

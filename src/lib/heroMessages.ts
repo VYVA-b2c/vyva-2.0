@@ -4,6 +4,7 @@ export type HeroLanguage = "es" | "en" | "de" | "fr" | "it" | "pt";
 
 export type HeroSurface =
   | "home"
+  | "home_voice"
   | "health"
   | "concierge"
   | "meds"
@@ -26,7 +27,7 @@ export type HeroPeriod = "morning" | "afternoon" | "evening" | "night";
 export type HeroSafetyLevel = "normal" | "medical" | "urgent";
 
 export type HeroMessageSource = "managed" | "built_in" | "fallback";
-export type HeroMessageEventType = "impression" | "cta_click" | "fallback";
+export type HeroMessageEventType = "impression" | "cta_click" | "dismiss" | "fallback";
 export type HeroFallbackReason = "no_eligible_message" | "invalid_selected_message";
 
 export interface HeroMessageResult {
@@ -35,11 +36,13 @@ export interface HeroMessageResult {
   sourceText?: string;
   ctaLabel?: string;
   contextHint?: string;
+  actionId?: HeroApprovedActionId;
   messageId: string;
   reason: HeroReason;
   surface: HeroSurface;
   language: HeroLanguage;
   source: HeroMessageSource;
+  priority?: number;
   fallbackReason?: HeroFallbackReason;
 }
 
@@ -64,7 +67,17 @@ export type HeroCopy = {
   subtitle?: string;
   ctaLabel?: string;
   contextHint?: string;
+  actionId?: HeroApprovedActionId;
 };
+
+export type HeroApprovedActionId =
+  | "none"
+  | "health"
+  | "medication"
+  | "mind"
+  | "community"
+  | "concierge"
+  | "prevention";
 
 export type HeroMessageDefinition = {
   id: string;
@@ -407,11 +420,13 @@ function buildResult(message: HeroMessageDefinition, language: HeroLanguage, con
     sourceText: copy.sourceText ?? context.fallbackSourceText,
     ctaLabel: copy.ctaLabel ?? context.fallbackCtaLabel,
     contextHint: copy.contextHint ?? context.fallbackContextHint,
+    actionId: copy.actionId,
     messageId: message.id,
     reason: message.reason,
     surface: message.surface,
     language,
     source: message.source ?? "built_in",
+    priority: message.priority,
   };
 }
 

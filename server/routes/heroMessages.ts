@@ -9,7 +9,7 @@ const heroEventSchema = z.object({
   message_id: z.string().min(1).max(128),
   surface: z.string().min(1).max(48),
   language: z.enum(["es", "en", "de", "fr", "it", "pt"]).default("es"),
-  event_type: z.enum(["impression", "cta_click", "fallback"]),
+  event_type: z.enum(["impression", "cta_click", "dismiss", "fallback"]),
   reason: z.enum(["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"]),
   source: z.enum(["managed", "built_in", "fallback"]),
   route: z.string().max(256).optional().default(""),
