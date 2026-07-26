@@ -1447,7 +1447,7 @@ function useVyvaVoiceController() {
               const homeIntent = homeIntentForVoiceToolCall(params);
               if (homeIntent) {
                 emitVoiceHomeIntent(homeIntent);
-                return "Showing the Health choices.";
+                return `Opening the ${homeIntent} area.`;
               }
               const action = actionForVoiceToolCall(params);
               if (!action) {

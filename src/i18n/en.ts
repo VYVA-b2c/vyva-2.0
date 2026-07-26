@@ -1851,6 +1851,24 @@
     },
   },
   home: {
+    context: {
+      actions: { review: "Review", view: "View", continue: "Continue", start: "Start", open: "Open", dismiss: "Dismiss this message" },
+      vitals: { title: "Your health reading needs attention.", support: "Open My Health to review the safest next step." },
+      receipt: { title: "Your request is complete.", titleWithSubject: "{{subject}} is complete.", support: "You can review what happened." },
+      concierge: { title: "Your request is still in progress.", support: "Continue where you left off." },
+      checkin: { title: "Your check-in is ready.", support: "It only takes a moment." },
+      medication: { support: "Open My Health when you are ready." },
+      community: { title: "There is something new in your community." },
+      scheduled: { title: "You have something coming up.", soon: "Starts in {{minutes}} minutes.", later: "Open your schedule for the details." },
+      event: { online: "There is an online activity you may enjoy.", nearby: "There is an activity nearby you may enjoy.", support: "Open My Community to take a look." },
+      prevention: { title: "A small prevention step is ready.", support: "See today's gentle health suggestion." },
+      mind: { title: "Ready for a short mind activity?", support: "Choose something that feels good today." },
+    },
+    mode: {
+      label: "Home mode",
+      voice: "Voice",
+      touch: "Touch",
+    },
     master: {
       heroEyebrow: "Today",
       heroSubtitle: "VYVA is ready when you are.",
@@ -1862,7 +1880,7 @@
       },
       nextMedicationNudge: "In {{minutes}} min: {{name}}.",
       medicationNudge: "{{count}} doses left today.",
-      voiceSupport: "Tap the orb and speak.",
+      voiceSupport: "Tap the orb to begin.",
       chooseCategory: "Today tray",
       intentBack: "Back",
       healthIntent: {
@@ -1870,7 +1888,7 @@
         sectionTitle: "What do you need?",
         sectionDescription: "Choose a card, or keep talking to VYVA.",
         more: "More health options",
-        dormantSubtitle: "Choose a health option, or touch the orb and speak.",
+        dormantSubtitle: "Choose a health option, or touch the orb.",
         voiceSubtitle: "Okay, health. Choose one, or tell VYVA.",
         symptoms: "Symptoms",
         symptomsDetail: "Say what you feel",

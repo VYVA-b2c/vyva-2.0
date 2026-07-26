@@ -101,3 +101,51 @@ describe("MasterDashboardLayout Fast help rotation", () => {
     expect(screen.queryByTestId("fast-three")).not.toBeInTheDocument();
   });
 });
+
+describe("MasterDashboardLayout contextual message", () => {
+  it("offers the message action and dismissal without adding another heading", () => {
+    const onMessageAction = vi.fn();
+    const onMessageDismiss = vi.fn();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockImplementation(() => ({
+        matches: false,
+        media: "(prefers-reduced-motion: reduce)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    render(
+      <MasterDashboardLayout
+        hero={{
+          icon: Mic,
+          eyebrow: "Today",
+          title: "Good morning, Karim",
+          subtitle: "Your medicine is due soon.",
+          action: { label: "Talk", onClick: vi.fn() },
+          messageActionLabel: "View",
+          onMessageAction,
+          onMessageDismiss,
+          messageDismissLabel: "Dismiss",
+        }}
+        cards={[]}
+        fastHelpActions={[]}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Good morning, Karim" })).toBeInTheDocument();
+    expect(screen.getByText("Your medicine is due soon.")).toBeInTheDocument();
+
+    screen.getByTestId("button-home-context-action").click();
+    screen.getByTestId("button-home-context-dismiss").click();
+
+    expect(onMessageAction).toHaveBeenCalledOnce();
+    expect(onMessageDismiss).toHaveBeenCalledOnce();
+  });
+});

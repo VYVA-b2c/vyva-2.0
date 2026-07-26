@@ -53,6 +53,36 @@ describe("voice navigation actions", () => {
     })).toBeNull();
   });
 
+  it.each([
+    ["My mind", "mind"],
+    ["Mi mente", "mind"],
+    ["Mon cerveau", "mind"],
+    ["Mein Gedächtnis", "mind"],
+    ["La mia memoria", "mind"],
+    ["Minha memória", "mind"],
+    ["My community", "community"],
+    ["Mi comunidad", "community"],
+    ["Ma communauté", "community"],
+    ["Meine Gemeinschaft", "community"],
+    ["La mia comunità", "community"],
+    ["Minha comunidade", "community"],
+    ["My concierge", "concierge"],
+    ["Mi concierge", "concierge"],
+    ["Mon concierge", "concierge"],
+  ])("recognises broad cross-pillar request %s", (utterance, intent) => {
+    expect(homeIntentForVoiceUtterance(utterance)).toBe(intent);
+  });
+
+  it("maps broad cross-pillar client tools without intercepting specific actions", () => {
+    expect(homeIntentForVoiceToolCall({ domain: "brain_coach" })).toBe("mind");
+    expect(homeIntentForVoiceToolCall({ domain: "social" })).toBe("community");
+    expect(homeIntentForVoiceToolCall({ domain: "concierge" })).toBe("concierge");
+    expect(homeIntentForVoiceToolCall({
+      domain: "concierge",
+      action_type: "concierge.ride_booking",
+    })).toBeNull();
+  });
+
   it("ignores punctuation-only and filler transcript noise", () => {
     expect(isActionableVoiceText("'")).toBe(false);
     expect(isActionableVoiceText("...")).toBe(false);

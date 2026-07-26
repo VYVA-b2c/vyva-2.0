@@ -157,6 +157,66 @@
     overflow-wrap: anywhere;
   }
 
+  /* Home Master keeps controls stable; only the greeting copy responds to Aa. */
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[11px\] { font-size: 11px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[12px\] { font-size: 12px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[13px\] { font-size: 13px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[14px\] { font-size: 14px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[15px\] { font-size: 15px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[16px\] { font-size: 16px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[17px\] { font-size: 17px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[18px\] { font-size: 18px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[19px\] { font-size: 19px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[20px\] { font-size: 20px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[21px\] { font-size: 21px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[22px\] { font-size: 22px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[24px\] { font-size: 24px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[26px\] { font-size: 26px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[28px\] { font-size: 28px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[31px\] { font-size: 31px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[34px\] { font-size: 34px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type button {
+    line-height: normal !important;
+  }
+
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-readable {
+    font-size: 36px !important;
+    line-height: 1.04 !important;
+  }
+
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
+    font-size: 22px !important;
+    line-height: 1.32 !important;
+  }
+
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type[data-home-master-intent-layer="true"] h1.vyva-home-master-readable {
+    font-size: 38px !important;
+  }
+
+  @media (min-width: 640px) {
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-readable {
+      font-size: 44px !important;
+    }
+
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
+      font-size: 25px !important;
+    }
+
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type[data-home-master-intent-layer="true"] h1.vyva-home-master-readable {
+      font-size: 46px !important;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-readable {
+      font-size: 50px !important;
+    }
+
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
+      font-size: 27px !important;
+    }
+  }
+
   .no-scrollbar {
     scrollbar-width: none;
     -ms-overflow-style: none;

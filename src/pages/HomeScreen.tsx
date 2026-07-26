@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, type LucideIcon } from "lucide-react";
+import { Activity, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -17,6 +17,13 @@ import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
+import {
+  readHomeContextMessageHistory,
+  selectHomeContextMessage,
+  stripAgentStageDirections,
+  writeHomeContextMessageSeen,
+  type HomeContextMessage,
+} from "@/lib/homeContextMessages";
 import {
   VYVA_VOICE_HOME_INTENT_EVENT,
   type VoiceHomeIntent,
@@ -128,12 +135,39 @@ type BrainCoachHomeSignal = {
 type ParticipationPulseHomeSignal = {
   pulse?: {
     featuredEvent?: {
+      id?: string;
+      title?: string;
+      startsAt?: string;
+      location?: string;
       format?: "nearby" | "online" | "hybrid" | string;
     } | null;
     savedEvents?: unknown[];
-    notifications?: unknown[];
-    emptyProfileNudge?: unknown;
+    notifications?: Array<{
+      id?: string;
+      title?: string;
+      body?: string;
+      eventId?: string;
+      readAt?: string | null;
+    }>;
+    emptyProfileNudge?: {
+      title?: string;
+      body?: string;
+      actionLabel?: string;
+      path?: string;
+    } | null;
   };
+};
+
+type ScheduledEventsHomeSignal = {
+  events?: Array<{
+    id?: string;
+    event_type?: string;
+    title?: string;
+    description?: string | null;
+    scheduled_for?: string;
+    status?: string;
+    metadata?: Record<string, unknown> | null;
+  }>;
 };
 
 type ConciergePendingHomeSignal = {
@@ -647,22 +681,34 @@ const HomeScreen = () => {
     readShowVyvaReviewHistory()
   ));
   const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>("home");
+  const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">("voice");
   const [homeHealthExpanded, setHomeHealthExpanded] = useState(false);
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
+  const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
 
   useEffect(() => {
     const handleVoiceHomeIntent = (event: Event) => {
       const intent = event instanceof CustomEvent
         ? (event.detail as VoiceHomeIntent | undefined)
         : undefined;
-      if (intent !== "health") return;
-      setHomeHealthExpanded(false);
-      setHomeIntentLayer("health");
+      if (!intent) return;
+      if (intent === "health") {
+        setHomeHealthExpanded(false);
+        setHomeIntentLayer("health");
+        setHomeInteractionMode("touch");
+        return;
+      }
+      const pillarRoutes: Record<Exclude<VoiceHomeIntent, "health">, string> = {
+        mind: "/mind-memory",
+        community: "/social-rooms",
+        concierge: "/concierge",
+      };
+      guardPath(pillarRoutes[intent]);
     };
 
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
     return () => window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
-  }, []);
+  }, [guardPath]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
@@ -823,6 +869,12 @@ const HomeScreen = () => {
 
   const { data: participationPulseHomeSignal } = useQuery<ParticipationPulseHomeSignal>({
     queryKey: [`/api/social/participate/pulse?lang=${participationLanguage}`],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: scheduledEventsHomeSignal } = useQuery<ScheduledEventsHomeSignal>({
+    queryKey: ["/api/profile/scheduled-events"],
     staleTime: 60 * 1000,
     retry: false,
   });
@@ -1162,37 +1214,312 @@ const HomeScreen = () => {
     },
   ];
 
+  const conciergeResumeItems = conciergeHomeItems(conciergePendingHomeSignal);
+  const nextConciergeTask = conciergeResumeItems[0] ?? null;
+  const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
+  const reusableConciergeReceipt = reusableConciergeHomeTask
+    ? buildConciergeConfirmationReceipt({
+        useCase: reusableConciergeHomeTask.use_case,
+        providerName: reusableConciergeHomeTask.provider_name,
+        outcome: reusableConciergeHomeTask.outcome,
+        outcomeSummary: reusableConciergeHomeTask.outcome_summary,
+        completedAt: reusableConciergeHomeTask.completed_at,
+        payload: reusableConciergeHomeTask.outcome_payload,
+      }, language === "es")
+    : null;
+  const nextScheduledEvent = useMemo(() => {
+    const now = Date.now();
+    return (scheduledEventsHomeSignal?.events ?? [])
+      .filter((event) => {
+        const scheduledAt = Date.parse(event.scheduled_for ?? "");
+        return Number.isFinite(scheduledAt)
+          && scheduledAt >= now
+          && !["cancelled", "completed", "dismissed"].includes(String(event.status ?? "").toLowerCase());
+      })
+      .sort((left, right) => Date.parse(left.scheduled_for ?? "") - Date.parse(right.scheduled_for ?? ""))[0] ?? null;
+  }, [scheduledEventsHomeSignal]);
   const remainingMedicineCount = medicationHomeSignal?.todaySummary?.remaining ?? 0;
   const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
   const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
   const isHomeMasterVoiceAlive = Boolean(voice && (voice.status === "connected" || voice.isConnecting));
-  const homeMasterScheduledSubtitle = nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0
-    ? t(
-        "home.master.nextMedicationNudge",
-        "In {{minutes}} min: {{name}}.",
-        { minutes: nextMedicineMinutes, name: nextMedicineName },
-      )
-    : remainingMedicineCount > 0
-    ? t(
-        "home.master.medicationNudge",
-        remainingMedicineCount === 1 ? "1 dose left today." : "{{count}} doses left today.",
-        { count: remainingMedicineCount },
-      )
-    : t("home.master.heroSubtitle", "VYVA is ready when you are.");
+  const latestVoiceLine = stripAgentStageDirections(
+    voice?.transcript?.at(-1)?.text ?? "",
+  );
+  const homeContextMessages = useMemo<HomeContextMessage[]>(() => {
+    const messages: HomeContextMessage[] = [];
+    if (homeIntentLayer === "health") {
+      messages.push({
+        id: "active-flow:health",
+        kind: "flow",
+        title: t("home.master.healthIntent.title", "Are you OK?"),
+        supportingText: isHomeMasterVoiceAlive
+          ? t("home.master.healthIntent.voiceSubtitle", "Choose one, or tell VYVA.")
+          : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb."),
+        priority: 100,
+      });
+    }
+    if (isHomeMasterVoiceAlive && latestVoiceLine) {
+      messages.push({
+        id: `voice:${voice?.transcript?.at(-1)?.timestamp ?? "current"}`,
+        kind: "flow",
+        title: latestVoiceLine,
+        priority: 95,
+      });
+    }
+    const vitalsNeedAttention = ["urgent", "critical", "high"].includes(
+      String(latestVitalsHomeSignal?.latest_alert?.severity ?? latestVitalsHomeSignal?.analysis?.safety_status ?? "").toLowerCase(),
+    );
+    if (vitalsNeedAttention) {
+      messages.push({
+        id: "vitals:attention",
+        kind: "urgent",
+        title: t("home.context.vitals.title", "Your health reading needs attention."),
+        supportingText: t("home.context.vitals.support", "Open My Health to review the safest next step."),
+        actionLabel: t("home.context.actions.review", "Review"),
+        actionRoute: "/health",
+        dismissible: false,
+        priority: 90,
+        repeatAfterMs: 30 * 60 * 1000,
+      });
+    }
+    if (reusableConciergeHomeTask && reusableConciergeReceipt) {
+      const completedAt = Date.parse(reusableConciergeHomeTask.completed_at ?? "");
+      if (!Number.isFinite(completedAt) || Date.now() - completedAt < 7 * 24 * 60 * 60 * 1000) {
+        messages.push({
+          id: `receipt:${reusableConciergeHomeTask.id ?? reusableConciergeHomeTask.pending_id ?? "latest"}`,
+          kind: "receipt",
+          title: reusableConciergeReceipt.subjectValue
+            ? t("home.context.receipt.titleWithSubject", "{{subject}} is complete.", {
+                subject: reusableConciergeReceipt.subjectValue,
+              })
+            : t("home.context.receipt.title", "Your request is complete."),
+          supportingText: reusableConciergeReceipt.nextStep
+            || t("home.context.receipt.support", "You can review what happened."),
+          actionLabel: t("home.context.actions.view", "View"),
+          actionRoute: "/concierge",
+          actionState: { openCompletedHistory: true, source: "home_context_message" },
+          dismissible: true,
+          priority: 85,
+          repeatAfterMs: 24 * 60 * 60 * 1000,
+        });
+      }
+    }
+    if (nextConciergeTask) {
+      messages.push({
+        id: `concierge-task:${nextConciergeTask.id ?? "latest"}`,
+        kind: "flow",
+        title: nextConciergeTask.action_summary?.trim()
+          || t("home.context.concierge.title", "Your request is still in progress."),
+        supportingText: t("home.context.concierge.support", "Continue where you left off."),
+        actionLabel: t("home.context.actions.continue", "Continue"),
+        actionRoute: nextConciergeTask.task_path?.trim() || "/concierge",
+        actionState: { resumePendingActionId: nextConciergeTask.id, source: "home_context_message" },
+        dismissible: true,
+        priority: 80,
+        repeatAfterMs: 2 * 60 * 60 * 1000,
+      });
+    }
+    if (checkinHomeSignal?.status === "overdue" || checkinHomeSignal?.status === "due_now") {
+      messages.push({
+        id: `checkin:${checkinHomeSignal.status}`,
+        kind: "reminder",
+        title: t("home.context.checkin.title", "Your check-in is ready."),
+        supportingText: t("home.context.checkin.support", "It only takes a moment."),
+        actionLabel: t("home.context.actions.start", "Start"),
+        actionRoute: "/health",
+        actionState: { focusDailyCheckin: true, source: "home_context_message" },
+        dismissible: true,
+        priority: 75,
+        repeatAfterMs: 60 * 60 * 1000,
+      });
+    }
+    if (isHomeMasterVoiceAlive && nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0) {
+      messages.push({
+        id: `dose:${nextMedicineName}:${nextMedicineMinutes}`,
+        kind: "reminder",
+        title: t("home.master.nextMedicationNudge", "In {{minutes}} min: {{name}}.", {
+          minutes: nextMedicineMinutes,
+          name: nextMedicineName,
+        }),
+        supportingText: t("home.context.medication.support", "Open My Health when you are ready."),
+        actionLabel: t("home.context.actions.open", "Open"),
+        actionRoute: "/meds",
+        dismissible: true,
+        priority: 70,
+        expiresAt: Date.now() + Math.max(15, nextMedicineMinutes + 15) * 60 * 1000,
+        repeatAfterMs: 30 * 60 * 1000,
+      });
+    } else if (isHomeMasterVoiceAlive && remainingMedicineCount > 0) {
+      messages.push({
+        id: `doses-remaining:${remainingMedicineCount}`,
+        kind: "reminder",
+        title: t(
+          "home.master.medicationNudge",
+          remainingMedicineCount === 1 ? "1 dose left today." : "{{count}} doses left today.",
+          { count: remainingMedicineCount },
+        ),
+        supportingText: t("home.context.medication.support", "Open My Health when you are ready."),
+        actionLabel: t("home.context.actions.open", "Open"),
+        actionRoute: "/meds",
+        dismissible: true,
+        priority: 65,
+        repeatAfterMs: 2 * 60 * 60 * 1000,
+      });
+    }
+    const latestCommunityNotification = participationPulseHomeSignal?.pulse?.notifications
+      ?.find((notification) => !notification.readAt && (notification.title || notification.body));
+    if (latestCommunityNotification) {
+      messages.push({
+        id: `community-notification:${latestCommunityNotification.id ?? latestCommunityNotification.eventId ?? "latest"}`,
+        kind: "event",
+        title: latestCommunityNotification.title
+          || t("home.context.community.title", "There is something new in your community."),
+        supportingText: latestCommunityNotification.body
+          || t("home.context.event.support", "Open My Community to take a look."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/social-rooms",
+        dismissible: true,
+        priority: 60,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+      });
+    }
+    if (nextScheduledEvent) {
+      const startsAt = Date.parse(nextScheduledEvent.scheduled_for ?? "");
+      const minutesUntil = Math.max(0, Math.round((startsAt - Date.now()) / 60_000));
+      messages.push({
+        id: `scheduled-event:${nextScheduledEvent.id ?? nextScheduledEvent.scheduled_for ?? "next"}`,
+        kind: "reminder",
+        title: nextScheduledEvent.title?.trim()
+          || t("home.context.scheduled.title", "You have something coming up."),
+        supportingText: minutesUntil < 120
+          ? t("home.context.scheduled.soon", "Starts in {{minutes}} minutes.", { minutes: minutesUntil })
+          : t("home.context.scheduled.later", "Open your schedule for the details."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/settings/scheduled-support",
+        dismissible: true,
+        priority: minutesUntil <= 60 ? 72 : 45,
+        startsAt: Math.min(Date.now(), startsAt - 24 * 60 * 60 * 1000),
+        expiresAt: startsAt + 60 * 60 * 1000,
+        repeatAfterMs: 2 * 60 * 60 * 1000,
+      });
+    }
+    const featuredEvent = participationPulseHomeSignal?.pulse?.featuredEvent;
+    if (featuredEvent?.format) {
+      messages.push({
+        id: `event:${featuredEvent.id ?? featuredEvent.title ?? featuredEvent.format}`,
+        kind: "event",
+        title: featuredEvent.title?.trim()
+          || (featuredEvent.format === "online"
+            ? t("home.context.event.online", "There is an online activity you may enjoy.")
+            : t("home.context.event.nearby", "There is an activity nearby you may enjoy.")),
+        supportingText: t("home.context.event.support", "Open My Community to take a look."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/social-rooms",
+        dismissible: true,
+        priority: 35,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+      });
+    }
+    if (preventionHomeSignal?.focus) {
+      messages.push({
+        id: `prevention:${preventionHomeSignal.focus}`,
+        kind: "tip",
+        title: t("home.context.prevention.title", "A small prevention step is ready."),
+        supportingText: t("home.context.prevention.support", "See today's gentle health suggestion."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/health/prevention",
+        dismissible: true,
+        priority: 25,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+      });
+    }
+    if (brainCoachHomeSignal?.summary && (brainCoachHomeSignal.today?.completedCount ?? 0) === 0) {
+      messages.push({
+        id: `brain-coach:${new Date().toISOString().slice(0, 10)}`,
+        kind: "tip",
+        title: t("home.context.mind.title", "Ready for a short mind activity?"),
+        supportingText: t("home.context.mind.support", "Choose something that feels good today."),
+        actionLabel: t("home.context.actions.open", "Open"),
+        actionRoute: "/mind-memory",
+        dismissible: true,
+        priority: 20,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+      });
+    }
+    const emptyProfileNudge = participationPulseHomeSignal?.pulse?.emptyProfileNudge;
+    if (emptyProfileNudge?.title && emptyProfileNudge.path) {
+      messages.push({
+        id: `feature:${emptyProfileNudge.path}`,
+        kind: "feature",
+        title: emptyProfileNudge.title,
+        supportingText: emptyProfileNudge.body,
+        actionLabel: emptyProfileNudge.actionLabel || t("home.context.actions.open", "Open"),
+        actionRoute: emptyProfileNudge.path,
+        dismissible: true,
+        priority: 10,
+        repeatAfterMs: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
+    messages.push({
+      id: `default:${timeGreetingKey}`,
+      kind: "default",
+      title: greetingText.replace(/[.]$/, ""),
+      supportingText: t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"),
+      priority: 1,
+    });
+    return messages;
+  }, [
+    checkinHomeSignal?.status,
+    brainCoachHomeSignal,
+    nextConciergeTask,
+    nextScheduledEvent,
+    preventionHomeSignal,
+    reusableConciergeHomeTask,
+    reusableConciergeReceipt,
+    greetingText,
+    homeIntentLayer,
+    isHomeMasterVoiceAlive,
+    latestVitalsHomeSignal,
+    latestVoiceLine,
+    nextMedicineMinutes,
+    nextMedicineName,
+    participationPulseHomeSignal,
+    remainingMedicineCount,
+    t,
+    timeGreetingKey,
+    voice?.transcript,
+  ]);
+  const selectedHomeContextMessage = useMemo(
+    () => selectHomeContextMessage(homeContextMessages, readHomeContextMessageHistory()),
+    [homeContextHistoryRevision, homeContextMessages],
+  );
+  useEffect(() => {
+    if (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default" || selectedHomeContextMessage.kind === "flow") return;
+    const seenTimer = window.setTimeout(
+      () => writeHomeContextMessageSeen(selectedHomeContextMessage.id),
+      8_000,
+    );
+    return () => window.clearTimeout(seenTimer);
+  }, [selectedHomeContextMessage?.id]);
+  const dismissSelectedHomeContextMessage = () => {
+    if (!selectedHomeContextMessage?.dismissible) return;
+    writeHomeContextMessageSeen(selectedHomeContextMessage.id);
+    setHomeContextHistoryRevision((current) => current + 1);
+  };
+  const openSelectedHomeContextMessage = () => {
+    if (!selectedHomeContextMessage?.actionRoute) return;
+    handleNavigate(selectedHomeContextMessage.actionRoute, {
+      state: selectedHomeContextMessage.actionState,
+    });
+  };
   const homeMasterHealthSubtitle = isHomeMasterVoiceAlive
     ? t("home.master.healthIntent.voiceSubtitle", "Okay, health. Choose one, or tell VYVA.")
-    : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb and speak.");
-  const homeMasterHeroSubtitle = homeIntentLayer === "health"
-    ? homeMasterHealthSubtitle
-    : isHomeMasterVoiceAlive
-      ? homeMasterScheduledSubtitle
-      : t(
-          `home.master.proactiveGreeting.${timeGreetingKey}`,
-          "How are you feeling?",
-        );
-  const homeMasterGreetingText = homeIntentLayer === "health"
-    ? t("home.master.healthIntent.title", "Are you OK?")
-    : greetingText.replace(/[.]$/, "");
+    : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb.");
+  const homeMasterHeroSubtitle = selectedHomeContextMessage?.supportingText
+    ?? (homeIntentLayer === "health"
+      ? homeMasterHealthSubtitle
+      : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const homeMasterGreetingText = selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, "");
   const homeMasterVisibleCards = homeIntentLayer === "health"
     ? homeHealthExpanded
       ? homeMasterHealthCards
@@ -1300,18 +1627,6 @@ const HomeScreen = () => {
     },
   ];
 
-  const conciergeResumeItems = conciergeHomeItems(conciergePendingHomeSignal);
-  const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
-  const reusableConciergeReceipt = reusableConciergeHomeTask
-    ? buildConciergeConfirmationReceipt({
-        useCase: reusableConciergeHomeTask.use_case,
-        providerName: reusableConciergeHomeTask.provider_name,
-        outcome: reusableConciergeHomeTask.outcome,
-        outcomeSummary: reusableConciergeHomeTask.outcome_summary,
-        completedAt: reusableConciergeHomeTask.completed_at,
-        payload: reusableConciergeHomeTask.outcome_payload,
-      }, language === "es")
-    : null;
   const remoteFastHelpActivityFingerprint = JSON.stringify(
     contextualFastHelpRemoteActivity(conciergeCompletedHomeSignal),
   );
@@ -1785,6 +2100,70 @@ const HomeScreen = () => {
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
       intentLayer={homeIntentLayer === "health"}
+      showHero={homeInteractionMode === "voice"}
+      showCards={homeInteractionMode === "touch"}
+      modeSwitcher={(
+        <>
+          <div
+            className={[
+              "mx-auto mb-4 grid w-full max-w-[13rem] grid-cols-2 rounded-full border p-0.5 shadow-[0_8px_22px_rgba(80,45,120,0.08)] sm:mb-6",
+              isHomeMasterDark
+                ? "border-white/15 bg-white/10"
+                : "border-[#E6DDF1] bg-white/85",
+            ].join(" ")}
+            aria-label={t("home.mode.label", "Home mode")}
+            data-testid="home-mode-switcher"
+          >
+            <button
+              type="button"
+              aria-pressed={homeInteractionMode === "voice"}
+              data-testid="button-home-mode-voice"
+              onClick={() => setHomeInteractionMode("voice")}
+              className={[
+                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
+                homeInteractionMode === "voice"
+                  ? "bg-vyva-purple text-white shadow-[0_7px_18px_rgba(107,33,168,0.22)]"
+                  : isHomeMasterDark
+                    ? "text-[#E8DDF3]"
+                    : "text-[#5D4865]",
+              ].join(" ")}
+            >
+              <Mic size={14} aria-hidden="true" />
+              {t("home.mode.voice", "Voice")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={homeInteractionMode === "touch"}
+              data-testid="button-home-mode-touch"
+              onClick={() => setHomeInteractionMode("touch")}
+              className={[
+                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
+                homeInteractionMode === "touch"
+                  ? "bg-[#0F8B82] text-white shadow-[0_7px_18px_rgba(15,139,130,0.20)]"
+                  : isHomeMasterDark
+                    ? "text-[#E8DDF3]"
+                    : "text-[#5D4865]",
+              ].join(" ")}
+            >
+              <Hand size={14} aria-hidden="true" />
+              {t("home.mode.touch", "Touch")}
+            </button>
+          </div>
+          {homeInteractionMode === "touch" ? (
+            <h1
+              data-testid="home-touch-heading"
+              className={[
+                "mb-5 text-center font-body text-[25px] font-bold leading-tight min-[390px]:text-[28px] sm:mb-7 sm:text-[32px]",
+                isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
+              ].join(" ")}
+            >
+              {homeIntentLayer === "health"
+                ? t("home.master.healthIntent.title", "Are you OK?")
+                : homeMasterGreetingText}
+            </h1>
+          ) : null}
+        </>
+      )}
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}
@@ -1801,13 +2180,25 @@ const HomeScreen = () => {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
           supportingLabel: t("home.master.voiceSupport", "Tell VYVA what you need."),
-          contextHint: t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step."),
+          contextHint: `${t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step.")} Current home context: ${selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? ""}`,
           voiceAgentSlug: "main-vyva",
-          voiceDynamicVariables: { app_entrypoint: "home_master_hero" },
+          voiceDynamicVariables: {
+            app_entrypoint: "home_master_hero",
+            home_context_kind: selectedHomeContextMessage?.kind ?? "default",
+            home_context_message: selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? "",
+          },
           autoStartListening: true,
           testId: "button-home-hero-talk",
         },
         testId: "home-master-hero",
+        messageActionLabel: selectedHomeContextMessage?.actionLabel,
+        onMessageAction: selectedHomeContextMessage?.actionRoute
+          ? openSelectedHomeContextMessage
+          : undefined,
+        onMessageDismiss: selectedHomeContextMessage?.dismissible
+          ? dismissSelectedHomeContextMessage
+          : undefined,
+        messageDismissLabel: t("home.context.actions.dismiss", "Dismiss this message"),
         tone: {
           iconBg: "#F5F3FF",
           iconColor: "#6B21A8",

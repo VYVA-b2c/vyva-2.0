@@ -10,13 +10,13 @@ function isReadableTextSize(value: string | null): value is ReadableTextSize {
 }
 
 export function readReadableTextSize(): ReadableTextSize {
-  if (typeof window === "undefined") return "normal";
+  if (typeof window === "undefined") return "large";
 
   try {
     const stored = window.localStorage.getItem(READABLE_TEXT_SIZE_STORAGE_KEY);
-    return isReadableTextSize(stored) ? stored : "normal";
+    return isReadableTextSize(stored) ? stored : "large";
   } catch {
-    return "normal";
+    return "large";
   }
 }
 
@@ -24,11 +24,7 @@ export function writeReadableTextSize(size: ReadableTextSize) {
   if (typeof window === "undefined") return;
 
   try {
-    if (size === "large") {
-      window.localStorage.setItem(READABLE_TEXT_SIZE_STORAGE_KEY, size);
-    } else {
-      window.localStorage.removeItem(READABLE_TEXT_SIZE_STORAGE_KEY);
-    }
+    window.localStorage.setItem(READABLE_TEXT_SIZE_STORAGE_KEY, size);
     window.dispatchEvent(new CustomEvent(READABLE_TEXT_SIZE_CHANGED_EVENT, { detail: { size } }));
   } catch {
     // Readability remains a convenience preference if browser storage is unavailable.
