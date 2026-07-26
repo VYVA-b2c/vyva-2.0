@@ -37,6 +37,7 @@ const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archive
 const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
+const CAMPAIGN_PAGE_SIZE = 5;
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
@@ -2776,6 +2777,7 @@ export default function MarketingAdminPage() {
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
+  const [campaignPage, setCampaignPage] = useState(1);
   const [confirmingCampaignDeleteId, setConfirmingCampaignDeleteId] = useState<string | null>(null);
   const [confirmingCampaignSendId, setConfirmingCampaignSendId] = useState<string | null>(null);
   const [confirmingDueEmailSend, setConfirmingDueEmailSend] = useState(false);
@@ -2939,6 +2941,23 @@ export default function MarketingAdminPage() {
     const matchesChannel = channelFilter === "all" || campaign.channels.some((item) => item.channel === channelFilter);
     return campaignMatchesSearch && matchesAudience && matchesChannel;
   }), [campaigns, search, audienceFilter, channelFilter, audiences, contentTitleById]);
+
+  const campaignPageCount = Math.max(1, Math.ceil(visibleCampaigns.length / CAMPAIGN_PAGE_SIZE));
+  const campaignPageStart = visibleCampaigns.length === 0 ? 0 : (campaignPage - 1) * CAMPAIGN_PAGE_SIZE + 1;
+  const campaignPageEnd = Math.min(visibleCampaigns.length, campaignPage * CAMPAIGN_PAGE_SIZE);
+  const pagedCampaigns = useMemo(
+    () => visibleCampaigns.slice((campaignPage - 1) * CAMPAIGN_PAGE_SIZE, campaignPage * CAMPAIGN_PAGE_SIZE),
+    [campaignPage, visibleCampaigns],
+  );
+
+  useEffect(() => {
+    setCampaignPage(1);
+  }, [search, audienceFilter, channelFilter]);
+
+  useEffect(() => {
+    if (campaignPage <= campaignPageCount) return;
+    setCampaignPage(campaignPageCount);
+  }, [campaignPage, campaignPageCount]);
 
   const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
     const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
@@ -4656,9 +4675,37 @@ export default function MarketingAdminPage() {
               </details>
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-                <SectionCard title="Campaigns" subtitle={`${visibleCampaigns.length} of ${campaigns.length} shown. Select one to edit details.`}>
+                <SectionCard
+                  title="Campaigns"
+                  subtitle={visibleCampaigns.length ? `${campaignPageStart}-${campaignPageEnd} of ${visibleCampaigns.length} shown.` : `0 of ${campaigns.length} shown.`}
+                  action={visibleCampaigns.length > CAMPAIGN_PAGE_SIZE ? (
+                    <div className="flex items-center gap-2" data-testid="marketing-campaign-pagination">
+                      <button
+                        type="button"
+                        onClick={() => setCampaignPage((page) => Math.max(1, page - 1))}
+                        disabled={campaignPage === 1}
+                        className="inline-flex min-h-9 items-center rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                        data-testid="button-marketing-campaign-prev-page"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm font-black text-[#7d6b65]" data-testid="marketing-campaign-page-label">
+                        Page {campaignPage} / {campaignPageCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCampaignPage((page) => Math.min(campaignPageCount, page + 1))}
+                        disabled={campaignPage === campaignPageCount}
+                        className="inline-flex min-h-9 items-center rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                        data-testid="button-marketing-campaign-next-page"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  ) : null}
+                >
                   <CampaignTable
-                    campaigns={visibleCampaigns}
+                    campaigns={pagedCampaigns}
                     contentById={contentById}
                     contentTitleById={contentTitleById}
                     metricsByCampaignId={campaignMetricSummaryByCampaignId}

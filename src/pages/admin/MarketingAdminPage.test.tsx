@@ -948,6 +948,32 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
   });
 
+  it("paginates the campaigns list to keep the page short", async () => {
+    const pagedCampaigns = Array.from({ length: 7 }, (_, index) => ({
+      ...campaigns[index % campaigns.length],
+      id: `paged-campaign-${index + 1}`,
+      name: `Paged campaign ${index + 1}`,
+      lovableExternalId: `campaign:paged-${index + 1}`,
+    }));
+
+    renderPage({}, { campaigns: pagedCampaigns });
+
+    await screen.findByRole("heading", { name: "Marketing" });
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+
+    expect(screen.getByTestId("marketing-campaign-page-label")).toHaveTextContent("Page 1 / 2");
+    expect(screen.getByTestId("marketing-campaign-table")).toHaveTextContent("Paged campaign 1");
+    expect(screen.getByTestId("marketing-campaign-table")).not.toHaveTextContent("Paged campaign 6");
+
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-next-page"));
+    expect(screen.getByTestId("marketing-campaign-page-label")).toHaveTextContent("Page 2 / 2");
+    expect(screen.getByTestId("marketing-campaign-table")).toHaveTextContent("Paged campaign 6");
+
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "Paged campaign 1" } });
+    expect(screen.queryByTestId("marketing-campaign-pagination")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-table")).toHaveTextContent("Paged campaign 1");
+  });
+
   it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
     const manyRecipients = Array.from({ length: 105 }, (_, index) => {
       const recipientNumber = index + 1;
