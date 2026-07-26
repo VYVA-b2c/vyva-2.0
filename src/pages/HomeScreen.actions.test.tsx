@@ -18,6 +18,7 @@ const voiceHeroMock = vi.hoisted(() => vi.fn());
 const voiceMock = vi.hoisted(() => ({
   status: "idle" as "idle" | "connecting" | "connected",
   isConnecting: false,
+  sendContextUpdate: vi.fn(() => true),
 }));
 const profileMock = vi.hoisted(() => ({
   firstName: "Karim",
@@ -262,6 +263,7 @@ describe("Home fast service actions", () => {
     voiceHeroMock.mockClear();
     voiceMock.status = "idle";
     voiceMock.isConnecting = false;
+    voiceMock.sendContextUpdate.mockClear();
     profileMock.firstName = "Karim";
     profileMock.withGpContact = true;
     profileMock.serviceReadiness.hasSavedDoctor = undefined;
@@ -400,6 +402,43 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+  });
+
+  it("quietly updates an active voice session when the selected Home message changes", () => {
+    let medicineData: unknown = null;
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return { data: medicineData, isError: false, error: null };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    voiceMock.status = "connecting";
+    voiceMock.isConnecting = true;
+    const view = render(<HomeScreen />);
+
+    voiceMock.status = "connected";
+    voiceMock.isConnecting = false;
+    view.rerender(<HomeScreen />);
+    expect(voiceMock.sendContextUpdate).not.toHaveBeenCalled();
+
+    medicineData = {
+      todaySummary: { scheduled: 1, remaining: 1 },
+      nextDose: { name: "Monoprost", minutesUntil: 25 },
+    };
+    view.rerender(<HomeScreen />);
+
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(
+      expect.stringContaining("Monoprost"),
+    );
+
+    view.rerender(<HomeScreen />);
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the master home free of legacy fast help and resume blocks", () => {
@@ -1400,6 +1439,21 @@ describe("Home fast service actions", () => {
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
 
     render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
+  });
+
+  it("automatically refreshes the greeting when the time period changes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T16:59:30"));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good afternoon, Karim");
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
   });

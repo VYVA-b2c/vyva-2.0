@@ -1382,7 +1382,7 @@ const pt = {
   },
   home: {
     context: {
-      actions: { review: "Rever", view: "Ver", continue: "Continuar", start: "Começar", open: "Abrir", dismiss: "Ocultar esta mensagem" },
+      actions: { review: "Rever", view: "Ver", continue: "Continuar", start: "Começar", open: "Abrir", dismiss: "Agora não" },
       vitals: { title: "Uma medição de saúde precisa de atenção.", support: "Abra A minha saúde para rever o próximo passo mais seguro." },
       receipt: { title: "O seu pedido está concluído.", titleWithSubject: "{{subject}} está concluído.", support: "Pode rever o que aconteceu." },
       concierge: { title: "O seu pedido ainda está em curso.", support: "Continue de onde parou." },

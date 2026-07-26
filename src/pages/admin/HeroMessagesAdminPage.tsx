@@ -10,6 +10,7 @@ import {
   mergeHeroMessages,
   selectHeroMessageFromCatalog,
   type HeroCopy,
+  type HeroApprovedActionId,
   type HeroLanguage,
   type HeroMessageDefinition,
   type HeroMessageEventType,
@@ -20,6 +21,7 @@ import {
   type HeroSurface,
   validateHeroMessageResult,
 } from "@/lib/heroMessages";
+import { HOME_CONTEXT_DECISION_LABELS } from "@/lib/homeContextMessages";
 
 type AdminSource = "built_in" | "database";
 
@@ -59,7 +61,16 @@ type HeroMetricRow = {
 type OverviewFilter = "all" | "needs_attention" | "managed" | "fallback";
 
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
-const SURFACES: HeroSurface[] = ["home", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
+const SURFACES: HeroSurface[] = ["home", "home_voice", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
+const HOME_ACTIONS: Array<{ id: HeroApprovedActionId; label: string }> = [
+  { id: "none", label: "No action" },
+  { id: "health", label: "Open My Health" },
+  { id: "medication", label: "Open Medication" },
+  { id: "mind", label: "Open My Mind" },
+  { id: "community", label: "Open My Community" },
+  { id: "concierge", label: "Open My Concierge" },
+  { id: "prevention", label: "Open Prevention" },
+];
 const REASONS: HeroReason[] = ["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"];
 const PERIODS: HeroPeriod[] = ["morning", "afternoon", "evening", "night"];
 const SAFETY_LEVELS: HeroSafetyLevel[] = ["normal", "medical", "urgent"];
@@ -220,7 +231,23 @@ function metricCount(metrics: HeroMetricRow[], surface: HeroSurface, messageId: 
     .reduce((sum, metric) => sum + Number(metric.count ?? 0), 0);
 }
 
-function HeroPreview({ copy, source }: { copy: HeroCopy; source: HeroMessageSource | AdminSource }) {
+function HeroPreview({ copy, source, surface }: { copy: HeroCopy; source: HeroMessageSource | AdminSource; surface: HeroSurface }) {
+  if (surface === "home_voice") {
+    return (
+      <div className="overflow-hidden rounded-2xl bg-[#241441] p-6 text-center text-white shadow-sm" data-testid="hero-live-preview">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-200">Home voice</p>
+        <p className="mt-2 text-xs font-bold text-white/65">
+          {HOME_CONTEXT_DECISION_LABELS.admin_campaign}: shown after urgent, active-flow, and personal messages.
+        </p>
+        <div className="mx-auto mt-6 h-24 w-24 rounded-full border border-purple-300/30 bg-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.45)]" />
+        <h3 className="mt-6 text-3xl font-black leading-tight" data-testid="hero-preview-headline">{copy.headline || "Untitled message"}</h3>
+        <p className="mx-auto mt-3 max-w-sm text-base font-bold text-white/75">{copy.subtitle || "No supporting message"}</p>
+        {copy.actionId && copy.actionId !== "none" && (
+          <p className="mt-5 text-sm font-black text-emerald-200">{copy.ctaLabel || "Open"}</p>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#5b16a5] to-[#8f35d0] p-5 text-white shadow-sm" data-testid="hero-live-preview">
       <div className="flex items-center justify-between gap-3">
@@ -306,6 +333,7 @@ export default function HeroMessagesAdminPage() {
     if (result.headline.trim().toLowerCase() === "vyva") activeWarnings.push("Generic fallback headline");
     const impressions = metricCount(metrics, surface, result.messageId, language, "impression");
     const clicks = metricCount(metrics, surface, result.messageId, language, "cta_click");
+    const dismissals = metricCount(metrics, surface, result.messageId, language, "dismiss");
     return {
       surface,
       result,
@@ -314,6 +342,7 @@ export default function HeroMessagesAdminPage() {
       warnings: activeWarnings,
       impressions,
       clicks,
+      dismissals,
       ctr: impressions ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%",
     };
   }), [allMessages, language, metrics, selectionCatalog]);
@@ -578,7 +607,7 @@ export default function HeroMessagesAdminPage() {
 
                 <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
                   <div className="lg:sticky lg:top-4 lg:self-start">
-                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} />
+                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} surface={selectedMessage.surface} />
                     <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                       <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
                       <div className="mt-3 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>
@@ -641,6 +670,18 @@ export default function HeroMessagesAdminPage() {
                           <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} />
                           <LimitNote label="CTA" value={selectedCopy.ctaLabel} wordsLimit={HERO_LIMITS.ctaWords} charsLimit={HERO_LIMITS.ctaChars} />
                         </Field>
+                        {selectedMessage.surface === "home_voice" && (
+                          <Field label="Approved Home action" optional>
+                            <select
+                              className="w-full rounded-xl border border-[#eadfd5] px-3 py-2"
+                              value={selectedCopy.actionId ?? "none"}
+                              onChange={(event) => updateCopy(selectedMessage.message_id, { actionId: event.target.value as HeroApprovedActionId })}
+                              data-testid="select-home-hero-action"
+                            >
+                              {HOME_ACTIONS.map((action) => <option key={action.id} value={action.id}>{action.label}</option>)}
+                            </select>
+                          </Field>
+                        )}
                         <Field label="Subtitle" optional>
                           <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
                           <LimitNote label="Subtitle" value={selectedCopy.subtitle} wordsLimit={HERO_LIMITS.subtitleWords} charsLimit={HERO_LIMITS.subtitleChars} />
@@ -736,10 +777,12 @@ export default function HeroMessagesAdminPage() {
                         <span>{item.impressions}</span>
                         <span className="text-[#8b7a73]">/</span>
                         <span>{item.clicks}</span>
+                        <span className="text-[#8b7a73]">/</span>
+                        <span>{item.dismissals}</span>
                       </p>
-                      <p className="text-xs font-bold text-[#8b7a73]">views / clicks</p>
+                      <p className="text-xs font-bold text-[#8b7a73]">shown / opened / dismissed</p>
                     </div>
-                    <div className="text-sm font-black">{item.ctr}</div>
+                    <div className="text-sm font-black">{item.ctr} open rate</div>
                     <div className="flex flex-wrap gap-1.5">{warningPills(item.warnings)}</div>
                   </article>
                 ))}

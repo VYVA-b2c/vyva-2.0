@@ -154,4 +154,34 @@ describe("hero message selection", () => {
       source: "managed",
     });
   });
+
+  it("preserves approved actions on managed Home voice messages", () => {
+    setRuntimeHeroMessages([
+      managed({
+        id: "home-voice-managed",
+        surface: "home_voice",
+        reason: "evergreen",
+        priority: 100,
+        cooldownHours: 0,
+        copy: {
+          en: {
+            headline: "A nearby activity is ready",
+            ctaLabel: "See activity",
+            actionId: "community",
+          },
+          es: {
+            headline: "Hay una actividad cerca",
+            ctaLabel: "Ver actividad",
+            actionId: "community",
+          },
+        } as HeroMessageDefinition["copy"],
+      }),
+    ]);
+
+    expect(selectHeroMessage("home_voice", { language: "en" })).toMatchObject({
+      messageId: "home-voice-managed",
+      source: "managed",
+      actionId: "community",
+    });
+  });
 });

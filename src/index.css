@@ -184,6 +184,11 @@
     line-height: 1.04 !important;
   }
 
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-context-title {
+    font-size: 32px !important;
+    line-height: 1.08 !important;
+  }
+
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
     font-size: 22px !important;
     line-height: 1.32 !important;
@@ -198,6 +203,10 @@
       font-size: 44px !important;
     }
 
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-context-title {
+      font-size: 38px !important;
+    }
+
     [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
       font-size: 25px !important;
     }
@@ -210,6 +219,10 @@
   @media (min-width: 1024px) {
     [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-readable {
       font-size: 50px !important;
+    }
+
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-context-title {
+      font-size: 42px !important;
     }
 
     [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {

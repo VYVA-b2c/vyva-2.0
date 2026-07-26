@@ -1472,7 +1472,7 @@ const de = {
   },
   home: {
     context: {
-      actions: { review: "Prüfen", view: "Ansehen", continue: "Fortsetzen", start: "Starten", open: "Öffnen", dismiss: "Diese Nachricht ausblenden" },
+      actions: { review: "Prüfen", view: "Ansehen", continue: "Fortsetzen", start: "Starten", open: "Öffnen", dismiss: "Jetzt nicht" },
       vitals: { title: "Ein Gesundheitswert braucht Ihre Aufmerksamkeit.", support: "Öffnen Sie Meine Gesundheit für den sichersten nächsten Schritt." },
       receipt: { title: "Ihre Anfrage ist abgeschlossen.", titleWithSubject: "{{subject}} ist abgeschlossen.", support: "Sie können prüfen, was passiert ist." },
       concierge: { title: "Ihre Anfrage läuft noch.", support: "Machen Sie dort weiter, wo Sie aufgehört haben." },
