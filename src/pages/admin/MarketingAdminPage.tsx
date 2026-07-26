@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileText,
   Image as ImageIcon,
+  Languages,
   Megaphone,
   Pencil,
   Plus,
@@ -38,6 +39,15 @@ const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
 const CAMPAIGN_PAGE_SIZE = 5;
+const BULK_TRANSLATE_LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Spanish" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "it", label: "Italian" },
+  { code: "nl", label: "Dutch" },
+  { code: "pt", label: "Portuguese" },
+];
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
@@ -198,6 +208,34 @@ type ContentAsset = {
   metadata?: Record<string, unknown>;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+type BulkTranslatePreviewItem = {
+  sourceContentId: string;
+  sourceTitle: string;
+  targetLanguage: string;
+  exists: boolean;
+  aiSource?: string;
+  note?: string | null;
+  draft: {
+    title: string;
+    channel: Channel;
+    language: string;
+    status: string;
+    subject: string | null;
+    body: string;
+    htmlBody: string | null;
+    ctaLabel: string | null;
+    ctaUrl: string | null;
+  };
+  savedContent?: ContentAsset | null;
+};
+
+type BulkTranslateResponse = {
+  ok: boolean;
+  mode: "preview" | "save";
+  translations: BulkTranslatePreviewItem[];
+  savedContent?: ContentAsset[];
 };
 
 type MarketingMediaAsset = {
@@ -2891,6 +2929,12 @@ export default function MarketingAdminPage() {
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
   const [confirmingContentDeleteId, setConfirmingContentDeleteId] = useState<string | null>(null);
+  const [bulkTranslateOpen, setBulkTranslateOpen] = useState(false);
+  const [bulkTranslateSourceIds, setBulkTranslateSourceIds] = useState<string[]>([]);
+  const [bulkTranslateLanguages, setBulkTranslateLanguages] = useState<string[]>(["es"]);
+  const [bulkTranslatePreview, setBulkTranslatePreview] = useState<BulkTranslatePreviewItem[]>([]);
+  const [bulkTranslateRunning, setBulkTranslateRunning] = useState(false);
+  const [bulkTranslateFeedback, setBulkTranslateFeedback] = useState("");
   const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
   const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
@@ -3903,6 +3947,61 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setContentSaving(false);
+    }
+  }
+
+  function toggleBulkTranslateSource(contentId: string) {
+    setBulkTranslateSourceIds((current) => (
+      current.includes(contentId)
+        ? current.filter((id) => id !== contentId)
+        : [...current, contentId].slice(0, 25)
+    ));
+    setBulkTranslateFeedback("");
+  }
+
+  function toggleBulkTranslateLanguage(language: string) {
+    setBulkTranslateLanguages((current) => {
+      if (current.includes(language)) return current.filter((item) => item !== language);
+      return [...current, language];
+    });
+    setBulkTranslateFeedback("");
+  }
+
+  async function runBulkTranslate(mode: "preview" | "save") {
+    if (!bulkTranslateSourceIds.length) {
+      setBulkTranslateFeedback("Select at least one content item.");
+      return;
+    }
+    if (!bulkTranslateLanguages.length) {
+      setBulkTranslateFeedback("Select at least one target language.");
+      return;
+    }
+    setBulkTranslateRunning(true);
+    setBulkTranslateFeedback(mode === "preview" ? "Creating translation preview..." : "Saving translated drafts...");
+    try {
+      const result = await api<BulkTranslateResponse>("/api/admin/marketing/content/bulk-translate", {
+        method: "POST",
+        body: JSON.stringify({
+          contentIds: bulkTranslateSourceIds,
+          targetLanguages: bulkTranslateLanguages,
+          mode,
+        }),
+      });
+      setBulkTranslatePreview(result.translations);
+      if (mode === "save") {
+        await refreshAll();
+        setBulkTranslateFeedback(`Saved ${result.savedContent?.length ?? result.translations.length} translated drafts.`);
+        setContentActionFeedback("Translated drafts saved.");
+      } else {
+        setBulkTranslateFeedback(`Preview ready: ${result.translations.length} translations.`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Bulk translation failed.";
+      setBulkTranslateFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setBulkTranslateRunning(false);
     }
   }
 
@@ -5747,23 +5846,173 @@ export default function MarketingAdminPage() {
                 title="Content library"
                 subtitle={`${visibleContent.length} visible of ${content.length} assets.`}
                 action={(
-                  <select
-                    className={`${inputClass} w-[240px]`}
-                    value={contentSourceFilter}
-                    onChange={(event) => setContentSourceFilter(event.target.value)}
-                    aria-label="Content type filter"
-                    data-testid="select-marketing-content-source-filter"
-                  >
-                    <option value="all">All content types ({content.length})</option>
-                    {contentSourceOptions.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        {option.label} ({option.count})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50"
+                      onClick={() => setBulkTranslateOpen((open) => !open)}
+                      aria-expanded={bulkTranslateOpen}
+                      data-testid="button-marketing-open-bulk-translate"
+                    >
+                      <Languages size={15} /> Bulk translate
+                    </button>
+                    <select
+                      className={`${inputClass} w-[240px]`}
+                      value={contentSourceFilter}
+                      onChange={(event) => setContentSourceFilter(event.target.value)}
+                      aria-label="Content type filter"
+                      data-testid="select-marketing-content-source-filter"
+                    >
+                      <option value="all">All content types ({content.length})</option>
+                      {contentSourceOptions.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label} ({option.count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               >
                 <div className="grid gap-3">
+                  {bulkTranslateOpen ? (
+                    <div className="grid gap-4 rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-bulk-translate-panel">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-black text-[#241133]">Bulk translate</h4>
+                          <p className="mt-1 text-sm font-bold text-[#7d6b65]">Pick source content, choose target languages, preview, then save as VYVA drafts.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#2f2135]"
+                          onClick={() => setBulkTranslateOpen(false)}
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+                        <div className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Source content</p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-black text-purple-700"
+                                onClick={() => {
+                                  setBulkTranslateSourceIds(visibleContent.slice(0, 25).map((item) => item.id));
+                                  setBulkTranslateFeedback("");
+                                }}
+                              >
+                                Select visible
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-[#eadfd5] bg-white px-2 py-1 text-xs font-black text-[#5b4a46]"
+                                onClick={() => {
+                                  setBulkTranslateSourceIds([]);
+                                  setBulkTranslatePreview([]);
+                                  setBulkTranslateFeedback("");
+                                }}
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid max-h-[280px] gap-2 overflow-y-auto pr-1">
+                            {visibleContent.slice(0, 50).map((item) => (
+                              <label key={item.id} className="flex items-start gap-3 rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2 text-sm font-bold">
+                                <input
+                                  type="checkbox"
+                                  className="mt-1 h-4 w-4 accent-purple-700"
+                                  checked={bulkTranslateSourceIds.includes(item.id)}
+                                  onChange={() => toggleBulkTranslateSource(item.id)}
+                                  disabled={bulkTranslateRunning}
+                                  data-testid={`checkbox-marketing-bulk-translate-source-${item.id}`}
+                                />
+                                <span>
+                                  <span className="block font-black text-[#241133]">{item.title}</span>
+                                  <span className="mt-0.5 block text-xs text-[#7d6b65]">{channelLabel[item.channel]} - {item.language} - {item.status}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid content-start gap-3 rounded-xl border border-[#eadfd5] bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Target languages</p>
+                          <div className="flex flex-wrap gap-2">
+                            {BULK_TRANSLATE_LANGUAGES.map((language) => {
+                              const selected = bulkTranslateLanguages.includes(language.code);
+                              return (
+                                <button
+                                  key={language.code}
+                                  type="button"
+                                  className={`rounded-full border px-3 py-2 text-xs font-black ${selected ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#2f2135]"}`}
+                                  onClick={() => toggleBulkTranslateLanguage(language.code)}
+                                  disabled={bulkTranslateRunning}
+                                  aria-pressed={selected}
+                                  data-testid={`button-marketing-bulk-translate-language-${language.code}`}
+                                >
+                                  {language.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="grid gap-2 pt-1">
+                            <button
+                              type="button"
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              onClick={() => void runBulkTranslate("preview")}
+                              disabled={bulkTranslateRunning}
+                              data-testid="button-marketing-preview-bulk-translate"
+                            >
+                              <Eye size={15} /> {bulkTranslateRunning ? "Working..." : "Preview translations"}
+                            </button>
+                            <button
+                              type="button"
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              onClick={() => void runBulkTranslate("save")}
+                              disabled={bulkTranslateRunning}
+                              data-testid="button-marketing-save-bulk-translate"
+                            >
+                              <Save size={15} /> Save as drafts
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {bulkTranslateFeedback ? (
+                        <p className={`rounded-xl px-4 py-3 text-sm font-bold ${/fail|required|select|could not/i.test(bulkTranslateFeedback) ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" data-testid="marketing-bulk-translate-feedback">
+                          {bulkTranslateFeedback}
+                        </p>
+                      ) : null}
+
+                      {bulkTranslatePreview.length ? (
+                        <div className="grid gap-2" data-testid="marketing-bulk-translate-preview">
+                          {bulkTranslatePreview.slice(0, 12).map((item) => (
+                            <article key={`${item.sourceContentId}-${item.targetLanguage}`} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-black text-[#241133]">{item.draft.title}</p>
+                                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">From {item.sourceTitle} to {item.targetLanguage.toUpperCase()}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Pill className={channelClass(item.draft.channel)}>{channelLabel[item.draft.channel]}</Pill>
+                                  <Pill className="bg-purple-50 text-purple-800">{item.draft.language}</Pill>
+                                  {item.exists ? <Pill className="bg-yellow-50 text-yellow-800">updates existing</Pill> : <Pill className="bg-emerald-50 text-emerald-800">new draft</Pill>}
+                                </div>
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-sm font-bold text-[#5b4a46]">{item.draft.subject || item.draft.body || "No copy returned."}</p>
+                              {item.note ? <p className="mt-2 text-xs font-bold text-yellow-800">{item.note}</p> : null}
+                            </article>
+                          ))}
+                          {bulkTranslatePreview.length > 12 ? (
+                            <p className="text-xs font-bold text-[#7d6b65]">Showing first 12 of {bulkTranslatePreview.length} preview translations.</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {contentActionFeedback ? (
                     <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} role="status" aria-live="polite" data-testid="marketing-content-action-feedback">
                       {contentActionFeedback}
