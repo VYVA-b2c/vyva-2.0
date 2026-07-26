@@ -694,9 +694,9 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
     if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analyticsResponse);
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts: contactsResponse });
     if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
-    if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
-    if (path === "/api/admin/marketing/sync/lovable/preview" && method === "GET") return jsonResponse(exportPreview);
-    if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
+    if (path === "/api/admin/marketing/sync/source" && method === "GET") return jsonResponse(syncResponse);
+    if (path === "/api/admin/marketing/sync/source/preview" && method === "GET") return jsonResponse(exportPreview);
+    if (path === "/api/admin/marketing/sync/source/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
     if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
@@ -747,7 +747,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Saved email template: 1");
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Social post: 1");
     expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
-    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
+    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics");
+    fireEvent.click(within(screen.getByTestId("marketing-analytics-panel")).getByText("Analytics"));
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Overflow metric 10");
     expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
@@ -822,12 +823,13 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
-    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Lovable design preview");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Partner hero");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Lovable builder copy");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("CTA: Book a demo -> https://v2.vyva.life/demo");
-    expect(within(screen.getByTestId("marketing-content-design-preview")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
+    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Customer preview");
+    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Plain text copy");
+    expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Lovable design preview");
+    expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Partner hero");
+    expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Lovable builder copy");
+    expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("CTA: Book a demo -> https://v2.vyva.life/demo");
+    expect(within(screen.getByTestId("marketing-content-customer-preview-design")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("VYVA updated");
     expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Used in campaigns and journeys");
@@ -835,7 +837,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
-    expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-content-customer-preview")).toHaveTextContent("partner.png");
     expect(within(screen.getByTestId("marketing-content-preview-panel")).getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
@@ -1069,7 +1071,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/asset-13.png");
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("embedded-7.png");
-    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Design block 9");
+    expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Design block 9");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("tag-10");
@@ -1280,7 +1282,7 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("button-marketing-run-sync")).toHaveTextContent("Running sync...");
     await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/lovable/run", expect.objectContaining({ method: "POST" }));
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/source/run", expect.objectContaining({ method: "POST" }));
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed. Imported Campaigns: 1, Contacts: 1, Content: 1, Journeys: 1.");
@@ -1296,7 +1298,7 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("button-marketing-preview-export")).toHaveTextContent("Checking export...");
     await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/lovable/preview", undefined);
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/source/preview", undefined);
     });
 
     expect(screen.getByTestId("marketing-export-preview-feedback")).toHaveTextContent("Lovable export contains");
@@ -1394,7 +1396,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Focus preview");
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Partner update");
-    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Lovable design preview");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2-design")).toHaveTextContent("Lovable design preview");
     expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Media references");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
