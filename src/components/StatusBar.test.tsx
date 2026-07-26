@@ -48,15 +48,15 @@ describe("StatusBar home master variant", () => {
     expect(window.localStorage.getItem(HOME_MASTER_THEME_STORAGE_KEY)).toBe("dark");
   });
 
-  it("toggles and remembers larger readable text", () => {
+  it("defaults to large text and remembers an explicit normal choice", () => {
     render(<StatusBar variant="homeMaster" />);
 
     const textSizeButton = screen.getByTestId("button-readable-text-size");
-    expect(textSizeButton).toHaveAttribute("aria-pressed", "false");
+    expect(textSizeButton).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(textSizeButton);
 
-    expect(window.localStorage.getItem(READABLE_TEXT_SIZE_STORAGE_KEY)).toBe("large");
-    expect(textSizeButton).toHaveAttribute("aria-pressed", "true");
+    expect(window.localStorage.getItem(READABLE_TEXT_SIZE_STORAGE_KEY)).toBe("normal");
+    expect(textSizeButton).toHaveAttribute("aria-pressed", "false");
   });
 });

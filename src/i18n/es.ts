@@ -1601,6 +1601,24 @@ const es = {
     },
   },
   home: {
+    context: {
+      actions: { review: "Revisar", view: "Ver", continue: "Continuar", start: "Empezar", open: "Abrir", dismiss: "Descartar este mensaje" },
+      vitals: { title: "Una lectura de salud necesita atención.", support: "Abre Mi salud para revisar el siguiente paso más seguro." },
+      receipt: { title: "Tu solicitud está completada.", titleWithSubject: "{{subject}} está completado.", support: "Puedes revisar lo que ocurrió." },
+      concierge: { title: "Tu solicitud sigue en curso.", support: "Continúa donde lo dejaste." },
+      checkin: { title: "Tu control está listo.", support: "Solo te llevará un momento." },
+      medication: { support: "Abre Mi salud cuando quieras." },
+      community: { title: "Hay algo nuevo en tu comunidad." },
+      scheduled: { title: "Tienes algo próximamente.", soon: "Empieza en {{minutes}} minutos.", later: "Abre tu agenda para ver los detalles." },
+      event: { online: "Hay una actividad online que puede gustarte.", nearby: "Hay una actividad cercana que puede gustarte.", support: "Abre Mi comunidad para verla." },
+      prevention: { title: "Hay un pequeño paso preventivo para hoy.", support: "Mira la sugerencia de salud de hoy." },
+      mind: { title: "¿Te apetece una actividad mental breve?", support: "Elige algo que te siente bien hoy." },
+    },
+    mode: {
+      label: "Modo de inicio",
+      voice: "Voz",
+      touch: "Táctil",
+    },
     master: {
       heroEyebrow: "Hoy",
       heroSubtitle: "VYVA esta lista cuando quieras.",
@@ -1612,7 +1630,7 @@ const es = {
       },
       nextMedicationNudge: "En {{minutes}} min te toca {{name}}.",
       medicationNudge: "{{count}} dosis pendientes hoy.",
-      voiceSupport: "Toca el orbe y habla.",
+      voiceSupport: "Toca el orbe para empezar.",
       chooseCategory: "Bandeja de hoy",
       intentBack: "Volver",
       healthIntent: {
@@ -1620,7 +1638,7 @@ const es = {
         sectionTitle: "Que necesitas?",
         sectionDescription: "Elige una opcion, o sigue hablando con VYVA.",
         more: "Mas opciones de salud",
-        dormantSubtitle: "Elige una opcion de salud, o toca el orbe y habla.",
+        dormantSubtitle: "Elige una opcion de salud, o toca el orbe.",
         voiceSubtitle: "De acuerdo, salud. Elige una opcion, o dilo a VYVA.",
         symptoms: "Sintomas",
         symptomsDetail: "Di que sientes",

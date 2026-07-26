@@ -29,7 +29,7 @@ export type VoiceUserMessageDetail = {
   transcriptEntry: TranscriptEntry;
 };
 
-export type VoiceHomeIntent = "health";
+export type VoiceHomeIntent = "health" | "mind" | "community" | "concierge";
 
 export type VoiceAppActionDomain =
   | "meds"
@@ -150,7 +150,36 @@ export function homeIntentForVoiceUtterance(text: string): VoiceHomeIntent | nul
     /^(?:quero|preciso de|gostaria de)?\s*(?:ajuda|apoio)\s+(?:com|para)\s+a\s+minha\s+saude$/,
   ];
 
-  return broadHealthRequests.some((pattern) => pattern.test(normalized)) ? "health" : null;
+  if (broadHealthRequests.some((pattern) => pattern.test(normalized))) return "health";
+
+  const broadPillarRequests: Array<[VoiceHomeIntent, RegExp[]]> = [
+    ["mind", [
+      /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?(?:mind|brain|cognitive)(?:\s+(?:page|menu|options|section|activities|exercises))?$/,
+      /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?(?:mente|cerebro)(?:\s+(?:pagina|menu|opciones|seccion|actividades|ejercicios))?$/,
+      /^(?:(?:ouvre|affiche|va a)\s+)?(?:mon\s+)?(?:cerveau|cognition)(?:\s+(?:page|menu|options|rubrique|activites|exercices))?$/,
+      /^(?:(?:offne|zeige|gehe zu)\s+)?(?:mein\s+)?(?:gehirn|gedachtnis)(?:\s+(?:seite|menu|optionen|bereich|ubungen))?$/,
+      /^(?:(?:apri|mostra|vai a)\s+)?(?:la\s+mia\s+)?(?:mente|memoria)(?:\s+(?:pagina|menu|opzioni|sezione|attivita|esercizi))?$/,
+      /^(?:(?:abre|mostra|va para)\s+)?(?:a\s+minha\s+|minha\s+)?(?:mente|memoria)(?:\s+(?:pagina|menu|opcoes|secao|atividades|exercicios))?$/,
+    ]],
+    ["community", [
+      /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?(?:community|social)(?:\s+(?:page|menu|options|section|rooms))?$/,
+      /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?comunidad(?:\s+(?:pagina|menu|opciones|seccion|salas))?$/,
+      /^(?:(?:ouvre|affiche|va a)\s+)?(?:ma\s+)?communaute(?:\s+(?:page|menu|options|rubrique|salons))?$/,
+      /^(?:(?:offne|zeige|gehe zu)\s+)?(?:meine\s+)?gemeinschaft(?:\s+(?:seite|menu|optionen|bereich|raume))?$/,
+      /^(?:(?:apri|mostra|vai a)\s+)?(?:la\s+mia\s+)?comunita(?:\s+(?:pagina|menu|opzioni|sezione|stanze))?$/,
+      /^(?:(?:abre|mostra|va para)\s+)?(?:a\s+minha\s+|minha\s+)?comunidade(?:\s+(?:pagina|menu|opcoes|secao|salas))?$/,
+    ]],
+    ["concierge", [
+      /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?concierge(?:\s+(?:page|menu|options|section|services))?$/,
+      /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?concierge(?:\s+(?:pagina|menu|opciones|seccion|servicios))?$/,
+      /^(?:(?:ouvre|affiche|va a)\s+)?(?:mon\s+)?concierge(?:\s+(?:page|menu|options|rubrique|services))?$/,
+      /^(?:(?:offne|zeige|gehe zu)\s+)?(?:mein\s+)?concierge(?:\s+(?:seite|menu|optionen|bereich|dienste))?$/,
+      /^(?:(?:apri|mostra|vai a)\s+)?(?:il\s+mio\s+)?concierge(?:\s+(?:pagina|menu|opzioni|sezione|servizi))?$/,
+      /^(?:(?:abre|mostra|va para)\s+)?(?:o\s+meu\s+|meu\s+)?concierge(?:\s+(?:pagina|menu|opcoes|secao|servicos))?$/,
+    ]],
+  ];
+
+  return broadPillarRequests.find(([, patterns]) => patterns.some((pattern) => pattern.test(normalized)))?.[0] ?? null;
 }
 
 export function homeIntentForVoiceToolCall(parameters: Record<string, unknown>): VoiceHomeIntent | null {
@@ -159,8 +188,11 @@ export function homeIntentForVoiceToolCall(parameters: Record<string, unknown>):
   const actionId = stringParam(parameters, "action_id");
   const route = normalizeVoiceActionRoute(stringParam(parameters, "route"));
 
-  if (domain === "health" && !actionType && !actionId && (!route || route === "/")) {
-    return "health";
+  if (!actionType && !actionId && (!route || route === "/")) {
+    if (domain === "health") return "health";
+    if (["brain", "mind", "cognitive", "brain_coach"].includes(domain)) return "mind";
+    if (["social", "community"].includes(domain)) return "community";
+    if (domain === "concierge") return "concierge";
   }
 
   return null;

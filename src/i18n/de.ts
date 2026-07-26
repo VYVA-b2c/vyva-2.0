@@ -1471,6 +1471,24 @@ const de = {
     },
   },
   home: {
+    context: {
+      actions: { review: "Prüfen", view: "Ansehen", continue: "Fortsetzen", start: "Starten", open: "Öffnen", dismiss: "Diese Nachricht ausblenden" },
+      vitals: { title: "Ein Gesundheitswert braucht Ihre Aufmerksamkeit.", support: "Öffnen Sie Meine Gesundheit für den sichersten nächsten Schritt." },
+      receipt: { title: "Ihre Anfrage ist abgeschlossen.", titleWithSubject: "{{subject}} ist abgeschlossen.", support: "Sie können prüfen, was passiert ist." },
+      concierge: { title: "Ihre Anfrage läuft noch.", support: "Machen Sie dort weiter, wo Sie aufgehört haben." },
+      checkin: { title: "Ihr Check-in ist bereit.", support: "Es dauert nur einen Moment." },
+      medication: { support: "Öffnen Sie Meine Gesundheit, wenn Sie bereit sind." },
+      community: { title: "In Ihrer Gemeinschaft gibt es etwas Neues." },
+      scheduled: { title: "Bald steht etwas an.", soon: "Beginnt in {{minutes}} Minuten.", later: "Öffnen Sie Ihren Zeitplan für Details." },
+      event: { online: "Eine Online-Aktivität könnte Ihnen gefallen.", nearby: "Eine Aktivität in Ihrer Nähe könnte Ihnen gefallen.", support: "Öffnen Sie Meine Gemeinschaft, um sie anzusehen." },
+      prevention: { title: "Ein kleiner Vorsorgeschritt ist bereit.", support: "Sehen Sie sich den heutigen Gesundheitstipp an." },
+      mind: { title: "Bereit für eine kurze Denkübung?", support: "Wählen Sie, was sich heute gut anfühlt." },
+    },
+    mode: {
+      label: "Startmodus",
+      voice: "Sprache",
+      touch: "Berühren",
+    },
     master: {
       heroEyebrow: "Heute",
       heroSubtitle: "VYVA ist bereit, wenn Sie es sind.",
@@ -1482,7 +1500,7 @@ const de = {
       },
       nextMedicationNudge: "In {{minutes}} Min.: {{name}}.",
       medicationNudge: "{{count}} Dosen heute offen.",
-      voiceSupport: "Tippen Sie auf die Kugel und sprechen Sie.",
+      voiceSupport: "Tippen Sie zum Starten auf die Kugel.",
       chooseCategory: "Heute",
       intentBack: "Zuruck",
       healthIntent: {
@@ -1490,7 +1508,7 @@ const de = {
         sectionTitle: "Was brauchen Sie?",
         sectionDescription: "Wahlen Sie eine Karte, oder sprechen Sie weiter mit VYVA.",
         more: "Mehr Gesundheitsoptionen",
-        dormantSubtitle: "Wahlen Sie eine Gesundheitsoption, oder tippen Sie die Kugel an und sprechen Sie.",
+        dormantSubtitle: "Wahlen Sie eine Gesundheitsoption, oder tippen Sie die Kugel an.",
         voiceSubtitle: "Okay, Gesundheit. Wahlen Sie eine Option, oder sagen Sie es VYVA.",
         symptoms: "Symptome",
         symptomsDetail: "Sagen, was Sie spuren",

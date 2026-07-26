@@ -144,7 +144,7 @@ const labels: Record<string, string> = {
   "home.master.proactiveGreeting.morning": "How are you feeling?",
   "home.master.proactiveGreeting.afternoon": "How are you feeling?",
   "home.master.proactiveGreeting.evening": "How are you feeling?",
-  "home.master.voiceSupport": "Tap the orb and speak.",
+  "home.master.voiceSupport": "Tap the orb to begin.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -294,12 +294,26 @@ describe("Home fast service actions", () => {
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-hero-talk")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-dormant-zamora-orb")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Health assistance");
+    expect(within(screen.getByTestId("card-home-agent-health")).getByText("Health assistance")).toHaveClass(
+      "hidden",
+      "md:block",
+    );
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Cognitive exercises");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
@@ -308,12 +322,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Bookings and services");
     expect(screen.queryByTestId("card-home-agent-meds")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-doctor")).not.toBeInTheDocument();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
     expect(screen.queryByTestId("home-master-orb-message")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
-    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Tell VYVA what you need.");
-    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expect(screen.getByTestId("home-pillar-cards")).toHaveTextContent("Today tray");
     expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
     expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes");
@@ -356,6 +365,7 @@ describe("Home fast service actions", () => {
     });
 
     render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
@@ -1408,6 +1418,7 @@ describe("Home fast service actions", () => {
 
   it("opens each non-health pillar from the master cards", () => {
     render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
     fireEvent.click(screen.getByTestId("card-home-agent-cognitive"));
     fireEvent.click(screen.getByTestId("card-home-agent-social"));
@@ -1420,12 +1431,13 @@ describe("Home fast service actions", () => {
 
   it("opens a focused Health intent layer before routing to health actions", () => {
     render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
     fireEvent.click(screen.getByTestId("card-home-agent-health"));
 
     expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Are you OK?");
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Choose a health option, or touch the orb and speak.");
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
     expect(screen.getByTestId("home-pillar-cards")).not.toHaveTextContent("What do you need?");
     expect(screen.getByTestId("card-home-health-symptoms")).toHaveTextContent("Symptoms");
     expect(screen.getByTestId("card-home-health-vitals")).toHaveTextContent("Vitals");
@@ -1467,7 +1479,9 @@ describe("Home fast service actions", () => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
     });
 
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Are you OK?");
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
     expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
     expect(guardPathMock).not.toHaveBeenCalled();

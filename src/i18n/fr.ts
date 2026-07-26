@@ -1439,6 +1439,24 @@ const fr = {
     },
   },
   home: {
+    context: {
+      actions: { review: "Vérifier", view: "Voir", continue: "Continuer", start: "Commencer", open: "Ouvrir", dismiss: "Masquer ce message" },
+      vitals: { title: "Une mesure de santé demande votre attention.", support: "Ouvrez Ma santé pour voir la prochaine étape la plus sûre." },
+      receipt: { title: "Votre demande est terminée.", titleWithSubject: "{{subject}} est terminé.", support: "Vous pouvez vérifier ce qui a été fait." },
+      concierge: { title: "Votre demande est toujours en cours.", support: "Reprenez là où vous vous êtes arrêté." },
+      checkin: { title: "Votre bilan est prêt.", support: "Cela ne prendra qu'un instant." },
+      medication: { support: "Ouvrez Ma santé quand vous êtes prêt." },
+      community: { title: "Il y a du nouveau dans votre communauté." },
+      scheduled: { title: "Vous avez quelque chose de prévu.", soon: "Commence dans {{minutes}} minutes.", later: "Ouvrez votre agenda pour les détails." },
+      event: { online: "Une activité en ligne pourrait vous plaire.", nearby: "Une activité près de chez vous pourrait vous plaire.", support: "Ouvrez Ma communauté pour la découvrir." },
+      prevention: { title: "Un petit geste de prévention est prêt.", support: "Découvrez la suggestion santé du jour." },
+      mind: { title: "Envie d'une courte activité cognitive ?", support: "Choisissez ce qui vous convient aujourd'hui." },
+    },
+    mode: {
+      label: "Mode d'accueil",
+      voice: "Voix",
+      touch: "Tactile",
+    },
     master: {
       heroEyebrow: "Aujourd'hui",
       heroSubtitle: "VYVA est prete quand vous l'etes.",
@@ -1450,7 +1468,7 @@ const fr = {
       },
       nextMedicationNudge: "Dans {{minutes}} min : {{name}}.",
       medicationNudge: "{{count}} doses restantes aujourd'hui.",
-      voiceSupport: "Touchez l'orbe et parlez.",
+      voiceSupport: "Touchez l'orbe pour commencer.",
       chooseCategory: "Aujourd'hui",
       intentBack: "Retour",
       healthIntent: {
@@ -1458,7 +1476,7 @@ const fr = {
         sectionTitle: "De quoi avez-vous besoin ?",
         sectionDescription: "Choisissez une carte, ou continuez a parler a VYVA.",
         more: "Plus d'options sante",
-        dormantSubtitle: "Choisissez une option sante, ou touchez l'orbe et parlez.",
+        dormantSubtitle: "Choisissez une option sante, ou touchez l'orbe.",
         voiceSubtitle: "D'accord, sante. Choisissez une option, ou dites-le a VYVA.",
         symptoms: "Symptomes",
         symptomsDetail: "Dites ce que vous ressentez",
