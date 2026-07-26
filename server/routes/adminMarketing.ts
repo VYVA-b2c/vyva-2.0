@@ -137,6 +137,12 @@ const contentBodySchema = z.object({
 
 const contentPatchSchema = contentBodySchema.partial();
 
+const bulkTranslateContentSchema = z.object({
+  contentIds: z.array(z.string().uuid()).min(1).max(25),
+  targetLanguages: z.array(z.string().trim().toLowerCase().min(2).max(12)).min(1).max(10),
+  mode: z.enum(["preview", "save"]).optional().default("preview"),
+});
+
 const mediaPatchSchema = z.object({
   contentAssetId: nullableUuidSchema,
   source: z.string().trim().min(1).max(80).optional(),
@@ -435,6 +441,106 @@ function normalizeMarketingAiCampaignDraft(value: unknown, fallback: MarketingAi
       modelHints: asRecord(record.designJson ?? record.design_json),
     },
   };
+}
+
+const marketingTranslationLanguageLabels: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  nl: "Dutch",
+  pt: "Portuguese",
+};
+
+type MarketingTranslatedContentDraft = {
+  title: string;
+  subject: string | null;
+  body: string;
+  htmlBody: string | null;
+  ctaLabel: string | null;
+};
+
+function fallbackMarketingTranslation(content: MarketingContentAssetRow, targetLanguage: string): MarketingTranslatedContentDraft {
+  const languageLabel = marketingTranslationLanguageLabels[targetLanguage] ?? targetLanguage.toUpperCase();
+  const marker = `[${languageLabel} draft]`;
+  return {
+    title: `${content.title} (${targetLanguage.toUpperCase()})`,
+    subject: content.subject ? `${marker} ${content.subject}` : null,
+    body: content.body ? `${marker}\n\n${content.body}` : "",
+    htmlBody: content.html_body ? `<!-- ${marker} -->\n${content.html_body}` : null,
+    ctaLabel: content.cta_label,
+  };
+}
+
+function normalizeMarketingTranslation(value: unknown, fallback: MarketingTranslatedContentDraft): MarketingTranslatedContentDraft {
+  const record = asRecord(value);
+  return {
+    title: clippedText(record.title, fallback.title, 180),
+    subject: emptyToNull(clippedText(record.subject, fallback.subject ?? "", 240)),
+    body: clippedText(record.body, fallback.body, 12000),
+    htmlBody: emptyToNull(clippedText(record.htmlBody ?? record.html_body, fallback.htmlBody ?? "", 100000)),
+    ctaLabel: emptyToNull(clippedText(record.ctaLabel ?? record.cta_label, fallback.ctaLabel ?? "", 80)),
+  };
+}
+
+async function translateMarketingContent(content: MarketingContentAssetRow, targetLanguage: string) {
+  const fallback = fallbackMarketingTranslation(content, targetLanguage);
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      source: "fallback" as const,
+      draft: fallback,
+      note: "OPENAI_API_KEY is not configured, so VYVA created a marked translation draft for manual editing.",
+    };
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const languageLabel = marketingTranslationLanguageLabels[targetLanguage] ?? targetLanguage;
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MARKETING_TRANSLATION_MODEL || process.env.OPENAI_MARKETING_MODEL || "gpt-4o-mini",
+      temperature: 0.25,
+      max_tokens: 1800,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You translate VYVA marketing content.",
+            "Return only valid JSON with keys: title, subject, body, htmlBody, ctaLabel.",
+            "Preserve the meaning, tone, brand name VYVA, URLs, merge tags like {{first_name}}, and all HTML tags/attributes.",
+            "Translate visible human-readable text only. Do not add explanations.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            targetLanguage: languageLabel,
+            sourceLanguage: content.language,
+            title: content.title,
+            subject: content.subject,
+            body: content.body,
+            htmlBody: content.html_body,
+            ctaLabel: content.cta_label,
+          }),
+        },
+      ],
+    });
+    const raw = completion.choices[0]?.message?.content;
+    return {
+      source: "openai" as const,
+      draft: normalizeMarketingTranslation(raw ? JSON.parse(raw) : null, fallback),
+      note: null,
+    };
+  } catch (error) {
+    console.error("[admin/marketing] content translation failed", error);
+    return {
+      source: "fallback" as const,
+      draft: fallback,
+      note: "AI translation failed, so VYVA created a marked translation draft for manual editing.",
+    };
+  }
 }
 
 async function generateMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput) {
@@ -2849,6 +2955,148 @@ adminMarketingRouter.post("/content", async (req, res) => {
   } catch (error) {
     console.error("[admin/marketing] content create failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be created.") });
+  }
+});
+
+adminMarketingRouter.post("/content/bulk-translate", async (req, res) => {
+  const parsed = bulkTranslateContentSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const sourceRows = await db.select()
+      .from(marketingContentAssets)
+      .where(inArray(marketingContentAssets.id, parsed.data.contentIds))
+      .limit(50);
+    const rowsById = new Map(sourceRows.map((row) => [row.id, row]));
+    const orderedRows = parsed.data.contentIds
+      .map((id) => rowsById.get(id))
+      .filter((row): row is MarketingContentAssetRow => Boolean(row));
+    if (!orderedRows.length) return res.status(404).json({ error: "No selected content assets were found." });
+
+    const translationExternalIds = orderedRows.flatMap((row) => (
+      parsed.data.targetLanguages
+        .filter((language) => language !== row.language.toLowerCase())
+        .map((language) => `translation:${row.id}:${language}`)
+    ));
+    const existingTranslations = translationExternalIds.length
+      ? await db.select().from(marketingContentAssets).where(inArray(marketingContentAssets.lovable_external_id, translationExternalIds)).limit(500)
+      : [];
+    const existingByExternalId = new Map(existingTranslations.map((row) => [row.lovable_external_id, row]));
+    const now = new Date();
+    const translations = [];
+    const savedContent = [];
+
+    for (const sourceContent of orderedRows) {
+      for (const targetLanguage of parsed.data.targetLanguages) {
+        if (targetLanguage === sourceContent.language.toLowerCase()) continue;
+        const translationExternalId = `translation:${sourceContent.id}:${targetLanguage}`;
+        const existing = existingByExternalId.get(translationExternalId) ?? null;
+        const translated = await translateMarketingContent(sourceContent, targetLanguage);
+        const metadata = {
+          ...asRecord(sourceContent.metadata),
+          translation: {
+            sourceContentId: sourceContent.id,
+            sourceLanguage: sourceContent.language,
+            targetLanguage,
+            sourceLovableExternalId: sourceContent.lovable_external_id,
+            generatedBy: translated.source,
+            generatedAt: now.toISOString(),
+            note: translated.note,
+          },
+        };
+        const designJson = {
+          ...asRecord(sourceContent.design_json),
+          translation: {
+            sourceContentId: sourceContent.id,
+            sourceLanguage: sourceContent.language,
+            targetLanguage,
+          },
+        };
+        const draft = {
+          title: translated.draft.title,
+          channel: sourceContent.channel,
+          language: targetLanguage,
+          status: "draft",
+          subject: translated.draft.subject,
+          body: translated.draft.body,
+          htmlBody: translated.draft.htmlBody,
+          ctaLabel: translated.draft.ctaLabel,
+          ctaUrl: sourceContent.cta_url,
+          source: "vyva",
+          lovableExternalId: translationExternalId,
+          designJson,
+          mediaAssets: Array.isArray(sourceContent.media_assets) ? sourceContent.media_assets : [],
+          metadata,
+        };
+        let saved: MarketingContentAssetRow | null = null;
+        if (parsed.data.mode === "save") {
+          const payload = {
+            title: draft.title,
+            channel: draft.channel,
+            language: draft.language,
+            status: draft.status,
+            subject: draft.subject,
+            body: draft.body,
+            html_body: draft.htmlBody,
+            cta_label: draft.ctaLabel,
+            cta_url: draft.ctaUrl,
+            design_json: draft.designJson,
+            media_assets: draft.mediaAssets,
+            source: draft.source,
+            lovable_external_id: draft.lovableExternalId,
+            metadata: draft.metadata,
+            created_by: actor(req),
+            updated_by: actor(req),
+            updated_at: now,
+          };
+          [saved] = await db.insert(marketingContentAssets)
+            .values(payload)
+            .onConflictDoUpdate({
+              target: marketingContentAssets.lovable_external_id,
+              set: {
+                title: payload.title,
+                channel: payload.channel,
+                language: payload.language,
+                status: payload.status,
+                subject: payload.subject,
+                body: payload.body,
+                html_body: payload.html_body,
+                cta_label: payload.cta_label,
+                cta_url: payload.cta_url,
+                design_json: payload.design_json,
+                media_assets: payload.media_assets,
+                source: payload.source,
+                metadata: payload.metadata,
+                updated_by: payload.updated_by,
+                updated_at: payload.updated_at,
+              },
+            })
+            .returning();
+          await replaceContentMediaAssetReferences(saved, draft.mediaAssets, now, "vyva");
+        }
+        translations.push({
+          sourceContentId: sourceContent.id,
+          sourceTitle: sourceContent.title,
+          targetLanguage,
+          exists: Boolean(existing),
+          aiSource: translated.source,
+          note: translated.note,
+          draft,
+          savedContent: saved ? serializeContent(saved) : null,
+        });
+        if (saved) savedContent.push(serializeContent(saved));
+      }
+    }
+
+    return res.json({
+      ok: true,
+      mode: parsed.data.mode,
+      translations,
+      savedContent,
+    });
+  } catch (error) {
+    console.error("[admin/marketing] content bulk translate failed", error);
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be translated.") });
   }
 });
 
