@@ -6,8 +6,11 @@ import {
   homeIntentForVoiceToolCall,
   homeIntentForVoiceUtterance,
   isActionableVoiceText,
+  isVoiceHomeIntent,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
+  transitionForVoiceHomeIntent,
+  toolResultForVoiceHomeIntent,
   voiceActionRegistryEntries,
 } from "./voiceNavigation";
 
@@ -69,6 +72,9 @@ describe("voice navigation actions", () => {
     ["My concierge", "concierge"],
     ["Mi concierge", "concierge"],
     ["Mon concierge", "concierge"],
+    ["Mein Concierge", "concierge"],
+    ["Il mio concierge", "concierge"],
+    ["Meu concierge", "concierge"],
   ])("recognises broad cross-pillar request %s", (utterance, intent) => {
     expect(homeIntentForVoiceUtterance(utterance)).toBe(intent);
   });
@@ -81,6 +87,47 @@ describe("voice navigation actions", () => {
       domain: "concierge",
       action_type: "concierge.ride_booking",
     })).toBeNull();
+  });
+
+  it("owns one canonical visual transition for every broad pillar intent", () => {
+    expect(transitionForVoiceHomeIntent("health")).toEqual({
+      kind: "home_layer",
+      layer: "health",
+    });
+    expect(transitionForVoiceHomeIntent("mind")).toEqual({
+      kind: "route",
+      route: "/mind-memory",
+    });
+    expect(transitionForVoiceHomeIntent("community")).toEqual({
+      kind: "route",
+      route: "/social-rooms",
+    });
+    expect(transitionForVoiceHomeIntent("concierge")).toEqual({
+      kind: "route",
+      route: "/concierge",
+    });
+  });
+
+  it("returns stable agent tool acknowledgements for every pillar", () => {
+    expect(toolResultForVoiceHomeIntent("health")).toBe("Showing the Health choices.");
+    expect(toolResultForVoiceHomeIntent("mind")).toBe("Opening Mind.");
+    expect(toolResultForVoiceHomeIntent("community")).toBe("Opening Community.");
+    expect(toolResultForVoiceHomeIntent("concierge")).toBe("Opening Concierge.");
+  });
+
+  it("rejects malformed pillar event details", () => {
+    expect(isVoiceHomeIntent("health")).toBe(true);
+    expect(isVoiceHomeIntent("mind")).toBe(true);
+    expect(isVoiceHomeIntent("unknown")).toBe(false);
+    expect(isVoiceHomeIntent({ intent: "health" })).toBe(false);
+    expect(isVoiceHomeIntent(null)).toBe(false);
+  });
+
+  it("accepts the pillar alias used by alternate agent configurations", () => {
+    expect(homeIntentForVoiceToolCall({ pillar: "health" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({ pillar: "brain-coach" })).toBe("mind");
+    expect(homeIntentForVoiceToolCall({ pillar: "community" })).toBe("community");
+    expect(homeIntentForVoiceToolCall({ pillar: "concierge" })).toBe("concierge");
   });
 
   it("ignores punctuation-only and filler transcript noise", () => {

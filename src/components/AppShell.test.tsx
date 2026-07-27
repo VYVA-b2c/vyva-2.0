@@ -406,6 +406,36 @@ describe("app shell voice dock", () => {
     }
   });
 
+  it.each([
+    ["Mi salud", "health"],
+    ["My mind", "mind"],
+    ["Ma communaut\u00e9", "community"],
+    ["Mein Concierge", "concierge"],
+  ])("turns the broad %s transcript into the matching Home intent", (text, intent) => {
+    const homeIntentHandler = vi.fn();
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell("/");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text,
+          transcriptEntry: { from: "user", text, timestamp: 5 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe(intent);
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
   it("keeps non-health voice actions visible on their route", () => {
     voiceActionState.activeAction = makeVoiceAction();
 
