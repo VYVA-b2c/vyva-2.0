@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, CircleDashed, Filter, Route, Search } from "lucide-react";
 import AdminMenu from "./AdminMenu";
@@ -45,12 +45,26 @@ import {
 } from "../../../shared/crossPillarManualQa";
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
+import {
+  CROSS_PILLAR_HANDOFF_EVENT,
+  CROSS_PILLAR_HANDOFF_STORAGE_KEY,
+  type CrossPillarHandoffRecord,
+} from "@/lib/crossPillarHandoffExecution";
 
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
 type ActionLevelFilter = "all" | WorkflowActionLevel;
 
 const CROSS_PILLAR_MANUAL_QA_STORAGE_KEY = "vyva:admin:crossPillarManualQa:v1";
+
+function readCrossPillarHandoffHistory(): CrossPillarHandoffRecord[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const DOMAIN_LABELS: Record<WorkflowDomain, string> = {
   home: "Home",
@@ -668,11 +682,30 @@ export default function WorkflowCoverageAdminPage() {
   const manualQaFlows = useMemo(() => buildCrossPillarManualQaFlows(), []);
   const [manualQaState, setManualQaState] = useState<CrossPillarManualQaRunnerState>(() => readStoredCrossPillarQaState(manualQaFlows));
   const [manualQaNotes, setManualQaNotes] = useState(() => buildCrossPillarManualQaNotes(manualQaFlows, manualQaState));
+  const [handoffHistory, setHandoffHistory] = useState<CrossPillarHandoffRecord[]>(readCrossPillarHandoffHistory);
   const { data: fastHelpOutcomes, isLoading: fastHelpLoading } = useQuery<HomeFastHelpOutcomeAggregate>({
     queryKey: ["/api/admin/home/fast-help-outcomes?days=30"],
     retry: false,
     staleTime: 60_000,
   });
+
+  useEffect(() => {
+    const refresh = () => setHandoffHistory(readCrossPillarHandoffHistory());
+    window.addEventListener(CROSS_PILLAR_HANDOFF_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(CROSS_PILLAR_HANDOFF_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const handoffSummary = useMemo(() => ({
+    total: handoffHistory.length,
+    acknowledged: handoffHistory.filter((item) => item.status === "acknowledged").length,
+    completed: handoffHistory.filter((item) => item.status === "completed").length,
+    failed: handoffHistory.filter((item) => item.status === "failed").length,
+    cancelled: handoffHistory.filter((item) => item.status === "cancelled").length,
+  }), [handoffHistory]);
 
   const workflows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -764,6 +797,53 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Cross-pillar handoff outcomes"
+          data-testid="cross-pillar-handoff-outcomes"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Real handoff outcomes</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Did the next step receive the task?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">Local QA evidence only; no health details are shown.</p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <InsightCard label="Handoffs" value={handoffSummary.total} />
+            <InsightCard label="Received" value={handoffSummary.acknowledged} />
+            <InsightCard label="Completed" value={handoffSummary.completed} />
+            <InsightCard label="Failed" value={handoffSummary.failed} />
+            <InsightCard label="Cancelled" value={handoffSummary.cancelled} />
+          </div>
+          {handoffHistory.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                  <tr>
+                    <th className="px-2 py-2">Pillar</th>
+                    <th className="px-2 py-2">Action</th>
+                    <th className="px-2 py-2">Destination</th>
+                    <th className="px-2 py-2">Status</th>
+                    <th className="px-2 py-2">Attempts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {handoffHistory.slice(0, 12).map((item) => (
+                    <tr key={item.id} className="border-t border-[#f0e7df] font-bold text-[#4d3d45]">
+                      <td className="px-2 py-2.5 capitalize">{item.pillar}</td>
+                      <td className="px-2 py-2.5">{item.actionId}</td>
+                      <td className="px-2 py-2.5">{item.destinationPath}</td>
+                      <td className="px-2 py-2.5 capitalize">{item.status.replace("_", " ")}</td>
+                      <td className="px-2 py-2.5">{item.attemptCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="mt-3 grid gap-3 md:grid-cols-5" aria-label="Action level summary">

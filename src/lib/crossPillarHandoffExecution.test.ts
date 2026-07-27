@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CROSS_PILLAR_ACTIVE_HANDOFF_KEY,
   CROSS_PILLAR_HANDOFF_STORAGE_KEY,
+  acknowledgeCrossPillarHandoff,
   buildCrossPillarHandoff,
+  completeCrossPillarHandoff,
   executeCrossPillarHandoff,
+  failCrossPillarHandoff,
+  readCrossPillarHandoff,
+  retryCrossPillarHandoff,
 } from "./crossPillarHandoffExecution";
 import {
   CROSS_PILLAR_COMPLETION_ACTIONS,
@@ -101,6 +106,8 @@ describe("cross-pillar real handoff execution", () => {
       returnState: expect.objectContaining({
         originalActionId: "concierge-book",
         originalOptionId: "saved-provider",
+        crossPillarHandoffId: handoff.id,
+        crossPillarIdempotencyKey: handoff.id,
       }),
     }));
     expect(navigate).toHaveBeenCalledWith(
@@ -112,6 +119,82 @@ describe("cross-pillar real handoff execution", () => {
         }),
       }),
     );
+  });
+
+  it("completes a Health journey only after the destination acknowledges it", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("health-symptoms", "guide-me"),
+      now: "2026-07-27T13:00:00.000Z",
+    }, navigate);
+
+    expect(acknowledgeCrossPillarHandoff(handoff.id, "/health/symptom-check")?.status)
+      .toBe("acknowledged");
+    const completed = completeCrossPillarHandoff(handoff.id);
+    expect(completed?.status).toBe("completed");
+    expect(completed?.receipt.status).toBe("done");
+    expect(window.localStorage.getItem(CROSS_PILLAR_ACTIVE_HANDOFF_KEY)).toBeNull();
+  });
+
+  it("restores a Mind journey after a refresh", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("mind-memory", "gentle"),
+      now: "2026-07-27T13:01:00.000Z",
+    }, navigate);
+
+    expect(readCrossPillarHandoff(handoff.id)?.destinationPath).toBe("/memory-games");
+    expect(acknowledgeCrossPillarHandoff(handoff.id, "/memory-games")?.status).toBe("acknowledged");
+    expect(completeCrossPillarHandoff(handoff.id)?.status).toBe("completed");
+  });
+
+  it("retries a failed Community journey without creating a duplicate handoff", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("community-activities", "nearby"),
+      now: "2026-07-27T13:02:00.000Z",
+    }, navigate);
+
+    expect(failCrossPillarHandoff(handoff.id, "Destination unavailable")?.status).toBe("failed");
+    const retried = retryCrossPillarHandoff(handoff.id, navigate);
+    expect(retried?.id).toBe(handoff.id);
+    expect(retried?.attemptCount).toBe(2);
+    expect(acknowledgeCrossPillarHandoff(handoff.id, "/social-rooms/activities")?.status)
+      .toBe("acknowledged");
+    expect(completeCrossPillarHandoff(handoff.id)?.status).toBe("completed");
+
+    const history = JSON.parse(
+      window.localStorage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]",
+    );
+    expect(history.filter((item: { id: string }) => item.id === handoff.id)).toHaveLength(1);
+  });
+
+  it("resumes Concierge after provider setup with the same handoff identity", () => {
+    const navigate = vi.fn();
+    const setup = executeCrossPillarHandoff({
+      result: result("concierge-book", "saved-provider"),
+      readiness: { hasSavedDoctor: false },
+      now: "2026-07-27T13:03:00.000Z",
+    }, navigate);
+
+    const returnState = setup.destinationState.returnState as Record<string, unknown>;
+    expect(returnState.crossPillarHandoffId).toBe(setup.id);
+
+    const resumed = executeCrossPillarHandoff({
+      result: result("concierge-book", "saved-provider"),
+      readiness: { hasSavedDoctor: true },
+      resumeHandoffId: String(returnState.crossPillarHandoffId),
+      now: "2026-07-27T13:04:00.000Z",
+    }, navigate);
+    expect(resumed.id).toBe(setup.id);
+    expect(resumed.destinationState.crossPillarIdempotencyKey).toBe(setup.id);
+    expect(acknowledgeCrossPillarHandoff(resumed.id, "/concierge")?.status).toBe("acknowledged");
+    expect(completeCrossPillarHandoff(resumed.id)?.status).toBe("completed");
+
+    const history = JSON.parse(
+      window.localStorage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]",
+    );
+    expect(history.filter((item: { id: string }) => item.id === setup.id)).toHaveLength(1);
   });
 
   it("prepares contact without claiming it was sent", () => {

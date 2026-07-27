@@ -13,6 +13,7 @@ import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
 
 export const CROSS_PILLAR_HANDOFF_STORAGE_KEY = "vyva.cross-pillar-handoffs.v1";
 export const CROSS_PILLAR_ACTIVE_HANDOFF_KEY = "vyva.cross-pillar-handoff.active.v1";
+export const CROSS_PILLAR_HANDOFF_EVENT = "vyva:cross-pillar-handoff-updated";
 
 type HandoffKind = "route" | "preparation" | "provider_setup";
 type Pillar = "health" | "mind" | "community" | "concierge";
@@ -36,9 +37,22 @@ export type CrossPillarHandoffRecord = {
   destinationPath: string;
   destinationState: Record<string, unknown>;
   returnPath: string;
-  status: "opened" | "prepared" | "setup_required";
+  status:
+    | "opened"
+    | "prepared"
+    | "setup_required"
+    | "acknowledged"
+    | "confirmed"
+    | "completed"
+    | "failed"
+    | "cancelled";
   receipt: WorkflowReceiptMoment;
   createdAt: string;
+  updatedAt: string;
+  attemptCount: number;
+  acknowledgedAt?: string;
+  completedAt?: string;
+  failureReason?: string;
 };
 
 export type CrossPillarHandoffInput = {
@@ -47,6 +61,7 @@ export type CrossPillarHandoffInput = {
   readiness?: CrossPillarHandoffReadiness;
   doctorContext?: unknown;
   now?: string;
+  resumeHandoffId?: string;
 };
 
 type ActionDefinition = {
@@ -203,6 +218,7 @@ function providerSetupPath(focus: ProviderFocus): string {
 function destinationState(
   input: CrossPillarHandoffInput,
   definition: ActionDefinition,
+  handoffId: string,
 ): Record<string, unknown> {
   const shared = {
     source: "home_completion_canvas",
@@ -222,6 +238,8 @@ function destinationState(
         originalActionId: input.result.actionId,
         originalOptionId: input.result.optionId,
         resumeAfterSetup: true,
+        crossPillarHandoffId: handoffId,
+        crossPillarIdempotencyKey: handoffId,
       },
     });
   }
@@ -287,7 +305,8 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
     : definition.route === "/concierge/task/new"
       ? conciergeTaskPath()
       : definition.route;
-  const state = destinationState(input, definition);
+  const id = input.resumeHandoffId ?? recordId(input.result.actionId, now);
+  const state = destinationState(input, definition, id);
   const spanish = isSpanish(input.locale);
   const status = missingProvider ? "setup_required" : kind === "route" ? "opened" : "prepared";
   const nextStep = missingProvider
@@ -320,7 +339,7 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
   });
 
   return {
-    id: recordId(input.result.actionId, now),
+    id,
     version: 1,
     actionId: input.result.actionId,
     optionId: input.result.optionId,
@@ -331,13 +350,16 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
     destinationPath: path,
     destinationState: {
       ...state,
-      crossPillarHandoffId: recordId(input.result.actionId, now),
+      crossPillarHandoffId: id,
+      crossPillarIdempotencyKey: id,
       crossPillarReceipt: receipt,
     },
     returnPath: "/",
     status,
     receipt,
     createdAt: now,
+    updatedAt: now,
+    attemptCount: 1,
   };
 }
 
@@ -366,6 +388,145 @@ export function persistCrossPillarHandoff(
     JSON.stringify([handoff, ...history.filter((item) => item?.id !== handoff.id)].slice(0, 30)),
   );
   storage.setItem(CROSS_PILLAR_ACTIVE_HANDOFF_KEY, JSON.stringify(handoff));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(CROSS_PILLAR_HANDOFF_EVENT, { detail: handoff }));
+  }
+}
+
+export function readCrossPillarHandoff(
+  id?: string | null,
+  storage: Storage | null = storageOrNull(),
+): CrossPillarHandoffRecord | null {
+  if (!storage) return null;
+  try {
+    if (!id) {
+      return JSON.parse(storage.getItem(CROSS_PILLAR_ACTIVE_HANDOFF_KEY) ?? "null");
+    }
+    const history = JSON.parse(storage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]");
+    return Array.isArray(history)
+      ? history.find((item) => item?.id === id) ?? null
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+type HandoffUpdate = Partial<Pick<
+  CrossPillarHandoffRecord,
+  "status" | "acknowledgedAt" | "completedAt" | "failureReason" | "attemptCount"
+>>;
+
+export function updateCrossPillarHandoff(
+  id: string,
+  update: HandoffUpdate,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current) return null;
+  const nextStatus = update.status ?? current.status;
+  const receiptStatus = nextStatus === "completed"
+    ? "done"
+    : nextStatus === "failed"
+      ? "failed"
+      : nextStatus === "cancelled"
+        ? "cancelled"
+        : nextStatus === "setup_required"
+          ? "needs_review"
+          : nextStatus === "acknowledged"
+            ? "waiting"
+            : "prepared";
+  const next: CrossPillarHandoffRecord = {
+    ...current,
+    ...update,
+    receipt: {
+      ...current.receipt,
+      status: receiptStatus,
+    },
+    updatedAt: now,
+  };
+  persistCrossPillarHandoff(next, storage);
+  if (["completed", "cancelled"].includes(next.status)) {
+    storage?.removeItem(CROSS_PILLAR_ACTIVE_HANDOFF_KEY);
+  }
+  return next;
+}
+
+export function acknowledgeCrossPillarHandoff(
+  id: string,
+  destinationPath?: string,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current || ["completed", "cancelled"].includes(current.status)) return current;
+  if (destinationPath) {
+    const expected = current.destinationPath.split("?")[0];
+    const received = destinationPath.split("?")[0];
+    if (expected !== received) return current;
+  }
+  return updateCrossPillarHandoff(id, {
+    status: "acknowledged",
+    acknowledgedAt: current.acknowledgedAt ?? now,
+  }, storage, now);
+}
+
+export function completeCrossPillarHandoff(
+  id: string,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  return updateCrossPillarHandoff(id, {
+    status: "completed",
+    completedAt: now,
+    failureReason: undefined,
+  }, storage, now);
+}
+
+export function failCrossPillarHandoff(
+  id: string,
+  reason: string,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  return updateCrossPillarHandoff(id, {
+    status: "failed",
+    failureReason: reason,
+  }, storage, now);
+}
+
+export function cancelCrossPillarHandoff(
+  id: string,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  return updateCrossPillarHandoff(id, {
+    status: "cancelled",
+  }, storage, now);
+}
+
+export function retryCrossPillarHandoff(
+  id: string,
+  navigate: (path: string, options?: NavigateOptions) => boolean | void,
+  storage: Storage | null = storageOrNull(),
+): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current) return null;
+  const next = updateCrossPillarHandoff(id, {
+    status: current.kind === "provider_setup" ? "setup_required" : "prepared",
+    failureReason: undefined,
+    attemptCount: (current.attemptCount ?? 1) + 1,
+  }, storage);
+  if (!next) return null;
+  navigate(next.destinationPath, {
+    state: {
+      ...next.destinationState,
+      crossPillarHandoffId: next.id,
+      crossPillarIdempotencyKey: next.id,
+      crossPillarRetry: true,
+    },
+  });
+  return next;
 }
 
 export function executeCrossPillarHandoff(
