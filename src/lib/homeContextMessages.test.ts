@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   decideHomeContextMessage,
+  homeContextActionForVoiceReply,
+  isHomeContextMessageSuppressed,
+  readHomeContextMessageActionHistory,
   selectHomeContextMessage,
   stripAgentStageDirections,
+  writeHomeContextMessageAction,
   type HomeContextMessage,
 } from "./homeContextMessages";
 
@@ -84,5 +88,35 @@ describe("home context messages", () => {
 
   it("removes private agent stage directions from visible text", () => {
     expect(stripAgentStageDirections("[warmly] Your ride is booked. [pause]")).toBe("Your ride is booked.");
+  });
+
+  it("understands short contextual replies in supported app languages", () => {
+    expect(homeContextActionForVoiceReply("Show me")).toBe("open");
+    expect(homeContextActionForVoiceReply("Más tarde")).toBe("defer");
+    expect(homeContextActionForVoiceReply("Pas maintenant")).toBe("defer");
+    expect(homeContextActionForVoiceReply("Erledigt")).toBe("complete");
+    expect(homeContextActionForVoiceReply("Rimuovilo")).toBe("dismiss");
+    expect(homeContextActionForVoiceReply("Sim, por favor")).toBe("open");
+    expect(homeContextActionForVoiceReply("Yes, but tell me what this means first")).toBeNull();
+  });
+
+  it("persists message outcomes and suppresses deferred or closed messages", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+
+    writeHomeContextMessageAction("dose", "deferred", {
+      recordedAt: 1_000,
+      deferForMs: 2_000,
+      source: "voice",
+    }, storage);
+    const deferred = readHomeContextMessageActionHistory(storage);
+    expect(isHomeContextMessageSuppressed("dose", deferred, 2_000)).toBe(true);
+    expect(isHomeContextMessageSuppressed("dose", deferred, 3_001)).toBe(false);
+
+    writeHomeContextMessageAction("dose", "completed", { recordedAt: 4_000 }, storage);
+    expect(isHomeContextMessageSuppressed("dose", readHomeContextMessageActionHistory(storage), 99_000)).toBe(true);
   });
 });

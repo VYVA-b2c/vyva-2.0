@@ -9,7 +9,15 @@ import {
   startHomeFastHelpJourney,
 } from "@/lib/homeFastHelpOutcome";
 import { SHOW_VYVA_REVIEW_HISTORY_KEY } from "@/lib/showVyvaReviewHistory";
-import { VYVA_VOICE_HOME_INTENT_EVENT } from "@/lib/voiceNavigation";
+import {
+  VYVA_VOICE_APP_ACTION_RESULT_EVENT,
+  VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+} from "@/lib/voiceNavigation";
+import {
+  HOME_CONTEXT_ACTION_HISTORY_KEY,
+  type HomeContextMessageActionHistory,
+} from "@/lib/homeContextMessages";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -439,6 +447,80 @@ describe("Home fast service actions", () => {
 
     view.rerender(<HomeScreen />);
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the visible Home message when the user gives a short voice reply", () => {
+    voiceMock.status = "connected";
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return {
+          data: { todaySummary: { scheduled: 1, remaining: 1 }, nextDose: { name: "Monoprost", minutesUntil: 25 } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: { text: "Show me" },
+      }));
+    });
+
+    expect(guardPathMock).toHaveBeenCalledWith("/meds", { state: undefined });
+    const history = JSON.parse(
+      window.localStorage.getItem(HOME_CONTEXT_ACTION_HISTORY_KEY) ?? "{}",
+    ) as HomeContextMessageActionHistory;
+    expect(history["dose:Monoprost:25"]).toMatchObject({
+      action: "opened",
+      source: "voice",
+    });
+  });
+
+  it("defers the visible Home message from the canonical voice tool result", () => {
+    voiceMock.status = "connected";
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return {
+          data: { todaySummary: { scheduled: 1, remaining: 1 }, nextDose: { name: "Monoprost", minutesUntil: 25 } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_APP_ACTION_RESULT_EVENT, {
+        detail: {
+          action: "dismissed",
+          actionId: "dose:Monoprost:25",
+          reason: "User said later",
+        },
+      }));
+    });
+
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+    const history = JSON.parse(
+      window.localStorage.getItem(HOME_CONTEXT_ACTION_HISTORY_KEY) ?? "{}",
+    ) as HomeContextMessageActionHistory;
+    expect(history["dose:Monoprost:25"]).toMatchObject({
+      action: "deferred",
+      source: "voice_tool",
+    });
   });
 
   it("keeps the master home free of legacy fast help and resume blocks", () => {

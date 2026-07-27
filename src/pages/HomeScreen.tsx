@@ -20,16 +20,24 @@ import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
 import {
   decideHomeContextMessage,
+  homeContextActionForVoiceReply,
+  isHomeContextMessageSuppressed,
+  readHomeContextMessageActionHistory,
   readHomeContextMessageHistory,
   stripAgentStageDirections,
+  writeHomeContextMessageAction,
   writeHomeContextMessageSeen,
   type HomeContextMessage,
 } from "@/lib/homeContextMessages";
 import { adaptHeroMessageForHome } from "@/lib/homeAdminMessages";
 import { normalizeHeroLanguage, recordHeroEvent, recordHeroImpression } from "@/lib/heroMessages";
 import {
+  VYVA_VOICE_APP_ACTION_RESULT_EVENT,
   VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceAppActionResult,
   type VoiceHomeIntent,
+  type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
 import {
   HOME_FAST_HELP_REASON_FALLBACKS,
@@ -1516,11 +1524,18 @@ const HomeScreen = () => {
     voice?.transcript,
   ]);
   const selectedHomeContextDecision = useMemo(
-    () => decideHomeContextMessage(
-      homeContextMessages,
-      readHomeContextMessageHistory(),
-      conciergeClockMs,
-    ),
+    () => {
+      const actionHistory = readHomeContextMessageActionHistory();
+      return decideHomeContextMessage(
+        homeContextMessages.filter((message) => !isHomeContextMessageSuppressed(
+          message.id,
+          actionHistory,
+          conciergeClockMs,
+        )),
+        readHomeContextMessageHistory(),
+        conciergeClockMs,
+      );
+    },
     [conciergeClockMs, homeContextHistoryRevision, homeContextMessages],
   );
   const selectedHomeContextMessage = selectedHomeContextDecision?.message ?? null;
@@ -1619,10 +1634,13 @@ const HomeScreen = () => {
         source: managedHomeHeroMessage.source,
       });
     }
+    writeHomeContextMessageAction(selectedHomeContextMessage.id, "dismissed", { source: "touch" });
     writeHomeContextMessageSeen(selectedHomeContextMessage.id);
     setHomeContextHistoryRevision((current) => current + 1);
   };
-  const openSelectedHomeContextMessage = () => {
+  const openSelectedHomeContextMessage = (
+    source: "touch" | "voice" | "voice_tool" = "touch",
+  ) => {
     if (!selectedHomeContextMessage?.actionRoute) return;
     if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
       recordHeroEvent({
@@ -1635,10 +1653,71 @@ const HomeScreen = () => {
         route: selectedHomeContextMessage.actionRoute,
       });
     }
+    writeHomeContextMessageAction(selectedHomeContextMessage.id, "opened", { source });
     handleNavigate(selectedHomeContextMessage.actionRoute, {
       state: selectedHomeContextMessage.actionState,
     });
   };
+  useEffect(() => {
+    if (
+      voice?.status !== "connected"
+      || !selectedHomeContextMessage
+      || selectedHomeContextMessage.kind === "default"
+    ) return;
+
+    const applyVoiceMessageAction = (
+      action: "open" | "defer" | "dismiss" | "complete",
+      source: "voice" | "voice_tool",
+    ) => {
+      if (action === "open") {
+        if (!selectedHomeContextMessage.actionRoute) return;
+        openSelectedHomeContextMessage(source);
+        return;
+      }
+
+      if (action === "defer") {
+        writeHomeContextMessageAction(selectedHomeContextMessage.id, "deferred", { source });
+      } else if (action === "dismiss") {
+        if (!selectedHomeContextMessage.dismissible) return;
+        writeHomeContextMessageAction(selectedHomeContextMessage.id, "dismissed", { source });
+      } else {
+        writeHomeContextMessageAction(selectedHomeContextMessage.id, "completed", { source });
+      }
+      writeHomeContextMessageSeen(selectedHomeContextMessage.id);
+      setHomeContextHistoryRevision((current) => current + 1);
+    };
+
+    const handleVoiceReply = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as VoiceUserMessageDetail | undefined
+        : undefined;
+      const action = detail?.text ? homeContextActionForVoiceReply(detail.text) : null;
+      if (action) applyVoiceMessageAction(action, "voice");
+    };
+
+    const handleVoiceToolResult = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as VoiceAppActionResult | undefined
+        : undefined;
+      if (!detail?.actionId || detail.actionId !== selectedHomeContextMessage.id) return;
+      if (detail.action === "accepted") applyVoiceMessageAction("open", "voice_tool");
+      if (detail.action === "dismissed") {
+        const permanentlyDismiss = /\b(?:dismiss|remove|hide)\b/i.test(detail.reason ?? "");
+        applyVoiceMessageAction(permanentlyDismiss ? "dismiss" : "defer", "voice_tool");
+      }
+      if (detail.action === "completed") applyVoiceMessageAction("complete", "voice_tool");
+    };
+
+    window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceReply);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceToolResult);
+    return () => {
+      window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceReply);
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceToolResult);
+    };
+  }, [
+    selectedHomeContextMessage,
+    voice?.status,
+  ]);
   const homeMasterHealthSubtitle = isHomeMasterVoiceAlive
     ? t("home.master.healthIntent.voiceSubtitle", "Okay, health. Choose one, or tell VYVA.")
     : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb.");
