@@ -222,17 +222,15 @@ test("login screen renders auth controls", async ({ page }) => {
   await page.goto("/login?mode=login", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByTestId("input-auth-contact")).toBeVisible();
-  await expect(page.getByTestId("auth-audience-switcher")).toBeVisible();
-  await expect(page.getByTestId("link-auth-door-member")).toBeVisible();
-  await expect(page.getByTestId("link-auth-door-caregiver")).toBeVisible();
-  await expect(page.getByTestId("button-signin-method-link")).toBeVisible();
-  await expect(page.getByTestId("button-signin-method-password")).toBeVisible();
-  await page.getByTestId("button-signin-method-password").click();
   await expect(page.getByTestId("input-auth-password")).toBeVisible();
+  await expect(page.getByTestId("button-show-magic-link")).toBeVisible();
+  await expect(page.getByTestId("auth-audience-switcher")).toHaveCount(0);
+  await expect(page.getByTestId("button-signin-method-link")).toHaveCount(0);
+  await expect(page.getByTestId("button-signin-method-password")).toHaveCount(0);
   await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("button-auth-mode-register")).toHaveAttribute("aria-selected", "false");
-  await expect(page.getByTestId("button-auth-intent-self")).toBeHidden();
-  await expect(page.getByTestId("button-auth-intent-caregiver")).toBeHidden();
+  await expect(page.getByTestId("button-auth-intent-self")).toHaveCount(0);
+  await expect(page.getByTestId("button-auth-intent-caregiver")).toHaveCount(0);
   await expect(page.getByTestId("button-auth-submit")).toBeVisible();
 });
 
@@ -260,7 +258,7 @@ test("public landing page promotes VYVA and remains responsive", async ({ page }
   await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
-  await expect(page.getByRole("heading", { name: "CrÃ©er", exact: true })).toBeVisible();
+  await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
 });
 
 test("public pages initialize from browser language until the user changes it", async ({ browser }) => {
@@ -275,7 +273,7 @@ test("public pages initialize from browser language until the user changes it", 
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
-  await expect(page.getByRole("heading", { name: "CrÃ©er", exact: true })).toBeVisible();
+  await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
   await page.getByTestId("select-landing-language").selectOption("de");
@@ -284,7 +282,7 @@ test("public pages initialize from browser language until the user changes it", 
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("select-login-language")).toHaveValue("de");
-  await expect(page.getByRole("heading", { name: "Erstellen", exact: true })).toBeVisible();
+  await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
   await expectNoHorizontalOverflow(page);
 
   await context.close();

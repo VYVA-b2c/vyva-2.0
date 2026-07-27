@@ -1,5 +1,5 @@
 ﻿import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CalendarClock,
@@ -12,6 +12,7 @@ import {
   Loader2,
   PhoneCall,
   ShieldCheck,
+  Sparkles,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -1439,12 +1440,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       : null;
   const rawFrom = (location.state as { from?: string })?.from;
   const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
-  const requestedAuthMode = searchParams.get("mode") === "login" ? "login" : "register";
-  const initialAuthMode = adminOnly ? "login" : routeAuthMode ?? requestedAuthMode;
   const explicitInviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
   const storedCareTeamInviteReturnPath = adminOnly ? null : currentCareTeamInviteReturnPath();
   const inviteReturnPath = explicitInviteReturnPath ?? storedCareTeamInviteReturnPath;
   const isCareTeamInviteAuth = isCareTeamInviteReturnPath(inviteReturnPath);
+  const requestedAuthMode = searchParams.get("mode") === "register" ? "register" : "login";
+  const initialAuthMode = adminOnly
+    ? "login"
+    : routeAuthMode ?? (isCareTeamInviteAuth ? "register" : requestedAuthMode);
   const initialSetupIntent =
     isCareTeamInviteAuth || isCaregiverEntryRoute || setupIntentFromParams(searchParams) === "caregiver"
       ? "caregiver"
@@ -1495,7 +1498,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setView(tab);
     setError(null);
     setMagicError(null);
-    setShowPasswordSignIn(false);
+    setShowPasswordSignIn(tab === "login");
     if (isCaregiverEntryRoute) {
       const nextPath = tab === "login" ? "/caregiver/login" : "/caregiver/register";
       navigate(`${nextPath}${location.search}`, { replace: true });
@@ -1508,6 +1511,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setForgotError(null);
     setForgotDevResetLink(null);
     setView("forgot");
+  };
+
+  const showMagic = () => {
+    setView("magic");
+    setMagicSent(false);
+    setMagicError(null);
+    setShowPasswordSignIn(false);
   };
 
   const authContactPayload = (includeLanguage = false) => {
@@ -1898,8 +1908,6 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
   const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
 
-  const mainMaxClass = "max-w-[1180px]";
-
   return (
     <>
       {isGuideVoiceOverlayVisible && (
@@ -2257,16 +2265,16 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         </PurpleModal>
       )}
 
-      <div className="relative min-h-screen overflow-x-hidden bg-[#E8DDF7] text-vyva-text-1">
+      <div className="relative min-h-screen overflow-x-hidden bg-[#D9C8EF] text-vyva-text-1">
         {!adminOnly && (
-          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#E8DDF7]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.78)_0%,rgba(255,255,255,0)_34%),linear-gradient(125deg,#E5D8F6_0%,#EEE7F8_48%,#DFEAF1_100%)]" />
-            <div className="absolute -right-24 top-24 h-80 w-80 rounded-full bg-[#CBB5ED]/45 blur-3xl" />
-            <div className="absolute -bottom-32 left-[18%] h-96 w-96 rounded-full bg-[#BFDCD8]/35 blur-3xl" />
+          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#D9C8EF]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(255,255,255,0.92)_0%,rgba(255,255,255,0)_29%),radial-gradient(circle_at_88%_88%,rgba(176,224,215,0.58)_0%,rgba(176,224,215,0)_34%),linear-gradient(135deg,#DDCEF2_0%,#ECE4F7_48%,#D7E8ED_100%)]" />
+            <div className="absolute -right-28 top-16 h-96 w-96 rounded-full bg-[#A981DD]/30 blur-3xl motion-safe:animate-pulse [animation-duration:7s]" />
+            <div className="absolute -bottom-36 left-[12%] h-[28rem] w-[28rem] rounded-full bg-[#8FC9BE]/24 blur-3xl motion-safe:animate-pulse [animation-delay:1.5s] [animation-duration:8s]" />
           </div>
         )}
-        <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:px-10 lg:py-7">
-          <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
+        <header className="relative z-10 mx-auto flex w-full max-w-[1160px] items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-5 lg:px-10 lg:py-6">
+          <VyvaWordmark className="h-auto w-[102px] sm:w-[118px]" />
           <div className="flex items-center gap-2">
             {!adminOnly && (
               <button
@@ -2302,10 +2310,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           </div>
         </header>
 
-        <main className={`relative z-10 mx-auto flex min-h-[calc(100vh-104px)] w-full ${mainMaxClass} items-start justify-center px-5 pb-8 pt-3 sm:px-8 md:min-h-[calc(100vh-116px)] md:pt-0 lg:px-8 lg:pb-12`}>
+        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-92px)] w-full max-w-[1160px] items-start justify-center px-5 pb-8 pt-2 sm:px-8 md:min-h-[calc(100vh-100px)] md:items-center md:pt-0 lg:px-10 lg:pb-10">
           <section
             data-testid="auth-layout"
-            className="grid w-full max-w-[560px] gap-6 lg:max-w-[980px] lg:grid-cols-[minmax(300px,0.72fr)_minmax(420px,500px)] lg:items-center lg:gap-10"
+            className="grid w-full max-w-[540px] gap-8 lg:max-w-[1040px] lg:grid-cols-[minmax(300px,0.82fr)_minmax(420px,480px)] lg:items-center lg:gap-16"
           >
             {adminOnly ? (
               <div className="rounded-[28px] border border-[#E7DCD2] bg-[#FFFCF8] p-6 text-center shadow-[0_18px_50px_rgba(47,24,63,0.08)] md:text-left lg:p-8">
@@ -2333,24 +2341,34 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             ) : (
               <div
                 data-testid="auth-hero-panel"
-                className="relative hidden min-h-[390px] overflow-hidden rounded-[32px] border border-[#E9DDCF] bg-[#FFFCF7] p-8 shadow-[0_24px_64px_rgba(79,43,116,0.12)] lg:flex lg:flex-col lg:justify-between"
+                className="relative hidden min-h-[360px] overflow-hidden rounded-[30px] border border-white/70 bg-[#FCF9FF]/82 p-9 shadow-[0_28px_70px_rgba(79,43,116,0.12)] backdrop-blur-xl lg:flex lg:flex-col lg:justify-between"
               >
-                <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#6B21A8_0%,#10B981_52%,#F2C94C_100%)]" />
+                <div aria-hidden="true" className="absolute left-0 top-0 h-full w-1.5 bg-[linear-gradient(180deg,#7130C7_0%,#10B981_62%,#F2C94C_100%)]" />
+                <div aria-hidden="true" className="absolute -right-14 -top-16 h-56 w-56 rounded-full bg-[#DBC7F4]/55 blur-2xl" />
+                <div
+                  aria-hidden="true"
+                  className="absolute right-7 top-8 flex h-24 w-24 items-center justify-center rounded-full border border-white/80 bg-[radial-gradient(circle_at_34%_28%,#FFFFFF_0%,#F0E4FF_38%,#C69BEA_100%)] shadow-[0_20px_50px_rgba(113,48,199,0.22)] motion-safe:animate-pulse [animation-duration:5s]"
+                >
+                  <span className="absolute inset-2 rounded-full border border-vyva-purple/10" />
+                  <Sparkles size={27} className="relative text-vyva-purple" />
+                </div>
+                <span aria-hidden="true" className="absolute right-28 top-16 h-3 w-3 rounded-full bg-[#F2C94C] shadow-[0_0_18px_rgba(242,201,76,0.8)]" />
+                <span aria-hidden="true" className="absolute right-11 top-32 h-2.5 w-2.5 rounded-full bg-[#10B981]/80 shadow-[0_0_16px_rgba(16,185,129,0.55)]" />
                 <div className="relative flex items-center justify-between gap-4">
-                  <span className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#D9C7F8] bg-white px-4 font-body text-[12px] font-black text-vyva-purple shadow-[0_10px_28px_rgba(107,33,168,0.10)]">
+                  <span className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#D9C7F8] bg-white/85 px-4 font-body text-[12px] font-extrabold text-vyva-purple">
                     <ShieldCheck size={16} />
                     {copy.profilePrivate}
                   </span>
                 </div>
 
-                <div className="relative my-auto py-8">
+                <div className="relative my-auto max-w-[310px] py-7">
                   <p className="font-body text-[12px] font-black uppercase tracking-[0.22em] text-[#9B7100]">
                     {heroEyebrow}
                   </p>
-                  <h1 className="mt-3 max-w-[390px] font-body text-[2.4rem] font-black leading-[1.02] text-[#2F183F]">
+                  <h1 className="mt-3 max-w-[390px] font-body text-[2.25rem] font-black leading-[1.04] tracking-[-0.035em] text-[#2F183F]">
                     {heroTitle}
                   </h1>
-                  <p className="mt-4 max-w-[420px] font-body text-[14px] font-bold leading-6 text-vyva-text-2">
+                  <p className="mt-4 max-w-[390px] font-body text-[15px] font-medium leading-6 text-vyva-text-2">
                     {heroSubtitle}
                   </p>
                 </div>
@@ -2366,10 +2384,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
             <div
               data-testid="auth-card"
-              className={authCardClass}
+              className="relative w-full overflow-hidden rounded-[28px] border border-white/90 bg-[linear-gradient(180deg,rgba(253,249,255,0.98)_0%,rgba(255,255,255,0.97)_35%,rgba(255,255,255,0.97)_100%)] p-5 shadow-[0_30px_80px_rgba(64,30,94,0.18),0_2px_8px_rgba(79,43,116,0.06)] backdrop-blur-xl sm:p-7"
             >
+              {!adminOnly && (
+                <div aria-hidden="true" className="absolute inset-x-8 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#7130C7_0%,#A968D5_45%,#10B981_75%,#F2C94C_100%)] opacity-90" />
+              )}
               {!adminOnly && view !== "forgot" && view !== "magic" && (
-                <div className="mb-6 grid grid-cols-2 rounded-[18px] bg-[#F5F0F8] p-1" role="tablist" aria-label="Authentication mode">
+                <div className="mb-6 grid grid-cols-2 rounded-[16px] border border-[#E9DFF0] bg-[#F0E8F5] p-1.5" role="tablist" aria-label="Authentication mode">
                   {(["login", "register"] as const).map((tab) => {
                     const active = mode === tab;
                     return (
@@ -2380,8 +2401,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         aria-selected={active}
                         onClick={() => switchTab(tab)}
                         data-testid={`button-auth-mode-${tab}`}
-                        className={`min-h-[46px] rounded-[14px] px-4 font-body text-[14px] font-black transition ${
-                          active ? "bg-white text-vyva-purple shadow-sm" : "text-vyva-text-2 hover:text-vyva-purple"
+                        className={`min-h-[46px] rounded-[12px] px-4 font-body text-[14px] font-extrabold transition ${
+                          active
+                            ? "bg-[linear-gradient(135deg,#7130C7_0%,#8742BD_100%)] text-white shadow-[0_8px_20px_rgba(113,48,199,0.24)]"
+                            : "text-vyva-text-2 hover:bg-white/55 hover:text-vyva-purple"
                         }`}
                       >
                         {tab === "login" ? copy.signInTab : copy.createTab}
@@ -2392,59 +2415,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               )}
 
               <div className="mb-5">
-                <h2 className="font-body text-[36px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
-                <p className="mt-1.5 font-body text-[16px] font-semibold leading-6 text-vyva-text-2">{authSubtitle}</p>
+                <h2 className="font-body text-[34px] font-black leading-tight tracking-[-0.035em] text-[#2F183F]">{authTitle}</h2>
+                <p className="mt-1 font-body text-[14px] font-medium leading-6 text-vyva-text-2">{authSubtitle}</p>
               </div>
-
-              {!adminOnly && (
-                <div className="mb-5 grid gap-2 sm:grid-cols-2" data-testid="auth-audience-switcher">
-                  {([
-                    {
-                      id: "member" as const,
-                      href: memberAuthHref,
-                      icon: UserRound,
-                      title: audienceCopy.memberDoor,
-                      subtitle: audienceCopy.memberDoorSubtitle,
-                    },
-                    {
-                      id: "caregiver" as const,
-                      href: caregiverAuthHref,
-                      icon: UsersRound,
-                      title: audienceCopy.caregiverDoor,
-                      subtitle: audienceCopy.caregiverDoorSubtitle,
-                    },
-                  ]).map((door) => {
-                    const active = audience === door.id;
-                    const Icon = door.icon;
-                    return (
-                      <Link
-                        key={door.id}
-                        to={door.href}
-                        data-testid={`link-auth-door-${door.id}`}
-                        className={`flex min-h-[78px] items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition ${
-                          active
-                            ? isCaregiverAudience
-                              ? "border-[#0E8F89] bg-[#EFFBFA] text-[#173E3E] shadow-[0_10px_24px_rgba(0,132,127,0.10)]"
-                              : "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
-                            : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
-                        }`}
-                      >
-                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${
-                          active
-                            ? isCaregiverAudience ? "bg-[#00847F] text-white" : "bg-vyva-purple text-white"
-                            : isCaregiverAudience ? "bg-[#EAF7F6] text-[#00847F]" : "bg-[#F8F3EA] text-vyva-purple"
-                        }`}>
-                          <Icon size={19} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block font-body text-[14px] font-black leading-tight">{door.title}</span>
-                          <span className="mt-1 block font-body text-[12px] font-semibold leading-4 text-vyva-text-3">{door.subtitle}</span>
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
 
               {view === "forgot" ? (
                 <div className="flex flex-col gap-4">
@@ -2512,23 +2485,64 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  {!adminOnly && mode === "register" && view !== "magic" && audience === "caregiver" && (
-                    <div
-                      className="rounded-[18px] border border-[#BEE7E4] bg-[#F2FCFB] px-4 py-3"
-                      data-testid={isCareTeamInviteAuth ? "auth-careteam-invite" : "auth-caregiver-note"}
-                    >
-                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#007C78]">
-                        {audienceCopy.caregiverNoteTitle}
-                      </p>
-                      <p className="mt-1 font-body text-[13px] font-bold leading-relaxed text-[#426768]">
-                        {audienceCopy.caregiverNoteBody}
-                      </p>
-                    </div>
+                  {!adminOnly && mode === "register" && view !== "magic" && (
+                    isCareTeamInviteAuth ? (
+                      <div
+                        className="rounded-[16px] border border-[#DCCDF1] bg-[#F8F4FD] px-4 py-3"
+                        data-testid="auth-careteam-invite"
+                      >
+                        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
+                          {audienceCopy.caregiverNoteTitle}
+                        </p>
+                        <p className="mt-1 font-body text-[13px] font-medium leading-relaxed text-vyva-text-2">
+                          {audienceCopy.caregiverNoteBody}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2" data-testid="auth-setup-intent">
+                        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
+                          {copy.setupIntentLabel}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(["self", "caregiver"] as const).map((intent) => {
+                            const active = setupIntent === intent;
+                            const Icon = intent === "self" ? UserRound : UsersRound;
+                            return (
+                              <button
+                                key={intent}
+                                type="button"
+                                onClick={() => setSetupIntent(intent)}
+                                data-testid={`button-auth-intent-${intent}`}
+                                aria-pressed={active}
+                                className={`flex min-h-[68px] items-center gap-2.5 rounded-[16px] border px-3 py-2.5 text-left transition ${
+                                  active
+                                    ? "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_8px_20px_rgba(107,33,168,0.10)]"
+                                    : "border-[#E9E1EB] bg-white text-vyva-text-2 hover:border-[#CDB6E8]"
+                                }`}
+                              >
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] ${active ? "bg-vyva-purple text-white" : "bg-[#F4EEF8] text-vyva-purple"}`}>
+                                  <Icon size={18} />
+                                </span>
+                                <span className="min-w-0 font-body text-[13px] font-extrabold leading-tight">
+                                  {copy.setupIntent[intent].title}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {setupIntent === "caregiver" && (
+                          <p
+                            data-testid="text-auth-caregiver-hint"
+                            className="rounded-[14px] bg-[#F7F2FC] px-3 py-2 font-body text-[12px] leading-[1.45] text-vyva-purple"
+                          >
+                            {copy.caregiverHint}
+                          </p>
+                        )}
+                      </div>
+                    )
                   )}
 
-                  {signInMethodChooser}
-
-                  <label className="font-body text-[15px] font-black text-vyva-text-2">
+                  <label className="font-body text-[13px] font-bold text-vyva-text-2">
                     {contactLabel}
                     <Input
                       ref={contactInputRef}
@@ -2547,10 +2561,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         if (mode === "login" && showPasswordSignIn && canSubmit) handleSubmit();
                       }}
                       placeholder={contactPlaceholder}
-                      className="mt-2 h-[62px] rounded-[18px] border-2 border-vyva-border bg-[#F8FBFF] px-5 text-[17px] font-bold text-[#2F183F] shadow-vyva-input"
+                      className="mt-2 h-[58px] rounded-[16px] border border-[#DED2E6] bg-white px-4 text-[16px] font-semibold text-[#2F183F] shadow-[0_6px_18px_rgba(62,35,78,0.07)] transition focus-visible:border-vyva-purple focus-visible:ring-4 focus-visible:ring-vyva-purple/10"
                       autoComplete={contactAutocomplete}
                     />
-                    <span className="mt-2 block font-body text-[13px] font-semibold leading-5 text-vyva-text-3">
+                    <span className="mt-2 block font-body text-[12px] font-medium leading-5 text-vyva-text-3">
                       {contactFormatHint}
                     </span>
                   </label>
@@ -2570,7 +2584,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             onChange={(event) => setPassword(event.target.value)}
                             onKeyDown={(event) => event.key === "Enter" && canSubmit && handleSubmit()}
                             placeholder={copy.createPassword}
-                            className="h-[64px] rounded-[18px] border-2 border-vyva-border bg-white px-5 pr-12 text-[17px] font-bold shadow-vyva-input"
+                            className="h-[58px] rounded-[16px] border border-[#DED2E6] bg-white px-4 pr-12 text-[16px] font-semibold shadow-[0_6px_18px_rgba(62,35,78,0.07)] transition focus-visible:border-vyva-purple focus-visible:ring-4 focus-visible:ring-vyva-purple/10"
                             autoComplete="new-password"
                           />
                           <button
@@ -2596,7 +2610,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className={`vyva-primary-action w-full rounded-[18px] py-4 text-[17px] font-black disabled:opacity-40 ${publicPrimaryClass}`}
+                        className="vyva-primary-action min-h-[56px] w-full rounded-[16px] bg-[linear-gradient(135deg,#7130C7_0%,#8B3FC8_100%)] px-5 py-3.5 text-[16px] font-black shadow-[0_14px_30px_rgba(113,48,199,0.24)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#D9C7E9] disabled:text-white disabled:shadow-none"
                       >
                         {loading ? copy.creating : copy.createAccount}
                         {!loading && <ArrowRight size={17} />}
@@ -2625,7 +2639,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             onChange={(event) => setPassword(event.target.value)}
                             onKeyDown={(event) => event.key === "Enter" && canSubmit && handleSubmit()}
                             placeholder={copy.yourPassword}
-                            className="h-[64px] rounded-[18px] border-2 border-vyva-border bg-white px-5 pr-12 text-[17px] font-bold shadow-vyva-input"
+                            className="h-[58px] rounded-[16px] border border-[#DED2E6] bg-white px-4 pr-12 text-[16px] font-semibold shadow-[0_6px_18px_rgba(62,35,78,0.07)] transition focus-visible:border-vyva-purple focus-visible:ring-4 focus-visible:ring-vyva-purple/10"
                             autoComplete="current-password"
                           />
                           <button
@@ -2651,7 +2665,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className={`vyva-primary-action w-full rounded-[18px] py-4 text-[17px] font-black disabled:opacity-40 ${publicPrimaryClass}`}
+                        className="vyva-primary-action min-h-[56px] w-full rounded-[16px] bg-[linear-gradient(135deg,#7130C7_0%,#8B3FC8_100%)] px-5 py-3.5 text-[16px] font-black shadow-[0_14px_30px_rgba(113,48,199,0.24)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#D9C7E9] disabled:text-white disabled:shadow-none"
                       >
                         {loading ? copy.signingIn : copy.signIn}
                         {!loading && <ArrowRight size={17} />}
@@ -2662,7 +2676,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                           <button
                             type="button"
                             onClick={showMagic}
-                            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-3 font-body text-[13px] font-extrabold text-vyva-purple"
+                            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[14px] border border-[#DCCCEB] bg-[#FAF7FD] px-4 py-3 font-body text-[13px] font-extrabold text-vyva-purple shadow-[0_5px_16px_rgba(88,49,111,0.06)] transition hover:border-vyva-purple/45 hover:bg-[#F5EEFB]"
                             data-testid="button-show-magic-link"
                           >
                             <KeyRound size={15} />
@@ -2705,7 +2719,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             type="button"
                             onClick={handleMagicLink}
                             disabled={!canSendMagic}
-                            className={`vyva-primary-action w-full rounded-[18px] py-4 text-[17px] font-black disabled:opacity-40 ${publicPrimaryClass}`}
+                            className="vyva-primary-action min-h-[56px] w-full rounded-[16px] bg-[linear-gradient(135deg,#7130C7_0%,#8B3FC8_100%)] px-5 py-3.5 text-[16px] font-black shadow-[0_14px_30px_rgba(113,48,199,0.24)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#D9C7E9] disabled:text-white disabled:shadow-none"
                           >
                             {magicLoading ? copy.sending : magicSubmitLabel}
                             {!magicLoading && <Link2 size={17} />}
@@ -2738,7 +2752,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       target="_blank"
                       rel="noreferrer"
                       data-testid="link-privacy-policy"
-                      className={`font-body text-[12px] font-extrabold underline-offset-4 hover:underline ${isCaregiverAudience ? "text-[#007C78]" : "text-vyva-purple"}`}
+                      className="font-body text-[12px] font-extrabold text-vyva-purple underline-offset-4 hover:underline"
                     >
                       {copy.privacyPolicy}
                     </a>
