@@ -1,4 +1,16 @@
-import { CalendarDays, Car, Laptop, MapPin, Sparkles, Star, UserRound, UsersRound } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  HelpCircle,
+  Laptop,
+  MapPin,
+  Search,
+  Sparkles,
+  Star,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -10,9 +22,23 @@ import VoiceCanvasScene from "./VoiceCanvasScene";
 import type { VoiceCanvasChoice, VoiceCanvasViewModel } from "./types";
 
 export const CROSS_PILLAR_COMPLETION_ACTIONS = [
+  "health-symptoms",
+  "health-vitals",
+  "health-meds",
   "health-doctor",
+  "health-prevention",
+  "health-visual-scan",
   "mind-memory",
+  "mind-reflexes",
+  "mind-focus",
+  "mind-senses",
+  "community-friends",
+  "community-experts",
+  "community-share",
   "community-activities",
+  "concierge-home",
+  "concierge-care",
+  "concierge-order",
   "concierge-book",
 ] as const;
 
@@ -56,7 +82,142 @@ type FlowDefinition = {
   options: OptionDefinition[];
 };
 
+const detailOptions = (prefix: string): OptionDefinition[] => [
+  {
+    id: "add-now",
+    labelKey: "home.master.subflowCanvas.shared.addNow",
+    labelFallback: "Add the details now",
+    detailKey: `${prefix}.addNowDetail`,
+    detailFallback: "VYVA will ask only for what is still missing",
+    icon: CheckCircle2,
+  },
+  {
+    id: "use-recent",
+    labelKey: "home.master.subflowCanvas.shared.useRecent",
+    labelFallback: "Use recent information",
+    detailKey: `${prefix}.useRecentDetail`,
+    detailFallback: "Review what is already saved before continuing",
+    icon: Clock3,
+  },
+  {
+    id: "guide-me",
+    labelKey: "home.master.subflowCanvas.shared.guideMe",
+    labelFallback: "Guide me",
+    detailKey: `${prefix}.guideMeDetail`,
+    detailFallback: "Take it one simple question at a time",
+    icon: HelpCircle,
+  },
+];
+
+const activityOptions = (prefix: string): OptionDefinition[] => [
+  {
+    id: "recommended",
+    labelKey: "home.master.subflowCanvas.shared.recommended",
+    labelFallback: "Recommend one",
+    detailKey: `${prefix}.recommendedDetail`,
+    detailFallback: "Use my preferences and recent activity",
+    icon: Sparkles,
+  },
+  {
+    id: "short",
+    labelKey: "home.master.subflowCanvas.shared.short",
+    labelFallback: "Something short",
+    detailKey: `${prefix}.shortDetail`,
+    detailFallback: "A quick activity with a clear finish",
+    icon: Clock3,
+  },
+  {
+    id: "gentle",
+    labelKey: "home.master.subflowCanvas.shared.gentle",
+    labelFallback: "Something gentle",
+    detailKey: `${prefix}.gentleDetail`,
+    detailFallback: "A calm pace with simple instructions",
+    icon: UserRound,
+  },
+];
+
+const communityOptions = (prefix: string): OptionDefinition[] => [
+  {
+    id: "nearby",
+    labelKey: "home.master.subflowCanvas.shared.nearby",
+    labelFallback: "Nearby",
+    detailKey: `${prefix}.nearbyDetail`,
+    detailFallback: "Start with people or options close to home",
+    icon: MapPin,
+  },
+  {
+    id: "online",
+    labelKey: "home.master.subflowCanvas.shared.online",
+    labelFallback: "Online",
+    detailKey: `${prefix}.onlineDetail`,
+    detailFallback: "Connect from home",
+    icon: Laptop,
+  },
+  {
+    id: "show-both",
+    labelKey: "home.master.subflowCanvas.shared.showBoth",
+    labelFallback: "Show me both",
+    detailKey: `${prefix}.showBothDetail`,
+    detailFallback: "Compare nearby and online choices",
+    icon: UsersRound,
+  },
+];
+
+const providerOptions = (prefix: string): OptionDefinition[] => [
+  {
+    id: "saved-provider",
+    labelKey: "home.master.subflowCanvas.shared.savedProvider",
+    labelFallback: "Use my saved provider",
+    detailKey: `${prefix}.savedProviderDetail`,
+    detailFallback: "Review the provider already in my profile",
+    icon: Star,
+  },
+  {
+    id: "find-options",
+    labelKey: "home.master.subflowCanvas.shared.findOptions",
+    labelFallback: "Find options",
+    detailKey: `${prefix}.findOptionsDetail`,
+    detailFallback: "Compare suitable providers before choosing",
+    icon: Search,
+  },
+  {
+    id: "prepare-only",
+    labelKey: "home.master.subflowCanvas.shared.prepareOnly",
+    labelFallback: "Prepare first",
+    detailKey: `${prefix}.prepareOnlyDetail`,
+    detailFallback: "Organize the request without contacting anyone",
+    icon: CalendarDays,
+  },
+];
+
 const FLOW_DEFINITIONS: Record<CrossPillarCompletionActionId, FlowDefinition> = {
+  "health-symptoms": {
+    titleKey: "home.master.healthIntent.symptoms",
+    titleFallback: "Tell VYVA what you feel",
+    helperKey: "home.master.healthIntent.symptomsDetail",
+    helperFallback: "VYVA will collect the important details and review them with you.",
+    optionLabelKey: "home.master.subflowCanvas.shared.startingPoint",
+    optionLabelFallback: "Starting point",
+    options: detailOptions("home.master.subflowCanvas.symptoms"),
+  },
+  "health-vitals": {
+    titleKey: "home.master.healthIntent.vitals",
+    titleFallback: "Record a health reading",
+    helperKey: "home.master.healthIntent.vitalsDetail",
+    helperFallback: "Choose how you want to add or review your readings.",
+    optionLabelKey: "home.master.subflowCanvas.shared.startingPoint",
+    optionLabelFallback: "Starting point",
+    options: detailOptions("home.master.subflowCanvas.vitals"),
+  },
+  "health-meds": {
+    titleKey: "home.master.healthIntent.meds",
+    titleFallback: "Medication help",
+    helperKey: "home.master.healthIntent.medsDetail",
+    helperFallback: "Review doses and reminders before making changes.",
+    optionLabelKey: "home.master.subflowCanvas.shared.startingPoint",
+    optionLabelFallback: "Starting point",
+    options: detailOptions("home.master.subflowCanvas.meds"),
+  },
   "health-doctor": {
     titleKey: "home.master.subflowCanvas.doctor.title",
     titleFallback: "How should we help with your doctor?",
@@ -90,6 +251,24 @@ const FLOW_DEFINITIONS: Record<CrossPillarCompletionActionId, FlowDefinition> = 
         icon: CalendarDays,
       },
     ],
+  },
+  "health-prevention": {
+    titleKey: "home.master.healthIntent.prevention",
+    titleFallback: "Choose a prevention step",
+    helperKey: "home.master.healthIntent.preventionDetail",
+    helperFallback: "VYVA will help choose a useful next step for today.",
+    optionLabelKey: "home.master.subflowCanvas.shared.activityPreference",
+    optionLabelFallback: "Preference",
+    options: activityOptions("home.master.subflowCanvas.prevention"),
+  },
+  "health-visual-scan": {
+    titleKey: "home.master.healthIntent.visualScan",
+    titleFallback: "Show VYVA your concern",
+    helperKey: "home.master.healthIntent.visualScanDetail",
+    helperFallback: "You stay in control of what is captured and shared.",
+    optionLabelKey: "home.master.subflowCanvas.shared.startingPoint",
+    optionLabelFallback: "Starting point",
+    options: detailOptions("home.master.subflowCanvas.visualScan"),
   },
   "mind-memory": {
     titleKey: "home.master.subflowCanvas.mind.title",
@@ -125,6 +304,60 @@ const FLOW_DEFINITIONS: Record<CrossPillarCompletionActionId, FlowDefinition> = 
       },
     ],
   },
+  "mind-reflexes": {
+    titleKey: "mindMemory.cards.trainReflexes",
+    titleFallback: "Train reflexes",
+    helperKey: "mindMemory.cards.trainReflexesDetail",
+    helperFallback: "Choose the pace that feels right today.",
+    optionLabelKey: "home.master.subflowCanvas.shared.activityPreference",
+    optionLabelFallback: "Activity preference",
+    options: activityOptions("home.master.subflowCanvas.reflexes"),
+  },
+  "mind-focus": {
+    titleKey: "mindMemory.cards.boostFocus",
+    titleFallback: "Boost focus",
+    helperKey: "mindMemory.cards.boostFocusDetail",
+    helperFallback: "Choose the kind of focus activity you want.",
+    optionLabelKey: "home.master.subflowCanvas.shared.activityPreference",
+    optionLabelFallback: "Activity preference",
+    options: activityOptions("home.master.subflowCanvas.focus"),
+  },
+  "mind-senses": {
+    titleKey: "mindMemory.cards.sharpenSenses",
+    titleFallback: "Sharpen senses",
+    helperKey: "mindMemory.cards.sharpenSensesDetail",
+    helperFallback: "Choose a calm sensory activity.",
+    optionLabelKey: "home.master.subflowCanvas.shared.activityPreference",
+    optionLabelFallback: "Activity preference",
+    options: activityOptions("home.master.subflowCanvas.senses"),
+  },
+  "community-friends": {
+    titleKey: "community.master.cards.match",
+    titleFallback: "Find people like me",
+    helperKey: "community.master.cards.matchDetail",
+    helperFallback: "Choose where you would feel comfortable connecting.",
+    optionLabelKey: "home.master.subflowCanvas.shared.connectionPreference",
+    optionLabelFallback: "Connection preference",
+    options: communityOptions("home.master.subflowCanvas.friends"),
+  },
+  "community-experts": {
+    titleKey: "community.master.cards.experts",
+    titleFallback: "Ask an expert",
+    helperKey: "community.master.cards.expertsDetail",
+    helperFallback: "Choose how you want to start.",
+    optionLabelKey: "home.master.subflowCanvas.shared.connectionPreference",
+    optionLabelFallback: "Connection preference",
+    options: communityOptions("home.master.subflowCanvas.experts"),
+  },
+  "community-share": {
+    titleKey: "community.master.cards.share",
+    titleFallback: "Share a story",
+    helperKey: "community.master.cards.shareDetail",
+    helperFallback: "Choose where you would like to share.",
+    optionLabelKey: "home.master.subflowCanvas.shared.connectionPreference",
+    optionLabelFallback: "Sharing preference",
+    options: communityOptions("home.master.subflowCanvas.share"),
+  },
   "community-activities": {
     titleKey: "home.master.subflowCanvas.community.title",
     titleFallback: "What kind of activity suits you?",
@@ -159,39 +392,41 @@ const FLOW_DEFINITIONS: Record<CrossPillarCompletionActionId, FlowDefinition> = 
       },
     ],
   },
+  "concierge-home": {
+    titleKey: "concierge.master.cards.homeCare",
+    titleFallback: "Home service help",
+    helperKey: "concierge.master.cards.homeCareDetail",
+    helperFallback: "VYVA will collect the job details before any contact.",
+    optionLabelKey: "home.master.subflowCanvas.shared.providerPreference",
+    optionLabelFallback: "Provider preference",
+    options: providerOptions("home.master.subflowCanvas.homeService"),
+  },
+  "concierge-care": {
+    titleKey: "concierge.master.cards.personalCare",
+    titleFallback: "Personal care help",
+    helperKey: "concierge.master.cards.personalCareDetail",
+    helperFallback: "Review suitable providers before contacting anyone.",
+    optionLabelKey: "home.master.subflowCanvas.shared.providerPreference",
+    optionLabelFallback: "Provider preference",
+    options: providerOptions("home.master.subflowCanvas.personalCare"),
+  },
+  "concierge-order": {
+    titleKey: "concierge.master.cards.orderIn",
+    titleFallback: "Shopping help",
+    helperKey: "concierge.master.cards.orderInDetail",
+    helperFallback: "VYVA will prepare the list, seller, and delivery details.",
+    optionLabelKey: "home.master.subflowCanvas.shared.providerPreference",
+    optionLabelFallback: "Seller preference",
+    options: providerOptions("home.master.subflowCanvas.shopping"),
+  },
   "concierge-book": {
-    titleKey: "home.master.subflowCanvas.ride.title",
-    titleFallback: "Where should we start your ride?",
-    helperKey: "home.master.subflowCanvas.ride.helper",
-    helperFallback: "VYVA will ask for destination and timing next.",
-    optionLabelKey: "home.master.subflowCanvas.ride.preference",
-    optionLabelFallback: "Ride setup",
-    options: [
-      {
-        id: "saved-destination",
-        labelKey: "home.master.subflowCanvas.ride.saved",
-        labelFallback: "A saved place",
-        detailKey: "home.master.subflowCanvas.ride.savedDetail",
-        detailFallback: "Use an address already in my profile",
-        icon: Star,
-      },
-      {
-        id: "new-destination",
-        labelKey: "home.master.subflowCanvas.ride.new",
-        labelFallback: "A new address",
-        detailKey: "home.master.subflowCanvas.ride.newDetail",
-        detailFallback: "Tell VYVA where you want to go",
-        icon: MapPin,
-      },
-      {
-        id: "need-help",
-        labelKey: "home.master.subflowCanvas.ride.help",
-        labelFallback: "Help me decide",
-        detailKey: "home.master.subflowCanvas.ride.helpDetail",
-        detailFallback: "Start with a few simple questions",
-        icon: Car,
-      },
-    ],
+    titleKey: "concierge.master.cards.bookNow",
+    titleFallback: "Prepare an appointment",
+    helperKey: "concierge.master.cards.bookNowDetail",
+    helperFallback: "VYVA will collect the reason, provider, and timing first.",
+    optionLabelKey: "home.master.subflowCanvas.shared.providerPreference",
+    optionLabelFallback: "Provider preference",
+    options: providerOptions("home.master.subflowCanvas.appointment"),
   },
 };
 

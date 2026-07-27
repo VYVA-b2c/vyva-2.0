@@ -1,14 +1,17 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VYVA_VOICE_USER_MESSAGE_EVENT, type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
-import CrossPillarSubflowCanvas from "./CrossPillarSubflowCanvas";
+import CrossPillarSubflowCanvas, {
+  CROSS_PILLAR_COMPLETION_ACTIONS,
+  type CrossPillarCompletionActionId,
+} from "./CrossPillarSubflowCanvas";
 
 vi.mock("@/components/ZamoraVoiceOrb", () => ({
   default: ({ testId }: { testId?: string }) => <div data-testid={testId ?? "mock-vyva-orb"} />,
 }));
 
 const renderCanvas = (
-  actionId: "health-doctor" | "mind-memory" | "community-activities" | "concierge-book" = "health-doctor",
+  actionId: CrossPillarCompletionActionId = "health-doctor",
   onContinue = vi.fn().mockResolvedValue(undefined),
 ) => {
   const onCancel = vi.fn();
@@ -62,11 +65,11 @@ describe("CrossPillarSubflowCanvas", () => {
   it("restores an unfinished review in the same session", () => {
     sessionStorage.setItem("vyva.cross-pillar-subflow.concierge-book.v1", JSON.stringify({
       step: "review",
-      selectedOptionId: "new-destination",
+      selectedOptionId: "saved-provider",
     }));
     renderCanvas("concierge-book");
     expect(screen.getByRole("heading", { name: /Is this right/i })).toBeInTheDocument();
-    expect(screen.getByText("A new address")).toBeInTheDocument();
+    expect(screen.getByText("Use my saved provider")).toBeInTheDocument();
   });
 
   it("keeps the choice and offers retry when the handoff fails", async () => {
@@ -84,5 +87,39 @@ describe("CrossPillarSubflowCanvas", () => {
     fireEvent.click(screen.getByRole("button", { name: /Not now/i }));
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it("covers every visible cross-pillar action", () => {
+    expect(CROSS_PILLAR_COMPLETION_ACTIONS).toEqual([
+      "health-symptoms",
+      "health-vitals",
+      "health-meds",
+      "health-doctor",
+      "health-prevention",
+      "health-visual-scan",
+      "mind-memory",
+      "mind-reflexes",
+      "mind-focus",
+      "mind-senses",
+      "community-friends",
+      "community-experts",
+      "community-share",
+      "community-activities",
+      "concierge-home",
+      "concierge-care",
+      "concierge-order",
+      "concierge-book",
+    ]);
+  });
+
+  it.each([
+    ["health-symptoms", /Add the details now/i],
+    ["mind-focus", /Recommend one/i],
+    ["community-friends", /^Nearby/i],
+    ["concierge-home", /Use my saved provider/i],
+  ] as const)("collects missing details for %s before review", (actionId, choiceName) => {
+    renderCanvas(actionId);
+    fireEvent.click(screen.getByRole("button", { name: choiceName }));
+    expect(screen.getByRole("heading", { name: /Is this right/i })).toBeInTheDocument();
   });
 });
