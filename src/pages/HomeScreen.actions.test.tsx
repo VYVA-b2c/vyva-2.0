@@ -383,7 +383,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
   });
 
-  it("shows schedule nudges only once the voice session is alive", () => {
+  it("shows timely schedule nudges before voice starts so the user can act on them", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -398,14 +398,6 @@ describe("Home fast service actions", () => {
       }
       return { data: null, isError: false, error: null };
     });
-
-    const idle = render(<HomeScreen />);
-
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
-    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
-
-    idle.unmount();
-    voiceMock.status = "connected";
 
     render(<HomeScreen />);
 
@@ -479,7 +471,7 @@ describe("Home fast service actions", () => {
     const history = JSON.parse(
       window.localStorage.getItem(HOME_CONTEXT_ACTION_HISTORY_KEY) ?? "{}",
     ) as HomeContextMessageActionHistory;
-    expect(history["dose:Monoprost:25"]).toMatchObject({
+    expect(history["dose:Monoprost"]).toMatchObject({
       action: "opened",
       source: "voice",
     });
@@ -507,7 +499,7 @@ describe("Home fast service actions", () => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_APP_ACTION_RESULT_EVENT, {
         detail: {
           action: "dismissed",
-          actionId: "dose:Monoprost:25",
+          actionId: "dose:Monoprost",
           reason: "User said later",
         },
       }));
@@ -517,7 +509,7 @@ describe("Home fast service actions", () => {
     const history = JSON.parse(
       window.localStorage.getItem(HOME_CONTEXT_ACTION_HISTORY_KEY) ?? "{}",
     ) as HomeContextMessageActionHistory;
-    expect(history["dose:Monoprost:25"]).toMatchObject({
+    expect(history["dose:Monoprost"]).toMatchObject({
       action: "deferred",
       source: "voice_tool",
     });

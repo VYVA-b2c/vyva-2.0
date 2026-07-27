@@ -21,7 +21,11 @@ import {
   type HeroSurface,
   validateHeroMessageResult,
 } from "@/lib/heroMessages";
-import { HOME_CONTEXT_DECISION_LABELS } from "@/lib/homeContextMessages";
+import {
+  HOME_CONTEXT_DECISION_LABELS,
+  decideHomeContextMessage,
+  type HomeContextMessage,
+} from "@/lib/homeContextMessages";
 
 type AdminSource = "built_in" | "database";
 
@@ -331,9 +335,12 @@ export default function HeroMessagesAdminPage() {
     const activeWarnings = active ? copyWarnings(active, language) : [];
     if (result.source === "fallback") activeWarnings.push(result.fallbackReason === "invalid_selected_message" ? "Invalid managed copy caused fallback" : "No usable surface copy");
     if (result.headline.trim().toLowerCase() === "vyva") activeWarnings.push("Generic fallback headline");
-    const impressions = metricCount(metrics, surface, result.messageId, language, "impression");
-    const clicks = metricCount(metrics, surface, result.messageId, language, "cta_click");
-    const dismissals = metricCount(metrics, surface, result.messageId, language, "dismiss");
+    const impressions = metricCount(metrics, surface, result.messageId, language, "impression")
+      + metricCount(metrics, surface, result.messageId, language, "shown");
+    const clicks = metricCount(metrics, surface, result.messageId, language, "cta_click")
+      + metricCount(metrics, surface, result.messageId, language, "opened");
+    const dismissals = metricCount(metrics, surface, result.messageId, language, "dismiss")
+      + metricCount(metrics, surface, result.messageId, language, "dismissed");
     return {
       surface,
       result,
@@ -366,6 +373,80 @@ export default function HeroMessagesAdminPage() {
     upcomingEventType: diagnosticEventType || null,
     recentActivity: diagnosticActivity || null,
   }, selectionCatalog), [diagnosticActivity, diagnosticEventType, diagnosticLanguage, diagnosticPeriod, diagnosticSafety, diagnosticSurface, selectionCatalog]);
+  const homeDecisionPreview = useMemo(() => {
+    const now = diagnosticDate(diagnosticPeriod).getTime();
+    const fallback: HomeContextMessage = {
+      id: "preview:fallback",
+      kind: "default",
+      title: "Calm greeting",
+      priority: 0,
+      category: "general",
+      source: "fallback",
+    };
+    const managed: HomeContextMessage = {
+      id: `admin:${diagnosticResult.messageId}`,
+      kind: "feature",
+      title: diagnosticResult.headline,
+      supportingText: diagnosticResult.subtitle,
+      actionLabel: diagnosticResult.ctaLabel,
+      actionRoute: diagnosticResult.ctaRoute,
+      priority: allMessages.find((item) => item.message_id === diagnosticResult.messageId)?.priority ?? 50,
+      nonUrgent: true,
+      source: diagnosticResult.source === "managed" ? "managed" : "built_in",
+    };
+    const contextual: HomeContextMessage[] = [];
+    if (diagnosticSafety === "urgent") {
+      contextual.push({
+        id: "preview:urgent",
+        kind: "urgent",
+        title: "Urgent support",
+        priority: 100,
+        category: "health",
+        intentTags: ["health"],
+        source: "built_in",
+      });
+    }
+    if (diagnosticEventType === "medication" || diagnosticEventType === "appointment") {
+      contextual.push({
+        id: `preview:${diagnosticEventType}`,
+        kind: "reminder",
+        title: diagnosticEventType === "medication" ? "Medication reminder" : "Appointment reminder",
+        priority: 60,
+        category: diagnosticEventType,
+        dueAt: now + 20 * 60_000,
+        intentTags: [diagnosticEventType === "medication" ? "health" : "doctor"],
+        source: "built_in",
+      });
+    }
+    if (diagnosticActivity) {
+      contextual.push({
+        id: `preview:flow:${diagnosticActivity}`,
+        kind: "flow",
+        title: `Continue ${diagnosticActivity.replaceAll("_", " ")}`,
+        priority: 70,
+        category: diagnosticActivity === "social"
+          ? "community"
+          : diagnosticActivity === "concierge"
+            ? "concierge"
+            : "health",
+        intentTags: [diagnosticActivity],
+        source: "built_in",
+      });
+    }
+    return decideHomeContextMessage(
+      [managed, ...contextual, fallback],
+      {},
+      now,
+      { activeIntent: diagnosticActivity || diagnosticEventType || null },
+    );
+  }, [
+    allMessages,
+    diagnosticActivity,
+    diagnosticEventType,
+    diagnosticPeriod,
+    diagnosticResult,
+    diagnosticSafety,
+  ]);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
@@ -842,6 +923,28 @@ export default function HeroMessagesAdminPage() {
                 <div><p className="text-[#8b7a73]">Fallback</p><p className="font-black">{diagnosticResult.fallbackReason ?? "No"}</p></div>
               </div>
             </div>
+            {homeDecisionPreview ? (
+              <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 p-4" data-testid="home-message-decision-preview">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">
+                  Why this user sees this message now
+                </p>
+                <p className="mt-2 text-lg font-black">{homeDecisionPreview.message.title}</p>
+                <p className="mt-1 text-sm font-bold text-[#6f5f78]">{homeDecisionPreview.explanation}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {homeDecisionPreview.factors.map((factor) => (
+                    <div key={`${factor.key}:${factor.label}`} className="rounded-lg bg-white p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-black">{factor.label}</span>
+                        <span className={factor.points >= 0 ? "font-black text-emerald-700" : "font-black text-amber-700"}>
+                          {factor.points > 0 ? "+" : ""}{factor.points}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[#7d6b65]">{factor.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         </section>
       </section>

@@ -27,7 +27,17 @@ export type HeroPeriod = "morning" | "afternoon" | "evening" | "night";
 export type HeroSafetyLevel = "normal" | "medical" | "urgent";
 
 export type HeroMessageSource = "managed" | "built_in" | "fallback";
-export type HeroMessageEventType = "impression" | "cta_click" | "dismiss" | "fallback";
+export type HeroMessageEventType =
+  | "impression"
+  | "cta_click"
+  | "dismiss"
+  | "fallback"
+  | "shown"
+  | "opened"
+  | "deferred"
+  | "dismissed"
+  | "completed"
+  | "voice_engaged";
 export type HeroFallbackReason = "no_eligible_message" | "invalid_selected_message";
 
 export interface HeroMessageResult {
