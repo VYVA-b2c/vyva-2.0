@@ -235,6 +235,19 @@ function metricCount(metrics: HeroMetricRow[], surface: HeroSurface, messageId: 
     .reduce((sum, metric) => sum + Number(metric.count ?? 0), 0);
 }
 
+function lifecycleMetricCount(
+  metrics: HeroMetricRow[],
+  surface: HeroSurface,
+  messageId: string,
+  language: HeroLanguage,
+  eventTypes: HeroMessageEventType[],
+) {
+  return eventTypes.reduce(
+    (sum, eventType) => sum + metricCount(metrics, surface, messageId, language, eventType),
+    0,
+  );
+}
+
 function HeroPreview({ copy, source, surface }: { copy: HeroCopy; source: HeroMessageSource | AdminSource; surface: HeroSurface }) {
   if (surface === "home_voice") {
     return (
@@ -335,22 +348,25 @@ export default function HeroMessagesAdminPage() {
     const activeWarnings = active ? copyWarnings(active, language) : [];
     if (result.source === "fallback") activeWarnings.push(result.fallbackReason === "invalid_selected_message" ? "Invalid managed copy caused fallback" : "No usable surface copy");
     if (result.headline.trim().toLowerCase() === "vyva") activeWarnings.push("Generic fallback headline");
-    const impressions = metricCount(metrics, surface, result.messageId, language, "impression")
-      + metricCount(metrics, surface, result.messageId, language, "shown");
-    const clicks = metricCount(metrics, surface, result.messageId, language, "cta_click")
-      + metricCount(metrics, surface, result.messageId, language, "opened");
-    const dismissals = metricCount(metrics, surface, result.messageId, language, "dismiss")
-      + metricCount(metrics, surface, result.messageId, language, "dismissed");
+    const shown = lifecycleMetricCount(metrics, surface, result.messageId, language, ["impression", "shown"]);
+    const opened = lifecycleMetricCount(metrics, surface, result.messageId, language, ["cta_click", "opened"]);
+    const deferred = metricCount(metrics, surface, result.messageId, language, "deferred");
+    const dismissed = lifecycleMetricCount(metrics, surface, result.messageId, language, ["dismiss", "dismissed"]);
+    const completed = metricCount(metrics, surface, result.messageId, language, "completed");
+    const voiceEngaged = metricCount(metrics, surface, result.messageId, language, "voice_engaged");
     return {
       surface,
       result,
       priority: active?.priority ?? 0,
       lastEdited: result.source === "managed" ? formatDate(active?.updated_at) : sourceLabel(result.source),
       warnings: activeWarnings,
-      impressions,
-      clicks,
-      dismissals,
-      ctr: impressions ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%",
+      shown,
+      opened,
+      deferred,
+      dismissed,
+      completed,
+      voiceEngaged,
+      ctr: shown ? `${((opened / shown) * 100).toFixed(1)}%` : "0.0%",
     };
   }), [allMessages, language, metrics, selectionCatalog]);
   const overviewCounts = useMemo<Record<OverviewFilter, number>>(() => ({
@@ -829,11 +845,11 @@ export default function HeroMessagesAdminPage() {
             </p>
 
             <div className="mt-3 overflow-hidden rounded-xl border border-[#eadfd5]">
-              <div className="hidden grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
+              <div className="hidden grid-cols-[0.9fr_0.45fr_1.25fr_0.55fr_0.8fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
                 <span>Surface and active copy</span>
                 <span>Source</span>
-                <span>Views / clicks</span>
-                <span>CTR</span>
+                <span>Message lifecycle</span>
+                <span>Open rate</span>
                 <span>Status</span>
               </div>
               <div className="max-h-[460px] overflow-auto">
@@ -842,7 +858,7 @@ export default function HeroMessagesAdminPage() {
                 ) : filteredOverview.map((item) => (
                   <article
                     key={item.surface}
-                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] lg:items-center"
+                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[0.9fr_0.45fr_1.25fr_0.55fr_0.8fr] lg:items-center"
                     data-testid={`card-hero-overview-${item.surface}`}
                   >
                     <div className="min-w-0">
@@ -853,15 +869,20 @@ export default function HeroMessagesAdminPage() {
                     <div>
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
                     </div>
-                    <div className="text-sm">
-                      <p className="flex items-center gap-1 font-black">
-                        <span>{item.impressions}</span>
-                        <span className="text-[#8b7a73]">/</span>
-                        <span>{item.clicks}</span>
-                        <span className="text-[#8b7a73]">/</span>
-                        <span>{item.dismissals}</span>
-                      </p>
-                      <p className="text-xs font-bold text-[#8b7a73]">shown / opened / dismissed</p>
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-2 text-xs" data-testid={`hero-lifecycle-${item.surface}`}>
+                      {[
+                        ["Shown", item.shown],
+                        ["Opened", item.opened],
+                        ["Deferred", item.deferred],
+                        ["Dismissed", item.dismissed],
+                        ["Completed", item.completed],
+                        ["Voice", item.voiceEngaged],
+                      ].map(([label, count]) => (
+                        <div key={label}>
+                          <p className="font-black text-[#2f2135]">{count}</p>
+                          <p className="font-bold text-[#8b7a73]">{label}</p>
+                        </div>
+                      ))}
                     </div>
                     <div className="text-sm font-black">{item.ctr} open rate</div>
                     <div className="flex flex-wrap gap-1.5">{warningPills(item.warnings)}</div>
