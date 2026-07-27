@@ -23,6 +23,7 @@ export const VYVA_VOICE_APP_ACTION_EVENT = "vyva:voice-app-action";
 export const VYVA_VOICE_APP_ACTION_RESULT_EVENT = "vyva:voice-app-action-result";
 export const VYVA_VOICE_SPECIALIST_TRANSFER_EVENT = "vyva:voice-specialist-transfer";
 export const VYVA_VOICE_HOME_INTENT_EVENT = "vyva:voice-home-intent";
+export const VYVA_VOICE_HOME_SUBFLOW_EVENT = "vyva:voice-home-subflow";
 
 export type VoiceUserMessageDetail = {
   text: string;
@@ -30,6 +31,47 @@ export type VoiceUserMessageDetail = {
 };
 
 export type VoiceHomeIntent = "health" | "mind" | "community" | "concierge";
+export type VoiceHomeSubflowId =
+  | "health-symptoms"
+  | "health-vitals"
+  | "health-meds"
+  | "health-doctor"
+  | "mind-memory"
+  | "mind-reflexes"
+  | "mind-focus"
+  | "mind-senses"
+  | "community-friends"
+  | "community-experts"
+  | "community-share"
+  | "community-activities"
+  | "concierge-home"
+  | "concierge-care"
+  | "concierge-order"
+  | "concierge-book";
+
+export type VoiceHomeSubflow = {
+  pillar: VoiceHomeIntent;
+  actionId: VoiceHomeSubflowId;
+};
+
+const VOICE_HOME_SUBFLOW_PILLARS: Record<VoiceHomeSubflowId, VoiceHomeIntent> = {
+  "health-symptoms": "health",
+  "health-vitals": "health",
+  "health-meds": "health",
+  "health-doctor": "health",
+  "mind-memory": "mind",
+  "mind-reflexes": "mind",
+  "mind-focus": "mind",
+  "mind-senses": "mind",
+  "community-friends": "community",
+  "community-experts": "community",
+  "community-share": "community",
+  "community-activities": "community",
+  "concierge-home": "concierge",
+  "concierge-care": "concierge",
+  "concierge-order": "concierge",
+  "concierge-book": "concierge",
+};
 
 export function isVoiceHomeIntent(value: unknown): value is VoiceHomeIntent {
   return value === "health"
@@ -60,6 +102,14 @@ export function toolResultForVoiceHomeIntent(intent: VoiceHomeIntent) {
     concierge: "Concierge",
   };
   return `Showing the ${labels[intent]} choices.`;
+}
+
+export function isVoiceHomeSubflow(value: unknown): value is VoiceHomeSubflow {
+  if (!value || typeof value !== "object") return false;
+  const detail = value as Partial<VoiceHomeSubflow>;
+  return typeof detail.actionId === "string"
+    && detail.actionId in VOICE_HOME_SUBFLOW_PILLARS
+    && detail.pillar === VOICE_HOME_SUBFLOW_PILLARS[detail.actionId as VoiceHomeSubflowId];
 }
 
 export type VoiceAppActionDomain =
@@ -127,6 +177,10 @@ export function emitVoiceHomeIntent(intent: VoiceHomeIntent) {
   window.dispatchEvent(new CustomEvent<VoiceHomeIntent>(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
 }
 
+export function emitVoiceHomeSubflow(subflow: VoiceHomeSubflow) {
+  window.dispatchEvent(new CustomEvent<VoiceHomeSubflow>(VYVA_VOICE_HOME_SUBFLOW_EVENT, { detail: subflow }));
+}
+
 export function emitVoiceAppAction(action: VoiceAppAction) {
   window.dispatchEvent(new CustomEvent<VoiceAppAction>(VYVA_VOICE_APP_ACTION_EVENT, { detail: action }));
 }
@@ -146,6 +200,69 @@ function normalizeIntentText(text: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function voiceHomeSubflow(actionId: VoiceHomeSubflowId): VoiceHomeSubflow {
+  return { actionId, pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId] };
+}
+
+const VOICE_HOME_SUBFLOW_UTTERANCES: Array<[VoiceHomeSubflowId, RegExp]> = [
+  ["health-vitals", /\b(?:blood pressure|pulse|oxygen|temperature|weight|glucose|vitals?|presion|tension|pulso|oxigeno|temperatura|peso|glucosa|constantes?|pouls|oxygene|poids|glycemie|blutdruck|sauerstoff|gewicht|pressione|polso|ossigeno|glucosio|pressao|oxigenio|glicose)\b/],
+  ["health-meds", /\b(?:medications?|medicines?|pills?|doses?|medicacion|medicina|pastillas?|dosis|medicaments?|medikamente?|tabletten?|farmaco|pillola|medicamento|remedio|comprimido)\b/],
+  ["health-doctor", /\b(?:doctor|gp|physician|medico|medecin|arzt)\b/],
+  ["health-symptoms", /\b(?:symptoms?|pain|fever|dizzy|sintomas?|dolor|fiebre|mareo|symptomes?|douleur|fievre|vertige|schmerzen?|fieber|schwindel|sintomo|dolore|febbre|vertigine|dor|febre|tontura)\b/],
+  ["mind-memory", /\b(?:memory|remember|recall|memoria|recordar|souvenir|memoire|gedachtnis|erinner|ricord|lembr)\b/],
+  ["mind-reflexes", /\b(?:reflex|reaction|speed|reflejo|reaccion|reflexe|reaktion|rifless|reazione|reflexo|reacao)\b/],
+  ["mind-focus", /\b(?:focus|attention|concentration|concentr|atencion|aufmerksamkeit|attenzione|atencao)\b/],
+  ["mind-senses", /\b(?:senses?|listen|hearing|breath|smell|sentidos?|escuchar|respirar|olor|sens|ecouter|souffle|odeur|sinne|horen|atmen|geruch|sensi|ascolt|respiro|olfatto|sentidos|ouvir|respirar|cheiro)\b/],
+  ["community-experts", /\b(?:expert|advice|asesor|consejo|experto|expert|conseil|experte|beratung|esperto|consiglio|especialista|conselho)\b/],
+  ["community-share", /\b(?:share (?:a )?(?:story|memory|song)|compartir|partager|teilen|condividere|partilhar)\b/],
+  ["community-activities", /\b(?:activity|activities|events?|club|actividad|evento|activite|evenement|veranstaltung|attivita|evento|atividade)\b/],
+  ["community-friends", /\b(?:friends?|meet people|company|amigos?|conocer gente|compagnie|amis?|rencontrer|freunde|leute treffen|amici|conoscere persone|amigos|conhecer pessoas)\b/],
+  ["concierge-home", /\b(?:home service|repair|cleaning|plumber|electrician|servicio del hogar|reparacion|limpieza|fontanero|service a domicile|reparation|menage|plombier|hausservice|reparatur|reinigung|klempner|servizio domestico|riparazione|pulizia|idraulico|servico domestico|reparo|limpeza|canalizador)\b/],
+  ["concierge-care", /\b(?:personal care|caregiver|residence|home care|cuidador|residencia|cuidados|aide a domicile|aidant|residence|pflege|pflegekraft|betreuung|assistenza|badante|residenza|cuidador|lar|cuidados)\b/],
+  ["concierge-order", /\b(?:order|shopping|groceries|delivery|pedido|compras|comida|commande|courses|livraison|bestellen|einkauf|lieferung|ordine|spesa|consegna|encomenda|compras|entrega)\b/],
+  ["concierge-book", /\b(?:book|booking|appointment|reservation|ride|taxi|cita|reserva|transporte|rendez-vous|reservation|taxi|buchen|termin|reservierung|fahrt|prenot|appuntamento|trasporto|marcar|reserva|transporte)\b/],
+];
+
+export function homeSubflowForVoiceUtterance(text: string): VoiceHomeSubflow | null {
+  const normalized = normalizeIntentText(text).replace(/[!?.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  const match = VOICE_HOME_SUBFLOW_UTTERANCES.find(([, pattern]) => pattern.test(normalized));
+  return match ? voiceHomeSubflow(match[0]) : null;
+}
+
+export function homeSubflowForVoiceToolCall(parameters: Record<string, unknown>): VoiceHomeSubflow | null {
+  const lookup = [
+    stringParam(parameters, "action_type"),
+    stringParam(parameters, "action_id"),
+    normalizeVoiceActionRoute(stringParam(parameters, "route")),
+    stringParam(parameters, "domain"),
+  ].join(" ").toLowerCase().replace(/-/g, "_");
+
+  const mappings: Array<[VoiceHomeSubflowId, RegExp]> = [
+    ["health-vitals", /health[._/](?:vitals|vital)|\/health\/vitals/],
+    ["health-meds", /(?:^|\s)(?:meds|medication)|\/meds/],
+    ["health-doctor", /health[._/](?:doctor|doctor_support)|\/health\/doctor/],
+    ["health-symptoms", /health[._/](?:symptom|symptoms)|\/health\/symptom/],
+    ["mind-memory", /brain[._/](?:memory|recall)|\/memory_games/],
+    ["mind-reflexes", /brain[._/](?:reflex|reaction)|\/attention_boosters/],
+    ["mind-focus", /brain[._/](?:focus|attention|executive)|\/executive_function/],
+    ["mind-senses", /brain[._/](?:senses|listen|breath|scent)|\/senses/],
+    ["community-experts", /social[._/](?:expert|advice)|\/social_rooms\/experts/],
+    ["community-share", /social[._/](?:share|story)|\/social_rooms\/share/],
+    ["community-activities", /social[._/](?:activit|event)|\/social_rooms\/activities/],
+    ["community-friends", /social[._/](?:friend|companion|rooms?)|\/social_rooms/],
+    ["concierge-home", /concierge[._/](?:home_service|repair|cleaning)/],
+    ["concierge-care", /concierge[._/](?:care|provider_contact|residence)/],
+    ["concierge-order", /concierge[._/](?:order|shopping|delivery)|\/concierge\/shopping/],
+    ["concierge-book", /concierge[._/](?:appointment|booking|ride)/],
+  ];
+  const match = mappings.find(([, pattern]) => pattern.test(lookup));
+  return match ? voiceHomeSubflow(match[0]) : null;
+}
+
+export function toolResultForVoiceHomeSubflow(subflow: VoiceHomeSubflow) {
+  return `Showing ${subflow.actionId.replace(/^[^-]+-/, "").replace(/-/g, " ")} in the ${subflow.pillar} choices.`;
 }
 
 export function homeIntentForVoiceUtterance(text: string): VoiceHomeIntent | null {

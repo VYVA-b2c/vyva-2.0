@@ -1413,6 +1413,7 @@ const it = {
       voiceSupport: "Tocca l'orbe per iniziare.",
       chooseCategory: "Vassoio di oggi",
       intentBack: "Indietro",
+      intentUnderstood: "VYVA ha capito",
       healthIntent: {
         title: "Stai bene?",
         sectionTitle: "Di cosa hai bisogno?",

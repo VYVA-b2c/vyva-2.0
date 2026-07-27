@@ -1471,6 +1471,7 @@ const fr = {
       voiceSupport: "Touchez l'orbe pour commencer.",
       chooseCategory: "Aujourd'hui",
       intentBack: "Retour",
+      intentUnderstood: "VYVA a compris",
       healthIntent: {
         title: "Vous allez bien ?",
         sectionTitle: "De quoi avez-vous besoin ?",

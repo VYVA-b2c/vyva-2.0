@@ -7,14 +7,17 @@ import { apiFetch } from "@/lib/queryClient";
 import {
   actionForVoiceToolCall,
   homeIntentForVoiceToolCall,
+  homeSubflowForVoiceToolCall,
   emitVoiceAppAction,
   emitVoiceAppActionResult,
   emitVoiceHomeIntent,
+  emitVoiceHomeSubflow,
   emitVoiceSpecialistTransfer,
   emitVoiceUserMessage,
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
   toolResultForVoiceHomeIntent,
+  toolResultForVoiceHomeSubflow,
 } from "@/lib/voiceNavigation";
 import {
   ensureVoiceSessionId,
@@ -1445,6 +1448,11 @@ function useVyvaVoiceController() {
             ...(sessionOptions.clientTools ?? {}),
             open_app_action: async (parameters: unknown) => {
               const params = toolParameters(parameters);
+              const homeSubflow = homeSubflowForVoiceToolCall(params);
+              if (homeSubflow) {
+                emitVoiceHomeSubflow(homeSubflow);
+                return toolResultForVoiceHomeSubflow(homeSubflow);
+              }
               const homeIntent = homeIntentForVoiceToolCall(params);
               if (homeIntent) {
                 emitVoiceHomeIntent(homeIntent);

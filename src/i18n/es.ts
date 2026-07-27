@@ -1633,6 +1633,7 @@ const es = {
       voiceSupport: "Toca el orbe para empezar.",
       chooseCategory: "Bandeja de hoy",
       intentBack: "Volver",
+      intentUnderstood: "VYVA entendió",
       healthIntent: {
         title: "Estas bien?",
         sectionTitle: "Que necesitas?",

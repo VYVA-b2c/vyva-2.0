@@ -1883,6 +1883,7 @@
       voiceSupport: "Tap the orb to begin.",
       chooseCategory: "Today tray",
       intentBack: "Back",
+      intentUnderstood: "VYVA understood",
       healthIntent: {
         title: "Are you OK?",
         sectionTitle: "What do you need?",

@@ -40,10 +40,13 @@ import {
 import {
   VYVA_VOICE_APP_ACTION_RESULT_EVENT,
   VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_HOME_SUBFLOW_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppActionResult,
   type VoiceHomeIntent,
+  type VoiceHomeSubflow,
   isVoiceHomeIntent,
+  isVoiceHomeSubflow,
   transitionForVoiceHomeIntent,
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
@@ -235,6 +238,7 @@ type HomeFastAction = {
 type HomeIntentLayer = "home" | VoiceHomeIntent;
 
 const HOME_INTENT_LAYER_STORAGE_KEY = "vyva:home-intent-layer:v1";
+const HOME_SUBFLOW_STORAGE_KEY = "vyva:home-subflow:v1";
 
 function readHomeIntentLayer(): HomeIntentLayer {
   try {
@@ -249,6 +253,26 @@ function writeHomeIntentLayer(layer: HomeIntentLayer) {
   try {
     if (layer === "home") sessionStorage.removeItem(HOME_INTENT_LAYER_STORAGE_KEY);
     else sessionStorage.setItem(HOME_INTENT_LAYER_STORAGE_KEY, layer);
+  } catch {
+    return;
+  }
+}
+
+function readHomeSubflow(): VoiceHomeSubflow | null {
+  try {
+    const stored = sessionStorage.getItem(HOME_SUBFLOW_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as unknown;
+    return isVoiceHomeSubflow(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeHomeSubflow(subflow: VoiceHomeSubflow | null) {
+  try {
+    if (subflow) sessionStorage.setItem(HOME_SUBFLOW_STORAGE_KEY, JSON.stringify(subflow));
+    else sessionStorage.removeItem(HOME_SUBFLOW_STORAGE_KEY);
   } catch {
     return;
   }
@@ -727,6 +751,7 @@ const HomeScreen = () => {
     readShowVyvaReviewHistory()
   ));
   const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>(readHomeIntentLayer);
+  const [homeSubflow, setHomeSubflow] = useState<VoiceHomeSubflow | null>(readHomeSubflow);
   const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">(() => {
     try {
       return localStorage.getItem("vyva:home-interaction-mode:v1") === "touch" ? "touch" : "voice";
@@ -754,6 +779,7 @@ const HomeScreen = () => {
       lastVoiceHomeIntentRef.current = { intent, at: now };
       const transition = transitionForVoiceHomeIntent(intent);
       setHomeIntentLayer(transition.layer);
+      setHomeSubflow(null);
       setHomeInteractionMode("touch");
     };
 
@@ -762,8 +788,25 @@ const HomeScreen = () => {
   }, [guardPath]);
 
   useEffect(() => {
+    const handleVoiceHomeSubflow = (event: Event) => {
+      const subflow = event instanceof CustomEvent ? event.detail : undefined;
+      if (!isVoiceHomeSubflow(subflow)) return;
+      setHomeIntentLayer(subflow.pillar);
+      setHomeSubflow(subflow);
+      setHomeInteractionMode("touch");
+    };
+
+    window.addEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
+    return () => window.removeEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
+  }, []);
+
+  useEffect(() => {
     writeHomeIntentLayer(homeIntentLayer);
   }, [homeIntentLayer]);
+
+  useEffect(() => {
+    writeHomeSubflow(homeSubflow);
+  }, [homeSubflow]);
 
   useEffect(() => {
     try {
@@ -1181,6 +1224,7 @@ const HomeScreen = () => {
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("health");
+        setHomeSubflow(null);
       },
       testId: "card-home-agent-health",
     },
@@ -1190,7 +1234,10 @@ const HomeScreen = () => {
       title: t("home.master.cards.mindMemoryShortTitle", "My Mind"),
       detail: t("home.master.cards.mindMemoryDetailShort", "Cognitive exercises"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
-      onClick: () => setHomeIntentLayer("mind"),
+      onClick: () => {
+        setHomeIntentLayer("mind");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-cognitive",
     },
     {
@@ -1199,7 +1246,10 @@ const HomeScreen = () => {
       title: t("home.master.cards.communityShortTitle", "My Community"),
       detail: t("home.master.cards.communityDetailShort", "Connect with others"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => setHomeIntentLayer("community"),
+      onClick: () => {
+        setHomeIntentLayer("community");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-social",
     },
     {
@@ -1208,7 +1258,10 @@ const HomeScreen = () => {
       title: t("home.master.cards.conciergeShortTitle", "My Concierge"),
       detail: t("home.master.cards.conciergeDetailShort", "Bookings and services"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => setHomeIntentLayer("concierge"),
+      onClick: () => {
+        setHomeIntentLayer("concierge");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-concierge",
     },
   ];
@@ -2030,7 +2083,24 @@ const HomeScreen = () => {
     community: "/social-rooms",
     concierge: "/concierge",
   };
-  const homeMasterVisibleCards = cardsByIntent[homeIntentLayer];
+  const homeMasterVisibleCards = cardsByIntent[homeIntentLayer].map((card) => {
+    if (homeIntentLayer === "home") return card;
+    const selected = homeSubflow?.pillar === homeIntentLayer && homeSubflow.actionId === card.id;
+    return {
+      ...card,
+      highlighted: selected,
+      highlightLabel: selected
+        ? t("home.master.intentUnderstood", "VYVA understood")
+        : undefined,
+      onClick: () => {
+        setHomeSubflow({
+          pillar: homeIntentLayer,
+          actionId: card.id as VoiceHomeSubflow["actionId"],
+        });
+        card.onClick();
+      },
+    };
+  });
   const homeMasterCardSectionTitle = homeIntentLayer === "home"
     ? t("home.master.chooseCategory", "App shortcuts")
     : undefined;

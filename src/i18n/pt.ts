@@ -1413,6 +1413,7 @@ const pt = {
       voiceSupport: "Toque no orbe para comecar.",
       chooseCategory: "Hoje",
       intentBack: "Voltar",
+      intentUnderstood: "A VYVA entendeu",
       healthIntent: {
         title: "Esta tudo bem?",
         sectionTitle: "Do que precisa?",

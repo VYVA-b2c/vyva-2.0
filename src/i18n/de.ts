@@ -1503,6 +1503,7 @@ const de = {
       voiceSupport: "Tippen Sie zum Starten auf die Kugel.",
       chooseCategory: "Heute",
       intentBack: "Zuruck",
+      intentUnderstood: "VYVA hat verstanden",
       healthIntent: {
         title: "Geht es Ihnen gut?",
         sectionTitle: "Was brauchen Sie?",
