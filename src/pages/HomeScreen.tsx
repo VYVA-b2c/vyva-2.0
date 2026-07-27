@@ -9,6 +9,10 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
+import CrossPillarSubflowCanvas, {
+  isCrossPillarCompletionAction,
+  type CrossPillarSubflowResult,
+} from "@/components/voice-canvas/CrossPillarSubflowCanvas";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
@@ -2097,10 +2101,67 @@ const HomeScreen = () => {
           pillar: homeIntentLayer,
           actionId: card.id as VoiceHomeSubflow["actionId"],
         });
-        card.onClick();
+        if (!isCrossPillarCompletionAction(card.id as VoiceHomeSubflow["actionId"])) {
+          card.onClick();
+        }
       },
     };
   });
+  const activeCompletionAction = homeSubflow && isCrossPillarCompletionAction(homeSubflow.actionId)
+    ? homeSubflow.actionId
+    : null;
+  const continueCrossPillarSubflow = (result: CrossPillarSubflowResult) => {
+    if (result.actionId === "health-doctor") {
+      handleNavigate("/concierge", {
+        state: {
+          conciergePrefill: {
+            kind: "appointment",
+            message: t(
+              "home.master.subflowCanvas.doctor.prefill",
+              "Help me prepare a doctor appointment. Ask for the reason and timing, and do not contact anyone without my confirmation.",
+            ),
+            source: "voice_action",
+          },
+          voiceActionPayload: {
+            provider_preference: result.optionId,
+            latest_symptom_report: homeDoctorContext,
+          },
+        },
+      });
+      return;
+    }
+    if (result.actionId === "concierge-book") {
+      handleNavigate("/concierge", {
+        state: {
+          conciergePrefill: {
+            kind: "ride",
+            message: t(
+              "home.master.subflowCanvas.ride.prefill",
+              "Help me prepare a ride. Ask for pickup, destination, and timing, and do not book anything without my confirmation.",
+            ),
+            source: "voice_action",
+          },
+          voiceActionPayload: { destination_preference: result.optionId },
+        },
+      });
+      return;
+    }
+    if (result.actionId === "mind-memory") {
+      handleNavigate("/memory-games", {
+        state: {
+          source: "home_completion_canvas",
+          cognitiveActivityPreference: result.optionId,
+        },
+      });
+      return;
+    }
+    handleNavigate("/social-rooms/activities", {
+      state: {
+        source: "home_completion_canvas",
+        activityLocationPreference: result.optionId,
+      },
+    });
+  };
   const homeMasterCardSectionTitle = homeIntentLayer === "home"
     ? t("home.master.chooseCategory", "App shortcuts")
     : undefined;
@@ -2786,7 +2847,13 @@ const HomeScreen = () => {
       }}
       cards={homeMasterVisibleCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={null}
+      beforeFastHelp={activeCompletionAction ? (
+        <CrossPillarSubflowCanvas
+          actionId={activeCompletionAction}
+          onContinue={continueCrossPillarSubflow}
+          onCancel={() => setHomeSubflow(null)}
+        />
+      ) : null}
     />
   );
 };

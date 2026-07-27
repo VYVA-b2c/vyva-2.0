@@ -1603,12 +1603,29 @@ describe("Home fast service actions", () => {
     }));
     expect(guardPathMock).toHaveBeenCalledWith("/health/vitals", undefined);
     expect(guardPathMock).toHaveBeenCalledWith("/meds", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
-      state: expect.objectContaining({ autoStartVoice: true }),
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-action-id",
+      "health-doctor",
+    );
+    expect(guardPathMock).not.toHaveBeenCalledWith(
+      "/health/doctor",
+      expect.anything(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /My usual doctor/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open next step/i }));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+      state: expect.objectContaining({
+        conciergePrefill: expect.objectContaining({
+          kind: "appointment",
+          source: "voice_action",
+        }),
+      }),
     }));
 
     expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
-    expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
   });
 
   it("opens the Health choices when voice detects the broad Health intent", () => {

@@ -1884,6 +1884,38 @@
       chooseCategory: "Today tray",
       intentBack: "Back",
       intentUnderstood: "VYVA understood",
+      subflowCanvas: {
+        actions: { cancel: "Not now", confirm: "Yes, continue", change: "Change", open: "Open next step", retry: "Try again" },
+        review: { label: "Review", title: "Is this right?", helper: "Nothing will be booked, sent, or shared without your confirmation." },
+        completed: { label: "Ready", title: "Your next step is prepared.", helper: "Continue when you are ready. VYVA will carry your choice with you." },
+        blocked: { label: "Could not continue", title: "Your choice is still saved.", helper: "Try again, or come back later." },
+        doctor: {
+          title: "How should we help with your doctor?", helper: "Choose one. You can keep speaking at any time.", preference: "Doctor help",
+          usual: "My usual doctor", usualDetail: "Prepare an appointment with a saved provider",
+          find: "Find a doctor", findDetail: "Look at suitable nearby options first",
+          prepare: "Prepare what to say", prepareDetail: "Organize the reason before contacting anyone",
+          prefill: "I want help with a doctor appointment.",
+        },
+        mind: {
+          title: "What would feel good today?", helper: "VYVA will take you to a suitable cognitive activity.", preference: "Activity preference",
+          recommended: "Recommend one", recommendedDetail: "Use my recent activity to choose",
+          short: "Something short", shortDetail: "A quick cognitive exercise",
+          gentle: "Something gentle", gentleDetail: "Calm pace and simple instructions",
+        },
+        community: {
+          title: "What kind of activity suits you?", helper: "Choose a starting point. You can change it later.", preference: "Activity type",
+          nearby: "Nearby", nearbyDetail: "Activities close to home",
+          online: "Online", onlineDetail: "Join from home",
+          either: "Show me both", eitherDetail: "Compare nearby and online choices",
+        },
+        ride: {
+          title: "Where should we start your ride?", helper: "VYVA will ask for destination and timing next.", preference: "Ride setup",
+          saved: "A saved place", savedDetail: "Use an address already in my profile",
+          new: "A new address", newDetail: "Tell VYVA where you want to go",
+          help: "Help me decide", helpDetail: "Start with a few simple questions",
+          prefill: "I want to book a ride.",
+        },
+      },
       healthIntent: {
         title: "Are you OK?",
         sectionTitle: "What do you need?",

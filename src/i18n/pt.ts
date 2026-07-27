@@ -1414,6 +1414,38 @@ const pt = {
       chooseCategory: "Hoje",
       intentBack: "Voltar",
       intentUnderstood: "A VYVA entendeu",
+      subflowCanvas: {
+        actions: { cancel: "Agora não", confirm: "Sim, continuar", change: "Alterar", open: "Abrir próximo passo", retry: "Tentar novamente" },
+        review: { label: "Rever", title: "Está correto?", helper: "Nada será reservado, enviado ou partilhado sem a sua confirmação." },
+        completed: { label: "Pronto", title: "O próximo passo está preparado.", helper: "Continue quando quiser. A VYVA levará a sua escolha consigo." },
+        blocked: { label: "Não foi possível continuar", title: "A sua escolha continua guardada.", helper: "Tente novamente ou volte mais tarde." },
+        doctor: {
+          title: "Como podemos ajudar com o médico?", helper: "Escolha uma opção. Pode continuar a falar.", preference: "Ajuda médica",
+          usual: "O meu médico habitual", usualDetail: "Preparar consulta com um profissional guardado",
+          find: "Encontrar um médico", findDetail: "Ver primeiro opções adequadas nas proximidades",
+          prepare: "Preparar o que dizer", prepareDetail: "Organizar o motivo antes de contactar",
+          prefill: "Quero ajuda com uma consulta médica.",
+        },
+        mind: {
+          title: "O que lhe faria bem hoje?", helper: "A VYVA irá guiá-lo para uma atividade cognitiva adequada.", preference: "Preferência de atividade",
+          recommended: "Recomendar uma", recommendedDetail: "Escolher com base na minha atividade recente",
+          short: "Algo curto", shortDetail: "Um exercício cognitivo rápido",
+          gentle: "Algo tranquilo", gentleDetail: "Ritmo calmo e instruções simples",
+        },
+        community: {
+          title: "Que atividade combina consigo?", helper: "Escolha um ponto de partida. Pode alterá-lo depois.", preference: "Tipo de atividade",
+          nearby: "Perto de mim", nearbyDetail: "Atividades perto de casa",
+          online: "Online", onlineDetail: "Participar a partir de casa",
+          either: "Mostrar ambas", eitherDetail: "Comparar opções próximas e online",
+        },
+        ride: {
+          title: "Como começamos a sua viagem?", helper: "A VYVA perguntará depois o destino e a hora.", preference: "Preparação da viagem",
+          saved: "Um local guardado", savedDetail: "Usar uma morada do meu perfil",
+          new: "Uma nova morada", newDetail: "Dizer à VYVA para onde quero ir",
+          help: "Ajudar-me a decidir", helpDetail: "Começar com algumas perguntas simples",
+          prefill: "Quero reservar um transporte.",
+        },
+      },
       healthIntent: {
         title: "Esta tudo bem?",
         sectionTitle: "Do que precisa?",

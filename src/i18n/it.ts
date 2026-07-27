@@ -1414,6 +1414,38 @@ const it = {
       chooseCategory: "Vassoio di oggi",
       intentBack: "Indietro",
       intentUnderstood: "VYVA ha capito",
+      subflowCanvas: {
+        actions: { cancel: "Non ora", confirm: "Sì, continua", change: "Modifica", open: "Apri il passo successivo", retry: "Riprova" },
+        review: { label: "Controlla", title: "È corretto?", helper: "Nulla sarà prenotato, inviato o condiviso senza la tua conferma." },
+        completed: { label: "Pronto", title: "Il prossimo passo è pronto.", helper: "Continua quando vuoi. VYVA porterà con sé la tua scelta." },
+        blocked: { label: "Impossibile continuare", title: "La tua scelta è ancora salvata.", helper: "Riprova oppure torna più tardi." },
+        doctor: {
+          title: "Come possiamo aiutarti con il medico?", helper: "Scegli un'opzione. Puoi continuare a parlare.", preference: "Aiuto medico",
+          usual: "Il mio medico abituale", usualDetail: "Preparare un appuntamento con un professionista salvato",
+          find: "Trova un medico", findDetail: "Vedere prima opzioni adatte nelle vicinanze",
+          prepare: "Preparare cosa dire", prepareDetail: "Organizzare il motivo prima di contattare",
+          prefill: "Vorrei aiuto per un appuntamento medico.",
+        },
+        mind: {
+          title: "Cosa ti farebbe stare bene oggi?", helper: "VYVA ti guiderà verso un'attività cognitiva adatta.", preference: "Preferenza attività",
+          recommended: "Consigliamene una", recommendedDetail: "Scegliere in base alle attività recenti",
+          short: "Qualcosa di breve", shortDetail: "Un esercizio cognitivo rapido",
+          gentle: "Qualcosa di tranquillo", gentleDetail: "Ritmo calmo e istruzioni semplici",
+        },
+        community: {
+          title: "Quale attività fa per te?", helper: "Scegli un punto di partenza. Potrai cambiarlo.", preference: "Tipo di attività",
+          nearby: "Nelle vicinanze", nearbyDetail: "Attività vicino a casa",
+          online: "Online", onlineDetail: "Partecipa da casa",
+          either: "Mostra entrambe", eitherDetail: "Confronta opzioni vicine e online",
+        },
+        ride: {
+          title: "Come iniziamo il tuo viaggio?", helper: "VYVA chiederà poi destinazione e orario.", preference: "Preparazione viaggio",
+          saved: "Un luogo salvato", savedDetail: "Usa un indirizzo già nel mio profilo",
+          new: "Un nuovo indirizzo", newDetail: "Dì a VYVA dove vuoi andare",
+          help: "Aiutami a decidere", helpDetail: "Inizia con alcune domande semplici",
+          prefill: "Vorrei prenotare un trasporto.",
+        },
+      },
       healthIntent: {
         title: "Stai bene?",
         sectionTitle: "Di cosa hai bisogno?",
