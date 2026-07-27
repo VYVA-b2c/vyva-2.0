@@ -84,6 +84,7 @@ import {
 import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
 import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
 import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
+import { executeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
 import {
   readShowVyvaReviewHistory,
   SHOW_VYVA_REVIEW_HISTORY_EVENT,
@@ -2111,126 +2112,25 @@ const HomeScreen = () => {
     ? homeSubflow.actionId
     : null;
   const continueCrossPillarSubflow = (result: CrossPillarSubflowResult) => {
-    if (result.actionId === "health-symptoms") {
-      handleNavigate("/health/symptom-check", {
-        ...SECTION_VOICE_AUTO_START_OPTIONS,
-        state: {
-          ...SECTION_VOICE_AUTO_START_OPTIONS.state,
-          source: "home_completion_canvas",
-          detailPreference: result.optionId,
-        },
-      });
-      return;
-    }
-    if (result.actionId === "health-vitals") {
-      handleNavigate("/health/vitals", {
-        state: { source: "home_completion_canvas", detailPreference: result.optionId },
-      });
-      return;
-    }
-    if (result.actionId === "health-meds") {
-      handleNavigate("/meds", {
-        state: { source: "home_completion_canvas", detailPreference: result.optionId },
-      });
-      return;
-    }
-    if (result.actionId === "health-doctor") {
-      handleNavigate("/concierge", {
-        state: {
-          conciergePrefill: {
-            kind: "appointment",
-            message: t(
-              "home.master.subflowCanvas.doctor.prefill",
-              "Help me prepare a doctor appointment. Ask for the reason and timing, and do not contact anyone without my confirmation.",
-            ),
-            source: "voice_action",
-          },
-          voiceActionPayload: {
-            provider_preference: result.optionId,
-            latest_symptom_report: homeDoctorContext,
-          },
-        },
-      });
-      return;
-    }
-    if (result.actionId === "health-prevention") {
-      handleNavigate("/health/prevention", {
-        state: { source: "home_completion_canvas", activityPreference: result.optionId },
-      });
-      return;
-    }
-    if (result.actionId === "health-visual-scan") {
-      handleNavigate("/health", {
-        state: {
-          openVisualScan: true,
-          source: "home_completion_canvas",
-          detailPreference: result.optionId,
-        },
-      });
-      return;
-    }
-    if (result.actionId === "concierge-book") {
-      handleNavigate("/concierge", {
-        state: {
-          conciergePrefill: {
-            kind: "appointment",
-            message: t(
-              "home.master.subflowCanvas.appointment.prefill",
-              "Help me prepare an appointment. Ask for the reason, provider, and timing, and do not contact or book anyone without my confirmation.",
-            ),
-            source: "voice_action",
-          },
-          voiceActionPayload: { provider_preference: result.optionId },
-        },
-      });
-      return;
-    }
-    if (result.actionId.startsWith("mind-")) {
-      const routeByAction: Record<string, string> = {
-        "mind-memory": "/memory-games",
-        "mind-reflexes": "/attention-boosters",
-        "mind-focus": "/executive-function",
-        "mind-senses": "/senses",
-      };
-      handleNavigate(routeByAction[result.actionId], {
-        state: {
-          source: "home_completion_canvas",
-          cognitiveActivityPreference: result.optionId,
-        },
-      });
-      return;
-    }
-    if (result.actionId.startsWith("community-")) {
-      const routeByAction: Record<string, string> = {
-        "community-friends": "/social-rooms/kitchen-table",
-        "community-experts": "/social-rooms/experts",
-        "community-share": "/social-rooms/share",
-        "community-activities": "/social-rooms/activities",
-      };
-      handleNavigate(routeByAction[result.actionId], {
-        state: {
-          source: "home_completion_canvas",
-          communityPreference: result.optionId,
-        },
-      });
-      return;
-    }
-    if (result.actionId === "concierge-order") {
-      handleNavigate("/concierge/shopping", {
-        state: { source: "home_completion_canvas", providerPreference: result.optionId },
-      });
-      return;
-    }
-    const conciergeKind = result.actionId === "concierge-home" ? "home_service" : "provider_contact";
-    handleNavigate(conciergeTaskPath(), {
-      state: {
-        conciergeTaskEntry: {
-          kind: conciergeKind,
-          providerSearchMode: result.actionId === "concierge-care" ? "personal-care" : undefined,
-          provider_preference: result.optionId,
-          source: "home_completion_canvas",
-        },
+    executeCrossPillarHandoff({
+      result,
+      locale: language,
+      doctorContext: homeDoctorContext,
+      readiness: {
+        hasSavedDoctor: profile?.serviceReadiness?.hasSavedDoctor,
       },
+    }, (path, options) => {
+      if (result.actionId === "health-symptoms") {
+        return handleNavigate(path, {
+          ...SECTION_VOICE_AUTO_START_OPTIONS,
+          ...options,
+          state: {
+            ...SECTION_VOICE_AUTO_START_OPTIONS.state,
+            ...(options?.state as Record<string, unknown> ?? {}),
+          },
+        });
+      }
+      return handleNavigate(path, options);
     });
   };
   const homeMasterCardSectionTitle = homeIntentLayer === "home"
