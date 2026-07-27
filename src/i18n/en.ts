@@ -1903,6 +1903,9 @@
         visualScan: "Visual scan",
         visualScanDetail: "Show VYVA a concern",
       },
+      mindIntent: { title: "What would you like to exercise?", more: "More mind activities", dormantSubtitle: "Choose an activity, or touch the orb.", voiceSubtitle: "Okay, mind. Choose one, or tell VYVA." },
+      communityIntent: { title: "How would you like to connect?", more: "More community options", dormantSubtitle: "Choose a way to connect, or touch the orb.", voiceSubtitle: "Okay, community. Choose one, or tell VYVA." },
+      conciergeIntent: { title: "What can VYVA help arrange?", more: "More concierge services", dormantSubtitle: "Choose a service, or touch the orb.", voiceSubtitle: "Okay, concierge. Choose one, or tell VYVA." },
       header: {
         health: "Health",
         display: "Display",

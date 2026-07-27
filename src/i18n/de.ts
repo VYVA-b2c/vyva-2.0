@@ -1523,6 +1523,9 @@ const de = {
         visualScan: "Visuelle Prufung",
         visualScanDetail: "VYVA etwas zeigen",
       },
+      mindIntent: { title: "Was möchten Sie trainieren?", more: "Mehr Denkaktivitäten", dormantSubtitle: "Wählen Sie eine Aktivität oder berühren Sie die Kugel.", voiceSubtitle: "Gut, Gedächtnis. Wählen Sie oder sagen Sie es VYVA." },
+      communityIntent: { title: "Wie möchten Sie Kontakt aufnehmen?", more: "Mehr Gemeinschaftsoptionen", dormantSubtitle: "Wählen Sie eine Möglichkeit oder berühren Sie die Kugel.", voiceSubtitle: "Gut, Gemeinschaft. Wählen Sie oder sagen Sie es VYVA." },
+      conciergeIntent: { title: "Was darf VYVA organisieren?", more: "Mehr Concierge-Dienste", dormantSubtitle: "Wählen Sie einen Dienst oder berühren Sie die Kugel.", voiceSubtitle: "Gut, Concierge. Wählen Sie oder sagen Sie es VYVA." },
       header: {
         health: "Gesundheit",
         display: "Anzeige",

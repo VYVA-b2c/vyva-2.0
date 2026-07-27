@@ -352,9 +352,9 @@ describe("useVyvaVoice", () => {
       const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
       const cases = [
         [{ domain: "health" }, "health", "Showing the Health choices."],
-        [{ domain: "brain_coach" }, "mind", "Opening Mind."],
-        [{ domain: "social" }, "community", "Opening Community."],
-        [{ domain: "concierge" }, "concierge", "Opening Concierge."],
+        [{ domain: "brain_coach" }, "mind", "Showing the Mind choices."],
+        [{ domain: "social" }, "community", "Showing the Community choices."],
+        [{ domain: "concierge" }, "concierge", "Showing the Concierge choices."],
       ] as const;
 
       for (const [parameters, intent, expectedResult] of cases) {

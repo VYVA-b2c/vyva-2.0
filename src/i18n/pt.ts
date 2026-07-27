@@ -1433,6 +1433,9 @@ const pt = {
         visualScan: "Revisao visual",
         visualScanDetail: "Mostre uma preocupacao",
       },
+      mindIntent: { title: "O que gostaria de exercitar?", more: "Mais atividades cognitivas", dormantSubtitle: "Escolha uma atividade ou toque no orbe.", voiceSubtitle: "Certo, mente. Escolha uma opção ou diga à VYVA." },
+      communityIntent: { title: "Como gostaria de se conectar?", more: "Mais opções da comunidade", dormantSubtitle: "Escolha uma forma de participar ou toque no orbe.", voiceSubtitle: "Certo, comunidade. Escolha uma opção ou diga à VYVA." },
+      conciergeIntent: { title: "O que a VYVA pode organizar?", more: "Mais serviços de concierge", dormantSubtitle: "Escolha um serviço ou toque no orbe.", voiceSubtitle: "Certo, concierge. Escolha uma opção ou diga à VYVA." },
       header: {
         health: "Saude",
         display: "Ecra",

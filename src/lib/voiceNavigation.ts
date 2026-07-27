@@ -39,14 +39,13 @@ export function isVoiceHomeIntent(value: unknown): value is VoiceHomeIntent {
 }
 
 export type VoiceHomeIntentTransition =
-  | { kind: "home_layer"; layer: "health" }
-  | { kind: "route"; route: "/mind-memory" | "/social-rooms" | "/concierge" };
+  | { kind: "home_layer"; layer: VoiceHomeIntent };
 
 const VOICE_HOME_INTENT_TRANSITIONS: Record<VoiceHomeIntent, VoiceHomeIntentTransition> = {
   health: { kind: "home_layer", layer: "health" },
-  mind: { kind: "route", route: "/mind-memory" },
-  community: { kind: "route", route: "/social-rooms" },
-  concierge: { kind: "route", route: "/concierge" },
+  mind: { kind: "home_layer", layer: "mind" },
+  community: { kind: "home_layer", layer: "community" },
+  concierge: { kind: "home_layer", layer: "concierge" },
 };
 
 export function transitionForVoiceHomeIntent(intent: VoiceHomeIntent): VoiceHomeIntentTransition {
@@ -54,14 +53,13 @@ export function transitionForVoiceHomeIntent(intent: VoiceHomeIntent): VoiceHome
 }
 
 export function toolResultForVoiceHomeIntent(intent: VoiceHomeIntent) {
-  if (intent === "health") return "Showing the Health choices.";
-
-  const labels: Record<Exclude<VoiceHomeIntent, "health">, string> = {
+  const labels: Record<VoiceHomeIntent, string> = {
+    health: "Health",
     mind: "Mind",
     community: "Community",
     concierge: "Concierge",
   };
-  return `Opening ${labels[intent]}.`;
+  return `Showing the ${labels[intent]} choices.`;
 }
 
 export type VoiceAppActionDomain =
