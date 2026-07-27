@@ -2351,20 +2351,37 @@ adminLifecycleRouter.get("/hero-messages/metrics", async (req: Request, res: Res
       );
 
     const metrics = rows.map((row) => ({ ...row, count: Number(row.count ?? 0) }));
+    const totalFor = (...eventTypes: string[]) => metrics
+      .filter((row) => eventTypes.includes(row.event_type))
+      .reduce((sum, row) => sum + row.count, 0);
     return res.json({
       metrics,
       summary: {
         days,
         surface: surface ?? "all",
-        impressions: metrics.filter((row) => row.event_type === "impression").reduce((sum, row) => sum + row.count, 0),
-        cta_clicks: metrics.filter((row) => row.event_type === "cta_click").reduce((sum, row) => sum + row.count, 0),
-        fallbacks: metrics.filter((row) => row.event_type === "fallback").reduce((sum, row) => sum + row.count, 0),
+        shown: totalFor("impression", "shown"),
+        opened: totalFor("cta_click", "opened"),
+        deferred: totalFor("deferred"),
+        dismissed: totalFor("dismiss", "dismissed"),
+        completed: totalFor("completed"),
+        voice_engaged: totalFor("voice_engaged"),
+        fallbacks: totalFor("fallback"),
       },
     });
   } catch {
     return res.json({
       metrics: [],
-      summary: { days, surface: surface ?? "all", impressions: 0, cta_clicks: 0, fallbacks: 0 },
+      summary: {
+        days,
+        surface: surface ?? "all",
+        shown: 0,
+        opened: 0,
+        deferred: 0,
+        dismissed: 0,
+        completed: 0,
+        voice_engaged: 0,
+        fallbacks: 0,
+      },
       warning: "Hero message metrics are not migrated yet. Run schema/hero_messages.sql.",
     });
   }

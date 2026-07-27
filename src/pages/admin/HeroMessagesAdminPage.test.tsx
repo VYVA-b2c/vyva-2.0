@@ -55,6 +55,10 @@ function renderPage(initialRows = [rowWithHeadline("VYVA")]) {
         metrics: [
           { surface: "health", message_id: "health-admin", language: "es", source: "managed", event_type: "impression", count: 12 },
           { surface: "health", message_id: "health-admin", language: "es", source: "managed", event_type: "cta_click", count: 3 },
+          { surface: "health", message_id: "health-admin", language: "es", source: "managed", event_type: "deferred", count: 2 },
+          { surface: "health", message_id: "health-admin", language: "es", source: "managed", event_type: "dismissed", count: 1 },
+          { surface: "health", message_id: "health-admin", language: "es", source: "managed", event_type: "completed", count: 4 },
+          { surface: "health", message_id: "health-admin", language: "es", source: "managed", event_type: "voice_engaged", count: 5 },
         ],
       });
     }
@@ -91,7 +95,24 @@ describe("HeroMessagesAdminPage", () => {
     expect(within(healthCard).getByText("Headline is too generic")).toBeInTheDocument();
     expect(within(healthCard).getByText("12")).toBeInTheDocument();
     expect(within(healthCard).getByText("3")).toBeInTheDocument();
+    expect(within(healthCard).getByText("2")).toBeInTheDocument();
+    expect(within(healthCard).getByText("1")).toBeInTheDocument();
+    expect(within(healthCard).getByText("4")).toBeInTheDocument();
+    expect(within(healthCard).getByText("5")).toBeInTheDocument();
+    expect(within(healthCard).getByText("Deferred")).toBeInTheDocument();
+    expect(within(healthCard).getByText("Completed")).toBeInTheDocument();
+    expect(within(healthCard).getByText("Voice")).toBeInTheDocument();
     expect(within(healthCard).getByText(/25\.0% open rate/)).toBeInTheDocument();
+  });
+
+  it("explains why the simulated user sees the selected Home message", async () => {
+    renderPage();
+
+    const explanation = await screen.findByTestId("home-message-decision-preview");
+
+    expect(within(explanation).getByText("Why this user sees this message now")).toBeInTheDocument();
+    expect(within(explanation).getByText(/Calm greeting|VYVA/)).toBeInTheDocument();
+    expect(within(explanation).getAllByText(/[+-]?\d+/).length).toBeGreaterThan(0);
   });
 
   it("filters the live overview by operational attention state", async () => {
