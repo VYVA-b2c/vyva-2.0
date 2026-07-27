@@ -12,6 +12,7 @@ import { SHOW_VYVA_REVIEW_HISTORY_KEY } from "@/lib/showVyvaReviewHistory";
 import {
   VYVA_VOICE_APP_ACTION_RESULT_EVENT,
   VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_HOME_SUBFLOW_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
 } from "@/lib/voiceNavigation";
 import {
@@ -1602,12 +1603,29 @@ describe("Home fast service actions", () => {
     }));
     expect(guardPathMock).toHaveBeenCalledWith("/health/vitals", undefined);
     expect(guardPathMock).toHaveBeenCalledWith("/meds", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
-      state: expect.objectContaining({ autoStartVoice: true }),
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-action-id",
+      "health-doctor",
+    );
+    expect(guardPathMock).not.toHaveBeenCalledWith(
+      "/health/doctor",
+      expect.anything(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /My usual doctor/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open next step/i }));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+      state: expect.objectContaining({
+        conciergePrefill: expect.objectContaining({
+          kind: "appointment",
+          source: "voice_action",
+        }),
+      }),
     }));
 
     expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
-    expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
   });
 
   it("opens the Health choices when voice detects the broad Health intent", () => {
@@ -1656,6 +1674,43 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-mind-senses")).toBeInTheDocument();
     expect(guardPathMock).not.toHaveBeenCalled();
+  });
+
+  it("highlights the exact action understood from voice and restores it on return", () => {
+    const firstRender = render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+        detail: { actionId: "health-vitals", pillar: "health" },
+      }));
+    });
+
+    const selectedCard = screen.getByTestId("card-home-health-vitals");
+    expect(selectedCard).toHaveAttribute("aria-current", "true");
+    expect(selectedCard).toHaveTextContent("VYVA understood");
+    expect(screen.getByTestId("card-home-health-symptoms")).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
+
+    firstRender.unmount();
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-health-vitals")).toHaveAttribute("aria-current", "true");
+    expect(guardPathMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the selected action while switching between voice and touch modes", () => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+        detail: { actionId: "community-activities", pillar: "community" },
+      }));
+    });
+
+    expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
+    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
   });
 
   it("ignores malformed and duplicate broad voice intent events", () => {

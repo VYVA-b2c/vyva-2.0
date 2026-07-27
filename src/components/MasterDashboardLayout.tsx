@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
 
@@ -39,6 +39,8 @@ export type MasterDashboardCard = {
   testId?: string;
   accent?: string;
   chips?: string[];
+  highlighted?: boolean;
+  highlightLabel?: string;
 };
 
 export type MasterFastHelpAction = {
@@ -359,8 +361,11 @@ export default function MasterDashboardLayout({
                 onClick={card.onClick}
                 data-testid={card.testId}
                 aria-label={cardAriaLabel}
+                aria-current={card.highlighted ? "true" : undefined}
+                data-highlighted={card.highlighted ? "true" : undefined}
                 className={[
                   "vyva-tap group rounded-[22px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:p-3.5",
+                  card.highlighted ? "ring-[3px] ring-offset-2" : "",
                   isHomeMaster
                     ? isHomeMasterIntentLayer
                       ? "relative flex min-h-[64px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[70px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[78px] sm:rounded-[20px] sm:p-4 sm:pr-12 md:min-h-[86px] md:p-5 md:pr-14 lg:min-h-[92px] lg:p-5 lg:pr-14"
@@ -376,6 +381,14 @@ export default function MasterDashboardLayout({
                       ? "linear-gradient(145deg, rgba(255,255,255,0.105) 0%, rgba(255,255,255,0.07) 100%)"
                       : "rgba(255,255,255,0.92)"
                     : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
+                  ...(card.highlighted
+                    ? {
+                        borderColor: card.tone.iconColor,
+                        boxShadow: `0 12px 28px ${card.tone.iconColor}22`,
+                        outlineColor: card.tone.iconColor,
+                        "--tw-ring-color": card.tone.iconColor,
+                      } as CSSProperties
+                    : {}),
                 }}
               >
                 <span className={`flex min-w-0 items-center gap-3 ${isHomeMaster ? "flex-none" : "flex-1 md:w-full md:items-start md:justify-between"}`}>
@@ -418,6 +431,14 @@ export default function MasterDashboardLayout({
                     className={isHomeMasterDark ? "absolute right-2.5 top-2.5 text-white/50" : "absolute right-2.5 top-2.5 text-vyva-text-3"}
                     aria-hidden="true"
                   />
+                ) : null}
+                {card.highlighted && card.highlightLabel ? (
+                  <span
+                    className="absolute right-9 top-2.5 max-w-[42%] truncate rounded-full px-2 py-1 font-body text-[9px] font-black leading-none min-[390px]:right-10 min-[390px]:text-[10px] sm:right-11"
+                    style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
+                  >
+                    {card.highlightLabel}
+                  </span>
                 ) : null}
                 <span className={`min-w-0 pr-1 ${isHomeMaster ? "block flex-1" : "mt-3 hidden md:block"}`}>
                   <span className={isHomeMasterDark ? "block font-body text-[16px] font-extrabold leading-[1.06] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]" : "block font-body text-[16px] font-extrabold leading-[1.06] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]"}>

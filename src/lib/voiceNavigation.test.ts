@@ -5,8 +5,11 @@ import {
   actionForVoiceUtterance,
   homeIntentForVoiceToolCall,
   homeIntentForVoiceUtterance,
+  homeSubflowForVoiceToolCall,
+  homeSubflowForVoiceUtterance,
   isActionableVoiceText,
   isVoiceHomeIntent,
+  isVoiceHomeSubflow,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
   transitionForVoiceHomeIntent,
@@ -15,6 +18,36 @@ import {
 } from "./voiceNavigation";
 
 describe("voice navigation actions", () => {
+  it.each([
+    ["Check my blood pressure", "health-vitals", "health"],
+    ["Recuérdame mis pastillas", "health-meds", "health"],
+    ["Je veux parler au médecin", "health-doctor", "health"],
+    ["Ich habe Schmerzen", "health-symptoms", "health"],
+    ["Vorrei allenare la memoria", "mind-memory", "mind"],
+    ["Quero melhorar a atenção", "mind-focus", "mind"],
+    ["Find an activity nearby", "community-activities", "community"],
+    ["Quiero conocer gente", "community-friends", "community"],
+    ["J'ai besoin d'un plombier", "concierge-home", "concierge"],
+    ["Buche ein Taxi", "concierge-book", "concierge"],
+  ] as const)("maps specific multilingual request %s to %s", (utterance, actionId, pillar) => {
+    expect(homeSubflowForVoiceUtterance(utterance)).toEqual({ actionId, pillar });
+  });
+
+  it.each([
+    [{ route: "/health/symptom-check" }, "health-symptoms", "health"],
+    [{ action_type: "brain.memory" }, "mind-memory", "mind"],
+    [{ action_type: "social.event" }, "community-activities", "community"],
+    [{ action_type: "concierge.ride" }, "concierge-book", "concierge"],
+  ] as const)("maps a specific tool call to its Home action", (parameters, actionId, pillar) => {
+    expect(homeSubflowForVoiceToolCall(parameters)).toEqual({ actionId, pillar });
+  });
+
+  it("rejects malformed Home subflow events", () => {
+    expect(isVoiceHomeSubflow({ actionId: "health-vitals", pillar: "health" })).toBe(true);
+    expect(isVoiceHomeSubflow({ actionId: "health-vitals", pillar: "mind" })).toBe(false);
+    expect(isVoiceHomeSubflow({ actionId: "unknown", pillar: "health" })).toBe(false);
+  });
+
   it.each([
     "Health",
     "My health",

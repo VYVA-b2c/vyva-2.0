@@ -15,8 +15,10 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
   emitVoiceHomeIntent,
+  emitVoiceHomeSubflow,
   emitVoiceAppAction,
   homeIntentForVoiceUtterance,
+  homeSubflowForVoiceUtterance,
   isActionableVoiceText,
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
@@ -654,10 +656,17 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (!detail?.text) return;
       if (!isActionableVoiceText(detail.text)) return;
 
-      const homeIntent = homeIntentForVoiceUtterance(detail.text);
-      if ((location.pathname === "/" || location.pathname === "/dev/home-master") && homeIntent) {
-        emitVoiceHomeIntent(homeIntent);
-        return;
+      if (location.pathname === "/" || location.pathname === "/dev/home-master") {
+        const homeSubflow = homeSubflowForVoiceUtterance(detail.text);
+        if (homeSubflow) {
+          emitVoiceHomeSubflow(homeSubflow);
+          return;
+        }
+        const homeIntent = homeIntentForVoiceUtterance(detail.text);
+        if (homeIntent) {
+          emitVoiceHomeIntent(homeIntent);
+          return;
+        }
       }
 
       const action = actionForVoiceUtterance(detail.text);
