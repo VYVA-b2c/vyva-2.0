@@ -1473,6 +1473,14 @@ const fr = {
       intentBack: "Retour",
       intentUnderstood: "VYVA a compris",
       subflowCanvas: {
+        shared: {
+          addNow: "Ajouter les détails", useRecent: "Utiliser les informations récentes", guideMe: "Guidez-moi",
+          recommended: "Me conseiller", short: "Quelque chose de court", gentle: "Quelque chose de doux",
+          nearby: "À proximité", online: "En ligne", showBoth: "Afficher les deux",
+          savedProvider: "Utiliser mon prestataire enregistré", findOptions: "Trouver des options", prepareOnly: "Préparer d'abord",
+          startingPoint: "Point de départ", activityPreference: "Préférence d'activité",
+          connectionPreference: "Préférence de contact", providerPreference: "Préférence de prestataire",
+        },
         actions: { cancel: "Pas maintenant", confirm: "Oui, continuer", change: "Modifier", open: "Ouvrir l'étape suivante", retry: "Réessayer" },
         review: { label: "Vérifier", title: "Est-ce correct ?", helper: "Rien ne sera réservé, envoyé ou partagé sans votre confirmation." },
         completed: { label: "Prêt", title: "Votre prochaine étape est prête.", helper: "Continuez quand vous le souhaitez. VYVA conservera votre choix." },

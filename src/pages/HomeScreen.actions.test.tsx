@@ -1594,15 +1594,13 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).toHaveBeenCalledWith("/health", undefined);
 
     fireEvent.click(screen.getByTestId("card-home-health-symptoms"));
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "health-symptoms");
     fireEvent.click(screen.getByTestId("card-home-health-vitals"));
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "health-vitals");
     fireEvent.click(screen.getByTestId("card-home-health-meds"));
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "health-meds");
     fireEvent.click(screen.getByTestId("card-home-health-doctor"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/health/symptom-check", expect.objectContaining({
-      state: expect.objectContaining({ autoStartSectionVoice: true }),
-    }));
-    expect(guardPathMock).toHaveBeenCalledWith("/health/vitals", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/meds", undefined);
     expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
       "data-action-id",
       "health-doctor",

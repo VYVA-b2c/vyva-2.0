@@ -36,6 +36,8 @@ export type VoiceHomeSubflowId =
   | "health-vitals"
   | "health-meds"
   | "health-doctor"
+  | "health-prevention"
+  | "health-visual-scan"
   | "mind-memory"
   | "mind-reflexes"
   | "mind-focus"
@@ -59,6 +61,8 @@ const VOICE_HOME_SUBFLOW_PILLARS: Record<VoiceHomeSubflowId, VoiceHomeIntent> = 
   "health-vitals": "health",
   "health-meds": "health",
   "health-doctor": "health",
+  "health-prevention": "health",
+  "health-visual-scan": "health",
   "mind-memory": "mind",
   "mind-reflexes": "mind",
   "mind-focus": "mind",

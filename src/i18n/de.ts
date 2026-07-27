@@ -1505,6 +1505,14 @@ const de = {
       intentBack: "Zuruck",
       intentUnderstood: "VYVA hat verstanden",
       subflowCanvas: {
+        shared: {
+          addNow: "Details jetzt eingeben", useRecent: "Letzte Angaben verwenden", guideMe: "Bitte führen",
+          recommended: "Etwas empfehlen", short: "Etwas Kurzes", gentle: "Etwas Ruhiges",
+          nearby: "In der Nähe", online: "Online", showBoth: "Beides zeigen",
+          savedProvider: "Gespeicherten Anbieter nutzen", findOptions: "Optionen finden", prepareOnly: "Zuerst vorbereiten",
+          startingPoint: "Ausgangspunkt", activityPreference: "Aktivitätswunsch",
+          connectionPreference: "Kontaktwunsch", providerPreference: "Anbieterwunsch",
+        },
         actions: { cancel: "Nicht jetzt", confirm: "Ja, weiter", change: "Ändern", open: "Nächsten Schritt öffnen", retry: "Erneut versuchen" },
         review: { label: "Prüfen", title: "Ist das richtig?", helper: "Ohne Ihre Bestätigung wird nichts gebucht, gesendet oder geteilt." },
         completed: { label: "Bereit", title: "Ihr nächster Schritt ist vorbereitet.", helper: "Machen Sie weiter, wenn Sie bereit sind. VYVA übernimmt Ihre Auswahl." },

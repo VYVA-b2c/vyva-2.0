@@ -1885,6 +1885,14 @@
       intentBack: "Back",
       intentUnderstood: "VYVA understood",
       subflowCanvas: {
+        shared: {
+          addNow: "Add the details now", useRecent: "Use recent information", guideMe: "Guide me",
+          recommended: "Recommend one", short: "Something short", gentle: "Something gentle",
+          nearby: "Nearby", online: "Online", showBoth: "Show me both",
+          savedProvider: "Use my saved provider", findOptions: "Find options", prepareOnly: "Prepare first",
+          startingPoint: "Starting point", activityPreference: "Activity preference",
+          connectionPreference: "Connection preference", providerPreference: "Provider preference",
+        },
         actions: { cancel: "Not now", confirm: "Yes, continue", change: "Change", open: "Open next step", retry: "Try again" },
         review: { label: "Review", title: "Is this right?", helper: "Nothing will be booked, sent, or shared without your confirmation." },
         completed: { label: "Ready", title: "Your next step is prepared.", helper: "Continue when you are ready. VYVA will carry your choice with you." },
