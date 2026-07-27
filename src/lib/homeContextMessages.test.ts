@@ -4,9 +4,11 @@ import {
   homeContextActionForVoiceReply,
   isHomeContextMessageSuppressed,
   readHomeContextMessageActionHistory,
+  readHomeContextMessageOutcomeHistory,
   selectHomeContextMessage,
   stripAgentStageDirections,
   writeHomeContextMessageAction,
+  writeHomeContextMessageOutcome,
   type HomeContextMessage,
 } from "./homeContextMessages";
 
@@ -118,5 +120,123 @@ describe("home context messages", () => {
 
     writeHomeContextMessageAction("dose", "completed", { recordedAt: 4_000 }, storage);
     expect(isHomeContextMessageSuppressed("dose", readHomeContextMessageActionHistory(storage), 99_000)).toBe(true);
+  });
+
+  it("ranks medication and appointment reminders above non-urgent discovery", () => {
+    const now = new Date(2026, 6, 20, 9, 0).getTime();
+    expect(decideHomeContextMessage([
+      message({ id: "tip", kind: "tip", priority: 999, nonUrgent: true }),
+      message({
+        id: "appointment",
+        kind: "reminder",
+        category: "appointment",
+        priority: 1,
+        dueAt: now + 90 * 60_000,
+      }),
+      message({
+        id: "dose",
+        kind: "reminder",
+        category: "medication",
+        priority: 1,
+        dueAt: now + 15 * 60_000,
+      }),
+    ], {}, now)?.message.id).toBe("dose");
+  });
+
+  it("uses current intent and timing as auditable ranking factors", () => {
+    const now = new Date(2026, 6, 20, 9, 0).getTime();
+    const decision = decideHomeContextMessage([
+      message({ id: "general", kind: "event", priority: 100 }),
+      message({
+        id: "health",
+        kind: "event",
+        priority: 1,
+        intentTags: ["health"],
+        dueAt: now + 20 * 60_000,
+      }),
+    ], {}, now, { activeIntent: "health" });
+    expect(decision?.message.id).toBe("health");
+    expect(decision?.factors.map((factor) => factor.key)).toEqual(
+      expect.arrayContaining(["intent", "timing"]),
+    );
+    expect(decision?.explanation).toContain("current health intent");
+  });
+
+  it("avoids recent non-urgent repeats and enforces the daily nudge cap", () => {
+    const now = new Date(2026, 6, 20, 12, 0).getTime();
+    const outcomes = ["tip-a", "tip-b", "tip-c"].map((messageId, index) => ({
+      messageId,
+      outcome: "shown" as const,
+      recordedAt: now - (index + 1) * 60_000,
+      source: "system" as const,
+      kind: "tip" as const,
+    }));
+    expect(decideHomeContextMessage([
+      message({ id: "tip-new", kind: "tip", priority: 100 }),
+      message({ id: "fallback", kind: "default", priority: 0 }),
+    ], {}, now, { outcomeHistory: outcomes, dailyNonUrgentLimit: 3 })?.message.id).toBe("fallback");
+
+    expect(decideHomeContextMessage([
+      message({ id: "tip-a", kind: "tip", priority: 100 }),
+      message({ id: "fallback", kind: "default", priority: 0 }),
+    ], { "tip-a": now - 10 * 60_000 }, now, {
+      outcomeHistory: outcomes,
+      recentNonUrgentWindowMs: 60 * 60_000,
+    })?.message.id).toBe("fallback");
+  });
+
+  it("freezes rotation during conversation but permits urgent and active-flow overrides", () => {
+    const base = [
+      message({ id: "previous", kind: "event", priority: 10 }),
+      message({ id: "newer", kind: "event", priority: 999 }),
+    ];
+    expect(decideHomeContextMessage(base, {}, 100, {
+      freezeRotation: true,
+      frozenMessageId: "previous",
+    })).toMatchObject({ message: { id: "previous" }, frozen: true });
+
+    expect(decideHomeContextMessage([
+      ...base,
+      message({ id: "urgent", kind: "urgent", priority: 1 }),
+    ], {}, 100, {
+      freezeRotation: true,
+      frozenMessageId: "previous",
+    })?.message.id).toBe("urgent");
+
+    expect(decideHomeContextMessage([
+      ...base,
+      message({ id: "flow", kind: "flow", priority: 1 }),
+    ], {}, 100, {
+      freezeRotation: true,
+      frozenMessageId: "previous",
+    })?.message.id).toBe("flow");
+  });
+
+  it("stores all outcome types and keeps bounded history", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    const outcomes = ["shown", "opened", "deferred", "dismissed", "completed", "voice_engaged"] as const;
+    outcomes.forEach((outcome, index) => writeHomeContextMessageOutcome({
+      messageId: `message-${index}`,
+      outcome,
+      source: outcome === "voice_engaged" ? "voice" : "system",
+      recordedAt: index,
+    }, storage));
+    expect(readHomeContextMessageOutcomeHistory(storage).map((record) => record.outcome)).toEqual(outcomes);
+
+    for (let index = 0; index < 260; index += 1) {
+      writeHomeContextMessageOutcome({
+        messageId: `bounded-${index}`,
+        outcome: "shown",
+        source: "system",
+        recordedAt: index + 10,
+      }, storage);
+    }
+    const bounded = readHomeContextMessageOutcomeHistory(storage);
+    expect(bounded).toHaveLength(250);
+    expect(bounded.at(-1)?.messageId).toBe("bounded-259");
   });
 });
