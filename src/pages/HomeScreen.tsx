@@ -43,6 +43,7 @@ import {
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppActionResult,
   type VoiceHomeIntent,
+  isVoiceHomeIntent,
   transitionForVoiceHomeIntent,
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
@@ -715,13 +716,18 @@ const HomeScreen = () => {
   const stableHomeContextMessageIdRef = useRef<string | null>(null);
   const voiceEngagedMessageIdRef = useRef<string | null>(null);
   const shownHomeContextMessageIdRef = useRef<string | null>(null);
+  const lastVoiceHomeIntentRef = useRef<{ intent: VoiceHomeIntent; at: number } | null>(null);
 
   useEffect(() => {
     const handleVoiceHomeIntent = (event: Event) => {
       const intent = event instanceof CustomEvent
-        ? (event.detail as VoiceHomeIntent | undefined)
+        ? event.detail
         : undefined;
-      if (!intent) return;
+      if (!isVoiceHomeIntent(intent)) return;
+      const now = Date.now();
+      const previous = lastVoiceHomeIntentRef.current;
+      if (previous?.intent === intent && now - previous.at < 3500) return;
+      lastVoiceHomeIntentRef.current = { intent, at: now };
       const transition = transitionForVoiceHomeIntent(intent);
       if (transition.kind === "home_layer") {
         setHomeHealthExpanded(false);

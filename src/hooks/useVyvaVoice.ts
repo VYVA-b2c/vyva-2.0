@@ -14,6 +14,7 @@ import {
   emitVoiceUserMessage,
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
+  toolResultForVoiceHomeIntent,
 } from "@/lib/voiceNavigation";
 import {
   ensureVoiceSessionId,
@@ -1447,7 +1448,7 @@ function useVyvaVoiceController() {
               const homeIntent = homeIntentForVoiceToolCall(params);
               if (homeIntent) {
                 emitVoiceHomeIntent(homeIntent);
-                return `Opening the ${homeIntent} area.`;
+                return toolResultForVoiceHomeIntent(homeIntent);
               }
               const action = actionForVoiceToolCall(params);
               if (!action) {

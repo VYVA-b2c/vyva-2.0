@@ -1614,4 +1614,32 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
     expect(guardPathMock).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["mind", "/mind-memory"],
+    ["community", "/social-rooms"],
+    ["concierge", "/concierge"],
+  ] as const)("routes the broad %s voice intent to its canonical screen", (intent, route) => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
+    });
+
+    expect(guardPathMock).toHaveBeenCalledTimes(1);
+    expect(guardPathMock).toHaveBeenCalledWith(route);
+  });
+
+  it("ignores malformed and duplicate broad voice intent events", () => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "unknown" }));
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "community" }));
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "community" }));
+    });
+
+    expect(guardPathMock).toHaveBeenCalledTimes(1);
+    expect(guardPathMock).toHaveBeenCalledWith("/social-rooms");
+  });
 });

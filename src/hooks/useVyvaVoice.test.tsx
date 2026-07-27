@@ -325,7 +325,7 @@ describe("useVyvaVoice", () => {
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
   });
 
-  it("shows the Home Health choices when the agent sends a broad Health tool call", async () => {
+  it("opens every broad pillar destination when the agent sends a domain-only tool call", async () => {
     let controller: VoiceController | null = null;
     const homeIntentHandler = vi.fn();
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
@@ -350,11 +350,19 @@ describe("useVyvaVoice", () => {
       });
 
       const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
-      const result = await sessionOptions?.clientTools?.open_app_action?.({ domain: "health" });
+      const cases = [
+        [{ domain: "health" }, "health", "Showing the Health choices."],
+        [{ domain: "brain_coach" }, "mind", "Opening Mind."],
+        [{ domain: "social" }, "community", "Opening Community."],
+        [{ domain: "concierge" }, "concierge", "Opening Concierge."],
+      ] as const;
 
-      expect(result).toBe("Showing the Health choices.");
-      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
-      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+      for (const [parameters, intent, expectedResult] of cases) {
+        const result = await sessionOptions?.clientTools?.open_app_action?.(parameters);
+        expect(result).toBe(expectedResult);
+        expect(homeIntentHandler.mock.calls.at(-1)?.[0].detail).toBe(intent);
+      }
+      expect(homeIntentHandler).toHaveBeenCalledTimes(cases.length);
     } finally {
       window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
     }
