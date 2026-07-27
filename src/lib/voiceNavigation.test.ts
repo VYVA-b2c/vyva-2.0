@@ -8,6 +8,7 @@ import {
   isActionableVoiceText,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
+  transitionForVoiceHomeIntent,
   voiceActionRegistryEntries,
 } from "./voiceNavigation";
 
@@ -81,6 +82,32 @@ describe("voice navigation actions", () => {
       domain: "concierge",
       action_type: "concierge.ride_booking",
     })).toBeNull();
+  });
+
+  it("owns one canonical visual transition for every broad pillar intent", () => {
+    expect(transitionForVoiceHomeIntent("health")).toEqual({
+      kind: "home_layer",
+      layer: "health",
+    });
+    expect(transitionForVoiceHomeIntent("mind")).toEqual({
+      kind: "route",
+      route: "/mind-memory",
+    });
+    expect(transitionForVoiceHomeIntent("community")).toEqual({
+      kind: "route",
+      route: "/social-rooms",
+    });
+    expect(transitionForVoiceHomeIntent("concierge")).toEqual({
+      kind: "route",
+      route: "/concierge",
+    });
+  });
+
+  it("accepts the pillar alias used by alternate agent configurations", () => {
+    expect(homeIntentForVoiceToolCall({ pillar: "health" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({ pillar: "brain-coach" })).toBe("mind");
+    expect(homeIntentForVoiceToolCall({ pillar: "community" })).toBe("community");
+    expect(homeIntentForVoiceToolCall({ pillar: "concierge" })).toBe("concierge");
   });
 
   it("ignores punctuation-only and filler transcript noise", () => {

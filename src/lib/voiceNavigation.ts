@@ -31,6 +31,21 @@ export type VoiceUserMessageDetail = {
 
 export type VoiceHomeIntent = "health" | "mind" | "community" | "concierge";
 
+export type VoiceHomeIntentTransition =
+  | { kind: "home_layer"; layer: "health" }
+  | { kind: "route"; route: "/mind-memory" | "/social-rooms" | "/concierge" };
+
+const VOICE_HOME_INTENT_TRANSITIONS: Record<VoiceHomeIntent, VoiceHomeIntentTransition> = {
+  health: { kind: "home_layer", layer: "health" },
+  mind: { kind: "route", route: "/mind-memory" },
+  community: { kind: "route", route: "/social-rooms" },
+  concierge: { kind: "route", route: "/concierge" },
+};
+
+export function transitionForVoiceHomeIntent(intent: VoiceHomeIntent): VoiceHomeIntentTransition {
+  return VOICE_HOME_INTENT_TRANSITIONS[intent];
+}
+
 export type VoiceAppActionDomain =
   | "meds"
   | "health"
@@ -183,7 +198,10 @@ export function homeIntentForVoiceUtterance(text: string): VoiceHomeIntent | nul
 }
 
 export function homeIntentForVoiceToolCall(parameters: Record<string, unknown>): VoiceHomeIntent | null {
-  const domain = stringParam(parameters, "domain").replace(/-/g, "_");
+  const domain = (
+    stringParam(parameters, "domain")
+    || stringParam(parameters, "pillar")
+  ).replace(/-/g, "_");
   const actionType = stringParam(parameters, "action_type");
   const actionId = stringParam(parameters, "action_id");
   const route = normalizeVoiceActionRoute(stringParam(parameters, "route"));
