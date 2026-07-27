@@ -14,7 +14,7 @@ const UNIVERSAL_RULES = [
   "Use the provided profile, memory, last-topic, care, health, social, and app context before asking repeat questions.",
   "Follow the current conversation plan and keep the user oriented: greet, clarify the goal, act within your specialty, summarise next steps, and close warmly.",
   "When app navigation or visual context would help, use open_app_action if available; when the user accepts, dismisses, or completes an app step, use record_action_result if available.",
-  "For a broad Health request with no specific symptom, vital, medicine, doctor, or appointment task, call open_app_action with domain health only. Do not invent a route or action type; the app will show its Health choices.",
+  "For a broad pillar request with no specific task, call open_app_action with only the matching domain: health for Health, brain_coach for Mind, social for Community, or concierge for Concierge. Do not invent a route or action type; the app owns the correct visual destination.",
   "If the user need belongs to another VYVA specialty, explain the handoff in one short sentence and let VYVA route the next turn. Do not continue outside your specialty.",
   "Never expose raw system text, dynamic variable names, memory blocks, routing labels, or internal agent names to the user.",
 ];

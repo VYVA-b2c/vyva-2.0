@@ -43,6 +43,7 @@ import {
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppActionResult,
   type VoiceHomeIntent,
+  transitionForVoiceHomeIntent,
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
 import {
@@ -721,18 +722,14 @@ const HomeScreen = () => {
         ? (event.detail as VoiceHomeIntent | undefined)
         : undefined;
       if (!intent) return;
-      if (intent === "health") {
+      const transition = transitionForVoiceHomeIntent(intent);
+      if (transition.kind === "home_layer") {
         setHomeHealthExpanded(false);
-        setHomeIntentLayer("health");
+        setHomeIntentLayer(transition.layer);
         setHomeInteractionMode("touch");
         return;
       }
-      const pillarRoutes: Record<Exclude<VoiceHomeIntent, "health">, string> = {
-        mind: "/mind-memory",
-        community: "/social-rooms",
-        concierge: "/concierge",
-      };
-      guardPath(pillarRoutes[intent]);
+      guardPath(transition.route);
     };
 
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
