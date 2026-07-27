@@ -6,9 +6,11 @@ import {
   homeIntentForVoiceToolCall,
   homeIntentForVoiceUtterance,
   isActionableVoiceText,
+  isVoiceHomeIntent,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
   transitionForVoiceHomeIntent,
+  toolResultForVoiceHomeIntent,
   voiceActionRegistryEntries,
 } from "./voiceNavigation";
 
@@ -70,6 +72,9 @@ describe("voice navigation actions", () => {
     ["My concierge", "concierge"],
     ["Mi concierge", "concierge"],
     ["Mon concierge", "concierge"],
+    ["Mein Concierge", "concierge"],
+    ["Il mio concierge", "concierge"],
+    ["Meu concierge", "concierge"],
   ])("recognises broad cross-pillar request %s", (utterance, intent) => {
     expect(homeIntentForVoiceUtterance(utterance)).toBe(intent);
   });
@@ -101,6 +106,21 @@ describe("voice navigation actions", () => {
       kind: "route",
       route: "/concierge",
     });
+  });
+
+  it("returns stable agent tool acknowledgements for every pillar", () => {
+    expect(toolResultForVoiceHomeIntent("health")).toBe("Showing the Health choices.");
+    expect(toolResultForVoiceHomeIntent("mind")).toBe("Opening Mind.");
+    expect(toolResultForVoiceHomeIntent("community")).toBe("Opening Community.");
+    expect(toolResultForVoiceHomeIntent("concierge")).toBe("Opening Concierge.");
+  });
+
+  it("rejects malformed pillar event details", () => {
+    expect(isVoiceHomeIntent("health")).toBe(true);
+    expect(isVoiceHomeIntent("mind")).toBe(true);
+    expect(isVoiceHomeIntent("unknown")).toBe(false);
+    expect(isVoiceHomeIntent({ intent: "health" })).toBe(false);
+    expect(isVoiceHomeIntent(null)).toBe(false);
   });
 
   it("accepts the pillar alias used by alternate agent configurations", () => {

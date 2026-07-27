@@ -31,6 +31,13 @@ export type VoiceUserMessageDetail = {
 
 export type VoiceHomeIntent = "health" | "mind" | "community" | "concierge";
 
+export function isVoiceHomeIntent(value: unknown): value is VoiceHomeIntent {
+  return value === "health"
+    || value === "mind"
+    || value === "community"
+    || value === "concierge";
+}
+
 export type VoiceHomeIntentTransition =
   | { kind: "home_layer"; layer: "health" }
   | { kind: "route"; route: "/mind-memory" | "/social-rooms" | "/concierge" };
@@ -44,6 +51,17 @@ const VOICE_HOME_INTENT_TRANSITIONS: Record<VoiceHomeIntent, VoiceHomeIntentTran
 
 export function transitionForVoiceHomeIntent(intent: VoiceHomeIntent): VoiceHomeIntentTransition {
   return VOICE_HOME_INTENT_TRANSITIONS[intent];
+}
+
+export function toolResultForVoiceHomeIntent(intent: VoiceHomeIntent) {
+  if (intent === "health") return "Showing the Health choices.";
+
+  const labels: Record<Exclude<VoiceHomeIntent, "health">, string> = {
+    mind: "Mind",
+    community: "Community",
+    concierge: "Concierge",
+  };
+  return `Opening ${labels[intent]}.`;
 }
 
 export type VoiceAppActionDomain =
