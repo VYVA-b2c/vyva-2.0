@@ -95,24 +95,24 @@ describe("voice navigation actions", () => {
       layer: "health",
     });
     expect(transitionForVoiceHomeIntent("mind")).toEqual({
-      kind: "route",
-      route: "/mind-memory",
+      kind: "home_layer",
+      layer: "mind",
     });
     expect(transitionForVoiceHomeIntent("community")).toEqual({
-      kind: "route",
-      route: "/social-rooms",
+      kind: "home_layer",
+      layer: "community",
     });
     expect(transitionForVoiceHomeIntent("concierge")).toEqual({
-      kind: "route",
-      route: "/concierge",
+      kind: "home_layer",
+      layer: "concierge",
     });
   });
 
   it("returns stable agent tool acknowledgements for every pillar", () => {
     expect(toolResultForVoiceHomeIntent("health")).toBe("Showing the Health choices.");
-    expect(toolResultForVoiceHomeIntent("mind")).toBe("Opening Mind.");
-    expect(toolResultForVoiceHomeIntent("community")).toBe("Opening Community.");
-    expect(toolResultForVoiceHomeIntent("concierge")).toBe("Opening Concierge.");
+    expect(toolResultForVoiceHomeIntent("mind")).toBe("Showing the Mind choices.");
+    expect(toolResultForVoiceHomeIntent("community")).toBe("Showing the Community choices.");
+    expect(toolResultForVoiceHomeIntent("concierge")).toBe("Showing the Concierge choices.");
   });
 
   it("rejects malformed pillar event details", () => {

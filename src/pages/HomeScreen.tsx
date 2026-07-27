@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, type LucideIcon } from "lucide-react";
+import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -232,8 +232,27 @@ type HomeFastAction = {
   href?: string;
 };
 
-type HomeIntentLayer = "home" | "health";
+type HomeIntentLayer = "home" | VoiceHomeIntent;
 
+const HOME_INTENT_LAYER_STORAGE_KEY = "vyva:home-intent-layer:v1";
+
+function readHomeIntentLayer(): HomeIntentLayer {
+  try {
+    const stored = sessionStorage.getItem(HOME_INTENT_LAYER_STORAGE_KEY);
+    return isVoiceHomeIntent(stored) ? stored : "home";
+  } catch {
+    return "home";
+  }
+}
+
+function writeHomeIntentLayer(layer: HomeIntentLayer) {
+  try {
+    if (layer === "home") sessionStorage.removeItem(HOME_INTENT_LAYER_STORAGE_KEY);
+    else sessionStorage.setItem(HOME_INTENT_LAYER_STORAGE_KEY, layer);
+  } catch {
+    return;
+  }
+}
 
 const COORDS_WEATHER_CACHE_KEY = "vyva_coords_weather_cache";
 const COORDS_WEATHER_TTL_MS = 30 * 60 * 1000;
@@ -707,9 +726,14 @@ const HomeScreen = () => {
   const [showVyvaReviewHistory, setShowVyvaReviewHistory] = useState<ShowVyvaReviewHistoryItem[]>(() => (
     readShowVyvaReviewHistory()
   ));
-  const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>("home");
-  const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">("voice");
-  const [homeHealthExpanded, setHomeHealthExpanded] = useState(false);
+  const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>(readHomeIntentLayer);
+  const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">(() => {
+    try {
+      return localStorage.getItem("vyva:home-interaction-mode:v1") === "touch" ? "touch" : "voice";
+    } catch {
+      return "voice";
+    }
+  });
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
   const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
   const activeVoiceHomeContextFingerprintRef = useRef<string | null>(null);
@@ -729,18 +753,25 @@ const HomeScreen = () => {
       if (previous?.intent === intent && now - previous.at < 3500) return;
       lastVoiceHomeIntentRef.current = { intent, at: now };
       const transition = transitionForVoiceHomeIntent(intent);
-      if (transition.kind === "home_layer") {
-        setHomeHealthExpanded(false);
-        setHomeIntentLayer(transition.layer);
-        setHomeInteractionMode("touch");
-        return;
-      }
-      guardPath(transition.route);
+      setHomeIntentLayer(transition.layer);
+      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
     return () => window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
   }, [guardPath]);
+
+  useEffect(() => {
+    writeHomeIntentLayer(homeIntentLayer);
+  }, [homeIntentLayer]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vyva:home-interaction-mode:v1", homeInteractionMode);
+    } catch {
+      return;
+    }
+  }, [homeInteractionMode]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
@@ -1052,7 +1083,6 @@ const HomeScreen = () => {
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
-      setHomeHealthExpanded(false);
       setHomeIntentLayer("health");
       return;
     }
@@ -1150,7 +1180,6 @@ const HomeScreen = () => {
       detail: t("home.master.cards.healthDetailShort", "Health assistance"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => {
-        setHomeHealthExpanded(false);
         setHomeIntentLayer("health");
       },
       testId: "card-home-agent-health",
@@ -1161,7 +1190,7 @@ const HomeScreen = () => {
       title: t("home.master.cards.mindMemoryShortTitle", "My Mind"),
       detail: t("home.master.cards.mindMemoryDetailShort", "Cognitive exercises"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/mind-memory"),
+      onClick: () => setHomeIntentLayer("mind"),
       testId: "card-home-agent-cognitive",
     },
     {
@@ -1170,7 +1199,7 @@ const HomeScreen = () => {
       title: t("home.master.cards.communityShortTitle", "My Community"),
       detail: t("home.master.cards.communityDetailShort", "Connect with others"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/social-rooms"),
+      onClick: () => setHomeIntentLayer("community"),
       testId: "card-home-agent-social",
     },
     {
@@ -1179,7 +1208,7 @@ const HomeScreen = () => {
       title: t("home.master.cards.conciergeShortTitle", "My Concierge"),
       detail: t("home.master.cards.conciergeDetailShort", "Bookings and services"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/concierge"),
+      onClick: () => setHomeIntentLayer("concierge"),
       testId: "card-home-agent-concierge",
     },
   ];
@@ -1255,6 +1284,127 @@ const HomeScreen = () => {
     },
   ];
 
+  const homeMasterMindCards: MasterDashboardCard[] = [
+    {
+      id: "mind-memory",
+      icon: BrainCircuit,
+      title: t("mindMemory.cards.strengthenMemory", "Strengthen Memory"),
+      detail: t("mindMemory.cards.strengthenMemoryDetail", "Practice recall, matching, and daily routines."),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/memory-games"),
+      testId: "card-home-mind-memory",
+    },
+    {
+      id: "mind-reflexes",
+      icon: Zap,
+      title: t("mindMemory.cards.trainReflexes", "Train Reflexes"),
+      detail: t("mindMemory.cards.trainReflexesDetail", "Build faster focus and response."),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/attention-boosters"),
+      testId: "card-home-mind-reflexes",
+    },
+    {
+      id: "mind-focus",
+      icon: Puzzle,
+      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
+      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
+      tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/executive-function"),
+      testId: "card-home-mind-focus",
+    },
+    {
+      id: "mind-senses",
+      icon: Headphones,
+      title: t("mindMemory.cards.sharpenSenses", "Sharpen Senses"),
+      detail: t("mindMemory.cards.sharpenSensesDetail", "Practice sound, breath, and sensory recall."),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/senses"),
+      testId: "card-home-mind-senses",
+    },
+  ];
+
+  const homeMasterCommunityCards: MasterDashboardCard[] = [
+    {
+      id: "community-friends",
+      icon: HeartHandshake,
+      title: t("community.master.cards.match", "Make Friends"),
+      detail: t("community.master.cards.matchDetail", "Find people like me"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/kitchen-table"),
+      testId: "card-home-community-friends",
+    },
+    {
+      id: "community-experts",
+      icon: MessageCircleHeart,
+      title: t("community.master.cards.experts", "Ask an Expert"),
+      detail: t("community.master.cards.expertsDetail", "Talk with a VYVA specialist"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/experts"),
+      testId: "card-home-community-experts",
+    },
+    {
+      id: "community-share",
+      icon: Share2,
+      title: t("community.master.cards.share", "Share Stories"),
+      detail: t("community.master.cards.shareDetail", "A memory or song"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/share"),
+      testId: "card-home-community-share",
+    },
+    {
+      id: "community-activities",
+      icon: Footprints,
+      title: t("community.master.cards.activities", "What's On"),
+      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/activities"),
+      testId: "card-home-community-activities",
+    },
+  ];
+
+  const openConciergeTask = (entry: Record<string, unknown>) => {
+    handleNavigate(conciergeTaskPath(), { state: { conciergeTaskEntry: entry } });
+  };
+
+  const homeMasterConciergeCards: MasterDashboardCard[] = [
+    {
+      id: "concierge-home",
+      icon: Home,
+      title: t("concierge.master.cards.homeCare", "Home Care"),
+      detail: t("concierge.master.cards.homeCareDetail", "Plumber, electrician, cleaning"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => openConciergeTask({ kind: "home_service" }),
+      testId: "card-home-concierge-home",
+    },
+    {
+      id: "concierge-care",
+      icon: UserRound,
+      title: t("concierge.master.cards.personalCare", "Personal Care"),
+      detail: t("concierge.master.cards.personalCareDetail", "Find a specialist, find a residence"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => openConciergeTask({ kind: "provider_contact", providerSearchMode: "personal-care", query: "personal care" }),
+      testId: "card-home-concierge-care",
+    },
+    {
+      id: "concierge-order",
+      icon: PackageCheck,
+      title: t("concierge.master.cards.orderIn", "Order In"),
+      detail: t("concierge.master.cards.orderInDetail", "Groceries, household"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/concierge/shopping"),
+      testId: "card-home-concierge-order",
+    },
+    {
+      id: "concierge-book",
+      icon: Calendar,
+      title: t("concierge.master.cards.bookNow", "Book Now"),
+      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, personal care"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => openConciergeTask({ kind: "appointment" }),
+      testId: "card-home-concierge-book",
+    },
+  ];
+
   const conciergeResumeItems = conciergeHomeItems(conciergePendingHomeSignal);
   const nextConciergeTask = conciergeResumeItems[0] ?? null;
   const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
@@ -1285,17 +1435,18 @@ const HomeScreen = () => {
   const isHomeMasterVoiceAlive = Boolean(voice && (voice.status === "connected" || voice.isConnecting));
   const homeContextMessages = useMemo<HomeContextMessage[]>(() => {
     const messages: HomeContextMessage[] = [];
-    if (homeIntentLayer === "health") {
+    if (homeIntentLayer !== "home") {
+      const intentKey = `${homeIntentLayer}Intent`;
       messages.push({
-        id: "active-flow:health",
+        id: `active-flow:${homeIntentLayer}`,
         kind: "flow",
-        title: t("home.master.healthIntent.title", "Are you OK?"),
+        title: t(`home.master.${intentKey}.title`),
         supportingText: isHomeMasterVoiceAlive
-          ? t("home.master.healthIntent.voiceSubtitle", "Choose one, or tell VYVA.")
-          : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb."),
+          ? t(`home.master.${intentKey}.voiceSubtitle`)
+          : t(`home.master.${intentKey}.dormantSubtitle`),
         priority: 100,
-        category: "health",
-        intentTags: ["health"],
+        category: homeIntentLayer,
+        intentTags: [homeIntentLayer],
       });
     }
     const vitalsNeedAttention = ["urgent", "critical", "high"].includes(
@@ -1852,24 +2003,41 @@ const HomeScreen = () => {
     trackHomeContextOutcome,
     voice?.status,
   ]);
-  const homeMasterHealthSubtitle = isHomeMasterVoiceAlive
-    ? t("home.master.healthIntent.voiceSubtitle", "Okay, health. Choose one, or tell VYVA.")
-    : t("home.master.healthIntent.dormantSubtitle", "Choose a health option, or touch the orb.");
-  const homeMasterHeroSubtitle = selectedHomeContextMessage?.supportingText
-    ?? (homeIntentLayer === "health"
-      ? homeMasterHealthSubtitle
-      : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
   const homeMasterGreetingText = selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, "");
-  const homeMasterVisibleCards = homeIntentLayer === "health"
-    ? homeHealthExpanded
-      ? homeMasterHealthCards
-      : homeMasterHealthCards.slice(0, 4)
-    : homeMasterCards;
-  const homeMasterCardSectionTitle = homeIntentLayer === "health"
-    ? t("home.master.healthIntent.sectionTitle", "What do you need?")
-    : t("home.master.chooseCategory", "App shortcuts");
-  const homeMasterCardSectionDescription = homeIntentLayer === "health"
-    ? t("home.master.healthIntent.sectionDescription", "Choose a card, or keep talking to VYVA.")
+  const activeIntentKey = homeIntentLayer === "home" ? null : `${homeIntentLayer}Intent`;
+  const activeIntentTitle = activeIntentKey
+    ? t(`home.master.${activeIntentKey}.title`)
+    : homeMasterGreetingText;
+  const activeIntentSubtitle = activeIntentKey
+    ? isHomeMasterVoiceAlive
+      ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
+      : t(`home.master.${activeIntentKey}.dormantSubtitle`)
+    : null;
+  const homeMasterHeroSubtitle = selectedHomeContextMessage?.supportingText
+    ?? (activeIntentSubtitle
+      ? activeIntentSubtitle
+      : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
+    home: homeMasterCards,
+    health: homeMasterHealthCards.slice(0, 4),
+    mind: homeMasterMindCards,
+    community: homeMasterCommunityCards,
+    concierge: homeMasterConciergeCards,
+  };
+  const moreRouteByIntent: Partial<Record<HomeIntentLayer, string>> = {
+    health: "/health",
+    mind: "/mind-memory",
+    community: "/social-rooms",
+    concierge: "/concierge",
+  };
+  const homeMasterVisibleCards = cardsByIntent[homeIntentLayer];
+  const homeMasterCardSectionTitle = homeIntentLayer === "home"
+    ? t("home.master.chooseCategory", "App shortcuts")
+    : undefined;
+  const homeMasterCardSectionDescription = undefined;
+  const homeMasterMoreRoute = moreRouteByIntent[homeIntentLayer];
+  const homeMasterMoreLabel = activeIntentKey
+    ? t(`home.master.${activeIntentKey}.more`)
     : undefined;
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
@@ -2439,7 +2607,7 @@ const HomeScreen = () => {
       cardGridTestId="home-pillar-cards"
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
-      intentLayer={homeIntentLayer === "health"}
+      intentLayer={homeIntentLayer !== "home"}
       showHero={homeInteractionMode === "voice"}
       showCards={homeInteractionMode === "touch"}
       modeSwitcher={(
@@ -2497,9 +2665,7 @@ const HomeScreen = () => {
                 isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
               ].join(" ")}
             >
-              {homeIntentLayer === "health"
-                ? t("home.master.healthIntent.title", "Are you OK?")
-                : homeMasterGreetingText}
+              {activeIntentTitle}
             </h1>
           ) : null}
         </>
@@ -2507,9 +2673,9 @@ const HomeScreen = () => {
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}
-      cardSectionMoreLabel={homeIntentLayer === "health" && !homeHealthExpanded ? t("home.master.healthIntent.more", "More health options") : undefined}
-      onCardSectionMore={homeIntentLayer === "health" && !homeHealthExpanded ? () => setHomeHealthExpanded(true) : undefined}
-      cardSectionMoreTestId={homeIntentLayer === "health" && !homeHealthExpanded ? "button-home-health-more" : undefined}
+      cardSectionMoreLabel={homeMasterMoreLabel}
+      onCardSectionMore={homeMasterMoreRoute ? () => handleNavigate(homeMasterMoreRoute) : undefined}
+      cardSectionMoreTestId={homeIntentLayer !== "home" ? `button-home-${homeIntentLayer}-more` : undefined}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
       hero={{
         icon: MessageCircle,

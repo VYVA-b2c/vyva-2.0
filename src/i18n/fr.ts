@@ -1491,6 +1491,9 @@ const fr = {
         visualScan: "Revue visuelle",
         visualScanDetail: "Montrer une inquietude",
       },
+      mindIntent: { title: "Que souhaitez-vous entraîner ?", more: "Plus d’activités cognitives", dormantSubtitle: "Choisissez une activité ou touchez l’orbe.", voiceSubtitle: "D’accord, cognition. Choisissez ou dites-le à VYVA." },
+      communityIntent: { title: "Comment souhaitez-vous créer du lien ?", more: "Plus d’options communautaires", dormantSubtitle: "Choisissez une façon de participer ou touchez l’orbe.", voiceSubtitle: "D’accord, communauté. Choisissez ou dites-le à VYVA." },
+      conciergeIntent: { title: "Que peut organiser VYVA ?", more: "Plus de services concierge", dormantSubtitle: "Choisissez un service ou touchez l’orbe.", voiceSubtitle: "D’accord, concierge. Choisissez ou dites-le à VYVA." },
       header: {
         health: "Sante",
         display: "Affichage",

@@ -154,6 +154,14 @@ const labels: Record<string, string> = {
   "home.master.proactiveGreeting.afternoon": "How are you feeling?",
   "home.master.proactiveGreeting.evening": "How are you feeling?",
   "home.master.voiceSupport": "Tap the orb to begin.",
+  "home.master.healthIntent.title": "Are you OK?",
+  "home.master.healthIntent.more": "More health options",
+  "home.master.mindIntent.title": "What would you like to exercise?",
+  "home.master.mindIntent.more": "More mind activities",
+  "home.master.communityIntent.title": "How would you like to connect?",
+  "home.master.communityIntent.more": "More community options",
+  "home.master.conciergeIntent.title": "What can VYVA help arrange?",
+  "home.master.conciergeIntent.more": "More concierge services",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -1544,17 +1552,23 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("qm@4cksa.com");
   });
 
-  it("opens each non-health pillar from the master cards", () => {
+  it.each([
+    ["cognitive", "mind", ["memory", "reflexes", "focus", "senses"], "/mind-memory"],
+    ["social", "community", ["friends", "experts", "share", "activities"], "/social-rooms"],
+    ["concierge", "concierge", ["home", "care", "order", "book"], "/concierge"],
+  ] as const)("opens the four %s choices before routing to the full pillar", (masterCard, intent, cardIds, route) => {
     render(<HomeScreen />);
     fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
-    fireEvent.click(screen.getByTestId("card-home-agent-cognitive"));
-    fireEvent.click(screen.getByTestId("card-home-agent-social"));
-    fireEvent.click(screen.getByTestId("card-home-agent-concierge"));
+    fireEvent.click(screen.getByTestId(`card-home-agent-${masterCard}`));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/mind-memory", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/social-rooms", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", undefined);
+    expect(guardPathMock).not.toHaveBeenCalled();
+    for (const cardId of cardIds) {
+      expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByTestId(`button-home-${intent}-more`));
+    expect(guardPathMock).toHaveBeenCalledWith(route, undefined);
   });
 
   it("opens a focused Health intent layer before routing to health actions", () => {
@@ -1576,11 +1590,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
 
     fireEvent.click(screen.getByTestId("button-home-health-more"));
-
-    expect(screen.getByTestId("card-home-health-prevention")).toHaveTextContent("Prevention");
-    expect(screen.getByTestId("card-home-health-visual-scan")).toHaveTextContent("Visual scan");
-    expect(screen.queryByTestId("button-home-health-more")).not.toBeInTheDocument();
-    expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
+    expect(guardPathMock).toHaveBeenCalledWith("/health", undefined);
 
     fireEvent.click(screen.getByTestId("card-home-health-symptoms"));
     fireEvent.click(screen.getByTestId("card-home-health-vitals"));
@@ -1616,18 +1626,36 @@ describe("Home fast service actions", () => {
   });
 
   it.each([
-    ["mind", "/mind-memory"],
-    ["community", "/social-rooms"],
-    ["concierge", "/concierge"],
-  ] as const)("routes the broad %s voice intent to its canonical screen", (intent, route) => {
+    ["mind", ["memory", "reflexes", "focus", "senses"]],
+    ["community", ["friends", "experts", "share", "activities"]],
+    ["concierge", ["home", "care", "order", "book"]],
+  ] as const)("opens the broad %s voice intent choices without leaving Home", (intent, cardIds) => {
     render(<HomeScreen />);
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
     });
 
-    expect(guardPathMock).toHaveBeenCalledTimes(1);
-    expect(guardPathMock).toHaveBeenCalledWith(route);
+    expect(guardPathMock).not.toHaveBeenCalled();
+    for (const cardId of cardIds) {
+      expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
+    }
+  });
+
+  it("restores the active pillar choices after leaving and returning Home", () => {
+    const firstRender = render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "mind" }));
+    });
+    expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
+
+    firstRender.unmount();
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-mind-senses")).toBeInTheDocument();
+    expect(guardPathMock).not.toHaveBeenCalled();
   });
 
   it("ignores malformed and duplicate broad voice intent events", () => {
@@ -1639,7 +1667,8 @@ describe("Home fast service actions", () => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "community" }));
     });
 
-    expect(guardPathMock).toHaveBeenCalledTimes(1);
-    expect(guardPathMock).toHaveBeenCalledWith("/social-rooms");
+    expect(guardPathMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("card-home-community-friends")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-community-activities")).toBeInTheDocument();
   });
 });
