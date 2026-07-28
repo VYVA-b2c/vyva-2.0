@@ -328,7 +328,7 @@ test("login screen scales from mobile card to tablet and desktop auth layout", a
   await expectNoHorizontalOverflow(page);
 });
 
-test("home screen renders core cards and navigates to concierge", async ({ page }) => {
+test("home screen renders core cards and opens concierge choices", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Touch" }).click();
@@ -337,7 +337,11 @@ test("home screen renders core cards and navigates to concierge", async ({ page 
   await expect(page.getByTestId("card-home-agent-concierge")).toBeVisible();
 
   await page.getByTestId("card-home-agent-concierge").click();
-  await expect(page).toHaveURL(/\/concierge$/);
+  await expect(page.getByTestId("card-home-concierge-home")).toBeVisible();
+  await page.getByTestId("card-home-concierge-home").click();
+  await expect(page.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "concierge-home");
+  await expect(page.getByText("Use my saved provider")).toBeVisible();
+  await expect(page.getByText("Find options")).toBeVisible();
 });
 
 test("concierge shopping helper recommends and saves a choice", async ({ page }) => {
