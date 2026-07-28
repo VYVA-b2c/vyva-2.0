@@ -23,6 +23,11 @@ import {
   type CrossPillarExecutionAttemptInput,
   type CrossPillarExecutionOutcome,
 } from "../../shared/crossPillarExecutionObservability";
+import {
+  buildCrossPillarRecoveryPlan,
+  type CrossPillarRecoveryAction,
+  type CrossPillarRecoveryPlan,
+} from "../../shared/crossPillarExecutionRecovery";
 
 export const CROSS_PILLAR_HANDOFF_STORAGE_KEY = "vyva.cross-pillar-handoffs.v1";
 export const CROSS_PILLAR_ACTIVE_HANDOFF_KEY = "vyva.cross-pillar-handoff.active.v1";
@@ -59,6 +64,7 @@ export type CrossPillarHandoffRecord = {
     | "confirmed"
     | "completed"
     | "failed"
+    | "saved_for_later"
     | "cancelled";
   receipt: WorkflowReceiptMoment;
   createdAt: string;
@@ -70,6 +76,13 @@ export type CrossPillarHandoffRecord = {
   failureReason?: string;
   toolReadiness: CrossPillarActionToolReadiness;
   externalConfirmationId?: string;
+  locale?: string;
+  recoveryStatus?: "offered" | "auto_retrying" | "resumed" | "saved" | "blocked" | "succeeded";
+  recoveryAction?: CrossPillarRecoveryAction;
+  recoveryAttemptCount?: number;
+  automaticRetryCount?: number;
+  savedForLaterAt?: string;
+  previousFailureReason?: string;
 };
 
 export type CrossPillarHandoffInput = {
@@ -417,6 +430,7 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
     attemptStartedAt: now,
     attemptCount: 1,
     toolReadiness,
+    locale: input.locale,
   };
 }
 
@@ -518,7 +532,19 @@ export function readCrossPillarHandoff(
 
 type HandoffUpdate = Partial<Pick<
   CrossPillarHandoffRecord,
-  "status" | "acknowledgedAt" | "completedAt" | "failureReason" | "attemptStartedAt" | "attemptCount" | "externalConfirmationId"
+  | "status"
+  | "acknowledgedAt"
+  | "completedAt"
+  | "failureReason"
+  | "attemptStartedAt"
+  | "attemptCount"
+  | "externalConfirmationId"
+  | "recoveryStatus"
+  | "recoveryAction"
+  | "recoveryAttemptCount"
+  | "automaticRetryCount"
+  | "savedForLaterAt"
+  | "previousFailureReason"
 >>;
 
 export function updateCrossPillarHandoff(
@@ -534,6 +560,8 @@ export function updateCrossPillarHandoff(
     ? "done"
     : nextStatus === "failed"
       ? "failed"
+      : nextStatus === "saved_for_later"
+        ? "waiting"
       : nextStatus === "cancelled"
         ? "cancelled"
         : nextStatus === "setup_required"
@@ -551,7 +579,7 @@ export function updateCrossPillarHandoff(
     updatedAt: now,
   };
   persistCrossPillarHandoff(next, storage);
-  if (["completed", "cancelled"].includes(next.status)) {
+  if (["completed", "cancelled", "saved_for_later"].includes(next.status)) {
     storage?.removeItem(CROSS_PILLAR_ACTIVE_HANDOFF_KEY);
   }
   return next;
@@ -619,6 +647,7 @@ export function completeCrossPillarHandoff(
     completedAt: now,
     failureReason: undefined,
     externalConfirmationId,
+    recoveryStatus: current.recoveryStatus ? "succeeded" : undefined,
   }, storage, now);
   if (completed) {
     recordExecutionAttempt(completed, "succeeded", {
@@ -638,6 +667,8 @@ export function failCrossPillarHandoff(
   const failed = updateCrossPillarHandoff(id, {
     status: "failed",
     failureReason: reason,
+    previousFailureReason: reason,
+    recoveryStatus: "offered",
   }, storage, now);
   if (failed) recordExecutionAttempt(failed, "failed", { now, fallbackReason: reason, errorCode: reason });
   return failed;
@@ -652,6 +683,8 @@ export function timeoutCrossPillarHandoff(
   const timedOut = updateCrossPillarHandoff(id, {
     status: "failed",
     failureReason: reason,
+    previousFailureReason: reason,
+    recoveryStatus: "offered",
   }, storage, now);
   if (timedOut) recordExecutionAttempt(timedOut, "timed_out", { now, fallbackReason: reason, errorCode: reason });
   return timedOut;
@@ -673,6 +706,7 @@ export function retryCrossPillarHandoff(
   id: string,
   navigate: (path: string, options?: NavigateOptions) => boolean | void,
   storage: Storage | null = storageOrNull(),
+  options: { automatic?: boolean; now?: string } = {},
 ): CrossPillarHandoffRecord | null {
   const current = readCrossPillarHandoff(id, storage);
   if (!current) return null;
@@ -683,12 +717,19 @@ export function retryCrossPillarHandoff(
     });
     return current;
   }
+  const now = options.now ?? new Date().toISOString();
   const next = updateCrossPillarHandoff(id, {
     status: current.kind === "provider_setup" ? "setup_required" : "prepared",
     failureReason: undefined,
-    attemptStartedAt: new Date().toISOString(),
+    previousFailureReason: current.failureReason ?? current.previousFailureReason,
+    attemptStartedAt: now,
     attemptCount: (current.attemptCount ?? 1) + 1,
-  }, storage);
+    recoveryStatus: options.automatic ? "auto_retrying" : "resumed",
+    recoveryAction: "retry",
+    recoveryAttemptCount: (current.recoveryAttemptCount ?? 0) + 1,
+    automaticRetryCount: (current.automaticRetryCount ?? 0) + (options.automatic ? 1 : 0),
+    externalConfirmationId: undefined,
+  }, storage, now);
   if (!next) return null;
   recordExecutionAttempt(next, "resumed");
   navigate(next.destinationPath, {
@@ -697,6 +738,128 @@ export function retryCrossPillarHandoff(
       crossPillarHandoffId: next.id,
       crossPillarIdempotencyKey: next.id,
       crossPillarRetry: true,
+      crossPillarAutomaticRetry: options.automatic === true,
+      crossPillarRequiresFreshConfirmation: next.toolReadiness.externalConfirmationRequired,
+    },
+  });
+  return next;
+}
+
+export function getCrossPillarRecoveryPlan(
+  handoff: CrossPillarHandoffRecord,
+): CrossPillarRecoveryPlan {
+  return buildCrossPillarRecoveryPlan({
+    actionId: handoff.actionId,
+    failureReason: handoff.failureReason ?? handoff.previousFailureReason,
+    toolReadiness: handoff.toolReadiness,
+    automaticRetryCount: handoff.automaticRetryCount,
+  });
+}
+
+export function saveCrossPillarHandoffForLater(
+  id: string,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current || current.status === "completed") return current;
+  const saved = updateCrossPillarHandoff(id, {
+    status: "saved_for_later",
+    recoveryStatus: "saved",
+    recoveryAction: "save_later",
+    savedForLaterAt: now,
+    previousFailureReason: current.failureReason ?? current.previousFailureReason,
+    failureReason: undefined,
+    attemptStartedAt: now,
+    attemptCount: current.attemptCount + 1,
+  }, storage, now);
+  if (saved) {
+    recordExecutionAttempt(saved, "fallback", {
+      now,
+      attemptNumber: saved.attemptCount,
+      fallbackReason: "saved_for_later",
+    });
+  }
+  return saved;
+}
+
+export function continueCrossPillarHandoffManually(
+  id: string,
+  navigate: (path: string, options?: NavigateOptions) => boolean | void,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current || current.status === "completed") return current;
+  const next = updateCrossPillarHandoff(id, {
+    status: "prepared",
+    recoveryStatus: "resumed",
+    recoveryAction: "continue_manual",
+    recoveryAttemptCount: (current.recoveryAttemptCount ?? 0) + 1,
+    previousFailureReason: current.failureReason ?? current.previousFailureReason,
+    failureReason: undefined,
+    attemptStartedAt: now,
+    attemptCount: current.attemptCount + 1,
+    externalConfirmationId: undefined,
+  }, storage, now);
+  if (!next) return null;
+  recordExecutionAttempt(next, "resumed", {
+    now,
+    fallbackReason: "manual_continuation",
+  });
+  navigate(next.toolReadiness.fallbackPath || next.destinationPath, {
+    state: {
+      ...next.destinationState,
+      crossPillarHandoffId: next.id,
+      crossPillarIdempotencyKey: next.id,
+      crossPillarManualRecovery: true,
+      crossPillarRequiresFreshConfirmation: next.toolReadiness.externalConfirmationRequired,
+    },
+  });
+  return next;
+}
+
+export function chooseAnotherCrossPillarProvider(
+  id: string,
+  navigate: (path: string, options?: NavigateOptions) => boolean | void,
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current || current.status === "completed") return current;
+  const definition = ACTIONS[current.actionId];
+  const focus = definition.providerFocus;
+  const destinationPath = focus
+    ? providerSetupPath(focus)
+    : current.toolReadiness.fallbackPath;
+  const next = updateCrossPillarHandoff(id, {
+    status: "setup_required",
+    recoveryStatus: "resumed",
+    recoveryAction: "choose_provider",
+    recoveryAttemptCount: (current.recoveryAttemptCount ?? 0) + 1,
+    previousFailureReason: current.failureReason ?? current.previousFailureReason,
+    failureReason: undefined,
+    attemptStartedAt: now,
+    attemptCount: current.attemptCount + 1,
+    externalConfirmationId: undefined,
+  }, storage, now);
+  if (!next) return null;
+  recordExecutionAttempt(next, "resumed", {
+    now,
+    fallbackReason: "choose_another_provider",
+  });
+  navigate(destinationPath, {
+    state: {
+      ...next.destinationState,
+      setupFocus: focus,
+      resumeAfterSetup: true,
+      returnTo: next.returnPath,
+      returnState: {
+        ...next.destinationState,
+        crossPillarHandoffId: next.id,
+        crossPillarIdempotencyKey: next.id,
+        crossPillarRecoveryAction: "choose_provider",
+      },
     },
   });
   return next;
