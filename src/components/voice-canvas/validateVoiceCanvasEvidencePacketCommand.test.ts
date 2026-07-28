@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -29,10 +29,37 @@ const packetPath = path.resolve(
 );
 
 function runValidator(args: string[] = []) {
-  return spawnSync(process.execPath, [tsxCliPath, validatorScriptPath, ...args], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
+  return new Promise<{ status: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        [tsxCliPath, validatorScriptPath, ...args],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            NODE_ENV: "test",
+            VYVA_QA_VALIDATION_TODAY: "2026-07-20",
+          },
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr.on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      child.on("error", reject);
+      child.on("close", (status) => {
+        resolve({ status, stdout, stderr });
+      });
+    },
+  );
 }
 
 function committedPacket(): string {
@@ -53,24 +80,24 @@ const completedRealDeviceInventoryRow =
 const completedInteractionInventoryRow =
   "| Interaction recordings or logs | `artifacts/voice-canvas/2026-07-19-real-use-coverage.md` and `artifacts/voice-canvas/2026-07-19-real-use-validation.json` | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |";
 
-function withTempPacket<T>(
+async function withTempPacket<T>(
   markdown: string,
-  callback: (tempPacketPath: string) => T,
-): T {
+  callback: (tempPacketPath: string) => T | Promise<T>,
+): Promise<T> {
   const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-packet-"));
   const tempPacketPath = path.join(tempDir, "evidence-packet.md");
   writeFileSync(tempPacketPath, markdown);
 
   try {
-    return callback(tempPacketPath);
+    return await callback(tempPacketPath);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 describe("Voice Canvas evidence packet validator command", () => {
-  it("prints copy-safe help for run-specific evidence packet artifacts", () => {
-    const result = runValidator(["--help"]);
+  it("prints copy-safe help for run-specific evidence packet artifacts", async () => {
+    const result = await runValidator(["--help"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
@@ -99,8 +126,8 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
   });
 
-  it("passes the committed pending packet only in explicit pending-review mode", () => {
-    const result = runValidator(["--allow-pending"]);
+  it("passes the committed pending packet only in explicit pending-review mode", async () => {
+    const result = await runValidator(["--allow-pending"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("State: pending");
@@ -117,8 +144,8 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
   });
 
-  it("fails the committed pending packet as a final launch packet gate", () => {
-    const result = runValidator();
+  it("fails the committed pending packet as a final launch packet gate", async () => {
+    const result = await runValidator();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("State: pending");
@@ -128,8 +155,8 @@ describe("Voice Canvas evidence packet validator command", () => {
     );
   });
 
-  it("emits machine-readable JSON for pending-review packet artifacts", () => {
-    const result = runValidator(["--allow-pending", "--json"]);
+  it("emits machine-readable JSON for pending-review packet artifacts", async () => {
+    const result = await runValidator(["--allow-pending", "--json"]);
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
@@ -176,8 +203,8 @@ describe("Voice Canvas evidence packet validator command", () => {
   });
 
   it("passes a complete sanitized packet", () =>
-    withTempPacket(completedPacket(), (tempPacketPath) => {
-      const result = runValidator([tempPacketPath, "--json"]);
+    withTempPacket(completedPacket(), async (tempPacketPath) => {
+      const result = await runValidator([tempPacketPath, "--json"]);
 
       expect(result.status).toBe(0);
       expect(result.stderr).toBe("");
@@ -201,8 +228,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         completedRealDeviceInventoryRow,
         "| Real-device screenshots or photos | `artifacts/voice-canvas/2026-07-19/123 Secret Street-transcript.md` | Device coverage for phone, tablet, and desktop/laptop | QA Owner reviewed on 2026-07-19 |",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -231,8 +258,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         completedRealDeviceInventoryRow,
         "| Real-device screenshots or photos | `https://qa-user:secret-pass@staging.vyva.app/artifacts/2026-07-19/run-sheet.json?token=secret` | Device coverage for phone, tablet, and desktop/laptop | QA Owner reviewed on 2026-07-19 |",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -261,8 +288,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         completedInteractionInventoryRow,
         "| Interaction recordings or logs | `artifacts/voice-canvas/2026-07-19-real-use-coverage.md` and `artifacts/voice-canvas/2026-07-19-real-use-validation.json`; booking triggered before confirmation and fallback unavailable during rollback | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -293,8 +320,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         completedInteractionInventoryRow,
         "| Interaction recordings or logs | `artifacts/voice-canvas/2026-07-19-real-use-coverage.md` and `artifacts/voice-canvas/2026-07-19-real-use-validation.json`; incomplete interaction result with not complete keyboard evidence | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -325,8 +352,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "voice-canvas/analytics/2026-07-19/analytics-evidence.json",
         "voice-canvas/analytics/2026-07-19/shopping-item-details-retailer-name-route-details-profile-id",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -357,8 +384,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         completedInteractionInventoryRow,
         "| Interaction recordings or logs | QA reviewed interaction evidence | Interaction mode coverage for voice, touch, and keyboard | QA Owner reviewed on 2026-07-19 |",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -383,8 +410,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "QA Owner reviewed on 2026-07-19",
         "QA Owner / 2026-07-19",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -409,8 +436,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "QA Owner reviewed on 2026-07-19",
         "QA Owner reviewed on 2000-01-01",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -435,8 +462,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "Interaction mode coverage for voice, touch, and keyboard",
         "Launch evidence reviewed",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -461,8 +488,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "Same-date and same deployed-origin launch artifact run plan for endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, rollback-owner, run-sheet, matrix, packet, and final preflight evidence, including safe endpoint auth metadata alignment and no credential values",
         "Same date launch artifact run plan for final preflight evidence",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -487,8 +514,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel",
         "flag rollback to Existing Concierge transport panel",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -513,8 +540,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "Entry surfaces: voice handoff, /concierge, and task hub pending resume; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review, explicit confirmation, waiting, completed or saved result, and blocked result; no booking, call, message, navigation, or write before explicit confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Existing Concierge transport panel; sanitized artifact categories: device screenshots/photos, voice/touch/keyboard interaction logs, endpoint rollback, analytics signal, and privacy query",
         "Entry surfaces: voice handoff only; real phone/tablet/desktop evidence; voice/touch/keyboard completion or safe exit; saved-place or address path without exposing the address; review and explicit confirmation; no booking, call, message, navigation, or write before explicit confirmation; duplicate confirmation prevention; stale response ignored; flag rollback to Generic fallback panel; sanitized artifact categories: screenshot only",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -542,8 +569,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "with no write, no resubmission, and no external action before explicit confirmation; duplicate confirmation was prevented and stale response was ignored",
         "before explicit confirmation; duplicate confirmation was prevented and stale response was ignored",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -568,8 +595,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "matching expected-state labels, Cache-Control no-store, auth metadata matching the launch run plan, no credential references, and only sanitized endpoint/status/cache-control/timing plus enabled/rollout payload evidence",
         "only sanitized endpoint/status/cache-control/timing plus enabled/rollout payload evidence",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -594,8 +621,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "auth metadata matching the launch run plan, no credential references, and ",
         "",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -617,8 +644,8 @@ describe("Voice Canvas evidence packet validator command", () => {
   it("rejects analytics evidence note patterns without non-identifying allowed values proof", () =>
     withTempPacket(
       completedPacket().replaceAll(" and non-identifying allowed values", ""),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -644,8 +671,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "performed no writes and no external actions before explicit confirmation.",
         "performed no writes and no external actions before confirmation.",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -670,8 +697,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "waiting pending/no-action copy, blocked retry/exit copy",
         "waiting copy, blocked retry/exit copy",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -696,8 +723,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "Operations/rollback owner and distinct backup owner, decision window, rollback trigger, enable false or disabled rollout 0 rollback action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness were confirmed.",
         "Operations rollback was confirmed.",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -722,8 +749,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "Operations/rollback owner and distinct backup owner, decision window, rollback trigger, enable false or disabled rollout 0 rollback action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness were confirmed.",
         "Operations/rollback owner and backup owner, decision window, rollback trigger, enable false or disabled rollout 0 rollback action, sanitized endpoint/fallback/open-session evidence, Canvas closed or hidden behavior, privacy boundary, and fallback readiness were confirmed.",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -748,8 +775,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         "validation confirmed coveredFlows and positive flowCounts for ride, appointment, refill, shopping, provider_reply, and task_hub_resume plus positive observed sample counts",
         "validation confirmed positive observed sample counts",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -774,8 +801,8 @@ describe("Voice Canvas evidence packet validator command", () => {
         /- `canvas:qa:preflight -- --final --date=\d{4}-\d{2}-\d{2}` passed with the run sheet, matrix, packet, launch run plan, enabled endpoint, rollback endpoint, analytics, copy-clarity, recovery-behavior, real-use, entry-surface, and rollback owner handoff artifact paths and produced a run-specific launch preflight artifact;/,
         "- final launch review completed;",
       ),
-      (tempPacketPath) => {
-        const result = runValidator([tempPacketPath, "--json"]);
+      async (tempPacketPath) => {
+        const result = await runValidator([tempPacketPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -795,12 +822,12 @@ describe("Voice Canvas evidence packet validator command", () => {
     ));
 
   it("saves validation JSON while preserving existing artifacts by default", () =>
-    withTempPacket(completedPacket(), (tempPacketPath) => {
+    withTempPacket(completedPacket(), async (tempPacketPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-packet-out-"));
       const outputPath = path.join(tempDir, "evidence-packet-summary.json");
 
       try {
-        const first = runValidator([
+        const first = await runValidator([
           tempPacketPath,
           "--json",
           `--output=${outputPath}`,
@@ -814,7 +841,7 @@ describe("Voice Canvas evidence packet validator command", () => {
         );
 
         writeFileSync(outputPath, '{"existing":true}\n');
-        const preserved = runValidator([
+        const preserved = await runValidator([
           tempPacketPath,
           "--json",
           `--output=${outputPath}`,
@@ -826,7 +853,7 @@ describe("Voice Canvas evidence packet validator command", () => {
           existing: true,
         });
 
-        const forced = runValidator([
+        const forced = await runValidator([
           tempPacketPath,
           "--json",
           "--force",
@@ -843,8 +870,8 @@ describe("Voice Canvas evidence packet validator command", () => {
       }
     }));
 
-  it("rejects output paths outside JSON mode", () => {
-    const result = runValidator([
+  it("rejects output paths outside JSON mode", async () => {
+    const result = await runValidator([
       "--allow-pending",
       "--output=evidence-packet-summary.json",
     ]);
