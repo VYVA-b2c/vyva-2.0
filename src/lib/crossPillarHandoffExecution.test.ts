@@ -9,6 +9,7 @@ import {
   failCrossPillarHandoff,
   readCrossPillarHandoff,
   retryCrossPillarHandoff,
+  timeoutCrossPillarHandoff,
 } from "./crossPillarHandoffExecution";
 import {
   CROSS_PILLAR_COMPLETION_ACTIONS,
@@ -182,6 +183,37 @@ describe("cross-pillar real handoff execution", () => {
       window.localStorage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]",
     );
     expect(history.filter((item: { id: string }) => item.id === handoff.id)).toHaveLength(1);
+  });
+
+  it("records a timeout locally as a failed handoff ready for retry", () => {
+    const handoff = executeCrossPillarHandoff({
+      result: result("mind-memory", "gentle"),
+      now: "2026-07-27T13:02:00.000Z",
+    }, vi.fn());
+
+    const timedOut = timeoutCrossPillarHandoff(
+      handoff.id,
+      "destination_timeout",
+      window.localStorage,
+      "2026-07-27T13:03:00.000Z",
+    );
+    expect(timedOut).toMatchObject({
+      status: "failed",
+      failureReason: "destination_timeout",
+    });
+  });
+
+  it("does not navigate or repeat work when retrying an already completed handoff", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("health-symptoms", "guide-me"),
+    }, navigate);
+    acknowledgeCrossPillarHandoff(handoff.id, "/health/symptom-check");
+    completeCrossPillarHandoff(handoff.id);
+    navigate.mockClear();
+
+    expect(retryCrossPillarHandoff(handoff.id, navigate)?.status).toBe("completed");
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it("resumes Concierge after provider setup with the same handoff identity", () => {

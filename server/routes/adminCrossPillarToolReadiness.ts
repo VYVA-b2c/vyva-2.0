@@ -6,6 +6,7 @@ import {
   type CrossPillarToolReadinessStatus,
 } from "../../shared/crossPillarToolReadiness.js";
 import { buildAdminConciergeChannelReadinessSnapshot } from "../services/conciergeChannelReadiness.js";
+import { buildAdminCrossPillarExecutionSummary } from "../services/crossPillarExecutionObservability.js";
 
 const router = Router();
 
@@ -101,8 +102,24 @@ router.get("/", async (_req: Request, res: Response) => {
         "search",
         searchReady ? "ready" : "setup_needed",
         "provider-and-web-search",
-        searchReady ? undefined : "No supported search credential is configured.",
-      );
+      searchReady ? undefined : "No supported search credential is configured.",
+    );
+
+    try {
+      const executionSummary = await buildAdminCrossPillarExecutionSummary(24);
+      for (const health of executionSummary.toolHealth) {
+        if (health.status === "temporarily_degraded" && tools[health.family].status === "ready") {
+          tools[health.family] = evidence(
+            health.family,
+            "temporarily_unavailable",
+            tools[health.family].adapter || "live-execution-monitor",
+            health.reason,
+          );
+        }
+      }
+    } catch (error) {
+      console.warn("[admin-cross-pillar-tool-readiness] live health overlay unavailable:", error);
+    }
 
     res.json({
       generated_at: new Date().toISOString(),

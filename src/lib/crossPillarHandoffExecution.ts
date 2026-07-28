@@ -10,6 +10,7 @@ import {
 } from "../../shared/workflowRegistry";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
+import { apiFetch } from "@/lib/queryClient";
 import {
   canClaimCrossPillarExternalSuccess,
   evaluateCrossPillarActionToolReadiness,
@@ -17,6 +18,11 @@ import {
   type CrossPillarToolEvidence,
   type CrossPillarToolFamily,
 } from "../../shared/crossPillarToolReadiness";
+import {
+  buildCrossPillarExecutionReceipt,
+  type CrossPillarExecutionAttemptInput,
+  type CrossPillarExecutionOutcome,
+} from "../../shared/crossPillarExecutionObservability";
 
 export const CROSS_PILLAR_HANDOFF_STORAGE_KEY = "vyva.cross-pillar-handoffs.v1";
 export const CROSS_PILLAR_ACTIVE_HANDOFF_KEY = "vyva.cross-pillar-handoff.active.v1";
@@ -57,6 +63,7 @@ export type CrossPillarHandoffRecord = {
   receipt: WorkflowReceiptMoment;
   createdAt: string;
   updatedAt: string;
+  attemptStartedAt?: string;
   attemptCount: number;
   acknowledgedAt?: string;
   completedAt?: string;
@@ -407,6 +414,7 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
     receipt,
     createdAt: now,
     updatedAt: now,
+    attemptStartedAt: now,
     attemptCount: 1,
     toolReadiness,
   };
@@ -418,6 +426,54 @@ function storageOrNull(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function recordExecutionAttempt(
+  handoff: CrossPillarHandoffRecord,
+  outcome: CrossPillarExecutionOutcome,
+  options: {
+    now?: string;
+    attemptNumber?: number;
+    confirmationId?: string;
+    fallbackReason?: string;
+    errorCode?: string;
+  } = {},
+): void {
+  if (typeof window === "undefined") return;
+  const finishedAt = options.now ?? new Date().toISOString();
+  const receipt = buildCrossPillarExecutionReceipt({
+    outcome,
+    actionLabel: handoff.optionLabel,
+    confirmationId: options.confirmationId,
+    fallbackReason: options.fallbackReason,
+  });
+  const attempt: CrossPillarExecutionAttemptInput = {
+    handoffId: handoff.id,
+    attemptNumber: options.attemptNumber ?? handoff.attemptCount,
+    actionId: handoff.actionId,
+    pillar: handoff.pillar,
+    workflowReference: handoff.workflowReference,
+    toolFamilies: handoff.toolReadiness.required,
+    confirmationId: options.confirmationId,
+    outcome,
+    startedAt: handoff.attemptStartedAt || handoff.createdAt,
+    finishedAt: outcome === "started" || outcome === "resumed" ? undefined : finishedAt,
+    durationMs: outcome === "started" || outcome === "resumed"
+      ? undefined
+      : Math.max(0, new Date(finishedAt).getTime() - new Date(handoff.attemptStartedAt || handoff.createdAt).getTime()),
+    fallbackPath: handoff.toolReadiness.fallbackPath,
+    fallbackReason: options.fallbackReason,
+    idempotencyKey: handoff.id,
+    whatHappened: receipt.whatHappened,
+    whatRemains: receipt.whatRemains,
+    errorCode: options.errorCode,
+  };
+  void apiFetch("/api/cross-pillar/executions/attempts", {
+    method: "POST",
+    body: JSON.stringify(attempt),
+  }).catch(() => {
+    // Execution reporting must never block the user's task.
+  });
 }
 
 export function persistCrossPillarHandoff(
@@ -462,7 +518,7 @@ export function readCrossPillarHandoff(
 
 type HandoffUpdate = Partial<Pick<
   CrossPillarHandoffRecord,
-  "status" | "acknowledgedAt" | "completedAt" | "failureReason" | "attemptCount" | "externalConfirmationId"
+  "status" | "acknowledgedAt" | "completedAt" | "failureReason" | "attemptStartedAt" | "attemptCount" | "externalConfirmationId"
 >>;
 
 export function updateCrossPillarHandoff(
@@ -528,6 +584,14 @@ export function completeCrossPillarHandoff(
 ): CrossPillarHandoffRecord | null {
   const current = readCrossPillarHandoff(id, storage);
   if (!current) return null;
+  if (current.status === "completed") {
+    recordExecutionAttempt(current, "duplicate", {
+      now,
+      attemptNumber: current.attemptCount + 1,
+      confirmationId: current.externalConfirmationId,
+    });
+    return current;
+  }
   if (
     current.toolReadiness.externalConfirmationRequired
     && !canClaimCrossPillarExternalSuccess({
@@ -535,19 +599,34 @@ export function completeCrossPillarHandoff(
       externalConfirmationId,
     })
   ) {
-    return updateCrossPillarHandoff(id, {
+    const blocked = updateCrossPillarHandoff(id, {
       status: "acknowledged",
       failureReason: externalConfirmationId
         ? "tool_readiness_not_confirmed"
         : "external_confirmation_missing",
     }, storage, now);
+    if (blocked) {
+      recordExecutionAttempt(blocked, "blocked", {
+        now,
+        fallbackReason: blocked.failureReason,
+        errorCode: blocked.failureReason,
+      });
+    }
+    return blocked;
   }
-  return updateCrossPillarHandoff(id, {
+  const completed = updateCrossPillarHandoff(id, {
     status: "completed",
     completedAt: now,
     failureReason: undefined,
     externalConfirmationId,
   }, storage, now);
+  if (completed) {
+    recordExecutionAttempt(completed, "succeeded", {
+      now,
+      confirmationId: externalConfirmationId,
+    });
+  }
+  return completed;
 }
 
 export function failCrossPillarHandoff(
@@ -556,10 +635,26 @@ export function failCrossPillarHandoff(
   storage: Storage | null = storageOrNull(),
   now = new Date().toISOString(),
 ): CrossPillarHandoffRecord | null {
-  return updateCrossPillarHandoff(id, {
+  const failed = updateCrossPillarHandoff(id, {
     status: "failed",
     failureReason: reason,
   }, storage, now);
+  if (failed) recordExecutionAttempt(failed, "failed", { now, fallbackReason: reason, errorCode: reason });
+  return failed;
+}
+
+export function timeoutCrossPillarHandoff(
+  id: string,
+  reason = "execution_timeout",
+  storage: Storage | null = storageOrNull(),
+  now = new Date().toISOString(),
+): CrossPillarHandoffRecord | null {
+  const timedOut = updateCrossPillarHandoff(id, {
+    status: "failed",
+    failureReason: reason,
+  }, storage, now);
+  if (timedOut) recordExecutionAttempt(timedOut, "timed_out", { now, fallbackReason: reason, errorCode: reason });
+  return timedOut;
 }
 
 export function cancelCrossPillarHandoff(
@@ -567,9 +662,11 @@ export function cancelCrossPillarHandoff(
   storage: Storage | null = storageOrNull(),
   now = new Date().toISOString(),
 ): CrossPillarHandoffRecord | null {
-  return updateCrossPillarHandoff(id, {
+  const cancelled = updateCrossPillarHandoff(id, {
     status: "cancelled",
   }, storage, now);
+  if (cancelled) recordExecutionAttempt(cancelled, "cancelled", { now });
+  return cancelled;
 }
 
 export function retryCrossPillarHandoff(
@@ -579,12 +676,21 @@ export function retryCrossPillarHandoff(
 ): CrossPillarHandoffRecord | null {
   const current = readCrossPillarHandoff(id, storage);
   if (!current) return null;
+  if (current.status === "completed") {
+    recordExecutionAttempt(current, "duplicate", {
+      attemptNumber: current.attemptCount + 1,
+      confirmationId: current.externalConfirmationId,
+    });
+    return current;
+  }
   const next = updateCrossPillarHandoff(id, {
     status: current.kind === "provider_setup" ? "setup_required" : "prepared",
     failureReason: undefined,
+    attemptStartedAt: new Date().toISOString(),
     attemptCount: (current.attemptCount ?? 1) + 1,
   }, storage);
   if (!next) return null;
+  recordExecutionAttempt(next, "resumed");
   navigate(next.destinationPath, {
     state: {
       ...next.destinationState,
@@ -602,6 +708,18 @@ export function executeCrossPillarHandoff(
 ): CrossPillarHandoffRecord {
   const handoff = buildCrossPillarHandoff(input);
   persistCrossPillarHandoff(handoff);
+  recordExecutionAttempt(
+    handoff,
+    handoff.toolReadiness.status === "ready"
+      ? "started"
+      : handoff.toolReadiness.status === "temporarily_unavailable"
+        ? "fallback"
+        : "blocked",
+    {
+      fallbackReason: handoff.toolReadiness.blockers[0]?.reason,
+      errorCode: handoff.toolReadiness.blockers[0]?.family,
+    },
+  );
   navigate(handoff.destinationPath, { state: handoff.destinationState });
   return handoff;
 }

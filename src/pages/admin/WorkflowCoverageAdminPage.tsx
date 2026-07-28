@@ -44,6 +44,10 @@ import {
   type CrossPillarManualQaStatus,
 } from "../../../shared/crossPillarManualQa";
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
+import type {
+  CrossPillarExecutionAttemptSnapshot,
+  CrossPillarToolHealth,
+} from "../../../shared/crossPillarExecutionObservability";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
 import {
   CROSS_PILLAR_PRIMARY_ACTION_IDS,
@@ -64,6 +68,17 @@ type ActionLevelFilter = "all" | WorkflowActionLevel;
 type CrossPillarToolReadinessResponse = {
   generated_at: string;
   tools: CrossPillarToolEvidence[];
+};
+type CrossPillarExecutionSummaryResponse = {
+  generatedAt: string;
+  windowHours: number;
+  totalAttempts: number;
+  successful: number;
+  failed: number;
+  duplicatesPrevented: number;
+  recentFailures: CrossPillarExecutionAttemptSnapshot[];
+  failuresByAction: Array<{ actionId: string; failures: number; lastFailureAt: string }>;
+  toolHealth: CrossPillarToolHealth[];
 };
 
 const TOOL_STATUS_LABELS: Record<CrossPillarToolReadinessStatus, string> = {
@@ -718,6 +733,11 @@ export default function WorkflowCoverageAdminPage() {
     retry: false,
     staleTime: 30_000,
   });
+  const { data: executionSummary, isLoading: executionSummaryLoading } = useQuery<CrossPillarExecutionSummaryResponse>({
+    queryKey: ["/api/admin/cross-pillar/executions/summary?hours=24"],
+    retry: false,
+    staleTime: 30_000,
+  });
 
   const toolEvidence = useMemo(() => Object.fromEntries(
     (toolReadiness?.tools ?? []).map((item) => [item.family, item]),
@@ -840,6 +860,60 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Live cross-pillar execution outcomes"
+          data-testid="cross-pillar-live-execution-outcomes"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Live execution health</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">What is finishing, failing, or safely blocked?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">
+              {executionSummaryLoading
+                ? "Loading durable attempts..."
+                : `Last ${executionSummary?.windowHours ?? 24} hours`}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <InsightCard label="Attempts" value={executionSummary?.totalAttempts ?? 0} />
+            <InsightCard label="Succeeded" value={executionSummary?.successful ?? 0} />
+            <InsightCard label="Failed / blocked" value={executionSummary?.failed ?? 0} />
+            <InsightCard label="Duplicates stopped" value={executionSummary?.duplicatesPrevented ?? 0} />
+          </div>
+          {(executionSummary?.failuresByAction?.length ?? 0) > 0 && (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-[#f0e7df] p-3">
+                <h3 className="font-black text-[#2f2135]">Failures by action</h3>
+                <div className="mt-2 space-y-2">
+                  {executionSummary?.failuresByAction?.slice(0, 8).map((item) => (
+                    <div key={item.actionId} className="flex items-center justify-between gap-3 text-sm font-bold">
+                      <span>{item.actionId}</span>
+                      <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-800">{item.failures}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#f0e7df] p-3">
+                <h3 className="font-black text-[#2f2135]">Tool health</h3>
+                <div className="mt-2 space-y-2">
+                  {executionSummary?.toolHealth
+                    ?.filter((item) => item.attempts > 0)
+                    .map((item) => (
+                      <div key={item.family} className="flex items-center justify-between gap-3 text-sm font-bold">
+                        <span>{item.family.replaceAll("_", " ")}</span>
+                        <span className={item.status === "healthy" ? "text-emerald-700" : "text-orange-700"}>
+                          {item.status === "healthy" ? "Healthy" : "Temporarily degraded"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section
