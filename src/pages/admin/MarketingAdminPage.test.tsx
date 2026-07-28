@@ -741,12 +741,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-send-readiness-panel")).toHaveTextContent("Email campaign sending is enabled");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Total campaigns");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Audiences");
-    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Imported media refs");
-    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Journey enrollments");
-    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Lovable 2 / VYVA 2");
-    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Saved email template: 1");
-    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Social post: 1");
-    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
+    expect(screen.getByTestId("marketing-dashboard-tab")).not.toHaveTextContent("Imported media refs");
+    expect(screen.queryByTestId("marketing-lovable-import-coverage")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics");
     fireEvent.click(within(screen.getByTestId("marketing-analytics-panel")).getByText("Analytics"));
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
@@ -789,22 +785,9 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-journey-event-metadata-event-1")).toHaveTextContent("automation-log");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
-    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Saved email template: 1");
-    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Social post: 1");
-    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Missing Lovable reference: 1");
-    expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
-    expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
-    const contentImportCoverage = openMetadataPanel("marketing-lovable-field-map-content");
-    expect(contentImportCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
-    expect(contentImportCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
-    expect(contentImportCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
-    expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("Lovable referenced content that was not exported.");
-    expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("1 campaign or journey content reference");
-    fireEvent.click(screen.getByTestId("button-marketing-show-missing-content"));
-    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
-    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");
-    fireEvent.click(screen.getByTestId("button-marketing-clear-content-filters"));
+    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Lovable content coverage");
+    expect(screen.queryByTestId("marketing-missing-content-reference-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-content-library-table")).not.toHaveTextContent("Missing Lovable reference");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Type");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Design/media");
@@ -818,8 +801,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-timeline-content-2")).toHaveTextContent("Updated");
     expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("LinkedIn campaign channel");
-    expect(screen.getByTestId("marketing-content-usage-content-1")).toHaveTextContent("B2B nurture");
-    expect(screen.getByTestId("marketing-content-usage-content-1")).toHaveTextContent("Step 1: message / Email / day 3");
+    expect(screen.queryByTestId("marketing-content-usage-content-1")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
