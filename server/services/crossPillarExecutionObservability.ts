@@ -170,3 +170,15 @@ export async function buildAdminCrossPillarExecutionSummary(hours = 24) {
     toolHealth: summarizeCrossPillarToolHealth(attempts),
   };
 }
+
+export async function listRecentCrossPillarExecutionAttempts(days = 30) {
+  const result = await pool.query<AttemptRow>(
+    `select *
+       from public.cross_pillar_execution_attempts
+      where started_at >= now() - ($1::text || ' days')::interval
+      order by started_at desc
+      limit 5000`,
+    [days],
+  );
+  return result.rows.map(snapshot);
+}

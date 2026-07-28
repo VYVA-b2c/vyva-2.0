@@ -435,6 +435,7 @@ function recordExecutionAttempt(
     now?: string;
     attemptNumber?: number;
     confirmationId?: string;
+    executedToolFamilies?: CrossPillarToolFamily[];
     fallbackReason?: string;
     errorCode?: string;
   } = {},
@@ -453,7 +454,11 @@ function recordExecutionAttempt(
     actionId: handoff.actionId,
     pillar: handoff.pillar,
     workflowReference: handoff.workflowReference,
-    toolFamilies: handoff.toolReadiness.required,
+    // Readiness lists every tool that might be needed. Certification must only
+    // receive the adapters that the completed execution actually exercised.
+    toolFamilies: options.executedToolFamilies ?? (
+      outcome === "succeeded" ? [] : handoff.toolReadiness.required
+    ),
     confirmationId: options.confirmationId,
     outcome,
     startedAt: handoff.attemptStartedAt || handoff.createdAt,
@@ -581,6 +586,7 @@ export function completeCrossPillarHandoff(
   storage: Storage | null = storageOrNull(),
   now = new Date().toISOString(),
   externalConfirmationId?: string,
+  executedToolFamilies: CrossPillarToolFamily[] = [],
 ): CrossPillarHandoffRecord | null {
   const current = readCrossPillarHandoff(id, storage);
   if (!current) return null;
@@ -624,6 +630,7 @@ export function completeCrossPillarHandoff(
     recordExecutionAttempt(completed, "succeeded", {
       now,
       confirmationId: externalConfirmationId,
+      executedToolFamilies,
     });
   }
   return completed;

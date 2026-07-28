@@ -56,6 +56,11 @@ import {
   type CrossPillarToolFamily,
   type CrossPillarToolReadinessStatus,
 } from "../../../shared/crossPillarToolReadiness";
+import type {
+  CrossPillarPillarCertification,
+  CrossPillarToolCertification,
+  CrossPillarToolCertificationStatus,
+} from "../../../shared/crossPillarToolCertification";
 import {
   CROSS_PILLAR_HANDOFF_EVENT,
   CROSS_PILLAR_HANDOFF_STORAGE_KEY,
@@ -67,7 +72,10 @@ type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
 type ActionLevelFilter = "all" | WorkflowActionLevel;
 type CrossPillarToolReadinessResponse = {
   generated_at: string;
+  certification_window_days: number;
   tools: CrossPillarToolEvidence[];
+  certifications: CrossPillarToolCertification[];
+  pillar_certifications: CrossPillarPillarCertification[];
 };
 type CrossPillarExecutionSummaryResponse = {
   generatedAt: string;
@@ -93,6 +101,18 @@ const TOOL_STATUS_CLASS: Record<CrossPillarToolReadinessStatus, string> = {
   setup_needed: "border-amber-200 bg-amber-50 text-amber-800",
   temporarily_unavailable: "border-orange-200 bg-orange-50 text-orange-800",
   manual_help_required: "border-red-200 bg-red-50 text-red-800",
+};
+
+const CERTIFICATION_LABELS: Record<CrossPillarToolCertificationStatus, string> = {
+  certified: "Certified",
+  degraded: "Degraded",
+  not_tested: "Not tested",
+};
+
+const CERTIFICATION_CLASS: Record<CrossPillarToolCertificationStatus, string> = {
+  certified: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  degraded: "border-red-200 bg-red-50 text-red-800",
+  not_tested: "border-slate-200 bg-slate-50 text-slate-700",
 };
 
 const CROSS_PILLAR_MANUAL_QA_STORAGE_KEY = "vyva:admin:crossPillarManualQa:v1";
@@ -751,6 +771,11 @@ export default function WorkflowCoverageAdminPage() {
     temporarily_unavailable: actionToolReadiness.filter((item) => item.status === "temporarily_unavailable").length,
     manual_help_required: actionToolReadiness.filter((item) => item.status === "manual_help_required").length,
   }), [actionToolReadiness]);
+  const certificationSummary = useMemo(() => ({
+    certified: toolReadiness?.certifications?.filter((item) => item.status === "certified").length ?? 0,
+    degraded: toolReadiness?.certifications?.filter((item) => item.status === "degraded").length ?? 0,
+    not_tested: toolReadiness?.certifications?.filter((item) => item.status === "not_tested").length ?? 0,
+  }), [toolReadiness]);
 
   useEffect(() => {
     const refresh = () => setHandoffHistory(readCrossPillarHandoffHistory());
@@ -883,6 +908,60 @@ export default function WorkflowCoverageAdminPage() {
             <InsightCard label="Succeeded" value={executionSummary?.successful ?? 0} />
             <InsightCard label="Failed / blocked" value={executionSummary?.failed ?? 0} />
             <InsightCard label="Duplicates stopped" value={executionSummary?.duplicatesPrevented ?? 0} />
+          </div>
+          <div className="mt-4 rounded-xl border border-[#f0e7df] bg-[#fbf8f5] p-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="font-black text-[#2f2135]">Live adapter certification</h3>
+                <p className="text-xs font-bold text-[#8b7a73]">
+                  Configuration is not certification. External tools need a recent success with a real reference.
+                </p>
+              </div>
+              <p className="text-xs font-bold text-[#8b7a73]">
+                Last {toolReadiness?.certification_window_days ?? 30} days
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <InsightCard label="Certified" value={certificationSummary.certified} />
+              <InsightCard label="Degraded" value={certificationSummary.degraded} />
+              <InsightCard label="Not tested" value={certificationSummary.not_tested} />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {(toolReadiness?.pillar_certifications ?? []).map((item) => (
+                <div key={item.pillar} className="rounded-lg border border-[#eadfd5] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black capitalize text-[#2f2135]">{item.pillar}</span>
+                    <span className={`rounded-full border px-2 py-1 text-[11px] font-black ${CERTIFICATION_CLASS[item.status]}`}>
+                      {CERTIFICATION_LABELS[item.status]}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-[#7d6b65]">{item.reason}</p>
+                  <p className="mt-1 text-[11px] font-bold text-[#9b8a82]">
+                    Smoke flow: {item.actionId}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {(toolReadiness?.certifications ?? []).map((item) => (
+                <div key={item.family} className="rounded-lg border border-[#eadfd5] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black capitalize text-[#2f2135]">
+                      {item.family.replaceAll("_", " ")}
+                    </span>
+                    <span className={`rounded-full border px-2 py-1 text-[11px] font-black ${CERTIFICATION_CLASS[item.status]}`}>
+                      {CERTIFICATION_LABELS[item.status]}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-[#7d6b65]">{item.reason}</p>
+                  {item.certifiedAt && (
+                    <p className="mt-1 text-[11px] font-bold text-[#9b8a82]">
+                      Certified {new Date(item.certifiedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
           {(executionSummary?.failuresByAction?.length ?? 0) > 0 && (
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
