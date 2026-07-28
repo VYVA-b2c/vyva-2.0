@@ -44,6 +44,8 @@ import {
 } from "@/lib/voiceOverlayFocus";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
+import { acknowledgeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
+import CrossPillarHandoffRecovery from "./CrossPillarHandoffRecovery";
 
 type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
@@ -486,6 +488,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
+  const crossPillarHandoffId = typeof routeState?.crossPillarHandoffId === "string"
+    ? routeState.crossPillarHandoffId
+    : null;
   const chatModeParam = new URLSearchParams(location.search).get("mode");
   const isChatVoiceMode =
     location.pathname === "/chat" &&
@@ -541,6 +546,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     retry: false,
   });
   const sosProfileContact = emergencyProfileContactFromState(onboardingState);
+
+  useEffect(() => {
+    if (!crossPillarHandoffId) return;
+    acknowledgeCrossPillarHandoff(crossPillarHandoffId);
+  }, [crossPillarHandoffId, location.pathname]);
 
   useEffect(() => {
     const handleVoiceOverlayPresence = (event: Event) => {
@@ -867,6 +877,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             }}
           />
         )}
+        <CrossPillarHandoffRecovery />
       </div>
       </div>
     </MotivationMilestoneProvider>

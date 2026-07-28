@@ -53,6 +53,7 @@ router.post("/", async (req, res) => {
       userId: userId(req),
       entry: parsed.data.entry,
       language: parsed.data.language ?? "es",
+      idempotencyKey: parsed.data.idempotencyKey,
     });
     return res.status(201).json({ task });
   } catch (error) {

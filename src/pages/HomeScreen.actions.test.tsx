@@ -1614,12 +1614,12 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yes, continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /Open next step/i }));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+    expect(guardPathMock).toHaveBeenCalledWith("/onboarding/profile/providers?focus=doctor_clinic", expect.objectContaining({
       state: expect.objectContaining({
-        conciergePrefill: expect.objectContaining({
-          kind: "appointment",
-          source: "voice_action",
-        }),
+        setupFocus: "doctor_clinic",
+        returnTo: "/",
+        resumeAfterSetup: true,
+        crossPillarOriginalDestinationPath: "/concierge",
       }),
     }));
 

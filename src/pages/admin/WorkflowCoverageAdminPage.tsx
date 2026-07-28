@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, CircleDashed, Filter, Route, Search } from "lucide-react";
 import AdminMenu from "./AdminMenu";
@@ -44,13 +44,67 @@ import {
   type CrossPillarManualQaStatus,
 } from "../../../shared/crossPillarManualQa";
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
+import type {
+  CrossPillarExecutionAttemptSnapshot,
+  CrossPillarToolHealth,
+} from "../../../shared/crossPillarExecutionObservability";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
+import {
+  CROSS_PILLAR_PRIMARY_ACTION_IDS,
+  evaluateCrossPillarActionToolReadiness,
+  type CrossPillarToolEvidence,
+  type CrossPillarToolFamily,
+  type CrossPillarToolReadinessStatus,
+} from "../../../shared/crossPillarToolReadiness";
+import {
+  CROSS_PILLAR_HANDOFF_EVENT,
+  CROSS_PILLAR_HANDOFF_STORAGE_KEY,
+  type CrossPillarHandoffRecord,
+} from "@/lib/crossPillarHandoffExecution";
 
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
 type ActionLevelFilter = "all" | WorkflowActionLevel;
+type CrossPillarToolReadinessResponse = {
+  generated_at: string;
+  tools: CrossPillarToolEvidence[];
+};
+type CrossPillarExecutionSummaryResponse = {
+  generatedAt: string;
+  windowHours: number;
+  totalAttempts: number;
+  successful: number;
+  failed: number;
+  duplicatesPrevented: number;
+  recentFailures: CrossPillarExecutionAttemptSnapshot[];
+  failuresByAction: Array<{ actionId: string; failures: number; lastFailureAt: string }>;
+  toolHealth: CrossPillarToolHealth[];
+};
+
+const TOOL_STATUS_LABELS: Record<CrossPillarToolReadinessStatus, string> = {
+  ready: "Ready",
+  setup_needed: "Setup needed",
+  temporarily_unavailable: "Temporarily unavailable",
+  manual_help_required: "Manual help required",
+};
+
+const TOOL_STATUS_CLASS: Record<CrossPillarToolReadinessStatus, string> = {
+  ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  setup_needed: "border-amber-200 bg-amber-50 text-amber-800",
+  temporarily_unavailable: "border-orange-200 bg-orange-50 text-orange-800",
+  manual_help_required: "border-red-200 bg-red-50 text-red-800",
+};
 
 const CROSS_PILLAR_MANUAL_QA_STORAGE_KEY = "vyva:admin:crossPillarManualQa:v1";
+
+function readCrossPillarHandoffHistory(): CrossPillarHandoffRecord[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const DOMAIN_LABELS: Record<WorkflowDomain, string> = {
   home: "Home",
@@ -668,11 +722,53 @@ export default function WorkflowCoverageAdminPage() {
   const manualQaFlows = useMemo(() => buildCrossPillarManualQaFlows(), []);
   const [manualQaState, setManualQaState] = useState<CrossPillarManualQaRunnerState>(() => readStoredCrossPillarQaState(manualQaFlows));
   const [manualQaNotes, setManualQaNotes] = useState(() => buildCrossPillarManualQaNotes(manualQaFlows, manualQaState));
+  const [handoffHistory, setHandoffHistory] = useState<CrossPillarHandoffRecord[]>(readCrossPillarHandoffHistory);
   const { data: fastHelpOutcomes, isLoading: fastHelpLoading } = useQuery<HomeFastHelpOutcomeAggregate>({
     queryKey: ["/api/admin/home/fast-help-outcomes?days=30"],
     retry: false,
     staleTime: 60_000,
   });
+  const { data: toolReadiness, isLoading: toolReadinessLoading } = useQuery<CrossPillarToolReadinessResponse>({
+    queryKey: ["/api/admin/cross-pillar/tool-readiness"],
+    retry: false,
+    staleTime: 30_000,
+  });
+  const { data: executionSummary, isLoading: executionSummaryLoading } = useQuery<CrossPillarExecutionSummaryResponse>({
+    queryKey: ["/api/admin/cross-pillar/executions/summary?hours=24"],
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const toolEvidence = useMemo(() => Object.fromEntries(
+    (toolReadiness?.tools ?? []).map((item) => [item.family, item]),
+  ) as Partial<Record<CrossPillarToolFamily, CrossPillarToolEvidence>>, [toolReadiness]);
+  const actionToolReadiness = useMemo(() => CROSS_PILLAR_PRIMARY_ACTION_IDS.map((actionId) => (
+    evaluateCrossPillarActionToolReadiness({ actionId, evidence: toolEvidence })
+  )), [toolEvidence]);
+  const toolReadinessSummary = useMemo(() => ({
+    ready: actionToolReadiness.filter((item) => item.status === "ready").length,
+    setup_needed: actionToolReadiness.filter((item) => item.status === "setup_needed").length,
+    temporarily_unavailable: actionToolReadiness.filter((item) => item.status === "temporarily_unavailable").length,
+    manual_help_required: actionToolReadiness.filter((item) => item.status === "manual_help_required").length,
+  }), [actionToolReadiness]);
+
+  useEffect(() => {
+    const refresh = () => setHandoffHistory(readCrossPillarHandoffHistory());
+    window.addEventListener(CROSS_PILLAR_HANDOFF_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(CROSS_PILLAR_HANDOFF_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const handoffSummary = useMemo(() => ({
+    total: handoffHistory.length,
+    acknowledged: handoffHistory.filter((item) => item.status === "acknowledged").length,
+    completed: handoffHistory.filter((item) => item.status === "completed").length,
+    failed: handoffHistory.filter((item) => item.status === "failed").length,
+    cancelled: handoffHistory.filter((item) => item.status === "cancelled").length,
+  }), [handoffHistory]);
 
   const workflows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -764,6 +860,158 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Live cross-pillar execution outcomes"
+          data-testid="cross-pillar-live-execution-outcomes"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Live execution health</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">What is finishing, failing, or safely blocked?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">
+              {executionSummaryLoading
+                ? "Loading durable attempts..."
+                : `Last ${executionSummary?.windowHours ?? 24} hours`}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <InsightCard label="Attempts" value={executionSummary?.totalAttempts ?? 0} />
+            <InsightCard label="Succeeded" value={executionSummary?.successful ?? 0} />
+            <InsightCard label="Failed / blocked" value={executionSummary?.failed ?? 0} />
+            <InsightCard label="Duplicates stopped" value={executionSummary?.duplicatesPrevented ?? 0} />
+          </div>
+          {(executionSummary?.failuresByAction?.length ?? 0) > 0 && (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-[#f0e7df] p-3">
+                <h3 className="font-black text-[#2f2135]">Failures by action</h3>
+                <div className="mt-2 space-y-2">
+                  {executionSummary?.failuresByAction?.slice(0, 8).map((item) => (
+                    <div key={item.actionId} className="flex items-center justify-between gap-3 text-sm font-bold">
+                      <span>{item.actionId}</span>
+                      <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-800">{item.failures}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#f0e7df] p-3">
+                <h3 className="font-black text-[#2f2135]">Tool health</h3>
+                <div className="mt-2 space-y-2">
+                  {executionSummary?.toolHealth
+                    ?.filter((item) => item.attempts > 0)
+                    .map((item) => (
+                      <div key={item.family} className="flex items-center justify-between gap-3 text-sm font-bold">
+                        <span>{item.family.replaceAll("_", " ")}</span>
+                        <span className={item.status === "healthy" ? "text-emerald-700" : "text-orange-700"}>
+                          {item.status === "healthy" ? "Healthy" : "Temporarily degraded"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Cross-pillar tool readiness"
+          data-testid="cross-pillar-tool-readiness"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Live execution readiness</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Can each action really finish?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">
+              {toolReadinessLoading ? "Checking adapters..." : `Checked ${toolReadiness?.generated_at ? new Date(toolReadiness.generated_at).toLocaleString() : "locally"}`}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <InsightCard label="Ready" value={toolReadinessSummary.ready} />
+            <InsightCard label="Setup needed" value={toolReadinessSummary.setup_needed} />
+            <InsightCard label="Unavailable" value={toolReadinessSummary.temporarily_unavailable} />
+            <InsightCard label="Manual help" value={toolReadinessSummary.manual_help_required} />
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                <tr>
+                  <th className="px-2 py-2">Action</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2">Required tools</th>
+                  <th className="px-2 py-2">Blocker / fallback</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actionToolReadiness.map((item) => (
+                  <tr key={item.actionId} className="border-t border-[#f0e7df] align-top font-bold text-[#4d3d45]">
+                    <td className="px-2 py-2.5">{item.actionId}</td>
+                    <td className="px-2 py-2.5">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${TOOL_STATUS_CLASS[item.status]}`}>
+                        {TOOL_STATUS_LABELS[item.status]}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5">{item.required.join(", ")}</td>
+                    <td className="px-2 py-2.5">
+                      {item.blockers[0]?.reason ?? (item.status === "ready" ? "Verified adapters available." : item.fallbackPath)}
+                      {item.status !== "ready" && <div className="mt-1 text-xs text-[#8b7a73]">Fallback: {item.fallbackPath}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Cross-pillar handoff outcomes"
+          data-testid="cross-pillar-handoff-outcomes"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Real handoff outcomes</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Did the next step receive the task?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">Local QA evidence only; no health details are shown.</p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <InsightCard label="Handoffs" value={handoffSummary.total} />
+            <InsightCard label="Received" value={handoffSummary.acknowledged} />
+            <InsightCard label="Completed" value={handoffSummary.completed} />
+            <InsightCard label="Failed" value={handoffSummary.failed} />
+            <InsightCard label="Cancelled" value={handoffSummary.cancelled} />
+          </div>
+          {handoffHistory.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                  <tr>
+                    <th className="px-2 py-2">Pillar</th>
+                    <th className="px-2 py-2">Action</th>
+                    <th className="px-2 py-2">Destination</th>
+                    <th className="px-2 py-2">Status</th>
+                    <th className="px-2 py-2">Attempts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {handoffHistory.slice(0, 12).map((item) => (
+                    <tr key={item.id} className="border-t border-[#f0e7df] font-bold text-[#4d3d45]">
+                      <td className="px-2 py-2.5 capitalize">{item.pillar}</td>
+                      <td className="px-2 py-2.5">{item.actionId}</td>
+                      <td className="px-2 py-2.5">{item.destinationPath}</td>
+                      <td className="px-2 py-2.5 capitalize">{item.status.replace("_", " ")}</td>
+                      <td className="px-2 py-2.5">{item.attemptCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="mt-3 grid gap-3 md:grid-cols-5" aria-label="Action level summary">

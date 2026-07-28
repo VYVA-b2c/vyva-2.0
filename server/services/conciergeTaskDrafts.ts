@@ -74,14 +74,40 @@ export async function createConciergeTaskDraft(input: {
   userId: string;
   entry: ConciergeTaskEntryPayload;
   language: string;
+  idempotencyKey?: string;
 }): Promise<ConciergeTaskDraft> {
+  if (input.idempotencyKey) {
+    const existing = await pool.query<TaskDraftDbRow>(
+      `
+        select *
+        from concierge_task_drafts
+        where user_id = $1
+          and status = 'active'
+          and progress_payload ->> 'crossPillarIdempotencyKey' = $2
+        order by updated_at desc
+        limit 1
+      `,
+      [input.userId, input.idempotencyKey],
+    );
+    if (existing.rows[0]) return normalizeTask(existing.rows[0]);
+  }
+
+  const initialProgress = input.idempotencyKey
+    ? { crossPillarIdempotencyKey: input.idempotencyKey }
+    : {};
   const result = await pool.query<TaskDraftDbRow>(
     `
-      insert into concierge_task_drafts (user_id, kind, entry_payload, language)
-      values ($1, $2, $3::jsonb, $4)
+      insert into concierge_task_drafts (user_id, kind, entry_payload, progress_payload, language)
+      values ($1, $2, $3::jsonb, $4::jsonb, $5)
       returning *
     `,
-    [input.userId, input.entry.kind, JSON.stringify(input.entry), input.language],
+    [
+      input.userId,
+      input.entry.kind,
+      JSON.stringify(input.entry),
+      JSON.stringify(initialProgress),
+      input.language,
+    ],
   );
   return normalizeTask(result.rows[0]!);
 }
@@ -96,7 +122,7 @@ export async function updateConciergeTaskDraft(input: {
   const result = await pool.query<TaskDraftDbRow>(
     `
       update concierge_task_drafts
-      set progress_payload = $3::jsonb, stage = $4, updated_at = now()
+      set progress_payload = progress_payload || $3::jsonb, stage = $4, updated_at = now()
       where id = $1::uuid and user_id = $2 and status = 'active'
       returning *
     `,
