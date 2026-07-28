@@ -1044,7 +1044,9 @@ const HomeScreen = () => {
     return t(`home.greeting.${period}.withoutName.1`);
   }, [firstName, language, timeGreetingKey, t]);
 
-  const handleNavigate = (path: string, options?: NavigateOptions) => guardPath(path, options);
+  const handleNavigate = useCallback((path: string, options?: NavigateOptions) => {
+    guardPath(path, options);
+  }, [guardPath]);
 
   const launchHomeFastHelp = (
     actionId: ContextualHomeFastHelpActionId,
@@ -1783,15 +1785,22 @@ const HomeScreen = () => {
     t,
     timeGreetingKey,
   ]);
+  const homeContextHistorySnapshot = useMemo(() => ({
+    actions: readHomeContextMessageActionHistory(),
+    outcomes: readHomeContextMessageOutcomeHistory(),
+    revision: homeContextHistoryRevision,
+    seen: readHomeContextMessageHistory(),
+  }), [homeContextHistoryRevision]);
+
   const selectedHomeContextDecision = useMemo(
     () => {
       return decideHomeContextMessage(
         homeContextMessages,
-        readHomeContextMessageHistory(),
+        homeContextHistorySnapshot.seen,
         conciergeClockMs,
         {
-          actionHistory: readHomeContextMessageActionHistory(),
-          outcomeHistory: readHomeContextMessageOutcomeHistory(),
+          actionHistory: homeContextHistorySnapshot.actions,
+          outcomeHistory: homeContextHistorySnapshot.outcomes,
           activeIntent: homeIntentLayer === "home" ? null : homeIntentLayer,
           freezeRotation: isHomeMasterVoiceAlive,
           frozenMessageId: stableHomeContextMessageIdRef.current,
@@ -1801,7 +1810,7 @@ const HomeScreen = () => {
     },
     [
       conciergeClockMs,
-      homeContextHistoryRevision,
+      homeContextHistorySnapshot,
       homeContextMessages,
       homeIntentLayer,
       isHomeMasterVoiceAlive,
@@ -1820,6 +1829,7 @@ const HomeScreen = () => {
     stableHomeContextMessageIdRef.current = selectedHomeContextMessage.id;
   }, [
     isHomeMasterVoiceAlive,
+    selectedHomeContextMessage,
     selectedHomeContextMessage?.id,
     selectedHomeContextMessage?.kind,
   ]);
@@ -1916,6 +1926,7 @@ const HomeScreen = () => {
   }, [
     selectedHomeVoiceContext,
     selectedHomeVoiceContextFingerprint,
+    voice,
     voice?.sendContextUpdate,
     voice?.status,
   ]);
@@ -1932,7 +1943,11 @@ const HomeScreen = () => {
       setHomeContextHistoryRevision((current) => current + 1);
     }, 8_000);
     return () => window.clearTimeout(seenTimer);
-  }, [selectedHomeContextMessage?.id, trackHomeContextOutcome]);
+  }, [
+    selectedHomeContextMessage,
+    selectedHomeContextMessage?.id,
+    trackHomeContextOutcome,
+  ]);
   useEffect(() => {
     if (voice?.status !== "connected") {
       voiceEngagedMessageIdRef.current = null;
@@ -1946,6 +1961,7 @@ const HomeScreen = () => {
     voiceEngagedMessageIdRef.current = selectedHomeContextMessage.id;
     trackHomeContextOutcome("voice_engaged", "voice");
   }, [
+    selectedHomeContextMessage,
     selectedHomeContextMessage?.id,
     selectedHomeContextMessage?.kind,
     trackHomeContextOutcome,
@@ -1963,7 +1979,7 @@ const HomeScreen = () => {
       source: managedHomeHeroMessage.source,
     });
   }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
-  const dismissSelectedHomeContextMessage = () => {
+  const dismissSelectedHomeContextMessage = useCallback(() => {
     if (!selectedHomeContextMessage?.dismissible) return;
     if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
       recordHeroEvent({
@@ -1979,8 +1995,13 @@ const HomeScreen = () => {
     trackHomeContextOutcome("dismissed", "touch");
     writeHomeContextMessageSeen(selectedHomeContextMessage.id);
     setHomeContextHistoryRevision((current) => current + 1);
-  };
-  const openSelectedHomeContextMessage = (
+  }, [
+    language,
+    managedHomeHeroMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+  ]);
+  const openSelectedHomeContextMessage = useCallback((
     source: "touch" | "voice" | "voice_tool" = "touch",
   ) => {
     if (!selectedHomeContextMessage?.actionRoute) return;
@@ -2011,7 +2032,14 @@ const HomeScreen = () => {
     handleNavigate(selectedHomeContextMessage.actionRoute, {
       state: selectedHomeContextMessage.actionState,
     });
-  };
+  }, [
+    handleNavigate,
+    language,
+    managedHomeHeroMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+    voice,
+  ]);
   useEffect(() => {
     if (
       voice?.status !== "connected"
@@ -2072,6 +2100,7 @@ const HomeScreen = () => {
       window.removeEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceToolResult);
     };
   }, [
+    openSelectedHomeContextMessage,
     selectedHomeContextMessage,
     trackHomeContextOutcome,
     voice?.status,

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildCrossPillarRecoveryPlan,
 } from "./crossPillarExecutionRecovery";
+import type { CrossPillarActionToolReadiness } from "./crossPillarToolReadiness";
 
-function readiness(overrides: Record<string, unknown> = {}) {
+function readiness(
+  overrides: Partial<CrossPillarActionToolReadiness> = {},
+): CrossPillarActionToolReadiness {
   return {
     actionId: "health-symptoms",
     status: "ready",
@@ -12,7 +15,7 @@ function readiness(overrides: Record<string, unknown> = {}) {
     fallbackPath: "/",
     externalConfirmationRequired: false,
     ...overrides,
-  } as any;
+  };
 }
 
 describe("cross-pillar execution recovery policy", () => {
