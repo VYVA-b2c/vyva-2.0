@@ -1,112 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  Bookmark,
-  ClipboardCheck,
-  RotateCcw,
-  UserRoundSearch,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Clock3, ListRestart, Mic, RotateCcw, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   CROSS_PILLAR_HANDOFF_EVENT,
-  chooseAnotherCrossPillarProvider,
-  continueCrossPillarHandoffManually,
-  getCrossPillarRecoveryPlan,
+  recoverCrossPillarHandoff,
   readCrossPillarHandoff,
-  retryCrossPillarHandoff,
-  saveCrossPillarHandoffForLater,
   type CrossPillarHandoffRecord,
 } from "@/lib/crossPillarHandoffExecution";
-import type { CrossPillarRecoveryAction } from "../../shared/crossPillarExecutionRecovery";
-
-type RecoveryCopy = {
-  title: string;
-  message: string;
-  autoRetry: string;
-  actions: Record<CrossPillarRecoveryAction, string>;
-};
-
-const COPY: Record<string, RecoveryCopy> = {
-  en: {
-    title: "Your request is safe",
-    message: "That step did not finish, but your details are saved.",
-    autoRetry: "VYVA is trying that safe step once more.",
-    actions: {
-      retry: "Try again",
-      choose_provider: "Choose another provider",
-      continue_manual: "Continue manually",
-      save_later: "Save for later",
-    },
-  },
-  es: {
-    title: "Tu solicitud está segura",
-    message: "Ese paso no terminó, pero tus datos están guardados.",
-    autoRetry: "VYVA está intentando ese paso seguro una vez más.",
-    actions: {
-      retry: "Intentar de nuevo",
-      choose_provider: "Elegir otro proveedor",
-      continue_manual: "Continuar manualmente",
-      save_later: "Guardar para después",
-    },
-  },
-  fr: {
-    title: "Votre demande est en sécurité",
-    message: "Cette étape n’a pas abouti, mais vos informations sont enregistrées.",
-    autoRetry: "VYVA réessaie cette étape sûre une fois.",
-    actions: {
-      retry: "Réessayer",
-      choose_provider: "Choisir un autre prestataire",
-      continue_manual: "Continuer manuellement",
-      save_later: "Enregistrer pour plus tard",
-    },
-  },
-  de: {
-    title: "Ihre Anfrage ist sicher",
-    message: "Dieser Schritt wurde nicht beendet, aber Ihre Angaben sind gespeichert.",
-    autoRetry: "VYVA versucht diesen sicheren Schritt noch einmal.",
-    actions: {
-      retry: "Erneut versuchen",
-      choose_provider: "Anderen Anbieter wählen",
-      continue_manual: "Manuell fortfahren",
-      save_later: "Für später speichern",
-    },
-  },
-  it: {
-    title: "La tua richiesta è al sicuro",
-    message: "Questo passaggio non è terminato, ma i tuoi dati sono salvati.",
-    autoRetry: "VYVA riprova una volta questo passaggio sicuro.",
-    actions: {
-      retry: "Riprova",
-      choose_provider: "Scegli un altro fornitore",
-      continue_manual: "Continua manualmente",
-      save_later: "Salva per dopo",
-    },
-  },
-  pt: {
-    title: "O seu pedido está seguro",
-    message: "Este passo não terminou, mas os seus dados estão guardados.",
-    autoRetry: "A VYVA está a tentar este passo seguro mais uma vez.",
-    actions: {
-      retry: "Tentar novamente",
-      choose_provider: "Escolher outro prestador",
-      continue_manual: "Continuar manualmente",
-      save_later: "Guardar para mais tarde",
-    },
-  },
-};
-
-const ACTION_ICONS = {
-  retry: RotateCcw,
-  choose_provider: UserRoundSearch,
-  continue_manual: ClipboardCheck,
-  save_later: Bookmark,
-} satisfies Record<CrossPillarRecoveryAction, typeof RotateCcw>;
-
-function language(locale?: string): string {
-  const code = (locale || document.documentElement.lang || navigator.language || "en")
-    .toLowerCase()
-    .split("-")[0];
-  return COPY[code] ? code : "en";
-}
 
 export default function CrossPillarHandoffRecovery() {
   const navigate = useNavigate();
@@ -124,58 +24,78 @@ export default function CrossPillarHandoffRecovery() {
     };
   }, []);
 
-  const plan = useMemo(
-    () => handoff?.status === "failed" ? getCrossPillarRecoveryPlan(handoff) : null,
-    [handoff],
-  );
+  if (!handoff || handoff.status !== "failed") return null;
 
-  useEffect(() => {
-    if (!handoff || handoff.status !== "failed" || !plan?.autoRetryAllowed) return;
-    const timer = window.setTimeout(() => {
-      retryCrossPillarHandoff(handoff.id, navigate, undefined, { automatic: true });
-    }, 900);
-    return () => window.clearTimeout(timer);
-  }, [handoff, navigate, plan]);
-
-  if (!handoff || handoff.status !== "failed" || !plan) return null;
-
-  const copy = COPY[language(handoff.locale)];
-  const runAction = (action: CrossPillarRecoveryAction) => {
-    if (action === "retry") retryCrossPillarHandoff(handoff.id, navigate);
-    if (action === "choose_provider") chooseAnotherCrossPillarProvider(handoff.id, navigate);
-    if (action === "continue_manual") continueCrossPillarHandoffManually(handoff.id, navigate);
-    if (action === "save_later") saveCrossPillarHandoffForLater(handoff.id);
+  const recovery = handoff.recovery;
+  const actions = new Set(recovery?.availableActions ?? [
+    "retry",
+    "choose_alternative",
+    "prepare_for_later",
+    "ask_vyva",
+  ]);
+  const recover = (action: Parameters<typeof recoverCrossPillarHandoff>[1]) => {
+    recoverCrossPillarHandoff(handoff.id, action, navigate);
   };
 
   return (
     <aside
       aria-live="polite"
-      className="fixed inset-x-3 bottom-[104px] z-[80] mx-auto max-w-[560px] rounded-lg border border-[#E6D8F4] bg-white p-4 shadow-[0_16px_44px_rgba(35,18,61,0.18)] sm:p-5"
+      className="fixed inset-x-4 bottom-[104px] z-[80] mx-auto max-w-[520px] rounded-lg border border-[#E6D8F4] bg-white p-4 shadow-[0_16px_44px_rgba(35,18,61,0.18)]"
       data-testid="cross-pillar-handoff-recovery"
     >
-      <h2 className="text-xl font-bold text-[#25152F]">{copy.title}</h2>
-      <p className="mt-1 text-base leading-relaxed text-[#66576B]">
-        {plan.autoRetryAllowed ? copy.autoRetry : copy.message}
+      <h2 className="text-lg font-bold text-[#25152F]">That step did not finish</h2>
+      <p className="mt-1 text-sm text-[#66576B]">
+        {recovery?.explanation ?? "That action could not be completed."}{" "}
+        {recovery?.preservedSummary ?? "Your details are still saved."}
       </p>
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {plan.actions.map((action) => {
-          const Icon = ACTION_ICONS[action];
-          return (
-            <button
-              key={action}
-              type="button"
-              className={
-                action === "retry"
-                  ? "vyva-primary-action min-h-[54px] justify-start px-4 text-sm"
-                  : "vyva-secondary-action min-h-[54px] justify-start px-4 text-sm"
-              }
-              onClick={() => runAction(action)}
-            >
-              <Icon aria-hidden="true" className="mr-2 h-5 w-5 shrink-0" />
-              {copy.actions[action]}
-            </button>
-          );
-        })}
+      {recovery && (
+        <dl className="mt-3 grid gap-1 rounded-md bg-[#FAF7FC] px-3 py-2 text-xs text-[#66576B]">
+          <div><dt className="inline font-bold text-[#25152F]">Saved: </dt><dd className="inline">{recovery.whatSucceeded}</dd></div>
+          <div><dt className="inline font-bold text-[#25152F]">Not finished: </dt><dd className="inline">{recovery.whatFailed}</dd></div>
+          <div><dt className="inline font-bold text-[#25152F]">Next: </dt><dd className="inline">{recovery.whatRemains}</dd></div>
+        </dl>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {actions.has("retry") && <button
+          type="button"
+          className="vyva-secondary-action min-h-[52px] px-2 text-sm"
+          onClick={() => recover("retry")}
+        >
+          <RotateCcw aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Try again
+        </button>}
+        {actions.has("choose_alternative") && <button
+          type="button"
+          className="vyva-secondary-action min-h-[52px] px-2 text-sm"
+          onClick={() => recover("choose_alternative")}
+        >
+          <ListRestart aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Another option
+        </button>}
+        {actions.has("prepare_for_later") && <button
+          type="button"
+          className="vyva-secondary-action min-h-[52px] px-2 text-sm"
+          onClick={() => recover("prepare_for_later")}
+        >
+          <Clock3 aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Save for later
+        </button>}
+        {actions.has("trusted_contact") && <button
+          type="button"
+          className="vyva-secondary-action min-h-[52px] px-2 text-sm"
+          onClick={() => recover("trusted_contact")}
+        >
+          <Users aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Trusted person
+        </button>}
+        {actions.has("ask_vyva") && <button
+          type="button"
+          className="vyva-primary-action col-span-2 min-h-[52px] px-2 text-sm"
+          onClick={() => recover("ask_vyva")}
+        >
+          <Mic aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Ask VYVA
+        </button>}
       </div>
     </aside>
   );
