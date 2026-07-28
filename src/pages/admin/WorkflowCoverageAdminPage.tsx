@@ -46,6 +46,7 @@ import {
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
 import type {
   CrossPillarExecutionAttemptSnapshot,
+  CrossPillarRecoverySummary,
   CrossPillarToolHealth,
 } from "../../../shared/crossPillarExecutionObservability";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
@@ -79,6 +80,7 @@ type CrossPillarExecutionSummaryResponse = {
   recentFailures: CrossPillarExecutionAttemptSnapshot[];
   failuresByAction: Array<{ actionId: string; failures: number; lastFailureAt: string }>;
   toolHealth: CrossPillarToolHealth[];
+  recovery: CrossPillarRecoverySummary;
 };
 
 const TOOL_STATUS_LABELS: Record<CrossPillarToolReadinessStatus, string> = {
@@ -883,6 +885,35 @@ export default function WorkflowCoverageAdminPage() {
             <InsightCard label="Succeeded" value={executionSummary?.successful ?? 0} />
             <InsightCard label="Failed / blocked" value={executionSummary?.failed ?? 0} />
             <InsightCard label="Duplicates stopped" value={executionSummary?.duplicatesPrevented ?? 0} />
+          </div>
+          <div
+            className="mt-4 rounded-xl border border-[#e8dcf3] bg-[#fbf8ff] p-3"
+            data-testid="cross-pillar-recovery-outcomes"
+          >
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="font-black text-[#2f2135]">Recovery outcomes</h3>
+                <p className="text-sm font-semibold text-[#6f6069]">
+                  Whether a failed handoff later completed or still needs attention.
+                </p>
+              </div>
+              <p className="text-sm font-black text-purple-800">
+                {executionSummary?.recovery?.recoveryRatePct ?? 0}% recovered
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {[
+                ["Recovery cases", executionSummary?.recovery?.total ?? 0],
+                ["Recovered", executionSummary?.recovery?.recovered ?? 0],
+                ["Still blocked", executionSummary?.recovery?.stillBlocked ?? 0],
+                ["In progress", executionSummary?.recovery?.inProgress ?? 0],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-white bg-white px-3 py-2 shadow-sm">
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-[#8b7a73]">{label}</p>
+                  <p className="mt-1 text-2xl font-black text-[#2f2135]">{value}</p>
+                </div>
+              ))}
+            </div>
           </div>
           {(executionSummary?.failuresByAction?.length ?? 0) > 0 && (
             <div className="mt-4 grid gap-3 lg:grid-cols-2">

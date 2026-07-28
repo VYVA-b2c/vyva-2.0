@@ -1,5 +1,6 @@
 import { pool } from "../db.js";
 import {
+  summarizeCrossPillarRecoveries,
   summarizeCrossPillarToolHealth,
   type CrossPillarExecutionAttemptInput,
   type CrossPillarExecutionAttemptSnapshot,
@@ -168,5 +169,6 @@ export async function buildAdminCrossPillarExecutionSummary(hours = 24) {
     recentFailures: failures.slice(0, 30),
     failuresByAction: groupedActions,
     toolHealth: summarizeCrossPillarToolHealth(attempts),
+    recovery: summarizeCrossPillarRecoveries(attempts),
   };
 }
