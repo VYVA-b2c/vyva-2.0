@@ -14,9 +14,24 @@ import {
   CROSS_PILLAR_COMPLETION_ACTIONS,
   type CrossPillarCompletionActionId,
 } from "@/components/voice-canvas/CrossPillarSubflowCanvas";
+import {
+  CROSS_PILLAR_TOOL_FAMILIES,
+  type CrossPillarToolFamily,
+} from "../../shared/crossPillarToolReadiness";
 
 function result(actionId: CrossPillarCompletionActionId, optionId = "recommended") {
   return { actionId, optionId, optionLabel: "Chosen option" };
+}
+
+function readyToolEvidence() {
+  return Object.fromEntries(CROSS_PILLAR_TOOL_FAMILIES.map((family) => [
+    family,
+    { family, status: "ready" as const, adapter: `sandbox:${family}` },
+  ])) as Record<CrossPillarToolFamily, {
+    family: CrossPillarToolFamily;
+    status: "ready";
+    adapter: string;
+  }>;
 }
 
 describe("cross-pillar real handoff execution", () => {
@@ -182,14 +197,19 @@ describe("cross-pillar real handoff execution", () => {
 
     const resumed = executeCrossPillarHandoff({
       result: result("concierge-book", "saved-provider"),
-      readiness: { hasSavedDoctor: true },
+      readiness: { hasSavedDoctor: true, toolEvidence: readyToolEvidence() },
       resumeHandoffId: String(returnState.crossPillarHandoffId),
       now: "2026-07-27T13:04:00.000Z",
     }, navigate);
     expect(resumed.id).toBe(setup.id);
     expect(resumed.destinationState.crossPillarIdempotencyKey).toBe(setup.id);
     expect(acknowledgeCrossPillarHandoff(resumed.id, "/concierge")?.status).toBe("acknowledged");
-    expect(completeCrossPillarHandoff(resumed.id)?.status).toBe("completed");
+    expect(completeCrossPillarHandoff(
+      resumed.id,
+      window.localStorage,
+      "2026-07-27T13:05:00.000Z",
+      "provider-confirmation-123",
+    )?.status).toBe("completed");
 
     const history = JSON.parse(
       window.localStorage.getItem(CROSS_PILLAR_HANDOFF_STORAGE_KEY) ?? "[]",
@@ -200,12 +220,49 @@ describe("cross-pillar real handoff execution", () => {
   it("prepares contact without claiming it was sent", () => {
     const handoff = buildCrossPillarHandoff({
       result: result("health-doctor", "usual-provider"),
-      readiness: { hasSavedDoctor: true },
+      readiness: { hasSavedDoctor: true, toolEvidence: readyToolEvidence() },
     });
     expect(handoff.destinationPath).toBe("/concierge");
     expect(handoff.status).toBe("prepared");
     expect(handoff.receipt.status).toBe("prepared");
     expect(handoff.receipt.nextStep).toContain("Nothing will be sent or booked");
+  });
+
+  it("falls back safely when a confirmed external action has no ready adapter", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("health-doctor", "usual-provider"),
+      readiness: { hasSavedDoctor: true },
+    }, navigate);
+
+    expect(handoff.status).toBe("setup_required");
+    expect(handoff.destinationPath).toBe(
+      "/onboarding/profile/providers?focus=doctor_clinic",
+    );
+    expect(handoff.destinationState.crossPillarOriginalDestinationPath).toBe(
+      "/concierge",
+    );
+    expect(handoff.receipt.status).toBe("needs_review");
+    expect(handoff.receipt.message).toContain("choice is still saved");
+    expect(navigate).toHaveBeenCalledWith(
+      handoff.destinationPath,
+      expect.objectContaining({
+        state: expect.objectContaining({
+          crossPillarHandoffId: handoff.id,
+          crossPillarOriginalDestinationPath: "/concierge",
+        }),
+      }),
+    );
+  });
+
+  it("does not complete an external handoff without adapter confirmation", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("concierge-book", "saved-provider"),
+      readiness: { hasSavedDoctor: true, toolEvidence: readyToolEvidence() },
+    }, navigate);
+    expect(completeCrossPillarHandoff(handoff.id)?.status).toBe("acknowledged");
+    expect(readCrossPillarHandoff(handoff.id)?.failureReason).toBe("external_confirmation_missing");
   });
 
   it("keeps a bounded handoff history", () => {

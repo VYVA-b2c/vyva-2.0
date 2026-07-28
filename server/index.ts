@@ -38,6 +38,7 @@ import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
 import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
+import adminCrossPillarToolReadinessRouter from "./routes/adminCrossPillarToolReadiness.js";
 import adminConciergeInboundRepliesRouter from "./routes/adminConciergeInboundReplies.js";
 import adminProviderDirectoryRouter from "./routes/adminProviderDirectory.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
@@ -231,6 +232,8 @@ app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsR
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
 app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
+app.use("/api/admin/cross-pillar/tool-readiness", authMiddleware, requireAdminUser, adminCrossPillarToolReadinessRouter);
+app.use("/api/cross-pillar/tool-readiness", authMiddleware, adminCrossPillarToolReadinessRouter);
 app.use("/api/admin/concierge/inbound-replies", authMiddleware, requireAdminUser, adminConciergeInboundRepliesRouter);
 app.use("/api/admin/providers", authMiddleware, requireAdminUser, adminProviderDirectoryRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);

@@ -46,6 +46,13 @@ import {
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
 import {
+  CROSS_PILLAR_PRIMARY_ACTION_IDS,
+  evaluateCrossPillarActionToolReadiness,
+  type CrossPillarToolEvidence,
+  type CrossPillarToolFamily,
+  type CrossPillarToolReadinessStatus,
+} from "../../../shared/crossPillarToolReadiness";
+import {
   CROSS_PILLAR_HANDOFF_EVENT,
   CROSS_PILLAR_HANDOFF_STORAGE_KEY,
   type CrossPillarHandoffRecord,
@@ -54,6 +61,24 @@ import {
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
 type ActionLevelFilter = "all" | WorkflowActionLevel;
+type CrossPillarToolReadinessResponse = {
+  generated_at: string;
+  tools: CrossPillarToolEvidence[];
+};
+
+const TOOL_STATUS_LABELS: Record<CrossPillarToolReadinessStatus, string> = {
+  ready: "Ready",
+  setup_needed: "Setup needed",
+  temporarily_unavailable: "Temporarily unavailable",
+  manual_help_required: "Manual help required",
+};
+
+const TOOL_STATUS_CLASS: Record<CrossPillarToolReadinessStatus, string> = {
+  ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  setup_needed: "border-amber-200 bg-amber-50 text-amber-800",
+  temporarily_unavailable: "border-orange-200 bg-orange-50 text-orange-800",
+  manual_help_required: "border-red-200 bg-red-50 text-red-800",
+};
 
 const CROSS_PILLAR_MANUAL_QA_STORAGE_KEY = "vyva:admin:crossPillarManualQa:v1";
 
@@ -688,6 +713,24 @@ export default function WorkflowCoverageAdminPage() {
     retry: false,
     staleTime: 60_000,
   });
+  const { data: toolReadiness, isLoading: toolReadinessLoading } = useQuery<CrossPillarToolReadinessResponse>({
+    queryKey: ["/api/admin/cross-pillar/tool-readiness"],
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const toolEvidence = useMemo(() => Object.fromEntries(
+    (toolReadiness?.tools ?? []).map((item) => [item.family, item]),
+  ) as Partial<Record<CrossPillarToolFamily, CrossPillarToolEvidence>>, [toolReadiness]);
+  const actionToolReadiness = useMemo(() => CROSS_PILLAR_PRIMARY_ACTION_IDS.map((actionId) => (
+    evaluateCrossPillarActionToolReadiness({ actionId, evidence: toolEvidence })
+  )), [toolEvidence]);
+  const toolReadinessSummary = useMemo(() => ({
+    ready: actionToolReadiness.filter((item) => item.status === "ready").length,
+    setup_needed: actionToolReadiness.filter((item) => item.status === "setup_needed").length,
+    temporarily_unavailable: actionToolReadiness.filter((item) => item.status === "temporarily_unavailable").length,
+    manual_help_required: actionToolReadiness.filter((item) => item.status === "manual_help_required").length,
+  }), [actionToolReadiness]);
 
   useEffect(() => {
     const refresh = () => setHandoffHistory(readCrossPillarHandoffHistory());
@@ -797,6 +840,57 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Cross-pillar tool readiness"
+          data-testid="cross-pillar-tool-readiness"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Live execution readiness</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Can each action really finish?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">
+              {toolReadinessLoading ? "Checking adapters..." : `Checked ${toolReadiness?.generated_at ? new Date(toolReadiness.generated_at).toLocaleString() : "locally"}`}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <InsightCard label="Ready" value={toolReadinessSummary.ready} />
+            <InsightCard label="Setup needed" value={toolReadinessSummary.setup_needed} />
+            <InsightCard label="Unavailable" value={toolReadinessSummary.temporarily_unavailable} />
+            <InsightCard label="Manual help" value={toolReadinessSummary.manual_help_required} />
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                <tr>
+                  <th className="px-2 py-2">Action</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2">Required tools</th>
+                  <th className="px-2 py-2">Blocker / fallback</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actionToolReadiness.map((item) => (
+                  <tr key={item.actionId} className="border-t border-[#f0e7df] align-top font-bold text-[#4d3d45]">
+                    <td className="px-2 py-2.5">{item.actionId}</td>
+                    <td className="px-2 py-2.5">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${TOOL_STATUS_CLASS[item.status]}`}>
+                        {TOOL_STATUS_LABELS[item.status]}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5">{item.required.join(", ")}</td>
+                    <td className="px-2 py-2.5">
+                      {item.blockers[0]?.reason ?? (item.status === "ready" ? "Verified adapters available." : item.fallbackPath)}
+                      {item.status !== "ready" && <div className="mt-1 text-xs text-[#8b7a73]">Fallback: {item.fallbackPath}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section

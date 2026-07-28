@@ -10,6 +10,13 @@ import {
 } from "../../shared/workflowRegistry";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
+import {
+  canClaimCrossPillarExternalSuccess,
+  evaluateCrossPillarActionToolReadiness,
+  type CrossPillarActionToolReadiness,
+  type CrossPillarToolEvidence,
+  type CrossPillarToolFamily,
+} from "../../shared/crossPillarToolReadiness";
 
 export const CROSS_PILLAR_HANDOFF_STORAGE_KEY = "vyva.cross-pillar-handoffs.v1";
 export const CROSS_PILLAR_ACTIVE_HANDOFF_KEY = "vyva.cross-pillar-handoff.active.v1";
@@ -23,6 +30,7 @@ export type CrossPillarHandoffReadiness = {
   hasSavedDoctor?: boolean;
   hasSavedHomeServiceProvider?: boolean;
   hasSavedPersonalCareProvider?: boolean;
+  toolEvidence?: Partial<Record<CrossPillarToolFamily, CrossPillarToolEvidence>>;
 };
 
 export type CrossPillarHandoffRecord = {
@@ -53,6 +61,8 @@ export type CrossPillarHandoffRecord = {
   acknowledgedAt?: string;
   completedAt?: string;
   failureReason?: string;
+  toolReadiness: CrossPillarActionToolReadiness;
+  externalConfirmationId?: string;
 };
 
 export type CrossPillarHandoffInput = {
@@ -293,22 +303,39 @@ function destinationState(
 
 export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPillarHandoffRecord {
   const definition = ACTIONS[input.result.actionId];
+  const toolReadiness = evaluateCrossPillarActionToolReadiness({
+    actionId: input.result.actionId,
+    evidence: input.readiness?.toolEvidence,
+  });
   const now = input.now ?? new Date().toISOString();
   const missingProvider = requiresMissingProviderSetup(
     definition,
     input.result.optionId,
     input.readiness ?? {},
   );
+  const blockedExternalExecution = toolReadiness.externalConfirmationRequired
+    && toolReadiness.status !== "ready";
   const kind: HandoffKind = missingProvider ? "provider_setup" : definition.kind ?? "route";
+  const intendedPath = definition.route === "/concierge/task/new"
+    ? conciergeTaskPath()
+    : definition.route;
   const path = missingProvider && definition.providerFocus
     ? providerSetupPath(definition.providerFocus)
-    : definition.route === "/concierge/task/new"
-      ? conciergeTaskPath()
-      : definition.route;
+    : blockedExternalExecution
+      ? toolReadiness.fallbackPath
+      : intendedPath;
   const id = input.resumeHandoffId ?? recordId(input.result.actionId, now);
   const state = destinationState(input, definition, id);
   const spanish = isSpanish(input.locale);
-  const status = missingProvider ? "setup_required" : kind === "route" ? "opened" : "prepared";
+  const status = missingProvider || blockedExternalExecution
+    ? "setup_required"
+    : blockedExternalExecution
+      ? (spanish
+        ? "Configura la ayuda necesaria o pide ayuda manual. Tu tarea seguira guardada."
+        : "Set up the required help or request manual support. Your task will stay saved.")
+    : kind === "route"
+      ? "opened"
+      : "prepared";
   const nextStep = missingProvider
     ? (spanish
       ? "Añade tu proveedor habitual o busca opciones. Después volverás a esta tarea."
@@ -320,10 +347,18 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
         : "Review the details. Nothing will be sent or booked without your confirmation.");
   const receipt = buildWorkflowReceiptMoment({
     workflowReference: definition.workflowReference,
-    status: missingProvider ? "needs_review" : kind === "route" ? "done" : "prepared",
+    status: missingProvider || blockedExternalExecution
+      ? "needs_review"
+      : kind === "route"
+        ? "done"
+        : "prepared",
     actionLabel: input.result.optionLabel,
     capturedSummary: missingProvider
       ? (spanish ? "Falta un proveedor guardado. Tu elección sigue guardada." : "A saved provider is missing. Your choice is still saved.")
+      : blockedExternalExecution
+        ? (spanish
+          ? "La herramienta necesaria no esta lista. Tu eleccion sigue guardada."
+          : "The required tool is not ready. Your choice is still saved.")
       : kind === "route"
         ? (spanish ? "VYVA abrió el siguiente paso." : "VYVA opened the next step.")
         : (spanish ? "VYVA preparó el siguiente paso." : "VYVA prepared the next step."),
@@ -353,6 +388,19 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
       crossPillarHandoffId: id,
       crossPillarIdempotencyKey: id,
       crossPillarReceipt: receipt,
+      ...(blockedExternalExecution
+        ? {
+            crossPillarOriginalDestinationPath: intendedPath,
+            crossPillarToolReadiness: toolReadiness,
+            returnTo: "/",
+            returnState: {
+              ...state,
+              crossPillarHandoffId: id,
+              crossPillarIdempotencyKey: id,
+              crossPillarOriginalDestinationPath: intendedPath,
+            },
+          }
+        : {}),
     },
     returnPath: "/",
     status,
@@ -360,6 +408,7 @@ export function buildCrossPillarHandoff(input: CrossPillarHandoffInput): CrossPi
     createdAt: now,
     updatedAt: now,
     attemptCount: 1,
+    toolReadiness,
   };
 }
 
@@ -413,7 +462,7 @@ export function readCrossPillarHandoff(
 
 type HandoffUpdate = Partial<Pick<
   CrossPillarHandoffRecord,
-  "status" | "acknowledgedAt" | "completedAt" | "failureReason" | "attemptCount"
+  "status" | "acknowledgedAt" | "completedAt" | "failureReason" | "attemptCount" | "externalConfirmationId"
 >>;
 
 export function updateCrossPillarHandoff(
@@ -475,11 +524,29 @@ export function completeCrossPillarHandoff(
   id: string,
   storage: Storage | null = storageOrNull(),
   now = new Date().toISOString(),
+  externalConfirmationId?: string,
 ): CrossPillarHandoffRecord | null {
+  const current = readCrossPillarHandoff(id, storage);
+  if (!current) return null;
+  if (
+    current.toolReadiness.externalConfirmationRequired
+    && !canClaimCrossPillarExternalSuccess({
+      readiness: current.toolReadiness,
+      externalConfirmationId,
+    })
+  ) {
+    return updateCrossPillarHandoff(id, {
+      status: "acknowledged",
+      failureReason: externalConfirmationId
+        ? "tool_readiness_not_confirmed"
+        : "external_confirmation_missing",
+    }, storage, now);
+  }
   return updateCrossPillarHandoff(id, {
     status: "completed",
     completedAt: now,
     failureReason: undefined,
+    externalConfirmationId,
   }, storage, now);
 }
 

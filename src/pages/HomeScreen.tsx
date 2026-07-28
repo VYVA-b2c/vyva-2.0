@@ -85,6 +85,10 @@ import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
 import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
 import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
 import { executeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
+import type {
+  CrossPillarToolEvidence,
+  CrossPillarToolFamily,
+} from "../../shared/crossPillarToolReadiness";
 import {
   readShowVyvaReviewHistory,
   SHOW_VYVA_REVIEW_HISTORY_EVENT,
@@ -1010,6 +1014,17 @@ const HomeScreen = () => {
     refetchInterval: 60 * 1000,
     retry: false,
   });
+
+  const { data: crossPillarToolReadiness } = useQuery<{
+    tools: CrossPillarToolEvidence[];
+  }>({
+    queryKey: ["/api/cross-pillar/tool-readiness"],
+    staleTime: 30 * 1000,
+    retry: false,
+  });
+  const crossPillarToolEvidence = useMemo(() => Object.fromEntries(
+    (crossPillarToolReadiness?.tools ?? []).map((item) => [item.family, item]),
+  ) as Partial<Record<CrossPillarToolFamily, CrossPillarToolEvidence>>, [crossPillarToolReadiness]);
 
   const timeGreetingKey = useMemo(() => {
     const hour = new Date(conciergeClockMs).getHours();
@@ -2118,6 +2133,7 @@ const HomeScreen = () => {
       doctorContext: homeDoctorContext,
       readiness: {
         hasSavedDoctor: profile?.serviceReadiness?.hasSavedDoctor,
+        toolEvidence: crossPillarToolEvidence,
       },
     }, (path, options) => {
       if (result.actionId === "health-symptoms") {
