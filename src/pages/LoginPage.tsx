@@ -1893,6 +1893,19 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const selectedDialOption = COUNTRY_DIAL_OPTIONS.find((option) => option.dialCode === callbackCountryCode) ?? COUNTRY_DIAL_OPTIONS[0];
   const selectedCallNumber = VYVA_CALL_NUMBERS[callCountry] ?? VYVA_CALL_NUMBERS.ES;
   const activeView: View = view === "forgot" || view === "magic" ? view : mode;
+  const authAudience: AuthAudience = adminOnly
+    ? "admin"
+    : isCareTeamInviteAuth || isCaregiverEntryRoute || setupIntent === "caregiver"
+      ? "caregiver"
+      : "member";
+  const audienceCopy = audienceCopyFor({
+    audience: authAudience,
+    activeView,
+    isCareTeamInviteAuth,
+    isPasswordFreeSignIn,
+    language,
+    copy,
+  });
   const authTitle = adminOnly && activeView === "login"
     ? "Admin sign in"
     : activeView === "register"
@@ -2330,7 +2343,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                   {heroSubtitle}
                 </p>
                 <div className="mt-7 grid gap-3" aria-label="Admin security notes">
-                  {trustItems.map((item) => (
+                  {audienceCopy.trustItems.map((item) => (
                     <div key={item} className="flex items-start gap-3 rounded-[18px] border border-[#E8DDF3] bg-white px-4 py-3 text-left">
                       <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-vyva-purple" />
                       <span className="font-body text-[13px] font-bold leading-5 text-[#6E6275]">{item}</span>

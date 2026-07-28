@@ -252,10 +252,10 @@ test("public landing page promotes VYVA and remains responsive", async ({ page }
   await expectNoHorizontalOverflow(page);
 
   await page.getByTestId("select-landing-language").selectOption("fr");
-  await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
-  await expect(page.locator("#features").getByRole("heading", { name: "Rappels de mÃ©dicaments" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Un compagnon qui écoute, rappelle et aide\./ })).toBeVisible();
+  await expect(page.locator("#features").getByRole("heading", { name: /Rappels de médicaments/ })).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Un compagnon qui écoute, rappelle et aide\./ })).toBeVisible();
   await page.goto("/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("select-login-language")).toHaveValue("fr");
   await expect(page.getByTestId("button-auth-mode-login")).toHaveAttribute("aria-selected", "true");
@@ -267,7 +267,7 @@ test("public pages initialize from browser language until the user changes it", 
   await mockApi(page);
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Un compagnon qui Ã©coute, rappelle et aide.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Un compagnon qui écoute, rappelle et aide\./ })).toBeVisible();
   await expect(page.getByTestId("select-landing-language")).toHaveValue("fr");
   await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("browser");
 
@@ -277,7 +277,7 @@ test("public pages initialize from browser language until the user changes it", 
 
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "domcontentloaded" });
   await page.getByTestId("select-landing-language").selectOption("de");
-  await expect(page.getByRole("heading", { name: "Ein Begleiter, der zuhÃ¶rt, erinnert und hilft.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Ein Begleiter, der zuhört, erinnert und hilft\./ })).toBeVisible();
   await expect(page.evaluate(() => localStorage.getItem("vyva_lang_source"))).resolves.toBe("user");
 
   await page.goto("http://127.0.0.1:4173/login", { waitUntil: "domcontentloaded" });
@@ -331,6 +331,7 @@ test("login screen scales from mobile card to tablet and desktop auth layout", a
 test("home screen renders core cards and navigates to concierge", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Touch" }).click();
 
   await expect(page.getByTestId("card-home-agent-health")).toBeVisible();
   await expect(page.getByTestId("card-home-agent-concierge")).toBeVisible();
