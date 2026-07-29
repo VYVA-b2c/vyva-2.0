@@ -648,7 +648,7 @@
         "signOut": "Cerrar sesión",
         "deleteAccount": "Eliminar mi cuenta y todos los datos",
         "deleteAccountSub": "Permanente — no se puede deshacer",
-        "downloadDataStartedDesc": "VYVA ha empezado a descargar la exportaci?n de tu perfil."
+        "downloadDataStartedDesc": "VYVA ha empezado a descargar la exportación de tu perfil."
       }
     },
     "notifications": {
@@ -680,7 +680,7 @@
       "supportModeAiSub": "VYVA gestiona automáticamente los check-ins y recordatorios rutinarios.",
       "supportModeHuman": "Con apoyo humano",
       "supportModeHumanSub": "Una persona gestiona el contacto mientras VYVA mantiene el plan claro.",
-      "savedDesc": "Tus preferencias de notificaci?n se han actualizado."
+      "savedDesc": "Tus preferencias de notificación se han actualizado."
     },
     "privacy": {
       "title": "Privacidad y consentimiento",
@@ -1476,28 +1476,28 @@
     },
     "takenToastTitle": "Buen trabajo",
     "takenToastDescription": "{{medicine}} fue marcado como tomado.",
-    "allTakenToastDescription": "Todas las dosis de hoy ya est?n marcadas como tomadas.",
+    "allTakenToastDescription": "Todas las dosis de hoy ya están marcadas como tomadas.",
     "editSuccessDesc": "Los datos del medicamento se han guardado.",
-    "editErrorDesc": "Los datos del medicamento no se guardaron. Int?ntalo de nuevo.",
-    "deleteSuccessDesc": "Este medicamento se elimin? de tu lista.",
-    "deleteErrorDesc": "Este medicamento no se elimin? de tu lista. Int?ntalo de nuevo.",
+    "editErrorDesc": "Los datos del medicamento no se guardaron. Inténtalo de nuevo.",
+    "deleteSuccessDesc": "Este medicamento se eliminó de tu lista.",
+    "deleteErrorDesc": "Este medicamento no se eliminó de tu lista. Inténtalo de nuevo.",
     "confirmDoseError": "No se pudo confirmar la dosis",
-    "confirmDoseErrorDesc": "La dosis no se marc? como tomada. Int?ntalo de nuevo.",
+    "confirmDoseErrorDesc": "La dosis no se marcó como tomada. Inténtalo de nuevo.",
     "safety": {
-      "analyseSuccess": "Revisi?n de seguridad actualizada",
-      "analyseSuccessDesc": "VYVA revis? las se?ales de tus medicamentos.",
+      "analyseSuccess": "Revisión de seguridad actualizada",
+      "analyseSuccessDesc": "VYVA revisó las señales de tus medicamentos.",
       "analyseError": "No se pudo analizar la seguridad de los medicamentos",
-      "analyseErrorDesc": "VYVA no pudo revisar tus se?ales de medicamentos ahora mismo.",
+      "analyseErrorDesc": "VYVA no pudo revisar tus señales de medicamentos ahora mismo.",
       "sharedSuccess": "Caso compartido con el cuidador",
-      "sharedSuccessDesc": "El caso de seguridad del medicamento se comparti? con tu cuidador.",
+      "sharedSuccessDesc": "El caso de seguridad del medicamento se compartió con tu cuidador.",
       "saveSuccess": "Caso de seguridad guardado",
-      "saveSuccessDesc": "El caso de seguridad del medicamento se guard? para revisi?n.",
+      "saveSuccessDesc": "El caso de seguridad del medicamento se guardó para revisión.",
       "saveError": "No se pudo guardar el caso de seguridad",
-      "saveErrorDesc": "El caso de seguridad del medicamento no se guard?. Int?ntalo de nuevo.",
-      "exportSuccess": "Paquete listo para auditor?a creado",
-      "exportSuccessDesc": "El paquete de seguridad del medicamento est? listo para copiar o compartir.",
+      "saveErrorDesc": "El caso de seguridad del medicamento no se guardó. Inténtalo de nuevo.",
+      "exportSuccess": "Paquete listo para auditoría creado",
+      "exportSuccessDesc": "El paquete de seguridad del medicamento está listo para copiar o compartir.",
       "exportError": "No se pudo exportar el caso de seguridad",
-      "exportErrorDesc": "El paquete de seguridad del medicamento no se cre?. Int?ntalo de nuevo."
+      "exportErrorDesc": "El paquete de seguridad del medicamento no se creó. Inténtalo de nuevo."
     }
   },
   "brain": {
@@ -1749,8 +1749,8 @@
     },
     "toast": {
       "allergensAlreadySaved": {
-        "title": "Al?rgenos ya guardados",
-        "description": "Todo lo que dijiste ya est? en tu lista de alergias."
+        "title": "Alérgenos ya guardados",
+        "description": "Todo lo que dijiste ya está en tu lista de alergias."
       },
       "allergyListUpdated": {
         "title": "Lista de alergias actualizada"
@@ -1760,14 +1760,14 @@
       },
       "hobbiesAlreadySaved": {
         "title": "Aficiones ya guardadas",
-        "description": "Todo lo que dijiste ya est? seleccionado."
+        "description": "Todo lo que dijiste ya está seleccionado."
       },
       "hobbiesUpdated": {
         "title": "Aficiones actualizadas"
       },
       "providerUpdated": {
         "title": "Proveedor actualizado",
-        "description": "{{name}} se guard? en tus proveedores de confianza.",
+        "description": "{{name}} se guardó en tus proveedores de confianza.",
         "fallbackName": "Este proveedor"
       }
     }
@@ -1841,7 +1841,7 @@
       "accept": "Aceptar",
       "decline": "Rechazar",
       "requestSent": "¡Solicitud de conexión enviada!",
-      "requestSentDesc": "Tu solicitud de compa??a fue enviada."
+      "requestSentDesc": "Tu solicitud de compañía fue enviada."
     },
     "noConnections": "Aún no tienes compañeros — ¡consulta la pestaña de Sugerencias!",
     "activityTile": "Conecta con otros",
@@ -1853,10 +1853,10 @@
       "connectFailed": "No se pudo enviar la solicitud",
       "respondFailed": "No se pudo actualizar la conexión",
       "activateFailed": "No se pudo activar la comunidad. Inténtalo de nuevo.",
-      "saveInterestsFailedDesc": "Tus intereses para compa??a no se guardaron. Int?ntalo de nuevo.",
-      "connectFailedDesc": "Tu solicitud de compa??a no se envi?. Int?ntalo de nuevo.",
-      "respondFailedDesc": "Tu respuesta de compa??a no se guard?. Int?ntalo de nuevo.",
-      "activateFailedDesc": "La b?squeda de compa??a no se activ?. Int?ntalo de nuevo."
+      "saveInterestsFailedDesc": "Tus intereses para compañía no se guardaron. Inténtalo de nuevo.",
+      "connectFailedDesc": "Tu solicitud de compañía no se envió. Inténtalo de nuevo.",
+      "respondFailedDesc": "Tu respuesta de compañía no se guardó. Inténtalo de nuevo.",
+      "activateFailedDesc": "La búsqueda de compañía no se activó. Inténtalo de nuevo."
     },
     "profile": {
       "valuesTitle": "Lo que te importa",
