@@ -7511,11 +7511,7 @@ function CampaignTable({
   confirmingDeleteId?: string | null;
 }) {
   const showActions = Boolean(onEdit || onDelete);
-  void contentById;
-  void contentTitleById;
   void metricsByCampaignId;
-  void onPreviewContent;
-  void onEditContent;
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
@@ -7568,11 +7564,46 @@ function CampaignTable({
                 )}
               </td>
               <td className="px-4 py-3">
-                <div className="flex max-w-[220px] flex-wrap gap-1.5">
+                <div className="flex max-w-[260px] flex-wrap gap-1.5">
                   {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
+                    const linkedContent = item.contentAssetId ? contentById.get(item.contentAssetId) ?? null : null;
+                    const contentTitle = linkedContent?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
                     return (
-                      <div key={item.id} data-testid={`marketing-campaign-channel-link-${item.id}`}>
+                      <div key={item.id} className="flex flex-wrap items-center gap-1" data-testid={`marketing-campaign-channel-link-${item.id}`}>
                         <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                        {contentTitle ? (
+                          <span className="max-w-[190px] truncate text-xs font-black text-[#5b4a46]">{contentTitle}</span>
+                        ) : item.contentAssetId ? (
+                          <span className="max-w-[190px] truncate text-xs font-black text-amber-800">Missing content</span>
+                        ) : null}
+                        {linkedContent && onPreviewContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onPreviewContent(linkedContent);
+                            }}
+                            disabled={actionsDisabled}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-preview-campaign-content-${item.id}`}
+                          >
+                            <Eye size={11} /> Preview
+                          </button>
+                        ) : null}
+                        {linkedContent && onEditContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onEditContent(linkedContent);
+                            }}
+                            disabled={actionsDisabled}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-edit-campaign-content-${item.id}`}
+                          >
+                            <Pencil size={11} /> Edit
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })}

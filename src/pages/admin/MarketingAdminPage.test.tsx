@@ -1206,6 +1206,18 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-content-channel-1-linkedin"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-content-channel-1-linkedin"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
     fireEvent.click(screen.getByTestId("marketing-campaign-channel-content-preview-1-preview"));
 
