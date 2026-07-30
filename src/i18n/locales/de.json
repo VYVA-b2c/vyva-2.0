@@ -627,7 +627,7 @@
       "saved": "Kontodaten gespeichert",
       "saveError": "Kontodaten konnten nicht gespeichert werden",
       "defaultName": "Maria",
-      "requiredFieldsMissingDesc": "Bitte f?llen Sie die markierten Profildaten aus, bevor Sie speichern.",
+      "requiredFieldsMissingDesc": "Bitte füllen Sie die markierten Profildaten aus, bevor Sie speichern.",
       "savedDesc": "Ihre Kontodaten wurden gespeichert.",
       "photoUpdated": "Foto aktualisiert",
       "photoUpdatedDesc": "Ihr Profilfoto wurde gespeichert.",
@@ -1361,20 +1361,20 @@
     "editErrorDesc": "Ihre Medikamentendaten wurden nicht gespeichert. Bitte versuchen Sie es erneut.",
     "deleteSuccessDesc": "Dieses Medikament wurde aus Ihrer Liste entfernt.",
     "deleteErrorDesc": "Dieses Medikament wurde nicht aus Ihrer Liste entfernt. Bitte versuchen Sie es erneut.",
-    "confirmDoseError": "Dosis konnte nicht best?tigt werden",
+    "confirmDoseError": "Dosis konnte nicht bestätigt werden",
     "confirmDoseErrorDesc": "Die Dosis wurde nicht als eingenommen markiert. Bitte versuchen Sie es erneut.",
     "safety": {
-      "analyseSuccess": "Sicherheitspr?fung aktualisiert",
-      "analyseSuccessDesc": "VYVA hat Ihre Medikamentensignale gepr?ft.",
+      "analyseSuccess": "Sicherheitsprüfung aktualisiert",
+      "analyseSuccessDesc": "VYVA hat Ihre Medikamentensignale geprüft.",
       "analyseError": "Medikamentensicherheit konnte nicht analysiert werden",
-      "analyseErrorDesc": "VYVA konnte Ihre Medikamentensignale im Moment nicht pr?fen.",
+      "analyseErrorDesc": "VYVA konnte Ihre Medikamentensignale im Moment nicht prüfen.",
       "sharedSuccess": "Fall mit Betreuungsperson geteilt",
       "sharedSuccessDesc": "Der Medikamentensicherheitsfall wurde mit Ihrer Betreuungsperson geteilt.",
       "saveSuccess": "Sicherheitsfall gespeichert",
-      "saveSuccessDesc": "Der Medikamentensicherheitsfall wurde zur Pr?fung gespeichert.",
+      "saveSuccessDesc": "Der Medikamentensicherheitsfall wurde zur Prüfung gespeichert.",
       "saveError": "Sicherheitsfall konnte nicht gespeichert werden",
       "saveErrorDesc": "Der Medikamentensicherheitsfall wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
-      "exportSuccess": "Pr?fbereites Paket erstellt",
+      "exportSuccess": "Prüfbereites Paket erstellt",
       "exportSuccessDesc": "Das Medikamentensicherheitspaket ist zum Kopieren oder Teilen bereit.",
       "exportError": "Sicherheitsfall konnte nicht exportiert werden",
       "exportErrorDesc": "Das Medikamentensicherheitspaket wurde nicht erstellt. Bitte versuchen Sie es erneut."
@@ -1640,14 +1640,14 @@
       },
       "hobbiesAlreadySaved": {
         "title": "Hobbys bereits gespeichert",
-        "description": "Alles, was Sie gesagt haben, ist bereits ausgew?hlt."
+        "description": "Alles, was Sie gesagt haben, ist bereits ausgewählt."
       },
       "hobbiesUpdated": {
         "title": "Hobbys aktualisiert"
       },
       "providerUpdated": {
         "title": "Anbieter aktualisiert",
-        "description": "{{name}} wurde in Ihren vertrauensw?rdigen Anbietern gespeichert.",
+        "description": "{{name}} wurde in Ihren vertrauenswürdigen Anbietern gespeichert.",
         "fallbackName": "Dieser Anbieter"
       }
     }
@@ -1733,7 +1733,7 @@
       "connectFailed": "Anfrage konnte nicht gesendet werden",
       "respondFailed": "Verbindung konnte nicht aktualisiert werden",
       "activateFailed": "Community konnte nicht aktiviert werden. Bitte versuchen Sie es erneut.",
-      "saveInterestsFailedDesc": "Ihre Interessen f?r Begleiter wurden nicht gespeichert. Bitte versuchen Sie es erneut.",
+      "saveInterestsFailedDesc": "Ihre Interessen für Begleiter wurden nicht gespeichert. Bitte versuchen Sie es erneut.",
       "connectFailedDesc": "Ihre Begleiteranfrage wurde nicht gesendet. Bitte versuchen Sie es erneut.",
       "respondFailedDesc": "Ihre Antwort wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
       "activateFailedDesc": "Die Begleitersuche wurde nicht aktiviert. Bitte versuchen Sie es erneut."

@@ -648,7 +648,7 @@
         "signOut": "Disconnettiti",
         "deleteAccount": "Elimina il mio account e tutti i dati",
         "deleteAccountSub": "Permanente — non può essere annullato",
-        "downloadDataStartedDesc": "VYVA ha avviato il download dell?esportazione del tuo profilo."
+        "downloadDataStartedDesc": "VYVA ha avviato il download dell’esportazione del tuo profilo."
       }
     },
     "notifications": {
@@ -750,9 +750,9 @@
       "requiredFieldsMissingDesc": "Completa i dati del profilo evidenziati prima di salvare.",
       "savedDesc": "I dati del tuo account sono stati salvati.",
       "photoUpdated": "Foto aggiornata",
-      "photoUpdatedDesc": "La tua foto profilo ? stata salvata.",
+      "photoUpdatedDesc": "La tua foto profilo è stata salvata.",
       "photoError": "Impossibile aggiornare la foto",
-      "photoErrorDesc": "La tua foto profilo non ? stata salvata. Prova con un?altra immagine."
+      "photoErrorDesc": "La tua foto profilo non è stata salvata. Prova con un’altra immagine."
     }
   },
   "health": {
@@ -1475,29 +1475,29 @@
       "footer": "{{count}} farmaci controllati. VYVA non cambia mai le dosi."
     },
     "takenToastTitle": "Ottimo lavoro",
-    "takenToastDescription": "{{medicine}} ? stato segnato come assunto.",
-    "allTakenToastDescription": "Tutte le dosi di oggi sono gi? segnate come assunte.",
+    "takenToastDescription": "{{medicine}} è stato segnato come assunto.",
+    "allTakenToastDescription": "Tutte le dosi di oggi sono già segnate come assunte.",
     "editSuccessDesc": "I dettagli del farmaco sono stati salvati.",
     "editErrorDesc": "I dettagli del farmaco non sono stati salvati. Riprova.",
-    "deleteSuccessDesc": "Questo farmaco ? stato rimosso dalla tua lista.",
-    "deleteErrorDesc": "Questo farmaco non ? stato rimosso dalla tua lista. Riprova.",
+    "deleteSuccessDesc": "Questo farmaco è stato rimosso dalla tua lista.",
+    "deleteErrorDesc": "Questo farmaco non è stato rimosso dalla tua lista. Riprova.",
     "confirmDoseError": "Impossibile confermare la dose",
-    "confirmDoseErrorDesc": "La dose non ? stata segnata come assunta. Riprova.",
+    "confirmDoseErrorDesc": "La dose non è stata segnata come assunta. Riprova.",
     "safety": {
       "analyseSuccess": "Controllo di sicurezza aggiornato",
       "analyseSuccessDesc": "VYVA ha controllato i segnali dei tuoi farmaci.",
       "analyseError": "Impossibile analizzare la sicurezza dei farmaci",
       "analyseErrorDesc": "VYVA non ha potuto controllare i segnali dei tuoi farmaci in questo momento.",
       "sharedSuccess": "Caso condiviso con il caregiver",
-      "sharedSuccessDesc": "Il caso di sicurezza del farmaco ? stato condiviso con il tuo caregiver.",
+      "sharedSuccessDesc": "Il caso di sicurezza del farmaco è stato condiviso con il tuo caregiver.",
       "saveSuccess": "Caso di sicurezza salvato",
-      "saveSuccessDesc": "Il caso di sicurezza del farmaco ? stato salvato per la revisione.",
+      "saveSuccessDesc": "Il caso di sicurezza del farmaco è stato salvato per la revisione.",
       "saveError": "Impossibile salvare il caso di sicurezza",
-      "saveErrorDesc": "Il caso di sicurezza del farmaco non ? stato salvato. Riprova.",
+      "saveErrorDesc": "Il caso di sicurezza del farmaco non è stato salvato. Riprova.",
       "exportSuccess": "Pacchetto pronto per audit creato",
-      "exportSuccessDesc": "Il pacchetto di sicurezza del farmaco ? pronto per essere copiato o condiviso.",
+      "exportSuccessDesc": "Il pacchetto di sicurezza del farmaco è pronto per essere copiato o condiviso.",
       "exportError": "Impossibile esportare il caso di sicurezza",
-      "exportErrorDesc": "Il pacchetto di sicurezza del farmaco non ? stato creato. Riprova."
+      "exportErrorDesc": "Il pacchetto di sicurezza del farmaco non è stato creato. Riprova."
     }
   },
   "brain": {
@@ -1749,8 +1749,8 @@
     },
     "toast": {
       "allergensAlreadySaved": {
-        "title": "Allergeni gi? salvati",
-        "description": "Tutto ci? che hai detto ? gi? nella tua lista allergie."
+        "title": "Allergeni già salvati",
+        "description": "Tutto ciò che hai detto è già nella tua lista allergie."
       },
       "allergyListUpdated": {
         "title": "Lista allergie aggiornata"
@@ -1759,15 +1759,15 @@
         "title": "Condizioni di salute aggiornate"
       },
       "hobbiesAlreadySaved": {
-        "title": "Hobby gi? salvati",
-        "description": "Tutto ci? che hai detto ? gi? selezionato."
+        "title": "Hobby già salvati",
+        "description": "Tutto ciò che hai detto è già selezionato."
       },
       "hobbiesUpdated": {
         "title": "Hobby aggiornati"
       },
       "providerUpdated": {
         "title": "Fornitore aggiornato",
-        "description": "{{name}} ? stato salvato tra i tuoi fornitori fidati.",
+        "description": "{{name}} è stato salvato tra i tuoi fornitori fidati.",
         "fallbackName": "Questo fornitore"
       }
     }
@@ -1841,7 +1841,7 @@
       "accept": "Accetta",
       "decline": "Rifiuta",
       "requestSent": "Richiesta di connessione inviata!",
-      "requestSentDesc": "La tua richiesta di compagnia ? stata inviata."
+      "requestSentDesc": "La tua richiesta di compagnia è stata inviata."
     },
     "noConnections": "Ancora nessun compagno — controlla la scheda Suggerimenti!",
     "activityTile": "Connettiti con altri",
@@ -1854,9 +1854,9 @@
       "respondFailed": "Impossibile aggiornare la connessione",
       "activateFailed": "Impossibile attivare la comunità. Riprova.",
       "saveInterestsFailedDesc": "I tuoi interessi per la compagnia non sono stati salvati. Riprova.",
-      "connectFailedDesc": "La tua richiesta di compagnia non ? stata inviata. Riprova.",
-      "respondFailedDesc": "La tua risposta di compagnia non ? stata salvata. Riprova.",
-      "activateFailedDesc": "La ricerca di compagnia non ? stata attivata. Riprova."
+      "connectFailedDesc": "La tua richiesta di compagnia non è stata inviata. Riprova.",
+      "respondFailedDesc": "La tua risposta di compagnia non è stata salvata. Riprova.",
+      "activateFailedDesc": "La ricerca di compagnia non è stata attivata. Riprova."
     },
     "profile": {
       "valuesTitle": "Cosa è importante per te",

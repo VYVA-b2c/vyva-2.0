@@ -528,7 +528,7 @@
         "signOut": "Se déconnecter",
         "deleteAccount": "Supprimer mon compte et toutes les données",
         "deleteAccountSub": "Permanent — impossible à annuler",
-        "downloadDataStartedDesc": "VYVA a lanc? le t?l?chargement de l'export de votre profil."
+        "downloadDataStartedDesc": "VYVA a lancé le téléchargement de l'export de votre profil."
       }
     },
     "notifications": {
@@ -560,7 +560,7 @@
       "supportModeAiSub": "VYVA gère automatiquement les contrôles et rappels habituels.",
       "supportModeHuman": "Avec soutien humain",
       "supportModeHumanSub": "Une personne gère le contact pendant que VYVA garde le plan clair.",
-      "savedDesc": "Vos pr?f?rences de notification ont ?t? mises ? jour."
+      "savedDesc": "Vos préférences de notification ont été mises à jour."
     },
     "privacy": {
       "title": "Confidentialité et consentement",
@@ -577,8 +577,8 @@
       "conversationsLabel": "Résumés de conversations",
       "conversationsSub": "Points forts quotidiens de vos chats",
       "gdprFooter": "Les modifications sont enregistrées automatiquement. Protégé par le RGPD.",
-      "brainCoachAccessUpdated": "Acc?s Brain Coach mis ? jour",
-      "brainCoachAccessUpdatedDesc": "Les autorisations Brain Coach de ce membre de l??quipe soignante ont ?t? enregistr?es."
+      "brainCoachAccessUpdated": "Accès Brain Coach mis à jour",
+      "brainCoachAccessUpdatedDesc": "Les autorisations Brain Coach de ce membre de l’équipe soignante ont été enregistrées."
     },
     "account": {
       "title": "Mon compte",
@@ -627,12 +627,12 @@
       "saved": "Informations du compte enregistrees",
       "saveError": "Impossible d'enregistrer les informations du compte",
       "defaultName": "Maria",
-      "requiredFieldsMissingDesc": "Veuillez remplir les informations de profil indiqu?es avant d'enregistrer.",
-      "savedDesc": "Les informations de votre compte ont ?t? enregistr?es.",
-      "photoUpdated": "Photo mise ? jour",
-      "photoUpdatedDesc": "Votre photo de profil a ?t? enregistr?e.",
-      "photoError": "Impossible de mettre ? jour la photo",
-      "photoErrorDesc": "Votre photo de profil n'a pas ?t? enregistr?e. Essayez avec une autre image."
+      "requiredFieldsMissingDesc": "Veuillez remplir les informations de profil indiquées avant d'enregistrer.",
+      "savedDesc": "Les informations de votre compte ont été enregistrées.",
+      "photoUpdated": "Photo mise à jour",
+      "photoUpdatedDesc": "Votre photo de profil a été enregistrée.",
+      "photoError": "Impossible de mettre à jour la photo",
+      "photoErrorDesc": "Votre photo de profil n'a pas été enregistrée. Essayez avec une autre image."
     }
   },
   "health": {
@@ -1354,30 +1354,30 @@
       "later": "Plus tard",
       "footer": "{{count}} medicaments verifies. VYVA ne change jamais les doses."
     },
-    "takenToastTitle": "Bien jou?",
-    "takenToastDescription": "{{medicine}} a ?t? marqu? comme pris.",
-    "allTakenToastDescription": "Toutes les doses d'aujourd'hui sont d?j? marqu?es comme prises.",
-    "editSuccessDesc": "Les informations du m?dicament ont ?t? enregistr?es.",
-    "editErrorDesc": "Les informations du m?dicament n'ont pas ?t? enregistr?es. Veuillez r?essayer.",
-    "deleteSuccessDesc": "Ce m?dicament a ?t? supprim? de votre liste.",
-    "deleteErrorDesc": "Ce m?dicament n'a pas ?t? supprim? de votre liste. Veuillez r?essayer.",
+    "takenToastTitle": "Bien joué",
+    "takenToastDescription": "{{medicine}} a été marqué comme pris.",
+    "allTakenToastDescription": "Toutes les doses d'aujourd'hui sont déjà marquées comme prises.",
+    "editSuccessDesc": "Les informations du médicament ont été enregistrées.",
+    "editErrorDesc": "Les informations du médicament n'ont pas été enregistrées. Veuillez réessayer.",
+    "deleteSuccessDesc": "Ce médicament a été supprimé de votre liste.",
+    "deleteErrorDesc": "Ce médicament n'a pas été supprimé de votre liste. Veuillez réessayer.",
     "confirmDoseError": "Impossible de confirmer la dose",
-    "confirmDoseErrorDesc": "La dose n'a pas ?t? marqu?e comme prise. Veuillez r?essayer.",
+    "confirmDoseErrorDesc": "La dose n'a pas été marquée comme prise. Veuillez réessayer.",
     "safety": {
-      "analyseSuccess": "V?rification de s?curit? mise ? jour",
-      "analyseSuccessDesc": "VYVA a v?rifi? vos signaux de m?dicaments.",
-      "analyseError": "Impossible d?analyser la s?curit? des m?dicaments",
-      "analyseErrorDesc": "VYVA n'a pas pu v?rifier vos signaux de m?dicaments pour le moment.",
-      "sharedSuccess": "Dossier partag? avec le proche aidant",
-      "sharedSuccessDesc": "Le dossier de s?curit? du m?dicament a ?t? partag? avec votre proche aidant.",
-      "saveSuccess": "Dossier de s?curit? enregistr?",
-      "saveSuccessDesc": "Le dossier de s?curit? du m?dicament a ?t? enregistr? pour examen.",
-      "saveError": "Impossible d?enregistrer le dossier de s?curit?",
-      "saveErrorDesc": "Le dossier de s?curit? du m?dicament n'a pas ?t? enregistr?. Veuillez r?essayer.",
-      "exportSuccess": "Dossier pr?t pour audit cr??",
-      "exportSuccessDesc": "Le dossier de s?curit? du m?dicament est pr?t ? copier ou partager.",
-      "exportError": "Impossible d?exporter le dossier de s?curit?",
-      "exportErrorDesc": "Le dossier de s?curit? du m?dicament n'a pas ?t? cr??. Veuillez r?essayer."
+      "analyseSuccess": "Vérification de sécurité mise à jour",
+      "analyseSuccessDesc": "VYVA a vérifié vos signaux de médicaments.",
+      "analyseError": "Impossible d’analyser la sécurité des médicaments",
+      "analyseErrorDesc": "VYVA n'a pas pu vérifier vos signaux de médicaments pour le moment.",
+      "sharedSuccess": "Dossier partagé avec le proche aidant",
+      "sharedSuccessDesc": "Le dossier de sécurité du médicament a été partagé avec votre proche aidant.",
+      "saveSuccess": "Dossier de sécurité enregistré",
+      "saveSuccessDesc": "Le dossier de sécurité du médicament a été enregistré pour examen.",
+      "saveError": "Impossible d’enregistrer le dossier de sécurité",
+      "saveErrorDesc": "Le dossier de sécurité du médicament n'a pas été enregistré. Veuillez réessayer.",
+      "exportSuccess": "Dossier prêt pour audit créé",
+      "exportSuccessDesc": "Le dossier de sécurité du médicament est prêt à copier ou partager.",
+      "exportError": "Impossible d’exporter le dossier de sécurité",
+      "exportErrorDesc": "Le dossier de sécurité du médicament n'a pas été créé. Veuillez réessayer."
     }
   },
   "brain": {
@@ -1629,25 +1629,25 @@
     },
     "toast": {
       "allergensAlreadySaved": {
-        "title": "Allerg?nes d?j? enregistr?s",
-        "description": "Tout ce que vous avez dit est d?j? dans votre liste d?allergies."
+        "title": "Allergènes déjà enregistrés",
+        "description": "Tout ce que vous avez dit est déjà dans votre liste d’allergies."
       },
       "allergyListUpdated": {
-        "title": "Liste d?allergies mise ? jour"
+        "title": "Liste d’allergies mise à jour"
       },
       "healthConditionsUpdated": {
-        "title": "Conditions de sant? mises ? jour"
+        "title": "Conditions de santé mises à jour"
       },
       "hobbiesAlreadySaved": {
-        "title": "Loisirs d?j? enregistr?s",
-        "description": "Tout ce que vous avez dit est d?j? s?lectionn?."
+        "title": "Loisirs déjà enregistrés",
+        "description": "Tout ce que vous avez dit est déjà sélectionné."
       },
       "hobbiesUpdated": {
-        "title": "Loisirs mis ? jour"
+        "title": "Loisirs mis à jour"
       },
       "providerUpdated": {
-        "title": "Prestataire mis ? jour",
-        "description": "{{name}} a ?t? enregistr? dans vos prestataires de confiance.",
+        "title": "Prestataire mis à jour",
+        "description": "{{name}} a été enregistré dans vos prestataires de confiance.",
         "fallbackName": "Ce prestataire"
       }
     }
@@ -1721,7 +1721,7 @@
       "accept": "Accepter",
       "decline": "Refuser",
       "requestSent": "Demande de connexion envoyée !",
-      "requestSentDesc": "Votre demande de compagnon a ?t? envoy?e."
+      "requestSentDesc": "Votre demande de compagnon a été envoyée."
     },
     "noConnections": "Pas encore de compagnons — consultez l'onglet Suggestions !",
     "activityTile": "Se connecter aux autres",
@@ -1733,10 +1733,10 @@
       "connectFailed": "Impossible d'envoyer la demande",
       "respondFailed": "Impossible de mettre à jour la connexion",
       "activateFailed": "Impossible d'activer la communauté. Veuillez réessayer.",
-      "saveInterestsFailedDesc": "Vos int?r?ts de compagnon n'ont pas ?t? enregistr?s. Veuillez r?essayer.",
-      "connectFailedDesc": "Votre demande de compagnon n'a pas ?t? envoy?e. Veuillez r?essayer.",
-      "respondFailedDesc": "Votre r?ponse de compagnon n'a pas ?t? enregistr?e. Veuillez r?essayer.",
-      "activateFailedDesc": "La recherche de compagnon n'a pas ?t? activ?e. Veuillez r?essayer."
+      "saveInterestsFailedDesc": "Vos intérêts de compagnon n'ont pas été enregistrés. Veuillez réessayer.",
+      "connectFailedDesc": "Votre demande de compagnon n'a pas été envoyée. Veuillez réessayer.",
+      "respondFailedDesc": "Votre réponse de compagnon n'a pas été enregistrée. Veuillez réessayer.",
+      "activateFailedDesc": "La recherche de compagnon n'a pas été activée. Veuillez réessayer."
     },
     "profile": {
       "valuesTitle": "Ce qui vous tient à cœur",
