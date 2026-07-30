@@ -120,6 +120,7 @@ const HOME_CONTEXT_TIER_SCORE: Record<HomeContextDecisionReason, number> = {
 export const HOME_CONTEXT_HISTORY_KEY = "vyva:home-context-messages:v1";
 export const HOME_CONTEXT_ACTION_HISTORY_KEY = "vyva:home-context-message-actions:v1";
 export const HOME_CONTEXT_OUTCOME_HISTORY_KEY = "vyva:home-context-message-outcomes:v1";
+export const HOME_CONTEXT_MESSAGE_DISPLAY_MS = 15_000;
 
 export function readHomeContextMessageHistory(
   storage: Pick<Storage, "getItem"> | null = typeof window === "undefined" ? null : window.localStorage,

@@ -28,6 +28,7 @@ import {
   readHomeContextMessageActionHistory,
   readHomeContextMessageHistory,
   readHomeContextMessageOutcomeHistory,
+  HOME_CONTEXT_MESSAGE_DISPLAY_MS,
   writeHomeContextMessageAction,
   writeHomeContextMessageOutcome,
   writeHomeContextMessageSeen,
@@ -789,7 +790,6 @@ const HomeScreen = () => {
       const transition = transitionForVoiceHomeIntent(intent);
       setHomeIntentLayer(transition.layer);
       setHomeSubflow(null);
-      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
@@ -802,7 +802,6 @@ const HomeScreen = () => {
       if (!isVoiceHomeSubflow(subflow)) return;
       setHomeIntentLayer(subflow.pillar);
       setHomeSubflow(subflow);
-      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
@@ -1941,7 +1940,7 @@ const HomeScreen = () => {
       writeHomeContextMessageSeen(selectedHomeContextMessage.id);
       trackHomeContextOutcome("shown", "system");
       setHomeContextHistoryRevision((current) => current + 1);
-    }, 8_000);
+    }, HOME_CONTEXT_MESSAGE_DISPLAY_MS);
     return () => window.clearTimeout(seenTimer);
   }, [
     selectedHomeContextMessage,
@@ -2756,7 +2755,7 @@ const HomeScreen = () => {
       launcherVariant="homeMaster"
       intentLayer={homeIntentLayer !== "home"}
       showHero={homeInteractionMode === "voice"}
-      showCards={homeInteractionMode === "touch"}
+      showCards={homeInteractionMode === "touch" || homeIntentLayer !== "home"}
       modeSwitcher={(
         <>
           <div
