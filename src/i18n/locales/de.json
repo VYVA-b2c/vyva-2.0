@@ -578,7 +578,107 @@
       "conversationsSub": "Tägliche Highlights aus Ihren Chats",
       "gdprFooter": "Änderungen werden automatisch gespeichert. Geschützt gemäß DSGVO.",
       "brainCoachAccessUpdated": "Brain-Coach-Zugriff aktualisiert",
-      "brainCoachAccessUpdatedDesc": "Die Brain-Coach-Berechtigungen dieses Betreuungsteam-Mitglieds wurden gespeichert."
+      "brainCoachAccessUpdatedDesc": "Die Brain-Coach-Berechtigungen dieses Betreuungsteam-Mitglieds wurden gespeichert.",
+      "hero": {
+        "kicker": "Datenschutz und Einwilligung",
+        "description": "Bestimmen Sie, was VYVA verwenden darf und was Ihr zugelassenes Betreuungsteam sehen kann.",
+        "youDecide": "Sie entscheiden",
+        "careTeamAccess": "Zugriff des Betreuungsteams",
+        "gdprProtected": "DSGVO-geschützt"
+      },
+      "brainCoach": {
+        "title": "Brain-Coach-Zugriff für Betreuungspersonen",
+        "description": "Bestimmen Sie, was jede zugelassene Betreuungsperson in Brain Coach sehen oder verwalten darf.",
+        "loading": "Brain-Coach-Zugriff wird geladen...",
+        "loadErrorTitle": "Brain-Coach-Zugriff konnte nicht geladen werden",
+        "seniorOnly": "Nur die betreute Person kann diese Berechtigungen ändern.",
+        "emptyTitle": "Noch keine aktiven Betreuungspersonen.",
+        "emptyDescription": "Laden Sie zuerst eine Betreuungsperson oder ein Familienmitglied ein.",
+        "saveError": "Brain-Coach-Zugriff konnte nicht gespeichert werden.",
+        "updateError": "Diese Berechtigung konnte nicht aktualisiert werden.",
+        "grant": "Brain-Coach-Zugriff gewähren",
+        "revoke": "Brain-Coach-Zugriff entfernen",
+        "for": "für {{name}}",
+        "saving": "Speichern...",
+        "status": {
+          "noAccess": "Kein Zugriff",
+          "controlsEnabled": "Steuerung aktiviert",
+          "summaryOnly": "Nur Zusammenfassung"
+        },
+        "permissions": {
+          "viewSummary": {
+            "label": "Brain-Coach-Zusammenfassung ansehen",
+            "description": "Aktuelle Serie, Planfortschritt, letzte Bereiche und Aktivitäten."
+          },
+          "managePlanPreferences": {
+            "label": "Planeinstellungen verwalten",
+            "description": "Schwerpunkte, ausgeschlossene Aktivitäten, Dauer und Wochenziel."
+          },
+          "manageSchedule": {
+            "label": "Zeitplan verwalten",
+            "description": "Trainingsrhythmus und -zeiten pausieren oder fortsetzen."
+          },
+          "sendNudges": {
+            "label": "Hinweise in der App senden",
+            "description": "Sanfte Brain-Coach-Erinnerungen nur innerhalb von VYVA."
+          },
+          "previewPlan": {
+            "label": "Planvorschau ansehen",
+            "description": "Vorgeschlagene Aktivitäten ansehen, ohne den heutigen Plan zu ändern."
+          }
+        }
+      },
+      "careTeam": {
+        "memberFallback": "Mitglied des Betreuungsteams",
+        "loading": "Betreuungsteam wird geladen...",
+        "loadErrorTitle": "Freigaben konnten nicht geladen werden",
+        "loadErrorDescription": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+        "emptyTitle": "Noch keine Mitglieder im Betreuungsteam.",
+        "emptyDescription": "Fügen Sie eine Vertrauensperson hinzu und bestimmen Sie, was sie erhalten oder sehen darf.",
+        "addMember": "Mitglied hinzufügen",
+        "sharingSource": "Freigabeberechtigungen",
+        "sharingAria": "{{permission}} für {{name}}",
+        "shared": "Freigegeben",
+        "notShared": "Nicht freigegeben"
+      },
+      "sharingPermissions": {
+        "dailyDigest": {
+          "label": "Tägliche Wohlbefindensübersicht",
+          "description": "Tägliches Wohlbefinden und wichtige Betreuungsinformationen."
+        },
+        "safetyAlerts": {
+          "label": "Sicherheitswarnungen",
+          "description": "Wichtige Sicherheitsereignisse und dringende Rückfragen."
+        },
+        "healthUpdates": {
+          "label": "Gesundheitsupdates",
+          "description": "Gesundheitsveränderungen und Wohlbefindenshinweise."
+        },
+        "moodUpdates": {
+          "label": "Stimmungsupdates",
+          "description": "Veränderungen von Stimmung und täglichem Wohlbefinden."
+        },
+        "medicationAlerts": {
+          "label": "Medikamentenwarnungen",
+          "description": "Erinnerungen und Hinweise auf ausgelassene Einnahmen."
+        },
+        "caregiverDashboard": {
+          "label": "Betreuungsübersicht",
+          "description": "Schreibgeschützter Zugriff auf die Betreuungsübersicht."
+        },
+        "healthReports": {
+          "label": "Gesundheitsberichte",
+          "description": "Aus dem Profil der betreuten Person freigegebene Berichte."
+        },
+        "vitalSigns": {
+          "label": "Vitalwerte",
+          "description": "Aus der Gesundheitsverfolgung freigegebene Vitalwerte."
+        },
+        "conversationSummaries": {
+          "label": "Gesprächszusammenfassungen",
+          "description": "Tägliche wichtige Punkte aus Gesprächen."
+        }
+      }
     },
     "account": {
       "title": "Mein Konto",
@@ -1649,6 +1749,77 @@
         "title": "Anbieter aktualisiert",
         "description": "{{name}} wurde in Ihren vertrauenswürdigen Anbietern gespeichert.",
         "fallbackName": "Dieser Anbieter"
+      }
+    },
+    "allergies": {
+      "title": "Allergien",
+      "kicker": "Wichtige Hinweise",
+      "description": "Fügen Sie Medikamente, Lebensmittel oder Materialien hinzu, an die VYVA vor Erinnerungen, Concierge-Hilfe oder einem Notfall denken soll.",
+      "badges": {
+        "medicines": "Medikamente",
+        "foods": "Lebensmittel",
+        "emergencyReady": "Für Notfälle vorbereitet"
+      },
+      "addByVoice": "Per Sprache hinzufügen",
+      "addByVoiceDescription": "Sagen Sie, worauf Sie reagieren. VYVA fügt es der Liste hinzu.",
+      "nonePrompt": "Keine Allergien hinzuzufügen?",
+      "noneDescription": "Wählen Sie dies, wenn derzeit keine Allergien bekannt sind.",
+      "noneButton": "Keine bekannten Allergien",
+      "saveError": "Allergien konnten nicht gespeichert werden",
+      "remove": "{{allergy}} entfernen",
+      "empty": "Noch keine Allergien hinzugefügt",
+      "inputPlaceholder": "Allergie eingeben und Enter oder Hinzufügen drücken",
+      "add": "Hinzufügen",
+      "commonHeading": "Häufige Allergene - zum Hinzufügen antippen",
+      "saving": "Speichern...",
+      "save": "Allergien speichern",
+      "skip": "Vorerst überspringen",
+      "common": {
+        "penicillin": "Penicillin",
+        "aspirin": "Aspirin",
+        "ibuprofen": "Ibuprofen",
+        "sulfaDrugs": "Sulfonamide",
+        "codeine": "Codein",
+        "latex": "Latex",
+        "peanuts": "Erdnüsse",
+        "treeNuts": "Schalenfrüchte",
+        "shellfish": "Schalentiere",
+        "eggs": "Eier",
+        "milkDairy": "Milch / Milchprodukte",
+        "wheatGluten": "Weizen / Gluten",
+        "soy": "Soja",
+        "beeStings": "Bienenstiche"
+      },
+      "voice": {
+        "kicker": "Allergien per Sprache einrichten",
+        "title": "Nennen Sie VYVA Ihre Allergien",
+        "subtitle": "Sprechen Sie natürlich. Vor dem Speichern können Sie alles prüfen.",
+        "close": "Schließen",
+        "connecting": "Verbindung wird hergestellt...",
+        "speaking": "Sie sprechen",
+        "listening": "Hört zu",
+        "tapToStart": "Zum Starten antippen",
+        "micUnavailableTitle": "Mikrofon nicht verfügbar",
+        "micUnavailableDescription": "Erlauben Sie den Mikrofonzugriff im Browser und versuchen Sie es erneut.",
+        "tabs": {
+          "add": "Allergien hinzufügen",
+          "ask": "Frage stellen"
+        },
+        "identifying": "Allergien werden erkannt...",
+        "example": "Zum Beispiel:",
+        "examplePhrase": "\"Ich bin allergisch gegen Penicillin und Schalentiere.\"",
+        "parseError": "VYVA konnte keine Allergie erkennen. Bitte versuchen Sie es erneut.",
+        "tryAgain": "Erneut versuchen",
+        "heardTitle": "VYVA hat gehört",
+        "noneDetected": "Noch keine Allergien erkannt.",
+        "addOne": "Allergie hinzufügen",
+        "addMany": "{{count}} Allergien hinzufügen",
+        "stopIdentify": "Stoppen",
+        "startSpeaking": "Sprechen beginnen",
+        "askDescription": "Stellen Sie eine allgemeine Frage zu Allergien. VYVA bietet allgemeine Informationen, keine Diagnose.",
+        "disclaimer": "VYVA bietet nur allgemeine Hinweise. Bei schweren Symptomen oder Atemnot kontaktieren Sie sofort den Notdienst.",
+        "stop": "Stoppen",
+        "askQuestion": "Frage stellen"
       }
     }
   },
