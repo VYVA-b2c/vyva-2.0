@@ -22,6 +22,7 @@ import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
+import { hasSeenVoiceOrbHint } from "@/lib/voiceOrbHint";
 import {
   decideHomeContextMessage,
   homeContextActionForVoiceReply,
@@ -769,6 +770,9 @@ const HomeScreen = () => {
       return "voice";
     }
   });
+  const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
+    () => !hasSeenVoiceOrbHint(),
+  );
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
   const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
   const activeVoiceHomeContextFingerprintRef = useRef<string | null>(null);
@@ -2114,10 +2118,17 @@ const HomeScreen = () => {
       ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
       : t(`home.master.${activeIntentKey}.dormantSubtitle`)
     : null;
-  const homeMasterHeroSubtitle = selectedHomeContextMessage?.supportingText
+  const homeMasterNormalHeroSubtitle = selectedHomeContextMessage?.supportingText
     ?? (activeIntentSubtitle
       ? activeIntentSubtitle
       : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const showHomeVoiceFirstUseHint = homeInteractionMode === "voice"
+    && homeIntentLayer === "home"
+    && showVoiceOrbFirstUseHint
+    && (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default");
+  const homeMasterHeroSubtitle = showHomeVoiceFirstUseHint
+    ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
+    : homeMasterNormalHeroSubtitle;
   const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
     home: homeMasterCards,
     health: homeMasterHealthCards.slice(0, 4),
@@ -2828,6 +2839,7 @@ const HomeScreen = () => {
         eyebrow: t("home.master.heroEyebrow", "Today"),
         title: homeMasterGreetingText,
         subtitle: homeMasterHeroSubtitle,
+        subtitleTone: showHomeVoiceFirstUseHint ? "gold" : "default",
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
@@ -2843,6 +2855,7 @@ const HomeScreen = () => {
           },
           autoStartListening: true,
           testId: "button-home-hero-talk",
+          onFirstVoiceOrbActivation: () => setShowVoiceOrbFirstUseHint(false),
         },
         testId: "home-master-hero",
         messageActionLabel: selectedHomeContextMessage?.actionLabel,
