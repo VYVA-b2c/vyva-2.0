@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { VOICE_ORB_HINT_SEEN_STORAGE_KEY } from "@/lib/voiceOrbHint";
 import VyvaSessionCta from "./VyvaSessionCta";
 
 const voiceState = vi.hoisted(() => ({
@@ -53,6 +54,7 @@ describe("VyvaSessionCta", () => {
     voiceState.voiceSessionPhase = "idle";
     voiceState.isMicMuted = false;
     voiceState.lastError = null;
+    window.localStorage.removeItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY);
   });
 
   it("starts a voice session with page context when idle", () => {
@@ -139,5 +141,43 @@ describe("VyvaSessionCta", () => {
     expect(screen.getByTestId("button-session")).toHaveAccessibleName("Speak anytime");
     expect(screen.getByTestId("button-session")).not.toHaveTextContent("Talk to VYVA");
     expect(screen.getByTestId("button-session")).not.toHaveTextContent("Speak anytime");
+  });
+
+  it("remembers the first successful orb activation", () => {
+    const onFirstVoiceOrbActivation = vi.fn();
+
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        visual="voiceOrb"
+        onFirstVoiceOrbActivation={onFirstVoiceOrbActivation}
+        testId="button-session"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-session"));
+
+    expect(window.localStorage.getItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY)).toBe("true");
+    expect(onFirstVoiceOrbActivation).toHaveBeenCalledTimes(1);
+    expect(voiceState.startVoice).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not repeat first-use guidance after it has been remembered", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    const onFirstVoiceOrbActivation = vi.fn();
+
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        visual="voiceOrb"
+        onFirstVoiceOrbActivation={onFirstVoiceOrbActivation}
+        testId="button-session"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-session"));
+
+    expect(onFirstVoiceOrbActivation).not.toHaveBeenCalled();
+    expect(voiceState.startVoice).toHaveBeenCalledTimes(1);
   });
 });
