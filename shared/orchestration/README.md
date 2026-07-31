@@ -20,6 +20,10 @@ orchestrator. It is deliberately not imported by production runtime code.
   Flows, subflows, capabilities and declarative policies.
 - `flowCatalogueFixtures.ts` supplies representative catalogue entries and
   future-extension fixtures.
+- `presentationRegistry.ts` defines inert, versioned Presentation Families and
+  Flow-scene-bound Presentation Definitions.
+- `presentationRegistryFixtures.ts` supplies representative presentation,
+  interruption, resume, evidence, emergency and telephone-only fixtures.
 
 Later channel adapters may translate existing voice, canvas, touch, scheduler,
 provider, caregiver, and operator signals into `InteractionEvent`. A future
@@ -247,3 +251,60 @@ are rejected at any nesting level. Trust outcomes use the explicit
 `likely_scam`, `suspicious`, `insufficient_evidence` or
 `no_obvious_indicators` classification vocabulary. The last classification is
 not a guarantee of safety, and guaranteed-safe Trust outcomes are invalid.
+
+## Canonical Presentation Registry
+
+Task 3.5 adds the inert `VYVA_PRESENTATION_REGISTRY`. It defines versioned,
+provider-neutral presentation families and Flow-scene-bound definitions. Task 1
+remains the source of interaction events and expected inputs; Task 2 remains
+the source of semantic UI instructions; Task 3 remains the source of Flow,
+scene, Channel and capability truth.
+
+Definitions describe localized content slots, semantic actions, Task 1 event
+mappings, voice/screen synchronization, visual intent, accessibility,
+localization, privacy, safety, device compatibility, fallbacks and design
+references. Spoken, tapped and typed choices resolve to the same canonical
+option set. Every expected input requires actions, an answer-producing mapping,
+explicit passive-vs-action ownership and current question/scene/Flow-version
+correlation. Payload mappings and normalized-answer intents are strict,
+answer-kind-discriminated, declarative and bounded.
+
+Task 3.5 directly reuses Task 1 expected-input and event semantics, Task 2 UI
+instruction types (including `clear_scene`), and Task 3 Flow/scene/Channel
+truth. It does not directly parse Task 1 asset-reference objects: it declares
+image/document expected input and asset-field mapping policy, while Task 1 and
+future runtime handling govern actual uploaded references.
+
+Presentation metadata is recursively checked after keys are normalized by
+lowercasing and removing non-alphanumeric separators. Exact reserved keys reject
+hidden reasoning, clinical or Trust decisions, execution directives,
+credentials and generic tokens, authorization headers, live adapters and
+provider clients. This is not a substring ban: declarative fields such as
+`adapterPolicy`, `tokenPolicy`, `migrationAdapterId`, `providerNeutral` and
+`runtimeResponsibility` remain valid.
+
+Fallbacks must share a Flow, bind their scene within that shared Flow, preserve
+answer-kind compatibility unless explicitly noninteractive, share a
+Channel/device path, preserve every compared privacy and safety policy, and
+remain acyclic. Deprecated and retired Families and Definitions cannot be
+current. Voice aliases are locale-neutral; voice-enabled options require
+complete bounded aliases or an explicit canonical-localized-label fallback.
+
+Telephone-only definitions reject touch, capture, upload, keyboard, visual UI
+instructions, screen-required slots and captions, and require spoken,
+repeatable, voice-compatible interaction. Preventive Health interruption,
+resume, restored progress and scene cleanup are represented. Medication
+outbound call, Emergency telephone-only delivery and Notification Resume
+push-to-voice remain explicitly deferred until their frozen Task 3 Flows add
+the required Channel/trigger/scene semantics.
+
+`parsePresentationRegistry` and `validatePresentationEventMapping` expose typed
+fixed-message failures. Direct low-level Zod schemas may return Zod errors when
+used for schema composition.
+
+The registry contains no React components, callbacks, Tool execution, memory
+writes, provider payloads or voice-provider IDs. It is not imported by
+production runtime code. A later approved integration may allow the Central
+Orchestrator and Channel Adapters to interpret it. The model, initial families,
+reference experiences and extension procedure are documented in
+`docs/PRESENTATION_REGISTRY.md`.

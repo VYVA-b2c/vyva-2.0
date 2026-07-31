@@ -1548,6 +1548,50 @@ Actual table migrations should follow current numbered SQL naming. A push subscr
 - **Runtime:** none. A later Central Orchestrator compatibility task may
   interpret approved catalogue definitions behind a feature flag.
 
+### Task 3.5 — Canonical versioned Presentation Registry
+
+- **Scope:** inert, validated, provider-neutral presentation families and
+  versioned Flow-scene presentation definitions.
+- **Affected:** new `shared/orchestration/presentationRegistry.ts`, its
+  fixtures/tests, additive orchestration error vocabulary,
+  `docs/PRESENTATION_REGISTRY.md` and orchestration documentation references.
+- **Must not touch:** runtime routing, Central Orchestrator implementation,
+  React screens/components, voice or AI integrations, APIs, database,
+  providers, service workers or feature flags.
+- **Acceptance:** stable versioned IDs; Task 1 event/expected-input reuse; Task
+  2 semantic UI-instruction reuse; Task 3 Flow, scene and Channel references;
+  complete action-bound or explicitly passive event mappings; discriminated,
+  bounded normalized-answer intent; canonical multimodal option equivalence;
+  voice/screen synchronization; accessibility, localization, privacy, safety,
+  telephone-only device, Flow-coherent fallback and design-reference
+  validation; complete privacy/safety fallback non-downgrade; independent
+  required initial Family and Task 2 UI-instruction lists; six accurately
+  classified reference experiences; Presentation-specific recursive metadata
+  denylist; bounded inert data only. Metadata keys are lowercased and stripped
+  of non-alphanumeric separators before exact reserved-key matching. Explicit
+  hidden-reasoning, decision, execution, credential/token,
+  authorization-header, live-adapter and provider-client keys are rejected,
+  while declarative policy and identifier fields remain valid; this is not a
+  substring ban.
+- **Reference-scenario boundary:** Preventive Health interruption, resume,
+  restored progress and scene cleanup are represented against the existing
+  `health.preventive_check.main` scene. Medication-specific outbound call is
+  deferred until a future Task 3 Medication revision declares the
+  `telephone` Channel, `outbound_call` trigger and compatible scene.
+  Emergency telephone-only presentation is deferred until a future Task 3
+  Safety revision adds `telephone` and a compatible continuation scene.
+  Notification Resume push-to-voice is deferred until a future Task 3
+  Engagement revision adds voice/telephone continuation semantics. The generic
+  `engagement.outbound_call` Flow does not prove domain-specific coverage.
+- **Validation boundary:** public typed parsers return fixed-message
+  `OrchestrationContractError` failures. Direct low-level Zod schema use may
+  return Zod errors. Task 3.5 declares image/document expected-input and
+  asset-field mapping policy but does not contain or directly validate Task 1
+  uploaded asset references.
+- **Rollback:** remove the unused registry files and documentation references.
+- **Runtime:** none. Rendering, delivery and Central Orchestrator interpretation
+  require a later separately approved integration task.
+
 ### Task 4 — Preventive Health flow definition behind feature flag
 
 - **Scope:** declarative flow definition and specialist adapter using existing prevention/check-in services; pilot off.
