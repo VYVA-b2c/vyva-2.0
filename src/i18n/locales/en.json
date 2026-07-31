@@ -698,7 +698,107 @@
       "conversationsSub": "Daily highlights from your chats",
       "gdprFooter": "Changes are saved automatically. Protected under GDPR.",
       "brainCoachAccessUpdated": "Brain Coach access updated",
-      "brainCoachAccessUpdatedDesc": "This care team member's Brain Coach permissions were saved."
+      "brainCoachAccessUpdatedDesc": "This care team member's Brain Coach permissions were saved.",
+      "hero": {
+        "kicker": "Privacy and consent",
+        "description": "Choose what VYVA may use and exactly what your approved care team can see.",
+        "youDecide": "You decide",
+        "careTeamAccess": "Care-team access",
+        "gdprProtected": "GDPR protected"
+      },
+      "brainCoach": {
+        "title": "Brain Coach caregiver access",
+        "description": "Decide what each approved caregiver can see or control in Brain Coach.",
+        "loading": "Loading Brain Coach access...",
+        "loadErrorTitle": "Brain Coach access could not be loaded",
+        "seniorOnly": "Only the senior can change these permissions.",
+        "emptyTitle": "No active caregivers yet.",
+        "emptyDescription": "Invite a caregiver or family member before granting Brain Coach access.",
+        "saveError": "Brain Coach access could not be saved.",
+        "updateError": "This permission could not be updated.",
+        "grant": "Grant Brain Coach access",
+        "revoke": "Remove Brain Coach access",
+        "for": "for {{name}}",
+        "saving": "Saving...",
+        "status": {
+          "noAccess": "No access",
+          "controlsEnabled": "Controls enabled",
+          "summaryOnly": "Summary only"
+        },
+        "permissions": {
+          "viewSummary": {
+            "label": "View Brain Coach summary",
+            "description": "Current streak, plan completion, recent domains, and recent activities."
+          },
+          "managePlanPreferences": {
+            "label": "Manage plan preferences",
+            "description": "Focus domains, excluded activities, session length, and weekly goal."
+          },
+          "manageSchedule": {
+            "label": "Manage schedule",
+            "description": "Pause or resume Brain Coach rhythm and training times."
+          },
+          "sendNudges": {
+            "label": "Send in-app nudges",
+            "description": "Gentle Brain Coach reminders inside VYVA only."
+          },
+          "previewPlan": {
+            "label": "Preview plan",
+            "description": "See proposed Brain Coach activities without changing today's plan."
+          }
+        }
+      },
+      "careTeam": {
+        "memberFallback": "Care team member",
+        "loading": "Loading care team...",
+        "loadErrorTitle": "Care-team sharing could not be loaded",
+        "loadErrorDescription": "Check your connection and try again.",
+        "emptyTitle": "No care-team members yet.",
+        "emptyDescription": "Add a trusted person, then choose what they may receive or view.",
+        "addMember": "Add care-team member",
+        "sharingSource": "Sharing permissions",
+        "sharingAria": "{{permission}} for {{name}}",
+        "shared": "Shared",
+        "notShared": "Not shared"
+      },
+      "sharingPermissions": {
+        "dailyDigest": {
+          "label": "Daily wellbeing summary",
+          "description": "Daily wellbeing and care highlights."
+        },
+        "safetyAlerts": {
+          "label": "Safety alerts",
+          "description": "Important safety events and urgent check-ins."
+        },
+        "healthUpdates": {
+          "label": "Health updates",
+          "description": "Health changes and wellbeing alerts."
+        },
+        "moodUpdates": {
+          "label": "Mood updates",
+          "description": "Mood and daily wellbeing changes."
+        },
+        "medicationAlerts": {
+          "label": "Medication alerts",
+          "description": "Medication reminders and missed-dose alerts."
+        },
+        "caregiverDashboard": {
+          "label": "Caregiver dashboard",
+          "description": "Read-only access to the caregiver dashboard."
+        },
+        "healthReports": {
+          "label": "Health reports",
+          "description": "Reports shared from the senior profile."
+        },
+        "vitalSigns": {
+          "label": "Vital signs",
+          "description": "Vitals shared from health tracking."
+        },
+        "conversationSummaries": {
+          "label": "Conversation summaries",
+          "description": "Daily highlights from conversations."
+        }
+      }
     },
     "account": {
       "title": "My account",
@@ -1769,6 +1869,77 @@
         "title": "Provider updated",
         "description": "{{name}} was saved to your trusted providers.",
         "fallbackName": "This provider"
+      }
+    },
+    "allergies": {
+      "title": "Allergies",
+      "kicker": "Important alerts",
+      "description": "Add medicines, foods, or materials VYVA should remember before reminders, concierge help, or an emergency.",
+      "badges": {
+        "medicines": "Medicines",
+        "foods": "Foods",
+        "emergencyReady": "Emergency ready"
+      },
+      "addByVoice": "Add by voice",
+      "addByVoiceDescription": "Say what you react to. VYVA will add it to the list.",
+      "nonePrompt": "No allergies to add?",
+      "noneDescription": "Choose this if there are no known allergies right now.",
+      "noneButton": "No known allergies",
+      "saveError": "Could not save allergies",
+      "remove": "Remove {{allergy}}",
+      "empty": "No allergies added yet",
+      "inputPlaceholder": "Type an allergy and press Enter or Add",
+      "add": "Add",
+      "commonHeading": "Common allergens - tap to add",
+      "saving": "Saving...",
+      "save": "Save allergies",
+      "skip": "Skip for now",
+      "common": {
+        "penicillin": "Penicillin",
+        "aspirin": "Aspirin",
+        "ibuprofen": "Ibuprofen",
+        "sulfaDrugs": "Sulfa drugs",
+        "codeine": "Codeine",
+        "latex": "Latex",
+        "peanuts": "Peanuts",
+        "treeNuts": "Tree nuts",
+        "shellfish": "Shellfish",
+        "eggs": "Eggs",
+        "milkDairy": "Milk / Dairy",
+        "wheatGluten": "Wheat / Gluten",
+        "soy": "Soy",
+        "beeStings": "Bee stings"
+      },
+      "voice": {
+        "kicker": "Voice allergy setup",
+        "title": "Tell VYVA your allergies",
+        "subtitle": "Speak naturally. You can review everything before it is saved.",
+        "close": "Close",
+        "connecting": "Connecting...",
+        "speaking": "Speaking",
+        "listening": "Listening",
+        "tapToStart": "Tap to start",
+        "micUnavailableTitle": "Microphone unavailable",
+        "micUnavailableDescription": "Allow microphone access in your browser settings, then try again.",
+        "tabs": {
+          "add": "Add allergies",
+          "ask": "Ask a question"
+        },
+        "identifying": "Identifying allergies...",
+        "example": "For example:",
+        "examplePhrase": "\"I am allergic to penicillin and shellfish.\"",
+        "parseError": "VYVA could not identify an allergy. Please try again.",
+        "tryAgain": "Try again",
+        "heardTitle": "VYVA heard",
+        "noneDetected": "No allergies detected yet.",
+        "addOne": "Add allergy",
+        "addMany": "Add {{count}} allergies",
+        "stopIdentify": "Stop",
+        "startSpeaking": "Start speaking",
+        "askDescription": "Ask a general question about allergies. VYVA provides general information, not a diagnosis.",
+        "disclaimer": "VYVA offers general guidance only. For severe symptoms or trouble breathing, contact emergency services now.",
+        "stop": "Stop",
+        "askQuestion": "Ask question"
       }
     }
   },
