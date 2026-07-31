@@ -1523,14 +1523,30 @@ Actual table migrations should follow current numbered SQL naming. A push subscr
 - **Acceptance:** rejects direct-execution fields, mismatched request ID, invalid tool/memory proposals and safety override.
 - **Rollback:** remove unused contract.
 
-### Task 3 — Orchestrator compatibility shell around existing router
+### Task 3 — Canonical versioned Flow catalogue
 
-- **Scope:** feature-flagged/shadow façade invoking unchanged current decision path.
-- **Affected:** new orchestrator files, minimal router mount/handler seam, tests.
-- **Must not touch:** agent mappings, dynamic-variable content, safety classifier, client.
-- **Acceptance:** golden parity for all domains/errors; safety always first; flag off identical.
-- **Observability:** comparison event without sensitive payload.
-- **Rollback:** flag off/direct legacy handler.
+- **Scope:** inert, validated registry of supported Flows, assessment subflows,
+  reusable capabilities, ownership, versions and declarative safety, consent,
+  evidence, memory, UI, outcome, follow-up, interruption and compatibility
+  policies.
+- **Affected:** `shared/orchestration/flowCatalogue.ts`, its fixtures/tests,
+  orchestration error vocabulary, `docs/FLOW_CATALOGUE.md` and references in
+  architecture documentation.
+- **Must not touch:** runtime routing, Central Orchestrator implementation,
+  Specialists, agent mappings, APIs, database, providers, client or feature
+  flags.
+- **Acceptance:** all required initial Flow/capability IDs are present; stable
+  IDs and semantic versions validate; references and cycles are checked; Task 1
+  trigger/lifecycle/input vocabulary is reused; visual and scam safety
+  boundaries are enforced; communication requirements follow declared triggers
+  rather than specific Flow IDs; caregiver/operator initiator semantics,
+  local scene/outcome uniqueness, terminal-outcome continuation rules and
+  disjoint Tool declarations are enforced; extension metadata is bounded plain
+  JSON and rejects credentials, executable values, provider clients and class
+  instances; no executable/provider/React data is accepted.
+- **Rollback:** remove the unused catalogue files and documentation references.
+- **Runtime:** none. A later Central Orchestrator compatibility task may
+  interpret approved catalogue definitions behind a feature flag.
 
 ### Task 4 — Preventive Health flow definition behind feature flag
 

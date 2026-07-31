@@ -16,6 +16,10 @@ orchestrator. It is deliberately not imported by production runtime code.
   proposal, UI-instruction and validation boundary.
 - `specialistFixtures.ts` supplies synthetic Health, Safety, completion,
   blocked, failure and proposed-action examples.
+- `flowCatalogue.ts` defines the canonical versioned registry of supported
+  Flows, subflows, capabilities and declarative policies.
+- `flowCatalogueFixtures.ts` supplies representative catalogue entries and
+  future-extension fixtures.
 
 Later channel adapters may translate existing voice, canvas, touch, scheduler,
 provider, caregiver, and operator signals into `InteractionEvent`. A future
@@ -207,3 +211,39 @@ no provider-specific command belongs in this contract.
 Task 2 remains disconnected from runtime. Patch acceptance, Tool execution,
 state persistence and delivery remain future Central Orchestrator
 responsibilities.
+
+## Canonical Flow catalogue
+
+Task 3 adds the inert `VYVA_FLOW_CATALOGUE`. Task 1 defines interaction and
+Flow-state contracts; Task 2 defines Specialist proposals; Task 3 defines which
+Flows exist and the declarative policies that constrain them. The full registry,
+versioning policy, current Flow/capability tables, visual and scam boundaries,
+and extension procedure are documented in `docs/FLOW_CATALOGUE.md`.
+
+Catalogue definitions directly reuse Task 1 triggers, modalities, lifecycle
+states and expected-input kinds. They contain stable IDs and semantic versions,
+one owning Specialist, structured references, safety/consent/evidence/memory
+policies, semantic UI scenes, outcomes, follow-up, interruption, resumption and
+compatibility metadata.
+
+Capabilities are provider-neutral support contracts. They cannot start a Flow,
+speak, diagnose, execute escalation, write memory or choose an outcome. The
+catalogue contains no runtime functions, callbacks, provider instances or React
+components and is not imported by production runtime code. A future Central
+Orchestrator may interpret approved definitions; Specialists propose and the
+Central Orchestrator decides.
+
+Catalogue validation is policy-driven rather than keyed to particular Flow IDs.
+Any definition declaring a `push` or `outbound_call` trigger must also declare
+the matching Channel, capability and consent requirement. Caregiver- and
+operator-owned definitions must declare their corresponding initiator trigger.
+Scene IDs and outcome IDs are unique within a Flow; required and optional Tool
+sets are individually unique and disjoint; and terminal outcomes cannot point
+directly to another scene or Flow.
+
+Extension metadata is bounded, plain JSON data only. Credential-like keys,
+provider clients, class instances, executable values and React implementations
+are rejected at any nesting level. Trust outcomes use the explicit
+`likely_scam`, `suspicious`, `insufficient_evidence` or
+`no_obvious_indicators` classification vocabulary. The last classification is
+not a guarantee of safety, and guaranteed-safe Trust outcomes are invalid.
