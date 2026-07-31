@@ -12,6 +12,10 @@ orchestrator. It is deliberately not imported by production runtime code.
 - `assets.ts` defines bounded, opaque, provider-neutral asset references.
 - `fixtures.ts` supplies representative event, state, transition, and
   spoken/tapped/typed, tool-result and future asset-answer fixtures.
+- `specialist.ts` defines the canonical internal Specialist request, response,
+  proposal, UI-instruction and validation boundary.
+- `specialistFixtures.ts` supplies synthetic Health, Safety, completion,
+  blocked, failure and proposed-action examples.
 
 Later channel adapters may translate existing voice, canvas, touch, scheduler,
 provider, caregiver, and operator signals into `InteractionEvent`. A future
@@ -134,3 +138,72 @@ responsibilities.
 These contracts define architectural vocabulary only. They are not connected to
 the Central Orchestrator or any production runtime, API, route, screen,
 integration, workflow executor, database schema or migration.
+
+## Specialist boundary
+
+`SpecialistRequest` is the only approved input shape for a future Specialist.
+It contains correlation and Flow identity, normalized input, only the memory
+and domain context selected by the Central Orchestrator, deterministic safety
+status, consent decisions, available Tool descriptors, current UI context and
+channel metadata. Non-Safety Specialists require a completed deterministic
+emergency check.
+
+Specialist requests reuse the Task 1 trigger-source schema exactly:
+`user`, `push`, `outbound_call`, `caregiver`, `operator`, `schedule`, or
+`system`. No second Specialist trigger vocabulary exists. Event source identifies
+who emitted an event, modality identifies how input was expressed, and trigger
+source identifies what initiated the interaction; these concepts are distinct.
+
+`userId` and `sessionId` are always required. `profileId` is optional only for
+user-level Flows that have no selected household profile; profile-scoped Flows
+must provide it when a future Central Orchestrator constructs the request.
+
+`SpecialistResponse` is advisory. It can return an interpretation and response
+guidance, a discriminated provider-neutral UI instruction, and proposals for
+memory access, tools, Flow state, escalation or follow-up. It cannot speak,
+persist, notify, call a provider or execute an action. Hidden reasoning,
+credential-like fields, direct-execution fields and raw provider stacks are
+rejected at the boundary.
+
+`parseSpecialistRequest` and `parseSpecialistResponse` provide typed, safe
+structural failures. `validateSpecialistResponse(request, response)` additionally
+checks correlation, Specialist identity, status invariants, Tool availability,
+confirmation, consent, idempotency, allowed risk, memory policy constraints,
+escalation consent and Task 1 lifecycle transitions. The Central Orchestrator
+will remain the authority that accepts or rejects every proposal.
+
+A Flow update uses dedicated proposal fields. `nextLifecycleState` proposes the
+lifecycle transition; `expectedInput` is reserved for `waiting_for_user`;
+`pendingTool` is required for `waiting_for_tool` and reuses Task 1 metadata;
+`resumeMetadata` and `completionReference` carry their corresponding lifecycle
+data. Pending Tool metadata must correlate to an advertised Tool proposal. It
+records pending work only and never means that a Tool was executed.
+
+`domainStatePatch` contains only bounded Specialist-owned domain context. It
+cannot replace a complete Flow state or contain canonical lifecycle, identity,
+expected-input, pending-Tool, resume, completion, safety, consent, escalation or
+audit fields, including when nested. Invalid patches are rejected, never
+silently stripped. The Central Orchestrator alone may accept and apply these
+proposals.
+
+Specialists are internal bounded modules and are not necessarily ElevenLabs
+agents, hosted model personas or provider integrations. They never independently
+speak to the user. The Specialist proposes; the Central Orchestrator decides.
+
+Memory reads include purpose, necessity, sensitivity ceiling and an optional
+time range. Memory writes name a PostgreSQL, Mem0 or working-memory target and
+remain proposals; sensitive/restricted proposals require confirmation at this
+contract boundary, with fuller policy approval reserved for runtime. Tool
+proposals must use an advertised Tool, cannot weaken confirmation or consent,
+and must provide an idempotency key when required. Escalations and follow-ups
+are likewise proposals and never notifications or schedules.
+
+The UI instruction union intentionally starts with a small semantic vocabulary:
+choice, scale, text, measurement, image/document upload, summary, confirmation,
+progress and scene clearing. Channel Adapters will later translate these
+instructions into voice, PWA, telephone, touch, caregiver or operator behavior;
+no provider-specific command belongs in this contract.
+
+Task 2 remains disconnected from runtime. Patch acceptance, Tool execution,
+state persistence and delivery remain future Central Orchestrator
+responsibilities.

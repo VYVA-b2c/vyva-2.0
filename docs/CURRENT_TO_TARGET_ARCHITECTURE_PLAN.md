@@ -583,60 +583,54 @@ This layer is justified only when multiple migrated Flows have real shared coord
 
 ### Specialist request
 
-```ts
-type SpecialistRequest = {
-  requestId: string;
-  userId: string;
-  profileId: string;
-  sessionId: string;
-  flowId: string;
-  flowVersion: string;
-  currentState: string;
-  intent: { name: string; confidence: number };
-  userInput: unknown;
-  normalizedInput: { kind: string; value: unknown };
-  inputModality: "voice" | "touch" | "text" | "image" | "document" | "measurement" | "tool";
-  triggerSource: "user" | "push" | "outbound_call" | "caregiver" | "operator" | "schedule";
-  relevantMemory: Array<{ category: string; source: string; value: unknown; observedAt?: string }>;
-  domainContext: unknown;
-  safetyContext: { emergencyChecked: boolean; flags: string[] };
-  consentContext: { scopes: string[]; decisionId?: string };
-  previousAnswers: Record<string, unknown>;
-  currentQuestion?: { id: string; text: string; answerType: string };
-  availableTools: Array<{ id: string; requiresConfirmation: boolean }>;
-  UIContext: { route?: string; sceneId?: string; visibleOptions?: string[] };
-  locale: string;
-  timezone: string;
-  channel: string;
-  metadata: Record<string, unknown>;
-};
-```
+The canonical `SpecialistRequest` is implemented and documented in
+`shared/orchestration/specialist.ts`. It carries request/correlation identity,
+Specialist and version identity, the Task 1 Flow identity and lifecycle state,
+safe user input plus normalized input, intent, modality and trigger, selected
+memory and domain context, deterministic safety result, explicit consent
+decisions, prior answers/current expected input, available Tool descriptors,
+UI context, locale/timezone and Channel metadata. Non-Safety Specialists cannot
+be invoked until the deterministic emergency check has completed.
+`userId` and `sessionId` are required; `profileId` is optional only for a
+user-level Flow without a selected household profile.
+
+The request reuses the Task 1 trigger-source schema without defining another
+vocabulary: `user`, `push`, `outbound_call`, `caregiver`, `operator`, `schedule`
+and `system`. Source, modality and trigger source remain separate concepts:
+source is the emitter, modality is the input form, and trigger source is the
+interaction initiator.
 
 ### Specialist response
 
-```ts
-type SpecialistResponse = {
-  requestId: string;
-  specialist: string;
-  status: "answered" | "needs_information" | "proposed_action" | "complete" | "blocked";
-  interpretation: string;
-  confidence: number;
-  missingInformation: string[];
-  nextQuestion?: { id: string; purpose: string; answerType: string; options?: unknown[] };
-  responseGuidance: { facts: string[]; tone?: string; prohibitedClaims?: string[] };
-  UIInstructions: Array<{ type: string; id: string; payload: unknown }>;
-  memoryReadsRequested: Array<{ category: string; reason: string }>;
-  memoryWritesProposed: Array<{ category: string; value: unknown; sensitivity: string; expiry?: string }>;
-  proposedToolCalls: Array<{ toolId: string; arguments: unknown; idempotencyKey?: string }>;
-  riskLevel: "none" | "low" | "medium" | "high" | "emergency";
-  safetyFlags: string[];
-  escalation?: { type: string; reason: string; target?: string };
-  flowStateUpdate: { state: string; patch: Record<string, unknown> };
-  completionResult?: { outcome: string; summary: string };
-  followUpRecommendation?: { purpose: string; dueAt?: string; channel?: string };
-  auditMetadata: Record<string, unknown>;
-};
-```
+The canonical `SpecialistResponse` has status-specific invariants for
+`answered`, `needs_information`, `proposed_action`, `complete`, `blocked`,
+`escalated` and `failed`. It returns safe interpretation/response guidance and
+may propose discriminated provider-neutral UI instructions, memory reads and
+writes, Tool calls, one Task 1 lifecycle transition, escalation, completion and
+follow-up. Correlation, Tool availability/confirmation/consent/idempotency/risk,
+memory policy, escalation consent and lifecycle legality are validated against
+the originating request. Hidden reasoning, raw provider stacks, credentials
+and direct-execution fields are rejected.
+
+Specialists are internal modules, not synonymous with ElevenLabs agents. They
+do not independently speak, execute Tools, write memory, contact caregivers or
+operators, or schedule follow-ups. Memory, Tool, escalation and follow-up
+outputs are proposals only; the Central Orchestrator remains the global policy
+and execution authority.
+
+Flow updates use dedicated proposal fields. `waiting_for_user` requires the
+Task 1 expected-input contract. `waiting_for_tool` requires Task 1 pending-Tool
+metadata correlated by Tool ID and proposal ID to a Tool in
+`proposedToolCalls`; this metadata represents pending work, not execution.
+Pending Tool metadata is prohibited in other lifecycle states.
+
+Specialists cannot replace canonical Flow state. `domainStatePatch` is a
+bounded, recursively checked patch for Specialist-owned domain context only.
+Lifecycle, expected input, pending Tool, resume and completion data use their
+dedicated fields. Identity, safety, consent, escalation and audit fields are
+Orchestrator-owned and are rejected inside the patch. The Central Orchestrator
+alone accepts, rejects or applies the proposal. Task 2 remains disconnected
+from runtime.
 
 Rules:
 
@@ -647,76 +641,12 @@ Rules:
 - it proposes memory writes rather than performing them;
 - the Central Orchestrator validates schema, request ID, state transition, risk, tools, consent, and safety before accepting any field.
 
-### Health request example
+### Contract examples
 
-```json
-{
-  "requestId": "req-01",
-  "userId": "user-123",
-  "profileId": "profile-123",
-  "sessionId": "session-01",
-  "flowId": "health.preventive-check",
-  "flowVersion": "1",
-  "currentState": "asking_energy",
-  "intent": { "name": "preventive_health_check", "confidence": 0.96 },
-  "userInput": "A bit tired",
-  "normalizedInput": { "kind": "energy_level", "value": 2 },
-  "inputModality": "voice",
-  "triggerSource": "user",
-  "relevantMemory": [
-    { "category": "profile", "source": "postgres", "value": { "preferredName": "Ana" } },
-    { "category": "recent_checkin", "source": "postgres", "value": { "lastCompletedDaysAgo": 2 } }
-  ],
-  "domainContext": { "preventionFocusAvailable": true },
-  "safetyContext": { "emergencyChecked": true, "flags": [] },
-  "consentContext": { "scopes": ["health_check", "structured_health_write"] },
-  "previousAnswers": {},
-  "currentQuestion": { "id": "energy", "text": "How is your energy today?", "answerType": "scale_1_5" },
-  "availableTools": [{ "id": "save_checkin", "requiresConfirmation": true }],
-  "UIContext": { "route": "/health/check-in", "sceneId": "energy", "visibleOptions": ["1", "2", "3", "4", "5"] },
-  "locale": "en",
-  "timezone": "Europe/Madrid",
-  "channel": "voice_app",
-  "metadata": {}
-}
-```
-
-### Health response example
-
-```json
-{
-  "requestId": "req-01",
-  "specialist": "health",
-  "status": "needs_information",
-  "interpretation": "The user reports lower-than-usual energy; no emergency signal is present.",
-  "confidence": 0.9,
-  "missingInformation": ["sleep_quality"],
-  "nextQuestion": {
-    "id": "sleep_quality",
-    "purpose": "Distinguish a temporary low-energy day from a recurring wellbeing pattern.",
-    "answerType": "single_choice",
-    "options": ["very_well", "well", "poorly", "very_poorly", "not_sure"]
-  },
-  "responseGuidance": {
-    "facts": ["Acknowledge the low energy without diagnosing.", "Ask one question about sleep."],
-    "tone": "calm and supportive",
-    "prohibitedClaims": ["diagnosis", "caregiver notified"]
-  },
-  "UIInstructions": [{
-    "type": "choice_question",
-    "id": "sleep_quality",
-    "payload": { "options": ["Very well", "Well", "Poorly", "Very poorly", "Not sure"] }
-  }],
-  "memoryReadsRequested": [],
-  "memoryWritesProposed": [],
-  "proposedToolCalls": [],
-  "riskLevel": "low",
-  "safetyFlags": [],
-  "flowStateUpdate": { "state": "asking_sleep", "patch": { "energy_level": 2 } },
-  "followUpRecommendation": null,
-  "auditMetadata": { "ruleSet": "preventive-check-v1" }
-}
-```
+Synthetic Health, Safety, completion, blocked, failed and proposed-action
+examples live in `shared/orchestration/specialistFixtures.ts` and are validated
+by `shared/orchestration/specialist.test.ts`. They contain no production user
+data and are not imported by runtime code.
 
 ---
 

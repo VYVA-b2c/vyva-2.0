@@ -154,6 +154,7 @@ export const INTERACTION_TRIGGER_SOURCES = [
 export type InteractionEventSource = typeof INTERACTION_EVENT_SOURCES[number];
 export type InteractionModality = typeof INTERACTION_MODALITIES[number];
 export type InteractionTriggerSource = typeof INTERACTION_TRIGGER_SOURCES[number];
+export const interactionTriggerSourceSchema = z.enum(INTERACTION_TRIGGER_SOURCES);
 
 export const EVENT_TYPE_GROUPS = {
   userInput: USER_INPUT_EVENT_TYPES,
@@ -393,7 +394,7 @@ export const interactionEventSchema = z.object({
   flowVersion: z.string().min(1).optional(),
   channel: z.string().min(1),
   modality: z.enum(INTERACTION_MODALITIES),
-  triggerSource: z.enum(INTERACTION_TRIGGER_SOURCES),
+  triggerSource: interactionTriggerSourceSchema,
   correlationId: z.string().min(1),
   causationId: z.string().min(1).optional(),
   payload: eventPayloadSchema,
