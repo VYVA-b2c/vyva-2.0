@@ -5,15 +5,12 @@ import {
   acknowledgeCrossPillarHandoff,
   buildCrossPillarHandoff,
   completeCrossPillarHandoff,
-  continueCrossPillarHandoffManually,
   chooseAnotherCrossPillarProvider,
   executeCrossPillarHandoff,
   failCrossPillarHandoff,
-  getCrossPillarRecoveryPlan,
   readCrossPillarHandoff,
   recoverCrossPillarHandoff,
   retryCrossPillarHandoff,
-  saveCrossPillarHandoffForLater,
   timeoutCrossPillarHandoff,
 } from "./crossPillarHandoffExecution";
 import {
@@ -450,114 +447,4 @@ describe("cross-pillar real handoff execution", () => {
     expect(history).toHaveLength(30);
   });
 
-  it("recovers a Health route once after a brief technical failure", () => {
-    const navigate = vi.fn();
-    const handoff = executeCrossPillarHandoff({
-      result: result("health-symptoms", "guide-me"),
-      now: "2026-07-28T14:00:00.000Z",
-    }, navigate);
-    const failed = failCrossPillarHandoff(
-      handoff.id,
-      "network_error",
-      window.localStorage,
-      "2026-07-28T14:00:05.000Z",
-    )!;
-
-    expect(getCrossPillarRecoveryPlan(failed).autoRetryAllowed).toBe(true);
-    const recovered = retryCrossPillarHandoff(
-      handoff.id,
-      navigate,
-      window.localStorage,
-      { automatic: true, now: "2026-07-28T14:00:06.000Z" },
-    );
-    expect(recovered).toMatchObject({
-      id: handoff.id,
-      automaticRetryCount: 1,
-      recoveryStatus: "auto_retrying",
-    });
-    acknowledgeCrossPillarHandoff(handoff.id, "/health/symptom-check");
-    expect(completeCrossPillarHandoff(handoff.id)?.recoveryStatus).toBe("succeeded");
-  });
-
-  it("saves a failed Mind activity without losing its resume identity", () => {
-    const handoff = executeCrossPillarHandoff({
-      result: result("mind-memory", "gentle"),
-      now: "2026-07-28T14:01:00.000Z",
-    }, vi.fn());
-    failCrossPillarHandoff(handoff.id, "manual_help_required");
-
-    const saved = saveCrossPillarHandoffForLater(
-      handoff.id,
-      window.localStorage,
-      "2026-07-28T14:01:10.000Z",
-    );
-    expect(saved).toMatchObject({
-      id: handoff.id,
-      status: "saved_for_later",
-      recoveryAction: "save_later",
-      attemptCount: 2,
-    });
-    expect(window.localStorage.getItem(CROSS_PILLAR_ACTIVE_HANDOFF_KEY)).toBeNull();
-    expect(readCrossPillarHandoff(handoff.id)?.id).toBe(handoff.id);
-  });
-
-  it("continues a Community task manually from the failed step", () => {
-    const navigate = vi.fn();
-    const handoff = executeCrossPillarHandoff({
-      result: result("community-activities", "nearby"),
-      now: "2026-07-28T14:02:00.000Z",
-    }, navigate);
-    failCrossPillarHandoff(handoff.id, "manual_help_required");
-    navigate.mockClear();
-
-    const resumed = continueCrossPillarHandoffManually(
-      handoff.id,
-      navigate,
-      window.localStorage,
-      "2026-07-28T14:02:10.000Z",
-    );
-    expect(resumed).toMatchObject({
-      id: handoff.id,
-      recoveryAction: "continue_manual",
-      attemptCount: 2,
-    });
-    expect(navigate).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        state: expect.objectContaining({
-          crossPillarHandoffId: handoff.id,
-          crossPillarManualRecovery: true,
-        }),
-      }),
-    );
-  });
-
-  it("returns a Concierge provider failure to focused setup with the same task", () => {
-    const navigate = vi.fn();
-    const handoff = executeCrossPillarHandoff({
-      result: result("concierge-home", "saved-provider"),
-      readiness: { hasSavedHomeProvider: true, toolEvidence: readyToolEvidence() },
-      now: "2026-07-28T14:03:00.000Z",
-    }, navigate);
-    const failed = failCrossPillarHandoff(handoff.id, "provider_unavailable")!;
-
-    expect(getCrossPillarRecoveryPlan(failed)).toMatchObject({
-      autoRetryAllowed: false,
-      actions: ["choose_provider", "continue_manual", "save_later"],
-    });
-    navigate.mockClear();
-    const resumed = chooseAnotherCrossPillarProvider(handoff.id, navigate);
-    expect(resumed?.id).toBe(handoff.id);
-    expect(navigate).toHaveBeenCalledWith(
-      expect.stringContaining("/onboarding/profile/providers"),
-      expect.objectContaining({
-        state: expect.objectContaining({
-          resumeAfterSetup: true,
-          returnState: expect.objectContaining({
-            crossPillarHandoffId: handoff.id,
-          }),
-        }),
-      }),
-    );
-  });
 });

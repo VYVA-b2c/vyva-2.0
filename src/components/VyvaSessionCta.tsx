@@ -8,6 +8,7 @@ import {
   type TranscriptEntry,
   useVyvaVoice,
 } from "@/hooks/useVyvaVoice";
+import { hasSeenVoiceOrbHint, rememberVoiceOrbHint } from "@/lib/voiceOrbHint";
 import { emitVoiceOverlayPresence } from "@/lib/voiceOverlayFocus";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
@@ -33,6 +34,7 @@ type VyvaSessionCtaProps = {
   visual?: "default" | "voiceRail" | "voiceOrb";
   voiceOrbDark?: boolean;
   voiceOrbSize?: number;
+  onFirstVoiceOrbActivation?: () => void;
 };
 
 type VoiceControls = {
@@ -116,6 +118,7 @@ export function VyvaSessionCta({
   visual = "default",
   voiceOrbDark = false,
   voiceOrbSize = 144,
+  onFirstVoiceOrbActivation,
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
   const {
@@ -135,6 +138,7 @@ export function VyvaSessionCta({
   } = voice;
   const [focusedOverlayRequested, setFocusedOverlayRequested] = useState(false);
   const [focusedOverlayHasStarted, setFocusedOverlayHasStarted] = useState(false);
+  const [showVoiceOrbHint, setShowVoiceOrbHint] = useState(() => !hasSeenVoiceOrbHint());
   const voiceStartOptions = useVoiceStartOptions(voiceAgentSlug, voiceDynamicVariables, autoStartListening);
 
   const isActive = status === "connected";
@@ -190,6 +194,12 @@ export function VyvaSessionCta({
     }
 
     if (canStartVoice && !canStartVoice()) return;
+
+    if (visual === "voiceOrb" && showVoiceOrbHint) {
+      setShowVoiceOrbHint(false);
+      rememberVoiceOrbHint();
+      onFirstVoiceOrbActivation?.();
+    }
 
     setFocusedOverlayHasStarted(false);
     setFocusedOverlayRequested(true);
