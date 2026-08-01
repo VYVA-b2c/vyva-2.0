@@ -3,8 +3,7 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
-import { ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
-import { Button } from "@/components/ui/button";
+import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
@@ -204,6 +203,7 @@ export default function AllergiesSection() {
     >
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
+          compact
           icon={AlertTriangle}
           title={t("onboarding.allergies.title", "Allergies")}
           kicker={t("onboarding.allergies.kicker", "Important alerts")}
@@ -348,25 +348,17 @@ export default function AllergiesSection() {
           </>
         )}
 
-        <div className="flex flex-col gap-2 pt-2">
-          <Button
-            data-testid="button-allergies-save"
-            onClick={handleSave}
-            disabled={saving || isLoading || !hasAllergySectionContent}
-            className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40"
-          >
-            {saving
-              ? t("onboarding.allergies.saving", "Saving...")
-              : t("onboarding.allergies.save", "Save allergies")}
-          </Button>
-          <button
-            data-testid="button-allergies-skip"
-            onClick={() => navigate("/onboarding/profile")}
-            className="py-2 text-center text-[15px] font-bold text-gray-500"
-          >
-            {t("onboarding.allergies.skip", "Skip for now")}
-          </button>
-        </div>
+        <ProfileCompletionBar
+          saving={saving}
+          onSave={handleSave}
+          disabled={isLoading || !hasAllergySectionContent}
+          saveLabel={t("onboarding.allergies.saveContinue", "Save and continue")}
+          savingLabel={t("onboarding.allergies.saving", "Saving...")}
+          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+          skipLabel={t("onboarding.allergies.skip", "Skip for now")}
+          onSkip={() => navigate("/onboarding/profile")}
+          testId="button-allergies-save"
+        />
       </div>
     </PhoneFrame>
   );

@@ -1,15 +1,15 @@
 // src/pages/onboarding/sections/MedicationsSection.tsx
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
-import { ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
-import { Button } from "@/components/ui/button";
+import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
-import { Trash2, Loader2, Plus, CheckCircle2, AlertCircle, Mic, Pill, Clock3, Utensils, Stethoscope, Sparkles, ShieldCheck, ChevronDown, ChevronUp, Pencil, Sun, Moon, Coffee, CalendarClock, BadgeCheck } from "lucide-react";
+import { Trash2, Loader2, Plus, CheckCircle2, AlertCircle, Mic, Pill, Clock3, Utensils, Stethoscope, Sparkles, ChevronDown, ChevronUp, Pencil, Sun, Moon, Coffee, CalendarClock, BadgeCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiFetch } from "@/lib/queryClient";
@@ -154,6 +154,7 @@ export default function MedicationsSection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const counterRef = useRef(1);
   const loadedRef = useRef(false);
   const initialMed = emptyMed("med-1");
@@ -168,7 +169,6 @@ export default function MedicationsSection() {
   const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
   const [expandedMedIds, setExpandedMedIds] = useState<Set<string>>(() => new Set([initialMed.id]));
   const [detailsOpenMedIds, setDetailsOpenMedIds] = useState<Set<string>>(() => new Set());
-  const [showMobileActionBar, setShowMobileActionBar] = useState(false);
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
@@ -180,13 +180,6 @@ export default function MedicationsSection() {
   useEffect(() => { noKnownMedicationsRef.current = noKnownMedications; }, [noKnownMedications]);
   useEffect(() => { busyRef.current = saving || autoSaving || adding || !!removingId; }, [saving, autoSaving, adding, removingId]);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
-  useEffect(() => {
-    const updateActionBar = () => setShowMobileActionBar(window.scrollY > 260);
-    updateActionBar();
-    window.addEventListener("scroll", updateActionBar, { passive: true });
-    return () => window.removeEventListener("scroll", updateActionBar);
-  }, []);
-
   const completePath = () => {
     const returnTo = searchParams.get("returnTo");
     return returnTo
@@ -483,9 +476,12 @@ export default function MedicationsSection() {
       <div className="flex flex-col gap-7 px-1 pb-28 pt-5 sm:px-2 sm:pb-5 md:px-3">
         <ProfileSectionHero
           icon={Pill}
-          title="Medications"
-          kicker="Voice-friendly setup"
-          description="Add the medicine name first. VYVA saves as you go, and the extra details help reminders feel clear and reliable."
+          title={t("onboarding.medications.title", "Medications")}
+          description={t(
+            "onboarding.medications.description",
+            "Add the medicines you take so VYVA can support reminders and safer conversations.",
+          )}
+          compact
           badges={[
             { label: "Autosaves", color: "green" },
             { label: "Voice option", color: "amber" },
@@ -502,16 +498,22 @@ export default function MedicationsSection() {
 
         <ProfileVoiceAction
           icon={Mic}
-          title="Add by voice"
-          description={'Say: "I take Metformin 500mg every morning." VYVA will fill in the details.'}
+          title={t("onboarding.medications.addByVoice", "Add by voice")}
+          description={t(
+            "onboarding.medications.addByVoiceDescription",
+            "Tell VYVA which medicines you take. It will fill in the details.",
+          )}
           onClick={() => setVoiceModalOpen(true)}
           testId="button-meds-voice"
           tone="amber"
         />
 
         <ProfileNoneOption
-          title="No current medications"
-          description="Choose this if there are no current medicines to add."
+          title={t("onboarding.medications.noneKnown", "No current medications")}
+          description={t(
+            "onboarding.medications.noneKnownDescription",
+            "Choose this if there are no current medicines to add.",
+          )}
           selected={noKnownMedications}
           onClick={toggleNoKnownMedications}
           testId="button-meds-no-current"
@@ -747,13 +749,17 @@ export default function MedicationsSection() {
           </>
         )}
 
-        <div className={`fixed bottom-0 left-1/2 z-50 flex w-[min(100vw,410px)] -translate-x-1/2 flex-col gap-3 rounded-t-[28px] border-t border-[#EDE2D1] bg-[#FFFCF8] px-4 pb-3 pt-4 shadow-[0_-18px_40px_rgba(53,28,87,0.16)] transition duration-200 sm:sticky sm:bottom-0 sm:left-auto sm:z-20 sm:-mx-2 sm:w-auto sm:translate-x-0 sm:px-5 sm:opacity-100 ${showMobileActionBar ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-[120%] opacity-0 sm:pointer-events-auto"}`}>
-          <Button data-testid="button-meds-save" onClick={handleSave} disabled={busy || isLoading || !hasMedicationSectionContent} className="h-14 w-full gap-2 rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40">
-            {saving ? <Loader2 size={19} className="animate-spin" /> : <ShieldCheck size={19} />}
-            {saving ? "Saving..." : "Save medications"}
-          </Button>
-          <button data-testid="button-meds-skip" onClick={() => confirmNavigation("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
-        </div>
+        <ProfileCompletionBar
+          saving={saving || autoSaving}
+          onSave={handleSave}
+          disabled={adding || !!removingId || isLoading || !hasMedicationSectionContent}
+          saveLabel={t("onboarding.medications.saveContinue", "Save and continue")}
+          savingLabel={t("onboarding.medications.saving", "Saving...")}
+          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+          skipLabel={t("onboarding.medications.skip", "Skip for now")}
+          onSkip={() => confirmNavigation("/onboarding/profile")}
+          testId="button-meds-save"
+        />
       </div>
 
       <VoiceMedsModal
