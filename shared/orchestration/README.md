@@ -24,6 +24,11 @@ orchestrator. It is deliberately not imported by production runtime code.
   Flow-scene-bound Presentation Definitions.
 - `presentationRegistryFixtures.ts` supplies representative presentation,
   interruption, resume, evidence, emergency and telephone-only fixtures.
+- `orchestratorPolicy.ts` defines the inert Central Orchestrator policy request,
+  precedence, findings, adjudication, authorization, decision and audit
+  contracts.
+- `orchestratorPolicyFixtures.ts` supplies synthetic Preventive Health,
+  Presentation, request-more-information, Tool and rejection scenarios.
 
 Later channel adapters may translate existing voice, canvas, touch, scheduler,
 provider, caregiver, and operator signals into `InteractionEvent`. A future
@@ -308,3 +313,125 @@ production runtime code. A later approved integration may allow the Central
 Orchestrator and Channel Adapters to interpret it. The model, initial families,
 reference experiences and extension procedure are documented in
 `docs/PRESENTATION_REGISTRY.md`.
+
+## Central Orchestrator policy boundary
+
+Task 4 defines the canonical inert, request-aware Central Orchestrator policy
+validation contracts above Tasks 1–3.5.
+`parseOrchestratorPolicyEvaluationRequest` validates the event, active Flow,
+canonical references and current safety, consent, Channel, device, memory,
+Tool, escalation and audit contexts. `parseOrchestratorPolicyDecision`
+validates the declarative result. `validateOrchestratorPolicyDecision` verifies
+that the proposed result is legal for that exact request; it never determines
+the result itself.
+
+Policy stages cover ingress, Specialist invocation/response, proposal
+adjudication, Presentation and delivery approval, and safe failure.
+Deterministic safety has highest precedence, followed by consent/privacy,
+correlation and catalogue eligibility. Findings are safe policy facts, not
+hidden reasoning. Constraints may only narrow authority.
+
+Hardening makes approval bidirectional: every supplied plan has exactly one
+compatible adjudication and every approving adjudication has a real plan,
+source and finding. A closed verdict matrix prevents reject, defer, escalate
+and safe-fail from retaining incompatible routine approvals. Reject requires
+exactly one finding-backed `reject` adjudication for every actionable proposal
+across all eleven subject types; defer plans reference deferred adjudications or
+the system-owned routine-deferral directive. Nested
+safe-failure Flow updates use the normal request-aware Flow validator.
+
+Before-action consent covers Tools, evidence capture/retention, longitudinal
+comparison, memory/Mem0, disclosure, proactive delivery and outbound calls.
+Capture does not grant image retention, longitudinal comparison is separate,
+and clinician disclosure is request-source-target- and Channel-specific.
+Medication instructions resolve only from bounded request-authoritative
+instruction and issuer/source records; findings cannot manufacture provenance.
+Retention classification is a mandatory, strict, bounded request registry.
+Every relevant approved or confirmation-gated Tool, memory-write and evidence
+UI/Presentation subject resolves to exactly one source-bound descriptor;
+duplicates, unknown subjects and omissions fail. Descriptors declare evidence
+type, transient/retained/longitudinal processing, target, purpose, consent
+scope, notice, retention class and optional source references. Rejected
+proposals require no descriptor, and working-memory transient processing does
+not imply persistent retention.
+Escalation, follow-up no-response behavior, interruption, resume, explicit Flow
+switch and emergency preemption are checked against Task 3. Presentation
+approval is fixed to the active Channel/device/locale unless an inert,
+finding-backed switch authorization proves exact from/to values and applicable
+consent. Privacy/safety and voice/UI decisions cannot weaken Task 3.5;
+`interruptSpeechOnSubmit` is exact and required visual slots cannot disappear.
+Response facts,
+slots and localization keys must resolve; Tool schema/correlation and the
+one-pending-Tool limit are enforced; audit metadata excludes raw sensitive
+content, sensitive neutral-key values and exact normalized token keys.
+Medication instructions require care-plan provenance, an allowing policy
+finding and a disclaimer, with bounded directive-pattern defense in depth.
+Visual-health and Trust evidence limitations, and escalation language when a
+response accompanies escalation, require one-for-one policy finding/source
+traces.
+Tool Channel constraints are rejected because frozen Tool descriptors declare
+no Channel authority. Resume proof binds Flow/version, time and safety result.
+Active audit correlations include the current event, event correlation,
+evaluation and session references. Policy precedence is absolute; unused
+override declarations were removed.
+
+The validator optionally accepts a Flow catalogue snapshot only after Task 3
+validation. All current canonical 90 Flows deny memory. The seam supports
+contract tests and immutable future snapshots; production-positive memory
+authorization requires an additive Task 3 revision. Public parsers return typed
+fixed-message errors, while low-level schemas remain composition primitives.
+
+Tool, memory, escalation, Flow update, follow-up, Presentation and system
+directive approvals are explicitly non-executable. An approval is not a Tool
+result, memory write, sent notification, scheduled job, mutated Flow, rendered
+screen or spoken response. Audit records are declarative and are not persisted.
+
+The full contract, responsibility table, precedence, authorization rules,
+security boundary and extension procedure are documented in
+`docs/ORCHESTRATOR_POLICY_CONTRACTS.md`. Task 4 remains unimported by production
+runtime code.
+
+Ordinary Presentation delivery remains on the active scene. Direct tests use a
+canonical Flow with multiple individually valid scenes to distinguish an
+invalid ordinary A-to-B delivery, an approved A-to-B destination and a
+different-valid-scene mismatch. A next scene
+requires matching approved next-question and Flow-update proposals; a
+cross-Flow destination requires an explicit non-executable Flow-switch
+authorization. Direct self-reference is rejected for every reference form the
+Task 4 schema directly represents, without claiming general graph traversal.
+Audit minimization rejects deterministic labeled financial values before
+opaque-ID allowance. Financial and medication checks are bounded safeguards,
+not comprehensive moderation.
+
+Compatibility catalogues remain descriptive production data. Literal
+test-owned expectations and complete request/decision scenarios exercise all
+35 verdict/adjudication and all 49 stage/verdict pairs through the public
+request-aware validator. Unreachable ingress and pre-response verdicts are
+excluded rather than advertised as valid. Concrete rejection coverage spans all eleven
+subject types and tests omission plus every non-reject adjudication. Resume,
+finite-bound and representable direct-self-reference cases are tested
+directly; Task 4 does not claim general graph-cycle traversal.
+
+Consent and escalation authorization have separate independent behavioral
+proof. A literal 144-entry consent table covers 18 areas by 8 dimensions; 127
+applicable cases execute through both public parsers and the request-aware
+validator (18 pass and 109 fail), while 17 non-applicable pairs state why the dimension has no
+contract meaning. A literal 70-entry escalation table covers all five types by
+14 dimensions; 55 applicable cases execute through the same boundary (7 pass
+and 48 fail) and 15
+non-applicable pairs are explicit. Request-side scope, purpose, status, expiry,
+Channel, disclosure target and emergency-exception records are authoritative.
+Emergency exceptions identify an exact critical deterministic-safety finding,
+require the current deterministic result value to be `emergency`, use the
+active audit-session ID, and require that finding in the supplied decision
+audit record; matching only the current result ID is insufficient. Critical
+safety handling accepts either a direct `emergency` authorization or a
+fully correlated `clinician` authorization with a structured emergency basis.
+Ordinary clinician escalation remains separately consent-, purpose-, target-
+and Channel-bound. A clinician exception cannot create persistent consent or
+future disclosure authority, remains `nonExecutable: true`, and does not
+deliver escalation.
+Follow-up primary and fallback Channels require consent coverage. Escalation
+must correlate its Specialist proposal, Flow rule, target, Channel, consent,
+active escalation and safety basis where applicable. Catalogue cardinality
+alone is not authorization evidence.
