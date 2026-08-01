@@ -1227,13 +1227,16 @@ This decision does not prevent the future hierarchy. The initial Health Speciali
 
 ### Stage 0 — Documentation and contracts
 
-- **Objective:** approve boundaries, events, lifecycle, specialist/memory/proactive policies and ADRs.
+- **Objective:** approve boundaries, events, lifecycle, Specialist, Flow,
+  Presentation and Central Orchestrator policy contracts plus future
+  memory/proactive policies and ADRs.
 - **Reuse:** architecture assessment and current shared contract style.
 - **Files likely affected:** documentation only initially, including this plan and any approved cross-link from `docs/ARCHITECTURE_ASSESSMENT.md`.
 - **New files:** ADRs and `shared/orchestration/*` contract files after approval.
 - **Dependencies:** product decisions on first flow and channel policy.
 - **Flag:** none.
-- **Acceptance:** contracts validate all required event/state examples; no runtime import.
+- **Acceptance:** contracts validate required event/state, Specialist,
+  catalogue, Presentation and policy-decision examples; no runtime import.
 - **Tests:** type/schema fixtures.
 - **Observability:** define required fields.
 - **Rollback:** remove unused contract package.
@@ -1448,10 +1451,17 @@ shared/orchestration/
   events.ts
   fixtures.ts
   flowState.ts
+  flowCatalogue.ts
+  flowCatalogueFixtures.ts
+  orchestratorPolicy.ts
+  orchestratorPolicyFixtures.ts
+  presentationRegistry.ts
+  presentationRegistryFixtures.ts
+  proactiveEvents.ts
   README.md
   specialist.ts
+  specialistFixtures.ts
   uiInstructions.ts
-  proactiveEvents.ts
 
 shared/flows/health/
   preventiveCheck.ts
@@ -1504,7 +1514,7 @@ Actual table migrations should follow current numbered SQL naming. A push subscr
 
 ---
 
-## 16. First Five Implementation Tasks
+## 16. First Six Implementation Tasks
 
 ### Task 1 — Shared orchestration event and flow-state contracts
 
@@ -1592,15 +1602,96 @@ Actual table migrations should follow current numbered SQL naming. A push subscr
 - **Runtime:** none. Rendering, delivery and Central Orchestrator interpretation
   require a later separately approved integration task.
 
-### Task 4 — Preventive Health flow definition behind feature flag
+### Task 4 — Central Orchestrator policy contracts
 
-- **Scope:** declarative flow definition and specialist adapter using existing prevention/check-in services; pilot off.
-- **Affected:** new Health flow files, minimal wrappers around Health/check-in services, tests.
-- **Must not touch:** symptom triage, current unflagged UI, caregiver alert behavior.
-- **Acceptance:** user entry, questions, normalized answers, confirmation, structured completion; no external notification.
+- **Scope:** inert, typed, request-aware policy evaluation and decision
+  contracts above frozen Tasks 1–3.5; no runtime integration or behavior.
+- **Affected:** new `shared/orchestration/orchestratorPolicy.ts`, its
+  fixtures/tests, additive error vocabulary,
+  `docs/ORCHESTRATOR_POLICY_CONTRACTS.md` and orchestration documentation.
+- **Must not touch:** routes, APIs, database schema or migrations, React,
+  voice/AI/memory/provider integrations, service workers, schedulers, feature
+  flags, or frozen Task 1–3.5 semantics.
+- **Acceptance:** strict evaluation stages; canonical correlation; ordered
+  declarative precedence and finding compatibility; bidirectional
+  plan/adjudication completeness; a closed verdict matrix; subject-specific
+  narrowing constraints; deterministic safety and before-action consent
+  precedence; Flow interruption/resume/preemption; reduced-context Specialist
+  invocation; one-pending-Tool and descriptor matching; canonical escalation
+  and follow-up no-response policy; validated catalogue injection with
+  canonical zero-memory denial; non-downgradable Presentation privacy/safety
+  and voice/UI policy; traceable response facts/slots/localization; shared
+  request-aware safe-failure Flow validation; deterministic reference graphs;
+  reject-only rejection adjudications; referenced deferred subjects; active
+  Channel/device/locale binding with explicit inert switch authorization;
+  exact submit-interruption policy; medication-instruction provenance and
+  bounded phrase defense; separate capture, retention, longitudinal and
+  clinician-disclosure consent; resume revalidation proof; absolute precedence
+  with no unused override vocabulary; current event, evaluation and session
+  audit correlation; non-executable safe failure and exact minimized audit
+  correlation; bounded secure metadata with key- and value-level
+  sensitive-payload denial; subject-specific Channel constraints; public
+  fixed-message `OrchestrationContractError` failures; independently
+  maintained 35-pair verdict/adjudication and 49-pair stage/verdict matrices,
+  plus consent, escalation, resume, direct-self-reference and collection-bound
+  matrices with focused positive/negative contract tests; unreachable ingress
+  and pre-response verdicts are not advertised as valid; no
+  production runtime imports. Reject decisions cover every actionable
+  proposal. Medication and clinician authority resolve from request-side
+  source records. A required bounded retention-classification registry covers
+  every relevant approved or confirmation-gated Tool, memory-write and
+  evidence UI/Presentation source; duplicate, unknown and omitted
+  classifications fail. Concrete rejection tests cover all eleven subject
+  types. Direct canonical multi-scene tests distinguish ordinary scene
+  delivery, an approved next destination and a different valid destination.
+  Active, next-scene and cross-Flow Presentation
+  semantics require explicit correlated authorization.
+  Independent test-owned behavioral expectations cover all 144 consent
+  area/dimension pairs and all 70 escalation type/dimension pairs without
+  deriving expected outcomes from production catalogues. All 127 applicable
+  consent cases and 55 applicable escalation cases execute through the public
+  request parser, decision parser and request-aware validator; the remaining
+  17 and 15 pairs are explicitly non-applicable with reasons. Request-side
+consent remains authoritative for purpose, scope, status, expiry, Channel,
+target and emergency-exception basis. Emergency exceptions correlate an
+exact critical deterministic-safety finding to the current result ID, require
+the actual deterministic result value `emergency`, and correlate the finding
+to the active request audit session and supplied decision audit record.
+Result-ID correlation alone is insufficient. Critical safety handling accepts
+either a direct `emergency` authorization or a fully correlated, structured,
+target- and Channel-bound `clinician` emergency exception. Ordinary clinician
+escalation still requires normal clinician-disclosure consent; an exception
+does not create persistent consent or execute or deliver escalation. The
+independent escalation matrix keeps 70 entries and 55 applicable cases, now
+with 7 passing and 48 failing request-aware scenarios.
+  Follow-up covers primary and fallback Channels;
+  escalation correlates the Specialist proposal, Flow rule, target, Channel,
+  consent, active-escalation identity and safety evidence where applicable.
+- **Memory version boundary:** all canonical Task 3 Flows currently deny
+  memory. Positive contract tests use only Task 3-validated injected snapshots;
+  production-positive memory authorization requires a later additive Task 3
+  revision.
+- **Runtime:** none. A policy decision authorizes future work but does not
+  execute, persist, schedule, render, speak, notify, escalate or call a
+  provider.
+- **Rollback:** remove the unused Task 4 contracts, fixtures, tests and
+  documentation references.
+
+### Task 5 — Preventive Health flow implementation behind feature flag
+
+- **Scope:** declarative flow implementation and Specialist adapter using
+  existing prevention/check-in services; pilot off.
+- **Affected:** new Health flow files, minimal wrappers around Health/check-in
+  services, tests.
+- **Must not touch:** symptom triage, current unflagged UI, caregiver alert
+  behavior.
+- **Acceptance:** user entry, questions, normalized answers, confirmation and
+  structured completion; no external notification.
+- **Dependencies:** frozen Tasks 1–4 and a separately approved runtime
+  integration design.
 - **Rollback:** disable flag.
 
-### Task 5 — Proactive engagement contract and audit model
+### Task 6 — Proactive engagement contract and audit model
 
 - **Scope:** engagement events, consent-decision schema and additive audit migration; no sends.
 - **Affected:** shared proactive contracts, engagement audit service, reviewed migration, tests/docs.
