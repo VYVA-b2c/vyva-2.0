@@ -55,11 +55,11 @@ export function Toaster() {
 
         return (
           <Toast key={id} {...props} data-testid={isGuidance ? "toast-guidance" : undefined}>
-            <div className="flex min-w-0 items-start gap-3.5 pr-2">
-              <span className={`mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] ${tone.iconClassName}`}>
-                <Icon size={25} strokeWidth={2.4} />
+            <div className="flex min-w-0 flex-1 items-start gap-3 pr-1 sm:gap-3.5 sm:pr-2">
+              <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] sm:h-12 sm:w-12 sm:rounded-[18px] ${tone.iconClassName}`}>
+                <Icon className="h-[22px] w-[22px] sm:h-[25px] sm:w-[25px]" strokeWidth={2.4} />
               </span>
-              <div className="grid min-w-0 gap-1.5 pt-0.5">
+              <div className="grid min-w-0 flex-1 gap-1.5 pt-0.5">
                 {title && <ToastTitle className={tone.titleClassName}>{title}</ToastTitle>}
                 {description && <ToastDescription className={tone.descriptionClassName}>{description}</ToastDescription>}
               </div>

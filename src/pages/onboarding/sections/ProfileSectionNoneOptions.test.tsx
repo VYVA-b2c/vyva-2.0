@@ -129,6 +129,21 @@ describe("profile section reviewed-empty choices", () => {
     });
   });
 
+  it("keeps optional daily-life context compact until requested", async () => {
+    seedOnboardingState();
+    renderSection(<ConditionsSection />);
+
+    const dailyLifeButton = await screen.findByTestId("button-conditions-daily-life");
+    expect(dailyLifeButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Living situation")).not.toBeInTheDocument();
+
+    fireEvent.click(dailyLifeButton);
+
+    expect(dailyLifeButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Mobility")).toBeInTheDocument();
+    expect(screen.getByText("Living situation")).toBeInTheDocument();
+  });
+
   it("keeps medications incomplete until no current medications is selected", async () => {
     seedOnboardingState();
     renderSection(<MedicationsSection />);

@@ -14,15 +14,93 @@ import {
   specialistTransferFromToolCall,
   transitionForVoiceHomeIntent,
   toolResultForVoiceHomeIntent,
+  VOICE_COVERAGE_LANGUAGES,
+  VOICE_HOME_SUBFLOW_PILLARS,
+  VOICE_HOME_SUBFLOW_SAMPLE_PHRASES,
   voiceActionRegistryEntries,
+  type VoiceHomeSubflowId,
 } from "./voiceNavigation";
 
+const localizedSubflowCases = Object.entries(VOICE_HOME_SUBFLOW_SAMPLE_PHRASES).flatMap(
+  ([actionId, phrases]) => VOICE_COVERAGE_LANGUAGES.map((language) => ({
+    actionId: actionId as VoiceHomeSubflowId,
+    language,
+    phrase: phrases[language],
+    pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId as VoiceHomeSubflowId],
+  })),
+);
+
+const toolCallCases: Array<{
+  actionId: VoiceHomeSubflowId;
+  parameters: Record<string, string>;
+}> = [
+  { actionId: "health-symptoms", parameters: { action_type: "health.symptoms" } },
+  { actionId: "health-vitals", parameters: { action_type: "health.vitals" } },
+  { actionId: "health-meds", parameters: { action_type: "medication" } },
+  { actionId: "health-doctor", parameters: { action_type: "health.doctor_support" } },
+  { actionId: "health-prevention", parameters: { action_type: "health.prevention" } },
+  { actionId: "health-visual-scan", parameters: { action_type: "health.visual_scan" } },
+  { actionId: "mind-memory", parameters: { action_type: "brain.memory" } },
+  { actionId: "mind-reflexes", parameters: { action_type: "brain.reflex" } },
+  { actionId: "mind-focus", parameters: { action_type: "brain.focus" } },
+  { actionId: "mind-senses", parameters: { action_type: "brain.senses" } },
+  { actionId: "community-friends", parameters: { action_type: "social.friend" } },
+  { actionId: "community-experts", parameters: { action_type: "social.expert" } },
+  { actionId: "community-share", parameters: { action_type: "social.share" } },
+  { actionId: "community-activities", parameters: { action_type: "social.event" } },
+  { actionId: "concierge-home", parameters: { action_type: "concierge.home_service" } },
+  { actionId: "concierge-care", parameters: { action_type: "concierge.provider_contact" } },
+  { actionId: "concierge-order", parameters: { action_type: "concierge.shopping" } },
+  { actionId: "concierge-book", parameters: { action_type: "concierge.ride" } },
+];
+
 describe("voice navigation actions", () => {
+  it("defines exactly 18 actions and six canonical language samples per action", () => {
+    expect(Object.keys(VOICE_HOME_SUBFLOW_SAMPLE_PHRASES)).toHaveLength(18);
+    expect(VOICE_COVERAGE_LANGUAGES).toHaveLength(6);
+    expect(localizedSubflowCases).toHaveLength(108);
+  });
+
+  it.each(localizedSubflowCases)(
+    "maps $language phrase for $actionId to its exact visual action",
+    ({ actionId, phrase, pillar }) => {
+      expect(homeSubflowForVoiceUtterance(phrase)).toEqual({ actionId, pillar });
+    },
+  );
+
+  it.each(toolCallCases)(
+    "maps agent tool parameters to $actionId",
+    ({ actionId, parameters }) => {
+      expect(homeSubflowForVoiceToolCall(parameters)).toEqual({
+        actionId,
+        pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId],
+      });
+    },
+  );
+
+  it.each([
+    ["Book a doctor appointment", "health-doctor"],
+    ["I have chest pain and need a taxi", "health-symptoms"],
+    ["I feel dizzy and want to order groceries", "health-symptoms"],
+    ["Help me book a taxi", "concierge-book"],
+  ] as const)(
+    "uses safety-first precedence for ambiguous request %s",
+    (phrase, actionId) => {
+      expect(homeSubflowForVoiceUtterance(phrase)?.actionId).toBe(actionId);
+    },
+  );
+
   it.each([
     ["Check my blood pressure", "health-vitals", "health"],
     ["Recuérdame mis pastillas", "health-meds", "health"],
     ["Je veux parler au médecin", "health-doctor", "health"],
     ["Ich habe Schmerzen", "health-symptoms", "health"],
+    ["I'm not feeling well", "health-symptoms", "health"],
+    ["No me encuentro bien", "health-symptoms", "health"],
+    ["Je ne me sens pas bien", "health-symptoms", "health"],
+    ["Mir geht es nicht gut", "health-symptoms", "health"],
+    ["Non mi sento bene", "health-symptoms", "health"],
+    ["Nao me sinto bem", "health-symptoms", "health"],
     ["Vorrei allenare la memoria", "mind-memory", "mind"],
     ["Quero melhorar a atenção", "mind-focus", "mind"],
     ["Find an activity nearby", "community-activities", "community"],

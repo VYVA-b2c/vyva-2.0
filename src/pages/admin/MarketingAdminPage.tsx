@@ -2,7 +2,6 @@ import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type Re
 import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -10,7 +9,6 @@ import {
   Eye,
   ExternalLink,
   FileText,
-  Image as ImageIcon,
   Languages,
   Megaphone,
   Pencil,
@@ -951,6 +949,14 @@ function contentOriginKey(item: ContentAsset) {
   const sourceType = metadataString(item.metadata, "lovable_source_type");
   if (sourceType) return sourceType;
   return item.source || "vyva";
+}
+
+function isMissingLovableContentAsset(item: ContentAsset) {
+  return contentOriginKey(item) === "missing_lovable_reference";
+}
+
+function isSelectableCampaignContent(item: ContentAsset) {
+  return item.status !== "archived" && !isMissingLovableContentAsset(item);
 }
 
 function contentSourceLabel(key: string) {
@@ -2306,6 +2312,7 @@ function ContentTemplatePreview({
 }) {
   const mediaUrls = contentMediaPreviewUrls(contentAsset, linkedMediaAssets);
   const hasVisualTemplate = Boolean(contentAsset.htmlBody?.trim()) || contentAsset.hasDesign || mediaUrls.length > 0;
+  const [showFullHtmlPreview, setShowFullHtmlPreview] = useState(false);
 
   return (
     <div className={`grid gap-4 ${className}`} data-testid={testId}>
@@ -2324,12 +2331,55 @@ function ContentTemplatePreview({
 
         {contentAsset.htmlBody ? (
           <div className="grid gap-3">
-            <iframe
-              title={`Preview ${contentAsset.title}`}
-              sandbox=""
-              srcDoc={contentAsset.htmlBody}
-              className="h-[640px] w-full rounded-xl border border-[#eadfd5] bg-white"
-            />
+            {showFullHtmlPreview ? (
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-purple-100 bg-purple-50 px-4 py-3">
+                  <p className="text-sm font-black text-purple-900">Full HTML template preview</p>
+                  <button
+                    type="button"
+                    className="rounded-full border border-purple-200 bg-white px-3 py-1.5 text-xs font-black text-purple-800"
+                    onClick={() => setShowFullHtmlPreview(false)}
+                    data-testid={`${testId}-hide-html-preview`}
+                  >
+                    Hide full preview
+                  </button>
+                </div>
+                <iframe
+                  title={`Preview ${contentAsset.title}`}
+                  sandbox=""
+                  srcDoc={contentAsset.htmlBody}
+                  className="h-[520px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">HTML template available</p>
+                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-relaxed text-[#5b4a46]">
+                      Full email design is ready. Open it only when you need pixel-level review.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-purple-800"
+                    onClick={() => setShowFullHtmlPreview(true)}
+                    data-testid={`${testId}-show-html-preview`}
+                  >
+                    Show full template
+                  </button>
+                </div>
+                {contentAsset.body ? (
+                  <p className="mt-4 whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
+                    {contentAsset.body}
+                  </p>
+                ) : (
+                  <p className="mt-4 rounded-xl border border-dashed border-[#eadfd5] bg-white p-4 text-sm font-bold text-[#8b7a73]">
+                    No plain text copy imported. Use full template preview to inspect the HTML.
+                  </p>
+                )}
+              </div>
+            )}
             {contentAsset.body ? (
               <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3">
                 <summary className="cursor-pointer text-sm font-black text-[#241133]">Plain text copy</summary>
@@ -2699,141 +2749,6 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   );
 }
 
-function LovableImportCoveragePanel({
-  run,
-  title = "Lovable import coverage",
-  subtitle = "Latest sync coverage across Lovable export and VYVA import.",
-  focusKeys,
-  onOpenSettings,
-}: {
-  run: SyncRun | null;
-  title?: string;
-  subtitle?: string;
-  focusKeys?: SyncCountKey[];
-  onOpenSettings: () => void;
-}) {
-  const parity = run ? syncParityItems(run.summary) : [];
-  const focusedParity = focusKeys?.length
-    ? focusKeys.flatMap((key) => parity.find((item) => item.key === key) ?? [])
-    : parity;
-  const contentSources = run ? syncContentSourceItems(run.summary) : [];
-  const fieldCoverage = run ? syncFieldCoverageItems(run.summary) : [];
-  const unmappedCount = run ? syncUnmappedCount(run.summary) : 0;
-  const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
-  const isFailed = run?.status === "failed";
-  const coverageNote = !run
-    ? "No Lovable sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
-    : isFailed
-      ? (run.error || "The last Lovable sync failed. Open Settings to inspect the error and retry.")
-      : focusedParity.length
-        ? "Use this as the quick truth table for what Lovable sent versus what VYVA stored."
-        : "The last Lovable sync did not report import coverage counts.";
-
-  return (
-    <SectionCard
-      title={title}
-      subtitle={run ? `${subtitle} Last run: ${run.status} / ${formatDate(run.createdAt)}.` : subtitle}
-      action={(
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
-          data-testid="button-marketing-open-sync-coverage-settings"
-        >
-          <Settings size={14} /> Sync settings
-        </button>
-      )}
-    >
-      <div className={`rounded-xl border p-3 text-sm font-bold ${isFailed ? "border-red-100 bg-red-50 text-red-800" : "border-blue-100 bg-blue-50 text-blue-900"}`} data-testid="marketing-lovable-import-coverage">
-        <p>{coverageNote}</p>
-        {focusedParity.length ? (
-          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {focusedParity.map((item) => {
-              const badgeClass = item.status === "missing"
-                ? "bg-red-50 text-red-800"
-                : item.status === "review"
-                  ? "bg-amber-50 text-amber-800"
-                  : item.status === "derived"
-                    ? "bg-blue-50 text-blue-800"
-                    : "bg-emerald-50 text-emerald-800";
-              const detail = item.status === "missing"
-                ? `${item.missing} missing`
-                : item.status === "review"
-                  ? `${item.skipped} skipped`
-                  : item.status === "derived"
-                    ? "derived"
-                    : "complete";
-              return (
-                <div key={item.key} className="rounded-lg bg-white p-3 text-[#241133]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-black">{item.label}</p>
-                    <Pill className={badgeClass}>{detail}</Pill>
-                  </div>
-                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">Lovable {item.exported} / VYVA {item.imported}</p>
-                  {item.skipped ? <p className="mt-1 text-xs font-bold text-amber-800">Skipped: {item.skipped}</p> : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-        {contentSources.length ? (
-          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-content-source-buckets">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable content buckets</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {contentSources.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.label}: {item.value}</Pill>)}
-            </div>
-          </div>
-        ) : null}
-        {fieldCoverage.length ? (
-          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-field-coverage">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Lovable fields</p>
-            <div className="mt-2 grid gap-2">
-              {fieldCoverage.map((item) => (
-                <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
-                  <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
-                  {item.firstClassFields.length ? (
-                    <p className="mt-1 text-xs font-semibold text-emerald-800">
-                      Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
-                    </p>
-                  ) : null}
-                  {item.metadataOnlyFields.length ? (
-                    <p className="mt-1 text-xs font-semibold text-amber-800">
-                      Metadata-only: {item.metadataOnlyFields.slice(0, 8).join(", ")}{item.metadataOnlyFields.length > 8 ? ` +${item.metadataOnlyFields.length - 8}` : ""}
-                    </p>
-                  ) : null}
-                  {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
-                    <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2 text-xs font-bold text-[#5b4a46]" data-testid={`marketing-lovable-field-map-${item.entity}`}>
-                      <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
-                      <div className="mt-2 grid gap-2">
-                        {item.metadataOnlyFields.length ? (
-                          <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
-                        ) : null}
-                        {item.firstClassFields.length ? (
-                          <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
-                        ) : null}
-                        {item.exportedFields.length ? (
-                          <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
-                        ) : null}
-                      </div>
-                    </details>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {run ? <LovableDestinationMap summary={run.summary} /> : null}
-        {unmappedCount || unmappedCampaignRecipientCount ? (
-          <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
-            {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
-            {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
-          </div>
-        ) : null}
-      </div>
-    </SectionCard>
-  );
-}
-
 function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }) {
   const rows = lovableDestinationRows.map((row) => ({ ...row, count: syncDestinationCount(summary, row) }));
   const hasCounts = rows.some((row) => row.count > 0);
@@ -3039,6 +2954,7 @@ export default function MarketingAdminPage() {
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
+      if (isMissingLovableContentAsset(item)) continue;
       const key = contentOriginKey(item);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
@@ -3130,6 +3046,7 @@ export default function MarketingAdminPage() {
   }, [campaignMetrics]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
+    if (isMissingLovableContentAsset(item)) return false;
     const contentMatchesSearch = matchesSearch(search, [
       item.id,
       item.title,
@@ -3454,20 +3371,20 @@ export default function MarketingAdminPage() {
   }, [content.length, latestSyncRun, visibleContent.length]);
   const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
   const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
-  const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
+  const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && isSelectableCampaignContent(item)), [content]);
   const draftEmailChannel = campaignChannelsWithPrimary(campaignEditDraft).find((channel) => channel.channel === "email") ?? null;
   const selectedEmailContent = useMemo(
     () => emailContentAssets.find((item) => item.id === draftEmailChannel?.contentAssetId) ?? null,
     [draftEmailChannel?.contentAssetId, emailContentAssets],
   );
   const campaignDraftContentOptions = useMemo(
-    () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
+    () => content.filter((item) => item.channel === campaignDraft.channel && isSelectableCampaignContent(item)),
     [campaignDraft.channel, content],
   );
   const campaignEditPrimaryContentOptions = useMemo(() => {
-    const options = content.filter((item) => item.channel === campaignEditDraft.channel && item.status !== "archived");
+    const options = content.filter((item) => item.channel === campaignEditDraft.channel && isSelectableCampaignContent(item));
     const selected = campaignEditDraft.contentAssetId ? content.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null : null;
-    return selected && !options.some((item) => item.id === selected.id) ? [selected, ...options] : options;
+    return selected && isSelectableCampaignContent(selected) && !options.some((item) => item.id === selected.id) ? [selected, ...options] : options;
   }, [campaignEditDraft.channel, campaignEditDraft.contentAssetId, content]);
   const selectedCampaignDraftTargetAudience = useMemo(
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
@@ -4682,18 +4599,6 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Published" value={summary.totals.published} icon={CheckCircle2} />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Imported media refs" value={summary.totals.mediaAssets ?? mediaAssets.length} icon={ImageIcon} />
-                <MetricCard label="Journey enrollments" value={summary.totals.journeyEnrollments ?? journeyEnrollments.length} icon={Activity} />
-                <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
-                <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
-              </div>
-
-              <LovableImportCoveragePanel
-                run={latestSyncRun}
-                onOpenSettings={() => setActiveTab("settings")}
-              />
-
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
                 <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -4882,7 +4787,7 @@ export default function MarketingAdminPage() {
                 </form>
               </details>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
+              <div className="grid gap-4">
                 <SectionCard
                   title="Campaigns"
                   subtitle={visibleCampaigns.length ? `${campaignPageStart}-${campaignPageEnd} of ${visibleCampaigns.length} shown.` : `0 of ${campaigns.length} shown.`}
@@ -5077,7 +4982,7 @@ export default function MarketingAdminPage() {
                           <Field label="Primary content asset">
                             <select
                               className={inputClass}
-                              value={campaignEditDraft.contentAssetId}
+                              value={campaignEditPrimaryContentOptions.some((item) => item.id === campaignEditDraft.contentAssetId) ? campaignEditDraft.contentAssetId : ""}
                               onChange={(event) => {
                                 const contentAssetId = event.target.value;
                                 setCampaignEditDraft((draft) => {
@@ -5094,6 +4999,11 @@ export default function MarketingAdminPage() {
                               <option value="">Select {channelLabel[campaignEditDraft.channel]} content</option>
                               {campaignEditPrimaryContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                             </select>
+                            {campaignEditDraft.contentAssetId && !campaignEditPrimaryContentOptions.some((item) => item.id === campaignEditDraft.contentAssetId) ? (
+                              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                                This campaign points to missing Lovable content. Choose a real content asset before sending.
+                              </p>
+                            ) : null}
                           </Field>
                         </div>
                         <div className="grid gap-3 xl:grid-cols-3">
@@ -5735,54 +5645,6 @@ export default function MarketingAdminPage() {
 
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
-              <LovableImportCoveragePanel
-                run={latestSyncRun}
-                title="Lovable content coverage"
-                subtitle="Quickly see whether Lovable exported templates, social posts, briefs, media, and campaign links."
-                focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
-                onOpenSettings={() => setActiveTab("settings")}
-              />
-              {missingLovableReferenceCount > 0 ? (
-                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="marketing-missing-content-reference-panel">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="max-w-4xl">
-                      <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-900">Needs Lovable content</p>
-                      <h3 className="mt-1 font-serif text-2xl text-[#241133]">Lovable referenced content that was not exported.</h3>
-                      <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">
-                        {missingLovableReferenceCount} campaign or journey content reference{missingLovableReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Lovable export data or a replacement content asset here.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-black text-white"
-                      onClick={() => {
-                        setSearch("");
-                        setChannelFilter("all");
-                        setContentSourceFilter("missing_lovable_reference");
-                        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
-                      }}
-                      data-testid="button-marketing-show-missing-content"
-                    >
-                      <Search size={15} /> Show placeholders
-                    </button>
-                  </div>
-                  {missingLovableReferenceContent.length ? (
-                    <div className="mt-4 grid gap-2">
-                      {missingLovableReferenceContent.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
-                          <span className="font-black text-[#241133]">{item.title}</span>
-                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
-                      Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Lovable exports the referenced content bodies.
-                    </p>
-                  )}
-                </div>
-              ) : null}
-
               <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">
                   <div className="grid gap-3 xl:grid-cols-[1fr_170px_140px_120px]">
@@ -7693,11 +7555,7 @@ function CampaignTable({
   confirmingDeleteId?: string | null;
 }) {
   const showActions = Boolean(onEdit || onDelete);
-  void contentById;
-  void contentTitleById;
   void metricsByCampaignId;
-  void onPreviewContent;
-  void onEditContent;
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
@@ -7750,11 +7608,46 @@ function CampaignTable({
                 )}
               </td>
               <td className="px-4 py-3">
-                <div className="flex max-w-[220px] flex-wrap gap-1.5">
+                <div className="flex max-w-[260px] flex-wrap gap-1.5">
                   {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
+                    const linkedContent = item.contentAssetId ? contentById.get(item.contentAssetId) ?? null : null;
+                    const contentTitle = linkedContent?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
                     return (
-                      <div key={item.id} data-testid={`marketing-campaign-channel-link-${item.id}`}>
+                      <div key={item.id} className="flex flex-wrap items-center gap-1" data-testid={`marketing-campaign-channel-link-${item.id}`}>
                         <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                        {contentTitle ? (
+                          <span className="max-w-[190px] truncate text-xs font-black text-[#5b4a46]">{contentTitle}</span>
+                        ) : item.contentAssetId ? (
+                          <span className="max-w-[190px] truncate text-xs font-black text-amber-800">Missing content</span>
+                        ) : null}
+                        {linkedContent && onPreviewContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onPreviewContent(linkedContent);
+                            }}
+                            disabled={actionsDisabled}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-preview-campaign-content-${item.id}`}
+                          >
+                            <Eye size={11} /> Preview
+                          </button>
+                        ) : null}
+                        {linkedContent && onEditContent ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onEditContent(linkedContent);
+                            }}
+                            disabled={actionsDisabled}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                            data-testid={`button-marketing-edit-campaign-content-${item.id}`}
+                          >
+                            <Pencil size={11} /> Edit
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -7859,7 +7752,7 @@ function MarketingCalendarView({
                         <p className="mt-1 text-xs font-bold text-[#7d6b65]">Ends {formatCalendarTime(campaign.scheduleEndsAt)}</p>
                       ) : null}
                       <h4 className="mt-1 font-black text-[#241133]">{campaign.name}</h4>
-                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{campaign.source}</p>
                     </div>
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
@@ -7952,7 +7845,7 @@ function MarketingCalendarView({
             data-testid={`button-marketing-calendar-unscheduled-${campaign.id}`}
           >
             <span className="block font-black text-[#241133]">{campaign.name}</span>
-            <span className="mt-1 block text-xs font-bold text-[#7d6b65]">{campaign.objective || campaign.source}</span>
+            <span className="mt-1 block text-xs font-bold text-[#7d6b65]">{campaign.source}</span>
             <span className="mt-2 flex flex-wrap gap-1.5">
               <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
               <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>

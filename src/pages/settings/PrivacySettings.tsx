@@ -81,6 +81,7 @@ interface CareTeamRosterResponse {
 interface BrainCoachPermissionCopy {
   key: BrainCoachCaregiverPermissionKey;
   icon: LucideIcon;
+  translationKey: string;
   label: string;
   description: string;
 }
@@ -99,6 +100,7 @@ interface SharingPermissionCopy {
     | "can_view_journal_summaries"
   >;
   icon: LucideIcon;
+  translationKey: string;
   label: string;
   description: string;
 }
@@ -107,30 +109,35 @@ const BRAIN_COACH_PERMISSION_COPY: BrainCoachPermissionCopy[] = [
   {
     key: "view_summary",
     icon: Eye,
+    translationKey: "viewSummary",
     label: "View Brain Coach summary",
     description: "Current streak, plan completion, recent domains, and recent activities.",
   },
   {
     key: "manage_plan_preferences",
     icon: SlidersHorizontal,
+    translationKey: "managePlanPreferences",
     label: "Manage plan preferences",
     description: "Focus domains, excluded activities, session length, and weekly goal.",
   },
   {
     key: "manage_schedule",
     icon: CalendarClock,
+    translationKey: "manageSchedule",
     label: "Manage schedule",
     description: "Pause or resume Brain Coach rhythm and training times.",
   },
   {
     key: "send_nudges",
     icon: Bell,
+    translationKey: "sendNudges",
     label: "Send in-app nudges",
     description: "Gentle Brain Coach reminders inside VYVA only.",
   },
   {
     key: "preview_plan",
     icon: Sparkles,
+    translationKey: "previewPlan",
     label: "Preview plan",
     description: "See proposed Brain Coach activities without changing today's plan.",
   },
@@ -140,54 +147,63 @@ const SHARING_PERMISSION_COPY: SharingPermissionCopy[] = [
   {
     key: "can_receive_daily_digest",
     icon: FileText,
+    translationKey: "dailyDigest",
     label: "Daily wellbeing summary",
     description: "Daily wellbeing and care highlights.",
   },
   {
     key: "can_receive_safety_alerts",
     icon: Shield,
+    translationKey: "safetyAlerts",
     label: "Safety alerts",
     description: "Important safety events and urgent check-ins.",
   },
   {
     key: "can_receive_health_alerts",
     icon: Heart,
+    translationKey: "healthUpdates",
     label: "Health updates",
     description: "Health changes and wellbeing alerts.",
   },
   {
     key: "can_receive_mood_alerts",
     icon: Sparkles,
+    translationKey: "moodUpdates",
     label: "Mood updates",
     description: "Mood and daily wellbeing changes.",
   },
   {
     key: "can_receive_medication_alerts",
     icon: Bell,
+    translationKey: "medicationAlerts",
     label: "Medication alerts",
     description: "Medication reminders and missed-dose alerts.",
   },
   {
     key: "can_view_dashboard",
     icon: Eye,
+    translationKey: "caregiverDashboard",
     label: "Caregiver dashboard",
     description: "Read-only access to the caregiver dashboard.",
   },
   {
     key: "can_view_health_reports",
     icon: FileText,
+    translationKey: "healthReports",
     label: "Health reports",
     description: "Reports shared from the senior profile.",
   },
   {
     key: "can_view_vital_signs",
     icon: Heart,
+    translationKey: "vitalSigns",
     label: "Vital signs",
     description: "Vitals shared from health tracking.",
   },
   {
     key: "can_view_journal_summaries",
     icon: Share2,
+    translationKey: "conversationSummaries",
     label: "Conversation summaries",
     description: "Daily highlights from conversations.",
   },
@@ -204,40 +220,25 @@ async function readJsonResponse<T>(response: Response, fallbackMessage: string):
   return body as T;
 }
 
-function permissionStatusLabel(permissions: Partial<BrainCoachCaregiverPermissions> | null | undefined) {
-  const normalized = normalizeBrainCoachCaregiverPermissions(permissions);
-  if (!normalized.view_summary) return "No Brain Coach access";
-  return hasBrainCoachCaregiverControlPermission(normalized) ? "Controls enabled" : "Summary only";
-}
-
-function memberRoleLabel(member: BrainCoachPermissionMember) {
-  if (member.relationship) return member.relationship;
-  return member.role === "family" ? "Family member" : "Caregiver";
-}
-
-function memberDisplayName(member: BrainCoachPermissionMember) {
-  return member.displayName?.trim() || memberRoleLabel(member);
-}
-
-const CARE_TEAM_ROLE_LABELS: Record<string, string> = {
-  family: "Family member",
-  family_member: "Family member",
-  caregiver: "Caregiver",
-  carer: "Caregiver",
-  doctor: "Doctor",
+const CARE_TEAM_ROLE_KEYS: Record<string, string> = {
+  family: "familyMember",
+  family_member: "familyMember",
+  caregiver: "caregiver",
+  carer: "caregiver",
+  doctor: "doctor",
 };
 
-const CARE_TEAM_RELATIONSHIP_LABELS: Record<string, string> = {
-  son: "Son",
-  daughter: "Daughter",
-  spouse_partner: "Spouse or partner",
-  sibling: "Sibling",
-  friend: "Friend",
-  neighbour: "Neighbour",
-  professional_carer: "Professional carer",
-  gp: "GP",
-  specialist_doctor: "Specialist doctor",
-  other: "Other",
+const CARE_TEAM_RELATIONSHIP_KEYS: Record<string, string> = {
+  son: "son",
+  daughter: "daughter",
+  spouse_partner: "spousePartner",
+  sibling: "sibling",
+  friend: "friend",
+  neighbour: "neighbour",
+  professional_carer: "professionalCarer",
+  gp: "gp",
+  specialist_doctor: "specialistDoctor",
+  other: "other",
 };
 
 function humanizeValue(value: string | null | undefined) {
@@ -247,22 +248,6 @@ function humanizeValue(value: string | null | undefined) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function careTeamDisplayName(member: CareTeamRosterMember) {
-  return member.invitee_name?.trim() || "Care team member";
-}
-
-function careTeamRoleLabel(member: CareTeamRosterMember) {
-  const relationship = member.relationship?.trim();
-  if (relationship) {
-    return CARE_TEAM_RELATIONSHIP_LABELS[relationship] ?? humanizeValue(relationship) ?? relationship;
-  }
-  return CARE_TEAM_ROLE_LABELS[member.role] ?? humanizeValue(member.role) ?? "Care team member";
-}
-
-function careTeamStatusLabel(status: string) {
-  return humanizeValue(status) ?? "Pending";
 }
 
 function careTeamStatusClassName(status: string) {
@@ -288,11 +273,62 @@ const PrivacySettings = () => {
   const [expandedPerson, setExpandedPerson] = useState<string | null | undefined>(undefined);
   const [savingPermissionId, setSavingPermissionId] = useState<string | null>(null);
 
+  const permissionStatusLabel = (permissions: Partial<BrainCoachCaregiverPermissions> | null | undefined) => {
+    const normalized = normalizeBrainCoachCaregiverPermissions(permissions);
+    if (!normalized.view_summary) {
+      return t("settings.privacy.brainCoach.status.noAccess", "No Brain Coach access");
+    }
+    return hasBrainCoachCaregiverControlPermission(normalized)
+      ? t("settings.privacy.brainCoach.status.controlsEnabled", "Controls enabled")
+      : t("settings.privacy.brainCoach.status.summaryOnly", "Summary only");
+  };
+
+  const memberRoleLabel = (member: BrainCoachPermissionMember) => {
+    if (member.relationship) {
+      const relationshipKey = CARE_TEAM_RELATIONSHIP_KEYS[member.relationship];
+      return relationshipKey
+        ? t(
+            `onboarding.careTeam.relationships.${relationshipKey}`,
+            humanizeValue(member.relationship) ?? member.relationship,
+          )
+        : humanizeValue(member.relationship) ?? member.relationship;
+    }
+    return member.role === "family"
+      ? t("onboarding.careTeam.roles.familyMember", "Family member")
+      : t("onboarding.careTeam.roles.caregiver", "Caregiver");
+  };
+
+  const memberDisplayName = (member: BrainCoachPermissionMember) =>
+    member.displayName?.trim() || memberRoleLabel(member);
+
+  const careTeamDisplayName = (member: CareTeamRosterMember) =>
+    member.invitee_name?.trim() || t("settings.privacy.careTeam.memberFallback", "Care team member");
+
+  const careTeamRoleLabel = (member: CareTeamRosterMember) => {
+    const relationship = member.relationship?.trim();
+    if (relationship) {
+      const relationshipKey = CARE_TEAM_RELATIONSHIP_KEYS[relationship];
+      return relationshipKey
+        ? t(`onboarding.careTeam.relationships.${relationshipKey}`, humanizeValue(relationship) ?? relationship)
+        : humanizeValue(relationship) ?? relationship;
+    }
+    const roleKey = CARE_TEAM_ROLE_KEYS[member.role];
+    return roleKey
+      ? t(`onboarding.careTeam.roles.${roleKey}`, humanizeValue(member.role) ?? member.role)
+      : humanizeValue(member.role) ?? t("settings.privacy.careTeam.memberFallback", "Care team member");
+  };
+
+  const careTeamStatusLabel = (status: string) =>
+    t(`onboarding.careTeam.status.${status}`, humanizeValue(status) ?? t("onboarding.careTeam.status.pending", "Pending"));
+
   const careTeamQuery = useQuery<CareTeamRosterResponse>({
     queryKey: [CARE_TEAM_QUERY_KEY],
     queryFn: async () => {
       const response = await apiFetch(CARE_TEAM_QUERY_KEY);
-      return readJsonResponse<CareTeamRosterResponse>(response, "Care team could not be loaded.");
+      return readJsonResponse<CareTeamRosterResponse>(
+        response,
+        t("settings.privacy.careTeam.loadErrorTitle", "Care team could not be loaded."),
+      );
     },
     retry: false,
   });
@@ -301,7 +337,10 @@ const PrivacySettings = () => {
     queryKey: [BRAIN_COACH_PERMISSIONS_QUERY_KEY],
     queryFn: async () => {
       const response = await apiFetch(BRAIN_COACH_PERMISSIONS_QUERY_KEY);
-      return readJsonResponse<BrainCoachPermissionsResponse>(response, "Brain Coach caregiver access could not be loaded.");
+      return readJsonResponse<BrainCoachPermissionsResponse>(
+        response,
+        t("settings.privacy.brainCoach.loadErrorTitle", "Brain Coach caregiver access could not be loaded."),
+      );
     },
     retry: false,
   });
@@ -321,7 +360,10 @@ const PrivacySettings = () => {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
-      return readJsonResponse<BrainCoachPermissionUpdateResponse>(response, "Brain Coach caregiver access could not be saved.");
+      return readJsonResponse<BrainCoachPermissionUpdateResponse>(
+        response,
+        t("settings.privacy.brainCoach.saveError", "Brain Coach caregiver access could not be saved."),
+      );
     },
     onSuccess: (data) => {
       queryClient.setQueryData<BrainCoachPermissionsResponse>([BRAIN_COACH_PERMISSIONS_QUERY_KEY], (current) => {
@@ -338,7 +380,7 @@ const PrivacySettings = () => {
     },
     onError: (error) => {
       toast({
-        title: "Could not update Brain Coach access",
+        title: t("settings.privacy.brainCoach.updateError", "Could not update Brain Coach access"),
         description: error instanceof Error ? error.message : undefined,
         variant: "destructive",
       });
@@ -363,7 +405,13 @@ const PrivacySettings = () => {
   const renderReadOnlySwitch = (enabled: boolean, label: string, memberName: string) => (
     <div
       role="status"
-      aria-label={`${label} for ${memberName}: ${enabled ? "shared" : "not shared"}`}
+      aria-label={t("settings.privacy.careTeam.sharingAria", "{{label}} for {{member}}: {{status}}", {
+        label,
+        member: memberName,
+        status: enabled
+          ? t("settings.privacy.careTeam.shared", "shared")
+          : t("settings.privacy.careTeam.notShared", "not shared"),
+      })}
       className={`relative h-8 w-14 flex-shrink-0 rounded-full ${enabled ? "bg-vyva-purple" : "bg-[#DDD5C8]"}`}
     >
       <div
@@ -378,7 +426,7 @@ const PrivacySettings = () => {
     if (careTeamQuery.isLoading) {
       return (
         <div className="px-5 py-5 font-body text-[14px] font-semibold text-vyva-text-2">
-          Loading care-team sharing
+          {t("settings.privacy.careTeam.loading", "Loading care-team sharing")}
         </div>
       );
     }
@@ -386,9 +434,11 @@ const PrivacySettings = () => {
     if (careTeamQuery.isError) {
       return (
         <div className="px-5 py-5">
-          <p className="font-body text-[15px] font-black text-vyva-text-1">Care-team sharing could not be loaded.</p>
+          <p className="font-body text-[15px] font-black text-vyva-text-1">
+            {t("settings.privacy.careTeam.loadErrorTitle", "Care-team sharing could not be loaded.")}
+          </p>
           <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-            Open Care Team to review invitations and sharing access.
+            {t("settings.privacy.careTeam.loadErrorDescription", "Open Care Team to review invitations and sharing access.")}
           </p>
         </div>
       );
@@ -398,9 +448,11 @@ const PrivacySettings = () => {
     if (members.length === 0) {
       return (
         <div className="px-5 py-6" data-testid="privacy-careteam-empty">
-          <p className="font-body text-[16px] font-black text-vyva-text-1">No care-team members yet.</p>
+          <p className="font-body text-[16px] font-black text-vyva-text-1">
+            {t("settings.privacy.careTeam.emptyTitle", "No care-team members yet.")}
+          </p>
           <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-            Add a caregiver, family member, or doctor before sharing profile updates.
+            {t("settings.privacy.careTeam.emptyDescription", "Add a caregiver, family member, or doctor before sharing profile updates.")}
           </p>
           <button
             type="button"
@@ -408,7 +460,7 @@ const PrivacySettings = () => {
             className="mt-4 rounded-full bg-vyva-purple px-5 py-3 font-body text-[14px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
             data-testid="button-privacy-add-careteam"
           >
-            Add care team member
+            {t("settings.privacy.careTeam.addMember", "Add care team member")}
           </button>
         </div>
       );
@@ -456,20 +508,23 @@ const PrivacySettings = () => {
               className="border-t border-vyva-border bg-vyva-cream/60"
               data-testid={`section-privacy-detail-${member.id}`}
             >
-              {SHARING_PERMISSION_COPY.map((permission) => (
-                <ToggleRow
+              {SHARING_PERMISSION_COPY.map((permission) => {
+                const label = t(`settings.privacy.sharingPermissions.${permission.translationKey}.label`, permission.label);
+                return (
+                  <ToggleRow
                   key={permission.key}
                   icon={permission.icon}
                   iconBg="#F5F3FF"
                   iconColor="#6B21A8"
-                  label={permission.label}
-                  sub={permission.description}
-                  rightContent={renderReadOnlySwitch(Boolean(member[permission.key]), permission.label, memberName)}
+                  label={label}
+                  sub={t(`settings.privacy.sharingPermissions.${permission.translationKey}.description`, permission.description)}
+                  rightContent={renderReadOnlySwitch(Boolean(member[permission.key]), label, memberName)}
                   testId={`sharing-status-${member.id}-${permission.key}`}
                 />
-              ))}
+                );
+              })}
               <p className="border-t border-vyva-border px-5 py-3 font-body text-[12px] font-bold text-vyva-text-3">
-                Sharing access is based on the latest care-team invitation settings.
+                {t("settings.privacy.careTeam.sharingSource", "Sharing access is based on the latest care-team invitation settings.")}
               </p>
             </div>
           )}
@@ -482,7 +537,7 @@ const PrivacySettings = () => {
     if (brainCoachPermissionsQuery.isLoading) {
       return (
         <div className="px-5 py-5 font-body text-[14px] font-semibold text-vyva-text-2">
-          Loading Brain Coach caregiver access
+          {t("settings.privacy.brainCoach.loading", "Loading Brain Coach caregiver access")}
         </div>
       );
     }
@@ -490,9 +545,11 @@ const PrivacySettings = () => {
     if (brainCoachPermissionsQuery.isError) {
       return (
         <div className="px-5 py-5">
-          <p className="font-body text-[15px] font-black text-vyva-text-1">Brain Coach access could not be loaded.</p>
+          <p className="font-body text-[15px] font-black text-vyva-text-1">
+            {t("settings.privacy.brainCoach.loadErrorTitle", "Brain Coach access could not be loaded.")}
+          </p>
           <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-            Only the senior account can change caregiver Brain Coach permissions.
+            {t("settings.privacy.brainCoach.seniorOnly", "Only the senior account can change caregiver Brain Coach permissions.")}
           </p>
         </div>
       );
@@ -502,9 +559,11 @@ const PrivacySettings = () => {
     if (members.length === 0) {
       return (
         <div className="px-5 py-5">
-          <p className="font-body text-[15px] font-black text-vyva-text-1">No active caregivers yet.</p>
+          <p className="font-body text-[15px] font-black text-vyva-text-1">
+            {t("settings.privacy.brainCoach.emptyTitle", "No active caregivers yet.")}
+          </p>
           <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-            Invite a caregiver or family member before granting Brain Coach access.
+            {t("settings.privacy.brainCoach.emptyDescription", "Invite a caregiver or family member before granting Brain Coach access.")}
           </p>
         </div>
       );
@@ -547,15 +606,24 @@ const PrivacySettings = () => {
                       <Icon size={18} className="text-vyva-purple" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">{permission.label}</p>
-                      <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">{permission.description}</p>
+                      <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                        {t(`settings.privacy.brainCoach.permissions.${permission.translationKey}.label`, permission.label)}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                        {t(`settings.privacy.brainCoach.permissions.${permission.translationKey}.description`, permission.description)}
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleBrainCoachPermissionToggle(member, permission.key)}
                       disabled={isBusy}
                       aria-pressed={isOn}
-                      aria-label={`${isOn ? "Revoke" : "Grant"} ${permission.label} for ${memberDisplayName(member)}`}
+                      aria-label={`${isOn
+                        ? t("settings.privacy.brainCoach.revoke", "Revoke")
+                        : t("settings.privacy.brainCoach.grant", "Grant")} ${t(
+                          `settings.privacy.brainCoach.permissions.${permission.translationKey}.label`,
+                          permission.label,
+                        )} ${t("settings.privacy.brainCoach.for", "for")} ${memberDisplayName(member)}`}
                       data-testid={`toggle-brain-coach-${member.id}-${permission.key}`}
                       className={`relative h-8 w-14 flex-shrink-0 rounded-full transition-colors disabled:cursor-wait disabled:opacity-70 ${
                         isOn ? "bg-vyva-purple" : "bg-[#DDD5C8]"
@@ -566,7 +634,7 @@ const PrivacySettings = () => {
                           isOn ? "left-[26px]" : "left-0.5"
                         }`}
                       />
-                      {isSaving ? <span className="sr-only">Saving</span> : null}
+                      {isSaving ? <span className="sr-only">{t("settings.privacy.brainCoach.saving", "Saving")}</span> : null}
                     </button>
                   </div>
                 );
@@ -594,12 +662,12 @@ const PrivacySettings = () => {
         <ProfileSectionHero
           icon={Lock}
           title={t("settings.privacy.title")}
-          kicker="Your choice"
-          description="Keep VYVA useful while staying in control of what is shared, who sees it, and when access can change."
+          kicker={t("settings.privacy.hero.kicker", "Your choice")}
+          description={t("settings.privacy.hero.description", "Keep VYVA useful while staying in control of what is shared, who sees it, and when access can change.")}
           badges={[
-            { label: "You decide", color: "purple" },
-            { label: "Care team access", color: "blue" },
-            { label: "GDPR protected", color: "green" },
+            { label: t("settings.privacy.hero.youDecide", "You decide"), color: "purple" },
+            { label: t("settings.privacy.hero.careTeamAccess", "Care team access"), color: "blue" },
+            { label: t("settings.privacy.hero.gdprProtected", "GDPR protected"), color: "green" },
           ]}
         />
 
@@ -656,10 +724,10 @@ const PrivacySettings = () => {
             </div>
             <div className="min-w-0">
               <span className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-2">
-                Brain Coach caregiver access
+                {t("settings.privacy.brainCoach.title", "Brain Coach caregiver access")}
               </span>
               <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-                Decide what each approved caregiver can see or control in Brain Coach.
+                {t("settings.privacy.brainCoach.description", "Decide what each approved caregiver can see or control in Brain Coach.")}
               </p>
             </div>
           </div>

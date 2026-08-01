@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   decideHomeContextMessage,
+  HOME_CONTEXT_MESSAGE_DISPLAY_MS,
   homeContextActionForVoiceReply,
   isHomeContextMessageSuppressed,
   readHomeContextMessageActionHistory,
@@ -21,6 +22,10 @@ const message = (overrides: Partial<HomeContextMessage>): HomeContextMessage => 
 });
 
 describe("home context messages", () => {
+  it("keeps each contextual message visible for fifteen seconds", () => {
+    expect(HOME_CONTEXT_MESSAGE_DISPLAY_MS).toBe(15_000);
+  });
+
   it("selects the highest-priority eligible message", () => {
     expect(selectHomeContextMessage([
       message({ id: "tip", priority: 10 }),
@@ -86,6 +91,13 @@ describe("home context messages", () => {
       message({ id: "dose", priority: 60, repeatAfterMs: 1_000 }),
       message({ id: "fallback", priority: 1 }),
     ], { dose: 500 }, 1_000)?.id).toBe("fallback");
+  });
+
+  it("allows a repeating message back into the loop after its cooldown", () => {
+    expect(selectHomeContextMessage([
+      message({ id: "dose", kind: "reminder", priority: 60, repeatAfterMs: 1_000 }),
+      message({ id: "fallback", priority: 1 }),
+    ], { dose: 500 }, 1_501)?.id).toBe("dose");
   });
 
   it("removes private agent stage directions from visible text", () => {

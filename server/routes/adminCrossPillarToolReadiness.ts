@@ -5,7 +5,15 @@ import {
   type CrossPillarToolFamily,
   type CrossPillarToolReadinessStatus,
 } from "../../shared/crossPillarToolReadiness.js";
+import {
+  buildCrossPillarPillarCertifications,
+  buildCrossPillarToolCertifications,
+} from "../../shared/crossPillarToolCertification.js";
 import { buildAdminConciergeChannelReadinessSnapshot } from "../services/conciergeChannelReadiness.js";
+import {
+  buildAdminCrossPillarExecutionSummary,
+  listRecentCrossPillarExecutionAttempts,
+} from "../services/crossPillarExecutionObservability.js";
 
 const router = Router();
 
@@ -101,15 +109,44 @@ router.get("/", async (_req: Request, res: Response) => {
         "search",
         searchReady ? "ready" : "setup_needed",
         "provider-and-web-search",
-        searchReady ? undefined : "No supported search credential is configured.",
-      );
+      searchReady ? undefined : "No supported search credential is configured.",
+    );
+
+    try {
+      const executionSummary = await buildAdminCrossPillarExecutionSummary(24);
+      for (const health of executionSummary.toolHealth) {
+        if (health.status === "temporarily_degraded" && tools[health.family].status === "ready") {
+          tools[health.family] = evidence(
+            health.family,
+            "temporarily_unavailable",
+            tools[health.family].adapter || "live-execution-monitor",
+            health.reason,
+          );
+        }
+      }
+    } catch (error) {
+      console.warn("[admin-cross-pillar-tool-readiness] live health overlay unavailable:", error);
+    }
+
+    const recentAttempts = await listRecentCrossPillarExecutionAttempts(30).catch((error) => {
+      console.warn("[admin-cross-pillar-tool-readiness] certification history unavailable:", error);
+      return [];
+    });
+    const certifications = buildCrossPillarToolCertifications({
+      evidence: tools,
+      attempts: recentAttempts,
+    });
+    const pillarCertifications = buildCrossPillarPillarCertifications(certifications);
 
     res.json({
       generated_at: new Date().toISOString(),
+      certification_window_days: 30,
       tools: CROSS_PILLAR_TOOL_FAMILIES.map((family) => ({
         family,
         ...tools[family],
       })),
+      certifications,
+      pillar_certifications: pillarCertifications,
     });
   } catch (error) {
     console.error("[admin-cross-pillar-tool-readiness] GET / error:", error);
