@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlacesSearch, PlaceResult, PlaceCategory, CATEGORY_TYPES } from "@/components/onboarding/PlacesSearch";
@@ -835,16 +836,21 @@ const ProvidersSection = () => {
           >
             <Building2 size={18} style={{ color: "#6B21A8" }} />
           </div>
-          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">Trusted providers</h1>
+          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">
+            {t("onboarding.providers.title", "Trusted providers")}
+          </h1>
         </div>
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
         <ProfileSectionHero
           icon={Building2}
-          title="Trusted providers"
-          kicker="Concierge-ready"
-          description="Save the people and places VYVA can help contact after you confirm."
+          title={t("onboarding.providers.title", "Trusted providers")}
+          description={t(
+            "onboarding.providers.description",
+            "Save the people and places VYVA can help contact after you confirm.",
+          )}
+          compact
           badges={[
             { label: "No booking without your say", color: "blue" },
             { label: "Calls and links ready", color: "amber" },
@@ -1354,15 +1360,17 @@ const ProvidersSection = () => {
       </div>
 
       <div className="px-5 py-6">
-        <button
-          data-testid="button-providers-save"
-          onClick={handleSave}
-          disabled={saving || adding || !!removingId}
-          className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
-          style={{ background: "#6B21A8" }}
-        >
-          {saving ? "Saving..." : "Save providers"}
-        </button>
+        <ProfileCompletionBar
+          saving={saving}
+          onSave={handleSave}
+          disabled={adding || !!removingId}
+          saveLabel={t("onboarding.providers.saveContinue", "Save and continue")}
+          savingLabel={t("onboarding.providers.saving", "Saving...")}
+          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+          skipLabel={t("onboarding.providers.skip", "Skip for now")}
+          onSkip={() => navigate("/onboarding/profile")}
+          testId="button-providers-save"
+        />
       </div>
 
       {editingProvider && (

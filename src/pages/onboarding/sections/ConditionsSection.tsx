@@ -4,9 +4,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useAutoSave } from "@/hooks/useAutoSave";
@@ -299,10 +299,14 @@ export default function ConditionsSection() {
     <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
       <div className="flex flex-col gap-5 px-1 pb-6 pt-4 sm:px-2 md:px-3">
         <ProfileSectionHero
+          compact
           icon={HeartPulse}
-          title="Health profile"
+          title={t("onboarding.conditions.title", "Health profile")}
           kicker="Your health"
-          description="Add health conditions so VYVA can give safer, more useful support."
+          description={t(
+            "onboarding.conditions.description",
+            "Add health conditions so VYVA can give safer, more useful support.",
+          )}
           iconBgClassName="bg-[#B0355A]"
           className="!rounded-[22px] !p-4 [&_h2]:!text-[30px] sm:!p-5 sm:[&_h2]:!text-[34px]"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
@@ -320,8 +324,15 @@ export default function ConditionsSection() {
             <Mic size={20} className="text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-body text-[18px] font-black leading-tight text-white">Add by voice</p>
-            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-white/85">Tell VYVA which conditions you live with.</p>
+            <p className="font-body text-[18px] font-black leading-tight text-white">
+              {t("onboarding.conditions.addByVoice", "Add by voice")}
+            </p>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-white/85">
+              {t(
+                "onboarding.conditions.addByVoiceDescription",
+                "Tell VYVA which conditions you live with.",
+              )}
+            </p>
           </div>
           <ChevronRight size={22} className="shrink-0 text-white/75 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </button>
@@ -606,14 +617,17 @@ export default function ConditionsSection() {
           </>
         )}
 
-        <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading || !hasHealthSectionContent} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40">
-            {saving ? "Saving..." : "Save health profile"}
-          </Button>
-          <button data-testid="button-conditions-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">
-            Skip for now
-          </button>
-        </div>
+        <ProfileCompletionBar
+          saving={saving}
+          onSave={handleSave}
+          disabled={isLoading || !hasHealthSectionContent}
+          saveLabel={t("onboarding.conditions.saveContinue", "Save and continue")}
+          savingLabel={t("onboarding.conditions.saving", "Saving...")}
+          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+          skipLabel={t("onboarding.conditions.skip", "Skip for now")}
+          onSkip={() => navigate("/onboarding/profile")}
+          testId="button-conditions-save"
+        />
 
       </div>
     </PhoneFrame>

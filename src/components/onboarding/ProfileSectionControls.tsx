@@ -145,3 +145,61 @@ export function ProfileNoneOption({
     </button>
   );
 }
+
+type ProfileCompletionBarProps = {
+  saving: boolean;
+  onSave: () => void;
+  saveLabel: string;
+  savingLabel: string;
+  helper: string;
+  disabled?: boolean;
+  skipLabel?: string;
+  onSkip?: () => void;
+  testId?: string;
+};
+
+export function ProfileCompletionBar({
+  saving,
+  onSave,
+  saveLabel,
+  savingLabel,
+  helper,
+  disabled = false,
+  skipLabel,
+  onSkip,
+  testId = "button-save-profile-section",
+}: ProfileCompletionBarProps) {
+  return (
+    <div className="sticky bottom-3 z-20 mt-5 rounded-[20px] border border-[#E8D9F7] bg-white/95 p-3 shadow-[0_16px_40px_rgba(42,20,66,0.14)] backdrop-blur-md sm:flex sm:items-center sm:gap-4">
+      <p className="mb-2 flex-1 text-[13px] font-semibold leading-snug text-vyva-text-2 sm:mb-0 sm:text-[14px]">
+        {helper}
+      </p>
+      <div className="flex items-center gap-2">
+        {skipLabel && onSkip ? (
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={saving}
+            className="min-h-11 px-3 text-[14px] font-extrabold text-vyva-purple hover:underline disabled:opacity-50"
+          >
+            {skipLabel}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          data-testid={testId}
+          onClick={onSave}
+          disabled={disabled || saving}
+          className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[16px] bg-vyva-purple px-5 text-[15px] font-black text-white shadow-[0_10px_24px_rgba(105,31,190,0.2)] transition hover:bg-[#5D1AA8] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/20 disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[190px]"
+        >
+          {saving ? (
+            <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 size={18} aria-hidden="true" />
+          )}
+          {saving ? savingLabel : saveLabel}
+        </button>
+      </div>
+    </div>
+  );
+}

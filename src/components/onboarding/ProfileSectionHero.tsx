@@ -14,6 +14,7 @@ type ProfileSectionHeroProps = {
   title: string;
   kicker?: string;
   description: ReactNode;
+  compact?: boolean;
   badges?: ProfileSectionHeroBadge[];
   iconClassName?: string;
   iconBgClassName?: string;
@@ -27,7 +28,10 @@ type ProfileSectionHeroProps = {
   };
 };
 
-const badgeClass: Record<NonNullable<ProfileSectionHeroBadge["color"]>, string> = {
+const badgeClass: Record<
+  NonNullable<ProfileSectionHeroBadge["color"]>,
+  string
+> = {
   green: "bg-[#ECFDF5] text-[#0A7C4E]",
   amber: "bg-[#FFF7CC] text-[#7A4C00]",
   purple: "bg-[#F3E8FF] text-vyva-purple",
@@ -40,6 +44,7 @@ export function ProfileSectionHero({
   title,
   kicker = "Profile setup",
   description,
+  compact = false,
   badges = [],
   iconClassName = "text-white",
   iconBgClassName = "bg-[#7D2BE8]",
@@ -49,7 +54,8 @@ export function ProfileSectionHero({
   return (
     <section
       className={cn(
-        "rounded-[24px] border border-[#EFE4D5] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_58%,#F5ECFF_100%)] p-4 shadow-[0_14px_34px_rgba(53,28,87,0.06)] sm:p-5",
+        "border border-[#EFE4D5] bg-[linear-gradient(135deg,#FFF8EF_0%,#FFFFFF_58%,#F5ECFF_100%)] shadow-[0_14px_34px_rgba(53,28,87,0.06)]",
+        compact ? "rounded-[20px] p-3.5 sm:p-4" : "rounded-[24px] p-4 sm:p-5",
         className,
       )}
     >
@@ -57,20 +63,39 @@ export function ProfileSectionHero({
         <div className="flex min-w-0 flex-1 gap-3.5">
           <div
             className={cn(
-              "hidden h-12 w-12 shrink-0 items-center justify-center rounded-[15px] shadow-[0_10px_20px_rgba(125,43,232,0.18)] min-[520px]:flex",
+              "shrink-0 items-center justify-center shadow-[0_10px_20px_rgba(125,43,232,0.18)]",
+              compact
+                ? "flex h-10 w-10 rounded-[13px]"
+                : "hidden h-12 w-12 rounded-[15px] min-[520px]:flex",
               iconBgClassName,
             )}
           >
-            <Icon size={23} className={iconClassName} />
+            <Icon size={compact ? 20 : 23} className={iconClassName} />
           </div>
           <div className="min-w-0">
-            <p className="mb-1.5 inline-flex rounded-full bg-[#FFF1B8] px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">
-              {kicker}
-            </p>
-            <h2 className="font-display text-[30px] leading-[1.08] text-vyva-text-1 sm:text-[34px]">
+            {!compact ? (
+              <p className="mb-1.5 inline-flex rounded-full bg-[#FFF1B8] px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">
+                {kicker}
+              </p>
+            ) : null}
+            <h2
+              className={cn(
+                "font-display leading-[1.08] text-vyva-text-1",
+                compact
+                  ? "text-[24px] sm:text-[26px]"
+                  : "text-[30px] sm:text-[34px]",
+              )}
+            >
               {title}
             </h2>
-            <p className="mt-1.5 max-w-2xl text-[16px] leading-relaxed text-vyva-text-2">
+            <p
+              className={cn(
+                "max-w-2xl text-vyva-text-2",
+                compact
+                  ? "mt-1 text-[14px] leading-snug sm:text-[15px]"
+                  : "mt-1.5 text-[16px] leading-relaxed",
+              )}
+            >
               {description}
             </p>
           </div>
@@ -85,7 +110,7 @@ export function ProfileSectionHero({
           />
         ) : null}
       </div>
-      {badges.length > 0 ? (
+      {!compact && badges.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {badges.map((badge) => (
             <span
