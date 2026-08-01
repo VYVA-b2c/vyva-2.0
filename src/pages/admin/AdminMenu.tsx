@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Mail,
   LibraryBig,
+  LayoutGrid,
   Mic,
   Package,
   ScrollText,
@@ -35,6 +36,7 @@ type AdminItem = {
 };
 
 const adminItems: AdminItem[] = [
+  { label: "Modules", path: "/admin", description: "All admin areas", icon: LayoutGrid },
   { label: "Lifecycle", path: "/admin/lifecycle", description: "Users, forms, consent and orgs", icon: UsersRound },
   { label: "Activity", path: "/admin/activity", description: "Admin audit trail", icon: Activity },
   { label: "Admins", path: "/admin/users", description: "Manage admin access", icon: UserRoundCog },
@@ -71,7 +73,9 @@ export default function AdminMenu() {
       <div className="flex gap-1 overflow-x-auto p-1.5">
         {items.map((item) => {
           const Icon = item.icon;
-          const active = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+          const active = item.path === "/admin"
+            ? location.pathname === item.path
+            : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 
           return (
             <Link
