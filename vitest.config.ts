@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
+const rootDir = __dirname;
+const clientSetupFile = path.resolve(rootDir, "src/test/setup.ts").replace(/\\/g, "/");
+
 const serverProjects = process.env.DATABASE_URL
   ? [
       {
@@ -16,6 +19,7 @@ const serverProjects = process.env.DATABASE_URL
   : [];
 
 export default defineConfig({
+  root: rootDir,
   plugins: [react()],
   test: {
     globals: true,
@@ -26,7 +30,7 @@ export default defineConfig({
         test: {
           name: "client",
           environment: "jsdom",
-          setupFiles: ["./src/test/setup.ts"],
+          setupFiles: [clientSetupFile],
           include: ["src/**/*.{test,spec}.{ts,tsx}"],
         },
       },
@@ -34,6 +38,6 @@ export default defineConfig({
     ],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: { "@": path.resolve(rootDir, "./src") },
   },
 });

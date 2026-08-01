@@ -3322,6 +3322,26 @@ export const conciergeShoppingPackageItems = pgTable("concierge_shopping_package
   index("concierge_shopping_package_items_package_idx").on(t.package_id),
 ]);
 
+export const trustedHelpPartners = pgTable("trusted_help_partners", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  partner_id:  text("partner_id").notNull().unique(),
+  name:        text("name").notNull(),
+  service:     text("service").notNull(),
+  label:       text("label").notNull(),
+  method:      text("method").notNull(),
+  payment:     text("payment").notNull(),
+  coverage:    text("coverage").array().notNull().default([]),
+  logo:        jsonb("logo").notNull().default({}),
+  is_enabled:  boolean("is_enabled").notNull().default(true),
+  priority:    integer("priority").notNull().default(50),
+  admin_notes: text("admin_notes"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("trusted_help_partners_service_enabled_idx").on(t.service, t.is_enabled, t.priority),
+  index("trusted_help_partners_priority_idx").on(t.priority),
+]);
+
 export const insertConciergeShoppingProductSchema = createInsertSchema(conciergeShoppingProducts).omit({ id: true, created_at: true, updated_at: true });
 export type InsertConciergeShoppingProduct = z.infer<typeof insertConciergeShoppingProductSchema>;
 export type ConciergeShoppingProductRow = typeof conciergeShoppingProducts.$inferSelect;
@@ -3333,6 +3353,10 @@ export type ConciergeShoppingPackageRow = typeof conciergeShoppingPackages.$infe
 export const insertConciergeShoppingPackageItemSchema = createInsertSchema(conciergeShoppingPackageItems).omit({ id: true, created_at: true });
 export type InsertConciergeShoppingPackageItem = z.infer<typeof insertConciergeShoppingPackageItemSchema>;
 export type ConciergeShoppingPackageItemRow = typeof conciergeShoppingPackageItems.$inferSelect;
+
+export const insertTrustedHelpPartnerSchema = createInsertSchema(trustedHelpPartners).omit({ id: true, created_at: true, updated_at: true });
+export type InsertTrustedHelpPartner = z.infer<typeof insertTrustedHelpPartnerSchema>;
+export type TrustedHelpPartnerRow = typeof trustedHelpPartners.$inferSelect;
 
 
 // ============================================================
@@ -3459,4 +3483,5 @@ export const schema = {
   conciergeShoppingProducts,
   conciergeShoppingPackages,
   conciergeShoppingPackageItems,
+  trustedHelpPartners,
 };

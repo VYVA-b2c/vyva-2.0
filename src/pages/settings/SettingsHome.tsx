@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   HeartPulse,
+  Handshake,
   Info,
   Lock,
   LogOut,
@@ -292,6 +293,18 @@ export default function SettingsHome() {
             sub={t("settings.home.rows.healthDevicesSub", "Set up Bluetooth devices and capture options")}
             onClick={() => navigate("/settings/health-devices")}
             data-testid="button-settings-health-devices"
+          />
+        </Section>
+
+        <Section title={t("settings.home.sections.conciergeSetup", "Concierge setup")}>
+          <Row
+            icon={Handshake}
+            iconBg="#F0FDFA"
+            iconColor="#0F766E"
+            title={t("settings.home.rows.trustedHelp", "Trusted Help")}
+            sub={t("settings.home.rows.trustedHelpSub", "Providers, payment, family approvals")}
+            onClick={() => navigate("/settings/trusted-help")}
+            data-testid="button-settings-trusted-help"
           />
         </Section>
 

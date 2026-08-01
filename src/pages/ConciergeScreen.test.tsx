@@ -204,6 +204,18 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-fast-safe-home")).toHaveTextContent("Safe Home");
     expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Paperwork Help");
     expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Find Plumber");
+    expect(screen.getByTestId("panel-concierge-trusted-help")).toHaveTextContent("My Trusted Help");
+  });
+
+  it("opens Trusted Help setup from Concierge", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-trusted-help"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/settings/trusted-help");
+    });
   });
 
   it("routes delivery through the shopping helper", async () => {
