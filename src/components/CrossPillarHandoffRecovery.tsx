@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { ListRestart, Mic, RotateCcw } from "lucide-react";
+import { Clock3, ListRestart, Mic, RotateCcw, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   CROSS_PILLAR_HANDOFF_EVENT,
-  cancelCrossPillarHandoff,
+  recoverCrossPillarHandoff,
   readCrossPillarHandoff,
-  retryCrossPillarHandoff,
   type CrossPillarHandoffRecord,
 } from "@/lib/crossPillarHandoffExecution";
 
@@ -27,15 +26,15 @@ export default function CrossPillarHandoffRecovery() {
 
   if (!handoff || handoff.status !== "failed") return null;
 
-  const leaveFailedTask = (voice = false) => {
-    cancelCrossPillarHandoff(handoff.id);
-    navigate("/", {
-      state: {
-        crossPillarRecovery: voice ? "ask_vyva" : "choose_another",
-        originalActionId: handoff.actionId,
-        originalOptionId: handoff.optionId,
-      },
-    });
+  const recovery = handoff.recovery;
+  const actions = new Set(recovery?.availableActions ?? [
+    "retry",
+    "choose_alternative",
+    "prepare_for_later",
+    "ask_vyva",
+  ]);
+  const recover = (action: Parameters<typeof recoverCrossPillarHandoff>[1]) => {
+    recoverCrossPillarHandoff(handoff.id, action, navigate);
   };
 
   return (
@@ -46,33 +45,57 @@ export default function CrossPillarHandoffRecovery() {
     >
       <h2 className="text-lg font-bold text-[#25152F]">That step did not finish</h2>
       <p className="mt-1 text-sm text-[#66576B]">
-        {handoff.failureReason || "Your details are still saved. Choose what you would like to do."}
+        {recovery?.explanation ?? "That action could not be completed."}{" "}
+        {recovery?.preservedSummary ?? "Your details are still saved."}
       </p>
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <button
+      {recovery && (
+        <dl className="mt-3 grid gap-1 rounded-md bg-[#FAF7FC] px-3 py-2 text-xs text-[#66576B]">
+          <div><dt className="inline font-bold text-[#25152F]">Saved: </dt><dd className="inline">{recovery.whatSucceeded}</dd></div>
+          <div><dt className="inline font-bold text-[#25152F]">Not finished: </dt><dd className="inline">{recovery.whatFailed}</dd></div>
+          <div><dt className="inline font-bold text-[#25152F]">Next: </dt><dd className="inline">{recovery.whatRemains}</dd></div>
+        </dl>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {actions.has("retry") && <button
           type="button"
           className="vyva-secondary-action min-h-[52px] px-2 text-sm"
-          onClick={() => retryCrossPillarHandoff(handoff.id, navigate)}
+          onClick={() => recover("retry")}
         >
           <RotateCcw aria-hidden="true" className="mr-1.5 h-4 w-4" />
           Try again
-        </button>
-        <button
+        </button>}
+        {actions.has("choose_alternative") && <button
           type="button"
           className="vyva-secondary-action min-h-[52px] px-2 text-sm"
-          onClick={() => leaveFailedTask(false)}
+          onClick={() => recover("choose_alternative")}
         >
           <ListRestart aria-hidden="true" className="mr-1.5 h-4 w-4" />
-          Another
-        </button>
-        <button
+          Another option
+        </button>}
+        {actions.has("prepare_for_later") && <button
           type="button"
-          className="vyva-primary-action min-h-[52px] px-2 text-sm"
-          onClick={() => leaveFailedTask(true)}
+          className="vyva-secondary-action min-h-[52px] px-2 text-sm"
+          onClick={() => recover("prepare_for_later")}
+        >
+          <Clock3 aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Save for later
+        </button>}
+        {actions.has("trusted_contact") && <button
+          type="button"
+          className="vyva-secondary-action min-h-[52px] px-2 text-sm"
+          onClick={() => recover("trusted_contact")}
+        >
+          <Users aria-hidden="true" className="mr-1.5 h-4 w-4" />
+          Trusted person
+        </button>}
+        {actions.has("ask_vyva") && <button
+          type="button"
+          className="vyva-primary-action col-span-2 min-h-[52px] px-2 text-sm"
+          onClick={() => recover("ask_vyva")}
         >
           <Mic aria-hidden="true" className="mr-1.5 h-4 w-4" />
           Ask VYVA
-        </button>
+        </button>}
       </div>
     </aside>
   );

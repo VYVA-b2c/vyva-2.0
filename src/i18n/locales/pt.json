@@ -528,7 +528,7 @@
         "signOut": "Sair",
         "deleteAccount": "Excluir minha conta e todos os dados",
         "deleteAccountSub": "Permanente — não pode ser desfeito",
-        "downloadDataStartedDesc": "A VYVA come?ou a transferir a exporta??o do seu perfil."
+        "downloadDataStartedDesc": "A VYVA começou a transferir a exportação do seu perfil."
       }
     },
     "notifications": {
@@ -560,7 +560,7 @@
       "supportModeAiSub": "A VYVA gere automaticamente check-ins e lembretes de rotina.",
       "supportModeHuman": "Com apoio humano",
       "supportModeHumanSub": "Uma pessoa gere o contacto enquanto a VYVA mantém o plano claro.",
-      "savedDesc": "As suas prefer?ncias de notifica??o foram atualizadas."
+      "savedDesc": "As suas preferências de notificação foram atualizadas."
     },
     "privacy": {
       "title": "Privacidade e consentimento",
@@ -578,7 +578,107 @@
       "conversationsSub": "Destaques diários dos seus chats",
       "gdprFooter": "As alterações são salvas automaticamente. Protegido pelo RGPD.",
       "brainCoachAccessUpdated": "Acesso ao Brain Coach atualizado",
-      "brainCoachAccessUpdatedDesc": "As permiss?es de Brain Coach deste membro da equipa de cuidados foram guardadas."
+      "brainCoachAccessUpdatedDesc": "As permissões de Brain Coach deste membro da equipa de cuidados foram guardadas.",
+      "hero": {
+        "kicker": "Privacidade e consentimento",
+        "description": "Escolha o que a VYVA pode utilizar e o que a sua equipa de cuidados autorizada pode ver.",
+        "youDecide": "A decisão é sua",
+        "careTeamAccess": "Acesso da equipa de cuidados",
+        "gdprProtected": "Protegido pelo RGPD"
+      },
+      "brainCoach": {
+        "title": "Acesso de cuidadores ao Brain Coach",
+        "description": "Decida o que cada cuidador autorizado pode ver ou gerir no Brain Coach.",
+        "loading": "A carregar o acesso ao Brain Coach...",
+        "loadErrorTitle": "Não foi possível carregar o acesso ao Brain Coach",
+        "seniorOnly": "Apenas a pessoa acompanhada pode alterar estas permissões.",
+        "emptyTitle": "Ainda não existem cuidadores ativos.",
+        "emptyDescription": "Convide um cuidador ou familiar antes de conceder acesso ao Brain Coach.",
+        "saveError": "Não foi possível guardar o acesso ao Brain Coach.",
+        "updateError": "Não foi possível atualizar esta permissão.",
+        "grant": "Conceder acesso ao Brain Coach",
+        "revoke": "Remover acesso ao Brain Coach",
+        "for": "para {{name}}",
+        "saving": "A guardar...",
+        "status": {
+          "noAccess": "Sem acesso",
+          "controlsEnabled": "Controlos ativos",
+          "summaryOnly": "Apenas resumo"
+        },
+        "permissions": {
+          "viewSummary": {
+            "label": "Ver resumo do Brain Coach",
+            "description": "Sequência atual, plano concluído, áreas e atividades recentes."
+          },
+          "managePlanPreferences": {
+            "label": "Gerir preferências do plano",
+            "description": "Áreas prioritárias, atividades excluídas, duração e objetivo semanal."
+          },
+          "manageSchedule": {
+            "label": "Gerir horário",
+            "description": "Pausar ou retomar o ritmo e os horários de treino."
+          },
+          "sendNudges": {
+            "label": "Enviar lembretes na aplicação",
+            "description": "Lembretes suaves do Brain Coach apenas dentro da VYVA."
+          },
+          "previewPlan": {
+            "label": "Pré-visualizar plano",
+            "description": "Ver atividades propostas sem alterar o plano de hoje."
+          }
+        }
+      },
+      "careTeam": {
+        "memberFallback": "Membro da equipa de cuidados",
+        "loading": "A carregar a equipa de cuidados...",
+        "loadErrorTitle": "Não foi possível carregar as permissões de partilha",
+        "loadErrorDescription": "Verifique a ligação e tente novamente.",
+        "emptyTitle": "Ainda não existem membros na equipa de cuidados.",
+        "emptyDescription": "Adicione uma pessoa de confiança e escolha o que pode receber ou ver.",
+        "addMember": "Adicionar membro",
+        "sharingSource": "Permissões de partilha",
+        "sharingAria": "{{permission}} para {{name}}",
+        "shared": "Partilhado",
+        "notShared": "Não partilhado"
+      },
+      "sharingPermissions": {
+        "dailyDigest": {
+          "label": "Resumo diário de bem-estar",
+          "description": "Bem-estar diário e destaques dos cuidados."
+        },
+        "safetyAlerts": {
+          "label": "Alertas de segurança",
+          "description": "Eventos importantes de segurança e verificações urgentes."
+        },
+        "healthUpdates": {
+          "label": "Atualizações de saúde",
+          "description": "Alterações de saúde e alertas de bem-estar."
+        },
+        "moodUpdates": {
+          "label": "Atualizações de humor",
+          "description": "Alterações de humor e do bem-estar diário."
+        },
+        "medicationAlerts": {
+          "label": "Alertas de medicação",
+          "description": "Lembretes e alertas de doses em falta."
+        },
+        "caregiverDashboard": {
+          "label": "Painel do cuidador",
+          "description": "Acesso apenas de leitura ao painel do cuidador."
+        },
+        "healthReports": {
+          "label": "Relatórios de saúde",
+          "description": "Relatórios partilhados a partir do perfil da pessoa acompanhada."
+        },
+        "vitalSigns": {
+          "label": "Sinais vitais",
+          "description": "Sinais vitais partilhados pelo acompanhamento de saúde."
+        },
+        "conversationSummaries": {
+          "label": "Resumos de conversas",
+          "description": "Destaques diários das conversas."
+        }
+      }
     },
     "account": {
       "title": "Minha conta",
@@ -631,8 +731,8 @@
       "savedDesc": "Os dados da sua conta foram guardados.",
       "photoUpdated": "Foto atualizada",
       "photoUpdatedDesc": "A sua foto de perfil foi guardada.",
-      "photoError": "N?o foi poss?vel atualizar a foto",
-      "photoErrorDesc": "A sua foto de perfil n?o foi guardada. Tente outra imagem."
+      "photoError": "Não foi possível atualizar a foto",
+      "photoErrorDesc": "A sua foto de perfil não foi guardada. Tente outra imagem."
     }
   },
   "health": {
@@ -1356,28 +1456,28 @@
     },
     "takenToastTitle": "Bom trabalho",
     "takenToastDescription": "{{medicine}} foi marcado como tomado.",
-    "allTakenToastDescription": "Todas as doses de hoje j? est?o marcadas como tomadas.",
+    "allTakenToastDescription": "Todas as doses de hoje já estão marcadas como tomadas.",
     "editSuccessDesc": "Os dados do medicamento foram guardados.",
-    "editErrorDesc": "Os dados do medicamento n?o foram guardados. Tente novamente.",
+    "editErrorDesc": "Os dados do medicamento não foram guardados. Tente novamente.",
     "deleteSuccessDesc": "Este medicamento foi removido da sua lista.",
-    "deleteErrorDesc": "Este medicamento n?o foi removido da sua lista. Tente novamente.",
-    "confirmDoseError": "N?o foi poss?vel confirmar a dose",
-    "confirmDoseErrorDesc": "A dose n?o foi marcada como tomada. Tente novamente.",
+    "deleteErrorDesc": "Este medicamento não foi removido da sua lista. Tente novamente.",
+    "confirmDoseError": "Não foi possível confirmar a dose",
+    "confirmDoseErrorDesc": "A dose não foi marcada como tomada. Tente novamente.",
     "safety": {
-      "analyseSuccess": "Verifica??o de seguran?a atualizada",
+      "analyseSuccess": "Verificação de segurança atualizada",
       "analyseSuccessDesc": "A VYVA reviu os sinais dos seus medicamentos.",
-      "analyseError": "N?o foi poss?vel analisar a seguran?a dos medicamentos",
-      "analyseErrorDesc": "A VYVA n?o conseguiu rever os sinais dos seus medicamentos neste momento.",
+      "analyseError": "Não foi possível analisar a segurança dos medicamentos",
+      "analyseErrorDesc": "A VYVA não conseguiu rever os sinais dos seus medicamentos neste momento.",
       "sharedSuccess": "Caso partilhado com o cuidador",
-      "sharedSuccessDesc": "O caso de seguran?a do medicamento foi partilhado com o seu cuidador.",
-      "saveSuccess": "Caso de seguran?a guardado",
-      "saveSuccessDesc": "O caso de seguran?a do medicamento foi guardado para revis?o.",
-      "saveError": "N?o foi poss?vel guardar o caso de seguran?a",
-      "saveErrorDesc": "O caso de seguran?a do medicamento n?o foi guardado. Tente novamente.",
+      "sharedSuccessDesc": "O caso de segurança do medicamento foi partilhado com o seu cuidador.",
+      "saveSuccess": "Caso de segurança guardado",
+      "saveSuccessDesc": "O caso de segurança do medicamento foi guardado para revisão.",
+      "saveError": "Não foi possível guardar o caso de segurança",
+      "saveErrorDesc": "O caso de segurança do medicamento não foi guardado. Tente novamente.",
       "exportSuccess": "Pacote pronto para auditoria criado",
-      "exportSuccessDesc": "O pacote de seguran?a do medicamento est? pronto para copiar ou partilhar.",
-      "exportError": "N?o foi poss?vel exportar o caso de seguran?a",
-      "exportErrorDesc": "O pacote de seguran?a do medicamento n?o foi criado. Tente novamente."
+      "exportSuccessDesc": "O pacote de segurança do medicamento está pronto para copiar ou partilhar.",
+      "exportError": "Não foi possível exportar o caso de segurança",
+      "exportErrorDesc": "O pacote de segurança do medicamento não foi criado. Tente novamente."
     }
   },
   "brain": {
@@ -1629,26 +1729,97 @@
     },
     "toast": {
       "allergensAlreadySaved": {
-        "title": "Alerg?nios j? guardados",
-        "description": "Tudo o que disse j? est? na sua lista de alergias."
+        "title": "Alergénios já guardados",
+        "description": "Tudo o que disse já está na sua lista de alergias."
       },
       "allergyListUpdated": {
         "title": "Lista de alergias atualizada"
       },
       "healthConditionsUpdated": {
-        "title": "Condi??es de sa?de atualizadas"
+        "title": "Condições de saúde atualizadas"
       },
       "hobbiesAlreadySaved": {
-        "title": "Interesses j? guardados",
-        "description": "Tudo o que disse j? est? selecionado."
+        "title": "Interesses já guardados",
+        "description": "Tudo o que disse já está selecionado."
       },
       "hobbiesUpdated": {
         "title": "Interesses atualizados"
       },
       "providerUpdated": {
         "title": "Fornecedor atualizado",
-        "description": "{{name}} foi guardado nos seus fornecedores de confian?a.",
+        "description": "{{name}} foi guardado nos seus fornecedores de confiança.",
         "fallbackName": "Este fornecedor"
+      }
+    },
+    "allergies": {
+      "title": "Alergias",
+      "kicker": "Alertas importantes",
+      "description": "Adicione medicamentos, alimentos ou materiais que a VYVA deve recordar antes de lembretes, ajuda do concierge ou uma emergência.",
+      "badges": {
+        "medicines": "Medicamentos",
+        "foods": "Alimentos",
+        "emergencyReady": "Preparado para emergências"
+      },
+      "addByVoice": "Adicionar por voz",
+      "addByVoiceDescription": "Diga a que reage. A VYVA adicionará à lista.",
+      "nonePrompt": "Não há alergias a adicionar?",
+      "noneDescription": "Escolha esta opção se não existirem alergias conhecidas neste momento.",
+      "noneButton": "Sem alergias conhecidas",
+      "saveError": "Não foi possível guardar as alergias",
+      "remove": "Remover {{allergy}}",
+      "empty": "Ainda não foram adicionadas alergias",
+      "inputPlaceholder": "Escreva uma alergia e prima Enter ou Adicionar",
+      "add": "Adicionar",
+      "commonHeading": "Alergénios comuns - toque para adicionar",
+      "saving": "A guardar...",
+      "save": "Guardar alergias",
+      "skip": "Ignorar por agora",
+      "common": {
+        "penicillin": "Penicilina",
+        "aspirin": "Aspirina",
+        "ibuprofen": "Ibuprofeno",
+        "sulfaDrugs": "Sulfonamidas",
+        "codeine": "Codeína",
+        "latex": "Látex",
+        "peanuts": "Amendoins",
+        "treeNuts": "Frutos de casca rija",
+        "shellfish": "Marisco",
+        "eggs": "Ovos",
+        "milkDairy": "Leite / Laticínios",
+        "wheatGluten": "Trigo / Glúten",
+        "soy": "Soja",
+        "beeStings": "Picadas de abelha"
+      },
+      "voice": {
+        "kicker": "Configuração de alergias por voz",
+        "title": "Diga à VYVA quais são as suas alergias",
+        "subtitle": "Fale naturalmente. Poderá rever tudo antes de guardar.",
+        "close": "Fechar",
+        "connecting": "A ligar...",
+        "speaking": "A falar",
+        "listening": "A ouvir",
+        "tapToStart": "Toque para começar",
+        "micUnavailableTitle": "Microfone indisponível",
+        "micUnavailableDescription": "Permita o acesso ao microfone no navegador e tente novamente.",
+        "tabs": {
+          "add": "Adicionar alergias",
+          "ask": "Fazer uma pergunta"
+        },
+        "identifying": "A identificar alergias...",
+        "example": "Por exemplo:",
+        "examplePhrase": "\"Sou alérgico à penicilina e ao marisco.\"",
+        "parseError": "A VYVA não conseguiu identificar uma alergia. Tente novamente.",
+        "tryAgain": "Tentar novamente",
+        "heardTitle": "A VYVA ouviu",
+        "noneDetected": "Ainda não foram detetadas alergias.",
+        "addOne": "Adicionar alergia",
+        "addMany": "Adicionar {{count}} alergias",
+        "stopIdentify": "Parar",
+        "startSpeaking": "Começar a falar",
+        "askDescription": "Faça uma pergunta geral sobre alergias. A VYVA fornece informação geral, não um diagnóstico.",
+        "disclaimer": "A VYVA fornece apenas orientação geral. Em caso de sintomas graves ou dificuldade em respirar, contacte imediatamente os serviços de emergência.",
+        "stop": "Parar",
+        "askQuestion": "Fazer pergunta"
       }
     }
   },
@@ -1733,10 +1904,10 @@
       "connectFailed": "Não foi possível enviar o pedido",
       "respondFailed": "Não foi possível atualizar a ligação",
       "activateFailed": "Não foi possível ativar a comunidade. Por favor, tente novamente.",
-      "saveInterestsFailedDesc": "Os seus interesses de companhia n?o foram guardados. Tente novamente.",
-      "connectFailedDesc": "O seu pedido de companhia n?o foi enviado. Tente novamente.",
-      "respondFailedDesc": "A sua resposta de companhia n?o foi guardada. Tente novamente.",
-      "activateFailedDesc": "A procura de companhia n?o foi ativada. Tente novamente."
+      "saveInterestsFailedDesc": "Os seus interesses de companhia não foram guardados. Tente novamente.",
+      "connectFailedDesc": "O seu pedido de companhia não foi enviado. Tente novamente.",
+      "respondFailedDesc": "A sua resposta de companhia não foi guardada. Tente novamente.",
+      "activateFailedDesc": "A procura de companhia não foi ativada. Tente novamente."
     },
     "profile": {
       "valuesTitle": "O que é importante para si",

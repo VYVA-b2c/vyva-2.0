@@ -27,6 +27,7 @@ type MasterAction = {
   canStartVoice?: () => boolean;
   hideWhenSessionActive?: boolean;
   supportingLabel?: string;
+  onFirstVoiceOrbActivation?: () => void;
 };
 
 export type MasterDashboardCard = {
@@ -62,6 +63,7 @@ export type MasterDashboardHero = {
   eyebrow: string;
   title: string;
   subtitle?: string;
+  subtitleTone?: "default" | "gold";
   action: MasterAction;
   tone?: MasterTone;
   testId?: string;
@@ -240,12 +242,19 @@ export default function MasterDashboardLayout({
             </h1>
             {hero.subtitle ? (
               <div
+                data-testid="home-master-hero-subtitle"
                 className={[
                   `relative mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2 ${isHomeMaster ? "vyva-home-master-readable" : ""}`,
                   isHomeMaster
                     ? `mx-auto max-w-[21rem] font-bold text-[#6C5369] ${isHomeMasterIntentLayer ? "mt-2 text-[15px] min-[390px]:text-[16px] sm:max-w-[30rem] sm:text-[18px]" : "mt-3 text-[16px] min-[390px]:text-[17px] sm:max-w-[28rem] sm:text-[19px] md:max-w-[34rem] md:text-[20px]"}`
                     : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
-                  isHomeMasterDark ? "!text-[#E8DDF3]" : "",
+                  hero.subtitleTone === "gold"
+                    ? isHomeMasterDark
+                      ? "!text-[#F6C75B]"
+                      : "!text-[#9A5B00]"
+                    : isHomeMasterDark
+                      ? "!text-[#E8DDF3]"
+                      : "",
                 ].join(" ")}
               >
                 {hero.messageActionLabel && hero.onMessageAction ? (
@@ -297,6 +306,7 @@ export default function MasterDashboardLayout({
               disabled={hero.action.disabled}
               testId={hero.action.testId}
               supportingLabel={hero.action.supportingLabel}
+              onFirstVoiceOrbActivation={hero.action.onFirstVoiceOrbActivation}
               visual="voiceRail"
               className="vyva-tap relative flex !h-[64px] !min-h-[64px] !w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[68px] min-[390px]:!min-h-[68px] min-[390px]:!w-[68px]"
             />
@@ -320,6 +330,7 @@ export default function MasterDashboardLayout({
               disabled={hero.action.disabled}
               testId={hero.action.testId}
               supportingLabel={hero.action.supportingLabel}
+              onFirstVoiceOrbActivation={hero.action.onFirstVoiceOrbActivation}
               visual="voiceOrb"
               voiceOrbDark={isHomeMasterDark}
               voiceOrbSize={isHomeMasterIntentLayer ? 112 : 184}

@@ -22,12 +22,14 @@ import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
+import { hasSeenVoiceOrbHint } from "@/lib/voiceOrbHint";
 import {
   decideHomeContextMessage,
   homeContextActionForVoiceReply,
   readHomeContextMessageActionHistory,
   readHomeContextMessageHistory,
   readHomeContextMessageOutcomeHistory,
+  HOME_CONTEXT_MESSAGE_DISPLAY_MS,
   writeHomeContextMessageAction,
   writeHomeContextMessageOutcome,
   writeHomeContextMessageSeen,
@@ -768,6 +770,9 @@ const HomeScreen = () => {
       return "voice";
     }
   });
+  const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
+    () => !hasSeenVoiceOrbHint(),
+  );
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
   const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
   const activeVoiceHomeContextFingerprintRef = useRef<string | null>(null);
@@ -789,7 +794,6 @@ const HomeScreen = () => {
       const transition = transitionForVoiceHomeIntent(intent);
       setHomeIntentLayer(transition.layer);
       setHomeSubflow(null);
-      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
@@ -802,7 +806,6 @@ const HomeScreen = () => {
       if (!isVoiceHomeSubflow(subflow)) return;
       setHomeIntentLayer(subflow.pillar);
       setHomeSubflow(subflow);
-      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
@@ -1044,7 +1047,9 @@ const HomeScreen = () => {
     return t(`home.greeting.${period}.withoutName.1`);
   }, [firstName, language, timeGreetingKey, t]);
 
-  const handleNavigate = (path: string, options?: NavigateOptions) => guardPath(path, options);
+  const handleNavigate = useCallback((path: string, options?: NavigateOptions) => {
+    guardPath(path, options);
+  }, [guardPath]);
 
   const launchHomeFastHelp = (
     actionId: ContextualHomeFastHelpActionId,
@@ -1783,15 +1788,22 @@ const HomeScreen = () => {
     t,
     timeGreetingKey,
   ]);
+  const homeContextHistorySnapshot = useMemo(() => ({
+    actions: readHomeContextMessageActionHistory(),
+    outcomes: readHomeContextMessageOutcomeHistory(),
+    revision: homeContextHistoryRevision,
+    seen: readHomeContextMessageHistory(),
+  }), [homeContextHistoryRevision]);
+
   const selectedHomeContextDecision = useMemo(
     () => {
       return decideHomeContextMessage(
         homeContextMessages,
-        readHomeContextMessageHistory(),
+        homeContextHistorySnapshot.seen,
         conciergeClockMs,
         {
-          actionHistory: readHomeContextMessageActionHistory(),
-          outcomeHistory: readHomeContextMessageOutcomeHistory(),
+          actionHistory: homeContextHistorySnapshot.actions,
+          outcomeHistory: homeContextHistorySnapshot.outcomes,
           activeIntent: homeIntentLayer === "home" ? null : homeIntentLayer,
           freezeRotation: isHomeMasterVoiceAlive,
           frozenMessageId: stableHomeContextMessageIdRef.current,
@@ -1801,7 +1813,7 @@ const HomeScreen = () => {
     },
     [
       conciergeClockMs,
-      homeContextHistoryRevision,
+      homeContextHistorySnapshot,
       homeContextMessages,
       homeIntentLayer,
       isHomeMasterVoiceAlive,
@@ -1820,6 +1832,7 @@ const HomeScreen = () => {
     stableHomeContextMessageIdRef.current = selectedHomeContextMessage.id;
   }, [
     isHomeMasterVoiceAlive,
+    selectedHomeContextMessage,
     selectedHomeContextMessage?.id,
     selectedHomeContextMessage?.kind,
   ]);
@@ -1916,6 +1929,7 @@ const HomeScreen = () => {
   }, [
     selectedHomeVoiceContext,
     selectedHomeVoiceContextFingerprint,
+    voice,
     voice?.sendContextUpdate,
     voice?.status,
   ]);
@@ -1930,9 +1944,13 @@ const HomeScreen = () => {
       writeHomeContextMessageSeen(selectedHomeContextMessage.id);
       trackHomeContextOutcome("shown", "system");
       setHomeContextHistoryRevision((current) => current + 1);
-    }, 8_000);
+    }, HOME_CONTEXT_MESSAGE_DISPLAY_MS);
     return () => window.clearTimeout(seenTimer);
-  }, [selectedHomeContextMessage?.id, trackHomeContextOutcome]);
+  }, [
+    selectedHomeContextMessage,
+    selectedHomeContextMessage?.id,
+    trackHomeContextOutcome,
+  ]);
   useEffect(() => {
     if (voice?.status !== "connected") {
       voiceEngagedMessageIdRef.current = null;
@@ -1946,6 +1964,7 @@ const HomeScreen = () => {
     voiceEngagedMessageIdRef.current = selectedHomeContextMessage.id;
     trackHomeContextOutcome("voice_engaged", "voice");
   }, [
+    selectedHomeContextMessage,
     selectedHomeContextMessage?.id,
     selectedHomeContextMessage?.kind,
     trackHomeContextOutcome,
@@ -1963,7 +1982,7 @@ const HomeScreen = () => {
       source: managedHomeHeroMessage.source,
     });
   }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
-  const dismissSelectedHomeContextMessage = () => {
+  const dismissSelectedHomeContextMessage = useCallback(() => {
     if (!selectedHomeContextMessage?.dismissible) return;
     if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
       recordHeroEvent({
@@ -1979,8 +1998,13 @@ const HomeScreen = () => {
     trackHomeContextOutcome("dismissed", "touch");
     writeHomeContextMessageSeen(selectedHomeContextMessage.id);
     setHomeContextHistoryRevision((current) => current + 1);
-  };
-  const openSelectedHomeContextMessage = (
+  }, [
+    language,
+    managedHomeHeroMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+  ]);
+  const openSelectedHomeContextMessage = useCallback((
     source: "touch" | "voice" | "voice_tool" = "touch",
   ) => {
     if (!selectedHomeContextMessage?.actionRoute) return;
@@ -2011,7 +2035,14 @@ const HomeScreen = () => {
     handleNavigate(selectedHomeContextMessage.actionRoute, {
       state: selectedHomeContextMessage.actionState,
     });
-  };
+  }, [
+    handleNavigate,
+    language,
+    managedHomeHeroMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+    voice,
+  ]);
   useEffect(() => {
     if (
       voice?.status !== "connected"
@@ -2072,6 +2103,7 @@ const HomeScreen = () => {
       window.removeEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceToolResult);
     };
   }, [
+    openSelectedHomeContextMessage,
     selectedHomeContextMessage,
     trackHomeContextOutcome,
     voice?.status,
@@ -2086,10 +2118,17 @@ const HomeScreen = () => {
       ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
       : t(`home.master.${activeIntentKey}.dormantSubtitle`)
     : null;
-  const homeMasterHeroSubtitle = selectedHomeContextMessage?.supportingText
+  const homeMasterNormalHeroSubtitle = selectedHomeContextMessage?.supportingText
     ?? (activeIntentSubtitle
       ? activeIntentSubtitle
       : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const showHomeVoiceFirstUseHint = homeInteractionMode === "voice"
+    && homeIntentLayer === "home"
+    && showVoiceOrbFirstUseHint
+    && (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default");
+  const homeMasterHeroSubtitle = showHomeVoiceFirstUseHint
+    ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
+    : homeMasterNormalHeroSubtitle;
   const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
     home: homeMasterCards,
     health: homeMasterHealthCards.slice(0, 4),
@@ -2727,7 +2766,7 @@ const HomeScreen = () => {
       launcherVariant="homeMaster"
       intentLayer={homeIntentLayer !== "home"}
       showHero={homeInteractionMode === "voice"}
-      showCards={homeInteractionMode === "touch"}
+      showCards={homeInteractionMode === "touch" || homeIntentLayer !== "home"}
       modeSwitcher={(
         <>
           <div
@@ -2800,6 +2839,7 @@ const HomeScreen = () => {
         eyebrow: t("home.master.heroEyebrow", "Today"),
         title: homeMasterGreetingText,
         subtitle: homeMasterHeroSubtitle,
+        subtitleTone: showHomeVoiceFirstUseHint ? "gold" : "default",
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
@@ -2815,6 +2855,7 @@ const HomeScreen = () => {
           },
           autoStartListening: true,
           testId: "button-home-hero-talk",
+          onFirstVoiceOrbActivation: () => setShowVoiceOrbFirstUseHint(false),
         },
         testId: "home-master-hero",
         messageActionLabel: selectedHomeContextMessage?.actionLabel,

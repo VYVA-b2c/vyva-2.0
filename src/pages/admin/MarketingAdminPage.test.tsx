@@ -806,7 +806,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Customer preview");
+    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("HTML template available");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Plain text copy");
+    expect(screen.queryByTitle("Preview Partner post")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("marketing-content-customer-preview-show-html-preview"));
+    expect(screen.getByTitle("Preview Partner post")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Lovable design preview");
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Partner hero");
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Lovable builder copy");
@@ -1204,6 +1208,18 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-content-channel-1-linkedin"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-content-channel-1-linkedin"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Partner post");
 
     fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
     fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));

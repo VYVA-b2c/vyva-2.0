@@ -56,6 +56,74 @@ export type CrossPillarToolHealth = {
 };
 
 const FAILURE_OUTCOMES = new Set<CrossPillarExecutionOutcome>(["failed", "timed_out"]);
+const RECOVERY_TRIGGER_OUTCOMES = new Set<CrossPillarExecutionOutcome>([
+  "failed",
+  "timed_out",
+  "blocked",
+  "fallback",
+]);
+
+export type CrossPillarRecoverySummary = {
+  total: number;
+  recovered: number;
+  stillBlocked: number;
+  inProgress: number;
+  recoveryRatePct: number;
+  recentBlocked: CrossPillarExecutionAttemptSnapshot[];
+};
+
+export function summarizeCrossPillarRecoveries(
+  attempts: CrossPillarExecutionAttemptSnapshot[],
+): CrossPillarRecoverySummary {
+  const byHandoff = attempts.reduce<Record<string, CrossPillarExecutionAttemptSnapshot[]>>(
+    (groups, attempt) => {
+      (groups[attempt.handoffId] ??= []).push(attempt);
+      return groups;
+    },
+    {},
+  );
+
+  let total = 0;
+  let recovered = 0;
+  let stillBlocked = 0;
+  let inProgress = 0;
+  const recentBlocked: CrossPillarExecutionAttemptSnapshot[] = [];
+
+  Object.values(byHandoff).forEach((handoffAttempts) => {
+    const ordered = [...handoffAttempts].sort((a, b) =>
+      a.startedAt.localeCompare(b.startedAt),
+    );
+    const firstFailureIndex = ordered.findIndex((attempt) =>
+      RECOVERY_TRIGGER_OUTCOMES.has(attempt.outcome),
+    );
+    if (firstFailureIndex < 0) return;
+
+    total += 1;
+    const afterFailure = ordered.slice(firstFailureIndex + 1);
+    if (afterFailure.some((attempt) => attempt.outcome === "succeeded")) {
+      recovered += 1;
+      return;
+    }
+    const latest = ordered.at(-1)!;
+    if (latest.outcome === "resumed" || latest.outcome === "started") {
+      inProgress += 1;
+      return;
+    }
+    stillBlocked += 1;
+    recentBlocked.push(latest);
+  });
+
+  return {
+    total,
+    recovered,
+    stillBlocked,
+    inProgress,
+    recoveryRatePct: total > 0 ? Math.round((recovered / total) * 100) : 0,
+    recentBlocked: recentBlocked
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+      .slice(0, 20),
+  };
+}
 
 export function summarizeCrossPillarToolHealth(
   attempts: CrossPillarExecutionAttemptSnapshot[],

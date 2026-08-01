@@ -5,9 +5,11 @@ import {
   acknowledgeCrossPillarHandoff,
   buildCrossPillarHandoff,
   completeCrossPillarHandoff,
+  chooseAnotherCrossPillarProvider,
   executeCrossPillarHandoff,
   failCrossPillarHandoff,
   readCrossPillarHandoff,
+  recoverCrossPillarHandoff,
   retryCrossPillarHandoff,
   timeoutCrossPillarHandoff,
 } from "./crossPillarHandoffExecution";
@@ -185,6 +187,140 @@ describe("cross-pillar real handoff execution", () => {
     expect(history.filter((item: { id: string }) => item.id === handoff.id)).toHaveLength(1);
   });
 
+  it("recovers a failed Health action with the same handoff and saved choices", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("health-symptoms", "guide-me"),
+      now: "2026-07-27T14:00:00.000Z",
+    }, navigate);
+    failCrossPillarHandoff(
+      handoff.id,
+      "service_unavailable",
+      window.localStorage,
+      "2026-07-27T14:01:00.000Z",
+    );
+    navigate.mockClear();
+
+    const recovered = recoverCrossPillarHandoff(
+      handoff.id,
+      "retry",
+      navigate,
+      window.localStorage,
+      "2026-07-27T14:02:00.000Z",
+    );
+
+    expect(recovered).toMatchObject({ id: handoff.id, attemptCount: 2 });
+    expect(navigate).toHaveBeenCalledWith(
+      "/health/symptom-check",
+      expect.objectContaining({
+        state: expect.objectContaining({
+          detailPreference: "guide-me",
+          crossPillarHandoffId: handoff.id,
+          crossPillarIdempotencyKey: handoff.id,
+          crossPillarRetry: true,
+        }),
+      }),
+    );
+  });
+
+  it("saves a failed Mind action for later without losing its original task", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("mind-memory", "gentle"),
+      now: "2026-07-27T14:03:00.000Z",
+    }, navigate);
+    failCrossPillarHandoff(handoff.id, "execution_timeout", window.localStorage);
+    navigate.mockClear();
+
+    const recovered = recoverCrossPillarHandoff(
+      handoff.id,
+      "prepare_for_later",
+      navigate,
+      window.localStorage,
+    );
+
+    expect(recovered).toMatchObject({
+      id: handoff.id,
+      status: "prepared",
+      recovery: expect.objectContaining({ selectedAction: "prepare_for_later" }),
+    });
+    expect(recovered?.receipt.title).toBe("Saved for later");
+    expect(navigate).toHaveBeenCalledWith(
+      "/",
+      expect.objectContaining({
+        state: expect.objectContaining({
+          originalActionId: "mind-memory",
+          originalOptionId: "gentle",
+          crossPillarHandoffId: handoff.id,
+          resumeAfterRecovery: true,
+        }),
+      }),
+    );
+  });
+
+  it("offers another Community option while preserving the failed selection", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("community-activities", "nearby"),
+      now: "2026-07-27T14:04:00.000Z",
+    }, navigate);
+    failCrossPillarHandoff(handoff.id, "destination_unavailable", window.localStorage);
+    navigate.mockClear();
+
+    const recovered = recoverCrossPillarHandoff(
+      handoff.id,
+      "choose_alternative",
+      navigate,
+      window.localStorage,
+    );
+
+    expect(recovered?.id).toBe(handoff.id);
+    expect(recovered?.status).toBe("failed");
+    expect(navigate).toHaveBeenCalledWith(
+      "/",
+      expect.objectContaining({
+        state: expect.objectContaining({
+          crossPillarRecovery: "choose_alternative",
+          originalActionId: "community-activities",
+          originalOptionId: "nearby",
+          crossPillarIdempotencyKey: handoff.id,
+        }),
+      }),
+    );
+  });
+
+  it("routes failed Concierge work to trusted-contact setup and can resume it", () => {
+    const navigate = vi.fn();
+    const handoff = executeCrossPillarHandoff({
+      result: result("concierge-book", "saved-provider"),
+      readiness: { hasSavedDoctor: true, toolEvidence: readyToolEvidence() },
+      now: "2026-07-27T14:05:00.000Z",
+    }, navigate);
+    failCrossPillarHandoff(handoff.id, "provider_unavailable", window.localStorage);
+    navigate.mockClear();
+
+    const recovered = recoverCrossPillarHandoff(
+      handoff.id,
+      "trusted_contact",
+      navigate,
+      window.localStorage,
+    );
+
+    expect(recovered?.id).toBe(handoff.id);
+    expect(navigate).toHaveBeenCalledWith(
+      "/onboarding/profile/care-team",
+      expect.objectContaining({
+        state: expect.objectContaining({
+          crossPillarRecovery: "trusted_contact",
+          originalActionId: "concierge-book",
+          originalOptionId: "saved-provider",
+          crossPillarHandoffId: handoff.id,
+          resumeAfterRecovery: true,
+        }),
+      }),
+    );
+  });
+
   it("records a timeout locally as a failed handoff ready for retry", () => {
     const handoff = executeCrossPillarHandoff({
       result: result("mind-memory", "gentle"),
@@ -310,4 +446,5 @@ describe("cross-pillar real handoff execution", () => {
     );
     expect(history).toHaveLength(30);
   });
+
 });
