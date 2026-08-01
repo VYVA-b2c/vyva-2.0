@@ -14,11 +14,14 @@ import {
   VYVA_VOICE_HOME_INTENT_EVENT,
   VYVA_VOICE_HOME_SUBFLOW_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
+  VOICE_HOME_SUBFLOW_PILLARS,
 } from "@/lib/voiceNavigation";
+import { CROSS_PILLAR_COMPLETION_ACTIONS } from "@/components/voice-canvas/CrossPillarSubflowCanvas";
 import {
   HOME_CONTEXT_ACTION_HISTORY_KEY,
   type HomeContextMessageActionHistory,
 } from "@/lib/homeContextMessages";
+import { VOICE_ORB_HINT_SEEN_STORAGE_KEY } from "@/lib/voiceOrbHint";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -127,14 +130,22 @@ vi.mock("@/components/VyvaSessionCta", () => ({
     className,
     supportingLabel,
     visual,
+    onFirstVoiceOrbActivation,
   }: {
     label?: string;
     testId?: string;
     className?: string;
     supportingLabel?: string;
     visual?: string;
+    onFirstVoiceOrbActivation?: () => void;
   }) => (
-    <button type="button" data-testid={testId} className={className} aria-label={visual === "voiceRail" ? supportingLabel : label}>
+    <button
+      type="button"
+      data-testid={testId}
+      className={className}
+      aria-label={visual === "voiceRail" ? supportingLabel : label}
+      onClick={onFirstVoiceOrbActivation}
+    >
       {visual === "voiceOrb" ? <span data-testid="home-dormant-zamora-orb" /> : null}
       {visual === "voiceRail" ? null : label}
       {visual === "voiceOrb" ? supportingLabel : null}
@@ -308,6 +319,7 @@ describe("Home fast service actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
     profileMock.firstName = "karim";
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
 
     render(<HomeScreen />);
 
@@ -350,6 +362,20 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
+  });
+
+  it("shows first-use orb guidance once and restores the normal greeting after activation", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:00:00"));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveClass("!text-[#9A5B00]");
+
+    fireEvent.click(screen.getByTestId("button-home-hero-talk"));
+
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("How are you feeling?");
   });
 
   it("uses live signals for concise pillar card nudges", () => {
@@ -1614,28 +1640,28 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByRole("button", { name: /Yes, continue/i }));
     fireEvent.click(screen.getByRole("button", { name: /Open next step/i }));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+    expect(guardPathMock).toHaveBeenCalledWith("/onboarding/profile/providers?focus=doctor_clinic", expect.objectContaining({
       state: expect.objectContaining({
-        conciergePrefill: expect.objectContaining({
-          kind: "appointment",
-          source: "voice_action",
-        }),
+        setupFocus: "doctor_clinic",
+        returnTo: "/",
+        resumeAfterSetup: true,
+        crossPillarOriginalDestinationPath: "/concierge",
       }),
     }));
 
     expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
   });
 
-  it("opens the Health choices when voice detects the broad Health intent", () => {
+  it("opens the Health choices without leaving voice mode when voice detects the broad Health intent", () => {
     render(<HomeScreen />);
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
     });
 
-    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
     expect(guardPathMock).not.toHaveBeenCalled();
@@ -1687,7 +1713,8 @@ describe("Home fast service actions", () => {
     expect(selectedCard).toHaveAttribute("aria-current", "true");
     expect(selectedCard).toHaveTextContent("VYVA understood");
     expect(screen.getByTestId("card-home-health-symptoms")).not.toHaveAttribute("aria-current");
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "false");
 
     firstRender.unmount();
     render(<HomeScreen />);
@@ -1710,6 +1737,30 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByTestId("button-home-mode-touch"));
     expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
   });
+
+  it.each(CROSS_PILLAR_COMPLETION_ACTIONS)(
+    "keeps Voice mode and opens the exact canvas for %s",
+    (actionId) => {
+      render(<HomeScreen />);
+
+      act(() => {
+        window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+          detail: {
+            actionId,
+            pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId],
+          },
+        }));
+      });
+
+      expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+        "data-action-id",
+        actionId,
+      );
+      expect(guardPathMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("ignores malformed and duplicate broad voice intent events", () => {
     render(<HomeScreen />);

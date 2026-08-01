@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,16 +11,27 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import VoiceAllergiesModal from "@/components/VoiceAllergiesModal";
-import { AlertTriangle, Plus, Mic, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Plus, Mic } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 
 const COMMON_ALLERGENS = [
-  "Penicillin", "Aspirin", "Ibuprofen", "Sulfa drugs", "Codeine",
-  "Latex", "Peanuts", "Tree nuts", "Shellfish", "Eggs",
-  "Milk / Dairy", "Wheat / Gluten", "Soy", "Bee stings",
-];
+  { value: "Penicillin", key: "penicillin" },
+  { value: "Aspirin", key: "aspirin" },
+  { value: "Ibuprofen", key: "ibuprofen" },
+  { value: "Sulfa drugs", key: "sulfaDrugs" },
+  { value: "Codeine", key: "codeine" },
+  { value: "Latex", key: "latex" },
+  { value: "Peanuts", key: "peanuts" },
+  { value: "Tree nuts", key: "treeNuts" },
+  { value: "Shellfish", key: "shellfish" },
+  { value: "Eggs", key: "eggs" },
+  { value: "Milk / Dairy", key: "milkDairy" },
+  { value: "Wheat / Gluten", key: "wheatGluten" },
+  { value: "Soy", key: "soy" },
+  { value: "Bee stings", key: "beeStings" },
+] as const;
 
 const ALLERGEN_ICON: Record<string, string> = {
   "Penicillin": "Rx",
@@ -48,6 +60,12 @@ export default function AllergiesSection() {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const allergyLabel = (value: string) => {
+    const common = COMMON_ALLERGENS.find((item) => item.value.toLowerCase() === value.toLowerCase());
+    return common
+      ? t(`onboarding.allergies.common.${common.key}`, common.value)
+      : value;
+  };
 
   const allergiesRef = useRef(allergies);
   useEffect(() => { allergiesRef.current = allergies; }, [allergies]);
@@ -161,57 +179,58 @@ export default function AllergiesSection() {
       navigate("/onboarding/complete/allergies");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not save allergies", description: msg, variant: "destructive" });
+      toast({
+        title: t("onboarding.allergies.saveError", "Could not save allergies"),
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const suggestionsToShow = COMMON_ALLERGENS.filter(
-    (a) => !allergies.some((x) => x.toLowerCase() === a.toLowerCase())
+    (item) => !allergies.some((x) => x.toLowerCase() === item.value.toLowerCase())
   );
   const hasAllergySectionContent = allergies.length > 0 || noKnownAllergies;
 
   return (
-    <PhoneFrame subtitle="Allergies" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame
+      subtitle={t("onboarding.allergies.title", "Allergies")}
+      showBack
+      onBack={() => navigate("/onboarding/profile")}
+      showAllSections
+      onAllSections={() => navigate("/onboarding/profile")}
+    >
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
           icon={AlertTriangle}
-          title="Allergies"
-          kicker="Important alerts"
-          description="Add medicines, foods, or materials VYVA should remember before reminders, concierge help, or urgent support."
+          title={t("onboarding.allergies.title", "Allergies")}
+          kicker={t("onboarding.allergies.kicker", "Important alerts")}
+          description={t(
+            "onboarding.allergies.description",
+            "Add medicines, foods, or materials VYVA should remember before reminders, concierge help, or urgent support.",
+          )}
           badges={[
-            { label: "Medicines", color: "red" },
-            { label: "Foods", color: "amber" },
-            { label: "Emergency-ready", color: "purple" },
+            { label: t("onboarding.allergies.badges.medicines", "Medicines"), color: "red" },
+            { label: t("onboarding.allergies.badges.foods", "Foods"), color: "amber" },
+            { label: t("onboarding.allergies.badges.emergencyReady", "Emergency-ready"), color: "purple" },
           ]}
           iconBgClassName="bg-[#C9890A]"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-allergies-autosave" }}
         />
 
-        {/* Add by voice banner */}
-        <button
-          type="button"
-          data-testid="button-allergies-voice"
+        <ProfileVoiceAction
+          icon={Mic}
+          title={t("onboarding.allergies.addByVoice", "Add by voice")}
+          description={t(
+            "onboarding.allergies.addByVoiceDescription",
+            "Say what you react to. VYVA will add it to the list.",
+          )}
           onClick={() => setVoiceModalOpen(true)}
-          className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#F9D66A] bg-[#FFF8DB] px-5 py-5 text-left shadow-[0_16px_36px_rgba(245,158,11,0.13)] transition hover:-translate-y-0.5"
-          style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}
-        >
-          <div
-            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl shadow-[0_10px_20px_rgba(245,158,11,0.24)]"
-            style={{ background: "#F59E0B" }}
-          >
-            <Mic size={16} className="text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#92400E" }}>
-              Add by voice
-            </p>
-            <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#B45309" }}>
-              Say what you react to. VYVA will add it to the list.
-            </p>
-          </div>
-        </button>
+          testId="button-allergies-voice"
+          tone="amber"
+        />
 
         {/* Voice allergies modal */}
         <VoiceAllergiesModal
@@ -220,26 +239,17 @@ export default function AllergiesSection() {
           onAddAllergies={handleVoiceAddAllergies}
         />
 
-        <div className="rounded-[24px] border border-[#FDE68A] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
-          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">No allergies to add?</p>
-          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-            Choose this if there are no known allergies right now.
-          </p>
-          <button
-            type="button"
-            aria-pressed={noKnownAllergies}
-            data-testid="button-allergies-no-known"
-            onClick={toggleNoKnownAllergies}
-            className={`mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition ${
-              noKnownAllergies
-                ? "border-[#C9890A] bg-[#C9890A] text-white shadow-[0_14px_26px_rgba(201,137,10,0.18)]"
-                : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
-            }`}
-          >
-            <CheckCircle2 size={18} />
-            No known allergies
-          </button>
-        </div>
+        <ProfileNoneOption
+          title={t("onboarding.allergies.noneButton", "No known allergies")}
+          description={t(
+            "onboarding.allergies.noneDescription",
+            "Choose this if there are no known allergies right now.",
+          )}
+          selected={noKnownAllergies}
+          onClick={toggleNoKnownAllergies}
+          testId="button-allergies-no-known"
+          tone="amber"
+        />
 
         {isLoading ? (
           <div className="flex flex-col gap-3">
@@ -264,13 +274,16 @@ export default function AllergiesSection() {
                     data-testid={`tag-allergy-${a.replace(/\s+/g, "-").toLowerCase()}`}
                     className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-3 py-1.5 text-[14px] font-black text-white"
                   >
-                    {a}
+                    {allergyLabel(a)}
                     <button
                       type="button"
                       data-testid={`button-remove-allergy-${a.replace(/\s+/g, "-").toLowerCase()}`}
                       onClick={() => removeAllergy(a)}
                       className="opacity-80 hover:opacity-100 ml-0.5 leading-none"
-                      aria-label={`Remove ${a}`}
+                      aria-label={t("onboarding.allergies.remove", {
+                        allergy: allergyLabel(a),
+                        defaultValue: "Remove {{allergy}}",
+                      })}
                     >x</button>
                   </span>
                 ))}
@@ -279,7 +292,9 @@ export default function AllergiesSection() {
 
             {allergies.length === 0 && (
               <div className="flex min-h-[64px] items-center rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3">
-                <span className="text-[15px] font-semibold text-amber-500">No allergies added yet</span>
+                <span className="text-[15px] font-semibold text-amber-500">
+                  {t("onboarding.allergies.empty", "No allergies added yet")}
+                </span>
               </div>
             )}
 
@@ -287,7 +302,7 @@ export default function AllergiesSection() {
             <div className="flex gap-2">
               <Input
                 data-testid="input-allergies-new"
-                placeholder="Type an allergy and press Enter or Add"
+                placeholder={t("onboarding.allergies.inputPlaceholder", "Type an allergy and press Enter or Add")}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -301,26 +316,30 @@ export default function AllergiesSection() {
                 className="flex h-14 shrink-0 items-center gap-2 rounded-[18px] bg-[#6b21a8] px-4 text-[15px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] disabled:opacity-40"
               >
                 <Plus size={14} />
-                Add
+                {t("onboarding.allergies.add", "Add")}
               </button>
             </div>
 
             {/* Common allergens icon-card grid */}
             {suggestionsToShow.length > 0 && (
               <div>
-                <p className="mb-3 text-[13px] font-black uppercase tracking-[0.08em] text-gray-500">Common allergens - tap to add</p>
+                <p className="mb-3 text-[13px] font-black uppercase tracking-[0.08em] text-gray-500">
+                  {t("onboarding.allergies.commonHeading", "Common allergens - tap to add")}
+                </p>
                 <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-2">
-                  {suggestionsToShow.map((a) => (
+                  {suggestionsToShow.map((item) => (
                     <button
-                      key={a}
+                      key={item.value}
                       type="button"
-                      data-testid={`card-allergen-${a.replace(/\s+/g, "-").toLowerCase()}`}
-                      onClick={() => addAllergy(a)}
+                      data-testid={`card-allergen-${item.value.replace(/\s+/g, "-").toLowerCase()}`}
+                      onClick={() => addAllergy(item.value)}
                       className="flex min-h-[72px] items-center gap-3 rounded-[22px] px-4 py-3 text-left shadow-[0_10px_22px_rgba(53,28,87,0.05)] transition-all"
                       style={{ background: "#FFFBEB", border: "1px solid #FDE68A", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
                     >
-                      <span className="flex-shrink-0 text-[24px] leading-none">{ALLERGEN_ICON[a] ?? "!"}</span>
-                      <span className="font-body text-[16px] font-black leading-tight text-vyva-text-1">{a}</span>
+                      <span className="flex-shrink-0 text-[24px] leading-none">{ALLERGEN_ICON[item.value] ?? "!"}</span>
+                      <span className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                        {t(`onboarding.allergies.common.${item.key}`, item.value)}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -336,14 +355,16 @@ export default function AllergiesSection() {
             disabled={saving || isLoading || !hasAllergySectionContent}
             className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40"
           >
-            {saving ? "Saving..." : "Save allergies"}
+            {saving
+              ? t("onboarding.allergies.saving", "Saving...")
+              : t("onboarding.allergies.save", "Save allergies")}
           </Button>
           <button
             data-testid="button-allergies-skip"
             onClick={() => navigate("/onboarding/profile")}
             className="py-2 text-center text-[15px] font-bold text-gray-500"
           >
-            Skip for now
+            {t("onboarding.allergies.skip", "Skip for now")}
           </button>
         </div>
       </div>

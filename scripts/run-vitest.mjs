@@ -94,8 +94,14 @@ const tests = [...clientTests, ...sharedTests, ...migrationTests, ...serverTests
 const singletonTests = new Set([
   "src/pages/admin/MarketingAdminPage.test.tsx",
 ]);
-const regularTests = tests.filter((testFile) => !singletonTests.has(testFile));
-const isolatedTests = tests.filter((testFile) => singletonTests.has(testFile));
+const singletonTestPatterns = [
+  /^src\/components\/voice-canvas\/.*Command\.test\.ts$/,
+];
+const isSingletonTest = (testFile) =>
+  singletonTests.has(testFile)
+  || singletonTestPatterns.some((pattern) => pattern.test(testFile));
+const regularTests = tests.filter((testFile) => !isSingletonTest(testFile));
+const isolatedTests = tests.filter((testFile) => isSingletonTest(testFile));
 
 if (tests.length === 0) {
   console.log("No test files found.");

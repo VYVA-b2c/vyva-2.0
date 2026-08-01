@@ -669,6 +669,9 @@ const App = () => (
                   <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
                 ) : null}
                 {import.meta.env.DEV ? (
+                  <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
+                ) : null}
+                {import.meta.env.DEV ? (
                   <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
                 ) : null}
                 {import.meta.env.DEV ? (

@@ -44,7 +44,24 @@ import {
   type CrossPillarManualQaStatus,
 } from "../../../shared/crossPillarManualQa";
 import type { HomeFastHelpActionId, HomeFastHelpOutcomeAggregate } from "../../../shared/homeFastHelpSync";
+import type {
+  CrossPillarExecutionAttemptSnapshot,
+  CrossPillarRecoverySummary,
+  CrossPillarToolHealth,
+} from "../../../shared/crossPillarExecutionObservability";
 import { buildWorkflowReceiptMoment } from "../../../shared/workflowReceiptMoments";
+import {
+  CROSS_PILLAR_PRIMARY_ACTION_IDS,
+  evaluateCrossPillarActionToolReadiness,
+  type CrossPillarToolEvidence,
+  type CrossPillarToolFamily,
+  type CrossPillarToolReadinessStatus,
+} from "../../../shared/crossPillarToolReadiness";
+import type {
+  CrossPillarPillarCertification,
+  CrossPillarToolCertification,
+  CrossPillarToolCertificationStatus,
+} from "../../../shared/crossPillarToolCertification";
 import {
   CROSS_PILLAR_HANDOFF_EVENT,
   CROSS_PILLAR_HANDOFF_STORAGE_KEY,
@@ -54,6 +71,51 @@ import {
 type DomainFilter = "all" | WorkflowDomain;
 type CoverageFilter = "all" | "incomplete" | WorkflowCoverageState;
 type ActionLevelFilter = "all" | WorkflowActionLevel;
+type CrossPillarToolReadinessResponse = {
+  generated_at: string;
+  certification_window_days: number;
+  tools: CrossPillarToolEvidence[];
+  certifications: CrossPillarToolCertification[];
+  pillar_certifications: CrossPillarPillarCertification[];
+};
+type CrossPillarExecutionSummaryResponse = {
+  generatedAt: string;
+  windowHours: number;
+  totalAttempts: number;
+  successful: number;
+  failed: number;
+  duplicatesPrevented: number;
+  recentFailures: CrossPillarExecutionAttemptSnapshot[];
+  failuresByAction: Array<{ actionId: string; failures: number; lastFailureAt: string }>;
+  toolHealth: CrossPillarToolHealth[];
+  recovery: CrossPillarRecoverySummary;
+};
+
+const TOOL_STATUS_LABELS: Record<CrossPillarToolReadinessStatus, string> = {
+  ready: "Ready",
+  setup_needed: "Setup needed",
+  temporarily_unavailable: "Temporarily unavailable",
+  manual_help_required: "Manual help required",
+};
+
+const TOOL_STATUS_CLASS: Record<CrossPillarToolReadinessStatus, string> = {
+  ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  setup_needed: "border-amber-200 bg-amber-50 text-amber-800",
+  temporarily_unavailable: "border-orange-200 bg-orange-50 text-orange-800",
+  manual_help_required: "border-red-200 bg-red-50 text-red-800",
+};
+
+const CERTIFICATION_LABELS: Record<CrossPillarToolCertificationStatus, string> = {
+  certified: "Certified",
+  degraded: "Degraded",
+  not_tested: "Not tested",
+};
+
+const CERTIFICATION_CLASS: Record<CrossPillarToolCertificationStatus, string> = {
+  certified: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  degraded: "border-red-200 bg-red-50 text-red-800",
+  not_tested: "border-slate-200 bg-slate-50 text-slate-700",
+};
 
 const CROSS_PILLAR_MANUAL_QA_STORAGE_KEY = "vyva:admin:crossPillarManualQa:v1";
 
@@ -688,6 +750,34 @@ export default function WorkflowCoverageAdminPage() {
     retry: false,
     staleTime: 60_000,
   });
+  const { data: toolReadiness, isLoading: toolReadinessLoading } = useQuery<CrossPillarToolReadinessResponse>({
+    queryKey: ["/api/admin/cross-pillar/tool-readiness"],
+    retry: false,
+    staleTime: 30_000,
+  });
+  const { data: executionSummary, isLoading: executionSummaryLoading } = useQuery<CrossPillarExecutionSummaryResponse>({
+    queryKey: ["/api/admin/cross-pillar/executions/summary?hours=24"],
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const toolEvidence = useMemo(() => Object.fromEntries(
+    (toolReadiness?.tools ?? []).map((item) => [item.family, item]),
+  ) as Partial<Record<CrossPillarToolFamily, CrossPillarToolEvidence>>, [toolReadiness]);
+  const actionToolReadiness = useMemo(() => CROSS_PILLAR_PRIMARY_ACTION_IDS.map((actionId) => (
+    evaluateCrossPillarActionToolReadiness({ actionId, evidence: toolEvidence })
+  )), [toolEvidence]);
+  const toolReadinessSummary = useMemo(() => ({
+    ready: actionToolReadiness.filter((item) => item.status === "ready").length,
+    setup_needed: actionToolReadiness.filter((item) => item.status === "setup_needed").length,
+    temporarily_unavailable: actionToolReadiness.filter((item) => item.status === "temporarily_unavailable").length,
+    manual_help_required: actionToolReadiness.filter((item) => item.status === "manual_help_required").length,
+  }), [actionToolReadiness]);
+  const certificationSummary = useMemo(() => ({
+    certified: toolReadiness?.certifications?.filter((item) => item.status === "certified").length ?? 0,
+    degraded: toolReadiness?.certifications?.filter((item) => item.status === "degraded").length ?? 0,
+    not_tested: toolReadiness?.certifications?.filter((item) => item.status === "not_tested").length ?? 0,
+  }), [toolReadiness]);
 
   useEffect(() => {
     const refresh = () => setHandoffHistory(readCrossPillarHandoffHistory());
@@ -797,6 +887,194 @@ export default function WorkflowCoverageAdminPage() {
           <SummaryCard label="Complete" value={summary.workflows.complete} tone="complete" />
           <SummaryCard label="Partial" value={summary.workflows.partial} tone="partial" />
           <SummaryCard label="Missing" value={summary.workflows.missing} tone="missing" />
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Live cross-pillar execution outcomes"
+          data-testid="cross-pillar-live-execution-outcomes"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Live execution health</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">What is finishing, failing, or safely blocked?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">
+              {executionSummaryLoading
+                ? "Loading durable attempts..."
+                : `Last ${executionSummary?.windowHours ?? 24} hours`}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <InsightCard label="Attempts" value={executionSummary?.totalAttempts ?? 0} />
+            <InsightCard label="Succeeded" value={executionSummary?.successful ?? 0} />
+            <InsightCard label="Failed / blocked" value={executionSummary?.failed ?? 0} />
+            <InsightCard label="Duplicates stopped" value={executionSummary?.duplicatesPrevented ?? 0} />
+          </div>
+          <div className="mt-4 rounded-xl border border-[#f0e7df] bg-[#fbf8f5] p-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="font-black text-[#2f2135]">Live adapter certification</h3>
+                <p className="text-xs font-bold text-[#8b7a73]">
+                  Configuration is not certification. External tools need a recent success with a real reference.
+                </p>
+              </div>
+              <p className="text-xs font-bold text-[#8b7a73]">
+                Last {toolReadiness?.certification_window_days ?? 30} days
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <InsightCard label="Certified" value={certificationSummary.certified} />
+              <InsightCard label="Degraded" value={certificationSummary.degraded} />
+              <InsightCard label="Not tested" value={certificationSummary.not_tested} />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {(toolReadiness?.pillar_certifications ?? []).map((item) => (
+                <div key={item.pillar} className="rounded-lg border border-[#eadfd5] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black capitalize text-[#2f2135]">{item.pillar}</span>
+                    <span className={`rounded-full border px-2 py-1 text-[11px] font-black ${CERTIFICATION_CLASS[item.status]}`}>
+                      {CERTIFICATION_LABELS[item.status]}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-[#7d6b65]">{item.reason}</p>
+                  <p className="mt-1 text-[11px] font-bold text-[#9b8a82]">
+                    Smoke flow: {item.actionId}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {(toolReadiness?.certifications ?? []).map((item) => (
+                <div key={item.family} className="rounded-lg border border-[#eadfd5] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black capitalize text-[#2f2135]">
+                      {item.family.replaceAll("_", " ")}
+                    </span>
+                    <span className={`rounded-full border px-2 py-1 text-[11px] font-black ${CERTIFICATION_CLASS[item.status]}`}>
+                      {CERTIFICATION_LABELS[item.status]}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs font-bold text-[#7d6b65]">{item.reason}</p>
+                  {item.certifiedAt && (
+                    <p className="mt-1 text-[11px] font-bold text-[#9b8a82]">
+                      Certified {new Date(item.certifiedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div
+            className="mt-4 rounded-xl border border-[#e8dcf3] bg-[#fbf8ff] p-3"
+            data-testid="cross-pillar-recovery-outcomes"
+          >
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="font-black text-[#2f2135]">Recovery outcomes</h3>
+                <p className="text-sm font-semibold text-[#6f6069]">
+                  Whether a failed handoff later completed or still needs attention.
+                </p>
+              </div>
+              <p className="text-sm font-black text-purple-800">
+                {executionSummary?.recovery?.recoveryRatePct ?? 0}% recovered
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {[
+                ["Recovery cases", executionSummary?.recovery?.total ?? 0],
+                ["Recovered", executionSummary?.recovery?.recovered ?? 0],
+                ["Still blocked", executionSummary?.recovery?.stillBlocked ?? 0],
+                ["In progress", executionSummary?.recovery?.inProgress ?? 0],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-white bg-white px-3 py-2 shadow-sm">
+                  <p className="text-xs font-black uppercase tracking-[0.1em] text-[#8b7a73]">{label}</p>
+                  <p className="mt-1 text-2xl font-black text-[#2f2135]">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {(executionSummary?.failuresByAction?.length ?? 0) > 0 && (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-[#f0e7df] p-3">
+                <h3 className="font-black text-[#2f2135]">Failures by action</h3>
+                <div className="mt-2 space-y-2">
+                  {executionSummary?.failuresByAction?.slice(0, 8).map((item) => (
+                    <div key={item.actionId} className="flex items-center justify-between gap-3 text-sm font-bold">
+                      <span>{item.actionId}</span>
+                      <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-800">{item.failures}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#f0e7df] p-3">
+                <h3 className="font-black text-[#2f2135]">Tool health</h3>
+                <div className="mt-2 space-y-2">
+                  {executionSummary?.toolHealth
+                    ?.filter((item) => item.attempts > 0)
+                    .map((item) => (
+                      <div key={item.family} className="flex items-center justify-between gap-3 text-sm font-bold">
+                        <span>{item.family.replaceAll("_", " ")}</span>
+                        <span className={item.status === "healthy" ? "text-emerald-700" : "text-orange-700"}>
+                          {item.status === "healthy" ? "Healthy" : "Temporarily degraded"}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section
+          className="mt-5 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-label="Cross-pillar tool readiness"
+          data-testid="cross-pillar-tool-readiness"
+        >
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Live execution readiness</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Can each action really finish?</h2>
+            </div>
+            <p className="text-xs font-bold text-[#8b7a73]">
+              {toolReadinessLoading ? "Checking adapters..." : `Checked ${toolReadiness?.generated_at ? new Date(toolReadiness.generated_at).toLocaleString() : "locally"}`}
+            </p>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <InsightCard label="Ready" value={toolReadinessSummary.ready} />
+            <InsightCard label="Setup needed" value={toolReadinessSummary.setup_needed} />
+            <InsightCard label="Unavailable" value={toolReadinessSummary.temporarily_unavailable} />
+            <InsightCard label="Manual help" value={toolReadinessSummary.manual_help_required} />
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-xs font-black uppercase tracking-[0.12em] text-[#8b7a73]">
+                <tr>
+                  <th className="px-2 py-2">Action</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2">Required tools</th>
+                  <th className="px-2 py-2">Blocker / fallback</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actionToolReadiness.map((item) => (
+                  <tr key={item.actionId} className="border-t border-[#f0e7df] align-top font-bold text-[#4d3d45]">
+                    <td className="px-2 py-2.5">{item.actionId}</td>
+                    <td className="px-2 py-2.5">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${TOOL_STATUS_CLASS[item.status]}`}>
+                        {TOOL_STATUS_LABELS[item.status]}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5">{item.required.join(", ")}</td>
+                    <td className="px-2 py-2.5">
+                      {item.blockers[0]?.reason ?? (item.status === "ready" ? "Verified adapters available." : item.fallbackPath)}
+                      {item.status !== "ready" && <div className="mt-1 text-xs text-[#8b7a73]">Fallback: {item.fallbackPath}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section

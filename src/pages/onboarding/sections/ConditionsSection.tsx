@@ -1,7 +1,7 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { BadgeCheck, CheckCircle2, ChevronDown, HeartPulse, Home, Mic, PersonStanding, Search } from "lucide-react";
+import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
@@ -16,18 +16,18 @@ import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { useTranslation } from "react-i18next";
 
-const CATEGORIES: { id: string; marker: string; label: string }[] = [
-  { id: "heart",       marker: "HEART", label: "Heart & circulation" },
-  { id: "metabolic",   marker: "MET", label: "Metabolic & hormonal" },
-  { id: "respiratory", marker: "AIR", label: "Respiratory" },
-  { id: "musculo",     marker: "MOVE", label: "Joints, bones & muscles" },
-  { id: "neuro",       marker: "BRAIN", label: "Neurological" },
-  { id: "mental",      marker: "MOOD", label: "Mental health" },
-  { id: "cancer",      marker: "CARE", label: "Cancer & oncology" },
-  { id: "kidney",      marker: "RENAL", label: "Kidney & urinary" },
-  { id: "digestive",   marker: "GUT", label: "Digestive & gut" },
-  { id: "sensory",     marker: "SENSE", label: "Sensory & skin" },
-  { id: "other",       marker: "MORE", label: "Other" },
+const CATEGORIES: { id: string; label: string }[] = [
+  { id: "heart",       label: "Heart & circulation" },
+  { id: "metabolic",   label: "Metabolic & hormonal" },
+  { id: "respiratory", label: "Respiratory" },
+  { id: "musculo",     label: "Joints, bones & muscles" },
+  { id: "neuro",       label: "Neurological" },
+  { id: "mental",      label: "Mental health" },
+  { id: "cancer",      label: "Cancer & oncology" },
+  { id: "kidney",      label: "Kidney & urinary" },
+  { id: "digestive",   label: "Digestive & gut" },
+  { id: "sensory",     label: "Sensory & skin" },
+  { id: "other",       label: "Other" },
 ];
 
 const CONDITION_GROUPS: { cat: string; items: string[] }[] = [
@@ -116,27 +116,12 @@ function matchConditionsFromTranscript(transcript: string): string[] {
   return Array.from(matched);
 }
 
-const MOBILITY_OPTIONS = [
-  { value: "independent",          label: " Fully independent",      sub: "No aids needed" },
-  { value: "stick_or_frame",       label: " Uses a stick or frame",   sub: "" },
-  { value: "wheelchair_part_time", label: " Wheelchair (part-time)",  sub: "For longer distances" },
-  { value: "wheelchair_full_time", label: " Wheelchair (full-time)",  sub: "Primary mode of movement" },
-  { value: "housebound",           label: " Housebound",              sub: "Unable to leave home independently" },
-];
-
 const MOBILITY_CHOICES: SeniorChoiceOption[] = [
   { value: "independent", label: "Independent", description: "No aids needed", icon: <PersonStanding size={17} /> },
   { value: "stick_or_frame", label: "Stick or frame", icon: <PersonStanding size={17} /> },
   { value: "wheelchair_part_time", label: "Wheelchair sometimes", description: "For longer distances", icon: <BadgeCheck size={17} /> },
   { value: "wheelchair_full_time", label: "Wheelchair daily", description: "Primary way to move", icon: <BadgeCheck size={17} /> },
   { value: "housebound", label: "Mostly at home", description: "Needs help to leave home", icon: <Home size={17} /> },
-];
-
-const LIVING_OPTIONS = [
-  { value: "alone",        label: " Lives alone" },
-  { value: "with_partner", label: " With partner" },
-  { value: "with_family",  label: " With family" },
-  { value: "care_home",    label: " Care home" },
 ];
 
 const LIVING_CHOICES: SeniorChoiceOption[] = [
@@ -162,6 +147,7 @@ export default function ConditionsSection() {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [speakItMatches, setSpeakItMatches] = useState<string[]>([]);
+  const [showDailyLifeContext, setShowDailyLifeContext] = useState(false);
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
@@ -243,6 +229,9 @@ export default function ConditionsSection() {
   const handleMobility = (value: string) => { setMobility(value); scheduleAutoSave(); };
   const handleLiving   = (value: string) => { setLiving(value);   scheduleAutoSave(); };
   const hasHealthSectionContent = selected.length > 0 || Boolean(mobility) || Boolean(living) || noKnownConditions;
+  const mobilityLabel = MOBILITY_CHOICES.find((option) => option.value === mobility)?.label;
+  const livingLabel = LIVING_CHOICES.find((option) => option.value === living)?.label;
+  const dailyLifeSummary = [mobilityLabel, livingLabel].filter(Boolean).join(" / ");
 
   const handleSpeakItDone = (transcript: string) => {
     setSpeakItOpen(false);
@@ -274,7 +263,11 @@ export default function ConditionsSection() {
     setOpenCat((prev) => (prev === catId ? null : catId));
   };
 
-  const isSearching = search.trim().length > 0;
+  const normalizedSearch = search.trim().toLowerCase();
+  const isSearching = normalizedSearch.length > 0;
+  const hasSearchMatches = CONDITION_GROUPS.some((group) =>
+    group.items.some((item) => item.toLowerCase().includes(normalizedSearch)),
+  );
 
   const handleSave = async () => {
     if (saving) return;
@@ -304,39 +297,33 @@ export default function ConditionsSection() {
 
   return (
     <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+      <div className="flex flex-col gap-5 px-1 pb-6 pt-4 sm:px-2 md:px-3">
         <ProfileSectionHero
           icon={HeartPulse}
           title="Health profile"
-          kicker="Better guidance"
-          description="Choose the conditions VYVA should know about so reminders, doctor notes, and health conversations are safer."
-          badges={[
-            { label: "Doctor context", color: "blue" },
-            { label: "Reminder support", color: "purple" },
-            { label: "Safer triage", color: "red" },
-          ]}
+          kicker="Your health"
+          description="Add health conditions so VYVA can give safer, more useful support."
           iconBgClassName="bg-[#B0355A]"
+          className="!rounded-[22px] !p-4 [&_h2]:!text-[30px] sm:!p-5 sm:[&_h2]:!text-[34px]"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
         />
 
-        {/* Speak it banner */}
         <button
           type="button"
           data-testid="button-conditions-speak-it"
           onClick={() => setSpeakItOpen(true)}
-          className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#EDE9FE] bg-[#F5F3FF] px-5 py-5 text-left shadow-[0_16px_36px_rgba(107,33,168,0.10)] transition hover:-translate-y-0.5"
-          style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
+          className="group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border border-vyva-purple bg-vyva-purple px-4 py-3 text-left shadow-[0_10px_22px_rgba(107,33,168,0.18)] transition hover:bg-[#5B1A8F] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20"
         >
           <div
-            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
-            style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/16"
           >
-            <Mic size={16} className="text-white" />
+            <Mic size={20} className="text-white" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#6B21A8" }}>Add by voice</p>
-            <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#7C3AED" }}>Tell VYVA your health history. It will select matching conditions.</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-body text-[18px] font-black leading-tight text-white">Add by voice</p>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-white/85">Tell VYVA which conditions you live with.</p>
           </div>
+          <ChevronRight size={22} className="shrink-0 text-white/75 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </button>
 
         {/* Speak-it confirmation */}
@@ -373,28 +360,6 @@ export default function ConditionsSection() {
           />
         )}
 
-        <div className="rounded-[24px] border border-[#E9DDF8] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
-          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">No conditions to add?</p>
-          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-            Choose this if there are no known health conditions right now.
-          </p>
-          <button
-            type="button"
-            aria-pressed={noKnownConditions}
-            data-testid="button-conditions-no-known"
-            onClick={toggleNoKnownConditions}
-            className={cn(
-              "mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition",
-              noKnownConditions
-                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_14px_26px_rgba(107,33,168,0.22)]"
-                : "border-[#E9DDF8] bg-[#FCF8FF] text-vyva-purple",
-            )}
-          >
-            <CheckCircle2 size={18} />
-            No known health conditions
-          </button>
-        </div>
-
         {isLoading ? (
           <div className="flex flex-col gap-3" data-testid="skeleton-conditions-content">
             <Skeleton className="h-9 w-full rounded-lg" />
@@ -404,38 +369,94 @@ export default function ConditionsSection() {
           </div>
         ) : (
           <>
-            {/* Search */}
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-[#E4D9CF]" />
+              <span className="font-body text-[13px] font-black uppercase text-vyva-text-2">or choose manually</span>
+              <span className="h-px flex-1 bg-[#E4D9CF]" />
+            </div>
+
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="font-body text-[17px] font-black text-vyva-text-1">Find a condition</p>
+                <p className="mt-1 font-body text-[14px] font-semibold text-vyva-text-2">Search by name or browse a category.</p>
+              </div>
+              {selected.length > 0 ? (
+                <span className="shrink-0 rounded-full bg-[#F3E8FF] px-3 py-1 text-[12px] font-black text-vyva-purple">
+                  {selected.length} selected
+                </span>
+              ) : null}
+            </div>
+
             <div className="relative">
-              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#766B66]" />
               <input
                 data-testid="input-conditions-search"
-                className="h-14 w-full rounded-[18px] border border-[#DDC7FF] bg-white pl-12 pr-4 text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:text-[#8D7D73] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
-                placeholder="Search conditions..."
+                className="h-14 w-full rounded-[18px] border border-[#CBB5EC] bg-white pl-12 pr-12 text-[17px] font-semibold text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:font-medium placeholder:text-[#766B66] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
+                placeholder="Search health conditions"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search ? (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-[#766B66] hover:bg-[#F3E8FF] hover:text-vyva-purple"
+                >
+                  <X size={18} />
+                </button>
+              ) : null}
             </div>
 
-            {/* Selected chip bar */}
-            <div className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-[22px] bg-purple-50 px-4 py-3">
-              {selected.length === 0 ? (
-                <span className="text-[15px] font-semibold text-purple-400">Nothing selected - tap any condition below</span>
-              ) : (
-                selected.map((name) => (
-                  <span key={name} className="inline-flex items-center gap-2 rounded-full bg-[#6b21a8] px-3 py-1.5 text-[14px] font-black text-white">
-                    {name}
-                    <button onClick={() => removeSelected(name)} className="opacity-70 hover:opacity-100" data-testid={`button-remove-condition-${name.replace(/\s+/g, "-").toLowerCase()}`}>x</button>
-                  </span>
-                ))
+            <button
+              type="button"
+              aria-pressed={noKnownConditions}
+              data-testid="button-conditions-no-known"
+              onClick={toggleNoKnownConditions}
+              className={cn(
+                "flex min-h-[64px] w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/15",
+                noKnownConditions
+                  ? "border-vyva-purple bg-[#F3E8FF] text-vyva-purple"
+                  : "border-[#E4D9CF] bg-white text-vyva-text-1 hover:border-[#CBB5EC]",
               )}
-            </div>
+            >
+              <span className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
+                noKnownConditions ? "border-vyva-purple bg-vyva-purple text-white" : "border-[#B9ADA5] text-transparent",
+              )}>
+                <CheckCircle2 size={17} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[15px] font-black">I have no known health conditions</span>
+                <span className="mt-0.5 block font-body text-[13px] font-semibold text-vyva-text-2">Choose this only if none currently apply.</span>
+              </span>
+            </button>
+
+            {selected.length > 0 ? (
+              <div className="flex flex-wrap gap-2 rounded-[18px] bg-[#F7F2FC] px-3 py-3" aria-label="Selected health conditions">
+                {selected.map((name) => (
+                  <span key={name} className="inline-flex min-h-[38px] items-center gap-2 rounded-full bg-vyva-purple px-3 py-1.5 text-[14px] font-black text-white">
+                    {name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${name}`}
+                      onClick={() => removeSelected(name)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 opacity-90 hover:bg-white/25 hover:opacity-100"
+                      data-testid={`button-remove-condition-${name.replace(/\s+/g, "-").toLowerCase()}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
 
             {/* Accordion */}
             <div className="flex flex-col gap-2">
               {CONDITION_GROUPS.map((group) => {
                 const cat = CATEGORIES.find((c) => c.id === group.cat)!;
                 const visibleItems = isSearching
-                  ? group.items.filter((i) => i.toLowerCase().includes(search.toLowerCase()))
+                  ? group.items.filter((i) => i.toLowerCase().includes(normalizedSearch))
                   : group.items;
                 if (isSearching && visibleItems.length === 0) return null;
 
@@ -457,15 +478,14 @@ export default function ConditionsSection() {
                       type="button"
                       data-testid={`accordion-${group.cat}`}
                       onClick={() => !isSearching && toggleCat(group.cat)}
-                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 text-left"
+                      aria-expanded={isOpen}
+                      className="grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8FF]"
                     >
-                      <span className="rounded-full bg-[#F3E8FF] px-2.5 py-1 text-[11px] font-black leading-none text-vyva-purple">{cat.marker}</span>
                       <span className="min-w-0">
-                        <span className="block font-body text-[17px] font-black leading-snug text-gray-800">{cat.label}</span>
+                        <span className="block font-body text-[16px] font-black leading-snug text-gray-800">{cat.label}</span>
                         {hasSelections && (
                           <span
-                            className="mt-1 inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-bold"
-                            style={{ background: "#EDE9FE", color: "#6B21A8" }}
+                            className="mt-0.5 block text-[12px] font-bold text-vyva-purple"
                             data-testid={`badge-count-${group.cat}`}
                           >
                             {selectedCount} selected
@@ -523,33 +543,72 @@ export default function ConditionsSection() {
               })}
             </div>
 
-            {/* Mobility */}
-            <div>
-              <p className="mb-3 text-[15px] font-extrabold text-gray-700">Mobility</p>
-              <SeniorChoiceChips
-                options={MOBILITY_CHOICES}
-                value={mobility}
-                onChange={handleMobility}
-                testIdPrefix="button-mobility"
-              />
-            </div>
+            {isSearching && !hasSearchMatches ? (
+              <div className="rounded-[18px] border border-dashed border-[#CBB5EC] bg-[#FBF8FF] px-4 py-5 text-center" role="status">
+                <p className="font-body text-[16px] font-black text-vyva-text-1">No matching conditions</p>
+                <p className="mt-1 font-body text-[14px] font-semibold text-vyva-text-2">Try another word, or tell VYVA instead.</p>
+              </div>
+            ) : null}
 
-            {/* Living situation */}
-            <div>
-              <p className="mb-3 text-[15px] font-extrabold text-gray-700">Living situation</p>
-              <SeniorChoiceChips
-                options={LIVING_CHOICES}
-                value={living}
-                onChange={handleLiving}
-                testIdPrefix="button-living"
-              />
+            <div className="overflow-hidden rounded-[20px] border border-[#E4D9CF] bg-white">
+              <button
+                type="button"
+                data-testid="button-conditions-daily-life"
+                aria-expanded={showDailyLifeContext}
+                onClick={() => setShowDailyLifeContext((current) => !current)}
+                className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8F4] focus:outline-none focus:ring-4 focus:ring-inset focus:ring-vyva-purple/15"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F3E8FF] text-vyva-purple">
+                  <PersonStanding size={20} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-body text-[16px] font-black text-vyva-text-1">Daily-life context</span>
+                    <span className="rounded-full bg-[#F5F1EC] px-2 py-0.5 text-[11px] font-black uppercase text-vyva-text-2">
+                      Optional
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block truncate font-body text-[13px] font-semibold text-vyva-text-2">
+                    {dailyLifeSummary || "Mobility and living situation"}
+                  </span>
+                </span>
+                <ChevronDown
+                  size={20}
+                  className={cn("shrink-0 text-vyva-text-2 transition-transform", showDailyLifeContext && "rotate-180")}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {showDailyLifeContext ? (
+                <div className="border-t border-[#E4D9CF] bg-[#FBF8F4] p-4 sm:p-5">
+                  <div>
+                    <p className="mb-3 text-[15px] font-extrabold text-gray-700">Mobility</p>
+                    <SeniorChoiceChips
+                      options={MOBILITY_CHOICES}
+                      value={mobility}
+                      onChange={handleMobility}
+                      testIdPrefix="button-mobility"
+                    />
+                  </div>
+
+                  <div className="mt-5 border-t border-[#E4D9CF] pt-5">
+                    <p className="mb-3 text-[15px] font-extrabold text-gray-700">Living situation</p>
+                    <SeniorChoiceChips
+                      options={LIVING_CHOICES}
+                      value={living}
+                      onChange={handleLiving}
+                      testIdPrefix="button-living"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </>
         )}
 
         <div className="flex flex-col gap-2 pt-2">
           <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading || !hasHealthSectionContent} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40">
-            {saving ? "Saving..." : "Save health conditions"}
+            {saving ? "Saving..." : "Save health profile"}
           </Button>
           <button data-testid="button-conditions-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">
             Skip for now

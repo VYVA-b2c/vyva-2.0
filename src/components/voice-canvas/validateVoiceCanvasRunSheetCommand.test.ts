@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -31,10 +31,37 @@ const COMPLETED_EVIDENCE_CELL =
   "Sanitized QA artifact log reviewed by QA reviewer on 2026-07-19: voice touch keyboard evidence; start/resume restored current scene with entered information preserved, no write, no resubmission, no external action; app exit/reopen restored draft with entered information preserved, no write, no resubmission, no external action; refresh and reconnect restored work with entered information preserved, no write, no resubmission, no external action; voice interruption recovered work with entered information preserved, no write, no resubmission, no external action; browser back preserved entered information and returned safely, no write, no external action; cancel and exit left safely, no write, no external action; duplicate confirmation prevented and stale response ignored with no write, no resubmission, no external action; recoverable failure offered retry and exit with entered information preserved, no extra write, no resubmission, no external action; no booking, call, message, or navigation before explicit confirmation; explicit confirmation accepted once and duplicate attempt blocked; waiting state explains pending work and what has not happened with no external action; completed and blocked results explain what happens next; in-session feature flag rollback closes Canvas and existing fallback path appears without write or external action; one clear decision for each flow with safe exit; Spanish long labels readable with no overflow, no clipping, and no truncation; focus moved to scene heading or primary control; screen-reader announcements for waiting, blocked, and completed; reduced-motion mode calm and usable without relying on animation; analytics telemetry aggregate positive started, resumed, abandoned, blocked, confirmed, and completed counts; allowed envelope name step input attempt restored revision only and forbidden data absent; no personal details and no personal data verified";
 
 function runValidator(args: string[] = []) {
-  return spawnSync(process.execPath, [tsxCliPath, validatorScriptPath, ...args], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
+  return new Promise<{ status: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        [tsxCliPath, validatorScriptPath, ...args],
+        {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            NODE_ENV: "test",
+            VYVA_QA_VALIDATION_TODAY: "2026-07-20",
+          },
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr.on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      child.on("error", reject);
+      child.on("close", (status) => {
+        resolve({ status, stdout, stderr });
+      });
+    },
+  );
 }
 
 function committedRunSheet(): string {
@@ -77,24 +104,24 @@ function replaceFirstBehaviorDuplicateCell(markdown: string, value: string): str
     .join("\n");
 }
 
-function withTempRunSheet<T>(
+async function withTempRunSheet<T>(
   markdown: string,
-  callback: (tempRunSheetPath: string) => T,
-): T {
+  callback: (tempRunSheetPath: string) => T | Promise<T>,
+): Promise<T> {
   const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-runsheet-"));
   const tempRunSheetPath = path.join(tempDir, "run-sheet.md");
   writeFileSync(tempRunSheetPath, markdown);
 
   try {
-    return callback(tempRunSheetPath);
+    return await callback(tempRunSheetPath);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
 describe("Voice Canvas run sheet validator command", () => {
-  it("prints copy-safe help for run-specific run sheet artifacts", () => {
-    const result = runValidator(["--help"]);
+  it("prints copy-safe help for run-specific run sheet artifacts", async () => {
+    const result = await runValidator(["--help"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
@@ -119,8 +146,8 @@ describe("Voice Canvas run sheet validator command", () => {
     );
   });
 
-  it("passes the committed pending run sheet only in explicit pending-review mode", () => {
-    const result = runValidator(["--allow-pending"]);
+  it("passes the committed pending run sheet only in explicit pending-review mode", async () => {
+    const result = await runValidator(["--allow-pending"]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("State: pending");
@@ -137,8 +164,8 @@ describe("Voice Canvas run sheet validator command", () => {
     );
   });
 
-  it("fails the committed pending run sheet as a final launch gate", () => {
-    const result = runValidator();
+  it("fails the committed pending run sheet as a final launch gate", async () => {
+    const result = await runValidator();
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("State: pending");
@@ -147,8 +174,8 @@ describe("Voice Canvas run sheet validator command", () => {
     );
   });
 
-  it("emits machine-readable JSON for pending-review run sheet artifacts", () => {
-    const result = runValidator(["--allow-pending", "--json"]);
+  it("emits machine-readable JSON for pending-review run sheet artifacts", async () => {
+    const result = await runValidator(["--allow-pending", "--json"]);
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
@@ -189,8 +216,8 @@ describe("Voice Canvas run sheet validator command", () => {
   });
 
   it("passes a completed run sheet", () =>
-    withTempRunSheet(completedRunSheet(), (tempRunSheetPath) => {
-      const result = runValidator([tempRunSheetPath, "--json"]);
+    withTempRunSheet(completedRunSheet(), async (tempRunSheetPath) => {
+      const result = await runValidator([tempRunSheetPath, "--json"]);
 
       expect(result.status).toBe(0);
       expect(result.stderr).toBe("");
@@ -211,8 +238,8 @@ describe("Voice Canvas run sheet validator command", () => {
   it("rejects completed run sheets with stale evidence dates", () =>
     withTempRunSheet(
       completedRunSheet().replaceAll("2026-07-19", "2000-01-01"),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -240,8 +267,8 @@ describe("Voice Canvas run sheet validator command", () => {
         COMPLETED_EVIDENCE_CELL,
         "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot includes 123 Secret Street and qa-person@example.com",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -272,8 +299,8 @@ describe("Voice Canvas run sheet validator command", () => {
         COMPLETED_EVIDENCE_CELL,
         "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot link https://qa-user:secret-pass@staging.vyva.app/artifacts?token=secret and bearer abc123SECRET",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -305,8 +332,8 @@ describe("Voice Canvas run sheet validator command", () => {
         COMPLETED_EVIDENCE_CELL,
         "Sanitized QA artifact evidence reviewed by QA on 2026-07-19: screenshot-log-route-details-shopping-item-details-retailer-name-profile-id",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -334,8 +361,8 @@ describe("Voice Canvas run sheet validator command", () => {
     ));
 
   it("rejects completed run sheets with generic pass-only cells", () =>
-    withTempRunSheet(genericCompletedRunSheet(), (tempRunSheetPath) => {
-      const result = runValidator([tempRunSheetPath, "--json"]);
+    withTempRunSheet(genericCompletedRunSheet(), async (tempRunSheetPath) => {
+      const result = await runValidator([tempRunSheetPath, "--json"]);
 
       expect(result.status).toBe(1);
       expect(result.stderr).toBe("");
@@ -361,8 +388,8 @@ describe("Voice Canvas run sheet validator command", () => {
         COMPLETED_EVIDENCE_CELL,
         `${COMPLETED_EVIDENCE_CELL}; however booking triggered before confirmation and fallback unavailable during rollback`,
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -393,8 +420,8 @@ describe("Voice Canvas run sheet validator command", () => {
         "completed and blocked results explain what happens next",
         "incomplete result proof with not complete outcome but what happens next noted",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -425,8 +452,8 @@ describe("Voice Canvas run sheet validator command", () => {
         "Duplicate prevented and stale response ignored",
         "Duplicate check",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -459,8 +486,8 @@ describe("Voice Canvas run sheet validator command", () => {
           "Device screenshots/photos; voice/touch/keyboard recording or log; endpoint rollback trace; analytics signal and privacy query",
           "Device screenshot only",
         ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -487,8 +514,8 @@ describe("Voice Canvas run sheet validator command", () => {
   it("rejects filled behavior cells that do not name the specific recovery proof", () =>
     withTempRunSheet(
       replaceFirstBehaviorRefreshCell(completedRunSheet(), "connection looked okay"),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -517,8 +544,8 @@ describe("Voice Canvas run sheet validator command", () => {
         completedRunSheet(),
         "duplicate confirmation prevented and stale response ignored",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -547,8 +574,8 @@ describe("Voice Canvas run sheet validator command", () => {
         "| Check | Expected result | Evidence reference | Reviewer/date |",
         "| Check | Expected result | Evidence | Reviewer/date |",
       ),
-      (tempRunSheetPath) => {
-        const result = runValidator([tempRunSheetPath, "--json"]);
+      async (tempRunSheetPath) => {
+        const result = await runValidator([tempRunSheetPath, "--json"]);
 
         expect(result.status).toBe(1);
         expect(result.stderr).toBe("");
@@ -566,12 +593,12 @@ describe("Voice Canvas run sheet validator command", () => {
     ));
 
   it("saves validation JSON while preserving existing artifacts by default", () =>
-    withTempRunSheet(completedRunSheet(), (tempRunSheetPath) => {
+    withTempRunSheet(completedRunSheet(), async (tempRunSheetPath) => {
       const tempDir = mkdtempSync(path.join(process.cwd(), ".tmp-voice-canvas-runsheet-out-"));
       const outputPath = path.join(tempDir, "run-sheet-summary.json");
 
       try {
-        const first = runValidator([
+        const first = await runValidator([
           tempRunSheetPath,
           "--json",
           `--output=${outputPath}`,
@@ -585,7 +612,7 @@ describe("Voice Canvas run sheet validator command", () => {
         );
 
         writeFileSync(outputPath, '{"existing":true}\n');
-        const preserved = runValidator([
+        const preserved = await runValidator([
           tempRunSheetPath,
           "--json",
           `--output=${outputPath}`,
@@ -597,7 +624,7 @@ describe("Voice Canvas run sheet validator command", () => {
           existing: true,
         });
 
-        const forced = runValidator([
+        const forced = await runValidator([
           tempRunSheetPath,
           "--json",
           "--force",
@@ -613,8 +640,8 @@ describe("Voice Canvas run sheet validator command", () => {
       }
     }));
 
-  it("rejects output paths outside JSON mode", () => {
-    const result = runValidator([
+  it("rejects output paths outside JSON mode", async () => {
+    const result = await runValidator([
       "--allow-pending",
       "--output=run-sheet-summary.json",
     ]);

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -321,33 +322,17 @@ export default function AddressSection() {
             </div>
           </button>
 
-          {/* Speak it */}
-          <button
-            type="button"
-            data-testid="button-address-speak-it"
+          <ProfileVoiceAction
+            icon={Mic}
+            title="Speak it"
+            description="Say your address"
             onClick={() => setSpeakItOpen(true)}
-            disabled={parsing || isLoading}
-            className="flex min-h-[86px] items-center gap-4 rounded-[24px] px-4 py-4 text-left shadow-[0_12px_28px_rgba(107,33,168,0.10)] transition-all disabled:opacity-60"
-            style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
-          >
-            <div
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
-              style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
-            >
-              {parsing
-                ? <Loader2 size={14} className="text-white animate-spin" />
-                : <Mic size={14} className="text-white" />
-              }
-            </div>
-            <div className="min-w-0">
-              <p className="font-body text-[18px] font-black leading-tight" style={{ color: "#6B21A8" }}>
-                {parsing ? "Reading..." : "Speak it"}
-              </p>
-              <p className="mt-1 font-body text-[14px] font-semibold" style={{ color: "#7C3AED" }}>
-                Say your address
-              </p>
-            </div>
-          </button>
+            testId="button-address-speak-it"
+            className="min-h-[86px]"
+            disabled={isLoading}
+            busy={parsing}
+            busyLabel="Reading..."
+          />
         </div>
 
         {/* Divider with label */}

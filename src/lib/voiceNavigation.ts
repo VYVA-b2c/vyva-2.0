@@ -56,7 +56,7 @@ export type VoiceHomeSubflow = {
   actionId: VoiceHomeSubflowId;
 };
 
-const VOICE_HOME_SUBFLOW_PILLARS: Record<VoiceHomeSubflowId, VoiceHomeIntent> = {
+export const VOICE_HOME_SUBFLOW_PILLARS: Record<VoiceHomeSubflowId, VoiceHomeIntent> = {
   "health-symptoms": "health",
   "health-vitals": "health",
   "health-meds": "health",
@@ -75,6 +75,167 @@ const VOICE_HOME_SUBFLOW_PILLARS: Record<VoiceHomeSubflowId, VoiceHomeIntent> = 
   "concierge-care": "concierge",
   "concierge-order": "concierge",
   "concierge-book": "concierge",
+};
+
+export type VoiceCoverageLanguage = "en" | "es" | "fr" | "de" | "it" | "pt";
+
+export const VOICE_COVERAGE_LANGUAGES: readonly VoiceCoverageLanguage[] = [
+  "en",
+  "es",
+  "fr",
+  "de",
+  "it",
+  "pt",
+] as const;
+
+export const VOICE_HOME_SUBFLOW_SAMPLE_PHRASES: Record<
+  VoiceHomeSubflowId,
+  Record<VoiceCoverageLanguage, string>
+> = {
+  "health-symptoms": {
+    en: "I am feeling sick",
+    es: "Tengo dolor",
+    fr: "J'ai une douleur",
+    de: "Ich habe Schmerzen",
+    it: "Ho dolore",
+    pt: "Estou com dor",
+  },
+  "health-vitals": {
+    en: "Check my blood pressure",
+    es: "Quiero revisar mi presion",
+    fr: "Je veux verifier ma tension",
+    de: "Ich mochte meinen Blutdruck prufen",
+    it: "Voglio controllare la pressione",
+    pt: "Quero verificar a pressao",
+  },
+  "health-meds": {
+    en: "Help with my medication",
+    es: "Ayuda con mi medicacion",
+    fr: "Aide avec mes medicaments",
+    de: "Hilfe mit meinen Medikamenten",
+    it: "Aiuto con i miei farmaci",
+    pt: "Ajuda com os meus medicamentos",
+  },
+  "health-doctor": {
+    en: "I need my doctor",
+    es: "Necesito un medico",
+    fr: "Je veux parler au medecin",
+    de: "Ich brauche einen Arzt",
+    it: "Ho bisogno del medico",
+    pt: "Preciso de um medico",
+  },
+  "health-prevention": {
+    en: "Show my prevention check",
+    es: "Quiero revisar mi prevencion",
+    fr: "Je veux voir ma prevention",
+    de: "Zeige mir meine Vorsorge",
+    it: "Voglio vedere la prevenzione",
+    pt: "Quero ver a minha prevencao",
+  },
+  "health-visual-scan": {
+    en: "Review this health photo",
+    es: "Revisa esta foto de salud",
+    fr: "Regarde cette photo de sante",
+    de: "Prufe dieses Gesundheitsfoto",
+    it: "Controlla questa foto di salute",
+    pt: "Verifica esta foto de saude",
+  },
+  "mind-memory": {
+    en: "I want a memory exercise",
+    es: "Quiero un ejercicio de memoria",
+    fr: "Je veux un exercice de memoire",
+    de: "Ich mochte eine Gedachtnisubung",
+    it: "Voglio un esercizio di memoria",
+    pt: "Quero um exercicio de memoria",
+  },
+  "mind-reflexes": {
+    en: "I want to train my reflexes",
+    es: "Quiero entrenar mis reflejos",
+    fr: "Je veux entrainer mes reflexes",
+    de: "Ich mochte meine Reflexe trainieren",
+    it: "Voglio allenare i riflessi",
+    pt: "Quero treinar os reflexos",
+  },
+  "mind-focus": {
+    en: "Help me improve my focus",
+    es: "Quiero mejorar mi atencion",
+    fr: "Je veux ameliorer mon attention",
+    de: "Ich mochte meine Aufmerksamkeit verbessern",
+    it: "Voglio migliorare la concentrazione",
+    pt: "Quero melhorar a atencao",
+  },
+  "mind-senses": {
+    en: "Show me a senses exercise",
+    es: "Quiero un ejercicio de sentidos",
+    fr: "Je veux un exercice des sens",
+    de: "Ich mochte eine Sinne Ubung",
+    it: "Voglio un esercizio dei sensi",
+    pt: "Quero um exercicio dos sentidos",
+  },
+  "community-friends": {
+    en: "I want to meet people",
+    es: "Quiero conocer gente",
+    fr: "Je veux rencontrer des amis",
+    de: "Ich mochte Leute treffen",
+    it: "Voglio conoscere persone",
+    pt: "Quero conhecer pessoas",
+  },
+  "community-experts": {
+    en: "I need expert advice",
+    es: "Necesito consejo de un experto",
+    fr: "Je veux un conseil expert",
+    de: "Ich brauche Beratung von einem Experten",
+    it: "Voglio il consiglio di un esperto",
+    pt: "Preciso do conselho de um especialista",
+  },
+  "community-share": {
+    en: "I want to share a story",
+    es: "Quiero compartir una historia",
+    fr: "Je veux partager une histoire",
+    de: "Ich mochte eine Geschichte teilen",
+    it: "Voglio condividere una storia",
+    pt: "Quero partilhar uma historia",
+  },
+  "community-activities": {
+    en: "Find an activity nearby",
+    es: "Busca una actividad cercana",
+    fr: "Trouve une activite proche",
+    de: "Finde eine Veranstaltung",
+    it: "Trova una attivita vicina",
+    pt: "Encontra uma atividade perto",
+  },
+  "concierge-home": {
+    en: "I need a home repair",
+    es: "Necesito una reparacion en casa",
+    fr: "J'ai besoin d'une reparation a domicile",
+    de: "Ich brauche eine Reparatur zu Hause",
+    it: "Ho bisogno di una riparazione domestica",
+    pt: "Preciso de um reparo em casa",
+  },
+  "concierge-care": {
+    en: "Help me find personal care",
+    es: "Ayudame a buscar cuidados personales",
+    fr: "Aide-moi a trouver une aide a domicile",
+    de: "Hilf mir eine Pflegekraft zu finden",
+    it: "Aiutami a trovare assistenza personale",
+    pt: "Ajuda-me a encontrar cuidados pessoais",
+  },
+  "concierge-order": {
+    en: "Help me order groceries",
+    es: "Ayudame con un pedido de compras",
+    fr: "Aide-moi a commander des courses",
+    de: "Hilf mir einen Einkauf zu bestellen",
+    it: "Aiutami a ordinare la spesa",
+    pt: "Ajuda-me a encomendar compras",
+  },
+  "concierge-book": {
+    en: "Help me book a taxi",
+    es: "Ayudame a reservar un taxi",
+    fr: "Aide-moi a reserver un taxi",
+    de: "Hilf mir ein Taxi zu buchen",
+    it: "Aiutami a prenotare un taxi",
+    pt: "Ajuda-me a reservar um transporte",
+  },
 };
 
 export function isVoiceHomeIntent(value: unknown): value is VoiceHomeIntent {
@@ -211,13 +372,16 @@ function voiceHomeSubflow(actionId: VoiceHomeSubflowId): VoiceHomeSubflow {
 }
 
 const VOICE_HOME_SUBFLOW_UTTERANCES: Array<[VoiceHomeSubflowId, RegExp]> = [
+  ["health-symptoms", /\b(?:not feeling well|do not feel well|don't feel well|feel(?:ing)? unwell|feel(?:ing)? sick|no me (?:encuentro|siento) bien|me (?:encuentro|siento) mal|je ne me sens pas bien|je me sens mal|mir geht es nicht gut|ich fuhle mich (?:nicht gut|unwohl)|non mi sento bene|mi sento male|nao me sinto bem|estou me sentindo mal|sinto-me mal)\b/],
   ["health-vitals", /\b(?:blood pressure|pulse|oxygen|temperature|weight|glucose|vitals?|presion|tension|pulso|oxigeno|temperatura|peso|glucosa|constantes?|pouls|oxygene|poids|glycemie|blutdruck|sauerstoff|gewicht|pressione|polso|ossigeno|glucosio|pressao|oxigenio|glicose)\b/],
-  ["health-meds", /\b(?:medications?|medicines?|pills?|doses?|medicacion|medicina|pastillas?|dosis|medicaments?|medikamente?|tabletten?|farmaco|pillola|medicamento|remedio|comprimido)\b/],
+  ["health-meds", /\b(?:medications?|medicines?|pills?|doses?|medicacion|medicina|pastillas?|dosis|medicaments?|medikament\w*|tabletten?|farmac\w*|pillol\w*|medicament\w*|remedio|comprimido)\b/],
   ["health-doctor", /\b(?:doctor|gp|physician|medico|medecin|arzt)\b/],
   ["health-symptoms", /\b(?:symptoms?|pain|fever|dizzy|sintomas?|dolor|fiebre|mareo|symptomes?|douleur|fievre|vertige|schmerzen?|fieber|schwindel|sintomo|dolore|febbre|vertigine|dor|febre|tontura)\b/],
-  ["mind-memory", /\b(?:memory|remember|recall|memoria|recordar|souvenir|memoire|gedachtnis|erinner|ricord|lembr)\b/],
-  ["mind-reflexes", /\b(?:reflex|reaction|speed|reflejo|reaccion|reflexe|reaktion|rifless|reazione|reflexo|reacao)\b/],
-  ["mind-focus", /\b(?:focus|attention|concentration|concentr|atencion|aufmerksamkeit|attenzione|atencao)\b/],
+  ["health-prevention", /\b(?:prevention|preventive|checkup|screening|vaccine|prevencion|chequeo|cribado|vacuna|prevention|depistage|vaccin|vorsorge|pravention|impfung|prevenzione|controllo preventivo|vaccino|prevencao|rastreio|vacina)\b/],
+  ["health-visual-scan", /\b(?:health (?:photo|image)|scan this|review this (?:photo|image)|foto de salud|imagen de salud|revisa esta foto|photo de sante|image de sante|regarde cette photo|gesundheitsfoto|gesundheitsbild|prufe dieses foto|foto di salute|immagine di salute|controlla questa foto|foto de saude|imagem de saude|verifica esta foto)\b/],
+  ["mind-memory", /\b(?:memory|remember|recall|memoria|recordar|souvenir|memoire|gedachtnis\w*|erinner\w*|ricord\w*|lembr\w*)\b/],
+  ["mind-reflexes", /\b(?:reflex\w*|reaction|speed|reflej\w*|reaccion|reaktion|rifless\w*|reazione|reflexo\w*|reacao)\b/],
+  ["mind-focus", /\b(?:focus|attention|concentration|concentr\w*|atencion|aufmerksamkeit|attenzione|atencao)\b/],
   ["mind-senses", /\b(?:senses?|listen|hearing|breath|smell|sentidos?|escuchar|respirar|olor|sens|ecouter|souffle|odeur|sinne|horen|atmen|geruch|sensi|ascolt|respiro|olfatto|sentidos|ouvir|respirar|cheiro)\b/],
   ["community-experts", /\b(?:expert|advice|asesor|consejo|experto|expert|conseil|experte|beratung|esperto|consiglio|especialista|conselho)\b/],
   ["community-share", /\b(?:share (?:a )?(?:story|memory|song)|compartir|partager|teilen|condividere|partilhar)\b/],
@@ -248,6 +412,8 @@ export function homeSubflowForVoiceToolCall(parameters: Record<string, unknown>)
     ["health-meds", /(?:^|\s)(?:meds|medication)|\/meds/],
     ["health-doctor", /health[._/](?:doctor|doctor_support)|\/health\/doctor/],
     ["health-symptoms", /health[._/](?:symptom|symptoms)|\/health\/symptom/],
+    ["health-prevention", /health[._/](?:prevention|preventive|screening)|\/health\/prevention/],
+    ["health-visual-scan", /health[._/](?:visual_scan|photo_review|image_review)|\/health\/visual_scan/],
     ["mind-memory", /brain[._/](?:memory|recall)|\/memory_games/],
     ["mind-reflexes", /brain[._/](?:reflex|reaction)|\/attention_boosters/],
     ["mind-focus", /brain[._/](?:focus|attention|executive)|\/executive_function/],
