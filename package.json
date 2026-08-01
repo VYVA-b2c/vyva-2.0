@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"PORT=3001 tsx server/index.ts\" \"vite\"",
+    "dev:replit": "concurrently --kill-others \"PORT=3001 tsx server/index.ts\" \"vite --host 0.0.0.0 --port 8080 --strictPort\"",
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
     "preview:adherence": "node scripts/preview-adherence-report.mjs",
