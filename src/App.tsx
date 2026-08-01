@@ -128,6 +128,7 @@ const AdvisorHub = lazy(() => import("./social/AdvisorHub"));
 const AdvisorChat = lazy(() => import("./social/AdvisorChat"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
+const AdminModulesPage = lazy(() => import("./pages/admin/AdminModulesPage"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
 const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
 const AdminActivityPage = lazy(() => import("./pages/admin/AdminActivityPage"));
@@ -694,6 +695,10 @@ const App = () => (
                 {import.meta.env.DEV ? (
                   <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
                 ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/admin-modules" element={<AdminModulesPage />} />
+                ) : null}
+                <Route path="/admin" element={<AdminRoute><AdminModulesPage /></AdminRoute>} />
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
