@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -494,29 +495,13 @@ export default function HobbiesSection() {
           <LoadingSkeleton />
         ) : (
           <>
-            {/*  Speak it  */}
-            <button
-              type="button"
-              data-testid="button-hobbies-speak-it"
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Add by voice"
+              description="Say what you enjoy. VYVA will turn it into better conversations."
               onClick={() => setSpeakItOpen(true)}
-              className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#EDE9FE] bg-[#F5F3FF] px-5 py-5 text-left shadow-[0_16px_36px_rgba(107,33,168,0.10)] transition hover:-translate-y-0.5"
-              style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
-            >
-              <div
-                className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
-                style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
-              >
-                <Mic size={18} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#6B21A8" }}>
-                  Add by voice
-                </p>
-                <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#7C3AED" }}>
-                  Say what you enjoy. VYVA will turn it into better conversations.
-                </p>
-              </div>
-        </button>
+              testId="button-hobbies-speak-it"
+            />
 
             {/* Confirmation panel for matched hobbies */}
             {speakItMatches.length > 0 && (

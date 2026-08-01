@@ -27,19 +27,35 @@ import { useToast } from "@/hooks/use-toast";
 import { useVyvaVoice, useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ShowVyvaChooser from "@/components/ShowVyvaChooser";
+import ShowVyvaCaptureCoach from "@/components/ShowVyvaCaptureCoach";
+import ShowVyvaLiveCamera, { supportsShowVyvaLiveCamera } from "@/components/ShowVyvaLiveCamera";
 import ShowVyvaFollowUpPanel from "@/components/ShowVyvaFollowUpPanel";
+import ShowVyvaPastedReviewResult from "@/components/ShowVyvaPastedReviewResult";
+import ShowVyvaResultCard from "@/components/ShowVyvaResultCard";
+import ShowVyvaReviewHistory from "@/components/ShowVyvaReviewHistory";
+import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
+import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
+import {
+  prepareShowVyvaEvidenceFile,
+  reviewShowVyvaVisualEvidence,
+  type ShowVyvaPreparedEvidence,
+} from "@/lib/showVyvaEvidence";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 import { languageText } from "../../shared/language";
 import {
   SHOW_VYVA_USE_CASE_IDS,
-  buildShowVyvaConciergePrefill,
   type ShowVyvaCaptureSource,
   type ShowVyvaPastePayload,
+  type ShowVyvaUseCaseId,
 } from "../../shared/showVyvaFlow";
-import { showVyvaFollowUpActionsFor } from "../../shared/showVyvaFollowUp";
+import { showVyvaReviewContractFromScamResult, type ShowVyvaReviewContract } from "../../shared/showVyvaReviewContract";
+import type { ShowVyvaFollowUpAction } from "../../shared/showVyvaFollowUp";
+import { buildShowVyvaActionExecutionPlan } from "../../shared/showVyvaActionExecutor";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type ScamCheck = {
   id: string;
@@ -64,6 +80,14 @@ export type ScamGuardActionContext = {
   resultTitle: string;
   explanation: string;
   steps: string[];
+};
+
+type ShowVyvaFileReviewInput = {
+  useCaseId: ShowVyvaUseCaseId;
+  source: Extract<ShowVyvaCaptureSource, "camera" | "upload">;
+  fileName?: string | null;
+  mimeType?: string | null;
+  question?: string;
 };
 
 type ScamGuardConciergeState = {
@@ -195,6 +219,7 @@ const SCAM_CALL_SYSTEM_PROMPT =
 type ScamGuardActionButtonsProps = {
   context: ScamGuardActionContext;
   trustedContactName?: string;
+  trustedContactPhone?: string;
   trustedContactHref?: string;
   isCallActive?: boolean;
   onOpenConcierge: (context: ScamGuardActionContext) => void;
@@ -207,6 +232,7 @@ type ScamGuardActionButtonsProps = {
 export function ScamGuardActionButtons({
   context,
   trustedContactName,
+  trustedContactPhone,
   trustedContactHref,
   isCallActive,
   onOpenConcierge,
@@ -216,8 +242,14 @@ export function ScamGuardActionButtons({
   testIdSuffix,
 }: ScamGuardActionButtonsProps) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
+  const { toast } = useToast();
   const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
-  const actions = showVyvaFollowUpActionsFor("scam").map((action) => {
+  const reviewContract = showVyvaReviewContractFromScamResult({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+    source: "upload",
+  }, context);
+  const actions = reviewContract.followUpActions.map((action) => {
     if (action.id !== "call_trusted_contact") return action;
     if (trustedContactHref) {
       return {
@@ -243,17 +275,39 @@ export function ScamGuardActionButtons({
         testIdSuffix={testIdSuffix}
         title={t("showVyva.followUp.title.scam", "Next scam-safe step")}
         subtitle={t("showVyva.followUp.subtitle.scam", "Check before you reply, pay, call back, or share anything.")}
+        confirmation={t("showVyva.contract.finalConfirmation", reviewContract.finalConfirmationRule)}
         actions={actions}
         onSelect={(action) => {
           if (action.id === "call_trusted_contact") {
-            if (trustedContactHref) {
-              window.location.href = trustedContactHref;
+            if (!trustedContactHref) {
+              onAddTrustedContact();
               return;
             }
-            onAddTrustedContact();
-            return;
           }
-          onOpenConcierge(context);
+          const plan = buildShowVyvaActionExecutionPlan({
+            contract: reviewContract,
+            action,
+            language,
+            sourceRoute: "/scam-guard",
+            target: action.id === "call_trusted_contact"
+              ? { name: contactName, phone: trustedContactPhone ?? trustedContactHref?.replace(/^tel:/, ""), relationship: "trusted_contact" }
+              : undefined,
+          });
+          void saveShowVyvaActionExecutionPlan(plan)
+            .then(async () => {
+              const preparedReceipt = buildWorkflowReceiptMoment({
+                workflowReference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+                status: "prepared",
+                capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+                locale: language === "es" ? "es" : "en",
+              });
+              await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+              toast({ title: preparedReceipt.title, description: preparedReceipt.message });
+              onOpenConcierge(context);
+            })
+            .catch(() => {
+              toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+            });
         }}
       />
     </div>
@@ -387,9 +441,18 @@ const ScamGuardScreen = () => {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<ScamCheckResult | null>(null);
+  const [showVyvaPasteReview, setShowVyvaPasteReview] = useState<ShowVyvaPastePayload | null>(null);
+  const [showVyvaEvidenceReview, setShowVyvaEvidenceReview] = useState<ShowVyvaReviewContract | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [fullScreenCheck, setFullScreenCheck] = useState<ScamCheck | null>(null);
   const [scamCaptureSource, setScamCaptureSource] = useState<Extract<ShowVyvaCaptureSource, "camera" | "upload">>("camera");
+  const [scamCaptureDraft, setScamCaptureDraft] = useState<ShowVyvaPreparedEvidence | null>(null);
+  const [scamCapturePreparing, setScamCapturePreparing] = useState(false);
+  const [scamLiveCameraOpen, setScamLiveCameraOpen] = useState(false);
+  const [scamReviewInput, setScamReviewInput] = useState<ShowVyvaFileReviewInput>({
+    useCaseId: SHOW_VYVA_USE_CASE_IDS.scamCheck,
+    source: "camera",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { startVoice, stopVoice, status, isConnecting } = useVyvaVoice();
@@ -439,11 +502,58 @@ const ScamGuardScreen = () => {
     },
   });
 
+  const prepareScamCaptureFile = (file: File) => {
+    stopTts();
+    const reviewInput = {
+      ...scamReviewInput,
+      fileName: file.name,
+      mimeType: file.type,
+    };
+    setScamReviewInput(reviewInput);
+    setScamCapturePreparing(true);
+
+    prepareShowVyvaEvidenceFile(file)
+      .then((evidence) => setScamCaptureDraft(evidence))
+      .catch((error) => {
+        console.error("[show-vyva-capture] error:", error);
+        toast({ description: t("showVyva.capture.error", "I could not prepare that item. Please try another photo or file.") });
+      })
+      .finally(() => setScamCapturePreparing(false));
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    stopTts();
+    prepareScamCaptureFile(file);
+  };
+
+  const openScamNativePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+    setScamLiveCameraOpen(false);
+    setScamCaptureSource(source);
+    setScamReviewInput((current) => ({ ...current, source }));
+    window.setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const retakeScamCapture = () => {
+    setScamCaptureDraft(null);
+    if (scamReviewInput.source === "camera" && supportsShowVyvaLiveCamera()) {
+      setScamLiveCameraOpen(true);
+      return;
+    }
+    openScamNativePicker(scamReviewInput.source);
+  };
+
+  const submitScamEvidence = async (evidence: ShowVyvaPreparedEvidence) => {
+    const reviewInput = {
+      ...scamReviewInput,
+      fileName: evidence.fileName,
+      mimeType: evidence.mimeType,
+    };
+    setScamReviewInput(reviewInput);
+    setScamCaptureDraft(null);
+    setShowVyvaPasteReview(null);
+    setShowVyvaEvidenceReview(null);
     setResult(null);
     setAnalyzing(true);
 
@@ -458,40 +568,64 @@ const ScamGuardScreen = () => {
       ],
     };
 
-    const sourceType = (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"))
-      ? "pdf"
-      : "image";
-
-    processFile(file)
-      .then(async (dataUrl) => {
-        const res = await apiFetch("/api/scam-check", {
-          method: "POST",
-          body: JSON.stringify({ image: dataUrl, language, fileType: sourceType }),
+    try {
+      if (reviewInput.useCaseId !== SHOW_VYVA_USE_CASE_IDS.scamCheck) {
+        const contract = await reviewShowVyvaVisualEvidence({
+          image: evidence.dataUrl,
+          language,
+          useCaseId: reviewInput.useCaseId,
+          source: reviewInput.source,
+          question: reviewInput.question,
+          fileName: evidence.fileName,
+          mimeType: evidence.mimeType,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as ScamCheckResult;
-        if (data.isFallback) {
-          setResult(errorFallback);
-        } else {
-          setResult(data);
-          queryClient.invalidateQueries({ queryKey: ["/api/scam-check"] });
-        }
-      })
-      .catch(() => setResult(errorFallback))
-      .finally(() => setAnalyzing(false));
+        setShowVyvaEvidenceReview(contract);
+        return;
+      }
+      const res = await apiFetch("/api/scam-check", {
+        method: "POST",
+        body: JSON.stringify({ image: evidence.dataUrl, language, fileType: evidence.kind, question: reviewInput.question }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as ScamCheckResult;
+      if (data.isFallback) {
+        setResult(errorFallback);
+      } else {
+        setResult(data);
+        queryClient.invalidateQueries({ queryKey: ["/api/scam-check"] });
+      }
+    } catch {
+      setResult(errorFallback);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
-  const openScamFilePicker = (source: Extract<ShowVyvaCaptureSource, "camera" | "upload">) => {
+  const openScamFilePicker = (
+    source: Extract<ShowVyvaCaptureSource, "camera" | "upload">,
+    useCaseId: ShowVyvaUseCaseId = SHOW_VYVA_USE_CASE_IDS.scamCheck,
+    question = "",
+  ) => {
     setScamCaptureSource(source);
+    setScamReviewInput({
+      useCaseId,
+      source,
+      fileName: null,
+      mimeType: null,
+      question,
+    });
+    if (source === "camera" && supportsShowVyvaLiveCamera()) {
+      setScamLiveCameraOpen(true);
+      return;
+    }
     window.setTimeout(() => fileInputRef.current?.click(), 0);
   };
 
   const openPastedScamReview = (payload: ShowVyvaPastePayload) => {
-    navigate("/concierge", {
-      state: {
-        conciergePrefill: buildShowVyvaConciergePrefill(payload, language),
-      },
-    });
+    stopTts();
+    setResult(null);
+    setShowVyvaEvidenceReview(null);
+    setShowVyvaPasteReview(payload);
   };
 
   const handleCallCompanion = () => {
@@ -511,6 +645,56 @@ const ScamGuardScreen = () => {
 
   const openTrustedContactSetup = () => {
     navigate("/onboarding/profile/care-team");
+  };
+
+  const scamContextFromContract = (contract: ShowVyvaReviewContract): ScamGuardActionContext => ({
+    riskLevel: contract.riskLevel,
+    resultTitle: contract.concernSummary,
+    explanation: contract.noticed.join(" "),
+    steps: contract.safeNextSteps,
+  });
+
+  const handleScamReviewAction = (
+    action: ShowVyvaFollowUpAction,
+    reviewContract: ShowVyvaReviewContract,
+    reviewContext: ScamGuardActionContext = scamContextFromContract(reviewContract),
+  ) => {
+    if (action.id === "call_trusted_contact" && !trustedContactHref) {
+      openTrustedContactSetup();
+      return;
+    }
+    const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
+    const plan = buildShowVyvaActionExecutionPlan({
+      contract: reviewContract,
+      action,
+      language,
+      sourceRoute: "/scam-guard",
+      target: action.id === "call_trusted_contact"
+        ? { name: contactName, phone: profile?.caregiverContact ?? trustedContactHref?.replace(/^tel:/, ""), relationship: "trusted_contact" }
+        : undefined,
+    });
+    void saveShowVyvaActionExecutionPlan(plan)
+      .then(async () => {
+        const preparedReceipt = buildWorkflowReceiptMoment({
+          workflowReference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+          status: "prepared",
+          capturedSummary: t("showVyva.executor.saved", "Saved. Continue in Concierge when you are ready."),
+          locale: language === "es" ? "es" : "en",
+        });
+        markShowVyvaReviewHistoryActionSaved(reviewContract, action, plan.targetRoute);
+        await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+        toast({ title: preparedReceipt.title, description: preparedReceipt.message });
+        setShowVyvaPasteReview(null);
+        setShowVyvaEvidenceReview(null);
+        if (reviewContract.followUpContext === "scam") {
+          openScamConcierge(reviewContext);
+        } else {
+          navigate(plan.targetRoute);
+        }
+      })
+      .catch(() => {
+        toast({ description: t("showVyva.executor.error", "I could not save that step. Please try again.") });
+      });
   };
 
   const cardStyle = {
@@ -623,7 +807,7 @@ const ScamGuardScreen = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => openScamFilePicker("camera")}
                   className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-amber-200 bg-white px-4 font-body text-[14px] font-bold text-[#A16207] transition active:scale-[0.98]"
                 >
                   <Camera size={17} />
@@ -731,9 +915,13 @@ const ScamGuardScreen = () => {
                 SHOW_VYVA_USE_CASE_IDS.documentHelp,
                 SHOW_VYVA_USE_CASE_IDS.providerOrDeal,
               ]}
-              busy={analyzing}
-              onChooseFileSource={(source) => openScamFilePicker(source)}
+              busy={analyzing || scamCapturePreparing}
+              onChooseFileSource={(source, useCase, question) => openScamFilePicker(source, useCase.id, question)}
               onPaste={(payload) => openPastedScamReview(payload)}
+            />
+            <ShowVyvaReviewHistory
+              className="mt-[14px]"
+              onResume={(item) => navigate(item.resumeRoute)}
             />
 
             {analyzing && (
@@ -754,91 +942,100 @@ const ScamGuardScreen = () => {
               </div>
             )}
 
+            {showVyvaPasteReview && (
+              <ShowVyvaPastedReviewResult
+                payload={showVyvaPasteReview}
+                testIdSuffix="scam-pasted"
+                onActionSelect={handleScamReviewAction}
+                onClose={() => setShowVyvaPasteReview(null)}
+              />
+            )}
+
+            {showVyvaEvidenceReview && !analyzing && (
+              <div className="mt-[14px]">
+                <ShowVyvaResultCard
+                  contract={showVyvaEvidenceReview}
+                  testIdSuffix="scam-visual-evidence"
+                  headerAction={(
+                    <button
+                      type="button"
+                      data-testid="button-close-scam-visual-evidence"
+                      onClick={() => setShowVyvaEvidenceReview(null)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EDE5DB] bg-white text-vyva-text-2"
+                      aria-label={t("showVyva.closeReview", "Close review")}
+                    >
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  )}
+                  onActionSelect={handleScamReviewAction}
+                />
+              </div>
+            )}
+
             {result && !analyzing && (() => {
               const rc = getRiskColors(result.riskLevel);
-              const RIcon = rc.icon;
+              const reviewContext = resultToActionContext(result);
+              const reviewContract = showVyvaReviewContractFromScamResult({
+                useCaseId: scamReviewInput.useCaseId,
+                source: scamReviewInput.source,
+                fileName: scamReviewInput.fileName,
+                mimeType: scamReviewInput.mimeType,
+              }, reviewContext);
+              const isScamReview = reviewContract.followUpContext === "scam";
+              const contactName = trustedContactName?.trim() || t("scamGuard.actions.trustedFallback", "trusted person");
+              const resultActions = reviewContract.followUpActions.map((action) => {
+                if (action.id !== "call_trusted_contact") return action;
+                if (trustedContactHref) {
+                  return {
+                    ...action,
+                    label: t("scamGuard.actions.callTrusted", "Call {{name}}", { name: contactName }),
+                    detail: t("scamGuard.actions.callTrustedSub", "Ask someone you trust."),
+                  };
+                }
+                return {
+                  ...action,
+                  label: t("scamGuard.actions.addTrusted", "Add trusted person"),
+                  detail: t("scamGuard.actions.addTrustedSub", "Save someone to call."),
+                };
+              });
               return (
                 <div
                   data-testid="section-scam-result"
-                  className="mt-[14px] rounded-[14px] p-[16px] mb-[14px]"
-                  style={{ background: rc.bg, border: `1px solid ${rc.border}` }}
+                  className="mt-[14px] mb-[14px]"
                 >
-                  <div className="flex items-center justify-between gap-[8px] mb-[8px]">
-                    <div className="flex items-center gap-[8px]">
-                      <RIcon size={18} style={{ color: rc.text }} />
-                      <span
-                        data-testid="text-scam-risk"
-                        className="font-body text-[13px] font-semibold"
-                        style={{ color: rc.text }}
+                  <ShowVyvaResultCard
+                    contract={reviewContract}
+                    testIdSuffix="scam-current"
+                    reviewedLabel={isScamReview ? t("showVyva.contract.input.scam_review", "Scam, message, link, document, number, or company concern") : undefined}
+                    thinkingLabel={result.explanation}
+                    headerAction={(
+                      <button
+                        data-testid="button-tts-stop"
+                        onClick={isTtsSpeaking ? stopTts : () => {
+                          const riskLabel = t(riskLabelKey(result.riskLevel), result.riskLevel);
+                          const firstStep = result.steps[0] ?? "";
+                          const summary = firstStep
+                            ? `${riskLabel}. ${result.resultTitle}. ${t("scamGuard.ttsStepIntro", "First step")}: ${firstStep}`
+                            : `${riskLabel}. ${result.resultTitle}.`;
+                          speakText(summary, language);
+                        }}
+                        aria-label={isTtsSpeaking ? t("scamGuard.ttsStop", "Stop reading") : t("scamGuard.ttsPlay", "Read aloud")}
+                        className="flex items-center gap-[5px] rounded-full px-[10px] py-[5px] font-body text-[12px] font-semibold transition-all active:scale-95"
+                        style={{
+                          background: isTtsSpeaking ? rc.text : rc.bg,
+                          color: isTtsSpeaking ? rc.bg : rc.text,
+                          border: `1px solid ${rc.border}`,
+                        }}
                       >
-                        {t(riskLabelKey(result.riskLevel), result.riskLevel)}
-                      </span>
-                    </div>
-                    <button
-                      data-testid="button-tts-stop"
-                      onClick={isTtsSpeaking ? stopTts : () => {
-                        const riskLabel = t(riskLabelKey(result.riskLevel), result.riskLevel);
-                        const firstStep = result.steps[0] ?? "";
-                        const summary = firstStep
-                          ? `${riskLabel}. ${result.resultTitle}. ${t("scamGuard.ttsStepIntro", "First step")}: ${firstStep}`
-                          : `${riskLabel}. ${result.resultTitle}.`;
-                        speakText(summary, language);
-                      }}
-                      aria-label={isTtsSpeaking ? t("scamGuard.ttsStop", "Stop reading") : t("scamGuard.ttsPlay", "Read aloud")}
-                      className="flex items-center gap-[5px] px-[10px] py-[5px] rounded-full font-body text-[12px] font-semibold transition-all active:scale-95"
-                      style={{
-                        background: isTtsSpeaking ? rc.text : rc.bg,
-                        color: isTtsSpeaking ? rc.bg : rc.text,
-                        border: `1px solid ${rc.border}`,
-                      }}
-                    >
-                      {isTtsSpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
-                      {isTtsSpeaking
-                        ? t("scamGuard.ttsStop", "Stop")
-                        : t("scamGuard.ttsPlay", "Read aloud")}
-                    </button>
-                  </div>
-                  <p
-                    data-testid="text-scam-result-title"
-                    className="font-body text-[15px] font-semibold text-vyva-text-1 mb-[8px]"
-                  >
-                    {result.resultTitle}
-                  </p>
-                  <p
-                    data-testid="text-scam-explanation"
-                    className="font-body text-[13px] text-vyva-text-1 leading-snug mb-[12px]"
-                  >
-                    {result.explanation}
-                  </p>
-                  {result.steps.length > 0 && (
-                    <>
-                      <p className="font-body text-[11px] font-semibold uppercase tracking-wide mb-[8px]" style={{ color: "#7C3AED" }}>
-                        {t("scamGuard.steps", "What to do")}
-                      </p>
-                      <ol className="space-y-[6px]">
-                        {result.steps.map((step, i) => (
-                          <li key={i} data-testid={`text-scam-step-${i}`} className="flex items-start gap-[8px]">
-                            <span
-                              className="font-body text-[11px] font-bold w-[18px] h-[18px] rounded-full flex items-center justify-center flex-shrink-0 mt-[1px]"
-                              style={{ background: rc.text, color: rc.bg }}
-                            >
-                              {i + 1}
-                            </span>
-                            <span className="font-body text-[13px] text-vyva-text-1">{step}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </>
-                  )}
-                  <ScamGuardActionButtons
-                    context={resultToActionContext(result)}
-                    trustedContactName={trustedContactName}
-                    trustedContactHref={trustedContactHref}
-                    isCallActive={isCallActive}
-                    onOpenConcierge={openScamConcierge}
-                    onStartGuidance={handleCallCompanion}
-                    onAddTrustedContact={openTrustedContactSetup}
-                    testIdSuffix="current"
+                        {isTtsSpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                        {isTtsSpeaking
+                          ? t("scamGuard.ttsStop", "Stop")
+                          : t("scamGuard.ttsPlay", "Read aloud")}
+                      </button>
+                    )}
+                    actions={resultActions}
+                    actionSubtitle={isScamReview ? t("showVyva.followUp.subtitle.scam", "Check before you reply, pay, call back, or share anything.") : undefined}
+                    onActionSelect={(action) => handleScamReviewAction(action, reviewContract, reviewContext)}
                   />
                 </div>
               );
@@ -847,12 +1044,36 @@ const ScamGuardScreen = () => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf,.pdf"
+              accept={scamCaptureSource === "camera" ? "image/*" : "image/*,application/pdf,.pdf"}
               capture={scamCaptureSource === "camera" ? "environment" : undefined}
               className="hidden"
               onChange={handleFileSelect}
               data-testid="input-scam-check-file"
             />
+
+            {scamLiveCameraOpen ? (
+              <ShowVyvaLiveCamera
+                useCaseId={scamReviewInput.useCaseId}
+                onCapture={(file) => {
+                  setScamLiveCameraOpen(false);
+                  prepareScamCaptureFile(file);
+                }}
+                onUseDeviceCamera={() => openScamNativePicker("camera")}
+                onUpload={() => openScamNativePicker("upload")}
+                onCancel={() => setScamLiveCameraOpen(false)}
+              />
+            ) : null}
+
+            {scamCaptureDraft ? (
+              <ShowVyvaCaptureCoach
+                evidence={scamCaptureDraft}
+                useCaseId={scamReviewInput.useCaseId}
+                busy={analyzing}
+                onUse={submitScamEvidence}
+                onRetake={retakeScamCapture}
+                onClose={() => setScamCaptureDraft(null)}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -980,6 +1201,7 @@ const ScamGuardScreen = () => {
                           <ScamGuardActionButtons
                             context={scamCheckToActionContext(check)}
                             trustedContactName={trustedContactName}
+                            trustedContactPhone={profile?.caregiverContact}
                             trustedContactHref={trustedContactHref}
                             isCallActive={isCallActive}
                             onOpenConcierge={openScamConcierge}

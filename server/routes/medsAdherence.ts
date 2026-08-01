@@ -41,6 +41,7 @@ import {
   isMedicineClassTag,
   normalizedMedicinePair,
 } from "../lib/medicationInteractions.js";
+import { buildMedicationUpdates } from "../lib/medicationUpdates.js";
 
 const router = Router();
 
@@ -1146,6 +1147,37 @@ router.get("/my-medicines", requireUser, async (req: Request, res: Response) => 
   } catch (err) {
     console.error("[meds/my-medicines GET]", err);
     return res.status(500).json({ error: "Failed to load medicines" });
+  }
+});
+
+router.get("/updates", requireUser, async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const language = String(req.headers["x-vyva-language"] ?? "en");
+  try {
+    const [rows, profile] = await Promise.all([
+      loadMyMedicinesForUser(userId),
+      db
+        .select({ countryCode: profiles.country_code })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
+        .limit(1)
+        .then((items) => items[0] ?? null),
+    ]);
+    const medicationRequests = rows
+      .filter((row) => row.status === "active")
+      .map((row) => ({
+        medicationName: row.display_name.trim(),
+        activeIngredient: row.common_name?.trim() || null,
+        doseText: row.dose_text,
+        countryCode: profile?.countryCode || null,
+      }))
+      .filter((medication) => Boolean(medication.medicationName));
+    const updates = await buildMedicationUpdates(medicationRequests, language);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json(updates);
+  } catch (err) {
+    console.error("[meds/updates GET]", err);
+    return res.status(500).json({ error: "Failed to check official medication sources" });
   }
 });
 

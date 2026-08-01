@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Hand, Mic, MicOff, Phone, RotateCcw, UserRound, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, Hand, Keyboard, Mic, MicOff, MoreHorizontal, Pause, Phone, RotateCcw, UserRound, X } from "lucide-react";
 import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
 import { emitSosSheetOpen } from "@/lib/sosEvents";
+import { VoiceCanvasScene, useVoiceCanvasAgentPresence, type VoiceCanvasViewModel } from "@/components/voice-canvas";
+import { VyvaWordmark } from "@/components/VyvaWordmark";
 
 interface VoiceCallOverlayProps {
   isSpeaking: boolean;
@@ -23,6 +25,11 @@ interface VoiceCallOverlayProps {
   voiceDiagnostics?: VoiceDiagnosticStep[];
   onRetry?: () => void;
   onType?: () => void;
+  canvasViewModel?: VoiceCanvasViewModel | null;
+  onCanvasChoice?: (choiceId: string) => void;
+  onCanvasPrimary?: (value?: string) => void;
+  onCanvasSecondary?: () => void;
+  onCanvasFile?: (file: File | null) => void;
 }
 
 function orbState(isSpeaking: boolean, isConnecting: boolean): ZamoraOrbState {
@@ -216,6 +223,11 @@ const VoiceCallOverlay = ({
   voiceDiagnostics,
   onRetry,
   onType,
+  canvasViewModel,
+  onCanvasChoice,
+  onCanvasPrimary,
+  onCanvasSecondary,
+  onCanvasFile,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
@@ -226,6 +238,7 @@ const VoiceCallOverlay = ({
   const latestVyvaText = latestVyvaEntry?.text.trim() ?? "";
   const vyvaCaptionChunks = useMemo(() => splitTranscriptIntoCaptionChunks(latestVyvaText), [latestVyvaText]);
   const [captionChunkIndex, setCaptionChunkIndex] = useState(0);
+  const [canvasTextValue, setCanvasTextValue] = useState(canvasViewModel?.textEntry?.value ?? "");
   const activeCaptionIndex = vyvaCaptionChunks.length > 0
     ? Math.min(captionChunkIndex, vyvaCaptionChunks.length - 1)
     : 0;
@@ -234,6 +247,10 @@ const VoiceCallOverlay = ({
   useEffect(() => {
     setCaptionChunkIndex(0);
   }, [latestVyvaText]);
+
+  useEffect(() => {
+    setCanvasTextValue(canvasViewModel?.textEntry?.value ?? "");
+  }, [canvasViewModel?.sceneId, canvasViewModel?.textEntry?.value]);
 
   useEffect(() => {
     if (vyvaCaptionChunks.length <= 1 || activeCaptionIndex >= vyvaCaptionChunks.length - 1) return;
@@ -251,6 +268,7 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.speakingStatus", "Speaking")
     : t("voiceHero.listening", "Listening");
   const hasConnectionError = Boolean(connectionError);
+  const isNeutralListeningShell = !canvasViewModel && !connectionError;
   const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
   const hasMicrophoneError = isMicrophoneError(resolvedConnectionErrorCode);
   const hasVoiceSetupError = isSetupError(resolvedConnectionErrorCode);
@@ -344,7 +362,7 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.micOffMain", "Mic is off")
     : isSpeaking
     ? t("voiceHero.speakingFallback", "One moment")
-    : t("voiceHero.listeningMain", "I'm listening");
+    : t("voiceHero.listeningMain", "Listening");
   const mainMessage = hasConnectionError
     ? emptyTranscriptLabel
     : activeVyvaCaption || fallbackMainMessage;
@@ -363,9 +381,20 @@ const VoiceCallOverlay = ({
   const visibleVoiceDiagnostics = (voiceDiagnostics ?? []).filter((step) => step.status !== "pending");
   const failedVoiceDiagnostic = visibleVoiceDiagnostics.find((step) => step.status === "failed");
   const canType = Boolean(onType || onMinimize);
+  const neutralOrbSize = isNeutralListeningShell ? 132 : 300;
+  const neutralControlCount = canType ? 2 : 1;
   const controlColumnCount = hasConnectionError
     ? [Boolean(onRetry), Boolean(onMinimize), true].filter(Boolean).length
     : [canToggleMic, true, canType].filter(Boolean).length;
+  const baseVisibleCanvasViewModel = canvasViewModel && !hasConnectionError
+    ? {
+        ...canvasViewModel,
+        ...(canvasViewModel.textEntry
+          ? { textEntry: { ...canvasViewModel.textEntry, value: canvasTextValue } }
+          : {}),
+      }
+    : null;
+  const visibleCanvasViewModel = useVoiceCanvasAgentPresence(baseVisibleCanvasViewModel);
 
   const handleSos = () => {
     emitSosSheetOpen();
@@ -406,77 +435,91 @@ const VoiceCallOverlay = ({
           display: "grid",
           gridTemplateColumns: "56px minmax(0, 1fr) 56px",
           alignItems: "center",
-          width: "min(100%, 520px)",
+          width: "min(100%, 760px)",
           gap: 8,
           position: "relative",
           zIndex: 2,
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 999,
-            background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)",
-            color: "#FFFFFF",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 24,
-            fontWeight: 900,
-            boxShadow: "0 10px 24px rgba(91,18,160,0.22)",
-          }}
-        >
-          V
-        </div>
-        <span
-          data-testid="text-call-status"
-          className="font-body"
-          style={{
-            justifySelf: "center",
-            minHeight: 32,
-            maxWidth: "100%",
-            borderRadius: 999,
-            border: "1px solid #EADFD5",
-            background: "rgba(255,255,255,0.84)",
-            color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            padding: "0 13px",
-            fontSize: 14,
-            fontWeight: 900,
-            lineHeight: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            boxShadow: "0 10px 24px rgba(47,33,53,0.08)",
-          }}
-        >
-          {!hasConnectionError && (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 9,
-                height: 9,
-                borderRadius: 999,
-                background: "#8B5CF6",
-                boxShadow: "0 0 0 5px rgba(139,92,246,0.12)",
-                flexShrink: 0,
-              }}
-            />
-          )}
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{statusLabel}</span>
-        </span>
         {onMinimize ? (
           <button
             type="button"
             data-testid="button-minimize-call"
             onClick={onMinimize}
-            aria-label={hasConnectionError ? "Back to app" : "Minimize voice"}
-            title={hasConnectionError ? "Back to app" : "Minimize"}
+            aria-label={hasConnectionError ? "Back to app" : "Back"}
+            title={hasConnectionError ? "Back to app" : "Back"}
+            className="font-body"
+            style={{
+              width: 48,
+              height: 48,
+              justifySelf: "start",
+              borderRadius: 999,
+              border: "1px solid #EADFD5",
+              background: "rgba(255,255,255,0.86)",
+              color: "#2D2230",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              cursor: "pointer",
+              boxShadow: "0 12px 28px rgba(47,33,53,0.10)",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <ChevronLeft size={24} strokeWidth={2.6} />
+          </button>
+        ) : (
+          <div />
+        )}
+        {isNeutralListeningShell ? (
+          <VyvaWordmark className="h-auto w-[92px] justify-self-center" />
+        ) : (
+          <span
+            data-testid="text-call-status"
+            className="font-body"
+            style={{
+              justifySelf: "center",
+              minHeight: 32,
+              maxWidth: "100%",
+              borderRadius: 999,
+              border: "1px solid #EADFD5",
+              background: "rgba(255,255,255,0.84)",
+              color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "0 13px",
+              fontSize: 14,
+              fontWeight: 900,
+              lineHeight: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              boxShadow: "0 10px 24px rgba(47,33,53,0.08)",
+            }}
+          >
+            {!hasConnectionError && (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 999,
+                  background: "#8B5CF6",
+                  boxShadow: "0 0 0 5px rgba(139,92,246,0.12)",
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{statusLabel}</span>
+          </span>
+        )}
+        {isNeutralListeningShell ? (
+          <button
+            type="button"
+            aria-label="Voice options"
+            title="Options"
             className="font-body"
             style={{
               width: 48,
@@ -484,20 +527,18 @@ const VoiceCallOverlay = ({
               justifySelf: "end",
               borderRadius: 999,
               border: "1px solid #EADFD5",
-              background: "#FFFFFF",
-              color: "#5B12A0",
+              background: "rgba(255,255,255,0.86)",
+              color: "#2D2230",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
-              fontSize: 13,
-              fontWeight: 900,
               cursor: "pointer",
-              boxShadow: "0 14px 30px rgba(47,33,53,0.12)",
+              boxShadow: "0 12px 28px rgba(47,33,53,0.10)",
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <ChevronDown size={24} strokeWidth={2.6} />
+            <MoreHorizontal size={24} strokeWidth={2.6} />
           </button>
         ) : (
           <div />
@@ -513,14 +554,35 @@ const VoiceCallOverlay = ({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          gap: 18,
+          gap: isNeutralListeningShell ? 14 : 18,
           boxSizing: "border-box",
-          paddingTop: "clamp(30px, 8vh, 86px)",
-          paddingBottom: "clamp(310px, 39vh, 382px)",
+          paddingTop: visibleCanvasViewModel
+            ? "clamp(18px, 4vh, 42px)"
+            : isNeutralListeningShell
+            ? "clamp(18px, 5vh, 54px)"
+            : "clamp(30px, 8vh, 86px)",
+          paddingBottom: visibleCanvasViewModel
+            ? "clamp(250px, 31vh, 310px)"
+            : isNeutralListeningShell
+            ? "clamp(128px, 17vh, 190px)"
+            : "clamp(310px, 39vh, 382px)",
           overflowY: "auto",
           scrollbarWidth: "none",
         }}
       >
+        {visibleCanvasViewModel ? (
+          <div data-testid="voice-canvas-surface" style={{ width: "min(100%, 760px)" }}>
+            <VoiceCanvasScene
+              viewModel={visibleCanvasViewModel}
+              onChoice={onCanvasChoice}
+              onPrimary={() => onCanvasPrimary?.(canvasTextValue)}
+              onSecondary={onCanvasSecondary}
+              onTextChange={setCanvasTextValue}
+              onFileChange={onCanvasFile}
+            />
+          </div>
+        ) : (
+          <>
         <div
           data-testid="voice-mode-orb"
           aria-hidden="true"
@@ -529,21 +591,25 @@ const VoiceCallOverlay = ({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            marginBottom: 18,
+            marginBottom: isNeutralListeningShell ? 42 : 24,
           }}
         >
           <div
             aria-hidden="true"
             style={{
               position: "absolute",
-              width: "min(92vw, 424px)",
-              height: "min(92vw, 424px)",
+              width: isNeutralListeningShell ? "min(52vw, 212px)" : "min(92vw, 424px)",
+              height: isNeutralListeningShell ? "min(52vw, 212px)" : "min(92vw, 424px)",
               borderRadius: 999,
-              background: "radial-gradient(circle, rgba(124,58,237,0.16) 0%, rgba(124,58,237,0.10) 45%, rgba(255,255,255,0) 72%)",
-              boxShadow: "inset 0 0 0 58px rgba(124,58,237,0.04), inset 0 0 0 112px rgba(124,58,237,0.035)",
+              background: isNeutralListeningShell
+                ? "radial-gradient(circle, rgba(124,58,237,0.18) 0%, rgba(124,58,237,0.09) 48%, rgba(255,255,255,0) 74%)"
+                : "radial-gradient(circle, rgba(124,58,237,0.16) 0%, rgba(124,58,237,0.10) 45%, rgba(255,255,255,0) 72%)",
+              boxShadow: isNeutralListeningShell
+                ? "inset 0 0 0 28px rgba(124,58,237,0.04), inset 0 0 0 56px rgba(124,58,237,0.03)"
+                : "inset 0 0 0 58px rgba(124,58,237,0.04), inset 0 0 0 112px rgba(124,58,237,0.035)",
             }}
           />
-          <ZamoraVoiceOrb state={currentOrbState} size={300} testId="voice-mode-zamora-orb" />
+          <ZamoraVoiceOrb state={currentOrbState} size={neutralOrbSize} testId="voice-mode-zamora-orb" />
         </div>
 
         <h1
@@ -551,16 +617,18 @@ const VoiceCallOverlay = ({
           className="font-body"
           style={{
             color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
-            fontSize: hasConnectionError
+            fontSize: isNeutralListeningShell && !activeVyvaCaption
+              ? "clamp(38px, 8vw, 64px)"
+              : hasConnectionError
               ? "clamp(34px, 8vw, 48px)"
               : activeVyvaCaption
-              ? "clamp(34px, 8.5vw, 58px)"
-              : "clamp(42px, 11vw, 82px)",
+              ? "clamp(30px, 6vw, 52px)"
+              : "clamp(38px, 8vw, 70px)",
             lineHeight: activeVyvaCaption ? 1.08 : 1.04,
             textAlign: "center",
-            maxWidth: activeVyvaCaption ? "min(88vw, 560px)" : "min(92vw, 620px)",
-            maxHeight: activeVyvaCaption ? "min(34vh, 260px)" : undefined,
-            fontWeight: 850,
+            maxWidth: activeVyvaCaption ? "min(92vw, 760px)" : "min(92vw, 720px)",
+            maxHeight: activeVyvaCaption ? "min(42vh, 340px)" : undefined,
+            fontWeight: isNeutralListeningShell && !activeVyvaCaption ? 800 : 850,
             overflow: activeVyvaCaption ? "hidden" : undefined,
             overflowWrap: "anywhere",
             margin: 0,
@@ -579,7 +647,7 @@ const VoiceCallOverlay = ({
               fontSize: 22,
               lineHeight: 1.35,
               textAlign: "center",
-              maxWidth: "min(88vw, 360px)",
+              maxWidth: "min(92vw, 560px)",
               fontWeight: 500,
               margin: 0,
               overflowWrap: "anywhere",
@@ -587,6 +655,31 @@ const VoiceCallOverlay = ({
           >
             {supportMessage}
           </p>
+        )}
+
+        {isNeutralListeningShell && !hasConnectionError && (
+          <div
+            data-testid="voice-private-listening-pill"
+            className="font-body"
+            style={{
+              minHeight: 38,
+              borderRadius: 999,
+              border: "1px solid rgba(13,126,118,0.16)",
+              background: "rgba(226,250,244,0.86)",
+              color: "#0D7E76",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "0 16px",
+              fontSize: 13,
+              fontWeight: 900,
+              boxShadow: "0 12px 26px rgba(13,126,118,0.08)",
+            }}
+          >
+            <span aria-hidden="true">✓</span>
+            <span>{t("voiceHero.privateListening", "Private listening on")}</span>
+          </div>
         )}
 
         {transcriptPreview && !hasConnectionError && (
@@ -803,6 +896,8 @@ const VoiceCallOverlay = ({
             </p>
           </div>
         )}
+          </>
+        )}
       </div>
 
       <div
@@ -818,7 +913,7 @@ const VoiceCallOverlay = ({
           zIndex: 3,
         }}
       >
-        {onMinimize && (
+        {!isNeutralListeningShell && onMinimize && (
           <button
             type="button"
             data-testid="button-voice-sos"
@@ -846,6 +941,72 @@ const VoiceCallOverlay = ({
             SOS
           </button>
         )}
+        {isNeutralListeningShell ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${neutralControlCount}, minmax(0, 1fr))`,
+              gap: 12,
+              width: "min(100%, 420px)",
+            }}
+          >
+            <button
+              type="button"
+              data-testid="button-end-call"
+              onClick={onEnd}
+              className="font-body"
+              style={{
+                minHeight: 60,
+                borderRadius: 999,
+                border: "1.5px solid rgba(124,58,237,0.28)",
+                background: "rgba(255,255,255,0.92)",
+                color: "#5B12A0",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                padding: "0 20px",
+                fontSize: 17,
+                fontWeight: 900,
+                cursor: "pointer",
+                boxShadow: "0 14px 34px rgba(47,33,53,0.10)",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <Pause size={20} strokeWidth={2.5} />
+              <span>{t("voiceHero.pauseCall", "Pause")}</span>
+            </button>
+
+            {canType && (
+              <button
+                type="button"
+                data-testid="button-type-call"
+                onClick={handleType}
+                className="font-body"
+                style={{
+                  minHeight: 60,
+                  borderRadius: 999,
+                  border: "1.5px solid rgba(13,126,118,0.22)",
+                  background: "#2FA8A0",
+                  color: "#FFFFFF",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  padding: "0 20px",
+                  fontSize: 17,
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  boxShadow: "0 16px 36px rgba(13,126,118,0.22)",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <Keyboard size={20} strokeWidth={2.35} />
+                <span>{t("voiceHero.typeInsteadShort", "Type")}</span>
+              </button>
+            )}
+          </div>
+        ) : (
         <div
           style={{
             display: "grid",
@@ -933,6 +1094,7 @@ const VoiceCallOverlay = ({
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
   );

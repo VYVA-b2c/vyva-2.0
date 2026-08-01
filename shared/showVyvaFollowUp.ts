@@ -13,15 +13,22 @@ export type ShowVyvaFollowUpContext =
   typeof SHOW_VYVA_FOLLOW_UP_CONTEXTS[keyof typeof SHOW_VYVA_FOLLOW_UP_CONTEXTS];
 
 export const SHOW_VYVA_FOLLOW_UP_ACTION_IDS = {
+  forwardEmail: "forward_email",
   checkCompany: "check_company",
+  checkNumber: "check_number",
+  checkLink: "check_link",
   callTrusted: "call_trusted_contact",
   saveReport: "save_report",
   scamConcierge: "scam_concierge",
+  doNotReply: "do_not_reply",
+  blockOrReport: "block_or_report",
+  askSomeone: "ask_someone",
   callGp: "call_gp",
   emailGp: "email_gp",
   doctorHelp: "doctor_help",
   scheduleAppointment: "schedule_appointment",
   bookRide: "book_ride",
+  saveNote: "save_note",
   buySafetyAid: "buy_safety_aid",
   requestQuote: "request_quote",
   callCareTeam: "call_care_team",
@@ -31,10 +38,13 @@ export const SHOW_VYVA_FOLLOW_UP_ACTION_IDS = {
   summarizeDocument: "summarize_document",
   draftReply: "draft_reply",
   prepareCall: "prepare_call",
+  askProvider: "ask_provider",
+  compareOptions: "compare_options",
   comparePrice: "compare_price",
   compareProximity: "compare_proximity",
   checkReputation: "check_reputation",
   checkTerms: "check_terms",
+  findAlternatives: "find_alternatives",
   continueConcierge: "continue_concierge",
 } as const;
 
@@ -66,16 +76,45 @@ export interface ShowVyvaFollowUpAction {
   detail: string;
   icon: ShowVyvaFollowUpIcon;
   tone: ShowVyvaFollowUpTone;
+  externalAction: boolean;
   requiresConfirmation: boolean;
 }
 
 const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
+  forward_email: {
+    id: "forward_email",
+    label: "Forward safely",
+    detail: "Prepare an email draft.",
+    icon: "reply",
+    tone: "warm",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
   check_company: {
     id: "check_company",
     label: "Check company",
     detail: "Look up reputation first.",
     icon: "building",
     tone: "quiet",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  check_number: {
+    id: "check_number",
+    label: "Check number",
+    detail: "Look up warning signs.",
+    icon: "phone",
+    tone: "quiet",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  check_link: {
+    id: "check_link",
+    label: "Check link",
+    detail: "Review the address first.",
+    icon: "shield",
+    tone: "quiet",
+    externalAction: true,
     requiresConfirmation: true,
   },
   call_trusted_contact: {
@@ -84,6 +123,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Ask someone you trust.",
     icon: "phone",
     tone: "safe",
+    externalAction: true,
     requiresConfirmation: true,
   },
   save_report: {
@@ -92,6 +132,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Keep a record before acting.",
     icon: "save",
     tone: "warm",
+    externalAction: false,
     requiresConfirmation: true,
   },
   scam_concierge: {
@@ -100,6 +141,34 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Handle it step by step.",
     icon: "concierge",
     tone: "primary",
+    externalAction: false,
+    requiresConfirmation: true,
+  },
+  do_not_reply: {
+    id: "do_not_reply",
+    label: "Do not reply",
+    detail: "Keep it paused for now.",
+    icon: "shield",
+    tone: "safe",
+    externalAction: false,
+    requiresConfirmation: false,
+  },
+  block_or_report: {
+    id: "block_or_report",
+    label: "Block or report",
+    detail: "Prepare a safe report.",
+    icon: "shield",
+    tone: "warm",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  ask_someone: {
+    id: "ask_someone",
+    label: "Ask someone",
+    detail: "Share only after confirming.",
+    icon: "phone",
+    tone: "quiet",
+    externalAction: true,
     requiresConfirmation: true,
   },
   call_gp: {
@@ -108,6 +177,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Talk to your doctor.",
     icon: "phone",
     tone: "safe",
+    externalAction: true,
     requiresConfirmation: true,
   },
   email_gp: {
@@ -116,6 +186,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Prepare the scan summary.",
     icon: "reply",
     tone: "quiet",
+    externalAction: true,
     requiresConfirmation: true,
   },
   doctor_help: {
@@ -124,6 +195,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Review the next step.",
     icon: "shield",
     tone: "primary",
+    externalAction: false,
     requiresConfirmation: true,
   },
   schedule_appointment: {
@@ -132,6 +204,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Prepare before booking.",
     icon: "quote",
     tone: "warm",
+    externalAction: true,
     requiresConfirmation: true,
   },
   book_ride: {
@@ -140,7 +213,17 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Plan a safe ride.",
     icon: "map",
     tone: "quiet",
+    externalAction: true,
     requiresConfirmation: true,
+  },
+  save_note: {
+    id: "save_note",
+    label: "Save note",
+    detail: "Keep this for later.",
+    icon: "save",
+    tone: "quiet",
+    externalAction: false,
+    requiresConfirmation: false,
   },
   buy_safety_aid: {
     id: "buy_safety_aid",
@@ -148,6 +231,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Compare simple items first.",
     icon: "basket",
     tone: "primary",
+    externalAction: true,
     requiresConfirmation: true,
   },
   request_quote: {
@@ -156,6 +240,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Prepare home help.",
     icon: "quote",
     tone: "warm",
+    externalAction: true,
     requiresConfirmation: true,
   },
   call_care_team: {
@@ -164,6 +249,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Share the concern.",
     icon: "phone",
     tone: "safe",
+    externalAction: true,
     requiresConfirmation: true,
   },
   mark_safe_now: {
@@ -172,6 +258,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Mark this as handled.",
     icon: "check",
     tone: "safe",
+    externalAction: false,
     requiresConfirmation: false,
   },
   pharmacist_questions: {
@@ -180,6 +267,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Prepare what to ask.",
     icon: "pill",
     tone: "primary",
+    externalAction: false,
     requiresConfirmation: true,
   },
   medicine_safety: {
@@ -188,6 +276,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Check label and cautions.",
     icon: "shield",
     tone: "safe",
+    externalAction: false,
     requiresConfirmation: true,
   },
   summarize_document: {
@@ -196,6 +285,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Make it easier to understand.",
     icon: "document",
     tone: "primary",
+    externalAction: false,
     requiresConfirmation: true,
   },
   draft_reply: {
@@ -204,6 +294,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Prepare, do not send.",
     icon: "reply",
     tone: "warm",
+    externalAction: true,
     requiresConfirmation: true,
   },
   prepare_call: {
@@ -212,6 +303,25 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Write the key points.",
     icon: "phone",
     tone: "quiet",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  ask_provider: {
+    id: "ask_provider",
+    label: "Ask provider",
+    detail: "Prepare a clear question.",
+    icon: "reply",
+    tone: "warm",
+    externalAction: true,
+    requiresConfirmation: true,
+  },
+  compare_options: {
+    id: "compare_options",
+    label: "Compare options",
+    detail: "Check choices first.",
+    icon: "price",
+    tone: "quiet",
+    externalAction: false,
     requiresConfirmation: true,
   },
   compare_price: {
@@ -220,6 +330,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Check if it is fair.",
     icon: "price",
     tone: "primary",
+    externalAction: false,
     requiresConfirmation: true,
   },
   compare_proximity: {
@@ -228,6 +339,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Include distance and access.",
     icon: "map",
     tone: "quiet",
+    externalAction: false,
     requiresConfirmation: true,
   },
   check_reputation: {
@@ -236,6 +348,7 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Look for trust signals.",
     icon: "star",
     tone: "safe",
+    externalAction: true,
     requiresConfirmation: true,
   },
   check_terms: {
@@ -244,6 +357,16 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Find hidden conditions.",
     icon: "terms",
     tone: "warm",
+    externalAction: false,
+    requiresConfirmation: true,
+  },
+  find_alternatives: {
+    id: "find_alternatives",
+    label: "Find alternatives",
+    detail: "Look for safer options.",
+    icon: "basket",
+    tone: "primary",
+    externalAction: false,
     requiresConfirmation: true,
   },
   continue_concierge: {
@@ -252,17 +375,18 @@ const ACTIONS: Record<ShowVyvaFollowUpActionId, ShowVyvaFollowUpAction> = {
     detail: "Turn this into a plan.",
     icon: "concierge",
     tone: "primary",
+    externalAction: false,
     requiresConfirmation: true,
   },
 };
 
 const CONTEXT_ACTIONS: Record<ShowVyvaFollowUpContext, ShowVyvaFollowUpActionId[]> = {
-  scam: ["check_company", "call_trusted_contact", "save_report", "scam_concierge"],
-  health_visual: ["call_gp", "email_gp", "doctor_help", "schedule_appointment", "book_ride"],
-  home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "mark_safe_now"],
-  medicine: ["pharmacist_questions", "medicine_safety", "continue_concierge"],
-  document: ["summarize_document", "draft_reply", "prepare_call", "continue_concierge"],
-  provider_deal: ["compare_price", "compare_proximity", "check_reputation", "check_terms", "continue_concierge"],
+  scam: ["do_not_reply", "block_or_report", "ask_someone", "forward_email", "check_company", "check_number", "check_link", "call_trusted_contact", "save_report", "scam_concierge"],
+  health_visual: ["doctor_help", "save_note", "call_gp", "email_gp", "schedule_appointment", "book_ride"],
+  home_safety: ["buy_safety_aid", "request_quote", "call_care_team", "save_note", "mark_safe_now"],
+  medicine: ["save_note", "pharmacist_questions", "call_gp", "medicine_safety", "continue_concierge"],
+  document: ["save_note", "ask_provider", "compare_options", "summarize_document", "draft_reply", "prepare_call", "continue_concierge"],
+  provider_deal: ["find_alternatives", "save_note", "compare_price", "compare_proximity", "check_reputation", "check_terms", "continue_concierge"],
 };
 
 export function showVyvaFollowUpContextForUseCase(useCaseId: ShowVyvaUseCaseId): ShowVyvaFollowUpContext {

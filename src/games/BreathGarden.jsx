@@ -14,7 +14,7 @@ import {
   Waves,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { VyvaMark } from "@/components/VyvaMark";
 import { apiFetch } from "@/lib/queryClient";
 import { GARDEN_THEMES, getBreathGardenTheme, isBreathGardenTheme } from "./shared/breathGardenThemes";
 import { normalizeGameLanguage } from "./shared/language";
@@ -602,7 +602,7 @@ export default function BreathGarden({
     <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
       <div className="mx-auto w-full max-w-[780px]">
         <header className="flex items-center justify-between gap-4">
-          <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
+          <VyvaMark className="h-12 w-12" />
           {screen !== "close" ? (
             <button
               type="button"

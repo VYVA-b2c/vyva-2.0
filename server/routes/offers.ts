@@ -3,7 +3,20 @@ import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 import { db } from "../db.js";
 import { profiles, companionProfiles, socialUserInterests } from "../../shared/schema.js";
+import {
+  PROVIDER_EVIDENCE_SOURCE_PRIORITY,
+  PROVIDER_COMPARISON_CRITERIA,
+  type ProviderComparisonCriterion,
+  type ProviderComparisonEvidenceSourceType,
+  type ProviderComparisonFact,
+} from "../../shared/providerComparison.js";
 import { getGooglePlacesApiKey } from "../lib/googlePlacesKey.js";
+import {
+  refreshProviderEvidence,
+  type ProviderEvidenceRefreshResult,
+  type ProviderSector,
+  type ProviderSourceAdapterDependencies,
+} from "../services/providerSourceAdapters.js";
 
 const router = Router();
 const DEMO_USER_ID = "demo-user";
@@ -13,13 +26,29 @@ type OfferCategory =
   | "Vivienda y cuidados"
   | "Seguros y proteccion"
   | "Servicios en casa"
-  | "Ayudas y beneficios";
+  | "Ayudas y beneficios"
+  | "Transporte";
 
 interface OffersRequestBody {
   query?: string;
   category?: OfferCategory;
   locale?: string;
   document_context?: BillDocumentAnalysis;
+  recheck_context?: ProviderRecheckRequest;
+  provider_mode?: string;
+}
+
+interface ProviderRecheckRequestTarget {
+  id?: string;
+  name: string;
+  official_website?: string | null;
+  directory_url?: string | null;
+}
+
+interface ProviderRecheckRequest {
+  preferred_sources?: ProviderComparisonEvidenceSourceType[];
+  criteria?: string[];
+  providers?: ProviderRecheckRequestTarget[];
 }
 
 type BillDocumentType =
@@ -74,10 +103,13 @@ interface OfferProfileContext {
 }
 
 interface PlaceCandidate {
+  placeId?: string;
   name: string;
   address?: string;
   phone?: string;
   website?: string;
+  bookingUrl?: string;
+  directoryUrl?: string;
   mapsUrl?: string;
   rating?: number;
   reviewCount?: number;
@@ -98,8 +130,16 @@ interface RankedOffer {
   contact_method: string;
   phone?: string;
   website?: string;
+  booking_url?: string;
   maps_url?: string;
   trust_note: string;
+  source_label: string;
+  source_status: "verified" | "reported" | "unknown" | "conflicting";
+  source_type: ProviderComparisonEvidenceSourceType;
+  source_url: string | null;
+  checked_at: string;
+  source_priority: ProviderComparisonEvidenceSourceType[];
+  comparison: Record<ProviderComparisonCriterion, ProviderComparisonFact>;
   score: number;
   score_breakdown: {
     distance: number;
@@ -119,10 +159,11 @@ interface OfferProtectionSummary {
 
 const CATEGORY_ALIASES: Array<{ category: OfferCategory; terms: RegExp }> = [
   { category: "Gastos del hogar", terms: /(luz|electric|gas|internet|telefono|factura|tarifa|mantenimiento|comunidad|bill|utility|phone|broadband|maintenance)/i },
-  { category: "Vivienda y cuidados", terms: /(residencia|centro de dia|cuidad|ayuda a domicilio|dependencia|estancia|care|home help|day centre|residence|nursing)/i },
+  { category: "Vivienda y cuidados", terms: /(residencia|centro de dia|cuidad|ayuda a domicilio|dependencia|estancia|medic|doctor|clinic|specialist|care|home help|day centre|residence|nursing)/i },
   { category: "Seguros y proteccion", terms: /(seguro|poliza|cobertura|proteccion|asistencia|vida|hogar|salud|insurance|coverage|protection)/i },
   { category: "Servicios en casa", terms: /(limpieza|reparaci|fontaner|electricista|mantenimiento|cuidado personal|profesional|clean|repair|plumb|home service)/i },
   { category: "Ayudas y beneficios", terms: /(ayuda|beneficio|subvencion|municipal|social|mayores|apoyo|grant|benefit|public support|local support)/i },
+  { category: "Transporte", terms: /(taxi|transport|transporte|ride|trayecto|traslado|chofer|driver|mobility service)/i },
 ];
 
 const CATEGORY_SEARCH_TERMS: Record<OfferCategory, string[]> = {
@@ -131,6 +172,7 @@ const CATEGORY_SEARCH_TERMS: Record<OfferCategory, string[]> = {
   "Seguros y proteccion": ["seguro salud mayores", "seguro hogar comparador", "asistencia dependencia mayores"],
   "Servicios en casa": ["limpieza domicilio verificada", "reparaciones hogar verificadas", "mantenimiento hogar mayores"],
   "Ayudas y beneficios": ["ayudas municipales mayores", "beneficios mayores", "subvenciones dependencia mayores"],
+  "Transporte": ["taxi local accesible", "transporte para mayores", "servicio de conductor cercano"],
 };
 
 const LOCALE_TO_LANGUAGE: Record<string, string> = {
@@ -480,6 +522,23 @@ function classifyCategory(query: string, explicit?: string): OfferCategory {
   return match?.category ?? "Gastos del hogar";
 }
 
+function categoryForProviderMode(mode: string | undefined): OfferCategory | null {
+  if (["personal-care", "specialist", "residence", "care"].includes(mode ?? "")) return "Vivienda y cuidados";
+  if (mode === "transport") return "Transporte";
+  if (mode === "home-service") return "Servicios en casa";
+  return null;
+}
+
+function providerSectorForSearch(mode: string | undefined, category: OfferCategory): ProviderSector | null {
+  if (["personal-care", "specialist", "residence", "care"].includes(mode ?? "")) return "doctor_care";
+  if (mode === "transport") return "transport";
+  if (mode === "home-service") return "home_service";
+  if (category === "Vivienda y cuidados") return "doctor_care";
+  if (category === "Transporte") return "transport";
+  if (category === "Servicios en casa") return "home_service";
+  return null;
+}
+
 function isDeliveryPreferred(text: string): boolean {
   return /(delivery|entrega|domicilio|casa|home|a domicilio|movilidad reducida|reducida|limited mobility)/i.test(text);
 }
@@ -538,6 +597,7 @@ function trustedSourceGuidance(category: OfferCategory, countryCode: string, loc
   if (category === "Vivienda y cuidados") base.unshift(es ? "directorios publicos de cuidados y centros acreditados" : "public care directories and accredited centres");
   if (category === "Seguros y proteccion") base.unshift(es ? "aseguradoras reconocidas y fuentes regulatorias" : "recognised insurers and regulatory sources");
   if (category === "Ayudas y beneficios") base.unshift(es ? "servicios publicos, ayuntamiento y programas sociales" : "public services, town halls, and social programmes");
+  if (category === "Transporte") base.unshift(es ? "operadores de transporte, webs oficiales y directorios locales" : "transport operators, official websites, and local directories");
   if (countryCode.toUpperCase() !== "ES") base.push(es ? "directorios locales fiables del pais" : "trusted local directories for the country");
   return base;
 }
@@ -551,6 +611,7 @@ function offerProtectionSummary(category: OfferCategory, locale: string): OfferP
       "Seguros y proteccion": "cobertura, exclusiones y condiciones",
       "Servicios en casa": "identidad, disponibilidad y forma de pago segura",
       "Ayudas y beneficios": "requisitos, documentos y plazos",
+      "Transporte": "licencia, accesibilidad, disponibilidad y precio",
     }[category]
     : {
       "Gastos del hogar": "bills, tariffs, and contract commitments",
@@ -558,6 +619,7 @@ function offerProtectionSummary(category: OfferCategory, locale: string): OfferP
       "Seguros y proteccion": "coverage, exclusions, and terms",
       "Servicios en casa": "identity, availability, and safe payment",
       "Ayudas y beneficios": "eligibility, documents, and deadlines",
+      "Transporte": "licensing, accessibility, availability, and price",
     }[category];
 
   return es
@@ -632,6 +694,7 @@ async function searchGooglePlaces(
   const detailed = await Promise.all(safeResults.map(async (item) => {
     if (!item.place_id) {
       return {
+        placeId: item.place_id,
         name: item.name!,
         address: item.formatted_address,
         rating: item.rating,
@@ -652,6 +715,7 @@ async function searchGooglePlaces(
     const detailsResponse = await fetch(detailsUrl, { signal: AbortSignal.timeout(7000) }).catch(() => null);
     if (!detailsResponse?.ok) {
       return {
+        placeId: item.place_id,
         name: item.name!,
         address: item.formatted_address,
         rating: item.rating,
@@ -678,6 +742,7 @@ async function searchGooglePlaces(
     };
     const result = details.result;
     return {
+      placeId: item.place_id,
       name: result?.name ?? item.name!,
       address: result?.formatted_address ?? item.formatted_address,
       phone: result?.formatted_phone_number,
@@ -806,6 +871,26 @@ function buildGuidedCandidates(
         sourceType: "public_or_community",
       },
     ],
+    "Transporte": [
+      {
+        name: es ? "Buscar taxi local" : "Find a local taxi",
+        address: localArea,
+        source,
+        sourceType: "public_or_community",
+      },
+      {
+        name: es ? "Comparar transporte accesible" : "Compare accessible transport",
+        address: localArea,
+        source,
+        sourceType: "public_or_community",
+      },
+      {
+        name: es ? "Preparar un trayecto" : "Prepare a ride",
+        address: localArea,
+        source,
+        sourceType: "known_platform",
+      },
+    ],
   };
 
   return templates[category];
@@ -867,6 +952,111 @@ function contactText(candidate: PlaceCandidate, locale: string): string {
   return es ? "Contacto no publicado; revisar antes." : "No published contact; check first.";
 }
 
+function candidateEvidenceSourceType(candidate: PlaceCandidate): ProviderComparisonEvidenceSourceType {
+  if (candidate.sourceType === "verified_local_business") return "directory";
+  if (candidate.sourceType === "known_platform") return "platform";
+  if (/ayuntamiento|town hall|municipal|regulator|regulad|public service/i.test(candidate.source)) return "official";
+  return "community";
+}
+
+function comparisonFact(
+  criterion: ProviderComparisonCriterion,
+  value: string | null,
+  candidate: PlaceCandidate,
+  checkedAt: string,
+): ProviderComparisonFact {
+  const sourceType = candidateEvidenceSourceType(candidate);
+  const sourceUrl = candidate.mapsUrl ?? null;
+  const status = value ? "reported" as const : "unknown" as const;
+  const evidence = [{
+    value,
+    status,
+    source: candidate.source || null,
+    sourceType,
+    sourceUrl,
+    checkedAt,
+  }];
+  return {
+    criterion,
+    value,
+    status,
+    source: candidate.source || null,
+    sourceType,
+    sourceUrl,
+    checkedAt,
+    evidence,
+    conflict: false,
+  };
+}
+
+function comparisonFactsForCandidate(candidate: PlaceCandidate, locale: string, checkedAt: string): RankedOffer["comparison"] {
+  const es = locale === "es";
+
+  return {
+    distance: comparisonFact("distance", candidate.address ?? null, candidate, checkedAt),
+    price: comparisonFact(
+      "price",
+      typeof candidate.priceLevel === "number"
+        ? es ? `Nivel de precio ${candidate.priceLevel} de 4` : `Price level ${candidate.priceLevel} of 4`
+        : null,
+      candidate,
+      checkedAt,
+    ),
+    reputation: comparisonFact(
+      "reputation",
+      typeof candidate.rating === "number"
+        ? `${candidate.rating}/5${candidate.reviewCount ? ` (${candidate.reviewCount} ${es ? "opiniones" : "reviews"})` : ""}`
+        : null,
+      candidate,
+      checkedAt,
+    ),
+    availability: comparisonFact(
+      "availability",
+      candidate.openNow === true
+        ? es ? "Aparece abierto ahora" : "Appears open now"
+        : candidate.openNow === false
+          ? es ? "Puede estar cerrado ahora" : "May be closed now"
+          : null,
+      candidate,
+      checkedAt,
+    ),
+    accessibility: comparisonFact("accessibility", null, candidate, checkedAt),
+    coverage: comparisonFact("coverage", null, candidate, checkedAt),
+  };
+}
+
+function comparisonEvidenceSummary(
+  comparison: RankedOffer["comparison"],
+  fallbackCheckedAt: string,
+  adapterPriority?: ProviderComparisonEvidenceSourceType[],
+) {
+  const evidence = PROVIDER_COMPARISON_CRITERIA.flatMap((criterion) => comparison[criterion].evidence);
+  const priorities = adapterPriority?.length
+    ? adapterPriority
+    : PROVIDER_EVIDENCE_SOURCE_PRIORITY.filter((sourceType) => evidence.some((item) => item.sourceType === sourceType));
+  const primary = priorities.length > 0
+    ? evidence.find((item) => item.sourceType === priorities[0]) ?? evidence[0]
+    : evidence[0];
+  const checkedAt = evidence
+    .map((item) => item.checkedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? fallbackCheckedAt;
+  const sourceStatus: RankedOffer["source_status"] = Object.values(comparison).some((fact) => fact.conflict)
+    ? "conflicting"
+    : evidence.some((item) => item.status === "verified")
+      ? "verified"
+      : evidence.some((item) => item.status === "reported")
+        ? "reported"
+        : "unknown";
+  return {
+    checkedAt,
+    evidence,
+    primary,
+    priorities,
+    sourceStatus,
+  };
+}
+
 function buildRankedOffer(
   candidate: PlaceCandidate,
   category: OfferCategory,
@@ -874,6 +1064,8 @@ function buildRankedOffer(
   query: string,
   locale: string,
   index: number,
+  checkedAt: string,
+  evidenceRefresh?: ProviderEvidenceRefreshResult,
 ): RankedOffer {
   const es = locale === "es";
   const score = scoreCandidate(candidate, category, context, query);
@@ -885,26 +1077,37 @@ function buildRankedOffer(
     : candidate.openNow === false
       ? es ? "Puede estar cerrado ahora" : "May be closed now"
       : es ? "Disponibilidad por confirmar" : "Availability to confirm";
+  const comparison = evidenceRefresh?.facts ?? comparisonFactsForCandidate(candidate, locale, checkedAt);
+  const evidenceSummary = comparisonEvidenceSummary(comparison, checkedAt, evidenceRefresh?.sourcePriority);
+  const hasVerifiedEvidence = evidenceSummary.evidence.some((item) => item.status === "verified");
 
   return {
     label: index === 0 ? "Opcion recomendada" : index === 1 ? "Alternativa 1" : "Alternativa 2",
     name: candidate.name,
     category,
-    what_it_offers: es
-      ? `Opcion verificable para ${category.toLowerCase()}.`
-      : `Verifiable option for ${category}.`,
+    what_it_offers: hasVerifiedEvidence
+      ? es ? `Opcion con informacion directa verificada para ${category.toLowerCase()}.` : `Option with verified direct information for ${category}.`
+      : es ? `Opcion para considerar en ${category.toLowerCase()}; confirme los datos pendientes.` : `Option to consider for ${category}; confirm any missing details.`,
     price_or_advantage: serviceValueText(candidate, locale),
     why_good_option: es
-      ? `Buena combinacion de adecuacion, confianza y facilidad. Fuente: ${candidate.source}.`
-      : `Good balance of fit, trust, and ease. Source: ${candidate.source}.`,
+      ? `Ordenada por adecuacion, cercania y datos disponibles. Las lagunas siguen visibles.`
+      : `Ranked by fit, proximity, and available evidence. Missing facts remain visible.`,
     distance_or_availability: [candidate.address, availability].filter(Boolean).join(" · "),
     contact_method: contactText(candidate, locale),
     phone: candidate.phone,
     website: candidate.website,
+    booking_url: evidenceRefresh?.discoveredBookingUrl ?? candidate.bookingUrl,
     maps_url: candidate.mapsUrl,
     trust_note: es
-      ? `Confianza: ${rating}. ${candidate.rating && candidate.rating < 4.2 ? "Es economica o cercana, pero conviene revisar opiniones." : "Datos suficientes para considerarla."}`
-      : `Trust: ${rating}. ${candidate.rating && candidate.rating < 4.2 ? "It may be convenient, but reviews should be checked." : "Enough data to consider it."}`,
+      ? `Reputacion publicada: ${rating}. Revise la fuente y cualquier conflicto antes de elegir.`
+      : `Published reputation: ${rating}. Review the source and any conflict before choosing.`,
+    source_label: evidenceSummary.primary?.source ?? candidate.source,
+    source_status: evidenceSummary.sourceStatus,
+    source_type: evidenceSummary.primary?.sourceType ?? candidateEvidenceSourceType(candidate),
+    source_url: evidenceSummary.primary?.sourceUrl ?? candidate.mapsUrl ?? null,
+    checked_at: evidenceSummary.checkedAt,
+    source_priority: evidenceSummary.priorities,
+    comparison,
     score: score.total,
     score_breakdown: score.breakdown,
   };
@@ -968,9 +1171,126 @@ function documentDecisionContext(documentContext: BillDocumentAnalysis | undefin
     : ` I considered the details read from the bill (${facts}).`;
 }
 
-async function buildOffers(query: string, category: OfferCategory, context: OfferProfileContext, locale: string, documentContext?: BillDocumentAnalysis) {
+function normalizedProviderIdentity(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function safeHostname(value: string | null | undefined): string {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function normaliseRecheckRequest(value: ProviderRecheckRequest | undefined): ProviderRecheckRequest {
+  const preferredSources = (value?.preferred_sources ?? [])
+    .filter((source): source is ProviderComparisonEvidenceSourceType => (
+      PROVIDER_EVIDENCE_SOURCE_PRIORITY.includes(source as ProviderComparisonEvidenceSourceType)
+    ));
+  const providers = (value?.providers ?? [])
+    .filter((provider) => typeof provider?.name === "string" && Boolean(provider.name.trim()))
+    .slice(0, 3)
+    .map((provider) => ({
+      id: typeof provider.id === "string" ? provider.id.trim() : undefined,
+      name: provider.name.trim(),
+      official_website: typeof provider.official_website === "string" ? provider.official_website.trim() || null : null,
+      directory_url: typeof provider.directory_url === "string" ? provider.directory_url.trim() || null : null,
+    }));
+  return {
+    preferred_sources: preferredSources.length > 0
+      ? preferredSources
+      : ["official", "provider_owned", "regulated", "directory"],
+    criteria: Array.isArray(value?.criteria)
+      ? value.criteria.filter((criterion): criterion is string => typeof criterion === "string" && Boolean(criterion.trim()))
+      : [],
+    providers,
+  };
+}
+
+function recheckSearchTerms(recheck: ProviderRecheckRequest): string[] {
+  return (recheck.providers ?? []).map((provider) => {
+    const officialHost = safeHostname(provider.official_website);
+    return [provider.name, officialHost].filter(Boolean).join(" ");
+  });
+}
+
+function recheckCandidatePriority(candidate: PlaceCandidate, recheck: ProviderRecheckRequest): number {
+  const providers = recheck.providers ?? [];
+  if (providers.length === 0) return 0;
+  const candidateIdentity = normalizedProviderIdentity(candidate.name);
+  const candidateHost = safeHostname(candidate.website);
+  let targetScore = 0;
+  providers.forEach((provider, index) => {
+    const targetIdentity = normalizedProviderIdentity(provider.name);
+    if (candidateIdentity === targetIdentity) targetScore = Math.max(targetScore, 10_000 - index * 100);
+    else if (candidateIdentity.includes(targetIdentity) || targetIdentity.includes(candidateIdentity)) {
+      targetScore = Math.max(targetScore, 7_000 - index * 100);
+    }
+    const targetHost = safeHostname(provider.official_website);
+    if (candidateHost && targetHost && candidateHost === targetHost) {
+      targetScore = Math.max(targetScore, 12_000 - index * 100);
+    }
+  });
+  const sourceType = candidate.website ? "provider_owned" : candidateEvidenceSourceType(candidate);
+  const sourceIndex = (recheck.preferred_sources ?? []).indexOf(sourceType);
+  const sourceScore = sourceIndex >= 0 ? 500 - sourceIndex * 50 : 0;
+  return targetScore + sourceScore;
+}
+
+function recheckTargetForCandidate(
+  candidate: PlaceCandidate,
+  recheck: ProviderRecheckRequest,
+): ProviderRecheckRequestTarget | null {
+  const candidateIdentity = normalizedProviderIdentity(candidate.name);
+  const candidateHost = safeHostname(candidate.website);
+  return (recheck.providers ?? []).find((provider) => {
+    const targetIdentity = normalizedProviderIdentity(provider.name);
+    const targetHost = safeHostname(provider.official_website);
+    return candidateIdentity === targetIdentity
+      || candidateIdentity.includes(targetIdentity)
+      || targetIdentity.includes(candidateIdentity)
+      || Boolean(candidateHost && targetHost && candidateHost === targetHost);
+  }) ?? null;
+}
+
+function attachRecheckSources(candidate: PlaceCandidate, recheck: ProviderRecheckRequest): PlaceCandidate {
+  const target = recheckTargetForCandidate(candidate, recheck);
+  if (!target) return candidate;
+  return {
+    ...candidate,
+    website: target.official_website || candidate.website,
+    directoryUrl: target.directory_url || candidate.directoryUrl,
+  };
+}
+
+function recheckCriteria(recheck: ProviderRecheckRequest): ProviderComparisonCriterion[] {
+  const criteria = (recheck.criteria ?? []).filter((criterion): criterion is ProviderComparisonCriterion => (
+    PROVIDER_COMPARISON_CRITERIA.includes(criterion as ProviderComparisonCriterion)
+  ));
+  return criteria.length > 0 ? criteria : [...PROVIDER_COMPARISON_CRITERIA];
+}
+
+export async function buildProviderOffers(
+  query: string,
+  category: OfferCategory,
+  context: OfferProfileContext,
+  locale: string,
+  documentContext?: BillDocumentAnalysis,
+  recheckRequest?: ProviderRecheckRequest,
+  providerMode?: string,
+  evidenceDependencies?: ProviderSourceAdapterDependencies,
+) {
   const documentQuery = documentContextQuery(documentContext, locale);
+  const recheck = normaliseRecheckRequest(recheckRequest);
   const searchTerms = [
+    ...recheckSearchTerms(recheck),
     documentQuery,
     query,
     ...CATEGORY_SEARCH_TERMS[category],
@@ -988,15 +1308,44 @@ async function buildOffers(query: string, category: OfferCategory, context: Offe
   const deduped = Array.from(
     new Map([...allResults, ...guidedResults].map((candidate) => [candidate.name.toLowerCase(), candidate])).values(),
   );
+  const checkedAt = new Date().toISOString();
+  const sector = providerSectorForSearch(providerMode, category);
+  const selected = deduped
+    .map((rawCandidate) => {
+      const candidate = attachRecheckSources(rawCandidate, recheck);
+      return {
+        candidate,
+        score: scoreCandidate(candidate, category, context, query).total,
+        recheckPriority: recheckCandidatePriority(candidate, recheck),
+      };
+    })
+    .sort((left, right) => right.recheckPriority - left.recheckPriority || right.score - left.score)
+    .slice(0, 3);
 
-  return deduped
-    .map((candidate) => buildRankedOffer(candidate, category, context, query, locale, 0))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map((offer, index) => ({
-      ...offer,
-      label: index === 0 ? "Opcion recomendada" : index === 1 ? "Alternativa 1" : "Alternativa 2",
-    }));
+  return await Promise.all(selected.map(async ({ candidate }, index) => {
+    const evidenceRefresh = sector
+      ? await refreshProviderEvidence({
+          candidate: {
+            id: candidate.placeId ?? null,
+            name: candidate.name,
+            sector,
+            address: candidate.address ?? null,
+            websiteUrl: candidate.website ?? null,
+            bookingUrl: candidate.bookingUrl ?? null,
+            directoryUrl: candidate.directoryUrl ?? null,
+            mapsUrl: candidate.mapsUrl ?? null,
+            placeId: candidate.placeId ?? null,
+            priceLevel: candidate.priceLevel ?? null,
+            rating: candidate.rating ?? null,
+            reviewCount: candidate.reviewCount ?? null,
+            openNow: candidate.openNow ?? null,
+          },
+          criteria: recheckCriteria(recheck),
+          locale,
+        }, evidenceDependencies)
+      : undefined;
+    return buildRankedOffer(candidate, category, context, query, locale, index, checkedAt, evidenceRefresh);
+  }));
 }
 
 export async function analyzeOfferDocumentHandler(req: Request, res: Response) {
@@ -1075,7 +1424,7 @@ export async function analyzeOfferDocumentHandler(req: Request, res: Response) {
 router.post("/analyze-document", analyzeOfferDocumentHandler);
 
 router.post("/search", async (req: Request, res: Response) => {
-  const { query = "", category, locale = "es", document_context } = req.body as OffersRequestBody;
+  const { query = "", category, locale = "es", document_context, recheck_context, provider_mode } = req.body as OffersRequestBody;
   const cleanedQuery = query.trim();
   if (!cleanedQuery && !category) {
     return res.status(400).json({ error: "query or category is required" });
@@ -1087,10 +1436,20 @@ router.post("/search", async (req: Request, res: Response) => {
   const documentContext = document_context && typeof document_context === "object"
     ? normaliseDocumentAnalysis(document_context as unknown as Record<string, unknown>, normalizedLocale)
     : undefined;
-  const classifiedCategory = documentContext?.category ?? classifyCategory(cleanedQuery, category);
+  const classifiedCategory = documentContext?.category
+    ?? categoryForProviderMode(provider_mode)
+    ?? classifyCategory(cleanedQuery, category);
 
   try {
-    const offers = await buildOffers(cleanedQuery || classifiedCategory, classifiedCategory, context, normalizedLocale, documentContext);
+    const offers = await buildProviderOffers(
+      cleanedQuery || classifiedCategory,
+      classifiedCategory,
+      context,
+      normalizedLocale,
+      documentContext,
+      recheck_context,
+      provider_mode,
+    );
     const es = normalizedLocale === "es";
     const documentNote = documentDecisionContext(documentContext, normalizedLocale);
     return res.json({

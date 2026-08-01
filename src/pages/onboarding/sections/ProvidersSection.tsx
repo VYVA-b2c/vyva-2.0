@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlacesSearch, PlaceResult, PlaceCategory, CATEGORY_TYPES } from "@/components/onboarding/PlacesSearch";
@@ -30,6 +31,10 @@ import {
   normalizeConciergeProviderCategory,
   type ConciergeProviderCategoryId,
 } from "../../../../shared/conciergeFlowRegistry";
+import {
+  normalizeSavedProviderDefaults,
+  savedProviderContactReadiness,
+} from "../../../../shared/conciergeSavedProviders";
 import { useTranslation } from "react-i18next";
 
 interface ProviderCategory {
@@ -285,6 +290,14 @@ function conciergeResumeFromState(state: unknown): unknown {
   return (state as Record<string, unknown>).conciergeResume ?? null;
 }
 
+function returnStateFromState(state: unknown): Record<string, unknown> {
+  if (!state || typeof state !== "object") return {};
+  const returnState = (state as Record<string, unknown>).returnState;
+  return returnState && typeof returnState === "object" && !Array.isArray(returnState)
+    ? returnState as Record<string, unknown>
+    : {};
+}
+
 interface ProviderEntry {
   id: string;
   category: string;
@@ -310,6 +323,8 @@ interface ProviderEntry {
   online_order_url?: string;
   menu_url?: string;
   notes?: string;
+  is_trusted?: boolean;
+  is_default?: boolean;
 }
 
 interface SavedProvider {
@@ -342,6 +357,8 @@ interface SavedProvider {
   online_order_url?: string;
   menu_url?: string;
   notes?: string;
+  is_trusted?: boolean;
+  is_default?: boolean;
 }
 
 interface PendingProvider {
@@ -357,10 +374,11 @@ interface PendingProvider {
 }
 
 async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response> {
+  const normalizedEntries = normalizeSavedProviderDefaults(entries);
   return await apiFetch("/api/onboarding/section/providers", {
     method: "POST",
     body: JSON.stringify({
-      providers: entries.map((e) => ({
+      providers: normalizedEntries.map((e) => ({
         name:             e.name,
         role:             e.category,
         phone:            e.phone,
@@ -384,6 +402,8 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
         online_order_url: e.online_order_url || undefined,
         menu_url:         e.menu_url || undefined,
         notes:            e.notes || undefined,
+        is_trusted:       e.is_trusted,
+        is_default:       e.is_default,
       })),
     }),
   });
@@ -399,6 +419,7 @@ const ProvidersSection = () => {
   const setupReturnTo = returnToFromState(location.state);
   const setupNotice = noticeFromState(location.state);
   const conciergeResume = conciergeResumeFromState(location.state);
+  const setupReturnState = returnStateFromState(location.state);
   const initialCategory = providerPrefill?.category ?? setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
@@ -411,7 +432,9 @@ const ProvidersSection = () => {
   const [manualEmail, setManualEmail] = useState(providerPrefill?.email ?? "");
   const [manualWhatsapp, setManualWhatsapp] = useState(providerPrefill?.whatsapp ?? "");
   const [manualBookingUrl, setManualBookingUrl] = useState(providerPrefill?.booking_url ?? "");
+  const [manualWebsite, setManualWebsite] = useState("");
   const [manualNotes, setManualNotes] = useState(providerPrefill?.notes ?? "");
+  const [manualIsTrusted, setManualIsTrusted] = useState(true);
   const [manualPreferredChannel, setManualPreferredChannel] = useState<ProviderContactChannel>(inferPreferredChannel(providerPrefill));
   const [manualCanContactAfterConfirmation, setManualCanContactAfterConfirmation] = useState(providerPrefill?.can_contact_after_confirmation ?? true);
 
@@ -461,9 +484,11 @@ const ProvidersSection = () => {
           online_order_url: p.online_order_url,
           menu_url: p.menu_url,
           notes: p.notes,
+          is_trusted: p.is_trusted !== false,
+          is_default: p.is_default === true,
         };
       });
-      setProviders(entries);
+      setProviders(normalizeSavedProviderDefaults(entries));
     } else if (data && !isLoading) {
       loadedRef.current = true;
     }
@@ -473,6 +498,13 @@ const ProvidersSection = () => {
 
   const finishFocusedSetup = async (entry: ProviderEntry) => {
     if (!setupReturnTo) return;
+    if (entry.is_trusted === false) {
+      toast({
+        title: "Provider saved",
+        description: "Mark this provider as trusted before Concierge can use it.",
+      });
+      return;
+    }
     await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
     toast({
       title: "Provider saved",
@@ -480,6 +512,7 @@ const ProvidersSection = () => {
     });
     navigate(setupReturnTo, {
       state: {
+        ...setupReturnState,
         trustedProviderSaved: {
           name: entry.name,
           category: entry.category,
@@ -529,10 +562,12 @@ const ProvidersSection = () => {
       booking_url: pending.bookingUrl,
       preferred_channel: pending.bookingUrl ? "booking_url" : (pending.phone ? "phone" : "manual"),
       can_contact_after_confirmation: true,
+      is_trusted: true,
+      is_default: false,
       google_maps_url: resolvedMapsUrl,
       google_place_id: pending.placeId || undefined,
     };
-    const updated = [...providers, entry];
+    const updated = normalizeSavedProviderDefaults([...providers, entry]);
     setProviders(updated);
     const snapshot = pending;
     setPending(null);
@@ -567,12 +602,15 @@ const ProvidersSection = () => {
       email: manualEmail,
       whatsapp: manualWhatsapp,
       booking_url: manualBookingUrl,
+      website_uri: manualWebsite,
       preferred_channel: manualPreferredChannel,
       can_contact_after_confirmation: manualCanContactAfterConfirmation,
       google_maps_url: resolvedMapsUrl,
       notes: manualNotes,
+      is_trusted: manualIsTrusted,
+      is_default: false,
     };
-    const updated = [...providers, entry];
+    const updated = normalizeSavedProviderDefaults([...providers, entry]);
     setProviders(updated);
     const snapshotName = manualName;
     const snapshotAddress = manualAddress;
@@ -580,7 +618,9 @@ const ProvidersSection = () => {
     const snapshotEmail = manualEmail;
     const snapshotWhatsapp = manualWhatsapp;
     const snapshotBookingUrl = manualBookingUrl;
+    const snapshotWebsite = manualWebsite;
     const snapshotNotes = manualNotes;
+    const snapshotIsTrusted = manualIsTrusted;
     const snapshotPreferredChannel = manualPreferredChannel;
     const snapshotCanContact = manualCanContactAfterConfirmation;
     setManualName("");
@@ -589,7 +629,9 @@ const ProvidersSection = () => {
     setManualEmail("");
     setManualWhatsapp("");
     setManualBookingUrl("");
+    setManualWebsite("");
     setManualNotes("");
+    setManualIsTrusted(true);
     setManualPreferredChannel("phone");
     setManualCanContactAfterConfirmation(true);
     setShowManualForm(false);
@@ -606,7 +648,9 @@ const ProvidersSection = () => {
       setManualEmail(snapshotEmail);
       setManualWhatsapp(snapshotWhatsapp);
       setManualBookingUrl(snapshotBookingUrl);
+      setManualWebsite(snapshotWebsite);
       setManualNotes(snapshotNotes);
+      setManualIsTrusted(snapshotIsTrusted);
       setManualPreferredChannel(snapshotPreferredChannel);
       setManualCanContactAfterConfirmation(snapshotCanContact);
       setShowManualForm(true);
@@ -621,7 +665,7 @@ const ProvidersSection = () => {
     if (removingId || saving) return;
     setRemovingId(id);
     const previous = providers;
-    const updated = providers.filter((p) => p.id !== id);
+    const updated = normalizeSavedProviderDefaults(providers.filter((p) => p.id !== id));
     setProviders(updated);
     let res: Response | undefined;
     try {
@@ -679,8 +723,21 @@ const ProvidersSection = () => {
       online_order_url: updated.online_order_url,
       menu_url:        updated.menu_url,
       notes:           updated.notes,
+      is_trusted:      updated.is_trusted !== false,
+      is_default:      updated.is_default === true,
     };
-    const updatedList = providers.map((p) => p.id === entry.id ? entry : p);
+    const replaced = providers.map((p) => p.id === entry.id ? entry : p);
+    const demoted = entry.is_default
+      ? replaced.map((provider) => ({
+        ...provider,
+        is_default: provider.id === entry.id
+          ? true
+          : provider.category === entry.category
+            ? false
+            : provider.is_default,
+      }))
+      : replaced;
+    const updatedList = normalizeSavedProviderDefaults(demoted);
     setProviders(updatedList);
     let res: Response | undefined;
     try {
@@ -701,7 +758,66 @@ const ProvidersSection = () => {
     }
   };
 
+  const setDefaultProvider = async (providerId: string) => {
+    if (saving || adding || removingId) return;
+    const target = providers.find((provider) => provider.id === providerId);
+    if (!target || target.is_trusted === false || target.is_default) return;
+    const previous = providers;
+    const updated = normalizeSavedProviderDefaults(providers.map((provider) => ({
+      ...provider,
+      is_default: provider.category === target.category ? provider.id === providerId : provider.is_default,
+    })));
+    setProviders(updated);
+    setSaving(true);
+    let res: Response | undefined;
+    try {
+      res = await saveProvidersToServer(updated);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({ title: "Default provider updated", description: `${target.name} will be used first by Concierge.` });
+    } catch (err) {
+      setProviders(previous);
+      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
+      toast({ title: "Could not update default provider", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const chooseProviderForConcierge = async (providerId: string) => {
+    if (!setupReturnTo || saving || adding || removingId) return;
+    const target = providers.find((provider) => provider.id === providerId);
+    if (!target || target.is_trusted === false) return;
+    if (target.is_default) {
+      await finishFocusedSetup(target);
+      return;
+    }
+
+    const previous = providers;
+    const updated = normalizeSavedProviderDefaults(providers.map((provider) => ({
+      ...provider,
+      is_default: provider.category === target.category ? provider.id === providerId : provider.is_default,
+    })));
+    const selected = updated.find((provider) => provider.id === providerId) ?? target;
+    setProviders(updated);
+    setSaving(true);
+    let res: Response | undefined;
+    try {
+      res = await saveProvidersToServer(updated);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await finishFocusedSetup(selected);
+    } catch (err) {
+      setProviders(previous);
+      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
+      toast({ title: "Could not select provider", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const categoryLabel = activeCategoryDef?.label ?? "provider";
+  const visibleProviders = providers.filter((provider) => provider.category === activeCategory);
+  const defaultProvider = visibleProviders.find((provider) => provider.is_default) ?? null;
+  const defaultProviderReadiness = defaultProvider ? savedProviderContactReadiness(defaultProvider) : null;
 
   return (
     <div className="min-h-screen bg-vyva-cream flex flex-col">
@@ -720,16 +836,21 @@ const ProvidersSection = () => {
           >
             <Building2 size={18} style={{ color: "#6B21A8" }} />
           </div>
-          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">Trusted providers</h1>
+          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">
+            {t("onboarding.providers.title", "Trusted providers")}
+          </h1>
         </div>
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
         <ProfileSectionHero
           icon={Building2}
-          title="Trusted providers"
-          kicker="Concierge-ready"
-          description="Save the people and places VYVA can help contact after you confirm."
+          title={t("onboarding.providers.title", "Trusted providers")}
+          description={t(
+            "onboarding.providers.description",
+            "Save the people and places VYVA can help contact after you confirm.",
+          )}
+          compact
           badges={[
             { label: "No booking without your say", color: "blue" },
             { label: "Calls and links ready", color: "amber" },
@@ -747,6 +868,39 @@ const ProvidersSection = () => {
             setSearchKey((k) => k + 1);
           }}
         />
+
+        <section
+          className="rounded-[18px] border border-vyva-border bg-white px-4 py-4 shadow-sm"
+          data-testid="provider-concierge-default-summary"
+        >
+          <div className="flex items-start gap-3">
+            <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] ${
+              defaultProviderReadiness?.conciergeUsable
+                ? "bg-[#ECFDF5]"
+                : "bg-[#FFF7ED]"
+            }`}>
+              <ShieldCheck
+                size={18}
+                className={defaultProviderReadiness?.conciergeUsable ? "text-[#047857]" : "text-[#9A3412]"}
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="font-body text-[13px] font-black text-vyva-text-1">
+                {defaultProviderReadiness?.conciergeUsable && defaultProvider
+                  ? `Concierge will use ${defaultProvider.name}`
+                  : `No ready default ${categoryLabel.toLowerCase()} yet`}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
+                {defaultProviderReadiness?.conciergeUsable
+                  ? `${defaultProviderReadiness.label}. VYVA still asks before calling, sending, or booking.`
+                  : defaultProvider
+                    ? "Add a phone, email, WhatsApp, website, or booking link so Concierge can use this provider after your OK."
+                    : `Choose a saved ${categoryLabel.toLowerCase()} as default, or add one below.`}
+              </p>
+            </div>
+          </div>
+        </section>
 
         {setupNotice ? (
           <div
@@ -964,6 +1118,20 @@ const ProvidersSection = () => {
             <div>
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
                 <Link2 size={12} className="text-vyva-text-3" />
+                Website <span className="text-vyva-text-3 font-normal">(optional)</span>
+              </label>
+              <Input
+                data-testid="input-manual-website"
+                type="url"
+                value={manualWebsite}
+                onChange={(e) => setManualWebsite(e.target.value)}
+                placeholder="https://provider.example"
+                className={seniorInputClassName}
+              />
+            </div>
+            <div>
+              <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                <Link2 size={12} className="text-vyva-text-3" />
                 Booking link <span className="text-vyva-text-3 font-normal">(optional)</span>
               </label>
               <Input
@@ -975,6 +1143,24 @@ const ProvidersSection = () => {
                 className={seniorInputClassName}
               />
             </div>
+            <button
+              type="button"
+              data-testid="button-manual-trusted"
+              onClick={() => setManualIsTrusted((value) => !value)}
+              className={`flex w-full items-center gap-3 rounded-[16px] border px-3 py-3 text-left ${
+                manualIsTrusted
+                  ? "border-[#BBF7D0] bg-[#ECFDF5]"
+                  : "border-vyva-border bg-white"
+              }`}
+            >
+              <ShieldCheck size={18} className={manualIsTrusted ? "text-[#047857]" : "text-vyva-text-3"} />
+              <span>
+                <span className="block font-body text-[13px] font-black text-vyva-text-1">Trusted provider</span>
+                <span className="block font-body text-[11px] font-semibold text-vyva-text-3">
+                  Concierge may suggest this provider first.
+                </span>
+              </span>
+            </button>
             <div>
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Notes <span className="text-vyva-text-3 font-normal">(optional)</span>
@@ -1060,16 +1246,15 @@ const ProvidersSection = () => {
               </div>
             ))}
           </div>
-        ) : providers.length > 0 ? (
+        ) : visibleProviders.length > 0 ? (
           <div
             className="bg-white rounded-[18px] border border-vyva-border overflow-hidden"
             style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
             data-testid="list-saved-providers"
           >
-            {providers.map((p) => {
+            {visibleProviders.map((p) => {
               const catLabel = PROVIDER_CATEGORIES.find((c) => c.id === p.category)?.label ?? p.category;
-              const hasPrefs = p.usual_order || p.special_requests || p.contact_name || p.opening_hours?.length;
-              const hasContact = p.phone || p.email || p.whatsapp || p.booking_url || p.online_order_url;
+              const readiness = savedProviderContactReadiness(p);
               return (
                 <div
                   key={p.id}
@@ -1083,17 +1268,58 @@ const ProvidersSection = () => {
                       <p className="font-body text-[12px] text-vyva-text-2 truncate">{p.address}</p>
                     )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      {hasContact && (
-                        <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[11px] font-black text-[#047857]">
-                          Contact ready
+                      <span className={`rounded-full px-2 py-0.5 font-body text-[11px] font-black ${
+                        readiness.conciergeUsable
+                          ? "bg-[#ECFDF5] text-[#047857]"
+                          : "bg-[#FFF7ED] text-[#9A3412]"
+                      }`}>
+                        {readiness.label}
+                      </span>
+                      {p.is_trusted !== false ? (
+                        <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple">
+                          Trusted
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-vyva-cream px-2 py-0.5 font-body text-[11px] font-black text-vyva-text-3">
+                          Not trusted
                         </span>
                       )}
-                      {hasPrefs && (
-                        <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple">
-                          Details saved
+                      {p.is_default && (
+                        <span className="rounded-full bg-[#FFF7ED] px-2 py-0.5 font-body text-[11px] font-black text-[#9A3412]">
+                          Default
                         </span>
                       )}
                     </div>
+                    {setupReturnTo && readiness.conciergeUsable ? (
+                      <button
+                        type="button"
+                        data-testid={`button-provider-use-${p.id}`}
+                        onClick={() => chooseProviderForConcierge(p.id)}
+                        disabled={saving || adding || !!removingId}
+                        className="mt-2 rounded-full border border-vyva-purple px-3 py-1.5 font-body text-[12px] font-black text-vyva-purple disabled:opacity-40"
+                      >
+                        Use this provider
+                      </button>
+                    ) : setupReturnTo && p.is_trusted !== false ? (
+                      <button
+                        type="button"
+                        data-testid={`button-provider-edit-contact-${p.id}`}
+                        onClick={() => setEditingProvider(p)}
+                        className="mt-2 rounded-full border border-[#FDBA74] px-3 py-1.5 font-body text-[12px] font-black text-[#9A3412]"
+                      >
+                        Add contact
+                      </button>
+                    ) : p.is_trusted !== false && !p.is_default ? (
+                      <button
+                        type="button"
+                        data-testid={`button-provider-default-${p.id}`}
+                        onClick={() => setDefaultProvider(p.id)}
+                        disabled={saving || adding || !!removingId}
+                        className="mt-2 font-body text-[12px] font-black text-vyva-purple disabled:opacity-40"
+                      >
+                        Make default
+                      </button>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
@@ -1122,19 +1348,29 @@ const ProvidersSection = () => {
               );
             })}
           </div>
-        ) : null}
+        ) : (
+          <div
+            data-testid="empty-provider-category"
+            className="rounded-[18px] border border-dashed border-vyva-border bg-white px-4 py-5 text-center"
+          >
+            <p className="font-body text-[14px] font-black text-vyva-text-1">No {categoryLabel.toLowerCase()} saved</p>
+            <p className="mt-1 font-body text-[12px] text-vyva-text-3">Search above or add one manually.</p>
+          </div>
+        )}
       </div>
 
       <div className="px-5 py-6">
-        <button
-          data-testid="button-providers-save"
-          onClick={handleSave}
-          disabled={saving || adding || !!removingId}
-          className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
-          style={{ background: "#6B21A8" }}
-        >
-          {saving ? "Saving..." : "Save providers"}
-        </button>
+        <ProfileCompletionBar
+          saving={saving}
+          onSave={handleSave}
+          disabled={adding || !!removingId}
+          saveLabel={t("onboarding.providers.saveContinue", "Save and continue")}
+          savingLabel={t("onboarding.providers.saving", "Saving...")}
+          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+          skipLabel={t("onboarding.providers.skip", "Skip for now")}
+          onSkip={() => navigate("/onboarding/profile")}
+          testId="button-providers-save"
+        />
       </div>
 
       {editingProvider && (
@@ -1142,6 +1378,7 @@ const ProvidersSection = () => {
           provider={editingProvider}
           categoryLabel={PROVIDER_CATEGORIES.find((c) => c.id === editingProvider.category)?.label ?? editingProvider.category}
           open={!!editingProvider}
+          categories={PROVIDER_CATEGORIES}
           onClose={() => setEditingProvider(null)}
           onSave={handleEditSave}
         />

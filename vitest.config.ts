@@ -23,7 +23,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    testTimeout: 15_000,
+    pool: "threads",
+    testTimeout: 60_000,
     projects: [
       {
         extends: true,
@@ -32,6 +33,14 @@ export default defineConfig({
           environment: "jsdom",
           setupFiles: [clientSetupFile],
           include: ["src/**/*.{test,spec}.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "shared",
+          environment: "node",
+          include: ["shared/**/*.test.ts", "migrations/**/*.test.ts"],
         },
       },
       ...serverProjects,

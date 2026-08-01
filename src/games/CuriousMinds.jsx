@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BrainCircuit, Check, CircleHelp, Lightbulb, Loader2, MessageCircle, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { VyvaMark } from "@/components/VyvaMark";
 import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
 import { normalizeGameLanguage } from "./shared/language";
@@ -355,7 +355,7 @@ export default function CuriousMinds({
     <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
       <div className="mx-auto w-full max-w-[780px]">
         <header className="flex items-center justify-between gap-4">
-          <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
+          <VyvaMark className="h-12 w-12" />
           {screen !== "close" ? (
             <div className="flex items-center gap-3">
               {tutorialSeen ? (

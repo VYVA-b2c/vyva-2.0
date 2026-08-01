@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import { profiles, userProviders, type UserProvider } from "../../shared/schema.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
+import { normalizeSavedProviderDefaults } from "../../shared/conciergeSavedProviders.js";
 
 export type AppointmentChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
 
@@ -29,6 +30,8 @@ export type ConsentProviderInput = {
   online_order_url?: string;
   menu_url?: string;
   notes?: string;
+  is_trusted?: boolean;
+  is_default?: boolean;
 };
 
 export type NormalizedProviderInput = {
@@ -46,6 +49,8 @@ export type NormalizedProviderInput = {
   contact_role?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
+  is_trusted: boolean;
+  is_default: boolean;
 };
 
 export type ProviderSyncResult = {
@@ -133,6 +138,8 @@ export function normalizeConsentProvider(provider: ConsentProviderInput): Normal
     contact_name: cleanText(provider.contact_name),
     contact_role: cleanText(provider.contact_role),
     notes: mergeNotes(provider),
+    is_trusted: provider.is_trusted !== false,
+    is_default: provider.is_default === true,
     metadata: {
       source: "profile_settings",
       role: cleanText(provider.role),
@@ -143,6 +150,8 @@ export function normalizeConsentProvider(provider: ConsentProviderInput): Normal
       preferred_channel: preferredChannel,
       preferred_booking_method: preferredChannel,
       can_contact_after_confirmation: provider.can_contact_after_confirmation ?? false,
+      is_trusted: provider.is_trusted !== false,
+      is_default: provider.is_default === true,
     },
   };
 }
@@ -166,6 +175,8 @@ function normalizeGpProvider(profile: {
     maps_url: cleanText(profile.gp_maps_url),
     email: cleanText(profile.gp_email),
     notes: "Saved GP details",
+    is_trusted: true,
+    is_default: true,
     metadata: { source: "gp_settings", role: "GP" },
   };
 }
@@ -186,8 +197,13 @@ function providerPayload(input: NormalizedProviderInput, userId: string, languag
     contact_name: input.contact_name ?? null,
     contact_role: input.contact_role ?? null,
     notes: input.notes ?? null,
-    metadata: input.metadata ?? {},
-    is_primary: true,
+    metadata: {
+      ...(input.metadata ?? {}),
+      is_trusted: input.is_trusted,
+      is_default: input.is_default,
+    },
+    is_trusted: input.is_trusted,
+    is_primary: input.is_trusted && input.is_default,
     is_active: true,
     language,
     updated_at: new Date(),
@@ -239,6 +255,8 @@ export function providerSnapshot(provider: Partial<UserProvider>): Record<string
     contact_role: provider.contact_role,
     notes: provider.notes,
     metadata: provider.metadata ?? {},
+    is_trusted: provider.is_trusted,
+    is_primary: provider.is_primary,
   };
 }
 
@@ -254,6 +272,7 @@ export async function syncProvidersToUserProviders(
     .from(userProviders)
     .where(eq(userProviders.user_id, userId));
   const activeSyncedProviderIds = new Set<string>();
+  const normalizedProviders: NormalizedProviderInput[] = [];
 
   for (const rawProvider of providers) {
     const input = normalizeConsentProvider(rawProvider);
@@ -261,7 +280,25 @@ export async function syncProvidersToUserProviders(
       result.skipped += 1;
       continue;
     }
+    normalizedProviders.push(input);
+  }
 
+  const providersWithDefaults = normalizeSavedProviderDefaults(normalizedProviders);
+  const syncedCategories = [...new Set(providersWithDefaults.map((provider) => provider.category))];
+  if (syncedCategories.length > 0) {
+    await db
+      .update(userProviders)
+      .set({ is_primary: false, updated_at: new Date() })
+      .where(and(
+        eq(userProviders.user_id, userId),
+        inArray(userProviders.category, syncedCategories),
+      ));
+    for (const provider of existing) {
+      if (syncedCategories.includes(provider.category)) provider.is_primary = false;
+    }
+  }
+
+  for (const input of providersWithDefaults) {
     const existingProvider = findExistingProvider(existing, input);
     const payload = providerPayload(input, userId, normalizedLanguage);
 

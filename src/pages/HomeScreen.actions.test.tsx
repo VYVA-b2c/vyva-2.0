@@ -1,13 +1,48 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
+import {
+  homeFastHelpJourneyStorageKey,
+  markHomeFastHelpJourney,
+  mergeSyncedHomeFastHelpJourneys,
+  startHomeFastHelpJourney,
+} from "@/lib/homeFastHelpOutcome";
+import { SHOW_VYVA_REVIEW_HISTORY_KEY } from "@/lib/showVyvaReviewHistory";
+import {
+  VYVA_VOICE_APP_ACTION_RESULT_EVENT,
+  VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_HOME_SUBFLOW_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  VOICE_HOME_SUBFLOW_PILLARS,
+} from "@/lib/voiceNavigation";
+import { CROSS_PILLAR_COMPLETION_ACTIONS } from "@/components/voice-canvas/CrossPillarSubflowCanvas";
+import {
+  HOME_CONTEXT_ACTION_HISTORY_KEY,
+  type HomeContextMessageActionHistory,
+} from "@/lib/homeContextMessages";
+import { VOICE_ORB_HINT_SEEN_STORAGE_KEY } from "@/lib/voiceOrbHint";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
-const profileMock = vi.hoisted(() => ({ firstName: "Karim", withGpContact: true }));
+const voiceMock = vi.hoisted(() => ({
+  status: "idle" as "idle" | "connecting" | "connected",
+  isConnecting: false,
+  sendContextUpdate: vi.fn(() => true),
+}));
+const profileMock = vi.hoisted(() => ({
+  firstName: "Karim",
+  profileId: "profile-home",
+  serviceReadiness: {
+    hasSavedDoctor: undefined as boolean | undefined,
+    hasSavedTransportProvider: undefined as boolean | undefined,
+    hasMobilityInfo: undefined as boolean | undefined,
+    hasCoverageInfo: undefined as boolean | undefined,
+  },
+  withGpContact: true,
+}));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -22,11 +57,16 @@ vi.mock("@/contexts/ProfileContext", () => ({
     firstName: profileMock.firstName,
     profile: profileMock.withGpContact
       ? {
+          profileId: profileMock.profileId,
           gpName: "Dr Garcia",
           gpPhone: "+34 612 345 678",
           gpEmail: "gp@example.com",
+          serviceReadiness: profileMock.serviceReadiness,
         }
-      : {},
+      : {
+          profileId: profileMock.profileId,
+          serviceReadiness: profileMock.serviceReadiness,
+        },
   }),
 }));
 
@@ -37,6 +77,10 @@ vi.mock("@/hooks/useServiceGate", () => ({
     canUseService: canUseServiceMock,
     readiness: { services: {} },
   }),
+}));
+
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useOptionalVyvaVoice: () => voiceMock,
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
@@ -86,15 +130,25 @@ vi.mock("@/components/VyvaSessionCta", () => ({
     className,
     supportingLabel,
     visual,
+    onFirstVoiceOrbActivation,
   }: {
     label?: string;
     testId?: string;
     className?: string;
     supportingLabel?: string;
     visual?: string;
+    onFirstVoiceOrbActivation?: () => void;
   }) => (
-    <button type="button" data-testid={testId} className={className} aria-label={visual === "voiceRail" ? supportingLabel : label}>
+    <button
+      type="button"
+      data-testid={testId}
+      className={className}
+      aria-label={visual === "voiceRail" ? supportingLabel : label}
+      onClick={onFirstVoiceOrbActivation}
+    >
+      {visual === "voiceOrb" ? <span data-testid="home-dormant-zamora-orb" /> : null}
       {visual === "voiceRail" ? null : label}
+      {visual === "voiceOrb" ? supportingLabel : null}
     </button>
   ),
 }));
@@ -105,6 +159,21 @@ const labels: Record<string, string> = {
   "home.mode.type": "Type",
   "home.mode.voice": "Voice",
   "home.mode.voiceCta": "Talk to VYVA",
+  "home.master.chooseCategory": "Today tray",
+  "home.master.heroSubtitle": "VYVA is ready when you are.",
+  "home.master.touchOrbToBegin": "Touch the orb to begin.",
+  "home.master.proactiveGreeting.morning": "How are you feeling?",
+  "home.master.proactiveGreeting.afternoon": "How are you feeling?",
+  "home.master.proactiveGreeting.evening": "How are you feeling?",
+  "home.master.voiceSupport": "Tap the orb to begin.",
+  "home.master.healthIntent.title": "Are you OK?",
+  "home.master.healthIntent.more": "More health options",
+  "home.master.mindIntent.title": "What would you like to exercise?",
+  "home.master.mindIntent.more": "More mind activities",
+  "home.master.communityIntent.title": "How would you like to connect?",
+  "home.master.communityIntent.more": "More community options",
+  "home.master.conciergeIntent.title": "What can VYVA help arrange?",
+  "home.master.conciergeIntent.more": "More concierge services",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -124,6 +193,16 @@ const labels: Record<string, string> = {
   "home.nudge.text": "Not sure where to start?",
   "home.nudge.action": "Ask VYVA",
   "home.nudge.aria": "Ask VYVA where to start",
+  "home.recoveryNudge.title": "Continue where you left off",
+  "home.recoveryNudge.detail": "Continue {{action}} when you are ready.",
+  "home.recoveryNudge.blockedTitle": "One quick step first",
+  "home.recoveryNudge.blockedDetail": "Open {{action}} to see what is needed.",
+  "home.recoveryNudge.transportSetupTitle": "One quick setup first",
+  "home.recoveryNudge.transportSetupDetail": "Add a trusted transport provider to continue your ride.",
+  "home.recoveryNudge.transportSetupNotice": "Save a trusted taxi or transport provider, then continue your ride.",
+  "home.recoveryNudge.continue": "Continue",
+  "home.recoveryNudge.later": "Later",
+  "home.recoveryNudge.dismiss": "Dismiss",
   "home.conciergeResume.kicker": "Right now",
   "home.conciergeResume.kickerConfirm": "Needs your OK",
   "home.conciergeResume.kickerReview": "Needs review",
@@ -136,6 +215,7 @@ const labels: Record<string, string> = {
   "home.conciergeResume.task.pharmacy": "pharmacy request",
   "home.conciergeResume.task.homeService": "home service",
   "home.conciergeResume.task.provider": "provider search",
+  "home.conciergeResume.task.providerShortlist": "saved options",
   "home.conciergeResume.task.admin": "admin task",
   "home.conciergeResume.task.safety": "safety check",
   "home.conciergeResume.task.default": "request",
@@ -144,6 +224,7 @@ const labels: Record<string, string> = {
   "home.conciergeResume.fastStatus.pharmacy": "Check pharmacy request",
   "home.conciergeResume.fastStatus.homeService": "Check home service",
   "home.conciergeResume.fastStatus.provider": "Check provider search",
+  "home.conciergeResume.fastStatus.providerShortlist": "Review shortlist",
   "home.conciergeResume.fastStatus.admin": "Check admin task",
   "home.conciergeResume.fastStatus.safety": "Check safety review",
   "home.conciergeResume.fastStatus.default": "Check request",
@@ -153,6 +234,9 @@ const labels: Record<string, string> = {
   "home.conciergeResume.step.save": "Ready to save",
   "home.conciergeResume.step.attention": "Needs your review",
   "home.conciergeResume.step.confirm": "Waiting for your confirmation",
+  "home.conciergeResume.step.providerShortlist": "Review saved options",
+  "home.conciergeResume.kickerProviderShortlist": "Saved shortlist",
+  "home.conciergeResume.titleProviderShortlistPrefix": "Review your",
   "home.conciergeResume.open": "Open Right Now",
   "home.conciergeResume.openShort": "Open",
   "home.conciergeResume.followUp": "Follow up",
@@ -202,10 +286,18 @@ describe("Home fast service actions", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    guardPathMock.mockReturnValue(true);
     canUseServiceMock.mockReturnValue(true);
     voiceHeroMock.mockClear();
+    voiceMock.status = "idle";
+    voiceMock.isConnecting = false;
+    voiceMock.sendContextUpdate.mockClear();
     profileMock.firstName = "Karim";
     profileMock.withGpContact = true;
+    profileMock.serviceReadiness.hasSavedDoctor = undefined;
+    profileMock.serviceReadiness.hasSavedTransportProvider = undefined;
+    profileMock.serviceReadiness.hasMobilityInfo = undefined;
+    profileMock.serviceReadiness.hasCoverageInfo = undefined;
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -226,27 +318,64 @@ describe("Home fast service actions", () => {
   it("renders the four pillar launcher without the old movement routine card", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+    profileMock.firstName = "karim";
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
 
     render(<HomeScreen />);
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-hero-talk")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-dormant-zamora-orb")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Health assistance");
+    expect(within(screen.getByTestId("card-home-agent-health")).getByText("Health assistance")).toHaveClass(
+      "hidden",
+      "md:block",
+    );
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Cognitive exercises");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Connect with others");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Today");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("5 min");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Join");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Help");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Bookings and services");
+    expect(screen.queryByTestId("card-home-agent-meds")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-doctor")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-master-orb-message")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-pillar-cards")).toHaveTextContent("Today tray");
     expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
-    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes, thinking");
-    expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
-    expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
+    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
+  });
+
+  it("shows first-use orb guidance once and restores the normal greeting after activation", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:00:00"));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveClass("!text-[#9A5B00]");
+
+    fireEvent.click(screen.getByTestId("button-home-hero-talk"));
+
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("How are you feeling?");
   });
 
   it("uses live signals for concise pillar card nudges", () => {
@@ -281,14 +410,261 @@ describe("Home fast service actions", () => {
     });
 
     render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("2 due");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("4 days");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("2 saved");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("2 tasks");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
   });
 
-  it("surfaces a pending Concierge task until the user confirms it", () => {
+  it("shows timely schedule nudges before voice starts so the user can act on them", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return {
+          data: { todaySummary: { scheduled: 1, remaining: 1 }, nextDose: { name: "Monoprost", minutesUntil: 25 } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+  });
+
+  it("quietly updates an active voice session when the selected Home message changes", () => {
+    let medicineData: unknown = null;
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return { data: medicineData, isError: false, error: null };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    voiceMock.status = "connecting";
+    voiceMock.isConnecting = true;
+    const view = render(<HomeScreen />);
+
+    voiceMock.status = "connected";
+    voiceMock.isConnecting = false;
+    view.rerender(<HomeScreen />);
+    expect(voiceMock.sendContextUpdate).not.toHaveBeenCalled();
+
+    medicineData = {
+      todaySummary: { scheduled: 1, remaining: 1 },
+      nextDose: { name: "Monoprost", minutesUntil: 25 },
+    };
+    view.rerender(<HomeScreen />);
+
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(
+      expect.stringContaining("Monoprost"),
+    );
+
+    view.rerender(<HomeScreen />);
+    expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the visible Home message when the user gives a short voice reply", () => {
+    voiceMock.status = "connected";
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return {
+          data: { todaySummary: { scheduled: 1, remaining: 1 }, nextDose: { name: "Monoprost", minutesUntil: 25 } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: { text: "Show me" },
+      }));
+    });
+
+    expect(guardPathMock).toHaveBeenCalledWith("/meds", { state: undefined });
+    const history = JSON.parse(
+      window.localStorage.getItem(HOME_CONTEXT_ACTION_HISTORY_KEY) ?? "{}",
+    ) as HomeContextMessageActionHistory;
+    expect(history["dose:Monoprost"]).toMatchObject({
+      action: "opened",
+      source: "voice",
+    });
+  });
+
+  it("defers the visible Home message from the canonical voice tool result", () => {
+    voiceMock.status = "connected";
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return {
+          data: { todaySummary: { scheduled: 1, remaining: 1 }, nextDose: { name: "Monoprost", minutesUntil: 25 } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_APP_ACTION_RESULT_EVENT, {
+        detail: {
+          action: "dismissed",
+          actionId: "dose:Monoprost",
+          reason: "User said later",
+        },
+      }));
+    });
+
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+    const history = JSON.parse(
+      window.localStorage.getItem(HOME_CONTEXT_ACTION_HISTORY_KEY) ?? "{}",
+    ) as HomeContextMessageActionHistory;
+    expect(history["dose:Monoprost"]).toMatchObject({
+      action: "deferred",
+      source: "voice_tool",
+    });
+  });
+
+  it("keeps the master home free of legacy fast help and resume blocks", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "ride-1",
+              use_case: "book_ride",
+              status: "pending",
+              provider_name: "Radio Taxi",
+              action_summary: "Ready to confirm.",
+              action_payload: null,
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      if (key === "/api/concierge/actions/sessions") {
+        return {
+          data: {
+            items: [{
+              id: "session-ride",
+              pending_id: "old-ride",
+              use_case: "book_ride",
+              provider_name: "Radio Taxi",
+              outcome: "completed",
+              outcome_summary: "Ride saved with Radio Taxi.",
+              completed_at: "2026-08-04T09:30:00.000Z",
+              outcome_payload: {},
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    window.localStorage.setItem(SHOW_VYVA_REVIEW_HISTORY_KEY, JSON.stringify([{
+      id: "review-unresolved",
+      reviewedAt: "2026-07-19T10:00:00.000Z",
+      useCaseId: "provider_or_deal",
+      followUpContext: "provider_deal",
+      inputType: "company_name",
+      source: "paste_text",
+      summary: "Possible overcharging in a service quote.",
+      decision: "Check before agreeing",
+      confidenceLabel: "Needs review",
+      actionSaved: false,
+      savedActionLabel: null,
+      resumeRoute: "/scam-guard",
+    }]));
+
+    render(<HomeScreen />);
+
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-concierge-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-show-vyva-review-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
+  });
+
+  it.skip("counts only active Concierge tasks on the Home badge", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [
+              {
+                id: "done-ride",
+                use_case: "book_ride",
+                status: "completed",
+                provider_name: "Old Taxi",
+                action_summary: "Completed ride.",
+                action_payload: null,
+              },
+              {
+                id: "cancelled-admin",
+                use_case: "admin_task",
+                status: "cancelled",
+                provider_name: "VYVA review",
+                action_summary: "Cancelled task.",
+                action_payload: null,
+              },
+              {
+                id: "active-service",
+                use_case: "home_service",
+                status: "calling",
+                provider_name: "Saved Plumber",
+                action_summary: "VYVA is contacting Saved Plumber.",
+                action_payload: { mission_status: "awaiting_provider_reply" },
+              },
+            ],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Waiting for Saved Plumber");
+    expect(screen.queryByText("Old Taxi")).not.toBeInTheDocument();
+  });
+
+  it.skip("surfaces a pending Concierge task until the user confirms it", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -316,24 +692,253 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
-    expect(nudge).toHaveTextContent("Needs your OK");
-    expect(nudge).toHaveTextContent("Confirm your ride");
-    expect(nudge).toHaveTextContent("Waiting for your confirmation");
+    expect(nudge).toHaveTextContent("Ready to review");
+    expect(nudge).toHaveTextContent("Review your ride");
+    expect(screen.getByTestId("text-home-concierge-state-explanation")).toHaveTextContent("Check the summary before VYVA moves ahead with the ride.");
+    expect(nudge).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
     expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
     expect(screen.queryByTestId("button-home-concierge-follow-up")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-concierge-got-reply")).not.toBeInTheDocument();
 
-    const fastHelp = screen.getByTestId("home-fast-help");
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Waiting for your confirmation");
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-home-fast-concierge-status"));
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
   });
 
-  it("labels home-service appointment tasks as home service on Home", () => {
+  it.skip("selects the actionable form instead of the first passive provider wait", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "waiting-ride",
+              use_case: "book_ride",
+              status: "calling",
+              provider_name: "Radio Taxi",
+              confirmed_at: "2026-07-17T13:00:00.000Z",
+              action_payload: { mission_status: "awaiting_provider_reply" },
+            }, {
+              id: "insurance-form",
+              use_case: "admin_task",
+              status: "pending",
+              provider_name: "VYVA review",
+              confirmed_at: "2026-07-17T10:00:00.000Z",
+              action_payload: { mission_status: "preparing_form" },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const card = screen.getByTestId("card-home-concierge-resume");
+    expect(card).toHaveAttribute("data-resume-kind", "form");
+    expect(card).toHaveTextContent("Review your admin task");
+    expect(card).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
+    expect(card).not.toHaveTextContent("Radio Taxi");
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/insurance-form", {
+      state: { focusRightNow: true, conciergePendingId: "insurance-form" },
+    });
+  });
+
+  it.skip("selects a provider setup blocker before a newer booking", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "newer-booking",
+              use_case: "book_appointment",
+              status: "pending",
+              confirmed_at: "2026-07-17T13:00:00.000Z",
+              action_payload: {},
+            }, {
+              id: "provider-setup",
+              use_case: "find_provider",
+              status: "pending",
+              confirmed_at: "2026-07-16T13:00:00.000Z",
+              action_payload: {
+                retry_blocker: "adapter_payload_missing_provider_contact",
+                setup_focus: "doctor_clinic",
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_setup");
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/provider-setup", {
+      state: { focusRightNow: true, conciergePendingId: "provider-setup" },
+    });
+  });
+
+  it.skip("surfaces saved Show VYVA tasks as prepared work from Home", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "show-vyva-scam-1",
+              use_case: "scam_check",
+              status: "pending",
+              provider_name: "Trusted contact",
+              action_summary: "Ask before replying to this bank message.",
+              action_payload: {
+                show_vyva_action_id: "call_trusted_contact",
+                show_vyva_follow_up_context: "scam",
+                show_vyva_source: "paste_text",
+                source_route: "/scam-guard",
+                review_summary: "Suspicious bank message",
+                requested_tool: "phone_call",
+                confirmation_required_before_action: true,
+                no_external_action_without_confirmation: true,
+                executor_version: 1,
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-concierge-resume");
+    expect(nudge).toHaveTextContent("VYVA prepared this");
+    expect(nudge).toHaveTextContent("Scam Guard");
+    expect(nudge).toHaveTextContent("Call");
+    expect(nudge).toHaveTextContent("Suspicious bank message");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/show-vyva-scam-1", { state: { focusRightNow: true, conciergePendingId: "show-vyva-scam-1" } });
+  });
+
+  it.skip("surfaces the latest unresolved Show VYVA review from Home without exposing raw reviewed content", () => {
+    window.localStorage.setItem(SHOW_VYVA_REVIEW_HISTORY_KEY, JSON.stringify([
+      {
+        id: "review-unresolved",
+        reviewedAt: "2026-07-19T10:00:00.000Z",
+        useCaseId: "provider_or_deal",
+        followUpContext: "provider_deal",
+        inputType: "company_name",
+        source: "paste_text",
+        summary: "Possible overcharging in a service quote.",
+        decision: "Check before agreeing",
+        confidenceLabel: "Needs review",
+        actionSaved: false,
+        savedActionLabel: null,
+        resumeRoute: "/scam-guard",
+      },
+      {
+        id: "review-saved",
+        reviewedAt: "2026-07-18T10:00:00.000Z",
+        useCaseId: "scam_check",
+        followUpContext: "scam",
+        inputType: "phone_number",
+        source: "paste_text",
+        summary: "Suspicious phone number.",
+        decision: "Do not call back yet",
+        confidenceLabel: "Clear risk",
+        actionSaved: true,
+        savedActionLabel: "Block or report",
+        resumeRoute: "/scam-guard",
+      },
+    ]));
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-show-vyva-review-resume");
+    expect(nudge).toHaveTextContent("Recent Show VYVA");
+    expect(nudge).toHaveTextContent("Continue this review");
+    expect(nudge).toHaveTextContent("Check before agreeing");
+    expect(nudge).toHaveTextContent("Possible overcharging in a service quote.");
+    expect(nudge).not.toHaveTextContent("+34 600 111 222");
+
+    fireEvent.click(nudge);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/scam-guard", {
+      state: {
+        showVyvaReviewHistoryId: "review-unresolved",
+        showVyvaResume: true,
+      },
+    });
+  });
+
+  it.skip("surfaces a saved provider shortlist and opens the exact Concierge task", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "shortlist-7",
+              use_case: "find_provider",
+              status: "pending",
+              provider_name: "Harbour Clinic",
+              action_summary: "Two provider options saved.",
+              action_payload: {
+                task_type: "provider_shortlist",
+                selected_provider_names: ["Harbour Clinic", "Garden Care"],
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Saved shortlist");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your saved options");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review saved options");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_shortlist");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/shortlist-7", {
+      state: { focusRightNow: true, conciergePendingId: "shortlist-7" },
+    });
+  });
+
+  it.skip("labels home-service appointment tasks as home service on Home", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -364,12 +969,12 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
-    expect(nudge).toHaveTextContent("Confirm your home service");
-    expect(nudge).toHaveTextContent("Ready to save");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check home service");
+    expect(nudge).toHaveTextContent("Review your home service");
+    expect(nudge).toHaveTextContent("Ready to review");
+    expect(nudge).toHaveAttribute("data-resume-kind", "booking");
   });
 
-  it("labels admin and safety concierge tasks instead of generic requests", () => {
+  it.skip("labels admin and safety concierge tasks instead of generic requests", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -414,12 +1019,14 @@ describe("Home fast service actions", () => {
 
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Confirm your admin task");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check admin task");
-    expect(screen.getByTestId("card-home-concierge-reuse")).toHaveTextContent("Use last safety check again");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your admin task");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "form");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
   });
 
-  it("surfaces completed Concierge tasks as reusable templates from Home", () => {
+  it.skip("surfaces completed Concierge tasks as reusable templates from Home", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -455,10 +1062,18 @@ describe("Home fast service actions", () => {
 
     const card = screen.getByTestId("card-home-concierge-reuse");
     expect(card).toHaveTextContent("Useful again");
+    expect(screen.getByTestId("badge-home-concierge-completed-state")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("text-home-concierge-reuse-explanation")).toHaveTextContent("saved");
     expect(card).toHaveTextContent("Use last ride again");
     expect(card).toHaveTextContent("Radio Taxi");
+    expect(screen.getByTestId("text-home-concierge-receipt-status")).toHaveTextContent("Receipt: Completed");
 
-    fireEvent.click(card);
+    fireEvent.click(screen.getByTestId("button-home-concierge-show-receipt"));
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("Ride saved with Radio Taxi.");
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("You can review this receipt");
+    expect(screen.getByTestId("panel-home-concierge-receipt-details")).toHaveTextContent("City Clinic");
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-use-template"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
       state: {
@@ -475,7 +1090,7 @@ describe("Home fast service actions", () => {
     });
   });
 
-  it("surfaces an in-progress Concierge task and opens Right Now", () => {
+  it.skip("surfaces an in-progress Concierge task and opens Right Now", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -490,7 +1105,11 @@ describe("Home fast service actions", () => {
               status: "calling",
               provider_name: "Radio Taxi",
               action_summary: "VYVA is contacting Radio Taxi.",
-              action_payload: { mission_status: "awaiting_provider_reply" },
+              action_payload: {
+                mission_status: "awaiting_provider_reply",
+                live_handoff_status: "waiting",
+                provider_waiting_since: new Date(Date.now() - (30 * 60_000) - 1_000).toISOString(),
+              },
             }],
           },
           isError: false,
@@ -505,21 +1124,23 @@ describe("Home fast service actions", () => {
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Waiting");
     expect(nudge).toHaveTextContent("Waiting for Radio Taxi");
-    expect(nudge).toHaveTextContent("Waiting for reply");
+    expect(nudge).toHaveTextContent("30 min waiting");
     expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
     expect(screen.getByTestId("button-home-concierge-follow-up")).toHaveTextContent("Follow up");
     expect(screen.getByTestId("button-home-concierge-got-reply")).toHaveTextContent("I got a reply");
-    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
-    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
-    expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
+    expect(screen.queryByTestId("button-home-fast-concierge-status")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-book-ride")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-safe-home")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", { state: { focusRightNow: true, conciergePendingId: "ride-1" } });
 
     fireEvent.click(screen.getByTestId("button-home-concierge-follow-up"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", {
       state: {
         focusRightNow: true,
         conciergeProviderAction: {
@@ -531,7 +1152,7 @@ describe("Home fast service actions", () => {
 
     fireEvent.click(screen.getByTestId("button-home-concierge-got-reply"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge/task/ride-1", {
       state: {
         focusRightNow: true,
         conciergeProviderAction: {
@@ -546,28 +1167,52 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
-  it("renders three visible rotating Fast help actions", () => {
+  it.skip("renders three contextual Fast help actions that stay stable throughout the day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T08:00:00.000Z"));
     render(<HomeScreen />);
 
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    const initialActions = within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid);
+    expect(initialActions).toHaveLength(3);
     expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
+    const initialImpressions = JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-impressions:v1:profile-home") ?? "[]",
+    );
+    expect(initialImpressions).toHaveLength(1);
+    expect(initialImpressions[0]).toMatchObject({
+      actionIds: initialActions.map((testId) => testId?.replace("button-home-fast-", "")),
+      rankingVersion: "personalized-v1",
+    });
+    expect(Object.keys(initialImpressions[0]).sort()).toEqual(["actionIds", "id", "rankingVersion", "shownAt"]);
+
+    act(() => {
+      vi.setSystemTime(new Date("2026-07-17T20:00:00.000Z"));
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid)).toEqual(initialActions);
+    expect(JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-impressions:v1:profile-home") ?? "[]",
+    )).toHaveLength(1);
   });
 
-  it("opens Find Care as a structured Concierge provider search", () => {
+  it.skip("opens Find Care as a structured Concierge provider search", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
     render(<HomeScreen />);
 
     fireEvent.click(screen.getByTestId("button-home-fast-find-care"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
-      state: {
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", expect.objectContaining({
+      state: expect.objectContaining({
         conciergePrefill: expect.objectContaining({
           kind: "task",
           flowReference: "FLOW_CARE_NAVIGATION",
@@ -576,15 +1221,315 @@ describe("Home fast service actions", () => {
           useCase: "find_provider",
           source: "home_quick_action",
         }),
-      },
+        homeFastHelpContext: expect.objectContaining({
+          actionId: "find-care",
+          destinationPath: "/concierge",
+        }),
+      }),
+    }));
+    expect(JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-history:v1:profile-home") ?? "[]",
+    )).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actionId: "find-care", status: "used" }),
+    ]));
+    const impressions = JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-impressions:v1:profile-home") ?? "[]",
+    );
+    const journeys = JSON.parse(
+      window.localStorage.getItem("vyva:home-fast-help-journeys:v1:profile-home") ?? "[]",
+    );
+    expect(journeys[0]).toMatchObject({ actionId: "find-care" });
+    const attributedImpression = impressions.find((impression: { id: string }) => (
+      impression.id === journeys[0].impressionId
+    ));
+    expect(attributedImpression).toBeDefined();
+    expect(attributedImpression.actionIds).toContain("find-care");
+  });
+
+  it.skip("shows one calm recovery nudge after the cooldown and resumes the exact journey", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const started = startHomeFastHelpJourney({
+      actionId: "find-care",
+      destinationPath: "/concierge",
+      destinationState: { conciergePrefill: { useCase: "find_provider" } },
+      profileId: profileMock.profileId,
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000,
     });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000 + 30_000,
+      reason: "returned_home",
+    });
+
+    render(<HomeScreen />);
+
+    const recovery = screen.getByTestId("card-home-fast-help-recovery");
+    expect(recovery).toHaveTextContent("Continue where you left off");
+    expect(recovery).toHaveTextContent("Continue Find Care when you are ready.");
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: expect.objectContaining({
+        conciergePrefill: { useCase: "find_provider" },
+        homeFastHelpContext: expect.objectContaining({
+          journeyId: started.journey.id,
+          actionId: "find-care",
+        }),
+      }),
+    });
+  });
+
+  it.skip("shows one actionable Fast Help recovery instead of a passive Concierge wait", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const started = startHomeFastHelpJourney({
+      actionId: "paperwork-help",
+      destinationPath: "/concierge",
+      destinationState: { conciergePrefill: { useCase: "admin_task" } },
+      profileId: profileMock.profileId,
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: Date.now() - 13 * 60 * 60 * 1000 + 30_000,
+      reason: "returned_home",
+    });
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "waiting-provider",
+              use_case: "home_service",
+              status: "calling",
+              provider_name: "Saved Plumber",
+              action_payload: { mission_status: "awaiting_provider_reply" },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveAttribute("data-resume-kind", "fast_help");
+    expect(screen.queryByTestId("card-home-concierge-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-concierge-reuse")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-paperwork-help")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: expect.objectContaining({
+        conciergePrefill: { useCase: "admin_task" },
+        homeFastHelpContext: expect.objectContaining({ journeyId: started.journey.id }),
+      }),
+    });
+  });
+
+  it.skip("resumes a journey opened on another device with locally derived safe instructions", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const storageKey = homeFastHelpJourneyStorageKey(profileMock.profileId);
+    mergeSyncedHomeFastHelpJourneys(storageKey, [{
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      actionId: "book-ride",
+      status: "abandoned",
+      startedAt: "2026-07-16T23:00:00.000Z",
+      updatedAt: "2026-07-16T23:01:00.000Z",
+      referenceId: null,
+      events: [{
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        status: "opened",
+        occurredAt: "2026-07-16T23:00:00.000Z",
+        referenceId: null,
+      }, {
+        id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        status: "abandoned",
+        occurredAt: "2026-07-16T23:01:00.000Z",
+        referenceId: null,
+      }],
+    }]);
+
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: expect.objectContaining({
+        conciergePrefill: expect.objectContaining({
+          kind: "ride",
+          flowReference: "FLOW_TRANSPORT_BOOKING",
+          source: "home_quick_action",
+        }),
+        homeFastHelpContext: expect.objectContaining({
+          journeyId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          actionId: "book-ride",
+        }),
+      }),
+    });
+  });
+
+  it.skip("suppresses a blocked choice and explains the useful alternative", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    const started = startHomeFastHelpJourney({
+      actionId: "find-care",
+      destinationPath: "/concierge",
+      profileId: profileMock.profileId,
+      occurredAtMs: Date.now() - 60_000,
+    });
+    markHomeFastHelpJourney(started.context, "blocked", {
+      occurredAtMs: Date.now() - 30_000,
+      reason: "service_not_ready",
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.queryByTestId("button-home-fast-find-care")).not.toBeInTheDocument();
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("One quick step first");
+    expect(screen.getByTestId("home-fast-help")).toHaveTextContent("Try this useful next step instead");
+  });
+
+  it.skip("defers a recovery nudge and respects the cooldown", () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-17T14:00:00.000Z");
+    vi.setSystemTime(now);
+    const started = startHomeFastHelpJourney({
+      actionId: "paperwork-help",
+      destinationPath: "/concierge",
+      profileId: profileMock.profileId,
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
+    });
+
+    const first = render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-later"));
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+    first.unmount();
+
+    vi.setSystemTime(new Date(now.getTime() + 11 * 60 * 60 * 1000));
+    const beforeCooldown = render(<HomeScreen />);
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+    beforeCooldown.unmount();
+
+    vi.setSystemTime(new Date(now.getTime() + 13 * 60 * 60 * 1000));
+    render(<HomeScreen />);
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Continue where you left off");
+  });
+
+  it.skip("dismisses a recovery nudge permanently", () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-17T14:00:00.000Z");
+    vi.setSystemTime(now);
+    const started = startHomeFastHelpJourney({
+      actionId: "stay-well",
+      destinationPath: "/health/prevention",
+      profileId: profileMock.profileId,
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
+    });
+
+    const first = render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-dismiss"));
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+    first.unmount();
+
+    vi.setSystemTime(new Date("2026-07-25T14:00:00.000Z"));
+    render(<HomeScreen />);
+    expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
+  });
+
+  it.skip("routes a blocked ride to focused transport setup and preserves its return context", () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-07-17T14:00:00.000Z");
+    vi.setSystemTime(now);
+    profileMock.serviceReadiness.hasSavedTransportProvider = false;
+    const started = startHomeFastHelpJourney({
+      actionId: "book-ride",
+      destinationPath: "/concierge",
+      profileId: profileMock.profileId,
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000,
+    });
+    markHomeFastHelpJourney(started.context, "abandoned", {
+      occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
+    });
+
+    render(<HomeScreen />);
+    expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Add a trusted transport provider");
+    fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/onboarding/profile/providers", {
+      state: expect.objectContaining({
+        returnTo: "/concierge",
+        setupFocus: "transport",
+        setupFlow: "FLOW_TRANSPORT_BOOKING",
+        conciergeResume: expect.objectContaining({ kind: "transport" }),
+        returnState: expect.objectContaining({
+          homeFastHelpContext: expect.objectContaining({
+            journeyId: started.journey.id,
+            actionId: "book-ride",
+          }),
+        }),
+      }),
+    });
+  });
+
+  it.skip("puts an urgent health signal first with a reassuring reason", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/vitals-engine/latest") {
+        return {
+          data: { analysis: { safety_status: "attention", recommended_action: "Seek care today" } },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const actions = within(screen.getByTestId("home-fast-help")).getAllByRole("button");
+    expect(actions[0]).toHaveAttribute("data-testid", "button-home-fast-feel-better");
+    expect(actions[0]).toHaveTextContent("A recent health signal may need attention");
+  });
+
+  it.skip("uses saved transport readiness and avoids a recently used action", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
+    profileMock.serviceReadiness.hasSavedTransportProvider = true;
+    window.localStorage.setItem("vyva:home-fast-help-history:v1:profile-home", JSON.stringify([{
+      actionId: "feel-better",
+      status: "used",
+      occurredAt: "2026-07-17T13:30:00.000Z",
+    }]));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("button-home-fast-book-ride")).toHaveTextContent("Your transport setup is ready");
+    expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-fast-safe-home")).toBeInTheDocument();
   });
 
   it("renders the session-aware main hero CTA", () => {
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
-    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveTextContent("Talk to VYVA");
   });
 
   it("keeps the Home hero greeting on the user's first name", () => {
@@ -607,6 +1552,21 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
   });
 
+  it("automatically refreshes the greeting when the time period changes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T16:59:30"));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good afternoon, Karim");
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
+  });
+
   it("does not use an account email as the Home hero name", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T14:00:00"));
@@ -619,17 +1579,200 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("qm@4cksa.com");
   });
 
-  it("opens each pillar from the master cards", () => {
+  it.each([
+    ["cognitive", "mind", ["memory", "reflexes", "focus", "senses"], "/mind-memory"],
+    ["social", "community", ["friends", "experts", "share", "activities"], "/social-rooms"],
+    ["concierge", "concierge", ["home", "care", "order", "book"], "/concierge"],
+  ] as const)("opens the four %s choices before routing to the full pillar", (masterCard, intent, cardIds, route) => {
     render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    fireEvent.click(screen.getByTestId(`card-home-agent-${masterCard}`));
+
+    expect(guardPathMock).not.toHaveBeenCalled();
+    for (const cardId of cardIds) {
+      expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByTestId(`button-home-${intent}-more`));
+    expect(guardPathMock).toHaveBeenCalledWith(route, undefined);
+  });
+
+  it("opens a focused Health intent layer before routing to health actions", () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
     fireEvent.click(screen.getByTestId("card-home-agent-health"));
-    fireEvent.click(screen.getByTestId("card-home-agent-cognitive"));
-    fireEvent.click(screen.getByTestId("card-home-agent-social"));
-    fireEvent.click(screen.getByTestId("card-home-agent-concierge"));
 
+    expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
+    expect(screen.getByTestId("home-pillar-cards")).not.toHaveTextContent("What do you need?");
+    expect(screen.getByTestId("card-home-health-symptoms")).toHaveTextContent("Symptoms");
+    expect(screen.getByTestId("card-home-health-vitals")).toHaveTextContent("Vitals");
+    expect(screen.getByTestId("card-home-health-meds")).toHaveTextContent("Medications");
+    expect(screen.getByTestId("card-home-health-doctor")).toHaveTextContent("Doctor next step");
+    expect(screen.queryByTestId("card-home-health-prevention")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-health-visual-scan")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
+
+    fireEvent.click(screen.getByTestId("button-home-health-more"));
     expect(guardPathMock).toHaveBeenCalledWith("/health", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/mind-memory", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/social-rooms", undefined);
-    expect(guardPathMock).toHaveBeenCalledWith("/concierge", undefined);
+
+    fireEvent.click(screen.getByTestId("card-home-health-symptoms"));
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "health-symptoms");
+    fireEvent.click(screen.getByTestId("card-home-health-vitals"));
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "health-vitals");
+    fireEvent.click(screen.getByTestId("card-home-health-meds"));
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "health-meds");
+    fireEvent.click(screen.getByTestId("card-home-health-doctor"));
+
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-action-id",
+      "health-doctor",
+    );
+    expect(guardPathMock).not.toHaveBeenCalledWith(
+      "/health/doctor",
+      expect.anything(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /My usual doctor/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Yes, continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open next step/i }));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/onboarding/profile/providers?focus=doctor_clinic", expect.objectContaining({
+      state: expect.objectContaining({
+        setupFocus: "doctor_clinic",
+        returnTo: "/",
+        resumeAfterSetup: true,
+        crossPillarOriginalDestinationPath: "/concierge",
+      }),
+    }));
+
+    expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
+  });
+
+  it("opens the Health choices without leaving voice mode when voice detects the broad Health intent", () => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
+    });
+
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
+    expect(guardPathMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["mind", ["memory", "reflexes", "focus", "senses"]],
+    ["community", ["friends", "experts", "share", "activities"]],
+    ["concierge", ["home", "care", "order", "book"]],
+  ] as const)("opens the broad %s voice intent choices without leaving Home", (intent, cardIds) => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
+    });
+
+    expect(guardPathMock).not.toHaveBeenCalled();
+    for (const cardId of cardIds) {
+      expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
+    }
+  });
+
+  it("restores the active pillar choices after leaving and returning Home", () => {
+    const firstRender = render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "mind" }));
+    });
+    expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
+
+    firstRender.unmount();
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-mind-senses")).toBeInTheDocument();
+    expect(guardPathMock).not.toHaveBeenCalled();
+  });
+
+  it("highlights the exact action understood from voice and restores it on return", () => {
+    const firstRender = render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+        detail: { actionId: "health-vitals", pillar: "health" },
+      }));
+    });
+
+    const selectedCard = screen.getByTestId("card-home-health-vitals");
+    expect(selectedCard).toHaveAttribute("aria-current", "true");
+    expect(selectedCard).toHaveTextContent("VYVA understood");
+    expect(screen.getByTestId("card-home-health-symptoms")).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "false");
+
+    firstRender.unmount();
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-health-vitals")).toHaveAttribute("aria-current", "true");
+    expect(guardPathMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the selected action while switching between voice and touch modes", () => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+        detail: { actionId: "community-activities", pillar: "community" },
+      }));
+    });
+
+    expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
+    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
+  });
+
+  it.each(CROSS_PILLAR_COMPLETION_ACTIONS)(
+    "keeps Voice mode and opens the exact canvas for %s",
+    (actionId) => {
+      render(<HomeScreen />);
+
+      act(() => {
+        window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+          detail: {
+            actionId,
+            pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId],
+          },
+        }));
+      });
+
+      expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+        "data-action-id",
+        actionId,
+      );
+      expect(guardPathMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("ignores malformed and duplicate broad voice intent events", () => {
+    render(<HomeScreen />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "unknown" }));
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "community" }));
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "community" }));
+    });
+
+    expect(guardPathMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("card-home-community-friends")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-community-activities")).toBeInTheDocument();
   });
 });

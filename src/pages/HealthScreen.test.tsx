@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { TFunction } from "i18next";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { translate } from "@/i18n";
 import {
@@ -10,6 +11,7 @@ import {
   visualScanDoctorContext,
   visualScanServiceActionKindsFor,
 } from "./HealthScreen";
+import { SHOW_VYVA_USE_CASE_IDS } from "../../shared/showVyvaFlow";
 
 const spanishT = ((key: string, fallback?: string) => translate("es", key, fallback)) as TFunction;
 const englishT = ((key: string, fallback?: string) => translate("en", key, fallback)) as TFunction;
@@ -57,19 +59,20 @@ describe("DailyCheckinCard", () => {
     expect(screen.queryByText("You checked in today. VYVA has a fresh wellbeing signal.")).not.toBeInTheDocument();
   });
 });
-
 describe("VisualHealthScanCardContent", () => {
   it("uses the shared Show VYVA review chooser and category chips", () => {
     const onScanSource = vi.fn();
     const onPasteReview = vi.fn();
 
     render(
-      <VisualHealthScanCardContent
-        t={englishT}
-        analyzing={false}
-        onScanSource={onScanSource}
-        onPasteReview={onPasteReview}
-      />,
+      <MemoryRouter>
+        <VisualHealthScanCardContent
+          t={englishT}
+          analyzing={false}
+          onScanSource={onScanSource}
+          onPasteReview={onPasteReview}
+        />
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Show VYVA")).toBeInTheDocument();
@@ -79,7 +82,7 @@ describe("VisualHealthScanCardContent", () => {
     expect(screen.getByRole("button", { name: "Paste text or link" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Upload" }));
-    expect(onScanSource).toHaveBeenCalledWith("upload");
+    expect(onScanSource).toHaveBeenCalledWith("upload", SHOW_VYVA_USE_CASE_IDS.healthOrHomePhoto, "");
 
     for (const label of ["Wounds", "Bruises", "Fluids", "Stool", "Urine", "X-rays"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -126,12 +129,44 @@ describe("VisualScanResultPanel", () => {
       />,
     );
 
+    expect(screen.queryByText("What VYVA reviewed")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-show-vyva-explain-health-current"));
     expect(screen.getByText("X-ray")).toBeInTheDocument();
-    expect(screen.getByText("What VYVA can see")).toBeInTheDocument();
-    expect(screen.getByText("What may need review")).toBeInTheDocument();
-    expect(screen.getByText("Limits of this image")).toBeInTheDocument();
-    expect(screen.getByText("Suggested next step")).toBeInTheDocument();
+    expect(screen.getByText("What VYVA reviewed")).toBeInTheDocument();
+    expect(screen.getByText("What is visible")).toBeInTheDocument();
+    expect(screen.getByText("Warning signs")).toBeInTheDocument();
+    expect(screen.getByText("What VYVA cannot confirm")).toBeInTheDocument();
+    expect(screen.getByText("Risk or urgency")).toBeInTheDocument();
+    expect(screen.getByText("Recommended next step")).toBeInTheDocument();
     expect(screen.getByText("Assistive description only, not medical advice or diagnosis. A qualified clinician should review anything concerning.")).toBeInTheDocument();
+  });
+
+  it("uses the selected medicine or OTC purpose for uploaded labels", () => {
+    render(
+      <VisualScanResultPanel
+        t={englishT}
+        onClose={vi.fn()}
+        reviewInput={{
+          useCaseId: SHOW_VYVA_USE_CASE_IDS.medicineOrOtc,
+          source: "upload",
+          fileName: "medicine-label.pdf",
+          mimeType: "application/pdf",
+        }}
+        result={{
+          severity: "Moderate",
+          resultTitle: "Medicine label",
+          advice: "Prepare questions before changing anything.",
+          imageType: "unclear",
+          visibleObservations: ["Dose wording is visible"],
+          recommendedNextStep: "Ask a pharmacist to review the label.",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("show-vyva-result-input-health-current")).toHaveTextContent("Uploaded document");
+    expect(screen.getByText("Pharmacist questions")).toBeInTheDocument();
+    expect(screen.getByText("Review safety")).toBeInTheDocument();
+    expect(screen.queryByText("Next health step")).not.toBeInTheDocument();
   });
 
   it("renders senior-friendly service actions when clinical review is suggested", () => {
@@ -161,7 +196,7 @@ describe("VisualScanResultPanel", () => {
     );
 
     expect(screen.getByTestId("show-vyva-follow-up-health-current")).toBeInTheDocument();
-    expect(screen.getByText("Next health step")).toBeInTheDocument();
+    expect(screen.getByText("Choose a safe action")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-doctor_help-health-current"));
     fireEvent.click(screen.getByTestId("button-show-vyva-follow-up-schedule_appointment-health-current"));

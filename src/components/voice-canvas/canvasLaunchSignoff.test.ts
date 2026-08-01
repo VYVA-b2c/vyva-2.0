@@ -1,0 +1,3378 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  CANVAS_REAL_DEVICE_QA_READY_STATUS,
+  evaluateCanvasRealDeviceQaMatrix,
+} from "./canvasLaunchSignoff";
+
+const realDeviceQaMatrixPath =
+  "docs/audits/voice-canvas-real-device-qa-matrix.md";
+
+const PRODUCT_SIGNOFF_ROW =
+  "| Product | Priya Product | 2026-07-19 | Approved for launch | Reviewed real-use evidence, senior copy, what happens next, and privacy analytics launch readiness |";
+
+const ENGINEERING_SIGNOFF_ROW =
+  "| Engineering | Elena Engineering | 2026-07-19 | Approved for launch | Verified rollback, stale and duplicate guards, feature flag fallback launch evidence |";
+
+const QA_SIGNOFF_ROW =
+  "| QA | Quentin QA | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence |";
+
+const OPS_SIGNOFF_ROW =
+  "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner and distinct backup, decision window, rollback trigger, enable false rollout 0 action, sanitized endpoint fallback open-session Canvas closed evidence, and privacy boundary launch evidence |";
+
+const TASK_HUB_SHOPPING_ROW =
+  "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |";
+
+const TASK_HUB_MEDICATION_ROW =
+  "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: medication refill draft resume enabled, medication refill disabled rollout 0 fallback to existing medication refill path, no write and no external action before explicit confirmation |";
+
+const TASK_HUB_PROVIDER_REPLY_ROW =
+  "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: pending provider reply resume, provider reply disabled rollout 0 fallback to safe Concierge task path, no write and no external action before explicit confirmation |";
+
+const TASK_HUB_STALE_BLOCKED_ROW =
+  "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback with no Canvas rewrite | No external action and no write to detail, completion, or confirmation endpoint before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: stale or blocked task resume through safe Concierge task path, disabled safe fallback to no Canvas safe Concierge task path, no write and no external action to detail completion confirmation endpoint before explicit confirmation |";
+
+const TASK_HUB_EVIDENCE_ERROR =
+  "Local shopping draft: evidence must include dated artifact resume, disabled fallback, no-write, and no-external-action evidence";
+
+const BEHAVIOR_CHECKLIST_EVIDENCE =
+  "QA behavior artifact log and screenshot evidence on 2026-07-19: start/resume, app exit/reopen, refresh/reconnect, voice interruption recovery, browser back, cancel/exit, flag rollback, confirmation safety with no write, no resubmission, no external action, no booking, no call, no message, and no navigation, duplicate guard, stale response handling, recoverable failure retry, senior copy one clear decision, readable labels, what happens next, and privacy-safe aggregate analytics reviewed";
+
+const BEHAVIOR_CHECKLIST_PROSE_EVIDENCE =
+  "QA behavior evidence on 2026-07-19: start/resume, app exit/reopen, refresh/reconnect, voice interruption recovery, browser back, cancel/exit, flag rollback, confirmation safety with no write, no resubmission, no external action, no booking, no call, no message, and no navigation, duplicate guard, stale response handling, recoverable failure retry, senior copy one clear decision, readable labels, what happens next, and privacy-safe aggregate analytics reviewed";
+
+const PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR =
+  "Provider Reply Voice Canvas: behavior evidence must include dated artifact coverage for resume, recovery, rollback, confirmation safety, senior copy, privacy, and no side effects";
+
+const RIDE_ENTRY_SURFACE_ROW =
+  "| Ride Voice Canvas | voice handoff; /concierge; task hub pending resume | QA verified entry surfaces voice handoff, /concierge, and task hub pending resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: voice handoff, /concierge, and task hub pending resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const APPOINTMENT_ENTRY_SURFACE_ROW =
+  "| Appointment Voice Canvas | voice handoff; /concierge; task hub provider setup resume | QA verified entry surfaces voice handoff, /concierge, and task hub provider setup resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: voice handoff, /concierge, and task hub provider setup resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const REFILL_ENTRY_SURFACE_ROW =
+  "| Medication Refill Voice Canvas | /meds/adherence-report; voice refill action; task hub local resume | QA verified entry surfaces /meds/adherence-report, voice refill action, and task hub local resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /meds/adherence-report, voice refill action, and task hub local resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const SHOPPING_ENTRY_SURFACE_ROW =
+  "| Shopping Delivery Voice Canvas | /concierge/shopping; shopping voice capture; task hub local resume | QA verified entry surfaces /concierge/shopping, shopping voice capture, and task hub local resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /concierge/shopping, shopping voice capture, and task hub local resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const PROVIDER_REPLY_ENTRY_SURFACE_ROW =
+  "| Provider Reply Voice Canvas | /concierge task detail; provider reply panel; task hub pending resume | QA verified entry surfaces /concierge task detail, provider reply panel, and task hub pending resume exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /concierge task detail, provider reply panel, and task hub pending resume exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const TASK_HUB_ENTRY_SURFACE_ROW =
+  "| Concierge Task Hub Resume | /concierge/tasks; /concierge/tasks/:taskKey; home resume card | QA verified entry surfaces /concierge/tasks, /concierge/tasks/:taskKey, and home resume card exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: /concierge/tasks, /concierge/tasks/:taskKey, and home resume card exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_ENVIRONMENT_ROW =
+  "| Environment and flag artifacts | Environment feature flag analytics sink enabled rollout and disabled rollback evidence | Sanitized environment feature flag artifact log link plus analytics dashboard query with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_ENTRY_SURFACE_ROW =
+  "| Entry surface artifacts | Canonical manifest entry surface flow screenshot log recording artifact evidence | Sanitized entry surface screenshot log recording artifact links for canonical manifest flow surfaces with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_DEVICE_ROW =
+  "| Real-device screenshots or photos | Real phone tablet desktop screenshot and photo evidence | Sanitized screenshot and photo artifact links for real phone tablet desktop with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_INTERACTION_ROW =
+  "| Interaction recordings or logs | Voice touch keyboard completion and safe exit recordings or logs | Sanitized recording and log artifact links for voice touch keyboard completion and safe exit with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_BEHAVIOR_ROW =
+  "| Behavior recovery artifacts | Resume restore reconnect refresh browser back interruption cancel exit behavior recovery evidence | Sanitized behavior recovery screenshot log artifact links for resume reconnect browser back interruption cancel exit with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_FEATURE_ROW =
+  "| Feature endpoint artifacts | Endpoint payload auth metadata matching launch run plan with no credential references rollback fallback feature checks | Sanitized endpoint payload trace and log artifact links for auth metadata matching launch run plan, rollback, and fallback with no credential references and no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_TASK_HUB_ROW =
+  "| Task hub resume artifacts | Task hub resume fallback no write and no external action evidence | Sanitized task hub resume fallback log artifact links showing no write and no external action with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_ROLLBACK_OWNER_ROW =
+  "| Rollback owner handoff artifacts | Rollback owner backup decision trigger endpoint fallback open-session privacy boundary evidence | Sanitized rollback owner handoff artifact links for endpoint fallback open-session evidence with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_COPY_ROW =
+  "| Copy and accessibility artifacts | Copy accessibility screen-reader focus Spanish long label evidence | Sanitized copy accessibility screenshot and screen-reader artifact links for focus and Spanish long label evidence with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_SIGNAL_ROW =
+  "| Analytics signal artifacts | Analytics signal started resumed abandoned blocked confirmed completed evidence | Sanitized analytics dashboard query artifact links for started resumed abandoned blocked confirmed completed signals with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_PRIVACY_ROW =
+  "| Analytics privacy artifacts | Analytics privacy allowed envelope non-identifying allowed values forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact links showing allowed envelope, non-identifying allowed values, and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_RUN_SHEET_ROW =
+  "| Run sheet validation artifacts | Run sheet validation evidence for packet and matrix copy | Sanitized run sheet validation JSON artifact link for run-sheet-summary.json with no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_RUN_PLAN_ROW =
+  "| Launch run plan artifacts | Launch run plan same-date same deployed-origin endpoint auth metadata artifact evidence with no credential values | Sanitized launch-evidence-run JSON artifact link for same-date same deployed-origin evidence bundle with endpoint auth metadata alignment, no credential values, and no personal details | QA reviewer verified on 2026-07-19 |";
+
+const ARTIFACT_INVENTORY_PREFLIGHT_ROW =
+  "| Launch preflight artifacts | Launch preflight run sheet matrix packet run plan endpoint analytics evidence | Sanitized launch preflight JSON artifact link for run sheet matrix packet run plan endpoint analytics gate with no personal details | QA reviewer verified on 2026-07-19 |";
+
+function behaviorChecklistRow(
+  flow: string,
+  evidence = BEHAVIOR_CHECKLIST_EVIDENCE,
+): string {
+  return `| ${flow} | Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed | Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed | Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed | Browser back returned safely with entered information preserved, no write, and no external action evidence passed | Cancel and exit with no write and no external action evidence passed | Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed | No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed | Duplicate confirmation prevented and stale response ignored evidence passed | Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed | Senior copy uses one clear decision, readable long labels, and explains what happens next | Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed | ${evidence} |`;
+}
+
+function realDeviceQaMatrix(): string {
+  return readFileSync(path.resolve(process.cwd(), realDeviceQaMatrixPath), "utf8");
+}
+
+function markReady(markdown: string): string {
+  return markdown.replace(
+    /^Status:\s*\*\*[^*]+\*\*/m,
+    `Status: **${CANVAS_REAL_DEVICE_QA_READY_STATUS}**`,
+  );
+}
+
+function replacePendingEvidence(markdown: string): string {
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => {
+      if (!line.trim().startsWith("|")) return line;
+      return line
+        .split("|")
+        .map((cell, index, cells) => {
+          if (index === 0 || index === cells.length - 1) return cell;
+          return cell.trim() === "Pending"
+            ? " Passed - evidence captured by QA on 2026-07-19 "
+            : cell;
+        })
+        .join("|");
+    })
+    .join("\n");
+}
+
+function fillRequiredSignoffs(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Product \| .* \| .* \| .* \| .* \|$/m,
+      PRODUCT_SIGNOFF_ROW,
+    )
+    .replace(
+      /^\| Engineering \| .* \| .* \| .* \| .* \|$/m,
+      ENGINEERING_SIGNOFF_ROW,
+    )
+    .replace(
+      /^\| QA \| .* \| .* \| .* \| .* \|$/m,
+      QA_SIGNOFF_ROW,
+    )
+    .replace(
+      /^\| Operations\/rollback owner \| .* \| .* \| .* \| .* \|$/m,
+      OPS_SIGNOFF_ROW,
+    );
+}
+
+function fillEnvironmentRecord(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Environment URL \| .* \|$/m,
+      "| Environment URL | https://staging.vyva.app/canvas-qa |",
+    )
+    .replace(
+      /^\| Build or commit SHA \| .* \|$/m,
+      "| Build or commit SHA | a48879ed |",
+    )
+    .replace(
+      /^\| Test account \| .* \|$/m,
+      "| Test account | qa-senior-canvas@example.test |",
+    )
+    .replace(
+      /^\| Browser versions \| .* \|$/m,
+      "| Browser versions | Chrome 126 desktop; Safari 18 iOS; Chrome 126 Android tablet |",
+    )
+    .replace(
+      /^\| Voice provider\/session mode \| .* \|$/m,
+      "| Voice provider/session mode | Live voice session on staging browser |",
+    )
+    .replace(
+      /^\| Analytics sink reviewed \| .* \|$/m,
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Initial flag state \| .* \|$/m,
+      "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
+    )
+    .replace(
+      /^\| Rollback flag state \| .* \|$/m,
+      "| Rollback flag state | Feature flag artifact log on 2026-07-19 shows disabled false, rollout 0 verified for fallback |",
+    );
+}
+
+function completedMatrix(markdown = realDeviceQaMatrix()): string {
+  return fillArtifactInventoryRows(
+    fillPrivacyReviewRows(
+      fillAnalyticsSignalRows(
+        fillFeatureFlagRows(
+          fillTaskHubDestinationRows(
+            fillCopyAccessibilityRows(
+              fillBehaviorChecklistRows(
+                fillInteractionModeRows(
+                  fillDeviceCoverageRows(
+                    fillEntrySurfaceRows(
+                      fillEnvironmentRecord(
+                        fillRequiredSignoffs(
+                          replacePendingEvidence(markReady(markdown)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+function fillEntrySurfaceRows(markdown: string): string {
+  let filled = markdown;
+  for (const [flow, row] of [
+    ["Ride Voice Canvas", RIDE_ENTRY_SURFACE_ROW],
+    ["Appointment Voice Canvas", APPOINTMENT_ENTRY_SURFACE_ROW],
+    ["Medication Refill Voice Canvas", REFILL_ENTRY_SURFACE_ROW],
+    ["Shopping Delivery Voice Canvas", SHOPPING_ENTRY_SURFACE_ROW],
+    ["Provider Reply Voice Canvas", PROVIDER_REPLY_ENTRY_SURFACE_ROW],
+    ["Concierge Task Hub Resume", TASK_HUB_ENTRY_SURFACE_ROW],
+  ] as const) {
+    filled = replaceSectionTableRow(
+      filled,
+      "Entry surface coverage",
+      flow,
+      4,
+      row,
+    );
+  }
+  return filled;
+}
+
+function fillArtifactInventoryRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Environment and flag artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_ENVIRONMENT_ROW,
+    )
+    .replace(
+      /^\| Entry surface artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_ENTRY_SURFACE_ROW,
+    )
+    .replace(
+      /^\| Real-device screenshots or photos \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_DEVICE_ROW,
+    )
+    .replace(
+      /^\| Interaction recordings or logs \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_INTERACTION_ROW,
+    )
+    .replace(
+      /^\| Behavior recovery artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_BEHAVIOR_ROW,
+    )
+    .replace(
+      /^\| Feature endpoint artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_FEATURE_ROW,
+    )
+    .replace(
+      /^\| Task hub resume artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_TASK_HUB_ROW,
+    )
+    .replace(
+      /^\| Rollback owner handoff artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_ROLLBACK_OWNER_ROW,
+    )
+    .replace(
+      /^\| Copy and accessibility artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_COPY_ROW,
+    )
+    .replace(
+      /^\| Analytics signal artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_SIGNAL_ROW,
+    )
+    .replace(
+      /^\| Analytics privacy artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_PRIVACY_ROW,
+    )
+    .replace(
+      /^\| Run sheet validation artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_RUN_SHEET_ROW,
+    )
+    .replace(
+      /^\| Launch run plan artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_RUN_PLAN_ROW,
+    )
+    .replace(
+      /^\| Launch preflight artifacts \| .* \| .* \| .* \|$/m,
+      ARTIFACT_INVENTORY_PREFLIGHT_ROW,
+    );
+}
+
+function fillTaskHubDestinationRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Local shopping draft \| .* \| .* \| .* \| .* \|$/m,
+      TASK_HUB_SHOPPING_ROW,
+    )
+    .replace(
+      /^\| Local medication refill draft \| .* \| .* \| .* \| .* \|$/m,
+      TASK_HUB_MEDICATION_ROW,
+    )
+    .replace(
+      /^\| Pending provider reply task \| .* \| .* \| .* \| .* \|$/m,
+      TASK_HUB_PROVIDER_REPLY_ROW,
+    )
+    .replace(
+      /^\| Stale or blocked task \| .* \| .* \| .* \| .* \|$/m,
+      TASK_HUB_STALE_BLOCKED_ROW,
+    );
+}
+
+function fillAnalyticsSignalRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Started \| .* \| .* \| .* \|$/m,
+      "| Started | scene_viewed with restored false verified | Started analytics query artifact aggregate signal count 6 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Started scene_viewed restored false aggregate signal count 6 observed with only allowed envelope fields and non-identifying allowed values |",
+    )
+    .replace(
+      /^\| Resumed \| .* \| .* \| .* \|$/m,
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+    )
+    .replace(
+      /^\| Abandoned \| .* \| .* \| .* \|$/m,
+      "| Abandoned | abandoned source event verified | Abandoned analytics query artifact aggregate signal count 2 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Abandoned abandoned source event aggregate signal count 2 observed with only allowed envelope fields and non-identifying allowed values |",
+    )
+    .replace(
+      /^\| Blocked \| .* \| .* \| .* \|$/m,
+      "| Blocked | failed or urgent_help_shown or blocked scene view verified | Analytics query artifact blocked aggregate signal count 1 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Blocked failed source event aggregate signal count 1 observed with only allowed envelope fields and non-identifying allowed values |",
+    )
+    .replace(
+      /^\| Confirmed \| .* \| .* \| .* \|$/m,
+      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+    )
+    .replace(
+      /^\| Completed \| .* \| .* \| .* \|$/m,
+      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+    );
+}
+
+function fillFeatureFlagRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| Ride Voice Canvas \| `\/api\/config\/features\/ride-voice-canvas` \| `ride` \| .* \|$/m,
+      "| Ride Voice Canvas | `/api/config/features/ride-voice-canvas` | `ride` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing Concierge transport panel fallback shown | Existing Concierge transport panel fallback shown | " +
+        featureEndpointEvidenceByFlow.ride +
+        " |",
+    )
+    .replace(
+      /^\| Appointment Voice Canvas \| `\/api\/config\/features\/appointment-voice-canvas` \| `appointment` \| .* \|$/m,
+      "| Appointment Voice Canvas | `/api/config/features/appointment-voice-canvas` | `appointment` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing appointment panel fallback shown | Existing appointment panel fallback shown | " +
+        featureEndpointEvidenceByFlow.appointment +
+        " |",
+    )
+    .replace(
+      /^\| Medication Refill Voice Canvas \| `\/api\/config\/features\/medication-refill-voice-canvas` \| `medicationRefill` \| .* \|$/m,
+      "| Medication Refill Voice Canvas | `/api/config/features/medication-refill-voice-canvas` | `medicationRefill` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing medication refill shopping/support path fallback shown | Existing medication refill shopping/support path fallback shown | " +
+        featureEndpointEvidenceByFlow.medicationRefill +
+        " |",
+    )
+    .replace(
+      /^\| Shopping Delivery Voice Canvas \| `\/api\/config\/features\/shopping-delivery-voice-canvas` \| `shoppingDelivery` \| .* \|$/m,
+      "| Shopping Delivery Voice Canvas | `/api/config/features/shopping-delivery-voice-canvas` | `shoppingDelivery` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing shopping guide and recommendations fallback shown | Existing shopping guide and recommendations fallback shown | " +
+        featureEndpointEvidenceByFlow.shoppingDelivery +
+        " |",
+    )
+    .replace(
+      /^\| Provider Reply Voice Canvas \| `\/api\/config\/features\/provider-reply-voice-canvas` \| `providerReply` \| .* \|$/m,
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | " +
+        providerReplyFeatureEndpointEvidence +
+        " |",
+    );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tableRowPattern(firstCell: string, remainingCellCount: number): RegExp {
+  return new RegExp(
+    `^\\| ${escapeRegExp(firstCell)}${" \\| [^|]*".repeat(remainingCellCount)} \\|$`,
+    "m",
+  );
+}
+
+function replaceSectionTableRow(
+  markdown: string,
+  section: string,
+  firstCell: string,
+  remainingCellCount: number,
+  row: string,
+): string {
+  const pattern = new RegExp(
+    `(^##\\s+${escapeRegExp(section)}\\s*$[\\s\\S]*?)^\\| ${escapeRegExp(firstCell)}${" \\| [^|]*".repeat(remainingCellCount)} \\|$`,
+    "m",
+  );
+  return markdown.replace(pattern, (_match, prefix: string) => `${prefix}${row}`);
+}
+
+function removeSectionTableRow(
+  markdown: string,
+  section: string,
+  firstCell: string,
+  remainingCellCount: number,
+): string {
+  const pattern = new RegExp(
+    `(^##\\s+${escapeRegExp(section)}\\s*$[\\s\\S]*?)^\\| ${escapeRegExp(firstCell)}${" \\| [^|]*".repeat(remainingCellCount)} \\|\\r?\\n`,
+    "m",
+  );
+  return markdown.replace(pattern, (_match, prefix: string) => prefix);
+}
+
+const launchFlowLabels = [
+  "Ride Voice Canvas",
+  "Appointment Voice Canvas",
+  "Medication Refill Voice Canvas",
+  "Shopping Delivery Voice Canvas",
+  "Provider Reply Voice Canvas",
+  "Concierge Task Hub Resume",
+] as const;
+
+const genericFeatureEndpointEvidence =
+  "QA feature endpoint payload evidence for auth metadata matching launch run plan with no credential references, malformed config, missing config, disabled false rollout 0, enabled true rollout 100, rollback, and fallback reviewed on 2026-07-19";
+
+const featureEndpointEvidenceByFlow = {
+  ride:
+    "QA endpoint log artifact and trace link for /api/config/features/ride-voice-canvas server key ride payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing Concierge transport panel fallback shown",
+  appointment:
+    "QA endpoint log artifact and trace link for /api/config/features/appointment-voice-canvas server key appointment payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing appointment panel fallback shown",
+  medicationRefill:
+    "QA endpoint log artifact and trace link for /api/config/features/medication-refill-voice-canvas server key medicationRefill payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing medication refill shopping/support path fallback shown",
+  shoppingDelivery:
+    "QA endpoint log artifact and trace link for /api/config/features/shopping-delivery-voice-canvas server key shoppingDelivery payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing shopping guide and recommendations fallback shown",
+  providerReply:
+    "QA endpoint log artifact and trace link for /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: auth metadata matching launch run plan with no credential references, malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown",
+} as const;
+
+const providerReplyFeatureEndpointEvidence =
+  featureEndpointEvidenceByFlow.providerReply;
+
+const realDeviceArtifactEvidence =
+  "QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19";
+
+const interactionModeArtifactEvidence =
+  "QA voice screen-recording artifact, touch screenshot artifact, and keyboard navigation log artifact completion evidence reviewed on 2026-07-19";
+
+const rideInteractionModeRow = `| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | ${interactionModeArtifactEvidence} |`;
+
+function fillDeviceCoverageRows(markdown: string): string {
+  return launchFlowLabels.reduce(
+    (current, flow) =>
+      replaceSectionTableRow(
+        current,
+        "Device coverage",
+        flow,
+        4,
+        `| ${flow} | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | ${realDeviceArtifactEvidence} |`,
+      ),
+    markdown,
+  );
+}
+
+function fillInteractionModeRows(markdown: string): string {
+  return launchFlowLabels.reduce(
+    (current, flow) =>
+      replaceSectionTableRow(
+        current,
+        "Interaction mode coverage",
+        flow,
+        4,
+        `| ${flow} | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | ${interactionModeArtifactEvidence} |`,
+      ),
+    markdown,
+  );
+}
+
+function fillBehaviorChecklistRows(markdown: string): string {
+  return launchFlowLabels.reduce(
+    (current, flow) =>
+      current.replace(
+        tableRowPattern(flow, 13),
+        behaviorChecklistRow(flow),
+      ),
+    markdown,
+  );
+}
+
+function fillPrivacyReviewRows(markdown: string): string {
+  return [
+    "Spoken transcripts",
+    "Typed free text",
+    "Addresses or saved-place labels",
+    "Ride pickup, dropoff, destination, or route details",
+    "Medication names, strengths, quantities, or symptoms",
+    "Provider names, reply text, notes, references, phone numbers, or emails",
+    "Shopping item names, prices, fees, or retailer names",
+    "Dates, times, identities, or contact details",
+  ].reduce(
+    (current, privacyClass) =>
+      current.replace(
+        new RegExp(`^\\| ${escapeRegExp(privacyClass)} \\| .* \\| .* \\|$`, "m"),
+        `| ${privacyClass} | ${privacyClass} absent from analytics sink | Analytics telemetry sample artifact for ${privacyClass} reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |`,
+      ),
+    markdown,
+  );
+}
+
+function fillCopyAccessibilityRows(markdown: string): string {
+  return markdown
+    .replace(
+      /^\| English copy uses one clear decision at a time \| .* \| .* \|$/m,
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English one clear decision copy screenshot/read-through evidence reviewed for each flow on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Spanish copy and long labels remain readable without horizontal overflow \| .* \| .* \|$/m,
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Waiting states explain what is happening and what is not happening \| .* \| .* \|$/m,
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot/read-through evidence reviewed on 2026-07-19: processing remains pending and no external action is sent yet |",
+    )
+    .replace(
+      /^\| Blocked states explain what is needed and provide retry or exit \| .* \| .* \|$/m,
+      "| Blocked states explain what is needed and provide retry or exit | Blocked copy explains what is needed and offers retry or cancel exit | QA blocked-state screenshot/read-through evidence reviewed on 2026-07-19: blocked information needed with retry and cancel exit |",
+    )
+    .replace(
+      /^\| Completed states explain the outcome without implying extra action \| .* \| .* \|$/m,
+      "| Completed states explain the outcome without implying extra action | Completed copy explains the outcome with no extra action implied | QA completed-state screenshot/read-through evidence reviewed on 2026-07-19: completed outcome with no extra action implied |",
+    )
+    .replace(
+      /^\| Keyboard-only completion works for each flow \| .* \| .* \|$/m,
+      "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Focus moves meaningfully when scenes change \| .* \| .* \|$/m,
+      "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Screen-reader announcements fire for waiting, blocked, and completed states \| .* \| .* \|$/m,
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+    )
+    .replace(
+      /^\| Reduced-motion mode remains calm and usable \| .* \| .* \|$/m,
+      "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion calm usable evidence reviewed on 2026-07-19 |",
+    );
+}
+
+function replaceDeviceRow(markdown: string, flow: string, row: string): string {
+  return replaceSectionTableRow(markdown, "Device coverage", flow, 4, row);
+}
+
+function removeFirstTableRow(markdown: string, firstCell: string): string {
+  const escapedCell = escapeRegExp(firstCell);
+  return markdown.replace(new RegExp(`^\\| ${escapedCell} \\| .* \\|\\r?\\n`, "m"), "");
+}
+
+function removeFeatureEndpointRow(markdown: string, endpoint: string): string {
+  const escapedEndpoint = escapeRegExp(endpoint);
+  return markdown.replace(new RegExp(`^\\| .* \\| \`${escapedEndpoint}\` \\| .* \\|\\r?\\n`, "m"), "");
+}
+
+describe("Canvas real-device QA sign-off", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-20T12:00:00.000Z"));
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps the committed matrix explicitly pending until deployed QA is recorded", () => {
+    const result = evaluateCanvasRealDeviceQaMatrix(realDeviceQaMatrix());
+
+    expect(result.state).toBe("pending");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.incompleteCellCount).toBeGreaterThan(0);
+    expect(result.failingCellCount).toBe(0);
+    expect(result.missingRequiredMatrixRows).toEqual([]);
+    expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidEntrySurfaceRows).toEqual([]);
+    expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidInteractionModeRows).toEqual([]);
+    expect(result.invalidBehaviorRows).toEqual([]);
+    expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidTaskHubDestinationRows).toEqual([]);
+    expect(result.invalidCopyAccessibilityRows).toEqual([]);
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
+    expect(result.invalidPrivacyRows).toEqual([]);
+    expect(result.invalidArtifactInventoryRows).toEqual([]);
+    expect(result.problems).toEqual([]);
+  });
+
+  it("rejects a premature ready-for-launch status while placeholders remain", () => {
+    const result = evaluateCanvasRealDeviceQaMatrix(markReady(realDeviceQaMatrix()));
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("still contains"),
+        expect.stringContaining("incomplete required sign-off"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with non-date cells or non-approval decisions", () => {
+    const completedWithoutRealSignoffs = fillEnvironmentRecord(replacePendingEvidence(
+      markReady(realDeviceQaMatrix()),
+    ));
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completedWithoutRealSignoffs);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.incompleteCellCount).toBe(0);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual([
+      "Product",
+      "Engineering",
+      "QA",
+      "Operations/rollback owner",
+    ]);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual([
+      "Product",
+      "Engineering",
+      "QA",
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("must use YYYY-MM-DD"),
+        expect.stringContaining("without an approved-for-launch decision"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs that explicitly decline approval", () => {
+    const completed = completedMatrix().replace(
+      PRODUCT_SIGNOFF_ROW,
+      "| Product | Priya Product | 2026-07-19 | Not approved | Found a launch blocker |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual(["Product"]);
+  });
+
+  it("rejects ready-for-launch sign-offs dated in the future", () => {
+    const completed = completedMatrix().replace(
+      PRODUCT_SIGNOFF_ROW,
+      "| Product | Priya Product | 2099-01-01 | Approved for launch | Reviewed real-use evidence, senior copy, what happens next, and privacy analytics launch readiness |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual(["Product"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("cannot be in the future"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with conditional approval wording", () => {
+    const completed = completedMatrix().replace(
+      ENGINEERING_SIGNOFF_ROW,
+      "| Engineering | Elena Engineering | 2026-07-19 | Approved after fallback fixes | Waiting on final rollback evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual(["Engineering"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without an approved-for-launch decision"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with pending fixes in notes", () => {
+    const completed = completedMatrix()
+      .replace(
+        PRODUCT_SIGNOFF_ROW,
+        "| Product | Priya Product | 2026-07-19 | Approved for launch | Pending Spanish copy follow-up before launch |",
+      )
+      .replace(
+        OPS_SIGNOFF_ROW,
+        "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner disabled rollout 0 fallback launch evidence unless endpoint fallback blocker appears |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.blockedRequiredSignoffNoteRoles).toEqual([
+      "Product",
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("pending fixes, conditions, or blockers"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with accepted-risk or known-issue wording", () => {
+    const completed = completedMatrix()
+      .replace(
+        ENGINEERING_SIGNOFF_ROW,
+        "| Engineering | Elena Engineering | 2026-07-19 | Approved with known issue risk accepted | Verified rollback, stale and duplicate guards, feature flag fallback launch evidence |",
+      )
+      .replace(
+        QA_SIGNOFF_ROW,
+        "| QA | Quentin QA | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence; manual workaround required for tablet regression |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual(["Engineering"]);
+    expect(result.blockedRequiredSignoffNoteRoles).toEqual(["QA"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without an approved-for-launch decision"),
+        expect.stringContaining("pending fixes, conditions, or blockers"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with vague notes", () => {
+    const completed = completedMatrix().replace(
+      QA_SIGNOFF_ROW,
+      "| QA | Quentin QA | 2026-07-19 | Approved for launch | Looks good |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual(["QA"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete, role-specific launch evidence"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with generic entry-surface evidence", () => {
+    const completed = completedMatrix().replace(
+      RIDE_ENTRY_SURFACE_ROW,
+      "| Ride Voice Canvas | voice handoff; /concierge; task hub pending resume | QA verified main entry surface exercised with completed or safe exit coverage | QA entry surface screenshot artifact and log evidence reviewed on 2026-07-19: voice handoff exercised with no transcripts, entered text, addresses, or personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEntrySurfaceRows).toEqual([
+      "Ride Voice Canvas: entry surface result must prove every canonical launch surface was exercised",
+      "Ride Voice Canvas: entry surface evidence must include dated screenshot/log/artifact proof for every canonical launch surface",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("entry-surface coverage row issue"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch sign-offs with non-role-specific notes", () => {
+    const completed = completedMatrix().replace(
+      PRODUCT_SIGNOFF_ROW,
+      "| Product | Priya Product | 2026-07-19 | Approved for launch | Completed QA real-device matrix for voice, touch, and keyboard launch evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual(["Product"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete, role-specific launch evidence"),
+      ]),
+    );
+  });
+
+  it("rejects Operations sign-off notes that omit rollback-owner handoff evidence", () => {
+    const completed = completedMatrix().replace(
+      OPS_SIGNOFF_ROW,
+      "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner disabled rollout 0 fallback launch evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual([
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete, role-specific launch evidence"),
+      ]),
+    );
+  });
+
+  it("rejects Operations sign-off notes that do not prove a distinct backup owner", () => {
+    const completed = completedMatrix().replace(
+      OPS_SIGNOFF_ROW,
+      "| Operations/rollback owner | Omar Ops | 2026-07-19 | Approved for launch | Confirmed rollback owner and backup, decision window, rollback trigger, enable false rollout 0 action, sanitized endpoint fallback open-session Canvas closed evidence, and privacy boundary launch evidence |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual([
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("without concrete, role-specific launch evidence"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices missing a required real-device flow row", () => {
+    const completed = removeSectionTableRow(
+      completedMatrix(),
+      "Device coverage",
+      "Ride Voice Canvas",
+      4,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Device coverage: Ride Voice Canvas",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("missing required QA row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices missing a feature-flag rollback row", () => {
+    const completed = removeFeatureEndpointRow(
+      completedMatrix(),
+      "/api/config/features/provider-reply-voice-canvas",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Feature endpoint and rollback checks: Provider Reply Voice Canvas",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices missing an interaction-mode row", () => {
+    const completed = completedMatrix().replace(
+      `${rideInteractionModeRow}\n`,
+      "",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Interaction mode coverage: Ride Voice Canvas",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices missing a task hub destination fallback row", () => {
+    const completed = removeFirstTableRow(
+      completedMatrix(),
+      "Local shopping draft",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Task hub destination fallback checks: Local shopping draft",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices missing an evidence artifact inventory row", () => {
+    const completed = removeFirstTableRow(
+      completedMatrix(),
+      "Run sheet validation artifacts",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.missingRequiredMatrixRows).toEqual([
+      "Evidence artifact inventory: Run sheet validation artifacts",
+    ]);
+  });
+
+  it("rejects evidence artifact inventory rows without sanitized concrete references", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_DEVICE_ROW,
+      "| Real-device screenshots or photos | Device screenshots reviewed | Screenshots reviewed by QA | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Real-device screenshots or photos: coverage must name the launch evidence it proves",
+      "Real-device screenshots or photos: reference must name sanitized concrete artifacts with no personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
+  it("rejects entry surface artifact inventory rows without canonical surface proof", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_ENTRY_SURFACE_ROW,
+      "| Entry surface artifacts | Flow entry evidence reviewed | Sanitized entry screenshot link with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Entry surface artifacts: coverage must name the launch evidence it proves",
+    ]);
+  });
+
+  it("rejects feature endpoint artifact inventory rows without auth metadata proof", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_FEATURE_ROW,
+      "| Feature endpoint artifacts | Endpoint payload rollback fallback feature checks | Sanitized endpoint payload trace and log artifact links for rollback and fallback with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Feature endpoint artifacts: coverage must name the launch evidence it proves",
+      "Feature endpoint artifacts: coverage/reference must include auth metadata matching the launch run plan and no credential references",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
+  it("rejects launch run plan inventory rows without deployed-origin and auth metadata proof", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_RUN_PLAN_ROW,
+      "| Launch run plan artifacts | Launch run plan same date artifact evidence | Sanitized launch-evidence-run JSON artifact link for same date evidence bundle with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Launch run plan artifacts: coverage must name the launch evidence it proves",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
+  it("rejects evidence artifact inventory references with literal personal data", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_PRIVACY_ROW,
+      "| Analytics privacy artifacts | Analytics privacy allowed envelope non-identifying allowed values forbidden data absent evidence | Sanitized analytics privacy dashboard query artifact link for qa-person@example.com and 123 Secret Street showing allowed envelope, non-identifying allowed values, and forbidden data absent with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Analytics privacy artifacts: reference must name sanitized concrete artifacts with no personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
+  it("rejects evidence artifact inventory references with filename-style private detail labels", () => {
+    const completed = completedMatrix().replace(
+      ARTIFACT_INVENTORY_SIGNAL_ROW,
+      "| Analytics signal artifacts | Analytics signal started resumed abandoned blocked confirmed completed evidence | Sanitized analytics dashboard query artifact link voice-canvas/analytics/2026-07-19/route-details-shopping-item-details-retailer-name-profile-id with no personal details | QA reviewer verified on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidArtifactInventoryRows).toEqual([
+      "Analytics signal artifacts: reference must name sanitized concrete artifacts with no personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("evidence artifact inventory row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with feature endpoint drift", () => {
+    const completed = completedMatrix().replace(
+      "| Provider Reply Voice Canvas | `/api/config/features/provider-reply-voice-canvas` | `providerReply` |",
+      "| Provider Reply Voice Canvas | `/api/config/features/wrong-provider-reply` | `providerReply` |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: endpoint must be /api/config/features/provider-reply-voice-canvas",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices without disabled false rollout-zero payload evidence", () => {
+    const completed = completedMatrix().replace(
+      "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Disabled payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: disabled payload evidence",
+    ]);
+  });
+
+  it("rejects disabled payload rows with rollout zero but no explicit false flag state", () => {
+    const completed = completedMatrix().replace(
+      "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Disabled rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: disabled payload evidence",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices without enabled true rollout-100 payload evidence", () => {
+    const completed = completedMatrix().replace(
+      "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Disabled false, rollout 0 payload checked | Enabled payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: enabled payload evidence",
+    ]);
+  });
+
+  it("rejects enabled payload rows with rollout 100 but a false flag state", () => {
+    const completed = completedMatrix().replace(
+      "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Disabled false, rollout 0 payload checked | Enabled false, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: enabled payload evidence",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices with vague malformed or missing config evidence", () => {
+    const completed = completedMatrix().replace(
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
+      "Passed by QA | Passed by QA | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: malformed config fallback evidence",
+      "Provider Reply Voice Canvas: missing config fallback evidence",
+    ]);
+  });
+
+  it("rejects malformed config rows that do not prove fail-closed behavior", () => {
+    const completed = completedMatrix().replace(
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Malformed config disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: malformed config fallback evidence",
+    ]);
+  });
+
+  it("rejects missing config rows that do not prove fallback behavior", () => {
+    const completed = completedMatrix().replace(
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Malformed config failed closed to disabled fallback | Missing config failed closed to disabled | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: missing config fallback evidence",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices with vague rollback evidence", () => {
+    const completed = completedMatrix().replace(
+      `Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `Passed by QA | Passed by QA | ${providerReplyFeatureEndpointEvidence} |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices when rollback evidence does not show the existing fallback", () => {
+    const completed = completedMatrix().replace(
+      "Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown",
+      "Rollback disabled rollout 0 verified in-session",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
+    ]);
+  });
+
+  it("rejects fallback rows that do not name the existing fallback path", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `Fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
+  it("rejects feature flag fallback rows with only generic existing-fallback wording", () => {
+    const completed = completedMatrix().replace(
+      `| Provider Reply Voice Canvas | \`/api/config/features/provider-reply-voice-canvas\` | \`providerReply\` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `| Provider Reply Voice Canvas | \`/api/config/features/provider-reply-voice-canvas\` | \`providerReply\` | Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing fallback shown | Existing fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+  });
+
+  it("rejects feature flag evidence notes with contradictory fallback wording", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} but fallback not visible |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
+  it("rejects feature flag evidence notes that omit endpoint payload and rollback coverage", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      "Existing provider reply panel fallback shown | Evidence screenshot/log captured by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("feature-flag rollback row"),
+      ]),
+    );
+  });
+
+  it("rejects generic feature flag evidence notes that do not name the row endpoint, server key, and fallback path", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `Existing provider reply panel fallback shown | ${genericFeatureEndpointEvidence} |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("feature-flag rollback row"),
+      ]),
+    );
+  });
+
+  it("rejects feature flag evidence notes that omit concrete endpoint artifacts", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      "Existing provider reply panel fallback shown | QA endpoint /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
+  it("rejects feature flag evidence notes that omit endpoint auth metadata proof", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      "Existing provider reply panel fallback shown | QA endpoint log artifact and trace link for /api/config/features/provider-reply-voice-canvas server key providerReply payload evidence reviewed on 2026-07-19: malformed config and missing config fail closed to disabled fallback, disabled false rollout 0, enabled true rollout 100, rollback, and existing provider reply panel fallback shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
+  it("rejects feature flag evidence artifacts that include sensitive details", () => {
+    const completed = completedMatrix().replace(
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} |`,
+      `Existing provider reply panel fallback shown | ${providerReplyFeatureEndpointEvidence} and endpoint trace captured address details |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: rollout evidence note",
+    ]);
+  });
+
+  it("rejects feature flag rows with unavailable payload or fallback wording", () => {
+    const completed = completedMatrix().replace(
+      "Disabled false, rollout 0 payload checked | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback shown | Existing provider reply panel fallback shown |",
+      "Disabled false, rollout 0 payload unavailable | Enabled true, rollout 100 payload checked | Malformed config failed closed to disabled fallback but fallback not visible | Missing config failed closed to disabled fallback | Rollback disabled rollout 0 verified in-session with existing provider reply panel fallback not visible | Existing provider reply panel fallback not shown |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidFeatureFlagRows).toEqual([
+      "Provider Reply Voice Canvas: disabled payload evidence",
+      "Provider Reply Voice Canvas: malformed config fallback evidence",
+      "Provider Reply Voice Canvas: in-session rollback must show disabled rollout and existing fallback",
+      "Provider Reply Voice Canvas: existing fallback evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("feature-flag rollback row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague task hub destination fallback evidence", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: resume route must name the task hub destination behavior",
+      "Local shopping draft: fallback must name the disabled destination path",
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
+      TASK_HUB_EVIDENCE_ERROR,
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
+  it("rejects task hub evidence notes that omit resume, fallback, and side-effect coverage", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      TASK_HUB_EVIDENCE_ERROR,
+    ]);
+  });
+
+  it("rejects task hub evidence notes that omit concrete artifacts", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      TASK_HUB_EVIDENCE_ERROR,
+    ]);
+  });
+
+  it("rejects task hub destination fallback rows that do not name the existing destination path", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: fallback must name the disabled destination path",
+    ]);
+  });
+
+  it("rejects task hub destination fallback rows with only generic existing-fallback wording", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 existing fallback | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: fallback must name the disabled destination path",
+    ]);
+  });
+
+  it("rejects stale task hub fallback rows that do not name the safe Concierge path", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_STALE_BLOCKED_ROW,
+      "| Stale or blocked task | Stale or blocked task resumes through safe Concierge task path | Stale or blocked task uses safe fallback | No external action and no write to detail, completion, or confirmation endpoint before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: stale or blocked task resume through safe Concierge task path, disabled safe fallback to no Canvas safe Concierge task path, no write and no external action to detail completion confirmation endpoint before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Stale or blocked task: fallback must name the disabled destination path",
+    ]);
+  });
+
+  it("rejects task hub safety rows with vague confirmation wording", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
+    ]);
+  });
+
+  it("rejects task hub safety rows without explicit no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
+    ]);
+  });
+
+  it("rejects task hub safety rows without explicit no-external-action evidence", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_PROVIDER_REPLY_ROW,
+      "| Pending provider reply task | Pending provider reply resumes to provider reply task path | Provider reply disabled rollout 0 fallback to existing safe Concierge task path | No write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: pending provider reply resume, provider reply disabled rollout 0 fallback to safe Concierge task path, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Pending provider reply task: safety cell must mention no writes and no external actions before explicit confirmation",
+    ]);
+  });
+
+  it("rejects task hub safety rows that use submission wording instead of explicit no-external-action evidence", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_MEDICATION_ROW,
+      "| Local medication refill draft | Medication refill draft resumes to destination when refill Canvas enabled | Medication refill destination disabled rollout 0 fallback to existing medication refill path | No write and not submitted before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: medication refill draft resume enabled, medication refill disabled rollout 0 fallback to existing medication refill path, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local medication refill draft: safety cell must mention no writes and no external actions before explicit confirmation",
+    ]);
+  });
+
+  it("rejects task hub destination rows with negative resume, fallback, or safety wording", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft did not resume to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback unavailable for existing shopping experience | No external action and no write before explicit confirmation, but external action triggered | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: resume route must name the task hub destination behavior",
+      "Local shopping draft: fallback must name the disabled destination path",
+      "Local shopping draft: safety cell must mention no writes and no external actions before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
+  it("rejects task hub evidence notes with contradictory resume or fallback wording", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation but fallback unavailable |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      TASK_HUB_EVIDENCE_ERROR,
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
+  it("rejects task hub evidence artifacts that include sensitive details", () => {
+    const completed = completedMatrix().replace(
+      TASK_HUB_SHOPPING_ROW,
+      "| Local shopping draft | Shopping draft resumes to destination when shopping Canvas enabled | Shopping destination disabled rollout 0 fallback to existing shopping experience | No external action and no write before explicit confirmation | QA task hub artifact log evidence on 2026-07-19: shopping draft resume enabled, shopping disabled rollout 0 fallback to existing shopping experience, no write and no external action before explicit confirmation, but screenshot captured address details |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidTaskHubDestinationRows).toEqual([
+      "Local shopping draft: evidence artifacts must not include transcripts, entered text, addresses, or personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("task-hub destination fallback row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague interaction-mode evidence", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      "| Ride Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction evidence notes that omit voice, touch, and keyboard coverage", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA screenshot/log evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction evidence notes that omit concrete artifacts", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      "| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | QA voice, touch, and keyboard completion evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction evidence notes with contradictory completion wording", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      `| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | ${interactionModeArtifactEvidence} but keyboard path not completed |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: interaction-mode evidence must include dated voice, touch, and keyboard completion or safe-exit artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction evidence artifacts that include sensitive spoken or entered details", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      `| Ride Voice Canvas | Voice commands completed flow evidence passed | Touch tap path completed flow evidence passed | Keyboard-only completion evidence passed | ${interactionModeArtifactEvidence} and voice recording captured spoken transcript |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: interaction-mode evidence artifacts must not include transcripts, entered text, addresses, or personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without completion or safe-exit interaction evidence", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      `| Ride Voice Canvas | Voice commands were tested | Touch taps were tested | Keyboard navigation was tested | ${interactionModeArtifactEvidence} |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects interaction-mode rows with negative completion wording", () => {
+    const completed = completedMatrix().replace(
+      rideInteractionModeRow,
+      `| Ride Voice Canvas | Voice commands not completed flow evidence | Touch tap path not completed flow evidence | Keyboard-only not completed flow evidence | ${interactionModeArtifactEvidence} |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidInteractionModeRows).toEqual([
+      "Ride Voice Canvas: voice cell must mention voice or spoken-command evidence and completion or safe exit",
+      "Ride Voice Canvas: touch cell must mention touch or tap evidence and completion or safe exit",
+      "Ride Voice Canvas: keyboard cell must mention keyboard navigation evidence and completion or safe exit",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("interaction-mode coverage row"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague real-device coverage rows", () => {
+    const completed = completedMatrix().replace(
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
+      "| Ride Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device evidence notes that omit phone, tablet, and desktop coverage", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA screenshot evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device evidence notes that omit screenshot or photo artifacts", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone, tablet, and desktop/laptop device evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device artifacts that include sensitive visible details", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      `| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | ${realDeviceArtifactEvidence} and phone screenshot captured address |`,
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: device evidence artifacts must not include transcripts, entered text, addresses, or personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices that substitute viewport or emulator evidence for real devices", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real mobile browser emulation for iOS phone viewport passed | Real iPad tablet device toolbar viewport passed | Real desktop Chrome responsive viewport passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 from responsive mode |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence and must not be viewport or emulator evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence and must not be viewport or emulator evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence and must not be viewport or emulator evidence",
+      "Ride Voice Canvas: evidence must not rely on viewport or emulator evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device coverage rows with negative device-test wording", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real physical phone not tested | Real physical tablet not tested | Real desktop/laptop not tested | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects real-device coverage rows with broken runtime outcome wording", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 failed to render | Real tablet iPad Safari 18 shows a blank screen | Real desktop/laptop Chrome 126 not working | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: phone cell must name real physical phone or mobile evidence",
+      "Ride Voice Canvas: tablet cell must name real physical tablet evidence",
+      "Ride Voice Canvas: desktop/laptop cell must name real desktop or laptop evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects dated evidence that does not contain a valid calendar date", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-99-99 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects dated evidence that is in the future", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2099-01-01 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects negative dated evidence notes", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts not reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects device evidence notes with contradictory broken-device wording", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Real phone iOS Safari 18 passed | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 but real phone failed to render |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidDeviceCoverageRows).toEqual([
+      "Ride Voice Canvas: evidence must include dated real phone, tablet, and desktop/laptop screenshot/photo artifact evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("real-device coverage row")]),
+    );
+  });
+
+  it("rejects negative analytics sink review evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Not reviewed by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Analytics sink reviewed"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects environment analytics review evidence without a concrete artifact", () => {
+    const completed = completedMatrix().replace(
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Reviewed aggregate launch sink on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Analytics sink reviewed"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague required behavior rows", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      "| Provider Reply Voice Canvas | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual(
+      expect.arrayContaining([
+        "Provider Reply Voice Canvas: start/resume cell must mention start, resumed work, entered information preservation, no write, and no resubmission evidence",
+        "Provider Reply Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, entered information preservation, no write, and no resubmission evidence",
+        "Provider Reply Voice Canvas: refresh/reconnect cell must mention refresh, reconnect, restored work, entered information preservation, no write, and no resubmission evidence",
+        "Provider Reply Voice Canvas: voice interruption cell must mention interruption recovery, preserved work, entered information preservation, no write, and no resubmission evidence",
+        "Provider Reply Voice Canvas: browser back cell must mention safe back navigation with preserved entered information and no write",
+        "Provider Reply Voice Canvas: cancel/exit cell must mention cancel, exit, and no write evidence",
+        "Provider Reply Voice Canvas: flag rollback/fallback cell must mention open-session flag rollback, Canvas closure, existing fallback, and no write evidence",
+        "Provider Reply Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+        "Provider Reply Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
+        "Provider Reply Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+        "Provider Reply Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
+        "Provider Reply Voice Canvas: privacy-safe analytics cell must mention aggregate analytics and no sensitive data evidence",
+        PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+      ]),
+    );
+    expect(result.invalidBehaviorRows.length).toBeGreaterThan(4);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior evidence notes that omit behavior coverage details", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        "QA screenshot/log evidence reviewed on 2026-07-19",
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+    ]);
+  });
+
+  it("rejects behavior evidence notes that omit concrete artifacts", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        BEHAVIOR_CHECKLIST_PROSE_EVIDENCE,
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+    ]);
+  });
+
+  it("rejects behavior evidence notes with contradictory safety wording", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        `${BEHAVIOR_CHECKLIST_EVIDENCE} but external action triggered`,
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      PROVIDER_REPLY_BEHAVIOR_EVIDENCE_ERROR,
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior evidence artifacts that include sensitive details", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Provider Reply Voice Canvas"),
+      behaviorChecklistRow(
+        "Provider Reply Voice Canvas",
+        `${BEHAVIOR_CHECKLIST_EVIDENCE} and restore screenshot captured address details`,
+      ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Provider Reply Voice Canvas: behavior evidence artifacts must not include transcripts, entered text, addresses, or personal details",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe start and resume evidence", () => {
+    const completed = completedMatrix().replace(
+      "Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Start and resume restored evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: start/resume cell must mention start, resumed work, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior rows with negative required-outcome wording", () => {
+    const completed = completedMatrix().replace(
+      behaviorChecklistRow("Ride Voice Canvas"),
+      behaviorChecklistRow("Ride Voice Canvas")
+        .replace(
+          "Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "Start and resume not restored work with no write evidence",
+        )
+        .replace(
+          "App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "App exit and reopen draft not restored with no write evidence",
+        )
+        .replace(
+          "Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "Voice interruption recovery not preserved current work with no write evidence",
+        )
+        .replace(
+          "Duplicate confirmation prevented and stale response ignored evidence passed",
+          "Duplicate confirmation not prevented and stale response not ignored evidence",
+        )
+        .replace(
+          "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+          "Recoverable failure blocked state not offered retry and exit with no write evidence",
+        )
+        .replace(
+          "Senior copy uses one clear decision, readable long labels, and explains what happens next",
+          "Senior copy uses one clear decision, not readable long labels, and explains what happens next",
+        ),
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: start/resume cell must mention start, resumed work, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: voice interruption cell must mention interruption recovery, preserved work, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
+      "Ride Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without explicit app exit and reopen restoration evidence", () => {
+    const completed = completedMatrix().replace(
+      "App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Passed by QA",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe app exit and reopen no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "App exit and reopen restored draft evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe refresh and reconnect restoration evidence", () => {
+    const completed = completedMatrix().replace(
+      "Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Refresh and reconnect network evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: refresh/reconnect cell must mention refresh, reconnect, restored work, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without explicit voice interruption recovery evidence", () => {
+    const completed = completedMatrix().replace(
+      "Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Passed by QA",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: voice interruption cell must mention interruption recovery, preserved work, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe voice interruption no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Voice interruption recovery preserved the current scene",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: voice interruption cell must mention interruption recovery, preserved work, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe browser back preservation evidence", () => {
+    const completed = completedMatrix().replace(
+      "Browser back returned safely with entered information preserved, no write, and no external action evidence passed",
+      "Browser back navigation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: browser back cell must mention safe back navigation with preserved entered information and no write",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe cancel and exit evidence", () => {
+    const completed = completedMatrix().replace(
+      "Cancel and exit with no write and no external action evidence passed",
+      "Cancel and exit evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: cancel/exit cell must mention cancel, exit, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe flag rollback fallback evidence", () => {
+    const completed = completedMatrix().replace(
+      "Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed",
+      "Feature flag rollback fallback evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: flag rollback/fallback cell must mention open-session flag rollback, Canvas closure, existing fallback, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects flag rollback evidence that does not prove Canvas closed in an open session", () => {
+    const completed = completedMatrix().replace(
+      "Feature flag rollback during open session closed Canvas and restored existing fallback with no write and no external action evidence passed",
+      "Feature flag rollback restored existing fallback with no write and no external action evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: flag rollback/fallback cell must mention open-session flag rollback, Canvas closure, existing fallback, and no write evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior rows that use no-external-action wording instead of explicit no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "App exit and reopen restored draft with no external action evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: app exit/reopen cell must mention app exit/reopen, restored draft, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior rows that use no-write wording without explicit no-external-action evidence", () => {
+    const completed = completedMatrix().replace(
+      "Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Refresh and reconnect restored work with no write evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: refresh/reconnect cell must mention refresh, reconnect, restored work, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects behavior rows that omit explicit no-resubmission evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Start and resume restored work with no write and no external action evidence passed",
+      )
+      .replace(
+        "Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Refresh and reconnect restored work with no write and no external action evidence passed",
+      )
+      .replace(
+        "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Recoverable failure blocked state offered retry and exit with no write and no external action evidence passed",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: start/resume cell must mention start, resumed work, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: refresh/reconnect cell must mention refresh, reconnect, restored work, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects restored-work evidence that omits entered information preservation", () => {
+    const completed = completedMatrix()
+      .replace(
+        "Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Start and resume restored work with no write, no resubmission, and no external action evidence passed",
+      )
+      .replace(
+        "Browser back returned safely with entered information preserved, no write, and no external action evidence passed",
+        "Browser back returned safely with preserved work and no write and no external action evidence passed",
+      )
+      .replace(
+        "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Recoverable failure blocked state offered retry and exit with no write, no resubmission, and no external action evidence passed",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: start/resume cell must mention start, resumed work, entered information preservation, no write, and no resubmission evidence",
+      "Ride Voice Canvas: browser back cell must mention safe back navigation with preserved entered information and no write",
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("accepts checklist wording that says without a write, resubmission, or external action", () => {
+    const completed = completedMatrix()
+      .replace(
+        "Start and resume restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Start and resume restored work with entered information preserved without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "App exit and reopen restored draft with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "App exit and reopen restored draft with entered information preserved without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "Refresh and reconnect restored work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Refresh and reconnect restored work with entered information preserved without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "Voice interruption recovery preserved current work with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Voice interruption recovery preserved current work with entered information preserved without a write, resubmission, or external action evidence passed",
+      )
+      .replace(
+        "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+        "Recoverable failure blocked state offered retry and exit with entered information preserved without a write, resubmission, or external action evidence passed",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("ready");
+    expect(result.readyForLaunch).toBe(true);
+    expect(result.invalidBehaviorRows).toEqual([]);
+    expect(result.problems).toEqual([]);
+  });
+
+  it("rejects ready-for-launch matrices that do not explicitly deny external action before explicit confirmation", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "External action before explicit confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects confirmation safety rows with vague confirmation wording", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "No external action, no write, no booking, no call, no message, and no navigation before confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without every forbidden side-effect class before explicit confirmation", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "No external action before explicit confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects confirmation safety rows that use submission wording instead of explicit no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "No external action, nothing submitted, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects confirmation safety rows that use sent wording instead of explicit no-external-action evidence", () => {
+    const completed = completedMatrix().replace(
+      "No external action, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+      "Nothing sent, no write, no booking, no call, no message, and no navigation before explicit confirmation evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: confirmation safety cell must mention no external action, write, booking, call, message, and navigation before explicit confirmation",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without duplicate prevention and stale response ignoring evidence", () => {
+    const completed = completedMatrix().replace(
+      "Duplicate confirmation prevented and stale response ignored evidence passed",
+      "Duplicate and stale response guard evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects duplicate guard rows that use submission wording instead of explicit prevention evidence", () => {
+    const completed = completedMatrix().replace(
+      "Duplicate confirmation prevented and stale response ignored evidence passed",
+      "Duplicate confirmation not resubmitted and stale response ignored evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: duplicate/stale guard cell must mention duplicate prevention and stale response ignoring",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without explicit recoverable failure retry evidence", () => {
+    const completed = completedMatrix().replace(
+      "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Passed by QA",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without explicit recoverable failure exit evidence", () => {
+    const completed = completedMatrix().replace(
+      "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Recoverable failure blocked state offered retry and recovery with no write evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without safe recoverable failure no-write evidence", () => {
+    const completed = completedMatrix().replace(
+      "Recoverable failure blocked state offered retry and exit with entered information preserved, no write, no resubmission, and no external action evidence passed",
+      "Recoverable failure blocked state offered retry and exit recovery",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: recoverable failure retry cell must mention recoverable failure, retry, exit, entered information preservation, no write, and no resubmission evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without aggregate no-sensitive analytics behavior evidence", () => {
+    const completed = completedMatrix().replace(
+      "Privacy-safe aggregate analytics telemetry with no sensitive data evidence passed",
+      "Privacy-safe analytics telemetry evidence passed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: privacy-safe analytics cell must mention aggregate analytics and no sensitive data evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without one-clear-decision senior copy evidence", () => {
+    const completed = completedMatrix().replace(
+      "Senior copy uses one clear decision, readable long labels, and explains what happens next",
+      "Senior copy explains what happens next",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects senior copy behavior rows that mention labels without proving readability", () => {
+    const completed = completedMatrix().replace(
+      "Senior copy uses one clear decision, readable long labels, and explains what happens next",
+      "Senior copy uses one clear decision, long labels, and explains what happens next",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidBehaviorRows).toEqual([
+      "Ride Voice Canvas: senior-friendly copy cell must mention senior copy, one clear decision, readable labels, and what happens next",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("required behavior row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague copy/accessibility rows", () => {
+    const completed = completedMatrix().replace(
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference dated screen-reader announcement evidence for waiting, blocked, and completed states",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects copy/accessibility evidence notes that omit specific coverage details", () => {
+    const completed = completedMatrix().replace(
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English one clear decision copy screenshot/read-through evidence reviewed for each flow on 2026-07-19 |",
+      "| English copy uses one clear decision at a time | English copy confirms one clear decision for each flow | QA English copy screenshot evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "English copy uses one clear decision at a time: evidence must reference dated English one-clear-decision copy review for each flow",
+    ]);
+  });
+
+  it("rejects waiting copy rows that omit what is pending or in progress", () => {
+    const completed = completedMatrix().replace(
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says processing continues and no external action is sent yet | QA waiting-state screenshot/read-through evidence reviewed on 2026-07-19: processing remains pending and no external action is sent yet |",
+      "| Waiting states explain what is happening and what is not happening | Waiting copy says no external action is sent yet | QA waiting-state screenshot/read-through evidence reviewed on 2026-07-19: processing remains pending and no external action is sent yet |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Waiting states explain what is happening and what is not happening: result must mention waiting copy, what is pending, and what is not happening",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects Spanish long-label rows that mention overflow without proving no overflow", () => {
+    const completed = completedMatrix().replace(
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Spanish copy and long labels remain readable without horizontal overflow: result must mention Spanish long-label readability without horizontal overflow",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects copy/accessibility rows with negative required-outcome wording", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements not verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+      )
+      .replace(
+        "| Reduced-motion mode remains calm and usable | Reduced-motion mode verified calm and usable | QA reduced-motion calm usable evidence reviewed on 2026-07-19 |",
+        "| Reduced-motion mode remains calm and usable | Reduced-motion mode remains calm but not usable | QA reduced-motion calm usable evidence reviewed on 2026-07-19 |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+      "Reduced-motion mode remains calm and usable: result must mention reduced-motion mode as calm and usable",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects copy/accessibility evidence notes with contradictory outcome wording", () => {
+    const completed = completedMatrix().replace(
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 |",
+      "| Spanish copy and long labels remain readable without horizontal overflow | Spanish long labels remain readable with no horizontal overflow | QA Spanish long-label screenshot/read-through evidence reviewed as readable with no horizontal overflow on 2026-07-19 but labels clipped |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Spanish copy and long labels remain readable without horizontal overflow: evidence must reference dated Spanish long-label readability without horizontal overflow",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects copy/accessibility rows with missing or unavailable outcome wording", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard-only completion unavailable for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+      )
+      .replace(
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus does not move to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
+      )
+      .replace(
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+        "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements missing for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
+      "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
+      "Screen-reader announcements fire for waiting, blocked, and completed states: result must mention screen-reader announcements for waiting, blocked, and completed states",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects keyboard and focus rows that omit completion or movement evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Keyboard-only completion works for each flow | Keyboard-only completion verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+        "| Keyboard-only completion works for each flow | Keyboard verified for all flows | QA keyboard completion evidence reviewed for all flows on 2026-07-19 |",
+      )
+      .replace(
+        "| Focus moves meaningfully when scenes change | Focus moves to the new scene heading or control when scenes change | QA focus moved to new scene heading or control evidence reviewed on 2026-07-19 |",
+        "| Focus moves meaningfully when scenes change | Focus is visible on each scene | QA focus evidence reviewed on 2026-07-19 |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Keyboard-only completion works for each flow: result must mention keyboard-only completion for each flow",
+      "Focus moves meaningfully when scenes change: result must mention focus movement on scene changes",
+      "Focus moves meaningfully when scenes change: evidence must reference dated focus movement to a new scene heading or control",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects screen-reader evidence that omits announced state coverage", () => {
+    const completed = completedMatrix().replace(
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed for waiting, blocked, and completed states on 2026-07-19 |",
+      "| Screen-reader announcements fire for waiting, blocked, and completed states | Screen-reader announcements verified for waiting, blocked, and completed states | QA screen-reader announcement evidence reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidCopyAccessibilityRows).toEqual([
+      "Screen-reader announcements fire for waiting, blocked, and completed states: evidence must reference dated screen-reader announcement evidence for waiting, blocked, and completed states",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("copy/accessibility row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague privacy review rows", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must name the forbidden data class and state it was absent",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects privacy review rows with vague no-issue wording", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | No issue found | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must name the forbidden data class and state it was absent",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects privacy review rows that omit the forbidden data class", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | No sensitive data recorded in analytics sink | Analytics telemetry sample artifact reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must name the forbidden data class and state it was absent",
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects privacy review rows that also state sensitive data was logged", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent, but typed free text logged in analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: result must name the forbidden data class and state it was absent",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects privacy evidence that also states sensitive ride details were logged", () => {
+    const completed = completedMatrix().replace(
+      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample artifact for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Ride pickup, dropoff, destination, or route details | Ride pickup, dropoff, destination, or route details absent from analytics sink | Analytics telemetry sample artifact for Ride pickup, dropoff, destination, or route details reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values, but pickup destination logged in the sample artifact |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Ride pickup, dropoff, destination, or route details: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without allowed-envelope privacy evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without non-identifying allowed-values privacy evidence", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics privacy row")]),
+    );
+  });
+
+  it("rejects privacy evidence that omits concrete analytics artifacts", () => {
+    const completed = completedMatrix().replace(
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample artifact for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+      "| Typed free text | Typed free text absent from analytics sink | Analytics telemetry sample for Typed free text reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidPrivacyRows).toEqual([
+      "Typed free text: evidence must name the forbidden data class and reference dated analytics or telemetry review with only allowed envelope fields and non-identifying allowed values",
+    ]);
+  });
+
+  it("rejects ready-for-launch matrices with vague analytics signal rows", () => {
+    const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Resumed | Passed by QA | Passed by QA | Evidence captured by QA |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: source event must match the canonical launch signal",
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
+      "Resumed: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects analytics signal evidence that omits signal-specific source and count details", () => {
+    const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry aggregate signal query artifact reviewed on 2026-07-19 with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence",
+    ]);
+  });
+
+  it("rejects analytics signal evidence without non-identifying allowed values proof", () => {
+    const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence",
+    ]);
+  });
+
+  it("rejects analytics signal evidence that omits concrete artifacts", () => {
+    const completed = completedMatrix().replace(
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Resumed | draft_restored or scene_viewed with restored true verified | Resumed analytics query artifact aggregate signal count 5 observed | Analytics telemetry evidence reviewed on 2026-07-19: Resumed draft_restored aggregate signal count 5 observed with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence",
+    ]);
+  });
+
+  it("accepts terminal pending as a completed launch analytics source", () => {
+    const completed = completedMatrix().replace(
+      "| Completed | completed source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed completed source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Completed | terminal pending source event verified | Completed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Completed terminal pending source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
+    expect(result.readyForLaunch).toBe(true);
+  });
+
+  it("rejects analytics signal evidence that includes sensitive data leakage", () => {
+    const completed = completedMatrix().replace(
+      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values |",
+      "| Confirmed | confirmation_submitted source event verified | Confirmed analytics query artifact aggregate signal count 4 observed | Analytics telemetry query artifact reviewed on 2026-07-19: Confirmed confirmation_submitted source event aggregate signal count 4 observed with only allowed envelope fields and non-identifying allowed values and route details captured in the query artifact |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Confirmed: evidence must include dated source-event, positive aggregate count, and allowed-envelope evidence",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without numeric aggregate signal counts", () => {
+    const completed = completedMatrix().replace(
+      "Resumed analytics query artifact aggregate signal count 5 observed",
+      "Resumed analytics query artifact aggregate signal count observed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with zero aggregate signal counts", () => {
+    const completed = completedMatrix().replace(
+      "Resumed analytics query artifact aggregate signal count 5 observed",
+      "Resumed analytics query artifact aggregate signal count 0 observed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects analytics rows when a positive number is unrelated to a zero signal count", () => {
+    const completed = completedMatrix().replace(
+      "Resumed analytics query artifact aggregate signal count 5 observed",
+      "Resumed analytics query artifact aggregate signal reviewed 1 sample with signal count 0 observed",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidAnalyticsSignalRows).toEqual([
+      "Resumed: result must mention the aggregate signal/count reviewed with a positive numeric count",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([expect.stringContaining("analytics signal row")]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with vague environment records", () => {
+    const completed = completedMatrix().replace(
+      "| Environment URL | https://staging.vyva.app/canvas-qa |",
+      "| Environment URL | Passed - evidence captured by QA on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Environment URL"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with local or mock environment evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Environment URL | https://staging.vyva.app/canvas-qa |",
+        "| Environment URL | http://localhost:5173/canvas-qa |",
+      )
+      .replace(
+        "| Voice provider/session mode | Live voice session on staging browser |",
+        "| Voice provider/session mode | Mock voice session on local browser |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Environment URL",
+      "Voice provider/session mode",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with unavailable environment evidence", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Test account | qa-senior-canvas@example.test |",
+        "| Test account | qa-senior-canvas@example.test unavailable |",
+      )
+      .replace(
+        "| Voice provider/session mode | Live voice session on staging browser |",
+        "| Voice provider/session mode | Live voice session on staging browser unavailable |",
+      )
+      .replace(
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows but rollout not returned |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Test account",
+      "Voice provider/session mode",
+      "Initial flag state",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects environment analytics review evidence dated in the future", () => {
+    const completed = completedMatrix().replace(
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2026-07-19 |",
+      "| Analytics sink reviewed | Analytics dashboard artifact reviewed aggregate launch sink on 2099-01-01 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(["Analytics sink reviewed"]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices without concrete environment flag states", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Feature flags checked for QA |",
+      )
+      .replace(
+        "| Rollback flag state | Feature flag artifact log on 2026-07-19 shows disabled false, rollout 0 verified for fallback |",
+        "| Rollback flag state | Rollback flag checked |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Initial flag state",
+      "Rollback flag state",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects environment flag-state evidence without artifacts or dated proof", () => {
+    const completed = completedMatrix()
+      .replace(
+        "| Initial flag state | Feature flag artifact log on 2026-07-19 shows enabled true, rollout 100 for tested flows |",
+        "| Initial flag state | Enabled true, rollout 100 for tested flows |",
+      )
+      .replace(
+        "| Rollback flag state | Feature flag artifact log on 2026-07-19 shows disabled false, rollout 0 verified for fallback |",
+        "| Rollback flag state | Disabled false, rollout 0 verified for fallback |",
+      );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual([
+      "Initial flag state",
+      "Rollback flag state",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("environment field"),
+      ]),
+    );
+  });
+
+  it("rejects ready-for-launch matrices with filled but failing QA evidence", () => {
+    const completed = replaceDeviceRow(
+      completedMatrix(),
+      "Ride Voice Canvas",
+      "| Ride Voice Canvas | Failed - phone lost restored draft | Real tablet iPad Safari 18 passed | Real desktop/laptop Chrome 126 passed | QA real phone screenshot, tablet screenshot, and desktop/laptop screenshot artifacts reviewed on 2026-07-19 |",
+    );
+
+    const result = evaluateCanvasRealDeviceQaMatrix(completed);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.incompleteCellCount).toBe(0);
+    expect(result.failingCellCount).toBe(1);
+    expect(result.missingRequiredMatrixRows).toEqual([]);
+    expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidInteractionModeRows).toEqual([]);
+    expect(result.invalidBehaviorRows).toEqual([]);
+    expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidTaskHubDestinationRows).toEqual([]);
+    expect(result.invalidCopyAccessibilityRows).toEqual([]);
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
+    expect(result.invalidPrivacyRows).toEqual([]);
+    expect(result.invalidArtifactInventoryRows).toEqual([]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("failing or not-ready QA cell"),
+      ]),
+    );
+  });
+
+  it("accepts the matrix only after all required evidence and sign-offs are filled", () => {
+    const result = evaluateCanvasRealDeviceQaMatrix(completedMatrix());
+
+    expect(result.state).toBe("ready");
+    expect(result.readyForLaunch).toBe(true);
+    expect(result.incompleteCellCount).toBe(0);
+    expect(result.failingCellCount).toBe(0);
+    expect(result.missingRequiredMatrixRows).toEqual([]);
+    expect(result.invalidEnvironmentFields).toEqual([]);
+    expect(result.invalidEntrySurfaceRows).toEqual([]);
+    expect(result.invalidDeviceCoverageRows).toEqual([]);
+    expect(result.invalidInteractionModeRows).toEqual([]);
+    expect(result.invalidBehaviorRows).toEqual([]);
+    expect(result.invalidFeatureFlagRows).toEqual([]);
+    expect(result.invalidTaskHubDestinationRows).toEqual([]);
+    expect(result.invalidCopyAccessibilityRows).toEqual([]);
+    expect(result.invalidAnalyticsSignalRows).toEqual([]);
+    expect(result.invalidPrivacyRows).toEqual([]);
+    expect(result.invalidArtifactInventoryRows).toEqual([]);
+    expect(result.missingRequiredSignoffRoles).toEqual([]);
+    expect(result.incompleteRequiredSignoffRoles).toEqual([]);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual([]);
+    expect(result.unapprovedRequiredSignoffRoles).toEqual([]);
+    expect(result.blockedRequiredSignoffNoteRoles).toEqual([]);
+    expect(result.invalidRequiredSignoffNoteRoles).toEqual([]);
+    expect(result.problems).toEqual([]);
+  });
+
+  it("rejects otherwise complete matrices with stale launch evidence dates", () => {
+    const staleMatrix = completedMatrix().replaceAll("2026-07-19", "2000-01-01");
+    const result = evaluateCanvasRealDeviceQaMatrix(staleMatrix);
+
+    expect(result.state).toBe("invalid");
+    expect(result.readyForLaunch).toBe(false);
+    expect(result.invalidEnvironmentFields).toEqual(
+      expect.arrayContaining([
+        "Analytics sink reviewed",
+        "Initial flag state",
+        "Rollback flag state",
+      ]),
+    );
+    expect(result.invalidDeviceCoverageRows.length).toBeGreaterThan(0);
+    expect(result.invalidArtifactInventoryRows.length).toBeGreaterThan(0);
+    expect(result.invalidRequiredSignoffDateRoles).toEqual([
+      "Product",
+      "Engineering",
+      "QA",
+      "Operations/rollback owner",
+    ]);
+    expect(result.problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("must be no older than 7 days"),
+      ]),
+    );
+  });
+});

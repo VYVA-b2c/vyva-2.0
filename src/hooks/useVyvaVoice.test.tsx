@@ -5,6 +5,7 @@ import {
   VYVA_VOICE_SESSION_STORAGE_KEY,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
 } from "@/lib/voiceSessionBridge";
+import { VYVA_VOICE_HOME_INTENT_EVENT } from "@/lib/voiceNavigation";
 
 const voiceMocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -48,6 +49,7 @@ type MockConversation = {
 };
 
 type MockStartSessionOptions = {
+  clientTools?: Record<string, (parameters: unknown) => Promise<string>>;
   onConversationCreated?: (conversation: MockConversation) => void;
   onConnect?: () => void;
   onMessage?: (payload: unknown) => void;
@@ -321,6 +323,49 @@ describe("useVyvaVoice", () => {
     });
 
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
+  });
+
+  it("opens every broad pillar destination when the agent sends a domain-only tool call", async () => {
+    let controller: VoiceController | null = null;
+    const homeIntentHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+
+    try {
+      render(
+        <VyvaVoiceProvider>
+          <VoiceHarness onController={(nextController) => {
+            controller = nextController;
+          }} />
+        </VyvaVoiceProvider>,
+      );
+
+      await waitFor(() => expect(controller).not.toBeNull());
+
+      await act(async () => {
+        await controller?.startVoice("app_open", undefined, {
+          agentId: "agent_test",
+          autoStartListening: true,
+          skipMicrophone: true,
+        });
+      });
+
+      const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+      const cases = [
+        [{ domain: "health" }, "health", "Showing the Health choices."],
+        [{ domain: "brain_coach" }, "mind", "Showing the Mind choices."],
+        [{ domain: "social" }, "community", "Showing the Community choices."],
+        [{ domain: "concierge" }, "concierge", "Showing the Concierge choices."],
+      ] as const;
+
+      for (const [parameters, intent, expectedResult] of cases) {
+        const result = await sessionOptions?.clientTools?.open_app_action?.(parameters);
+        expect(result).toBe(expectedResult);
+        expect(homeIntentHandler.mock.calls.at(-1)?.[0].detail).toBe(intent);
+      }
+      expect(homeIntentHandler).toHaveBeenCalledTimes(cases.length);
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    }
   });
 
   it("adds raw ElevenLabs agent response events to the visible VYVA transcript", async () => {

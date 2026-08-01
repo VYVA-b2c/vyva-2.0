@@ -1,0 +1,57 @@
+.platform-gallery {
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: #f8f5ef;
+  color: #26352f;
+}
+.platform-gallery > header,
+.platform-gallery-controls,
+.platform-gallery-stage {
+  width: min(100%, 70rem);
+  margin-inline: auto;
+}
+.platform-gallery > header h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  margin-block: 0.25rem;
+}
+.platform-gallery-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  margin-block: 2rem;
+}
+.platform-gallery-controls label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 700;
+  flex: 1 1 14rem;
+}
+.platform-gallery-controls select {
+  min-height: 3rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid #567267;
+  border-radius: 0.75rem;
+  background: white;
+  font: inherit;
+}
+.platform-gallery-check {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 3rem;
+}
+.platform-gallery-check input {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.platform-gallery-stage {
+  max-width: 48rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .platform-gallery *,
+  .platform-gallery *::before,
+  .platform-gallery *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

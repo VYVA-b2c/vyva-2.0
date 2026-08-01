@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import OpenAI from "openai";
 import { z } from "zod";
 import { db } from "../db.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
@@ -38,7 +39,7 @@ import {
 export const adminMarketingRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
-const DEFAULT_LOVABLE_MARKETING_EXPORT_URL = "https://hecijzbvpxeagcapxwwn.supabase.co/functions/v1/marketing-export";
+const DEFAULT_SOURCE_MARKETING_EXPORT_URL = "https://hecijzbvpxeagcapxwwn.supabase.co/functions/v1/marketing-export";
 const MARKETING_SYNC_STATUS_BUILD = "marketing-sync-status-2026-07-12-no-cache";
 
 function marketingSchemaErrorMessage(error: unknown, fallback: string) {
@@ -55,7 +56,7 @@ function marketingSchemaErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-const marketingChannels = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
+const marketingChannels = ["email", "whatsapp", "sms", "phone", "print", "event", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const audienceTypes = ["b2c", "b2b", "both"] as const;
 const campaignStatuses = ["draft", "scheduled", "published", "paused", "archived"] as const;
 const contentStatuses = ["draft", "review", "approved", "published", "archived"] as const;
@@ -135,6 +136,12 @@ const contentBodySchema = z.object({
 });
 
 const contentPatchSchema = contentBodySchema.partial();
+
+const bulkTranslateContentSchema = z.object({
+  contentIds: z.array(z.string().uuid()).min(1).max(25),
+  targetLanguages: z.array(z.string().trim().toLowerCase().min(2).max(12)).min(1).max(10),
+  mode: z.enum(["preview", "save"]).optional().default("preview"),
+});
 
 const mediaPatchSchema = z.object({
   contentAssetId: nullableUuidSchema,
@@ -216,6 +223,27 @@ const audienceBodySchema = z.object({
 
 const audiencePatchSchema = audienceBodySchema.partial();
 
+const marketingAiToneSchema = z.enum(["warm", "expert", "direct", "uplifting"]);
+
+const marketingAiCampaignDraftSchema = z.object({
+  playLabel: z.string().trim().max(140).optional().default("Campaign"),
+  playCategory: z.string().trim().max(80).optional().default(""),
+  audienceType: audienceTypeSchema.optional().default("b2c"),
+  channel: channelSchema.optional().default("email"),
+  tone: marketingAiToneSchema.optional().default("warm"),
+  targetAudienceName: z.string().trim().max(180).optional().default(""),
+  targetAudienceSize: z.number().int().nonnegative().max(1_000_000).optional(),
+  campaignBrief: z.string().trim().max(1400).optional().default(""),
+  campaignName: z.string().trim().max(180).optional().default(""),
+  contentTitle: z.string().trim().max(180).optional().default(""),
+  objective: z.string().trim().max(1400).optional().default(""),
+  subjectSeed: z.string().trim().max(240).optional().default(""),
+  bodySeed: z.string().trim().max(5000).optional().default(""),
+  ctaLabel: z.string().trim().max(80).optional().default(""),
+  ctaUrl: z.string().trim().max(500).optional().default(""),
+  language: z.string().trim().min(2).max(24).optional().default("en"),
+});
+
 function actor(req: Request) {
   return String(req.user?.email ?? req.user?.id ?? "admin");
 }
@@ -224,7 +252,7 @@ function isSuperAdmin(req: Request) {
   return typeof req.user?.email === "string" && req.user.email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
 }
 
-function requireSuperAdmin(req: Request, res: Response, action = "run Lovable marketing sync") {
+function requireSuperAdmin(req: Request, res: Response, action = "run Source marketing sync") {
   if (isSuperAdmin(req)) return true;
   res.status(403).json({ error: `Only the super admin can ${action}.` });
   return false;
@@ -249,11 +277,11 @@ function envValue(...keys: string[]) {
 }
 
 function lovableMarketingApiUrl() {
-  return envValue("LOVABLE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL") || DEFAULT_LOVABLE_MARKETING_EXPORT_URL;
+  return envValue("SOURCE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL") || DEFAULT_SOURCE_MARKETING_EXPORT_URL;
 }
 
 function lovableMarketingApiKey() {
-  return envValue("LOVABLE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN");
+  return envValue("SOURCE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN");
 }
 
 function envKeyPresence(keys: string[]) {
@@ -265,14 +293,14 @@ function firstPresentEnvKey(keys: string[]) {
 }
 
 function lovableMarketingSyncDiagnostics(apiUrl: string, apiKey: string) {
-  const urlKeys = ["LOVABLE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL"];
-  const tokenKeys = ["LOVABLE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN"];
+  const urlKeys = ["SOURCE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL"];
+  const tokenKeys = ["SOURCE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN"];
   return {
     apiUrlSource: firstPresentEnvKey(urlKeys) ?? "default",
     tokenSource: firstPresentEnvKey(tokenKeys),
     urlAliasPresent: envKeyPresence(urlKeys),
     tokenAliasPresent: envKeyPresence(tokenKeys),
-    hasDefaultEndpoint: apiUrl === DEFAULT_LOVABLE_MARKETING_EXPORT_URL,
+    hasDefaultEndpoint: apiUrl === DEFAULT_SOURCE_MARKETING_EXPORT_URL,
     hasBearerToken: Boolean(apiKey),
   };
 }
@@ -312,6 +340,283 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function clippedText(value: unknown, fallback: string, maxLength: number) {
+  const text = typeof value === "string" ? value.trim() : "";
+  const resolved = text || fallback;
+  return resolved.length > maxLength ? resolved.slice(0, maxLength).trim() : resolved;
+}
+
+type MarketingAiCampaignDraftInput = z.infer<typeof marketingAiCampaignDraftSchema>;
+
+type MarketingAiCampaignDraft = {
+  campaignName: string;
+  contentTitle: string;
+  objective: string;
+  subject: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  language: string;
+  designJson: Record<string, unknown>;
+};
+
+const marketingToneDirection: Record<z.infer<typeof marketingAiToneSchema>, string> = {
+  warm: "warm, human, reassuring, and clear",
+  expert: "credible, practical, precise, and useful",
+  direct: "short, action-oriented, and easy to scan",
+  uplifting: "positive, encouraging, and momentum-building",
+};
+
+const marketingChannelDirection: Record<typeof marketingChannels[number], string> = {
+  email: "Use a crisp subject, one central idea, and one primary call to action.",
+  whatsapp: "Keep the copy conversational, brief, and easy to reply to.",
+  sms: "Keep the message short, consent-aware, and focused on one reply or link action.",
+  phone: "Write a practical call script with opener, qualifying question, close, and outcome note.",
+  print: "Make the copy readable offline with a clear headline, handoff, and QR/link route.",
+  event: "Include place, timing, accessibility, owner, and post-event follow-up instructions.",
+  facebook: "Make the hook shareable and community-friendly.",
+  instagram: "Make the copy visual-first with a strong caption opening.",
+  linkedin: "Lead with the professional value and practical outcome.",
+  tiktok: "Write it like a short creator prompt with a strong opening line.",
+};
+
+function fallbackMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput): MarketingAiCampaignDraft {
+  const audience = input.targetAudienceName || input.audienceType.toUpperCase();
+  const playLabel = input.playLabel || "Campaign";
+  const campaignName = input.campaignName || `${playLabel} - ${audience}`;
+  const contentTitle = input.contentTitle || `${campaignName} ${input.channel}`;
+  const subject = input.subjectSeed || `${playLabel}: a useful next step`;
+  const campaignBrief = input.campaignBrief.trim();
+  const bodySeed = input.bodySeed || input.objective || `Share a practical VYVA update with ${audience}.`;
+  const body = [
+    campaignBrief ? `Campaign brief: ${campaignBrief}` : "",
+    bodySeed,
+    "",
+    `Write this for ${audience} in a ${marketingToneDirection[input.tone]} voice.`,
+    marketingChannelDirection[input.channel],
+    "Keep the message non-clinical, practical, and focused on one action.",
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    campaignName,
+    contentTitle,
+    objective: [
+      input.objective || `Move ${audience} toward one useful VYVA action.`,
+      campaignBrief ? `Campaign brief: ${campaignBrief}.` : "",
+      `Audience: ${audience}.`,
+      `Tone: ${input.tone}.`,
+      `Channel: ${input.channel}.`,
+    ].filter(Boolean).join("\n"),
+    subject,
+    body,
+    ctaLabel: input.ctaLabel || "Open VYVA",
+    ctaUrl: input.ctaUrl || "https://v2.vyva.life",
+    language: input.language || "en",
+    designJson: {
+      generator: "marketing_ai_assist_fallback",
+      playLabel,
+      playCategory: input.playCategory,
+      tone: input.tone,
+      channel: input.channel,
+      audience,
+      campaignBrief: campaignBrief || null,
+    },
+  };
+}
+
+function normalizeMarketingAiCampaignDraft(value: unknown, fallback: MarketingAiCampaignDraft): MarketingAiCampaignDraft {
+  const record = asRecord(value);
+  return {
+    campaignName: clippedText(record.campaignName ?? record.campaign_name, fallback.campaignName, 180),
+    contentTitle: clippedText(record.contentTitle ?? record.content_title, fallback.contentTitle, 180),
+    objective: clippedText(record.objective, fallback.objective, 1400),
+    subject: clippedText(record.subject, fallback.subject, 240),
+    body: clippedText(record.body, fallback.body, 12000),
+    ctaLabel: clippedText(record.ctaLabel ?? record.cta_label, fallback.ctaLabel, 80),
+    ctaUrl: clippedText(record.ctaUrl ?? record.cta_url, fallback.ctaUrl, 500),
+    language: clippedText(record.language, fallback.language, 24),
+    designJson: {
+      ...fallback.designJson,
+      generator: "marketing_ai_assist",
+      modelHints: asRecord(record.designJson ?? record.design_json),
+    },
+  };
+}
+
+const marketingTranslationLanguageLabels: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  nl: "Dutch",
+  pt: "Portuguese",
+};
+
+type MarketingTranslatedContentDraft = {
+  title: string;
+  subject: string | null;
+  body: string;
+  htmlBody: string | null;
+  ctaLabel: string | null;
+};
+
+function fallbackMarketingTranslation(content: MarketingContentAssetRow, targetLanguage: string): MarketingTranslatedContentDraft {
+  const languageLabel = marketingTranslationLanguageLabels[targetLanguage] ?? targetLanguage.toUpperCase();
+  const marker = `[${languageLabel} draft]`;
+  return {
+    title: `${content.title} (${targetLanguage.toUpperCase()})`,
+    subject: content.subject ? `${marker} ${content.subject}` : null,
+    body: content.body ? `${marker}\n\n${content.body}` : "",
+    htmlBody: content.html_body ? `<!-- ${marker} -->\n${content.html_body}` : null,
+    ctaLabel: content.cta_label,
+  };
+}
+
+function normalizeMarketingTranslation(value: unknown, fallback: MarketingTranslatedContentDraft): MarketingTranslatedContentDraft {
+  const record = asRecord(value);
+  return {
+    title: clippedText(record.title, fallback.title, 180),
+    subject: emptyToNull(clippedText(record.subject, fallback.subject ?? "", 240)),
+    body: clippedText(record.body, fallback.body, 12000),
+    htmlBody: emptyToNull(clippedText(record.htmlBody ?? record.html_body, fallback.htmlBody ?? "", 100000)),
+    ctaLabel: emptyToNull(clippedText(record.ctaLabel ?? record.cta_label, fallback.ctaLabel ?? "", 80)),
+  };
+}
+
+async function translateMarketingContent(content: MarketingContentAssetRow, targetLanguage: string) {
+  const fallback = fallbackMarketingTranslation(content, targetLanguage);
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      source: "fallback" as const,
+      draft: fallback,
+      note: "OPENAI_API_KEY is not configured, so VYVA created a marked translation draft for manual editing.",
+    };
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const languageLabel = marketingTranslationLanguageLabels[targetLanguage] ?? targetLanguage;
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MARKETING_TRANSLATION_MODEL || process.env.OPENAI_MARKETING_MODEL || "gpt-4o-mini",
+      temperature: 0.25,
+      max_tokens: 1800,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You translate VYVA marketing content.",
+            "Return only valid JSON with keys: title, subject, body, htmlBody, ctaLabel.",
+            "Preserve the meaning, tone, brand name VYVA, URLs, merge tags like {{first_name}}, and all HTML tags/attributes.",
+            "Translate visible human-readable text only. Do not add explanations.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            targetLanguage: languageLabel,
+            sourceLanguage: content.language,
+            title: content.title,
+            subject: content.subject,
+            body: content.body,
+            htmlBody: content.html_body,
+            ctaLabel: content.cta_label,
+          }),
+        },
+      ],
+    });
+    const raw = completion.choices[0]?.message?.content;
+    return {
+      source: "openai" as const,
+      draft: normalizeMarketingTranslation(raw ? JSON.parse(raw) : null, fallback),
+      note: null,
+    };
+  } catch (error) {
+    console.error("[admin/marketing] content translation failed", error);
+    return {
+      source: "fallback" as const,
+      draft: fallback,
+      note: "AI translation failed, so VYVA created a marked translation draft for manual editing.",
+    };
+  }
+}
+
+async function generateMarketingAiCampaignDraft(input: MarketingAiCampaignDraftInput) {
+  const fallback = fallbackMarketingAiCampaignDraft(input);
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      configured: false,
+      source: "fallback" as const,
+      draft: fallback,
+      note: "OPENAI_API_KEY is not configured, so VYVA used the built-in campaign assistant fallback.",
+    };
+  }
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_MARKETING_MODEL || "gpt-4o-mini",
+      temperature: 0.65,
+      max_tokens: 900,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are VYVA's marketing campaign copilot.",
+            "Return only valid JSON with keys: campaignName, contentTitle, objective, subject, body, ctaLabel, ctaUrl, language, designJson.",
+            "Write attractive, practical, non-clinical campaign copy for older adults, families, caregivers, partners, or local community contacts.",
+            "Do not claim medical outcomes, do not diagnose, and do not imply provider dispatch or sending has happened.",
+            "Keep the body ready to paste into an email/social/WhatsApp draft and preserve simple merge tags such as {{first_name}} when useful.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            play: input.playLabel,
+            playCategory: input.playCategory,
+            audienceType: input.audienceType,
+            targetAudienceName: input.targetAudienceName,
+            targetAudienceSize: input.targetAudienceSize ?? null,
+            channel: input.channel,
+            tone: input.tone,
+            language: input.language,
+            campaignBrief: input.campaignBrief,
+            campaignNameSeed: input.campaignName,
+            contentTitleSeed: input.contentTitle,
+            objectiveSeed: input.objective,
+            subjectSeed: input.subjectSeed,
+            bodySeed: input.bodySeed,
+            ctaLabelSeed: input.ctaLabel,
+            ctaUrlSeed: input.ctaUrl,
+            toneDirection: marketingToneDirection[input.tone],
+            channelDirection: marketingChannelDirection[input.channel],
+          }),
+        },
+      ],
+    });
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) throw new Error("OpenAI returned an empty marketing draft.");
+    return {
+      configured: true,
+      source: "openai" as const,
+      draft: normalizeMarketingAiCampaignDraft(JSON.parse(raw), fallback),
+      note: null,
+    };
+  } catch (error) {
+    console.error("[admin/marketing] AI campaign draft failed", error);
+    return {
+      configured: true,
+      source: "fallback" as const,
+      draft: fallback,
+      note: "OpenAI could not generate this draft, so VYVA used the built-in campaign assistant fallback.",
+    };
+  }
+}
+
 function parseJsonLike(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return value;
   try {
@@ -321,7 +626,7 @@ function parseJsonLike(value: unknown) {
   }
 }
 
-function jsonRecordFromLovable(value: unknown) {
+function jsonRecordFromSource(value: unknown) {
   return asRecord(parseJsonLike(value));
 }
 
@@ -382,7 +687,7 @@ function splitTextList(value: unknown) {
 }
 
 function contactFieldSources(row: Record<string, unknown>) {
-  const metadata = jsonRecordFromLovable(row.metadata);
+  const metadata = jsonRecordFromSource(row.metadata);
   return [
     row,
     asRecord(row.contact),
@@ -405,7 +710,7 @@ function contactText(row: Record<string, unknown>, keys: string[], fallback = ""
 }
 
 function contentFieldSources(row: Record<string, unknown>) {
-  const metadata = jsonRecordFromLovable(row.metadata);
+  const metadata = jsonRecordFromSource(row.metadata);
   return [
     row,
     asRecord(row.content),
@@ -521,9 +826,9 @@ function arrayOrSingleton(value: unknown): unknown[] {
   return [];
 }
 
-const LOVABLE_CONTENT_SOURCE_KEY = "__vyvaLovableContentSource";
-const LOVABLE_AUDIENCE_MEMBER_ROWS_KEY = "__vyvaLovableAudienceMemberRows";
-const LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY = "__vyvaLovableEmailUnsubscribeRows";
+const SOURCE_CONTENT_SOURCE_KEY = "__vyvaSourceContentSource";
+const SOURCE_AUDIENCE_MEMBER_ROWS_KEY = "__vyvaSourceAudienceMemberRows";
+const SOURCE_CONTACT_UNSUBSCRIBE_ROWS_KEY = "__vyvaSourceEmailUnsubscribeRows";
 
 const contentTitleKeys = ["title", "name", "templateName", "template_name", "headline", "label"] as const;
 const contentSubjectKeys = ["subject", "subjectLine", "subject_line", "emailSubject", "email_subject", "previewText", "preview_text"] as const;
@@ -615,21 +920,21 @@ const mediaContentRefKeys = [
   "parent_id",
 ] as const;
 
-function withLovableContentSource(items: unknown[], sourceType: string) {
+function withSourceContentSource(items: unknown[], sourceType: string) {
   return items.map((item) => ({
     ...asRecord(item),
-    [LOVABLE_CONTENT_SOURCE_KEY]: sourceType,
+    [SOURCE_CONTENT_SOURCE_KEY]: sourceType,
   }));
 }
 
 function lovableContentPayload(payload: Record<string, unknown>) {
   return [
-    ...withLovableContentSource(arrayFrom(payload.saved_email_templates ?? payload.savedEmailTemplates ?? payload.emailTemplates ?? payload.email_templates ?? payload.marketing_email_templates), "saved_email_template"),
-    ...withLovableContentSource(arrayFrom(payload.templates ?? payload.marketing_templates), "template"),
-    ...withLovableContentSource(arrayFrom(payload.content_briefs ?? payload.contentBriefs ?? payload.briefs ?? payload.marketing_content_briefs), "content_brief"),
-    ...withLovableContentSource(arrayFrom(payload.contentAssets ?? payload.content_assets ?? payload.marketing_content_assets ?? payload.assets), "content_asset"),
-    ...withLovableContentSource(arrayFrom(payload.content), "content"),
-    ...withLovableContentSource(arrayFrom(payload.social_posts ?? payload.socialPosts ?? payload.posts ?? payload.marketing_social_posts), "social_post"),
+    ...withSourceContentSource(arrayFrom(payload.saved_email_templates ?? payload.savedEmailTemplates ?? payload.emailTemplates ?? payload.email_templates ?? payload.marketing_email_templates), "saved_email_template"),
+    ...withSourceContentSource(arrayFrom(payload.templates ?? payload.marketing_templates), "template"),
+    ...withSourceContentSource(arrayFrom(payload.content_briefs ?? payload.contentBriefs ?? payload.briefs ?? payload.marketing_content_briefs), "content_brief"),
+    ...withSourceContentSource(arrayFrom(payload.contentAssets ?? payload.content_assets ?? payload.marketing_content_assets ?? payload.assets), "content_asset"),
+    ...withSourceContentSource(arrayFrom(payload.content), "content"),
+    ...withSourceContentSource(arrayFrom(payload.social_posts ?? payload.socialPosts ?? payload.posts ?? payload.marketing_social_posts), "social_post"),
   ];
 }
 
@@ -689,7 +994,7 @@ function lovableAudiencePayload(payload: Record<string, unknown>) {
   }
 
   return audienceRows.map((audience) => {
-    const audienceExternalId = normalizeLovableId(audience);
+    const audienceExternalId = normalizeSourceId(audience);
     const members = audienceExternalId
       ? externalIdVariants(audienceExternalId, ["audience", "list", "contact_list"]).flatMap((variant) => membersByListId.get(variant) ?? [])
       : [];
@@ -713,7 +1018,7 @@ function lovableAudiencePayload(payload: Record<string, unknown>) {
         ...textArrayFrom(audience.contact_ids),
         ...memberContactExternalIds,
       ]),
-      [LOVABLE_AUDIENCE_MEMBER_ROWS_KEY]: members,
+      [SOURCE_AUDIENCE_MEMBER_ROWS_KEY]: members,
     };
   });
 }
@@ -730,7 +1035,7 @@ function journeyStepJourneyExternalId(step: Record<string, unknown>) {
 }
 
 function journeyStepMergeKey(step: Record<string, unknown>, index: number) {
-  return normalizeLovableId(step)
+  return normalizeSourceId(step)
     ?? emptyToNull(textFrom(step, ["stepOrder", "step_order", "order", "position"]))
     ?? `index:${index}`;
 }
@@ -762,7 +1067,7 @@ function lovableJourneyPayload(payload: Record<string, unknown>) {
   }
 
   return journeyRows.map((journey) => {
-    const journeyExternalId = normalizeLovableId(journey);
+    const journeyExternalId = normalizeSourceId(journey);
     const rawSteps = journeyExternalId
       ? externalIdVariants(journeyExternalId, ["journey", "workflow"]).flatMap((variant) => stepsByJourneyId.get(variant) ?? [])
       : [];
@@ -792,8 +1097,8 @@ function lovableJourneyStepEventPayload(payload: Record<string, unknown>) {
 
 function journeyStepHasPresetTranslations(raw: unknown) {
   const step = asRecord(raw);
-  const config = jsonRecordFromLovable(step.config);
-  const translations = jsonRecordFromLovable(config.translations);
+  const config = jsonRecordFromSource(step.config);
+  const translations = jsonRecordFromSource(config.translations);
   return Object.values(translations).some((value) => Object.keys(asRecord(value)).length > 0);
 }
 
@@ -835,7 +1140,7 @@ function lovableContactPayload(payload: Record<string, unknown>) {
     return {
       ...contact,
       consentStatus: "opted_out",
-      [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeMatches,
+      [SOURCE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeMatches,
     };
   });
   const suppressionOnlyContacts = unsubscribeRows.flatMap((row) => {
@@ -843,7 +1148,7 @@ function lovableContactPayload(payload: Record<string, unknown>) {
     if (!email || contactEmails.has(email)) return [];
     contactEmails.add(email);
     return [{
-      id: normalizeLovableId(row) ?? `unsubscribe:${email}`,
+      id: normalizeSourceId(row) ?? `unsubscribe:${email}`,
       fullName: textFrom(row, ["name", "fullName", "full_name", "contactName", "contact_name"], email),
       email,
       audienceType: "both",
@@ -851,7 +1156,7 @@ function lovableContactPayload(payload: Record<string, unknown>) {
       channelAvailability: { email: true },
       tags: ["lovable_unsubscribe"],
       metadata: { lovable_unsubscribe: row },
-      [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: [row],
+      [SOURCE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: [row],
     }];
   });
 
@@ -869,7 +1174,7 @@ function campaignChildCampaignExternalId(row: Record<string, unknown>) {
 }
 
 function explicitChildMergeKey(row: Record<string, unknown>) {
-  return normalizeLovableId(row)
+  return normalizeSourceId(row)
     ?? emptyToNull(textFrom(row, ["externalKey", "external_key"]));
 }
 
@@ -973,7 +1278,7 @@ function lovableExportSummary(payload: Record<string, unknown>) {
 
   for (const item of audiencePayload) {
     const audienceRow = asRecord(item);
-    const audienceExternalId = normalizeLovableId(audienceRow);
+    const audienceExternalId = normalizeSourceId(audienceRow);
     if (!audienceExternalId) continue;
     for (const variant of externalIdVariants(audienceExternalId, ["audience", "list", "contact_list"])) {
       audienceContactExternalIdsByAudienceExternalId.set(variant, audienceContactExternalIds(audienceRow));
@@ -989,7 +1294,7 @@ function lovableExportSummary(payload: Record<string, unknown>) {
   const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => count + journeyEnrollmentEventPayload(asRecord(item)).length, 0);
   const journeyStepPresetExportCount = journeyStepPresetContentExportCount(journeyPayload);
   const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
-    const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
+    const sourceType = String(asRecord(item)[SOURCE_CONTENT_SOURCE_KEY] ?? "content");
     counts[sourceType] = (counts[sourceType] ?? 0) + 1;
     return counts;
   }, {});
@@ -1090,7 +1395,7 @@ function lovableCampaignPayload(payload: Record<string, unknown>) {
   if (!channelsByCampaignId.size && !recipientsByCampaignId.size) return campaignRows;
 
   return campaignRows.map((campaign) => {
-    const campaignExternalId = normalizeLovableId(campaign);
+    const campaignExternalId = normalizeSourceId(campaign);
     if (!campaignExternalId) return campaign;
     const channelRows = campaignChildRowsForCampaign(channelsByCampaignId, campaignExternalId);
     const recipientRows = campaignChildRowsForCampaign(recipientsByCampaignId, campaignExternalId);
@@ -1124,7 +1429,7 @@ function lovableContentReference(row: Record<string, unknown>) {
   return textFrom(row, [...contentReferenceKeys]);
 }
 
-function contentIdForLovableReference(contentByExternalId: Map<string, string>, externalId: string) {
+function contentIdForSourceReference(contentByExternalId: Map<string, string>, externalId: string) {
   return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"]) ?? null;
 }
 
@@ -1358,6 +1663,10 @@ function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (read
 function normalizeChannel(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (normalized === "whats_app") return "whatsapp";
+  if (["text", "text_message", "sms_message"].includes(normalized)) return "sms";
+  if (["call", "phone_call", "voice", "voice_call", "telephone"].includes(normalized)) return "phone";
+  if (["direct_mail", "mail", "mailer", "flyer", "poster", "postcard", "print_mail"].includes(normalized)) return "print";
+  if (["local_event", "offline_event", "in_person", "in_person_event", "venue", "workshop"].includes(normalized)) return "event";
   if ((marketingChannels as readonly string[]).includes(normalized)) return normalized as typeof marketingChannels[number];
   return "email";
 }
@@ -1401,7 +1710,7 @@ function normalizeRecipientStatus(value: string) {
   return "planned";
 }
 
-function normalizeLovableId(row: Record<string, unknown>) {
+function normalizeSourceId(row: Record<string, unknown>) {
   return emptyToNull(textFrom(row, ["lovableExternalId", "lovable_external_id", "externalId", "external_id", "id"]));
 }
 
@@ -1441,7 +1750,7 @@ function marketingContactIdLookup(contactRows: MarketingContactRow[]) {
   return contactByExternalId;
 }
 
-function jsonObjectFromLovable(value: unknown, arrayKey: string) {
+function jsonObjectFromSource(value: unknown, arrayKey: string) {
   const parsed = parseJsonLike(value);
   if (Array.isArray(parsed)) return { [arrayKey]: parsed };
   return asRecord(parsed);
@@ -1468,7 +1777,7 @@ function contentDesignJson(row: Record<string, unknown>) {
     ...contentValues(row, contentBodyKeys),
   ];
   for (const [value, key] of candidates) {
-    const object = jsonObjectFromLovable(value, key);
+    const object = jsonObjectFromSource(value, key);
     if (Object.keys(object).length > 0) return object;
   }
   return {};
@@ -1883,7 +2192,9 @@ function channelSendCapabilities() {
       ? "Email campaign dispatch uses the existing communications dispatcher and Resend provider."
       : channel === "whatsapp"
         ? "WhatsApp marketing dispatch remains locked until consent and template controls are enabled."
-        : "Planning/tracking only until social platform integrations are added.",
+        : ["sms", "phone", "print", "event"].includes(channel)
+          ? "Planning/tracking only for direct or offline execution. No provider dispatch is triggered."
+          : "Planning/tracking only until social platform integrations are added.",
   }));
 }
 
@@ -2066,6 +2377,14 @@ adminMarketingRouter.get("/analytics", async (req, res) => {
     console.error("[admin/marketing] analytics load failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing analytics could not be loaded.") });
   }
+});
+
+adminMarketingRouter.post("/ai/campaign-draft", async (req, res) => {
+  const parsed = marketingAiCampaignDraftSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const result = await generateMarketingAiCampaignDraft(parsed.data);
+  return res.json({ ok: true, ...result });
 });
 
 adminMarketingRouter.post("/campaigns", async (req, res) => {
@@ -2639,6 +2958,148 @@ adminMarketingRouter.post("/content", async (req, res) => {
   }
 });
 
+adminMarketingRouter.post("/content/bulk-translate", async (req, res) => {
+  const parsed = bulkTranslateContentSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const sourceRows = await db.select()
+      .from(marketingContentAssets)
+      .where(inArray(marketingContentAssets.id, parsed.data.contentIds))
+      .limit(50);
+    const rowsById = new Map(sourceRows.map((row) => [row.id, row]));
+    const orderedRows = parsed.data.contentIds
+      .map((id) => rowsById.get(id))
+      .filter((row): row is MarketingContentAssetRow => Boolean(row));
+    if (!orderedRows.length) return res.status(404).json({ error: "No selected content assets were found." });
+
+    const translationExternalIds = orderedRows.flatMap((row) => (
+      parsed.data.targetLanguages
+        .filter((language) => language !== row.language.toLowerCase())
+        .map((language) => `translation:${row.id}:${language}`)
+    ));
+    const existingTranslations = translationExternalIds.length
+      ? await db.select().from(marketingContentAssets).where(inArray(marketingContentAssets.lovable_external_id, translationExternalIds)).limit(500)
+      : [];
+    const existingByExternalId = new Map(existingTranslations.map((row) => [row.lovable_external_id, row]));
+    const now = new Date();
+    const translations = [];
+    const savedContent = [];
+
+    for (const sourceContent of orderedRows) {
+      for (const targetLanguage of parsed.data.targetLanguages) {
+        if (targetLanguage === sourceContent.language.toLowerCase()) continue;
+        const translationExternalId = `translation:${sourceContent.id}:${targetLanguage}`;
+        const existing = existingByExternalId.get(translationExternalId) ?? null;
+        const translated = await translateMarketingContent(sourceContent, targetLanguage);
+        const metadata = {
+          ...asRecord(sourceContent.metadata),
+          translation: {
+            sourceContentId: sourceContent.id,
+            sourceLanguage: sourceContent.language,
+            targetLanguage,
+            sourceLovableExternalId: sourceContent.lovable_external_id,
+            generatedBy: translated.source,
+            generatedAt: now.toISOString(),
+            note: translated.note,
+          },
+        };
+        const designJson = {
+          ...asRecord(sourceContent.design_json),
+          translation: {
+            sourceContentId: sourceContent.id,
+            sourceLanguage: sourceContent.language,
+            targetLanguage,
+          },
+        };
+        const draft = {
+          title: translated.draft.title,
+          channel: sourceContent.channel,
+          language: targetLanguage,
+          status: "draft",
+          subject: translated.draft.subject,
+          body: translated.draft.body,
+          htmlBody: translated.draft.htmlBody,
+          ctaLabel: translated.draft.ctaLabel,
+          ctaUrl: sourceContent.cta_url,
+          source: "vyva",
+          lovableExternalId: translationExternalId,
+          designJson,
+          mediaAssets: Array.isArray(sourceContent.media_assets) ? sourceContent.media_assets : [],
+          metadata,
+        };
+        let saved: MarketingContentAssetRow | null = null;
+        if (parsed.data.mode === "save") {
+          const payload = {
+            title: draft.title,
+            channel: draft.channel,
+            language: draft.language,
+            status: draft.status,
+            subject: draft.subject,
+            body: draft.body,
+            html_body: draft.htmlBody,
+            cta_label: draft.ctaLabel,
+            cta_url: draft.ctaUrl,
+            design_json: draft.designJson,
+            media_assets: draft.mediaAssets,
+            source: draft.source,
+            lovable_external_id: draft.lovableExternalId,
+            metadata: draft.metadata,
+            created_by: actor(req),
+            updated_by: actor(req),
+            updated_at: now,
+          };
+          [saved] = await db.insert(marketingContentAssets)
+            .values(payload)
+            .onConflictDoUpdate({
+              target: marketingContentAssets.lovable_external_id,
+              set: {
+                title: payload.title,
+                channel: payload.channel,
+                language: payload.language,
+                status: payload.status,
+                subject: payload.subject,
+                body: payload.body,
+                html_body: payload.html_body,
+                cta_label: payload.cta_label,
+                cta_url: payload.cta_url,
+                design_json: payload.design_json,
+                media_assets: payload.media_assets,
+                source: payload.source,
+                metadata: payload.metadata,
+                updated_by: payload.updated_by,
+                updated_at: payload.updated_at,
+              },
+            })
+            .returning();
+          await replaceContentMediaAssetReferences(saved, draft.mediaAssets, now, "vyva");
+        }
+        translations.push({
+          sourceContentId: sourceContent.id,
+          sourceTitle: sourceContent.title,
+          targetLanguage,
+          exists: Boolean(existing),
+          aiSource: translated.source,
+          note: translated.note,
+          draft,
+          savedContent: saved ? serializeContent(saved) : null,
+        });
+        if (saved) savedContent.push(serializeContent(saved));
+      }
+    }
+
+    return res.json({
+      ok: true,
+      mode: parsed.data.mode,
+      translations,
+      savedContent,
+    });
+  } catch (error) {
+    console.error("[admin/marketing] content bulk translate failed", error);
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be translated.") });
+  }
+});
+
 adminMarketingRouter.patch("/content/:contentId", async (req, res) => {
   const parsed = contentPatchSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -3126,7 +3587,7 @@ adminMarketingRouter.delete("/contacts/:contactId", async (req, res) => {
   }
 });
 
-adminMarketingRouter.get("/sync/lovable", async (req, res) => {
+adminMarketingRouter.get("/sync/source", async (req, res) => {
   const apiUrl = lovableMarketingApiUrl();
   const apiKey = lovableMarketingApiKey();
   const hasUrl = Boolean(apiUrl);
@@ -3150,13 +3611,13 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
   });
 });
 
-adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
-  if (!requireSuperAdmin(req, res, "preview the Lovable marketing export")) return;
+adminMarketingRouter.get("/sync/source/preview", async (req, res) => {
+  if (!requireSuperAdmin(req, res, "preview the Source marketing export")) return;
 
   const apiUrl = lovableMarketingApiUrl();
   const apiKey = lovableMarketingApiKey();
   if (!apiUrl || !apiKey) {
-    return res.status(409).json({ error: "Lovable marketing sync is not configured." });
+    return res.status(409).json({ error: "Source marketing sync is not configured." });
   }
 
   try {
@@ -3167,7 +3628,7 @@ adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
       },
     });
     const payload = await response.json().catch(async () => ({ error: await response.text().catch(() => response.statusText) })) as Record<string, unknown>;
-    if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable export preview failed with ${response.status}`));
+    if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Source export preview failed with ${response.status}`));
 
     const summary = lovableExportSummary(payload);
     const exportMetadata = lovableExportMetadata(payload, apiUrl);
@@ -3184,14 +3645,14 @@ adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
     });
   } catch (error) {
     console.error("[admin/marketing] lovable export preview failed", error);
-    return res.status(502).json({ error: error instanceof Error ? error.message : "Lovable export preview failed." });
+    return res.status(502).json({ error: error instanceof Error ? error.message : "Source export preview failed." });
   }
 });
 
-async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string) {
+async function upsertSourceContent(raw: unknown, now: Date, actorLabel: string) {
   const row = asRecord(raw);
-  const sourceType = textFrom(row, [LOVABLE_CONTENT_SOURCE_KEY], "content");
-  const rawExternalId = normalizeLovableId(row);
+  const sourceType = textFrom(row, [SOURCE_CONTENT_SOURCE_KEY], "content");
+  const rawExternalId = normalizeSourceId(row);
   const externalId = rawExternalId && (sourceType === "content" || rawExternalId.includes(":"))
     ? rawExternalId
     : rawExternalId
@@ -3209,7 +3670,7 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
     [...contentTitleKeys],
     contentText(row, [...contentSubjectKeys], sourceType === "social_post" ? "Untitled social post" : "Untitled content"),
   );
-  const { [LOVABLE_CONTENT_SOURCE_KEY]: _sourceMarker, ...lovableMetadata } = row;
+  const { [SOURCE_CONTENT_SOURCE_KEY]: _sourceMarker, ...lovableMetadata } = row;
   const payload = {
     title,
     channel: normalizeChannel(contentText(row, ["channel", "platform", "network"], sourceType === "social_post" ? "instagram" : "email")),
@@ -3232,11 +3693,11 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
     .values({ ...payload, created_by: actorLabel })
     .onConflictDoUpdate({ target: marketingContentAssets.lovable_external_id, set: payload })
     .returning();
-  const mediaAssetCount = await replaceLovableMediaAssets(content, mediaAssets, now);
+  const mediaAssetCount = await replaceSourceMediaAssets(content, mediaAssets, now);
   return { content, mediaAssetCount };
 }
 
-async function upsertMissingLovableContentReference(
+async function upsertMissingSourceContentReference(
   externalId: string,
   channel: string,
   now: Date,
@@ -3247,10 +3708,10 @@ async function upsertMissingLovableContentReference(
   if (!normalizedExternalId) return null;
   const sourceType = lovableReferenceSourceType(normalizedExternalId);
   const sourceLabel = lovableReferenceSourceLabel(sourceType);
-  const title = `Missing Lovable ${sourceLabel}: ${normalizedExternalId}`;
+  const title = `Missing Source ${sourceLabel}: ${normalizedExternalId}`;
   const body = [
-    `Lovable referenced ${normalizedExternalId}, but the export did not include the content body, HTML, design, or media for this item.`,
-    "Run sync again after Lovable exports the referenced item, or replace this placeholder with the real content in VYVA.",
+    `Source referenced ${normalizedExternalId}, but the export did not include the content body, HTML, design, or media for this item.`,
+    "Run sync again after Source exports the referenced item, or replace this placeholder with the real content in VYVA.",
   ].join("\n\n");
   const payload = {
     title,
@@ -3300,7 +3761,7 @@ async function replaceContentMediaAssetReferences(content: MarketingContentAsset
     const originalUrl = emptyToNull(textFrom(media, ["url", "src", "href", "originalUrl", "original_url", ...contentMediaUrlKeys]));
     if (!originalUrl) return null;
     const localUrl = emptyToNull(textFrom(media, ["localUrl", "local_url"]));
-    const externalId = normalizeLovableId(media) ?? `${normalizedSource}:${content.lovable_external_id ?? content.id}:media:${index}:${originalUrl}`;
+    const externalId = normalizeSourceId(media) ?? `${normalizedSource}:${content.lovable_external_id ?? content.id}:media:${index}:${originalUrl}`;
     return {
       content_asset_id: content.id,
       source: normalizedSource,
@@ -3323,11 +3784,11 @@ async function replaceContentMediaAssetReferences(content: MarketingContentAsset
   return rows.length;
 }
 
-async function replaceLovableMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
+async function replaceSourceMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
   return replaceContentMediaAssetReferences(content, mediaAssets, now, "lovable");
 }
 
-async function upsertLovableStandaloneMedia(
+async function upsertSourceStandaloneMedia(
   raw: Record<string, unknown>,
   now: Date,
   contentByExternalId: Map<string, string>,
@@ -3343,7 +3804,7 @@ async function upsertLovableStandaloneMedia(
     contentRef,
     ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"],
   );
-  const externalId = normalizeLovableId(raw) ?? `${contentRef ?? "standalone"}:media:${index}:${originalUrl}`;
+  const externalId = normalizeSourceId(raw) ?? `${contentRef ?? "standalone"}:media:${index}:${originalUrl}`;
   const row = {
     content_asset_id: contentAssetId ?? null,
     source: "lovable",
@@ -3366,13 +3827,13 @@ async function upsertLovableStandaloneMedia(
   return true;
 }
 
-async function upsertLovableContact(raw: unknown, now: Date) {
+async function upsertSourceContact(raw: unknown, now: Date) {
   const row = asRecord(raw);
-  const externalId = normalizeLovableId(row);
+  const externalId = normalizeSourceId(row);
   if (!externalId) return null;
-  const { [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeRows, ...lovableMetadata } = row;
-  const metadata = jsonRecordFromLovable(row.metadata);
-  const segmentation = jsonRecordFromLovable(row.segmentation ?? metadata.segmentation);
+  const { [SOURCE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeRows, ...lovableMetadata } = row;
+  const metadata = jsonRecordFromSource(row.metadata);
+  const segmentation = jsonRecordFromSource(row.segmentation ?? metadata.segmentation);
   const contactSources = contactFieldSources(row);
   const language = emptyToNull(textFromSources([segmentation, ...contactSources], ["language", "lang", "locale", "preferredLanguage", "preferred_language"]));
   const category = emptyToNull(textFromSources([segmentation, ...contactSources], ["category", "contactCategory", "contact_category"]));
@@ -3386,7 +3847,7 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     email: Boolean(email),
     phone: Boolean(phoneNumber),
     whatsapp: Boolean(whatsappNumber),
-    ...jsonRecordFromLovable(row.channelAvailability ?? row.channel_availability),
+    ...jsonRecordFromSource(row.channelAvailability ?? row.channel_availability),
   };
   const contactListTags = uniqueTextArray(contactSources.flatMap((source) => [
     ...splitTextList(source.lists),
@@ -3435,18 +3896,18 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   return contact;
 }
 
-async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string, contactByExternalId: Map<string, string>) {
+async function upsertSourceAudience(raw: unknown, now: Date, actorLabel: string, contactByExternalId: Map<string, string>) {
   const row = asRecord(raw);
-  const externalId = normalizeLovableId(row);
+  const externalId = normalizeSourceId(row);
   if (!externalId) return null;
   const contactExternalIds = audienceContactExternalIds(row);
   const unmappedContactExternalIds = contactExternalIds.filter((contactExternalId) => !lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]));
-  const { [LOVABLE_AUDIENCE_MEMBER_ROWS_KEY]: listMemberRows, ...lovableMetadata } = row;
+  const { [SOURCE_AUDIENCE_MEMBER_ROWS_KEY]: listMemberRows, ...lovableMetadata } = row;
   const payload = {
     name: textFrom(row, ["name", "title"], "Untitled audience"),
     description: emptyToNull(textFrom(row, ["description"])),
     list_type: textFrom(row, ["listType", "list_type", "type"], "static"),
-    rules: jsonRecordFromLovable(row.rules ?? row.ruleConfig ?? row.rule_config ?? row.filters),
+    rules: jsonRecordFromSource(row.rules ?? row.ruleConfig ?? row.rule_config ?? row.filters),
     source: "lovable",
     lovable_external_id: externalId,
     metadata: {
@@ -3490,6 +3951,7 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
 function recipientValueForContact(contact: MarketingContactRow, channel: typeof marketingChannels[number]) {
   if (channel === "email") return contact.email;
   if (channel === "whatsapp") return contact.whatsapp_number || contact.phone_number;
+  if (channel === "sms" || channel === "phone") return contact.phone_number || contact.whatsapp_number;
   return contact.email || contact.whatsapp_number || contact.phone_number || contact.id;
 }
 
@@ -3604,7 +4066,7 @@ function normalizeMetricChannel(value: string) {
   return normalizeChannel(normalized);
 }
 
-async function upsertLovableCampaignMetric(
+async function upsertSourceCampaignMetric(
   raw: unknown,
   now: Date,
   campaignByExternalId: Map<string, MarketingCampaignRow>,
@@ -3616,7 +4078,7 @@ async function upsertLovableCampaignMetric(
   const campaign = campaignExternalId ? lookupByExternalId(campaignByExternalId, campaignExternalId, ["campaign"]) ?? null : null;
   const channel = normalizeMetricChannel(textFrom(row, ["channel"], "all"));
   const metricDate = dateOrNull(dateTextFrom(row, ["metricDate", "metric_date", "date", "updatedAt", "updated_at"]));
-  const externalId = normalizeLovableId(row)
+  const externalId = normalizeSourceId(row)
     ?? `${campaignExternalId ?? "unlinked"}:metric:${channel}:${metricDate?.toISOString() ?? index}`;
   const payload = {
     campaign_id: campaign?.id ?? null,
@@ -3643,7 +4105,7 @@ async function upsertLovableCampaignMetric(
   return metric;
 }
 
-async function upsertLovableCampaign(
+async function upsertSourceCampaign(
   raw: unknown,
   now: Date,
   actorLabel: string,
@@ -3652,7 +4114,7 @@ async function upsertLovableCampaign(
   audienceContactExternalIdsByAudienceExternalId: Map<string, string[]>,
 ) {
   const row = asRecord(raw);
-  const externalId = normalizeLovableId(row);
+  const externalId = normalizeSourceId(row);
   if (!externalId) return null;
   const payload = {
     name: textFrom(row, ["name", "title"], "Untitled campaign"),
@@ -3685,9 +4147,9 @@ async function upsertLovableCampaign(
       const channelRow = asRecord(channelRaw);
       const contentExternalId = lovableContentReference(channelRow);
       const channel = normalizeChannel(textFrom(channelRow, ["channel", "platform", "network"], "email"));
-      let contentAssetId = contentIdForLovableReference(contentByExternalId, contentExternalId);
+      let contentAssetId = contentIdForSourceReference(contentByExternalId, contentExternalId);
       if (!contentAssetId && contentExternalId) {
-        const placeholder = await upsertMissingLovableContentReference(contentExternalId, channel, now, actorLabel, {
+        const placeholder = await upsertMissingSourceContentReference(contentExternalId, channel, now, actorLabel, {
           context: "campaign_channel",
           campaign_external_id: externalId,
           campaign_name: campaign.name,
@@ -3736,22 +4198,22 @@ async function upsertLovableCampaign(
   };
 }
 
-async function upsertLovableJourneyStepPresetContent(
+async function upsertSourceJourneyStepPresetContent(
   step: Record<string, unknown>,
   journey: MarketingJourneyRow,
   now: Date,
   actorLabel: string,
   index: number,
 ) {
-  const config = jsonRecordFromLovable(step.config);
-  const translations = jsonRecordFromLovable(config.translations);
+  const config = jsonRecordFromSource(step.config);
+  const translations = jsonRecordFromSource(config.translations);
   const translationEntries = Object.entries(translations)
     .map(([language, value]) => ({ language, value: asRecord(value) }))
     .filter((entry) => Object.keys(entry.value).length > 0);
   if (!translationEntries.length) return null;
 
   const templateRef = emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"]));
-  const stepExternalId = normalizeLovableId(step);
+  const stepExternalId = normalizeSourceId(step);
   const externalId = templateRef
     ? `journey_step_preset:${templateRef}`
     : stepExternalId
@@ -3801,9 +4263,9 @@ async function upsertLovableJourneyStepPresetContent(
   return content;
 }
 
-async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
+async function upsertSourceJourney(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
   const row = asRecord(raw);
-  const externalId = normalizeLovableId(row);
+  const externalId = normalizeSourceId(row);
   if (!externalId) return null;
   const payload = {
     name: textFrom(row, ["name", "title"], "Untitled journey"),
@@ -3811,9 +4273,9 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2c")),
     objective: textFrom(row, ["objective", "description"], ""),
     trigger_type: emptyToNull(textFrom(row, ["triggerType", "trigger_type"])),
-    trigger_config: jsonRecordFromLovable(row.triggerConfig ?? row.trigger_config),
+    trigger_config: jsonRecordFromSource(row.triggerConfig ?? row.trigger_config),
     goal_type: emptyToNull(textFrom(row, ["goalType", "goal_type"])),
-    goal_config: jsonRecordFromLovable(row.goalConfig ?? row.goal_config),
+    goal_config: jsonRecordFromSource(row.goalConfig ?? row.goal_config),
     exit_on_goal: booleanFrom(row, ["exitOnGoal", "exit_on_goal"], true),
     source: "lovable",
     lovable_external_id: externalId,
@@ -3838,15 +4300,15 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
       const channel = normalizeChannel(textFrom(step, ["channel"], "email"));
       const dayOffset = Number(step.dayOffset ?? step.day_offset ?? step.day ?? 0);
       const delayHours = Number(step.delayHours ?? step.delay_hours ?? (Number.isFinite(dayOffset) ? dayOffset * 24 : 0));
-      const presetContent = await upsertLovableJourneyStepPresetContent(step, journey, now, actorLabel, index);
+      const presetContent = await upsertSourceJourneyStepPresetContent(step, journey, now, actorLabel, index);
       if (presetContent) {
         presetContentCount += 1;
         addExternalIdVariants(contentByExternalId, presetContent.lovable_external_id, presetContent.id, ["content", "content_asset", "journey_step_preset"]);
       }
       const templateRef = emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null);
-      let contentAssetId = presetContent?.id ?? contentIdForLovableReference(contentByExternalId, contentExternalId || templateRef || "");
+      let contentAssetId = presetContent?.id ?? contentIdForSourceReference(contentByExternalId, contentExternalId || templateRef || "");
       if (!contentAssetId && contentExternalId) {
-        const placeholder = await upsertMissingLovableContentReference(contentExternalId, channel, now, actorLabel, {
+        const placeholder = await upsertMissingSourceContentReference(contentExternalId, channel, now, actorLabel, {
           context: "journey_step",
           journey_external_id: externalId,
           journey_name: journey.name,
@@ -3870,7 +4332,7 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
         day_offset: Number.isFinite(dayOffset) ? dayOffset : 0,
         template_kind: emptyToNull(textFrom(step, ["templateKind", "template_kind"])),
         template_ref: templateRef,
-        config: jsonRecordFromLovable(step.config),
+        config: jsonRecordFromSource(step.config),
         status: normalizeJourneyStatus(textFrom(step, ["status"], "draft")),
         metadata: { lovable: step },
         updated_at: now,
@@ -3881,7 +4343,7 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
   return { journey, presetContentCount, missingContentReferenceCount };
 }
 
-async function upsertLovableJourneyEnrollment(
+async function upsertSourceJourneyEnrollment(
   raw: unknown,
   now: Date,
   journeyByExternalId: Map<string, MarketingJourneyRow>,
@@ -3897,7 +4359,7 @@ async function upsertLovableJourneyEnrollment(
   const contactExternalId = emptyToNull(textFrom(row, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id"]));
   const contact = contactExternalId ? lookupByExternalId(contactRowByExternalId, contactExternalId, ["contact"]) ?? null : null;
   const currentStepOrder = numberFrom(row, ["currentStepOrder", "current_step_order", "stepOrder", "step_order"], 0);
-  const externalId = normalizeLovableId(row)
+  const externalId = normalizeSourceId(row)
     ?? `${journeyExternalId}:enrollment:${contactExternalId ?? index}`;
   const payload = {
     journey_id: journey.id,
@@ -3939,7 +4401,7 @@ async function upsertLovableJourneyEnrollment(
       event_at: dateOrNull(dateTextFrom(event, ["eventAt", "event_at", "createdAt", "created_at", "updatedAt", "updated_at"])),
       channel: emptyToNull(textFrom(event, ["channel"])),
       source: "lovable",
-      lovable_external_id: normalizeLovableId(event) ?? `${externalId}:event:${eventIndex}:${eventType}`,
+      lovable_external_id: normalizeSourceId(event) ?? `${externalId}:event:${eventIndex}:${eventType}`,
       metadata: { lovable: event },
       updated_at: now,
     };
@@ -3948,7 +4410,7 @@ async function upsertLovableJourneyEnrollment(
   return { enrollment, eventCount: eventRows.length };
 }
 
-async function upsertLovableJourneyStepEvent(
+async function upsertSourceJourneyStepEvent(
   raw: unknown,
   now: Date,
   enrollmentByExternalId: Map<string, MarketingJourneyEnrollmentRow>,
@@ -3982,7 +4444,7 @@ async function upsertLovableJourneyStepEvent(
   const stepOrder = numberFrom(row, ["stepOrder", "step_order", "order"], enrollment.current_step_order);
   const step = stepByJourneyAndOrder.get(`${enrollment.journey_id}:${stepOrder}`) ?? null;
   const eventType = textFrom(row, ["eventType", "event_type", "type", "status"], "planned");
-  const externalId = normalizeLovableId(row)
+  const externalId = normalizeSourceId(row)
     ?? `${enrollment.lovable_external_id ?? enrollment.id}:event:${index}:${eventType}`;
   const payload = {
     enrollment_id: enrollment.id,
@@ -4004,12 +4466,12 @@ async function upsertLovableJourneyStepEvent(
   return event;
 }
 
-adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
+adminMarketingRouter.post("/sync/source/run", async (req, res) => {
   if (!requireSuperAdmin(req, res)) return;
   const apiUrl = lovableMarketingApiUrl();
   const apiKey = lovableMarketingApiKey();
   if (!apiUrl || !apiKey) {
-    return res.status(409).json({ error: "Lovable marketing sync is not configured." });
+    return res.status(409).json({ error: "Source marketing sync is not configured." });
   }
 
   const now = new Date();
@@ -4029,7 +4491,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       },
     });
     const payload = await response.json().catch(async () => ({ error: await response.text().catch(() => response.statusText) })) as Record<string, unknown>;
-    if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable sync failed with ${response.status}`));
+    if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Source sync failed with ${response.status}`));
 
     const actorLabel = actor(req);
     const contentPayload = lovableContentPayload(payload);
@@ -4044,7 +4506,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const contentRows: MarketingContentAssetRow[] = [];
     let mediaAssetCount = 0;
     for (const item of contentPayload) {
-      const result = await upsertLovableContent(item, now, actorLabel);
+      const result = await upsertSourceContent(item, now, actorLabel);
       if (!result) continue;
       contentRows.push(result.content);
       mediaAssetCount += result.mediaAssetCount;
@@ -4063,12 +4525,12 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       }
     }
     for (const [index, item] of standaloneMediaPayload.entries()) {
-      if (await upsertLovableStandaloneMedia(item, now, contentByExternalId, index)) mediaAssetCount += 1;
+      if (await upsertSourceStandaloneMedia(item, now, contentByExternalId, index)) mediaAssetCount += 1;
     }
 
     const contactRows = [];
     for (const item of contactPayload) {
-      const contact = await upsertLovableContact(item, now);
+      const contact = await upsertSourceContact(item, now);
       if (contact) contactRows.push(contact);
     }
     const contactRowByExternalId = new Map<string, MarketingContactRow>();
@@ -4097,13 +4559,13 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const audienceContactExternalIdsByAudienceExternalId = new Map<string, string[]>();
     for (const item of audiencePayload) {
       const audienceRow = asRecord(item);
-      const audienceExternalId = normalizeLovableId(audienceRow);
+      const audienceExternalId = normalizeSourceId(audienceRow);
       if (audienceExternalId) {
         for (const variant of externalIdVariants(audienceExternalId, ["audience", "list", "contact_list"])) {
           audienceContactExternalIdsByAudienceExternalId.set(variant, audienceContactExternalIds(audienceRow));
         }
       }
-      const result = await upsertLovableAudience(item, now, actorLabel, contactByExternalId);
+      const result = await upsertSourceAudience(item, now, actorLabel, contactByExternalId);
       if (!result) continue;
       audienceCount += 1;
       audienceMemberCount += result.memberCount;
@@ -4120,14 +4582,14 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const nestedCampaignMetricPayload: Array<{ raw: unknown; campaignExternalId: string | null; index: number }> = [];
     for (const item of campaignPayload) {
       const campaignRow = asRecord(item);
-      const campaignExternalId = normalizeLovableId(campaignRow);
+      const campaignExternalId = normalizeSourceId(campaignRow);
       const nestedMetrics = [
         ...arrayOrSingleton(campaignRow.metrics),
         ...arrayOrSingleton(campaignRow.analytics),
         ...arrayOrSingleton(campaignRow.performance),
       ];
       nestedMetrics.forEach((raw, index) => nestedCampaignMetricPayload.push({ raw, campaignExternalId, index }));
-      const result = await upsertLovableCampaign(
+      const result = await upsertSourceCampaign(
         item,
         now,
         actorLabel,
@@ -4150,13 +4612,13 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const nestedJourneyEnrollmentPayload: Array<{ raw: unknown; journeyExternalId: string | null; index: number }> = [];
     for (const item of journeyPayload) {
       const journeyRaw = asRecord(item);
-      const journeyExternalId = normalizeLovableId(journeyRaw);
+      const journeyExternalId = normalizeSourceId(journeyRaw);
       const nestedEnrollments = [
         ...arrayOrSingleton(journeyRaw.enrollments),
         ...arrayOrSingleton(journeyRaw.progress),
       ];
       nestedEnrollments.forEach((raw, index) => nestedJourneyEnrollmentPayload.push({ raw, journeyExternalId, index }));
-      const result = await upsertLovableJourney(item, now, actorLabel, contentByExternalId);
+      const result = await upsertSourceJourney(item, now, actorLabel, contentByExternalId);
       if (result) {
         journeyRows.push(result.journey);
         journeyStepPresetContentCount += result.presetContentCount;
@@ -4179,7 +4641,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       ...nestedCampaignMetricPayload,
     ];
     for (const item of allCampaignMetricPayload) {
-      if (await upsertLovableCampaignMetric(item.raw, now, campaignByExternalId, item.campaignExternalId, item.index)) campaignMetricCount += 1;
+      if (await upsertSourceCampaignMetric(item.raw, now, campaignByExternalId, item.campaignExternalId, item.index)) campaignMetricCount += 1;
     }
 
     const journeyByExternalId = new Map<string, MarketingJourneyRow>();
@@ -4199,7 +4661,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       ...nestedJourneyEnrollmentPayload,
     ];
     for (const item of allJourneyEnrollmentPayload) {
-      const result = await upsertLovableJourneyEnrollment(
+      const result = await upsertSourceJourneyEnrollment(
         item.raw,
         now,
         journeyByExternalId,
@@ -4223,7 +4685,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         }
       }
       for (const [index, item] of journeyStepEventPayload.entries()) {
-        if (await upsertLovableJourneyStepEvent(
+        if (await upsertSourceJourneyStepEvent(
           item,
           now,
           enrollmentByExternalId,
@@ -4249,7 +4711,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     ), 0);
     const journeyStepPresetExportCount = journeyStepPresetContentExportCount(journeyPayload);
     const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
-      const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
+      const sourceType = String(asRecord(item)[SOURCE_CONTENT_SOURCE_KEY] ?? "content");
       counts[sourceType] = (counts[sourceType] ?? 0) + 1;
       return counts;
     }, {});
@@ -4348,7 +4810,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     }).where(eq(marketingSyncRuns.id, run.id)).returning();
     return res.json({ ok: true, run: serializeSyncRun(completed), summary });
   } catch (error) {
-    const message = marketingSchemaErrorMessage(error, error instanceof Error ? error.message : "Lovable marketing sync failed.");
+    const message = marketingSchemaErrorMessage(error, error instanceof Error ? error.message : "Source marketing sync failed.");
     const [failed] = await db.update(marketingSyncRuns).set({
       status: "failed",
       completed_at: new Date(),

@@ -13,8 +13,10 @@ import {
   evaluateConciergeFlowRequirements,
 } from "../shared/conciergeFlowRequirements";
 import {
+  conciergeFlowCoverageEntryPoints,
   CONCIERGE_FLOW_COVERAGE,
   CONCIERGE_FLOW_COVERAGE_STAGE_LABELS,
+  missingConciergeFlowEntryCoverage,
   missingConciergeFlowCoverage,
 } from "../shared/conciergeFlowCoverage";
 
@@ -154,6 +156,18 @@ describe("concierge flow registry", () => {
     expect(shopping.needsProvider).toBe(false);
     expect(shopping.missingRequirements).toEqual([]);
 
+    const dealComparison = evaluateConciergeFlowRequirements({
+      useCase: "find_offers",
+      payload: {
+        offer_name: "Senior Energy Saver",
+        category: "Household costs",
+        comparison_summary: "Check price, terms, trust, and fit.",
+      },
+    });
+    expect(dealComparison.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+    expect(dealComparison.needsProvider).toBe(false);
+    expect(dealComparison.missingRequirements).toEqual([]);
+
     const care = evaluateConciergeFlowRequirements({
       useCase: "find_provider",
       payload: {
@@ -192,6 +206,37 @@ describe("concierge flow registry", () => {
     });
     expect(safeHome.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.safeHomeSupport);
     expect(safeHome.missingRequirements).toEqual([]);
+
+    const scamNeedsSource = evaluateConciergeFlowRequirements({
+      useCase: "scam_check",
+      payload: {
+        source_type: "company",
+        concern: "Company or offer",
+      },
+      summary: "Safe check prepared: Company or offer.",
+    });
+    expect(scamNeedsSource.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
+    expect(scamNeedsSource.firstMissingRequirement?.labelEn).toBe("Source");
+
+    const scamReady = evaluateConciergeFlowRequirements({
+      useCase: "scam_check",
+      payload: {
+        source_type: "company",
+        company_name: "Acme Deals",
+        concern: "Company or offer",
+      },
+    });
+    expect(scamReady.missingRequirements).toEqual([]);
+
+    const toolGatedEmail = evaluateConciergeFlowRequirements({
+      useCase: "send_message",
+      payload: {
+        requested_tool: "email",
+        draft_message: "Please prepare an email about my application.",
+      },
+    });
+    expect(toolGatedEmail.flowReference).toBe(CONCIERGE_FLOW_REFERENCES.toolGatedTask);
+    expect(toolGatedEmail.firstMissingRequirement?.labelEn).toBe("Website or contact");
   });
 
   it("maps pending actions to their reusable flow references", () => {
@@ -205,6 +250,10 @@ describe("concierge flow registry", () => {
     })).toBe(CONCIERGE_FLOW_REFERENCES.scamCheck);
     expect(conciergeFlowReferenceForPendingAction({
       useCase: "shopping_request",
+      payload: {},
+    })).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
+    expect(conciergeFlowReferenceForPendingAction({
+      useCase: "find_offers",
       payload: {},
     })).toBe(CONCIERGE_FLOW_REFERENCES.shoppingSupport);
     expect(conciergeFlowReferenceForPendingAction({
@@ -230,6 +279,7 @@ describe("concierge flow registry", () => {
       "action_handoff",
       "completed_history",
       "detail_collection",
+      "entry_points",
       "final_user_confirmation",
       "missing_provider_setup",
       "outcome_capture",
@@ -240,8 +290,14 @@ describe("concierge flow registry", () => {
 
     for (const coverage of CONCIERGE_FLOW_COVERAGE) {
       expect(missingConciergeFlowCoverage(coverage.reference)).toEqual([]);
+      expect(missingConciergeFlowEntryCoverage(coverage.reference)).toEqual([]);
+      expect(coverage.entryPointIds.length).toBeGreaterThan(0);
       for (const stage of coverage.requiredStages) {
         expect(coverage.evidence[stage]).toBeTruthy();
+      }
+      for (const entry of conciergeFlowCoverageEntryPoints(coverage.reference)) {
+        expect(entry.workflow).toBe(coverage.reference);
+        expect(entry.suggestedFlow.trim().length).toBeGreaterThan(0);
       }
     }
 
@@ -256,6 +312,7 @@ describe("concierge flow registry", () => {
     ]) {
       const coverage = CONCIERGE_FLOW_COVERAGE.find((flow) => flow.reference === reference);
       expect(coverage?.requiredStages).toEqual([
+        "entry_points",
         "start_action",
         "detail_collection",
         "missing_provider_setup",
@@ -270,6 +327,7 @@ describe("concierge flow registry", () => {
 
     for (const coverage of CONCIERGE_FLOW_COVERAGE) {
       expect(coverage.requiredStages).toEqual(expect.arrayContaining([
+        "entry_points",
         "start_action",
         "detail_collection",
         "final_user_confirmation",

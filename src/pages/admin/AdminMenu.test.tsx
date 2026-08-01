@@ -33,6 +33,29 @@ describe("AdminMenu", () => {
 
     expect(screen.getByRole("link", { name: /cognitive assessment.*cognitive compass upload/i }))
       .toHaveAttribute("href", "/admin/cognitive-assessment");
+    expect(screen.getByRole("link", { name: /concierge readiness.*flow coverage and launch gates/i }))
+      .toHaveAttribute("href", "/admin/concierge-readiness");
+    expect(screen.getByRole("link", { name: /email replies.*replies needing review/i }))
+      .toHaveAttribute("href", "/admin/concierge-email-replies");
+    expect(screen.getByRole("link", { name: /providers.*trusted contacts/i }))
+      .toHaveAttribute("href", "/admin/providers");
+  });
+
+  it("links admins to workflow coverage", () => {
+    renderMenu("/admin/workflows");
+
+    const workflowLink = screen.getByRole("link", { name: /workflows.*coverage and next steps/i });
+    expect(workflowLink).toHaveAttribute("href", "/admin/workflows");
+    expect(workflowLink).toHaveAttribute("aria-current", "page");
+  });
+
+  it("links admins to the unified content index and room prompts", () => {
+    renderMenu("/admin/content-index");
+
+    const contentIndex = screen.getByRole("link", { name: /content index.*readiness across content/i });
+    expect(contentIndex).toHaveAttribute("href", "/admin/content-index");
+    expect(contentIndex).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /room prompts.*daily room topics/i })).toHaveAttribute("href", "/admin/room-prompts");
   });
 
   it("keeps the Admins tab super-admin only", () => {

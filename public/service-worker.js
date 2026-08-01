@@ -10,7 +10,7 @@ const PRECACHE_URLS = [
   "/icons/vyva-icon-192.png",
   "/icons/vyva-icon-512.png",
   "/icons/vyva-maskable-512.png",
-  "/assets/vyva/vyva-logo-launch.png",
+  "/assets/vyva/vyva-wordmark-launch.svg",
   "/og-vyva.png"
 ];
 

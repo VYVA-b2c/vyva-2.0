@@ -25,6 +25,8 @@ describe("Show VYVA follow-up actions", () => {
 
   it("supports provider/deal comparison criteria without a backend dependency", () => {
     expect(showVyvaFollowUpActionsFor("provider_deal").map((action) => action.id)).toEqual([
+      "find_alternatives",
+      "save_note",
       "compare_price",
       "compare_proximity",
       "check_reputation",

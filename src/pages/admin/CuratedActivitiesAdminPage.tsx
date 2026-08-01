@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Bot, CheckCircle2, ChevronDown, ChevronUp, CircleDollarSign, Clock3, Download, ExternalLink, Globe2, MapPin, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Trash2, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -1766,6 +1767,8 @@ function discoveryReview(candidate: DiscoveryCandidate, existingEvents: AdminPar
 }
 
 export default function CuratedActivitiesAdminPage() {
+  const [searchParams] = useSearchParams();
+  const focusedEventKey = searchParams.get("focus");
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [events, setEvents] = useState<AdminParticipationEvent[]>([]);
   const [activity, setActivity] = useState<AdminParticipationActivity>({});
@@ -1946,6 +1949,17 @@ export default function CuratedActivitiesAdminPage() {
     refresh().catch((err) => setMessage(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!focusedEventKey || events.length === 0) return;
+    const focusedEvent = events.find((event) => event.eventKey === focusedEventKey);
+    if (!focusedEvent) return;
+    setActiveLane(isPublishedEvent(focusedEvent) ? "published" : "drafts");
+    setWorkQueueFilter("all");
+    window.setTimeout(() => {
+      document.getElementById(`curated-activity-${focusedEventKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+  }, [events, focusedEventKey]);
 
   const cityOptions = useMemo(() => (
     Array.from(new Set(events.map((event) => cleanText(event.city)).filter(Boolean))).sort()
@@ -3220,7 +3234,7 @@ export default function CuratedActivitiesAdminPage() {
             const saveFeedback = eventSaveFeedback[event.eventKey];
             const isSavingEvent = savingEventKey === event.eventKey;
             return (
-            <article key={event.eventKey} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
+            <article id={`curated-activity-${event.eventKey}`} key={event.eventKey} className={`rounded-[2rem] border bg-white p-5 shadow-sm ${focusedEventKey === event.eventKey ? "border-purple-500 ring-4 ring-purple-100" : "border-[#eadfd5]"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xl font-black">{event.eventKey}</p>

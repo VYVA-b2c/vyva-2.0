@@ -5,12 +5,14 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams,
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import HomeFastHelpSyncBridge from "@/components/HomeFastHelpSyncBridge";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
+import { VoiceCanvasProvider } from "@/contexts/VoiceCanvasContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import {
@@ -54,6 +56,7 @@ const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
+const ConciergeTaskInboxPage = lazy(() => import("./pages/ConciergeTaskInboxPage"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
 const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
 const ScamGuardScreen = lazy(() => import("./pages/ScamGuardScreen"));
@@ -134,13 +137,19 @@ const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage")
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 const MarketingAdminPage = lazy(() => import("./pages/admin/MarketingAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
+const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCoverageAdminPage"));
+const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const TrustedHelpPartnersAdminPage = lazy(() => import("./pages/admin/TrustedHelpPartnersAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
+const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
+const ProviderDirectoryAdminPage = lazy(() => import("./pages/admin/ProviderDirectoryAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 const CuratedActivitiesAdminPage = lazy(() => import("./pages/admin/CuratedActivitiesAdminPage"));
+const AdminContentIndexPage = lazy(() => import("./pages/admin/AdminContentIndexPage"));
+const RoomPromptsAdminPage = lazy(() => import("./pages/admin/RoomPromptsAdminPage"));
 
 const routerFutureFlags = {
   v7_relativeSplatPath: true,
@@ -526,6 +535,41 @@ function RootRoute() {
   );
 }
 
+function HomeMasterPreviewRoute() {
+  queryClient.setQueryData(["/api/profile"], {
+    firstName: "Karim",
+    lastName: "",
+    email: "",
+    phone: "",
+    country: "ES",
+    timezone: "Europe/Madrid",
+    language: "es",
+    languagePreference: "es",
+    profileId: "home-master-preview",
+    street: "",
+    cityState: "",
+    postalCode: "",
+    caregiverName: "",
+    caregiverContact: "",
+  });
+  queryClient.setQueryData(["/api/meds/adherence-report"], {
+    todaySummary: {
+      scheduled: 1,
+      remaining: 1,
+    },
+    nextDose: {
+      name: "Monoprost",
+      minutesUntil: 25,
+    },
+  });
+
+  return (
+    <AppShell>
+      <HomeScreen />
+    </AppShell>
+  );
+}
+
 function CaregiverRouteGuard() {
   const { user } = useAuth();
   const location = useLocation();
@@ -593,6 +637,7 @@ const App = () => (
     <LanguageControllerProvider>
       <AuthProvider>
         <ProfileProvider>
+          <HomeFastHelpSyncBridge />
           <TooltipProvider>
             <Toaster />
             <Sonner />
@@ -600,9 +645,10 @@ const App = () => (
               <LanguageFrameBoundary>
                 <VyvaVoiceProvider>
                   <VoiceActionProvider>
-                    <AgentAppContextTracker />
-                    <Suspense fallback={<RouteLoadingScreen />}>
-                    <Routes>
+                    <VoiceCanvasProvider>
+                      <AgentAppContextTracker />
+                      <Suspense fallback={<RouteLoadingScreen />}>
+                      <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/caregiver/login" element={<LoginPage />} />
@@ -621,6 +667,12 @@ const App = () => (
                 <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey" element={<VyvaCaregiverDashboard />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
+                ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
                 ) : null}
@@ -650,15 +702,21 @@ const App = () => (
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/marketing" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
+                <Route path="/admin/workflows" element={<AdminRoute><WorkflowCoverageAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
+                <Route path="/admin/concierge-readiness" element={<AdminRoute><ConciergeReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/trusted-help-partners" element={<AdminRoute><TrustedHelpPartnersAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
+                <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/providers" element={<AdminRoute><ProviderDirectoryAdminPage /></AdminRoute>} />
                 <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
+                <Route path="/admin/content-index" element={<AdminRoute><AdminContentIndexPage /></AdminRoute>} />
+                <Route path="/admin/room-prompts" element={<AdminRoute><RoomPromptsAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<CaregiverRouteGuard />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
@@ -739,7 +797,10 @@ const App = () => (
                   <Route path="/memory-games/curious-minds" element={<AppShell><CuriousMindsRoute /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
-                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="home" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/shopping" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeShoppingScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
@@ -747,9 +808,10 @@ const App = () => (
                   </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />
-                    </Routes>
-                    </Suspense>
-                    <PwaInstallPromptGate />
+                      </Routes>
+                      </Suspense>
+                      <PwaInstallPromptGate />
+                    </VoiceCanvasProvider>
                   </VoiceActionProvider>
                 </VyvaVoiceProvider>
               </LanguageFrameBoundary>

@@ -6,12 +6,18 @@ import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/age
 import { apiFetch } from "@/lib/queryClient";
 import {
   actionForVoiceToolCall,
+  homeIntentForVoiceToolCall,
+  homeSubflowForVoiceToolCall,
   emitVoiceAppAction,
   emitVoiceAppActionResult,
+  emitVoiceHomeIntent,
+  emitVoiceHomeSubflow,
   emitVoiceSpecialistTransfer,
   emitVoiceUserMessage,
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
+  toolResultForVoiceHomeIntent,
+  toolResultForVoiceHomeSubflow,
 } from "@/lib/voiceNavigation";
 import {
   ensureVoiceSessionId,
@@ -21,17 +27,45 @@ import {
 } from "@/lib/voiceSessionBridge";
 import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
+import {
+  selectSpeechVoice,
+  supportsSpeechPlayback,
+  voicePlaybackLocale,
+} from "@/lib/voicePlayback";
 
-type TtsSegment = {
+export type TtsSegment = {
   text: string;
   lang?: string;
   rate?: number;
   delayMs?: number;
 };
 
+export type TtsPlaybackStatus = "idle" | "loading" | "playing" | "paused" | "completed" | "unavailable" | "error";
+
+export type TtsPlaybackOptions = {
+  startIndex?: number;
+  onProgress?: (segmentIndex: number, segmentCount: number) => void;
+  onComplete?: () => void;
+  onError?: () => void;
+};
+
 export function useTtsReadout() {
-  const [isTtsSpeaking, setIsTtsSpeaking] = useState(false);
+  const supported = supportsSpeechPlayback();
+  const [playbackStatus, setPlaybackStatusState] = useState<TtsPlaybackStatus>(supported ? "idle" : "unavailable");
+  const [currentSegment, setCurrentSegment] = useState(0);
+  const [segmentCount, setSegmentCount] = useState(0);
+  const [voiceName, setVoiceName] = useState<string | null>(null);
+  const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const timeoutIdsRef = useRef<number[]>([]);
+  const generationRef = useRef(0);
+  const queueRef = useRef<TtsSegment[]>([]);
+  const optionsRef = useRef<TtsPlaybackOptions>({});
+  const statusRef = useRef<TtsPlaybackStatus>(supported ? "idle" : "unavailable");
+
+  const setPlaybackStatus = useCallback((status: TtsPlaybackStatus) => {
+    statusRef.current = status;
+    setPlaybackStatusState(status);
+  }, []);
 
   const clearPendingTimeouts = useCallback(() => {
     timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -39,57 +73,154 @@ export function useTtsReadout() {
   }, []);
 
   const stopTts = useCallback(() => {
+    generationRef.current += 1;
     clearPendingTimeouts();
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    setIsTtsSpeaking(false);
-  }, [clearPendingTimeouts]);
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    setCurrentSegment(0);
+    setPlaybackStatus(supportsSpeechPlayback() ? "idle" : "unavailable");
+  }, [clearPendingTimeouts, setPlaybackStatus]);
 
-  const speakSequence = useCallback((segments: TtsSegment[]) => {
-    if (!window.speechSynthesis) return;
-    stopTts();
+  const startSequence = useCallback((segments: TtsSegment[], playbackOptions: TtsPlaybackOptions = {}) => {
+    if (!supportsSpeechPlayback()) {
+      setPlaybackStatus("unavailable");
+      playbackOptions.onError?.();
+      return false;
+    }
 
     const queue = segments.filter((segment) => segment.text.trim().length > 0);
-    if (queue.length === 0) return;
+    if (queue.length === 0) {
+      setPlaybackStatus("idle");
+      return false;
+    }
 
-    let index = 0;
-    const playNext = () => {
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    clearPendingTimeouts();
+    window.speechSynthesis.cancel();
+    queueRef.current = queue;
+    optionsRef.current = playbackOptions;
+    const requestedIndex = Math.floor(playbackOptions.startIndex ?? 0);
+    const startIndex = Math.min(queue.length - 1, Math.max(0, requestedIndex));
+    setSegmentCount(queue.length);
+    setPlaybackStatus("loading");
+
+    const playNext = (index: number) => {
+      if (generationRef.current !== generation) return;
       const segment = queue[index];
       if (!segment) {
-        setIsTtsSpeaking(false);
+        setCurrentSegment(queue.length);
+        setPlaybackStatus("completed");
+        playbackOptions.onComplete?.();
         return;
       }
 
-      const utterance = new SpeechSynthesisUtterance(segment.text);
-      if (segment.lang) utterance.lang = segment.lang;
+      let utterance: SpeechSynthesisUtterance;
+      try {
+        utterance = new SpeechSynthesisUtterance(segment.text);
+      } catch {
+        setPlaybackStatus("unavailable");
+        playbackOptions.onError?.();
+        return;
+      }
+
+      const locale = voicePlaybackLocale(segment.lang);
+      utterance.lang = locale;
       utterance.rate = segment.rate ?? 0.9;
-      utterance.onstart = () => setIsTtsSpeaking(true);
+      const voice = selectSpeechVoice(window.speechSynthesis.getVoices?.() ?? [], locale);
+      if (voice) utterance.voice = voice;
+      setVoiceName(voice?.name ?? null);
+      setActiveLanguage(locale);
+      setCurrentSegment(index + 1);
+      playbackOptions.onProgress?.(index, queue.length);
+
+      utterance.onstart = () => {
+        if (generationRef.current !== generation || statusRef.current === "paused") return;
+        setPlaybackStatus("playing");
+      };
       utterance.onend = () => {
-        index += 1;
-        const timeoutId = window.setTimeout(playNext, segment.delayMs ?? 400);
+        if (generationRef.current !== generation) return;
+        const nextIndex = index + 1;
+        if (nextIndex >= queue.length) {
+          setCurrentSegment(queue.length);
+          setPlaybackStatus("completed");
+          playbackOptions.onComplete?.();
+          return;
+        }
+        const timeoutId = window.setTimeout(() => playNext(nextIndex), segment.delayMs ?? 400);
         timeoutIdsRef.current.push(timeoutId);
       };
       utterance.onerror = () => {
-        index += 1;
-        if (index >= queue.length) {
-          setIsTtsSpeaking(false);
-          return;
-        }
-        const timeoutId = window.setTimeout(playNext, 250);
-        timeoutIdsRef.current.push(timeoutId);
+        if (generationRef.current !== generation) return;
+        setPlaybackStatus("error");
+        playbackOptions.onError?.();
       };
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        if (generationRef.current !== generation) return;
+        setPlaybackStatus("error");
+        playbackOptions.onError?.();
+      }
     };
 
-    playNext();
-  }, [stopTts]);
+    playNext(startIndex);
+    return true;
+  }, [clearPendingTimeouts, setPlaybackStatus]);
 
-  const speakText = useCallback((text: string, lang?: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    speakSequence([{ text, lang }]);
+  const speakSequence = useCallback((segments: TtsSegment[], playbackOptions?: TtsPlaybackOptions) => {
+    return startSequence(segments, playbackOptions);
+  }, [startSequence]);
+
+  const speakText = useCallback((text: string, lang?: string, playbackOptions?: TtsPlaybackOptions) => {
+    return speakSequence([{ text, lang }], playbackOptions);
   }, [speakSequence]);
 
-  return { speakText, speakSequence, stopTts, isTtsSpeaking };
+  const pauseTts = useCallback(() => {
+    if (!supportsSpeechPlayback() || (statusRef.current !== "playing" && statusRef.current !== "loading")) return false;
+    window.speechSynthesis.pause();
+    setPlaybackStatus("paused");
+    return true;
+  }, [setPlaybackStatus]);
+
+  const resumeTts = useCallback(() => {
+    if (!supportsSpeechPlayback() || statusRef.current !== "paused") return false;
+    window.speechSynthesis.resume();
+    setPlaybackStatus("playing");
+    return true;
+  }, [setPlaybackStatus]);
+
+  const replayTts = useCallback(() => {
+    if (queueRef.current.length === 0) return false;
+    return startSequence(queueRef.current, { ...optionsRef.current, startIndex: 0 });
+  }, [startSequence]);
+
+  useEffect(() => {
+    if (supported && statusRef.current === "unavailable") setPlaybackStatus("idle");
+    if (!supported && statusRef.current !== "unavailable") setPlaybackStatus("unavailable");
+  }, [setPlaybackStatus, supported]);
+
+  useEffect(() => () => {
+    generationRef.current += 1;
+    clearPendingTimeouts();
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+  }, [clearPendingTimeouts]);
+
+  return {
+    speakText,
+    speakSequence,
+    pauseTts,
+    resumeTts,
+    replayTts,
+    stopTts,
+    playbackStatus,
+    isTtsSupported: supported,
+    isTtsSpeaking: playbackStatus === "loading" || playbackStatus === "playing",
+    isTtsPaused: playbackStatus === "paused",
+    currentSegment,
+    segmentCount,
+    activeLanguage,
+    voiceName,
+  };
 }
 
 export interface TranscriptEntry {
@@ -318,11 +449,11 @@ function normalizeTranscriptText(text: string) {
 
 function formatDisconnectDetails(details: DisconnectionDetails) {
   if (details.reason === "user") return null;
+  if (details.reason !== "error") return null;
 
   const closeCode = "closeCode" in details && details.closeCode ? ` code ${details.closeCode}` : "";
   const closeReason = "closeReason" in details && details.closeReason ? `: ${details.closeReason}` : "";
-  const message = details.reason === "error" ? details.message : "Agent ended the session";
-  return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${message}`;
+  return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${details.message}`;
 }
 
 async function requestVoiceMicrophonePermission() {
@@ -1317,6 +1448,16 @@ function useVyvaVoiceController() {
             ...(sessionOptions.clientTools ?? {}),
             open_app_action: async (parameters: unknown) => {
               const params = toolParameters(parameters);
+              const homeSubflow = homeSubflowForVoiceToolCall(params);
+              if (homeSubflow) {
+                emitVoiceHomeSubflow(homeSubflow);
+                return toolResultForVoiceHomeSubflow(homeSubflow);
+              }
+              const homeIntent = homeIntentForVoiceToolCall(params);
+              if (homeIntent) {
+                emitVoiceHomeIntent(homeIntent);
+                return toolResultForVoiceHomeIntent(homeIntent);
+              }
               const action = actionForVoiceToolCall(params);
               if (!action) {
                 return "App action was not opened because the route, domain, or action type was not recognised.";
@@ -1781,4 +1922,8 @@ export function useVyvaVoice() {
     throw new Error("useVyvaVoice must be used inside VyvaVoiceProvider");
   }
   return context;
+}
+
+export function useOptionalVyvaVoice() {
+  return useContext(VyvaVoiceContext);
 }

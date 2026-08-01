@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Flower2, Info, Loader2, MessageCircle, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import vyvaLogo from "@/assets/vyva-logo.png";
+import { VyvaMark } from "@/components/VyvaMark";
 import foodImage from "@/assets/scent-memory/food.jpg";
 import breadImage from "@/assets/scent-memory/fresh-bread.jpg";
 import homeImage from "@/assets/scent-memory/home.jpg";
@@ -12,6 +12,8 @@ import seasonImage from "@/assets/scent-memory/season.jpg";
 import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
 import { normalizeGameLanguage } from "./shared/language";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 const BRAND = {
   purple: "#6B21A8",
@@ -206,6 +208,10 @@ export default function ScentMemory({ userId, onExit }) {
 
   const fallbackState = useMemo(() => getDefaultScentMemoryUserState(userId || "local"), [userId]);
   const scentVisual = useMemo(() => getScentVisual(prompt, t), [prompt, t]);
+  const completionReceipt = useMemo(() => buildWorkflowReceiptMoment({
+    workflowReference: APP_WORKFLOW_REFERENCES.gameScentMemory,
+    locale: language === "es" ? "es" : "en",
+  }), [language]);
 
   const loadTodaysPrompt = useCallback(async () => {
     if (!userId) {
@@ -371,7 +377,7 @@ export default function ScentMemory({ userId, onExit }) {
     <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
       <div className="mx-auto w-full max-w-[780px]">
         <header className="flex items-center justify-between gap-4">
-          <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
+          <VyvaMark className="h-12 w-12" />
           {screen !== "close" ? (
             <button
               type="button"
@@ -544,6 +550,16 @@ export default function ScentMemory({ userId, onExit }) {
               <Check size={24} aria-hidden="true" />
               {t("games.scentMemory.streakLabel", "{n} days reflecting", { n: userState?.streak_days ?? 1 })}
             </p>
+            <div
+              className="mx-auto mt-5 max-w-[620px] rounded-[22px] border px-5 py-4 text-left"
+              style={{ background: "#F8FFFC", borderColor: "#BFE9DC", color: BRAND.ink }}
+              data-testid="scent-memory-receipt"
+            >
+              <p className="text-[18px] font-black" style={{ color: BRAND.teal }}>{completionReceipt.title}</p>
+              <p className="mt-1 text-[17px] font-bold leading-snug" style={{ color: BRAND.muted }}>
+                {completionReceipt.message}
+              </p>
+            </div>
             {saveWarning ? <p className="mt-4 text-[20px] font-bold text-[#92400E]">{saveWarning}</p> : null}
             <button
               type="button"

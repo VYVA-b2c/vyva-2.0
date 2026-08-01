@@ -9,6 +9,7 @@ import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { friendlyError } from "@/lib/apiError";
@@ -27,6 +28,7 @@ type ChannelPreferences = {
   whatsapp_available_until: string;
   max_outbound_calls_per_day: number | null;
   max_whatsapp_messages_per_day: number | null;
+  concierge_task_notifications_enabled: boolean;
 };
 
 const DEFAULT_PREFERENCES: ChannelPreferences = {
@@ -39,6 +41,7 @@ const DEFAULT_PREFERENCES: ChannelPreferences = {
   whatsapp_available_until: "22:00",
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
+  concierge_task_notifications_enabled: true,
 };
 
 const SUPPORT_MODE_OPTIONS: Array<{
@@ -100,6 +103,9 @@ function normalizePreferences(data?: Partial<ChannelPreferences> | null): Channe
       data && "max_whatsapp_messages_per_day" in data
         ? data.max_whatsapp_messages_per_day ?? null
         : DEFAULT_PREFERENCES.max_whatsapp_messages_per_day,
+    concierge_task_notifications_enabled:
+      data?.concierge_task_notifications_enabled
+      ?? DEFAULT_PREFERENCES.concierge_task_notifications_enabled,
   };
 }
 
@@ -247,6 +253,30 @@ export default function NotificationsSettings() {
             {t("settings.notifications.loadError", "Could not load preferences")}
           </div>
         )}
+
+        <section className={settingsPanelClassName}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={settingsKickerClassName}>
+                {t("settings.notifications.conciergeUpdates", "Concierge task updates")}
+              </p>
+              <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t(
+                  "settings.notifications.conciergeUpdatesHint",
+                  "Show an alert when a provider replies or needs information.",
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.concierge_task_notifications_enabled}
+              onCheckedChange={(concierge_task_notifications_enabled) =>
+                setDraft((current) => ({ ...current, concierge_task_notifications_enabled }))
+              }
+              aria-label={t("settings.notifications.conciergeUpdates", "Concierge task updates")}
+              data-testid="switch-concierge-task-notifications"
+            />
+          </div>
+        </section>
 
         <section className={settingsPanelClassName}>
           <p className={settingsKickerClassName}>

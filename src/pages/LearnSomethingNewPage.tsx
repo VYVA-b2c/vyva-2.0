@@ -9,7 +9,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Cpu,
-  Headphones,
   Hand,
   Languages,
   Landmark,
@@ -18,14 +17,21 @@ import {
   Mic,
   Music,
   Palette,
+  Pause,
+  Play,
   RotateCcw,
   SlidersHorizontal,
   Sparkles,
+  Square,
   Volume2,
   type LucideIcon,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useTtsReadout, type TtsSegment } from "@/hooks/useVyvaVoice";
+import { useLanguage } from "@/i18n";
+import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
+import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
 
 type LearningCategory = {
   id: string;
@@ -108,6 +114,7 @@ type ProgramForm = {
 
 const DEFAULT_INTEREST = "general_knowledge";
 const LEARNING_MODE_STORAGE_KEY = "vyva.learning.mode";
+const LESSON_READ_ALOUD_POSITION_PREFIX = "vyva.learning.read-aloud.v1";
 const DEFAULT_FORM: ProgramForm = {
   learningMode: "both",
   interests: [DEFAULT_INTEREST],
@@ -117,6 +124,26 @@ const DEFAULT_FORM: ProgramForm = {
   dailyTime: "09:00",
   lessonLengthMinutes: 3,
 };
+
+function lessonReadAloudPositionKey(lessonId: string, language: string): string {
+  return `${LESSON_READ_ALOUD_POSITION_PREFIX}:${lessonId}:${language}`;
+}
+
+function readLessonPosition(key: string | null): number {
+  if (!key || typeof window === "undefined") return 0;
+  const stored = Number(window.sessionStorage.getItem(key));
+  return Number.isInteger(stored) && stored >= 0 ? stored : 0;
+}
+
+function saveLessonPosition(key: string | null, segmentIndex: number): void {
+  if (!key || typeof window === "undefined") return;
+  window.sessionStorage.setItem(key, String(Math.max(0, Math.floor(segmentIndex))));
+}
+
+function clearLessonPosition(key: string | null): void {
+  if (!key || typeof window === "undefined") return;
+  window.sessionStorage.removeItem(key);
+}
 
 const iconByName: Record<string, LucideIcon> = {
   atom: Atom,
@@ -870,10 +897,22 @@ function Wizard({
 export default function LearnSomethingNewPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { language, t } = useLanguage();
+  const {
+    speakSequence,
+    pauseTts,
+    resumeTts,
+    stopTts,
+    playbackStatus,
+    isTtsSupported,
+    currentSegment,
+    segmentCount,
+  } = useTtsReadout();
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [reading, setReading] = useState(false);
+  const [resumeSegmentIndex, setResumeSegmentIndex] = useState(0);
   const [revealedLessonPointCount, setRevealedLessonPointCount] = useState(1);
   const [learningMode, setLearningMode] = useState<ProgramForm["learningMode"]>(() => readLearningModePreference());
+  const narrationStartedForItemRef = useRef<string | null>(null);
 
   const { data, isLoading, isError } = useQuery<LearningTodayResponse>({
     queryKey: ["/api/learning/today"],
@@ -895,10 +934,23 @@ export default function LearnSomethingNewPage() {
   const mobileProgressPercent = totalLessons > 0
     ? Math.min(100, Math.max(4, (activeLessonNumber / totalLessons) * 100))
     : 0;
+  const readAloudPositionKey = lesson ? lessonReadAloudPositionKey(lesson.id, language) : null;
+  const narrationSegments = useMemo<TtsSegment[]>(() => lesson ? [
+    { text: lesson.title, lang: language, rate: 0.9, delayMs: 300 },
+    { text: lesson.hook, lang: language, rate: 0.9, delayMs: 450 },
+    { text: lesson.body, lang: language, rate: 0.88, delayMs: 500 },
+    { text: `${t("learn.readAloud.reflectionIntro", "Reflection")}. ${lesson.reflectionPrompt}`, lang: language, rate: 0.88 },
+  ] : [], [language, lesson, t]);
 
   useEffect(() => {
     setRevealedLessonPointCount(1);
   }, [lesson?.id]);
+
+  useEffect(() => {
+    stopTts();
+    setResumeSegmentIndex(readLessonPosition(readAloudPositionKey));
+    narrationStartedForItemRef.current = null;
+  }, [lesson?.id, language, readAloudPositionKey, stopTts]);
 
   const createProgram = useMutation({
     mutationFn: async (form: ProgramForm) => {
@@ -939,8 +991,25 @@ export default function LearnSomethingNewPage() {
     },
     onSuccess: (_payload, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["/api/learning/today"] });
-      if (variables.eventType === "completed") toast({ title: "Lesson completed", description: "Nice. Tomorrow's snippet will keep the thread going." });
-      if (variables.eventType === "saved") toast({ title: "Saved for later", description: "This lesson will stay marked for another look." });
+      if (variables.eventType === "completed") {
+        const receipt = buildWorkflowReceiptMoment({
+          workflowReference: APP_WORKFLOW_REFERENCES.learningTodayLesson,
+          status: "done",
+          subject: variables.item.lesson?.title ?? "today's lesson",
+          capturedSummary: "Nice. Tomorrow's snippet will keep the thread going.",
+          locale: language === "es" ? "es" : "en",
+        });
+        toast({ title: receipt.title, description: receipt.message });
+      }
+      if (variables.eventType === "saved") {
+        const receipt = buildWorkflowReceiptMoment({
+          workflowReference: APP_WORKFLOW_REFERENCES.learningSaveForLater,
+          status: "saved",
+          capturedSummary: "This lesson will stay marked for another look.",
+          locale: language === "es" ? "es" : "en",
+        });
+        toast({ title: receipt.title, description: receipt.message });
+      }
       if (variables.eventType === "skipped") toast({ title: "Next lesson", description: "We moved this one aside." });
     },
     onError: (error) => {
@@ -951,28 +1020,69 @@ export default function LearnSomethingNewPage() {
   const initialForm = useMemo(() => makeInitialForm(program, learningMode), [program, learningMode]);
   const voiceFirst = learningMode === "voice";
 
-  const readLesson = () => {
-    if (!lesson || typeof window === "undefined" || !("speechSynthesis" in window)) {
-      toast({ title: "Read aloud is not available", description: "You can still read the lesson on screen." });
-      return;
+  const readLesson = (requestedStartIndex = resumeSegmentIndex) => {
+    if (!lesson || !isTtsSupported || narrationSegments.length === 0) return;
+    const startIndex = Math.min(narrationSegments.length - 1, Math.max(0, requestedStartIndex));
+    const started = speakSequence(narrationSegments, {
+      startIndex,
+      onProgress: (segmentIndex) => {
+        saveLessonPosition(readAloudPositionKey, segmentIndex);
+        setResumeSegmentIndex(segmentIndex);
+      },
+      onComplete: () => {
+        clearLessonPosition(readAloudPositionKey);
+        setResumeSegmentIndex(0);
+      },
+    });
+    if (started && today && narrationStartedForItemRef.current !== today.id) {
+      narrationStartedForItemRef.current = today.id;
+      eventMutation.mutate({ eventType: "started", item: today });
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(`${lesson.title}. ${lesson.hook}. ${lesson.body}. Reflection. ${lesson.reflectionPrompt}`);
-    utterance.onend = () => setReading(false);
-    utterance.onerror = () => setReading(false);
-    setReading(true);
-    window.speechSynthesis.speak(utterance);
-    if (today) eventMutation.mutate({ eventType: "started", item: today });
+  };
+
+  const stopLessonNarration = () => {
+    stopTts();
+    clearLessonPosition(readAloudPositionKey);
+    setResumeSegmentIndex(0);
+  };
+
+  const replayLesson = () => {
+    clearLessonPosition(readAloudPositionKey);
+    setResumeSegmentIndex(0);
+    readLesson(0);
   };
 
   const goToNextLesson = () => {
     if (!today) return;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    setReading(false);
+    stopLessonNarration();
     eventMutation.mutate({ eventType: "skipped", item: today });
   };
+
+  const readAloudPrimaryLabel = playbackStatus === "loading"
+    ? t("learn.readAloud.preparing", "Preparing voice...")
+    : playbackStatus === "playing"
+      ? t("learn.readAloud.pause", "Pause")
+      : playbackStatus === "paused"
+        ? t("learn.readAloud.resume", "Resume")
+        : playbackStatus === "completed"
+          ? t("learn.readAloud.replay", "Replay")
+          : resumeSegmentIndex > 0
+            ? t("learn.readAloud.resume", "Resume")
+            : voiceFirst
+              ? t("learn.readAloud.listen", "Listen aloud")
+              : t("learn.readAloud.play", "Read aloud");
+
+  const readAloudStatus = !isTtsSupported || playbackStatus === "unavailable"
+    ? t("learn.readAloud.unavailableDetail", "Voice playback is unavailable on this device. The lesson remains available on screen.")
+    : playbackStatus === "error"
+      ? t("learn.readAloud.errorDetail", "Voice playback stopped. You can try again or continue reading on screen.")
+      : playbackStatus === "completed"
+        ? t("learn.readAloud.completed", "Lesson reading complete.")
+        : (playbackStatus === "playing" || playbackStatus === "paused" || playbackStatus === "loading") && segmentCount > 0
+          ? t("learn.readAloud.part", "Part {{current}} of {{total}}", { current: Math.max(1, currentSegment), total: segmentCount })
+          : resumeSegmentIndex > 0
+            ? t("learn.readAloud.resumeReady", "Continue from where you stopped.")
+            : t("learn.readAloud.ready", "Hear this lesson in your app language.");
 
   const startAnotherPlan = () => {
     createProgram.mutate(initialForm);
@@ -1128,17 +1238,60 @@ export default function LearnSomethingNewPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1.35fr_1fr_1fr] md:grid-cols-1">
-                {voiceFirst ? (
+                <div
+                  className="col-span-2 rounded-[18px] border border-[#D8C7F3] bg-[#F8F4FF] p-2 sm:col-span-3 md:col-span-1"
+                  data-testid="learn-read-aloud-controls"
+                >
                   <button
                     type="button"
-                    onClick={readLesson}
-                    className="col-span-2 inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-5 py-3 text-sm font-black text-white shadow-sm sm:col-span-1 sm:min-h-[52px] md:col-span-1"
+                    disabled={!isTtsSupported || playbackStatus === "loading"}
+                    onClick={() => {
+                      if (playbackStatus === "playing") {
+                        pauseTts();
+                      } else if (playbackStatus === "paused") {
+                        resumeTts();
+                      } else if (playbackStatus === "completed") {
+                        replayLesson();
+                      } else {
+                        readLesson();
+                      }
+                    }}
+                    className="inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#6D28D9] px-5 py-3 text-sm font-black text-white shadow-sm disabled:bg-[#B9A9C9]"
                     data-testid="button-learn-read-aloud"
                   >
-                    {reading ? <Headphones size={18} /> : <Volume2 size={18} />}
-                    Listen aloud
+                    {playbackStatus === "playing" ? <Pause size={18} /> : playbackStatus === "paused" ? <Play size={18} /> : <Volume2 size={18} />}
+                    {readAloudPrimaryLabel}
                   </button>
-                ) : null}
+                  <div className="mt-2 flex min-h-9 items-center justify-between gap-2 px-1">
+                    <p className="text-[12px] font-bold leading-snug text-[#6E5A73]" role="status" data-testid="learn-read-aloud-status">
+                      {readAloudStatus}
+                    </p>
+                    {playbackStatus === "playing" || playbackStatus === "paused" || playbackStatus === "completed" ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={replayLesson}
+                          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-full text-[#6D28D9] hover:bg-white"
+                          aria-label={t("learn.readAloud.replay", "Replay")}
+                          title={t("learn.readAloud.replay", "Replay")}
+                          data-testid="button-learn-read-aloud-replay"
+                        >
+                          <RotateCcw size={17} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopLessonNarration}
+                          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-full text-[#6E5A73] hover:bg-white"
+                          aria-label={t("learn.readAloud.stop", "Stop")}
+                          title={t("learn.readAloud.stop", "Stop")}
+                          data-testid="button-learn-read-aloud-stop"
+                        >
+                          <Square size={16} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
                 <button
                   type="button"
                   disabled={eventMutation.isPending || today.status === "completed"}
@@ -1149,17 +1302,6 @@ export default function LearnSomethingNewPage() {
                   <CheckCircle2 size={18} />
                   I learned this
                 </button>
-                {!voiceFirst ? (
-                  <button
-                    type="button"
-                    onClick={readLesson}
-                    className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg border border-[#E4D9CE] bg-white px-3 py-3 text-sm font-black text-[#5b4a46] sm:min-h-[52px] sm:px-5"
-                    data-testid="button-learn-read-aloud"
-                  >
-                    {reading ? <Headphones size={18} /> : <Volume2 size={18} />}
-                    Read aloud
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   disabled={eventMutation.isPending}

@@ -82,6 +82,7 @@ describe("Profile channel preferences", () => {
       whatsapp_available_until: "22:00",
       max_outbound_calls_per_day: 1,
       max_whatsapp_messages_per_day: 5,
+      concierge_task_notifications_enabled: true,
     });
   });
 
@@ -98,6 +99,7 @@ describe("Profile channel preferences", () => {
       whatsapp_available_until: "20:45",
       max_outbound_calls_per_day: null,
       max_whatsapp_messages_per_day: 10,
+      concierge_task_notifications_enabled: false,
     };
 
     const saveRes = await request(app)
@@ -123,6 +125,7 @@ describe("Profile channel preferences", () => {
     expect(row?.preferred_checkin_channel).toBe("whatsapp_outbound");
     expect(row?.preferred_reminder_channel).toBe("voice_app");
     expect(row?.max_outbound_calls_per_day).toBeNull();
+    expect(row?.concierge_task_notifications_enabled).toBe(false);
 
     const [profile] = await db
       .select({ data_sharing_consent: profiles.data_sharing_consent })

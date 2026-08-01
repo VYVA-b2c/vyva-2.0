@@ -1,19 +1,117 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, PackageCheck, type LucideIcon } from "lucide-react";
+import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
+import VyvaSessionCta from "@/components/VyvaSessionCta";
+import CrossPillarSubflowCanvas, {
+  isCrossPillarCompletionAction,
+  type CrossPillarSubflowResult,
+} from "@/components/voice-canvas/CrossPillarSubflowCanvas";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
+import { useHeroMessage } from "@/hooks/useHeroMessage";
+import { useLanguage } from "@/i18n";
 import { displayFirstName } from "@/lib/displayIdentity";
+import { hasSeenVoiceOrbHint } from "@/lib/voiceOrbHint";
+import {
+  decideHomeContextMessage,
+  homeContextActionForVoiceReply,
+  readHomeContextMessageActionHistory,
+  readHomeContextMessageHistory,
+  readHomeContextMessageOutcomeHistory,
+  HOME_CONTEXT_MESSAGE_DISPLAY_MS,
+  writeHomeContextMessageAction,
+  writeHomeContextMessageOutcome,
+  writeHomeContextMessageSeen,
+  type HomeContextMessage,
+  type HomeContextMessageOutcome,
+} from "@/lib/homeContextMessages";
+import { adaptHeroMessageForHome } from "@/lib/homeAdminMessages";
+import {
+  normalizeHeroLanguage,
+  recordHeroEvent,
+  recordHeroImpression,
+  type HeroReason,
+} from "@/lib/heroMessages";
+import {
+  VYVA_VOICE_APP_ACTION_RESULT_EVENT,
+  VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_HOME_SUBFLOW_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceAppActionResult,
+  type VoiceHomeIntent,
+  type VoiceHomeSubflow,
+  isVoiceHomeIntent,
+  isVoiceHomeSubflow,
+  transitionForVoiceHomeIntent,
+  type VoiceUserMessageDetail,
+} from "@/lib/voiceNavigation";
+import {
+  HOME_FAST_HELP_REASON_FALLBACKS,
+  homeFastHelpHistoryStorageKey,
+  rankContextualHomeFastHelp,
+  readHomeFastHelpHistory,
+  recordHomeFastHelpUse,
+  writeHomeFastHelpHistory,
+  type ContextualHomeFastHelpActionId,
+  type HomeFastHelpActivity,
+} from "@/lib/contextualHomeFastHelp";
+import {
+  HOME_FAST_HELP_JOURNEY_EVENT,
+  HOME_FAST_HELP_RECOVERY_REFERENCE_ID,
+  abandonOpenedHomeFastHelpJourneys,
+  homeFastHelpActivityFromJourneys,
+  homeFastHelpContextForJourney,
+  homeFastHelpJourneyStorageKey,
+  latestBlockedHomeFastHelpJourney,
+  markHomeFastHelpJourney,
+  readHomeFastHelpJourneys,
+  reconcileHomeFastHelpJourneys,
+  resumeHomeFastHelpJourney,
+  selectHomeFastHelpRecoveryNudge,
+  startHomeFastHelpJourney,
+  withHomeFastHelpContextState,
+  type HomeFastHelpJourney,
+} from "@/lib/homeFastHelpOutcome";
+import { recordHomeFastHelpImpression } from "@/lib/homeFastHelpInsights";
+import { selectHomeResumeCandidate } from "@/lib/homeResumeOrchestrator";
+import { conciergeTaskPath } from "@/lib/conciergeTaskNavigation";
+import { executeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
+import type {
+  CrossPillarToolEvidence,
+  CrossPillarToolFamily,
+} from "../../shared/crossPillarToolReadiness";
+import {
+  readShowVyvaReviewHistory,
+  SHOW_VYVA_REVIEW_HISTORY_EVENT,
+  type ShowVyvaReviewHistoryItem,
+} from "@/lib/showVyvaReviewHistory";
 import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
+import {
+  conciergeCanvasExplainability,
+  conciergeCanvasStateLabel,
+  deriveConciergeCanvasState,
+  type ConciergeCanvasStateSummary,
+} from "../../shared/conciergeCanvasState";
+import { buildConciergeConfirmationReceipt } from "../../shared/conciergeConfirmationReceipt";
+import type { ConciergeExecutionTask } from "../../shared/conciergeActionExecution";
+import { HOME_FAST_HELP_RANKING_VERSION } from "../../shared/homeFastHelpSync";
+import {
+  isShowVyvaPreparedTask,
+  showVyvaResumeActionLabel,
+  showVyvaResumeSourceLabel,
+  showVyvaResumeSummary,
+} from "../../shared/showVyvaResume";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -32,6 +130,10 @@ type MedicationHomeSignal = {
   todaySummary?: {
     scheduled: number;
     remaining: number;
+  };
+  nextDose?: {
+    name?: string | null;
+    minutesUntil?: number | null;
   };
 };
 
@@ -66,12 +168,39 @@ type BrainCoachHomeSignal = {
 type ParticipationPulseHomeSignal = {
   pulse?: {
     featuredEvent?: {
+      id?: string;
+      title?: string;
+      startsAt?: string;
+      location?: string;
       format?: "nearby" | "online" | "hybrid" | string;
     } | null;
     savedEvents?: unknown[];
-    notifications?: unknown[];
-    emptyProfileNudge?: unknown;
+    notifications?: Array<{
+      id?: string;
+      title?: string;
+      body?: string;
+      eventId?: string;
+      readAt?: string | null;
+    }>;
+    emptyProfileNudge?: {
+      title?: string;
+      body?: string;
+      actionLabel?: string;
+      path?: string;
+    } | null;
   };
+};
+
+type ScheduledEventsHomeSignal = {
+  events?: Array<{
+    id?: string;
+    event_type?: string;
+    title?: string;
+    description?: string | null;
+    scheduled_for?: string;
+    status?: string;
+    metadata?: Record<string, unknown> | null;
+  }>;
 };
 
 type ConciergePendingHomeSignal = {
@@ -89,6 +218,10 @@ type ConciergePendingHomeItem = {
   action_summary?: string | null;
   status?: "pending" | "calling" | "completed" | "failed" | "cancelled" | string | null;
   action_payload?: Record<string, unknown> | null;
+  confirmed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  task_path?: string | null;
 };
 
 type ConciergeCompletedHomeItem = {
@@ -113,6 +246,48 @@ type HomeFastAction = {
   href?: string;
 };
 
+type HomeIntentLayer = "home" | VoiceHomeIntent;
+
+const HOME_INTENT_LAYER_STORAGE_KEY = "vyva:home-intent-layer:v1";
+const HOME_SUBFLOW_STORAGE_KEY = "vyva:home-subflow:v1";
+
+function readHomeIntentLayer(): HomeIntentLayer {
+  try {
+    const stored = sessionStorage.getItem(HOME_INTENT_LAYER_STORAGE_KEY);
+    return isVoiceHomeIntent(stored) ? stored : "home";
+  } catch {
+    return "home";
+  }
+}
+
+function writeHomeIntentLayer(layer: HomeIntentLayer) {
+  try {
+    if (layer === "home") sessionStorage.removeItem(HOME_INTENT_LAYER_STORAGE_KEY);
+    else sessionStorage.setItem(HOME_INTENT_LAYER_STORAGE_KEY, layer);
+  } catch {
+    return;
+  }
+}
+
+function readHomeSubflow(): VoiceHomeSubflow | null {
+  try {
+    const stored = sessionStorage.getItem(HOME_SUBFLOW_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as unknown;
+    return isVoiceHomeSubflow(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeHomeSubflow(subflow: VoiceHomeSubflow | null) {
+  try {
+    if (subflow) sessionStorage.setItem(HOME_SUBFLOW_STORAGE_KEY, JSON.stringify(subflow));
+    else sessionStorage.removeItem(HOME_SUBFLOW_STORAGE_KEY);
+  } catch {
+    return;
+  }
+}
 
 const COORDS_WEATHER_CACHE_KEY = "vyva_coords_weather_cache";
 const COORDS_WEATHER_TTL_MS = 30 * 60 * 1000;
@@ -164,10 +339,10 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 ];
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
-  health: { title: "Health Plan", subtitle: "Care today" },
-  cognitive: { title: "Mind & Memory", subtitle: "Memory and reflexes" },
-  social: { title: "Community", subtitle: "Rooms and chats" },
-  concierge: { title: "Concierge", subtitle: "Help and errands" },
+  health: { title: "My Health", subtitle: "Care today" },
+  cognitive: { title: "My Mind", subtitle: "Memory and focus" },
+  social: { title: "My Community", subtitle: "Rooms and chats" },
+  concierge: { title: "My Concierge", subtitle: "Help and errands" },
 };
 
 const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { label: string; sub: string }> = {
@@ -190,90 +365,6 @@ function baseLanguageCode(language?: string | null) {
   return "en";
 }
 
-function homeDueBadge(count: number, t: HomeTranslate) {
-  return count === 1
-    ? t("home.master.badges.oneDue", "1 due")
-    : t("home.master.badges.due", "{{count}} due", { count });
-}
-
-function homeCountBadge(count: number, one: string, manyKey: string, manyFallback: string, t: HomeTranslate) {
-  return count === 1 ? one : t(manyKey, manyFallback, { count });
-}
-
-function healthCardAccent(input: {
-  checkin?: DailyCheckinHomeSignal | null;
-  medication?: MedicationHomeSignal | null;
-  prevention?: PreventionHomeSignal | null;
-  vitals?: LatestVitalsHomeSignal | null;
-}, t: HomeTranslate) {
-  const status = input.vitals?.analysis?.recommended_action || input.vitals?.analysis?.safety_status || "";
-  const alertSeverity = input.vitals?.latest_alert?.severity || "";
-  const vitalsNeedsAttention = Boolean(
-    (status && status !== "steady") ||
-    (alertSeverity && alertSeverity !== "info"),
-  );
-  if (vitalsNeedsAttention) return t("home.master.badges.vitals", "Vitals");
-  if (input.checkin?.status === "overdue") return t("home.master.badges.checkIn", "Check-in");
-
-  const remaining = input.medication?.todaySummary?.remaining ?? 0;
-  if (remaining > 0) return homeDueBadge(remaining, t);
-
-  if (input.checkin?.status === "due_now") return t("home.master.badges.checkIn", "Check-in");
-  const focus = input.prevention?.focus;
-  if (focus && focus !== "Plan") return focus;
-  if ((input.medication?.todaySummary?.scheduled ?? 0) > 0) return t("home.master.badges.allSet", "All set");
-  return t("home.master.badges.today", "Today");
-}
-
-function mindMemoryCardAccent(progress: BrainCoachHomeSignal | null | undefined, t: HomeTranslate) {
-  if ((progress?.today?.completedCount ?? 0) > 0) return t("home.master.badges.done", "Done");
-  const streakDays = progress?.summary?.streakDays ?? 0;
-  if (streakDays > 1) {
-    return homeCountBadge(
-      streakDays,
-      t("home.master.badges.oneDay", "1 day"),
-      "home.master.badges.streakDays",
-      "{{count}} days",
-      t,
-    );
-  }
-  return t("home.master.badges.fiveMin", "5 min");
-}
-
-function communityCardAccent(pulse: ParticipationPulseHomeSignal | null | undefined, t: HomeTranslate) {
-  const notifications = pulse?.pulse?.notifications?.length ?? 0;
-  if (notifications > 0) return t("home.master.badges.new", "New");
-  const saved = pulse?.pulse?.savedEvents?.length ?? 0;
-  if (saved > 0) {
-    return homeCountBadge(
-      saved,
-      t("home.master.badges.saved", "Saved"),
-      "home.master.badges.savedCount",
-      "{{count}} saved",
-      t,
-    );
-  }
-  const format = pulse?.pulse?.featuredEvent?.format;
-  if (format === "online") return t("home.master.badges.online", "Online");
-  if (format === "nearby" || format === "hybrid") return t("home.master.badges.nearby", "Nearby");
-  if (pulse?.pulse?.emptyProfileNudge) return t("home.master.badges.interests", "Interests");
-  return t("home.master.badges.join", "Join");
-}
-
-function conciergeCardAccent(pending: ConciergePendingHomeSignal | null | undefined, t: HomeTranslate) {
-  const count = pending?.items?.length ?? 0;
-  if (count > 0) {
-    return homeCountBadge(
-      count,
-      t("home.master.badges.oneTask", "1 task"),
-      "home.master.badges.tasks",
-      "{{count}} tasks",
-      t,
-    );
-  }
-  return t("home.master.badges.help", "Help");
-}
-
 function conciergeHomeItems(pending: ConciergePendingHomeSignal | null | undefined) {
   return pending?.items?.filter((item) => item?.id && item.status !== "completed" && item.status !== "cancelled") ?? [];
 }
@@ -283,6 +374,7 @@ function conciergeHomeStatus(item: ConciergePendingHomeItem) {
 }
 
 function conciergeTaskKind(useCase: string | null | undefined, payload: Record<string, unknown> | null | undefined) {
+  if (payload?.task_type === "provider_shortlist") return "providerShortlist";
   const appointmentType = typeof payload?.appointment_type === "string"
     ? payload.appointment_type
     : "";
@@ -316,6 +408,44 @@ function conciergeCompletedHomeTaskKind(item: ConciergeCompletedHomeItem) {
   return conciergeTaskKind(item.use_case, item.outcome_payload);
 }
 
+function contextualFastHelpActionForConciergeKind(
+  kind: ReturnType<typeof conciergeTaskKind>,
+): ContextualHomeFastHelpActionId | null {
+  switch (kind) {
+    case "ride":
+      return "book-ride";
+    case "appointment":
+    case "homeService":
+    case "pharmacy":
+    case "provider":
+    case "providerShortlist":
+      return "find-care";
+    case "admin":
+      return "paperwork-help";
+    case "safety":
+      return "safe-home";
+    default:
+      return null;
+  }
+}
+
+function contextualFastHelpRemoteActivity(
+  completed: ConciergeCompletedHomeSignal | null | undefined,
+): HomeFastHelpActivity[] {
+  return completed?.items?.flatMap((item) => {
+    const actionId = contextualFastHelpActionForConciergeKind(conciergeCompletedHomeTaskKind(item));
+    const occurredAt = item.completed_at?.trim();
+    if (!actionId || !occurredAt || Number.isNaN(new Date(occurredAt).getTime())) return [];
+    const outcome = item.outcome?.toLowerCase() ?? "";
+    const status = outcome.includes("dismiss") || outcome.includes("cancel") || outcome.includes("declin")
+      ? "dismissed" as const
+      : outcome.includes("fail") || outcome.includes("unavailable") || outcome.includes("error")
+        ? "blocked" as const
+        : "completed" as const;
+    return [{ actionId, status, occurredAt }];
+  }) ?? [];
+}
+
 function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
   switch (conciergeHomeTaskKind(item)) {
     case "ride":
@@ -328,6 +458,8 @@ function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate
       return t("home.conciergeResume.task.homeService", "home service");
     case "provider":
       return t("home.conciergeResume.task.provider", "provider search");
+    case "providerShortlist":
+      return t("home.conciergeResume.task.providerShortlist", "saved options");
     case "admin":
       return t("home.conciergeResume.task.admin", "admin task");
     case "safety":
@@ -374,6 +506,54 @@ function conciergeHomePayloadString(item: ConciergePendingHomeItem, keys: string
   return "";
 }
 
+function conciergeHomeExecutionTask(item: ConciergePendingHomeItem): Partial<ConciergeExecutionTask> | null {
+  const task = item.action_payload?.execution_task;
+  return task && typeof task === "object" && !Array.isArray(task)
+    ? task as Partial<ConciergeExecutionTask>
+    : null;
+}
+
+function conciergeHomePayloadBoolean(item: ConciergePendingHomeItem, keys: string[]) {
+  const payload = item.action_payload;
+  if (!payload) return false;
+  return keys.some((key) => payload[key] === true);
+}
+
+function conciergeHomeHasMissingDetails(item: ConciergePendingHomeItem) {
+  const task = conciergeHomeExecutionTask(item);
+  const missingRequirements = Array.isArray(task?.missing_requirements)
+    ? task.missing_requirements
+    : [];
+  const missingDetails = item.action_payload?.missingDetails ?? item.action_payload?.missing_details;
+  return missingRequirements.length > 0
+    || (Array.isArray(missingDetails) && missingDetails.length > 0);
+}
+
+function conciergeHomeCanvasState(item: ConciergePendingHomeItem): ConciergeCanvasStateSummary {
+  const executionTask = conciergeHomeExecutionTask(item);
+  const hasMissingDetails = conciergeHomeHasMissingDetails(item);
+  const requiresConfirmation = conciergeHomePayloadBoolean(item, [
+    "confirmation_required_before_action",
+    "no_external_action_without_confirmation",
+  ]);
+  const status = conciergeHomeStatus(item);
+
+  return deriveConciergeCanvasState({
+    status,
+    useCase: item.use_case,
+    flowReference: executionTask?.flow_reference
+      ?? conciergeHomePayloadString(item, ["flow_reference"]),
+    actionType: executionTask?.action_type
+      ?? conciergeHomePayloadString(item, ["action_type", "task_type"]),
+    executionTask,
+    hasMissingDetails,
+    hasReviewSummary: !hasMissingDetails,
+    reviewPresented: status === "pending" && !hasMissingDetails && (requiresConfirmation || Boolean(executionTask)),
+    waitingForProvider: conciergeHomeIsWaitingOnProvider(item),
+    missionStatus: conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]),
+  });
+}
+
 function conciergeCompletedPayloadString(item: ConciergeCompletedHomeItem, keys: string[]) {
   const payload = item.outcome_payload;
   if (!payload) return "";
@@ -413,53 +593,77 @@ function conciergeCompletedHomeTemplate(item: ConciergeCompletedHomeItem) {
 
 function conciergeHomeIsWaitingOnProvider(item: ConciergePendingHomeItem) {
   const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
+  const liveHandoffStatus = conciergeHomePayloadString(item, ["live_handoff_status", "provider_follow_up_status"]).toLowerCase();
   const status = conciergeHomeStatus(item);
-  return status === "calling" || status === "in_progress" || missionStatus.includes("awaiting_provider");
+  return status === "calling"
+    || status === "in_progress"
+    || missionStatus.includes("awaiting_provider")
+    || liveHandoffStatus === "waiting"
+    || liveHandoffStatus === "sent_or_called";
 }
 
-function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
-  const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
-  if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.step.waiting", "Waiting for reply");
-  if (missionStatus.includes("form")) return t("home.conciergeResume.step.form", "Preparing form");
-  if (missionStatus.includes("save") || missionStatus.includes("booked")) return t("home.conciergeResume.step.save", "Ready to save");
-  if (conciergeHomeStatus(item) === "failed") return t("home.conciergeResume.step.attention", "Needs your review");
-  return t("home.conciergeResume.step.confirm", "Waiting for your confirmation");
+function conciergeHomeWaitingLabel(
+  item: ConciergePendingHomeItem,
+  nowMs: number,
+  language: string,
+  t: HomeTranslate,
+) {
+  const raw = conciergeHomePayloadString(item, [
+    "provider_waiting_since",
+    "waiting_since",
+    "provider_last_contact_at",
+    "contacted_at",
+  ]) || item.confirmed_at || "";
+  const waitingSince = raw ? new Date(raw) : null;
+  if (!waitingSince || Number.isNaN(waitingSince.getTime())) {
+    return t("home.conciergeResume.step.waiting", "Waiting for reply");
+  }
+
+  const elapsedMinutes = Math.max(0, Math.floor((nowMs - waitingSince.getTime()) / 60_000));
+  if (elapsedMinutes < 1) return t("home.conciergeResume.waitingNow", "Sent just now");
+  if (elapsedMinutes < 60) {
+    return t("home.conciergeResume.waitingMinutes", "{{count}} min waiting", { count: elapsedMinutes });
+  }
+  if (elapsedMinutes < 24 * 60) {
+    const hours = Math.floor(elapsedMinutes / 60);
+    return t("home.conciergeResume.waitingHours", "{{count}} hr waiting", { count: hours });
+  }
+
+  const time = new Intl.DateTimeFormat(language || "en", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(waitingSince);
+  return t("home.conciergeResume.waitingSince", "Waiting since {{time}}", { time });
 }
 
-function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
-  const status = conciergeHomeStatus(item);
-  if (status === "failed") return t("home.conciergeResume.kickerReview", "Needs review");
-  if (status === "pending") return t("home.conciergeResume.kickerConfirm", "Needs your OK");
-  if (conciergeHomeIsWaitingOnProvider(item)) return t("home.conciergeResume.kickerWaiting", "Waiting");
-  return t("home.conciergeResume.kicker", "Right now");
+function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate, isSpanish = false) {
+  if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.step.providerShortlist", "Review saved options");
+  if (isShowVyvaPreparedTask(item.action_payload)) {
+    return t("home.showVyvaResume.step", "Review first");
+  }
+  return conciergeCanvasStateLabel(conciergeHomeCanvasState(item).state, isSpanish);
+}
+
+function conciergeHomeKickerLabel(item: ConciergePendingHomeItem, t: HomeTranslate, isSpanish = false) {
+  if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.kickerProviderShortlist", "Saved shortlist");
+  if (isShowVyvaPreparedTask(item.action_payload)) return t("home.showVyvaResume.kicker", "VYVA prepared this");
+  return conciergeCanvasStateLabel(conciergeHomeCanvasState(item).state, isSpanish);
 }
 
 function conciergeHomeTitlePrefix(item: ConciergePendingHomeItem, t: HomeTranslate) {
-  const status = conciergeHomeStatus(item);
-  if (status === "failed") return t("home.conciergeResume.titleReviewPrefix", "Review your");
-  if (status === "pending") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
+  if (conciergeHomeTaskKind(item) === "providerShortlist") return t("home.conciergeResume.titleProviderShortlistPrefix", "Review your");
+  const state = conciergeHomeCanvasState(item).state;
+  if (state === "collecting") return t("home.conciergeResume.titleCollectPrefix", "Add detail for your");
+  if (state === "ready_to_review") return t("home.conciergeResume.titleReviewPrefix", "Review your");
+  if (state === "awaiting_confirmation") return t("home.conciergeResume.titleConfirmPrefix", "Confirm your");
+  if (state === "failed") return t("home.conciergeResume.titleTryAgainPrefix", "Try another way for your");
   return t("home.conciergeResume.titlePrefix", "VYVA is working on your");
 }
 
-function conciergeHomeFastStatusLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
-  switch (conciergeHomeTaskKind(item)) {
-    case "ride":
-      return t("home.conciergeResume.fastStatus.ride", "Check ride status");
-    case "appointment":
-      return t("home.conciergeResume.fastStatus.appointment", "Check appointment");
-    case "pharmacy":
-      return t("home.conciergeResume.fastStatus.pharmacy", "Check pharmacy request");
-    case "homeService":
-      return t("home.conciergeResume.fastStatus.homeService", "Check home service");
-    case "provider":
-      return t("home.conciergeResume.fastStatus.provider", "Check provider search");
-    case "admin":
-      return t("home.conciergeResume.fastStatus.admin", "Check admin task");
-    case "safety":
-      return t("home.conciergeResume.fastStatus.safety", "Check safety review");
-    default:
-      return t("home.conciergeResume.fastStatus.default", "Check request");
-  }
+function conciergeCompletedCanvasLabel(isSpanish: boolean) {
+  return conciergeCanvasStateLabel("completed", isSpanish);
 }
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
@@ -529,9 +733,146 @@ const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
 
 const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const managedHomeHeroMessage = useHeroMessage("home_voice", {
+    language,
+    trackImpression: false,
+  });
+  const adminHomeContextMessage = useMemo(
+    () => adaptHeroMessageForHome(managedHomeHeroMessage),
+    [managedHomeHeroMessage],
+  );
+  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const voice = useOptionalVyvaVoice();
   const { firstName: profileFirstName, profile } = useProfile();
+  const activeFastHelpImpressionIdRef = useRef<string | null>(null);
+  const fastHelpImpressionIdsByFingerprintRef = useRef(new Map<string, string>());
   const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
+  const [conciergeClockMs, setConciergeClockMs] = useState(() => Date.now());
+  const homeFastHelpHistoryKey = homeFastHelpHistoryStorageKey(profile?.profileId);
+  const homeFastHelpJourneyKey = homeFastHelpJourneyStorageKey(profile?.profileId);
+  const [homeFastHelpHistory, setHomeFastHelpHistory] = useState<HomeFastHelpActivity[]>(() => (
+    readHomeFastHelpHistory(homeFastHelpHistoryKey)
+  ));
+  const [homeFastHelpJourneys, setHomeFastHelpJourneys] = useState<HomeFastHelpJourney[]>(() => (
+    readHomeFastHelpJourneys(homeFastHelpJourneyKey)
+  ));
+  const [showVyvaReviewHistory, setShowVyvaReviewHistory] = useState<ShowVyvaReviewHistoryItem[]>(() => (
+    readShowVyvaReviewHistory()
+  ));
+  const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>(readHomeIntentLayer);
+  const [homeSubflow, setHomeSubflow] = useState<VoiceHomeSubflow | null>(readHomeSubflow);
+  const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">(() => {
+    try {
+      return localStorage.getItem("vyva:home-interaction-mode:v1") === "touch" ? "touch" : "voice";
+    } catch {
+      return "voice";
+    }
+  });
+  const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
+    () => !hasSeenVoiceOrbHint(),
+  );
+  const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
+  const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
+  const activeVoiceHomeContextFingerprintRef = useRef<string | null>(null);
+  const stableHomeContextMessageIdRef = useRef<string | null>(null);
+  const voiceEngagedMessageIdRef = useRef<string | null>(null);
+  const shownHomeContextMessageIdRef = useRef<string | null>(null);
+  const lastVoiceHomeIntentRef = useRef<{ intent: VoiceHomeIntent; at: number } | null>(null);
+
+  useEffect(() => {
+    const handleVoiceHomeIntent = (event: Event) => {
+      const intent = event instanceof CustomEvent
+        ? event.detail
+        : undefined;
+      if (!isVoiceHomeIntent(intent)) return;
+      const now = Date.now();
+      const previous = lastVoiceHomeIntentRef.current;
+      if (previous?.intent === intent && now - previous.at < 3500) return;
+      lastVoiceHomeIntentRef.current = { intent, at: now };
+      const transition = transitionForVoiceHomeIntent(intent);
+      setHomeIntentLayer(transition.layer);
+      setHomeSubflow(null);
+    };
+
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
+    return () => window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
+  }, [guardPath]);
+
+  useEffect(() => {
+    const handleVoiceHomeSubflow = (event: Event) => {
+      const subflow = event instanceof CustomEvent ? event.detail : undefined;
+      if (!isVoiceHomeSubflow(subflow)) return;
+      setHomeIntentLayer(subflow.pillar);
+      setHomeSubflow(subflow);
+    };
+
+    window.addEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
+    return () => window.removeEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
+  }, []);
+
+  useEffect(() => {
+    writeHomeIntentLayer(homeIntentLayer);
+  }, [homeIntentLayer]);
+
+  useEffect(() => {
+    writeHomeSubflow(homeSubflow);
+  }, [homeSubflow]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("vyva:home-interaction-mode:v1", homeInteractionMode);
+    } catch {
+      return;
+    }
+  }, [homeInteractionMode]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    setHomeFastHelpHistory(readHomeFastHelpHistory(homeFastHelpHistoryKey));
+  }, [homeFastHelpHistoryKey]);
+
+  useEffect(() => {
+    activeFastHelpImpressionIdRef.current = null;
+    fastHelpImpressionIdsByFingerprintRef.current.clear();
+  }, [profile?.profileId]);
+
+  useEffect(() => {
+    const syncJourneys = () => setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+    setHomeFastHelpJourneys(abandonOpenedHomeFastHelpJourneys(homeFastHelpJourneyKey));
+
+    const handleJourneyChange = (event: Event) => {
+      const changedKey = event instanceof CustomEvent && typeof event.detail?.storageKey === "string"
+        ? event.detail.storageKey
+        : null;
+      if (changedKey && changedKey !== homeFastHelpJourneyKey) return;
+      syncJourneys();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === homeFastHelpJourneyKey) syncJourneys();
+    };
+    window.addEventListener(HOME_FAST_HELP_JOURNEY_EVENT, handleJourneyChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(HOME_FAST_HELP_JOURNEY_EVENT, handleJourneyChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [homeFastHelpJourneyKey]);
+
+  useEffect(() => {
+    const refresh = () => setShowVyvaReviewHistory(readShowVyvaReviewHistory());
+    window.addEventListener(SHOW_VYVA_REVIEW_HISTORY_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(SHOW_VYVA_REVIEW_HISTORY_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -612,78 +953,205 @@ const HomeScreen = () => {
   }, [fetchIpWeather, noCityInProfile]);
 
   const weatherData = profileWeatherData ?? coordsWeatherData;
-  const participationLanguage = baseLanguageCode(i18n?.language);
+  const participationLanguage = baseLanguageCode(language);
 
   const { data: medicationHomeSignal } = useQuery<MedicationHomeSignal>({
     queryKey: ["/api/meds/adherence-report"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: latestVitalsHomeSignal } = useQuery<LatestVitalsHomeSignal>({
     queryKey: ["/api/vitals-engine/latest"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: preventionHomeSignal } = useQuery<PreventionHomeSignal>({
     queryKey: ["/api/health/prevention"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: checkinHomeSignal } = useQuery<DailyCheckinHomeSignal>({
     queryKey: ["/api/checkins/today"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: brainCoachHomeSignal } = useQuery<BrainCoachHomeSignal>({
     queryKey: ["/api/games/progress"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: participationPulseHomeSignal } = useQuery<ParticipationPulseHomeSignal>({
     queryKey: [`/api/social/participate/pulse?lang=${participationLanguage}`],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: scheduledEventsHomeSignal } = useQuery<ScheduledEventsHomeSignal>({
+    queryKey: ["/api/profile/scheduled-events"],
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: conciergePendingHomeSignal } = useQuery<ConciergePendingHomeSignal>({
     queryKey: ["/api/concierge/actions/pending"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
   const { data: conciergeCompletedHomeSignal } = useQuery<ConciergeCompletedHomeSignal>({
     queryKey: ["/api/concierge/actions/sessions"],
     staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
     retry: false,
   });
 
+  const { data: crossPillarToolReadiness } = useQuery<{
+    tools: CrossPillarToolEvidence[];
+  }>({
+    queryKey: ["/api/cross-pillar/tool-readiness"],
+    staleTime: 30 * 1000,
+    retry: false,
+  });
+  const crossPillarToolEvidence = useMemo(() => Object.fromEntries(
+    (crossPillarToolReadiness?.tools ?? []).map((item) => [item.family, item]),
+  ) as Partial<Record<CrossPillarToolFamily, CrossPillarToolEvidence>>, [crossPillarToolReadiness]);
+
   const timeGreetingKey = useMemo(() => {
-    const hour = new Date().getHours();
+    const hour = new Date(conciergeClockMs).getHours();
     if (hour >= 5 && hour <= 11) return "morning";
     if (hour >= 12 && hour <= 16) return "afternoon";
     return "evening";
-  }, []);
+  }, [conciergeClockMs]);
 
   const greetingText = useMemo(() => {
     const period = timeGreetingKey;
+    const capitalizedName = firstName
+      ? firstName.charAt(0).toLocaleUpperCase(language) + firstName.slice(1)
+      : "";
     if (firstName) {
-      return t(`home.greeting.${period}.withName.1`, { name: firstName });
+      return t(`home.greeting.${period}.withName.1`, { name: capitalizedName });
     }
     return t(`home.greeting.${period}.withoutName.1`);
-  }, [firstName, timeGreetingKey, t]);
+  }, [firstName, language, timeGreetingKey, t]);
 
-  const handleNavigate = (path: string, options?: NavigateOptions) => {
+  const handleNavigate = useCallback((path: string, options?: NavigateOptions) => {
     guardPath(path, options);
+  }, [guardPath]);
+
+  const launchHomeFastHelp = (
+    actionId: ContextualHomeFastHelpActionId,
+    path: string,
+    options?: NavigateOptions,
+  ) => {
+    const { context } = startHomeFastHelpJourney({
+      actionId,
+      destinationPath: path,
+      destinationState: options?.state,
+      profileId: profile?.profileId,
+      impressionId: activeFastHelpImpressionIdRef.current,
+    });
+    const allowed = handleNavigate(path, {
+      ...options,
+      state: withHomeFastHelpContextState(context, options?.state),
+    });
+    if (allowed === false) {
+      markHomeFastHelpJourney(context, "blocked", { reason: "service_not_ready" });
+    }
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(context.storageKey));
+  };
+
+  const resumedHomeFastHelpState = (actionId: ContextualHomeFastHelpActionId) => {
+    if (actionId === "book-ride") return {
+      conciergePrefill: {
+        kind: "ride",
+        message: t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation."),
+        flowReference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+        source: "home_quick_action",
+      },
+    };
+    if (actionId === "find-care") {
+      const message = t("home.master.fastHelp.findCarePrefill", "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation.");
+      return {
+        conciergePrefill: {
+          kind: "task",
+          message,
+          flowReference: CONCIERGE_FLOW_REFERENCES.careNavigation,
+          requestedTool: "operator_review",
+          actionLabel: t("home.master.fastHelp.findCareAction", "Prepare care search"),
+          summary: t("home.master.fastHelp.findCareSummary", "VYVA prepares options first, then asks before contacting anyone."),
+          useCase: "find_provider",
+          providerSearchMode: "care",
+          providerSearchCriteria: ["nearby", "reputation", "accessible"],
+          providerSearchQuery: message,
+          source: "home_quick_action",
+        },
+      };
+    }
+    if (actionId === "paperwork-help") return {
+      conciergePrefill: {
+        kind: "task",
+        message: t("home.master.fastHelp.paperworkHelpPrefill", "Help me with paperwork or a form. Prepare answers and stop before submitting so I can confirm."),
+        flowReference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+        requestedTool: "operator_review",
+        actionLabel: t("home.master.fastHelp.paperworkHelpAction", "Prepare paperwork"),
+        summary: t("home.master.fastHelp.paperworkHelpSummary", "VYVA organizes the form, missing details, and safest next step."),
+        useCase: "admin_task",
+        source: "home_quick_action",
+      },
+    };
+    return null;
+  };
+
+  const continueHomeFastHelp = (
+    journey: HomeFastHelpJourney,
+    stateOverride?: Record<string, unknown>,
+    fromRecoveryNudge = false,
+  ) => {
+    const resumed = resumeHomeFastHelpJourney(
+      journey,
+      homeFastHelpJourneyKey,
+      fromRecoveryNudge
+        ? { reason: "recovery_nudge", referenceId: HOME_FAST_HELP_RECOVERY_REFERENCE_ID }
+        : undefined,
+    );
+    const context = homeFastHelpContextForJourney(resumed, homeFastHelpJourneyKey);
+    const destinationState = {
+      ...(resumed.destinationState ?? resumedHomeFastHelpState(resumed.actionId) ?? {}),
+      ...(stateOverride ?? {}),
+    };
+    const allowed = handleNavigate(resumed.destinationPath, {
+      state: withHomeFastHelpContextState(context, destinationState),
+    });
+    if (allowed === false) {
+      markHomeFastHelpJourney(context, "blocked", { reason: "service_not_ready" });
+    }
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+
+  const rememberHomeFastHelpUse = (actionId: ContextualHomeFastHelpActionId) => {
+    setHomeFastHelpHistory((current) => {
+      const next = recordHomeFastHelpUse(current, actionId);
+      writeHomeFastHelpHistory(homeFastHelpHistoryKey, next);
+      return next;
+    });
   };
 
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
-      handleNavigate(card.path);
+      setHomeIntentLayer("health");
       return;
     }
     handleNavigate(card.path, SECTION_VOICE_AUTO_START_OPTIONS);
@@ -753,27 +1221,6 @@ const HomeScreen = () => {
     setFastHelpStartIndex(0);
   }, [fastHelpStartIndex, homeFastActions.length]);
 
-  const homeMasterCardAccents = useMemo(() => ({
-    health: healthCardAccent({
-      checkin: checkinHomeSignal,
-      medication: medicationHomeSignal,
-      prevention: preventionHomeSignal,
-      vitals: latestVitalsHomeSignal,
-    }, t),
-    mindMemory: mindMemoryCardAccent(brainCoachHomeSignal, t),
-    community: communityCardAccent(participationPulseHomeSignal, t),
-    concierge: conciergeCardAccent(conciergePendingHomeSignal, t),
-  }), [
-    brainCoachHomeSignal,
-    checkinHomeSignal,
-    conciergePendingHomeSignal,
-    latestVitalsHomeSignal,
-    medicationHomeSignal,
-    participationPulseHomeSignal,
-    preventionHomeSignal,
-    t,
-  ]);
-
   const visibleFastActions = useMemo(() => {
     if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return homeFastActions;
     return Array.from({ length: HOME_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
@@ -797,44 +1244,958 @@ const HomeScreen = () => {
     {
       id: "health",
       icon: Heart,
-      title: t("home.master.cards.health", "My Health"),
-      detail: t("home.master.cards.healthDetailShort", ""),
-      accent: homeMasterCardAccents.health,
+      title: t("home.master.cards.healthShortTitle", "My Health"),
+      detail: t("home.master.cards.healthDetailShort", "Health assistance"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/health"),
+      onClick: () => {
+        setHomeIntentLayer("health");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-health",
     },
     {
       id: "mind-memory",
       icon: Brain,
-      title: t("home.master.cards.mindMemory", "My Mind"),
-      detail: t("home.master.cards.mindMemoryDetailShort", ""),
-      accent: homeMasterCardAccents.mindMemory,
+      title: t("home.master.cards.mindMemoryShortTitle", "My Mind"),
+      detail: t("home.master.cards.mindMemoryDetailShort", "Cognitive exercises"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/mind-memory"),
+      onClick: () => {
+        setHomeIntentLayer("mind");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-cognitive",
     },
     {
-      id: "community",
+      id: "social",
       icon: Users,
-      title: t("home.master.cards.community", "My Community"),
-      detail: t("home.master.cards.communityDetailShort", ""),
-      accent: homeMasterCardAccents.community,
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/social-rooms"),
+      title: t("home.master.cards.communityShortTitle", "My Community"),
+      detail: t("home.master.cards.communityDetailShort", "Connect with others"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => {
+        setHomeIntentLayer("community");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-social",
     },
     {
       id: "concierge",
       icon: ConciergeBell,
-      title: t("home.master.cards.concierge", "My Concierge"),
-      detail: t("home.master.cards.conciergeDetailShort", ""),
-      accent: homeMasterCardAccents.concierge,
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => handleNavigate("/concierge"),
+      title: t("home.master.cards.conciergeShortTitle", "My Concierge"),
+      detail: t("home.master.cards.conciergeDetailShort", "Bookings and services"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => {
+        setHomeIntentLayer("concierge");
+        setHomeSubflow(null);
+      },
       testId: "card-home-agent-concierge",
     },
   ];
+
+  const openHealthPath = (path: string, options?: NavigateOptions) => {
+    handleNavigate(path, options);
+  };
+
+  const homeMasterHealthCards: MasterDashboardCard[] = [
+    {
+      id: "health-symptoms",
+      icon: HeartPulse,
+      title: t("home.master.healthIntent.symptoms", "Symptoms"),
+      detail: t("home.master.healthIntent.symptomsDetail", "Say what you feel"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/symptom-check", SECTION_VOICE_AUTO_START_OPTIONS),
+      testId: "card-home-health-symptoms",
+    },
+    {
+      id: "health-vitals",
+      icon: Activity,
+      title: t("home.master.healthIntent.vitals", "Vitals"),
+      detail: t("home.master.healthIntent.vitalsDetail", "Blood pressure and readings"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/vitals"),
+      testId: "card-home-health-vitals",
+    },
+    {
+      id: "health-meds",
+      icon: Pill,
+      title: t("home.master.healthIntent.meds", "Medications"),
+      detail: t("home.master.healthIntent.medsDetail", "Doses and reminders"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/meds"),
+      testId: "card-home-health-meds",
+    },
+    {
+      id: "health-doctor",
+      icon: Stethoscope,
+      title: t("home.master.healthIntent.doctor", "Doctor next step"),
+      detail: t("home.master.healthIntent.doctorDetail", "Prepare what to say"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: homeDoctorContext,
+        },
+      }),
+      testId: "card-home-health-doctor",
+    },
+    {
+      id: "health-prevention",
+      icon: ShieldCheck,
+      title: t("home.master.healthIntent.prevention", "Prevention"),
+      detail: t("home.master.healthIntent.preventionDetail", "Stay well today"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#C15B08", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health/prevention"),
+      testId: "card-home-health-prevention",
+    },
+    {
+      id: "health-visual-scan",
+      icon: Camera,
+      title: t("home.master.healthIntent.visualScan", "Visual scan"),
+      detail: t("home.master.healthIntent.visualScanDetail", "Show VYVA a concern"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
+      onClick: () => openHealthPath("/health", {
+        state: {
+          openVisualScan: true,
+          source: "home_health_intent",
+        },
+      }),
+      testId: "card-home-health-visual-scan",
+    },
+  ];
+
+  const homeMasterMindCards: MasterDashboardCard[] = [
+    {
+      id: "mind-memory",
+      icon: BrainCircuit,
+      title: t("mindMemory.cards.strengthenMemory", "Strengthen Memory"),
+      detail: t("mindMemory.cards.strengthenMemoryDetail", "Practice recall, matching, and daily routines."),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/memory-games"),
+      testId: "card-home-mind-memory",
+    },
+    {
+      id: "mind-reflexes",
+      icon: Zap,
+      title: t("mindMemory.cards.trainReflexes", "Train Reflexes"),
+      detail: t("mindMemory.cards.trainReflexesDetail", "Build faster focus and response."),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/attention-boosters"),
+      testId: "card-home-mind-reflexes",
+    },
+    {
+      id: "mind-focus",
+      icon: Puzzle,
+      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
+      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
+      tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/executive-function"),
+      testId: "card-home-mind-focus",
+    },
+    {
+      id: "mind-senses",
+      icon: Headphones,
+      title: t("mindMemory.cards.sharpenSenses", "Sharpen Senses"),
+      detail: t("mindMemory.cards.sharpenSensesDetail", "Practice sound, breath, and sensory recall."),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/senses"),
+      testId: "card-home-mind-senses",
+    },
+  ];
+
+  const homeMasterCommunityCards: MasterDashboardCard[] = [
+    {
+      id: "community-friends",
+      icon: HeartHandshake,
+      title: t("community.master.cards.match", "Make Friends"),
+      detail: t("community.master.cards.matchDetail", "Find people like me"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/kitchen-table"),
+      testId: "card-home-community-friends",
+    },
+    {
+      id: "community-experts",
+      icon: MessageCircleHeart,
+      title: t("community.master.cards.experts", "Ask an Expert"),
+      detail: t("community.master.cards.expertsDetail", "Talk with a VYVA specialist"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/experts"),
+      testId: "card-home-community-experts",
+    },
+    {
+      id: "community-share",
+      icon: Share2,
+      title: t("community.master.cards.share", "Share Stories"),
+      detail: t("community.master.cards.shareDetail", "A memory or song"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/share"),
+      testId: "card-home-community-share",
+    },
+    {
+      id: "community-activities",
+      icon: Footprints,
+      title: t("community.master.cards.activities", "What's On"),
+      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms/activities"),
+      testId: "card-home-community-activities",
+    },
+  ];
+
+  const openConciergeTask = (entry: Record<string, unknown>) => {
+    handleNavigate(conciergeTaskPath(), { state: { conciergeTaskEntry: entry } });
+  };
+
+  const homeMasterConciergeCards: MasterDashboardCard[] = [
+    {
+      id: "concierge-home",
+      icon: Home,
+      title: t("concierge.master.cards.homeCare", "Home Care"),
+      detail: t("concierge.master.cards.homeCareDetail", "Plumber, electrician, cleaning"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => openConciergeTask({ kind: "home_service" }),
+      testId: "card-home-concierge-home",
+    },
+    {
+      id: "concierge-care",
+      icon: UserRound,
+      title: t("concierge.master.cards.personalCare", "Personal Care"),
+      detail: t("concierge.master.cards.personalCareDetail", "Find a specialist, find a residence"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => openConciergeTask({ kind: "provider_contact", providerSearchMode: "personal-care", query: "personal care" }),
+      testId: "card-home-concierge-care",
+    },
+    {
+      id: "concierge-order",
+      icon: PackageCheck,
+      title: t("concierge.master.cards.orderIn", "Order In"),
+      detail: t("concierge.master.cards.orderInDetail", "Groceries, household"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/concierge/shopping"),
+      testId: "card-home-concierge-order",
+    },
+    {
+      id: "concierge-book",
+      icon: Calendar,
+      title: t("concierge.master.cards.bookNow", "Book Now"),
+      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, personal care"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => openConciergeTask({ kind: "appointment" }),
+      testId: "card-home-concierge-book",
+    },
+  ];
+
+  const conciergeResumeItems = conciergeHomeItems(conciergePendingHomeSignal);
+  const nextConciergeTask = conciergeResumeItems[0] ?? null;
+  const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
+  const reusableConciergeReceipt = reusableConciergeHomeTask
+    ? buildConciergeConfirmationReceipt({
+        useCase: reusableConciergeHomeTask.use_case,
+        providerName: reusableConciergeHomeTask.provider_name,
+        outcome: reusableConciergeHomeTask.outcome,
+        outcomeSummary: reusableConciergeHomeTask.outcome_summary,
+        completedAt: reusableConciergeHomeTask.completed_at,
+        payload: reusableConciergeHomeTask.outcome_payload,
+      }, language === "es")
+    : null;
+  const nextScheduledEvent = useMemo(() => {
+    const now = conciergeClockMs;
+    return (scheduledEventsHomeSignal?.events ?? [])
+      .filter((event) => {
+        const scheduledAt = Date.parse(event.scheduled_for ?? "");
+        return Number.isFinite(scheduledAt)
+          && scheduledAt >= now
+          && !["cancelled", "completed", "dismissed"].includes(String(event.status ?? "").toLowerCase());
+      })
+      .sort((left, right) => Date.parse(left.scheduled_for ?? "") - Date.parse(right.scheduled_for ?? ""))[0] ?? null;
+  }, [conciergeClockMs, scheduledEventsHomeSignal]);
+  const remainingMedicineCount = medicationHomeSignal?.todaySummary?.remaining ?? 0;
+  const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
+  const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
+  const isHomeMasterVoiceAlive = Boolean(voice && (voice.status === "connected" || voice.isConnecting));
+  const homeContextMessages = useMemo<HomeContextMessage[]>(() => {
+    const messages: HomeContextMessage[] = [];
+    if (homeIntentLayer !== "home") {
+      const intentKey = `${homeIntentLayer}Intent`;
+      messages.push({
+        id: `active-flow:${homeIntentLayer}`,
+        kind: "flow",
+        title: t(`home.master.${intentKey}.title`),
+        supportingText: isHomeMasterVoiceAlive
+          ? t(`home.master.${intentKey}.voiceSubtitle`)
+          : t(`home.master.${intentKey}.dormantSubtitle`),
+        priority: 100,
+        category: homeIntentLayer,
+        intentTags: [homeIntentLayer],
+      });
+    }
+    const vitalsNeedAttention = ["urgent", "critical", "high"].includes(
+      String(latestVitalsHomeSignal?.latest_alert?.severity ?? latestVitalsHomeSignal?.analysis?.safety_status ?? "").toLowerCase(),
+    );
+    if (vitalsNeedAttention) {
+      messages.push({
+        id: "vitals:attention",
+        kind: "urgent",
+        title: t("home.context.vitals.title", "Your health reading needs attention."),
+        supportingText: t("home.context.vitals.support", "Open My Health to review the safest next step."),
+        actionLabel: t("home.context.actions.review", "Review"),
+        actionRoute: "/health",
+        dismissible: false,
+        priority: 90,
+        repeatAfterMs: 30 * 60 * 1000,
+        category: "health",
+        intentTags: ["health", "vitals"],
+      });
+    }
+    if (reusableConciergeHomeTask && reusableConciergeReceipt) {
+      const completedAt = Date.parse(reusableConciergeHomeTask.completed_at ?? "");
+      if (!Number.isFinite(completedAt) || conciergeClockMs - completedAt < 7 * 24 * 60 * 60 * 1000) {
+        messages.push({
+          id: `receipt:${reusableConciergeHomeTask.id ?? reusableConciergeHomeTask.pending_id ?? "latest"}`,
+          kind: "receipt",
+          title: reusableConciergeReceipt.subjectValue
+            ? t("home.context.receipt.titleWithSubject", "{{subject}} is complete.", {
+                subject: reusableConciergeReceipt.subjectValue,
+              })
+            : t("home.context.receipt.title", "Your request is complete."),
+          supportingText: reusableConciergeReceipt.nextStep
+            || t("home.context.receipt.support", "You can review what happened."),
+          actionLabel: t("home.context.actions.view", "View"),
+          actionRoute: "/concierge",
+          actionState: { openCompletedHistory: true, source: "home_context_message" },
+          dismissible: true,
+          priority: 85,
+          repeatAfterMs: 24 * 60 * 60 * 1000,
+          category: "concierge",
+          intentTags: ["concierge"],
+        });
+      }
+    }
+    if (nextConciergeTask) {
+      messages.push({
+        id: `concierge-task:${nextConciergeTask.id ?? "latest"}`,
+        kind: "flow",
+        title: nextConciergeTask.action_summary?.trim()
+          || t("home.context.concierge.title", "Your request is still in progress."),
+        supportingText: t("home.context.concierge.support", "Continue where you left off."),
+        actionLabel: t("home.context.actions.continue", "Continue"),
+        actionRoute: nextConciergeTask.task_path?.trim() || "/concierge",
+        actionState: { resumePendingActionId: nextConciergeTask.id, source: "home_context_message" },
+        dismissible: true,
+        priority: 80,
+        repeatAfterMs: 2 * 60 * 60 * 1000,
+        category: "concierge",
+        intentTags: ["concierge"],
+      });
+    }
+    if (checkinHomeSignal?.status === "overdue" || checkinHomeSignal?.status === "due_now") {
+      messages.push({
+        id: `checkin:${checkinHomeSignal.status}`,
+        kind: "reminder",
+        title: t("home.context.checkin.title", "Your check-in is ready."),
+        supportingText: t("home.context.checkin.support", "It only takes a moment."),
+        actionLabel: t("home.context.actions.start", "Start"),
+        actionRoute: "/health",
+        actionState: { focusDailyCheckin: true, source: "home_context_message" },
+        dismissible: true,
+        priority: 75,
+        repeatAfterMs: 60 * 60 * 1000,
+        category: "health",
+        intentTags: ["health", "checkin"],
+      });
+    }
+    if (nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0) {
+      const doseDueAt = conciergeClockMs + nextMedicineMinutes * 60 * 1000;
+      messages.push({
+        id: `dose:${nextMedicineName}`,
+        kind: "reminder",
+        title: t("home.master.nextMedicationNudge", "In {{minutes}} min: {{name}}.", {
+          minutes: nextMedicineMinutes,
+          name: nextMedicineName,
+        }),
+        supportingText: t("home.context.medication.support", "Open My Health when you are ready."),
+        actionLabel: t("home.context.actions.open", "Open"),
+        actionRoute: "/meds",
+        dismissible: true,
+        priority: 70,
+        expiresAt: conciergeClockMs + Math.max(15, nextMedicineMinutes + 15) * 60 * 1000,
+        repeatAfterMs: 30 * 60 * 1000,
+        category: "medication",
+        intentTags: ["health", "medication", "meds"],
+        dueAt: doseDueAt,
+      });
+    } else if (remainingMedicineCount > 0) {
+      messages.push({
+        id: `doses-remaining:${remainingMedicineCount}`,
+        kind: "reminder",
+        title: t(
+          "home.master.medicationNudge",
+          remainingMedicineCount === 1 ? "1 dose left today." : "{{count}} doses left today.",
+          { count: remainingMedicineCount },
+        ),
+        supportingText: t("home.context.medication.support", "Open My Health when you are ready."),
+        actionLabel: t("home.context.actions.open", "Open"),
+        actionRoute: "/meds",
+        dismissible: true,
+        priority: 65,
+        repeatAfterMs: 2 * 60 * 60 * 1000,
+        category: "medication",
+        intentTags: ["health", "medication", "meds"],
+      });
+    }
+    const latestCommunityNotification = participationPulseHomeSignal?.pulse?.notifications
+      ?.find((notification) => !notification.readAt && (notification.title || notification.body));
+    if (latestCommunityNotification) {
+      messages.push({
+        id: `community-notification:${latestCommunityNotification.id ?? latestCommunityNotification.eventId ?? "latest"}`,
+        kind: "event",
+        title: latestCommunityNotification.title
+          || t("home.context.community.title", "There is something new in your community."),
+        supportingText: latestCommunityNotification.body
+          || t("home.context.event.support", "Open My Community to take a look."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/social-rooms",
+        dismissible: true,
+        priority: 60,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+        category: "community",
+        intentTags: ["community"],
+        nonUrgent: true,
+      });
+    }
+    if (nextScheduledEvent) {
+      const startsAt = Date.parse(nextScheduledEvent.scheduled_for ?? "");
+      const minutesUntil = Math.max(0, Math.round((startsAt - conciergeClockMs) / 60_000));
+      messages.push({
+        id: `scheduled-event:${nextScheduledEvent.id ?? nextScheduledEvent.scheduled_for ?? "next"}`,
+        kind: "reminder",
+        title: nextScheduledEvent.title?.trim()
+          || t("home.context.scheduled.title", "You have something coming up."),
+        supportingText: minutesUntil < 120
+          ? t("home.context.scheduled.soon", "Starts in {{minutes}} minutes.", { minutes: minutesUntil })
+          : t("home.context.scheduled.later", "Open your schedule for the details."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/settings/scheduled-support",
+        dismissible: true,
+        priority: minutesUntil <= 60 ? 72 : 45,
+        startsAt: Math.min(conciergeClockMs, startsAt - 24 * 60 * 60 * 1000),
+        expiresAt: startsAt + 60 * 60 * 1000,
+        repeatAfterMs: 2 * 60 * 60 * 1000,
+        category: nextScheduledEvent.event_type === "appointment" ? "appointment" : "general",
+        intentTags: nextScheduledEvent.event_type === "appointment"
+          ? ["health", "appointment", "doctor"]
+          : ["schedule"],
+        dueAt: startsAt,
+      });
+    }
+    const featuredEvent = participationPulseHomeSignal?.pulse?.featuredEvent;
+    if (featuredEvent?.format) {
+      messages.push({
+        id: `event:${featuredEvent.id ?? featuredEvent.title ?? featuredEvent.format}`,
+        kind: "event",
+        title: featuredEvent.title?.trim()
+          || (featuredEvent.format === "online"
+            ? t("home.context.event.online", "There is an online activity you may enjoy.")
+            : t("home.context.event.nearby", "There is an activity nearby you may enjoy.")),
+        supportingText: t("home.context.event.support", "Open My Community to take a look."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/social-rooms",
+        dismissible: true,
+        priority: 35,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+        category: "community",
+        intentTags: ["community"],
+        nonUrgent: true,
+      });
+    }
+    if (preventionHomeSignal?.focus) {
+      messages.push({
+        id: `prevention:${preventionHomeSignal.focus}`,
+        kind: "tip",
+        title: t("home.context.prevention.title", "A small prevention step is ready."),
+        supportingText: t("home.context.prevention.support", "See today's gentle health suggestion."),
+        actionLabel: t("home.context.actions.view", "View"),
+        actionRoute: "/health/prevention",
+        dismissible: true,
+        priority: 25,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+        category: "health",
+        intentTags: ["health", "prevention"],
+        nonUrgent: true,
+      });
+    }
+    if (brainCoachHomeSignal?.summary && (brainCoachHomeSignal.today?.completedCount ?? 0) === 0) {
+      messages.push({
+        id: `brain-coach:${new Date().toISOString().slice(0, 10)}`,
+        kind: "tip",
+        title: t("home.context.mind.title", "Ready for a short mind activity?"),
+        supportingText: t("home.context.mind.support", "Choose something that feels good today."),
+        actionLabel: t("home.context.actions.open", "Open"),
+        actionRoute: "/mind-memory",
+        dismissible: true,
+        priority: 20,
+        repeatAfterMs: 24 * 60 * 60 * 1000,
+        category: "mind",
+        intentTags: ["mind", "cognitive"],
+        nonUrgent: true,
+      });
+    }
+    const emptyProfileNudge = participationPulseHomeSignal?.pulse?.emptyProfileNudge;
+    if (emptyProfileNudge?.title && emptyProfileNudge.path) {
+      messages.push({
+        id: `feature:${emptyProfileNudge.path}`,
+        kind: "feature",
+        title: emptyProfileNudge.title,
+        supportingText: emptyProfileNudge.body,
+        actionLabel: emptyProfileNudge.actionLabel || t("home.context.actions.open", "Open"),
+        actionRoute: emptyProfileNudge.path,
+        dismissible: true,
+        priority: 10,
+        repeatAfterMs: 7 * 24 * 60 * 60 * 1000,
+        category: "general",
+        nonUrgent: true,
+      });
+    }
+    if (adminHomeContextMessage) {
+      messages.push(adminHomeContextMessage);
+    }
+    messages.push({
+      id: `default:${timeGreetingKey}`,
+      kind: "default",
+      title: greetingText.replace(/[.]$/, ""),
+      supportingText: t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"),
+      priority: 1,
+      category: "general",
+      source: "fallback",
+    });
+    return messages;
+  }, [
+    checkinHomeSignal?.status,
+    brainCoachHomeSignal,
+    conciergeClockMs,
+    adminHomeContextMessage,
+    nextConciergeTask,
+    nextScheduledEvent,
+    preventionHomeSignal,
+    reusableConciergeHomeTask,
+    reusableConciergeReceipt,
+    greetingText,
+    homeIntentLayer,
+    isHomeMasterVoiceAlive,
+    latestVitalsHomeSignal,
+    nextMedicineMinutes,
+    nextMedicineName,
+    participationPulseHomeSignal,
+    remainingMedicineCount,
+    t,
+    timeGreetingKey,
+  ]);
+  const homeContextHistorySnapshot = useMemo(() => ({
+    actions: readHomeContextMessageActionHistory(),
+    outcomes: readHomeContextMessageOutcomeHistory(),
+    revision: homeContextHistoryRevision,
+    seen: readHomeContextMessageHistory(),
+  }), [homeContextHistoryRevision]);
+
+  const selectedHomeContextDecision = useMemo(
+    () => {
+      return decideHomeContextMessage(
+        homeContextMessages,
+        homeContextHistorySnapshot.seen,
+        conciergeClockMs,
+        {
+          actionHistory: homeContextHistorySnapshot.actions,
+          outcomeHistory: homeContextHistorySnapshot.outcomes,
+          activeIntent: homeIntentLayer === "home" ? null : homeIntentLayer,
+          freezeRotation: isHomeMasterVoiceAlive,
+          frozenMessageId: stableHomeContextMessageIdRef.current,
+          dailyNonUrgentLimit: 3,
+        },
+      );
+    },
+    [
+      conciergeClockMs,
+      homeContextHistorySnapshot,
+      homeContextMessages,
+      homeIntentLayer,
+      isHomeMasterVoiceAlive,
+    ],
+  );
+  const selectedHomeContextMessage = selectedHomeContextDecision?.message ?? null;
+  useEffect(() => {
+    if (
+      !selectedHomeContextMessage
+      || (
+        isHomeMasterVoiceAlive
+        && selectedHomeContextMessage.kind !== "urgent"
+        && selectedHomeContextMessage.kind !== "flow"
+      )
+    ) return;
+    stableHomeContextMessageIdRef.current = selectedHomeContextMessage.id;
+  }, [
+    isHomeMasterVoiceAlive,
+    selectedHomeContextMessage,
+    selectedHomeContextMessage?.id,
+    selectedHomeContextMessage?.kind,
+  ]);
+  const selectedHomeVoiceContext = useMemo(() => ({
+    id: selectedHomeContextMessage?.id ?? "default",
+    kind: selectedHomeContextMessage?.kind ?? "default",
+    title: selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, ""),
+    supportingText: selectedHomeContextMessage?.spokenText
+      ?? selectedHomeContextMessage?.supportingText
+      ?? "",
+    actionLabel: selectedHomeContextMessage?.actionLabel ?? "",
+    actionRoute: selectedHomeContextMessage?.actionRoute ?? "",
+    reason: selectedHomeContextDecision?.reason ?? "default_greeting",
+    score: selectedHomeContextDecision?.score ?? 0,
+  }), [
+    greetingText,
+    selectedHomeContextDecision?.reason,
+    selectedHomeContextDecision?.score,
+    selectedHomeContextMessage,
+  ]);
+  const selectedHomeVoiceContextFingerprint = useMemo(
+    () => JSON.stringify(selectedHomeVoiceContext),
+    [selectedHomeVoiceContext],
+  );
+  const trackHomeContextOutcome = useCallback((
+    outcome: HomeContextMessageOutcome,
+    source: "touch" | "voice" | "voice_tool" | "system",
+  ) => {
+    if (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default") return;
+    writeHomeContextMessageOutcome({
+      messageId: selectedHomeContextMessage.id,
+      outcome,
+      source,
+      kind: selectedHomeContextMessage.kind,
+    });
+    const reason: HeroReason = selectedHomeContextDecision?.reason === "urgent_safety"
+      ? "safety"
+      : selectedHomeContextDecision?.reason === "due_personal"
+        ? "scheduled_event"
+        : selectedHomeContextDecision?.reason === "active_flow"
+          ? "continuation"
+          : "evergreen";
+    recordHeroEvent({
+      messageId: selectedHomeContextMessage.id,
+      surface: "home_voice",
+      language: normalizeHeroLanguage(language),
+      eventType: outcome,
+      reason,
+      source: selectedHomeContextMessage.source
+        ?? (selectedHomeContextMessage.id.startsWith("admin:") ? "managed" : "built_in"),
+      route: selectedHomeContextMessage.actionRoute,
+    });
+  }, [
+    language,
+    selectedHomeContextDecision?.reason,
+    selectedHomeContextMessage,
+  ]);
+  useEffect(() => {
+    const voiceStatus = voice?.status;
+    if (voiceStatus !== "connecting" && voiceStatus !== "connected") {
+      activeVoiceHomeContextFingerprintRef.current = null;
+      return;
+    }
+
+    if (!activeVoiceHomeContextFingerprintRef.current) {
+      activeVoiceHomeContextFingerprintRef.current = selectedHomeVoiceContextFingerprint;
+      return;
+    }
+
+    if (
+      voiceStatus !== "connected"
+      || activeVoiceHomeContextFingerprintRef.current === selectedHomeVoiceContextFingerprint
+    ) {
+      return;
+    }
+
+    const contextUpdate = [
+      "Silent app context update. The Home message changed while this voice session is active.",
+      `Message kind: ${selectedHomeVoiceContext.kind}.`,
+      `Visible message: ${selectedHomeVoiceContext.title}.`,
+      selectedHomeVoiceContext.supportingText
+        ? `Supporting message: ${selectedHomeVoiceContext.supportingText}.`
+        : "",
+      selectedHomeVoiceContext.actionLabel
+        ? `Available action: ${selectedHomeVoiceContext.actionLabel}${selectedHomeVoiceContext.actionRoute ? ` (${selectedHomeVoiceContext.actionRoute})` : ""}.`
+        : "",
+      `Selection reason: ${selectedHomeVoiceContext.reason}.`,
+      "Use this as context only. Do not repeat or announce it unless it helps answer the user or requires timely attention.",
+    ].filter(Boolean).join("\n");
+
+    if (voice?.sendContextUpdate(contextUpdate)) {
+      activeVoiceHomeContextFingerprintRef.current = selectedHomeVoiceContextFingerprint;
+    }
+  }, [
+    selectedHomeVoiceContext,
+    selectedHomeVoiceContextFingerprint,
+    voice,
+    voice?.sendContextUpdate,
+    voice?.status,
+  ]);
+  useEffect(() => {
+    if (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default") {
+      shownHomeContextMessageIdRef.current = null;
+      return;
+    }
+    if (shownHomeContextMessageIdRef.current === selectedHomeContextMessage.id) return;
+    const seenTimer = window.setTimeout(() => {
+      shownHomeContextMessageIdRef.current = selectedHomeContextMessage.id;
+      writeHomeContextMessageSeen(selectedHomeContextMessage.id);
+      trackHomeContextOutcome("shown", "system");
+      setHomeContextHistoryRevision((current) => current + 1);
+    }, HOME_CONTEXT_MESSAGE_DISPLAY_MS);
+    return () => window.clearTimeout(seenTimer);
+  }, [
+    selectedHomeContextMessage,
+    selectedHomeContextMessage?.id,
+    trackHomeContextOutcome,
+  ]);
+  useEffect(() => {
+    if (voice?.status !== "connected") {
+      voiceEngagedMessageIdRef.current = null;
+      return;
+    }
+    if (
+      !selectedHomeContextMessage
+      || selectedHomeContextMessage.kind === "default"
+      || voiceEngagedMessageIdRef.current === selectedHomeContextMessage.id
+    ) return;
+    voiceEngagedMessageIdRef.current = selectedHomeContextMessage.id;
+    trackHomeContextOutcome("voice_engaged", "voice");
+  }, [
+    selectedHomeContextMessage,
+    selectedHomeContextMessage?.id,
+    selectedHomeContextMessage?.kind,
+    trackHomeContextOutcome,
+    voice?.status,
+  ]);
+  useEffect(() => {
+    if (!selectedHomeContextMessage?.id.startsWith("admin:") || !managedHomeHeroMessage) return;
+    recordHeroImpression(managedHomeHeroMessage.messageId);
+    recordHeroEvent({
+      messageId: managedHomeHeroMessage.messageId,
+      surface: managedHomeHeroMessage.surface,
+      language: normalizeHeroLanguage(language),
+      eventType: "impression",
+      reason: managedHomeHeroMessage.reason,
+      source: managedHomeHeroMessage.source,
+    });
+  }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
+  const dismissSelectedHomeContextMessage = useCallback(() => {
+    if (!selectedHomeContextMessage?.dismissible) return;
+    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+      recordHeroEvent({
+        messageId: managedHomeHeroMessage.messageId,
+        surface: managedHomeHeroMessage.surface,
+        language: normalizeHeroLanguage(language),
+        eventType: "dismiss",
+        reason: managedHomeHeroMessage.reason,
+        source: managedHomeHeroMessage.source,
+      });
+    }
+    writeHomeContextMessageAction(selectedHomeContextMessage.id, "dismissed", { source: "touch" });
+    trackHomeContextOutcome("dismissed", "touch");
+    writeHomeContextMessageSeen(selectedHomeContextMessage.id);
+    setHomeContextHistoryRevision((current) => current + 1);
+  }, [
+    language,
+    managedHomeHeroMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+  ]);
+  const openSelectedHomeContextMessage = useCallback((
+    source: "touch" | "voice" | "voice_tool" = "touch",
+  ) => {
+    if (!selectedHomeContextMessage?.actionRoute) return;
+    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+      recordHeroEvent({
+        messageId: managedHomeHeroMessage.messageId,
+        surface: managedHomeHeroMessage.surface,
+        language: normalizeHeroLanguage(language),
+        eventType: "cta_click",
+        reason: managedHomeHeroMessage.reason,
+        source: managedHomeHeroMessage.source,
+        route: selectedHomeContextMessage.actionRoute,
+      });
+    }
+    writeHomeContextMessageAction(selectedHomeContextMessage.id, "opened", { source });
+    trackHomeContextOutcome("opened", source);
+    if (voice?.status === "connected") {
+      voice.sendContextUpdate([
+        "Silent app context update. The user opened the Home message that was visible.",
+        `Message: ${selectedHomeContextMessage.title}.`,
+        selectedHomeContextMessage.supportingText
+          ? `Supporting context: ${selectedHomeContextMessage.supportingText}.`
+          : "",
+        `Destination: ${selectedHomeContextMessage.actionRoute}.`,
+        "Continue naturally from this context. Do not make the user repeat what they selected.",
+      ].filter(Boolean).join("\n"));
+    }
+    handleNavigate(selectedHomeContextMessage.actionRoute, {
+      state: selectedHomeContextMessage.actionState,
+    });
+  }, [
+    handleNavigate,
+    language,
+    managedHomeHeroMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+    voice,
+  ]);
+  useEffect(() => {
+    if (
+      voice?.status !== "connected"
+      || !selectedHomeContextMessage
+      || selectedHomeContextMessage.kind === "default"
+    ) return;
+
+    const applyVoiceMessageAction = (
+      action: "open" | "defer" | "dismiss" | "complete",
+      source: "voice" | "voice_tool",
+    ) => {
+      if (action === "open") {
+        if (!selectedHomeContextMessage.actionRoute) return;
+        openSelectedHomeContextMessage(source);
+        return;
+      }
+
+      if (action === "defer") {
+        writeHomeContextMessageAction(selectedHomeContextMessage.id, "deferred", { source });
+        trackHomeContextOutcome("deferred", source);
+      } else if (action === "dismiss") {
+        if (!selectedHomeContextMessage.dismissible) return;
+        writeHomeContextMessageAction(selectedHomeContextMessage.id, "dismissed", { source });
+        trackHomeContextOutcome("dismissed", source);
+      } else {
+        writeHomeContextMessageAction(selectedHomeContextMessage.id, "completed", { source });
+        trackHomeContextOutcome("completed", source);
+      }
+      writeHomeContextMessageSeen(selectedHomeContextMessage.id);
+      setHomeContextHistoryRevision((current) => current + 1);
+    };
+
+    const handleVoiceReply = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as VoiceUserMessageDetail | undefined
+        : undefined;
+      const action = detail?.text ? homeContextActionForVoiceReply(detail.text) : null;
+      if (action) applyVoiceMessageAction(action, "voice");
+    };
+
+    const handleVoiceToolResult = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as VoiceAppActionResult | undefined
+        : undefined;
+      if (!detail?.actionId || detail.actionId !== selectedHomeContextMessage.id) return;
+      if (detail.action === "accepted") applyVoiceMessageAction("open", "voice_tool");
+      if (detail.action === "dismissed") {
+        const permanentlyDismiss = /\b(?:dismiss|remove|hide)\b/i.test(detail.reason ?? "");
+        applyVoiceMessageAction(permanentlyDismiss ? "dismiss" : "defer", "voice_tool");
+      }
+      if (detail.action === "completed") applyVoiceMessageAction("complete", "voice_tool");
+    };
+
+    window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceReply);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceToolResult);
+    return () => {
+      window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceReply);
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_RESULT_EVENT, handleVoiceToolResult);
+    };
+  }, [
+    openSelectedHomeContextMessage,
+    selectedHomeContextMessage,
+    trackHomeContextOutcome,
+    voice?.status,
+  ]);
+  const homeMasterGreetingText = selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, "");
+  const activeIntentKey = homeIntentLayer === "home" ? null : `${homeIntentLayer}Intent`;
+  const activeIntentTitle = activeIntentKey
+    ? t(`home.master.${activeIntentKey}.title`)
+    : homeMasterGreetingText;
+  const activeIntentSubtitle = activeIntentKey
+    ? isHomeMasterVoiceAlive
+      ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
+      : t(`home.master.${activeIntentKey}.dormantSubtitle`)
+    : null;
+  const homeMasterNormalHeroSubtitle = selectedHomeContextMessage?.supportingText
+    ?? (activeIntentSubtitle
+      ? activeIntentSubtitle
+      : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const showHomeVoiceFirstUseHint = homeInteractionMode === "voice"
+    && homeIntentLayer === "home"
+    && showVoiceOrbFirstUseHint
+    && (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default");
+  const homeMasterHeroSubtitle = showHomeVoiceFirstUseHint
+    ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
+    : homeMasterNormalHeroSubtitle;
+  const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
+    home: homeMasterCards,
+    health: homeMasterHealthCards.slice(0, 4),
+    mind: homeMasterMindCards,
+    community: homeMasterCommunityCards,
+    concierge: homeMasterConciergeCards,
+  };
+  const moreRouteByIntent: Partial<Record<HomeIntentLayer, string>> = {
+    health: "/health",
+    mind: "/mind-memory",
+    community: "/social-rooms",
+    concierge: "/concierge",
+  };
+  const homeMasterVisibleCards = cardsByIntent[homeIntentLayer].map((card) => {
+    if (homeIntentLayer === "home") return card;
+    const selected = homeSubflow?.pillar === homeIntentLayer && homeSubflow.actionId === card.id;
+    return {
+      ...card,
+      highlighted: selected,
+      highlightLabel: selected
+        ? t("home.master.intentUnderstood", "VYVA understood")
+        : undefined,
+      onClick: () => {
+        setHomeSubflow({
+          pillar: homeIntentLayer,
+          actionId: card.id as VoiceHomeSubflow["actionId"],
+        });
+        if (!isCrossPillarCompletionAction(card.id as VoiceHomeSubflow["actionId"])) {
+          card.onClick();
+        }
+      },
+    };
+  });
+  const activeCompletionAction = homeSubflow && isCrossPillarCompletionAction(homeSubflow.actionId)
+    ? homeSubflow.actionId
+    : null;
+  const continueCrossPillarSubflow = (result: CrossPillarSubflowResult) => {
+    executeCrossPillarHandoff({
+      result,
+      locale: language,
+      doctorContext: homeDoctorContext,
+      readiness: {
+        hasSavedDoctor: profile?.serviceReadiness?.hasSavedDoctor,
+        toolEvidence: crossPillarToolEvidence,
+      },
+    }, (path, options) => {
+      if (result.actionId === "health-symptoms") {
+        return handleNavigate(path, {
+          ...SECTION_VOICE_AUTO_START_OPTIONS,
+          ...options,
+          state: {
+            ...SECTION_VOICE_AUTO_START_OPTIONS.state,
+            ...(options?.state as Record<string, unknown> ?? {}),
+          },
+        });
+      }
+      return handleNavigate(path, options);
+    });
+  };
+  const homeMasterCardSectionTitle = homeIntentLayer === "home"
+    ? t("home.master.chooseCategory", "App shortcuts")
+    : undefined;
+  const homeMasterCardSectionDescription = undefined;
+  const homeMasterMoreRoute = moreRouteByIntent[homeIntentLayer];
+  const homeMasterMoreLabel = activeIntentKey
+    ? t(`home.master.${activeIntentKey}.more`)
+    : undefined;
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
     {
@@ -843,7 +2204,7 @@ const HomeScreen = () => {
       label: t("home.master.fastHelp.feelBetter", "Symptoms Check"),
       detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
-      onClick: () => handleNavigate("/health/symptom-check"),
+      onClick: () => launchHomeFastHelp("feel-better", "/health/symptom-check"),
       testId: "button-home-fast-feel-better",
     },
     {
@@ -852,7 +2213,7 @@ const HomeScreen = () => {
       label: t("home.master.fastHelp.stayWell", "Age Well"),
       detail: t("home.master.fastHelp.stayWellDetail", "Prevention tips"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => handleNavigate("/health/prevention"),
+      onClick: () => launchHomeFastHelp("stay-well", "/health/prevention"),
       testId: "button-home-fast-stay-well",
     },
     {
@@ -861,7 +2222,7 @@ const HomeScreen = () => {
       label: t("home.master.fastHelp.findCare", "Find Care"),
       detail: t("home.master.fastHelp.findCareDetail", "Support options"),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => handleNavigate("/concierge", {
+      onClick: () => launchHomeFastHelp("find-care", "/concierge", {
         state: {
           conciergePrefill: {
             kind: "task",
@@ -886,7 +2247,7 @@ const HomeScreen = () => {
       label: t("home.master.fastHelp.bookRide", "Book Ride"),
       detail: t("home.master.fastHelp.bookRideDetail", "Transport help"),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => handleNavigate("/concierge", {
+      onClick: () => launchHomeFastHelp("book-ride", "/concierge", {
         state: {
           conciergePrefill: {
             kind: "ride",
@@ -904,7 +2265,7 @@ const HomeScreen = () => {
       label: t("home.master.fastHelp.paperworkHelp", "Paperwork Help"),
       detail: t("home.master.fastHelp.paperworkHelpDetail", "Forms and admin"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => handleNavigate("/concierge", {
+      onClick: () => launchHomeFastHelp("paperwork-help", "/concierge", {
         state: {
           conciergePrefill: {
             kind: "task",
@@ -926,27 +2287,78 @@ const HomeScreen = () => {
       label: t("home.master.fastHelp.safeHome", "Safe Home"),
       detail: t("home.master.fastHelp.safeHomeDetail", "Home or scam worry"),
       tone: { iconBg: "#FEF2F2", iconColor: "#B91C1C", border: "#FECACA" },
-      onClick: () => handleNavigate("/safe-home"),
+      onClick: () => launchHomeFastHelp("safe-home", "/safe-home"),
       testId: "button-home-fast-safe-home",
     },
   ];
 
-  const activeConciergeHomeTask = conciergeHomeItems(conciergePendingHomeSignal)[0] ?? null;
-  const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
-  const activeConciergeTaskText = activeConciergeHomeTask ? conciergeHomeTaskLabel(activeConciergeHomeTask, t) : "";
-  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
-  const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
+  const remoteFastHelpActivityFingerprint = JSON.stringify(
+    contextualFastHelpRemoteActivity(conciergeCompletedHomeSignal),
+  );
+  const remoteFastHelpActivity = useMemo<HomeFastHelpActivity[]>(
+    () => JSON.parse(remoteFastHelpActivityFingerprint) as HomeFastHelpActivity[],
+    [remoteFastHelpActivityFingerprint],
+  );
+  useEffect(() => {
+    setHomeFastHelpJourneys(reconcileHomeFastHelpJourneys(
+      homeFastHelpJourneyKey,
+      remoteFastHelpActivity,
+    ));
+  }, [homeFastHelpJourneyKey, remoteFastHelpActivity]);
+  const journeyFastHelpActivity = homeFastHelpActivityFromJourneys(homeFastHelpJourneys);
+  const latestBlockedJourney = latestBlockedHomeFastHelpJourney(homeFastHelpJourneys, conciergeClockMs);
+  const rawRecoveryNudge = selectHomeFastHelpRecoveryNudge(homeFastHelpJourneys, {
+    nowMs: conciergeClockMs,
+    hasSavedTransportProvider: profile?.serviceReadiness?.hasSavedTransportProvider,
+  });
+  const homeResumeCandidate = selectHomeResumeCandidate({
+    conciergeItems: conciergeResumeItems,
+    fastHelpRecovery: rawRecoveryNudge,
+  });
+  const activeConciergeHomeTask = homeResumeCandidate?.source === "concierge"
+    ? homeResumeCandidate.item
+    : null;
+  const recoveryNudge = homeResumeCandidate?.source === "fast_help"
+    ? homeResumeCandidate.nudge
+    : null;
+  const activeConciergeShowVyvaTask = activeConciergeHomeTask ? isShowVyvaPreparedTask(activeConciergeHomeTask.action_payload) : false;
+  const activeConciergeTaskText = activeConciergeHomeTask
+    ? activeConciergeShowVyvaTask
+      ? showVyvaResumeActionLabel(activeConciergeHomeTask.action_payload, language)
+      : conciergeHomeTaskLabel(activeConciergeHomeTask, t)
+    : "";
+  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t, language === "es") : "";
+  const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t, language === "es") : "";
   const conciergeHomeTitlePrefixText = activeConciergeHomeTask ? conciergeHomeTitlePrefix(activeConciergeHomeTask, t) : "";
   const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
+  const activeConciergeWaitingText = activeConciergeHomeTask && activeConciergeWaitingOnProvider
+    ? conciergeHomeWaitingLabel(activeConciergeHomeTask, conciergeClockMs, language, t)
+    : conciergeHomeStepText;
+  const activeConciergeCanvasState = activeConciergeHomeTask
+    ? conciergeHomeCanvasState(activeConciergeHomeTask)
+    : null;
   const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
+  const activeConciergeCanvasCopy = activeConciergeCanvasState
+    ? conciergeCanvasExplainability(activeConciergeCanvasState, language === "es", {
+        providerName: activeConciergeProviderText,
+      })
+    : null;
+  const activeConciergeShowVyvaSourceText = activeConciergeHomeTask && activeConciergeShowVyvaTask
+    ? showVyvaResumeSourceLabel(activeConciergeHomeTask.action_payload, language)
+    : "";
+  const activeConciergeShowVyvaSummary = activeConciergeHomeTask && activeConciergeShowVyvaTask
+    ? showVyvaResumeSummary(activeConciergeHomeTask.action_payload, activeConciergeHomeTask.action_summary)
+    : "";
   const activeConciergeTitleText = activeConciergeHomeTask
-    ? activeConciergeWaitingOnProvider
+    ? activeConciergeShowVyvaTask
+      ? t("home.showVyvaResume.title", "VYVA prepared this")
+      : activeConciergeWaitingOnProvider
       ? t("home.conciergeResume.waitingTitle", "Waiting for {{provider}}", { provider: activeConciergeProviderText })
       : `${conciergeHomeTitlePrefixText} ${activeConciergeTaskText}`
     : "";
   const openActiveConciergeTask = (mode?: "follow_up" | "reply") => {
     if (!activeConciergeHomeTask?.id) return;
-    handleNavigate("/concierge", {
+    handleNavigate(activeConciergeHomeTask.task_path || conciergeTaskPath(activeConciergeHomeTask.id), {
       state: mode
         ? {
             focusRightNow: true,
@@ -955,27 +2367,84 @@ const HomeScreen = () => {
               mode,
             },
           }
-        : { focusRightNow: true },
+        : { focusRightNow: true, conciergePendingId: activeConciergeHomeTask.id },
     });
   };
-  const activeConciergeFastHelpAction: MasterFastHelpAction | null = activeConciergeHomeTask ? {
-    id: "concierge-status",
-    icon: ConciergeBell,
-    label: conciergeHomeFastStatusLabel(activeConciergeHomeTask, t),
-    detail: conciergeHomeStepText,
-    tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-    pinned: true,
-    onClick: () => handleNavigate("/concierge", { state: { focusRightNow: true } }),
-    testId: "button-home-fast-concierge-status",
-  } : null;
-  const homeMasterFastHelpActionsWithStatus = activeConciergeFastHelpAction
-    ? [activeConciergeFastHelpAction, ...homeMasterFastHelpActions]
-    : homeMasterFastHelpActions;
+  const activeContextualFastHelpActionId = activeConciergeHomeTask
+    ? contextualFastHelpActionForConciergeKind(conciergeHomeTaskKind(activeConciergeHomeTask))
+    : recoveryNudge?.journey.actionId ?? null;
+  const unfinishedContextualFastHelpActionIds = [...new Set(
+    conciergeResumeItems.flatMap((item) => {
+      const actionId = contextualFastHelpActionForConciergeKind(conciergeHomeTaskKind(item));
+      return actionId ? [actionId] : [];
+    }),
+  )];
+  const contextualFastHelpRanking = rankContextualHomeFastHelp({
+    activeTaskActionId: activeContextualFastHelpActionId,
+    activity: [...homeFastHelpHistory, ...remoteFastHelpActivity, ...journeyFastHelpActivity],
+    nowMs: conciergeClockMs,
+    profile: profile?.serviceReadiness,
+    rotationKey: profile?.profileId,
+    signals: {
+      alertSeverity: latestVitalsHomeSignal?.latest_alert?.severity,
+      checkinStatus: checkinHomeSignal?.status,
+      preventionFocus: preventionHomeSignal?.focus,
+      recommendedAction: latestVitalsHomeSignal?.analysis?.recommended_action,
+      safetyStatus: latestVitalsHomeSignal?.analysis?.safety_status,
+    },
+    unfinishedTaskActionIds: unfinishedContextualFastHelpActionIds,
+    visibleCount: 3,
+  });
+  const homeMasterFastHelpActionById = new Map(
+    homeMasterFastHelpActions.map((action) => [action.id as ContextualHomeFastHelpActionId, action]),
+  );
+  const contextualHomeMasterFastHelpActions = contextualFastHelpRanking.flatMap((ranked) => {
+    const action = homeMasterFastHelpActionById.get(ranked.id);
+    if (!action) return [];
+    return [{
+      ...action,
+      detail: latestBlockedJourney && ranked.id !== latestBlockedJourney.actionId
+        ? t("home.contextualFastHelp.outcome.blockedAlternative", "Try this useful next step instead")
+        : t(
+            `home.contextualFastHelp.reasons.${ranked.reason}`,
+            HOME_FAST_HELP_REASON_FALLBACKS[ranked.reason],
+          ),
+      onClick: () => {
+        rememberHomeFastHelpUse(ranked.id);
+        action.onClick();
+      },
+    }];
+  });
+  const contextualFastHelpImpressionFingerprint = [
+    profile?.profileId ?? "browser",
+    HOME_FAST_HELP_RANKING_VERSION,
+    ...contextualFastHelpRanking.map((ranked) => ranked.id),
+  ].join(":");
+
+  useEffect(() => {
+    const existingId = fastHelpImpressionIdsByFingerprintRef.current.get(contextualFastHelpImpressionFingerprint);
+    if (existingId) {
+      activeFastHelpImpressionIdRef.current = existingId;
+      return;
+    }
+    const impression = recordHomeFastHelpImpression({
+      actionIds: contextualFastHelpRanking.map((ranked) => ranked.id),
+      rankingVersion: HOME_FAST_HELP_RANKING_VERSION,
+      profileId: profile?.profileId,
+    });
+    activeFastHelpImpressionIdRef.current = impression?.id ?? null;
+    if (impression) {
+      fastHelpImpressionIdsByFingerprintRef.current.set(contextualFastHelpImpressionFingerprint, impression.id);
+    }
+  }, [contextualFastHelpImpressionFingerprint, contextualFastHelpRanking, profile?.profileId]);
+  const homeMasterFastHelpActionsWithStatus = contextualHomeMasterFastHelpActions;
+  const conciergeCompletedCanvasCopy = conciergeCanvasExplainability("completed", language === "es");
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
     <div
       data-testid="card-home-concierge-resume"
+      data-resume-kind={homeResumeCandidate?.kind}
       className="w-full min-w-0 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] min-[390px]:p-4"
-      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${conciergeHomeStepText}`}
+      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${activeConciergeShowVyvaTask ? activeConciergeTaskText : activeConciergeWaitingText}`}
     >
       <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
         <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] min-[390px]:h-[54px] min-[390px]:w-[54px]">
@@ -989,8 +2458,31 @@ const HomeScreen = () => {
             {activeConciergeTitleText}
           </span>
           <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
-            {conciergeHomeStepText}
+            {activeConciergeShowVyvaTask
+              ? `${activeConciergeShowVyvaSourceText} · ${activeConciergeTaskText}`
+              : activeConciergeWaitingText}
           </span>
+          {activeConciergeCanvasCopy ? (
+            <span
+              className="mt-1 block line-clamp-2 font-body text-[12px] font-bold leading-tight text-[#115E59]"
+              data-testid="text-home-concierge-state-explanation"
+            >
+              {activeConciergeCanvasCopy.stateExplanation}
+            </span>
+          ) : null}
+          {activeConciergeCanvasCopy && activeConciergeCanvasState?.state !== "completed" ? (
+            <span
+              className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#0F766E]"
+              data-testid="text-home-concierge-safety-rule"
+            >
+              {activeConciergeCanvasCopy.safetyRule}
+            </span>
+          ) : null}
+          {activeConciergeShowVyvaSummary ? (
+            <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+              {activeConciergeShowVyvaSummary}
+            </span>
+          ) : null}
         </span>
       </div>
       <div className={`mt-3 grid gap-2 ${activeConciergeWaitingOnProvider ? "grid-cols-3" : "grid-cols-1"}`}>
@@ -1025,68 +2517,355 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  const conciergeReuseNudge = reusableConciergeHomeTask ? (
-    <button
-      type="button"
+  const conciergeReuseNudge = reusableConciergeHomeTask && reusableConciergeReceipt ? (
+    <div
       data-testid="card-home-concierge-reuse"
-      onClick={() => handleNavigate("/concierge", {
-        state: {
-          conciergeCompletedTemplate: conciergeCompletedHomeTemplate(reusableConciergeHomeTask),
-        },
-      })}
-      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#DDD6FE] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBF8FF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(107,33,168,0.07)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
-      aria-label={`${t("home.conciergeReuse.kicker", "Useful again")}: ${t("home.conciergeReuse.title", "Use last {{task}} again", { task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t) })}`}
+      className="w-full min-w-0 rounded-[22px] border border-[#DDD6FE] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBF8FF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(107,33,168,0.07)] min-[390px]:p-4"
     >
-      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
-        <PackageCheck size={24} strokeWidth={2.55} aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-vyva-purple">
-          {t("home.conciergeReuse.kicker", "Useful again")}
+      <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
+          <PackageCheck size={24} strokeWidth={2.55} aria-hidden="true" />
         </span>
-        <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
-          {t("home.conciergeReuse.title", "Use last {{task}} again", {
-            task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t),
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-vyva-purple">
+            {t("home.conciergeReuse.kicker", "Useful again")}
+          </span>
+          <span
+            className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]"
+            data-testid="badge-home-concierge-completed-state"
+          >
+            {conciergeCompletedCanvasLabel(language === "es")}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+            {t("home.conciergeReuse.title", "Use last {{task}} again", {
+              task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t),
+            })}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+            {reusableConciergeReceipt.subjectValue}
+          </span>
+          <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#115E59]" data-testid="text-home-concierge-reuse-explanation">
+            {conciergeCompletedCanvasCopy.stateExplanation}
+          </span>
+          <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-[#115E59]" data-testid="text-home-concierge-receipt-status">
+            {t("home.conciergeReuse.receiptStatus", "Receipt: {{status}}", { status: reusableConciergeReceipt.statusLabel })}
+          </span>
+        </span>
+      </div>
+
+      {conciergeReceiptDetailsOpen ? (
+        <div className="mt-3 rounded-[18px] border border-[#E9D5FF] bg-white px-3 py-2" data-testid="panel-home-concierge-receipt-details">
+          <p className="font-body text-[12px] font-black text-vyva-text-1">
+            {reusableConciergeReceipt.whatVyvaDid}
+          </p>
+          <p className="mt-1 font-body text-[12px] font-bold text-vyva-text-2">
+            {reusableConciergeReceipt.nextStep}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {reusableConciergeReceipt.details.slice(0, 3).map((detail) => (
+              <span key={detail.key} className="rounded-full bg-[#F8F5FF] px-2 py-1 font-body text-[11px] font-black text-vyva-text-2">
+                {detail.label}: {detail.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          data-testid="button-home-concierge-use-template"
+          onClick={() => handleNavigate("/concierge", {
+            state: {
+              conciergeCompletedTemplate: conciergeCompletedHomeTemplate(reusableConciergeHomeTask),
+            },
           })}
-        </span>
-        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
-          {conciergeCompletedHomeProvider(reusableConciergeHomeTask, t)}
-        </span>
-      </span>
-      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] min-[390px]:inline-flex">
-        {t("home.conciergeReuse.action", "Use template")}
-      </span>
-      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
-    </button>
-  ) : null;
-  const conciergeHomeNudges = conciergeRightNowNudge || conciergeReuseNudge ? (
-    <div className="space-y-3">
-      {conciergeRightNowNudge}
-      {conciergeReuseNudge}
+          className="vyva-tap inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+        >
+          {t("home.conciergeReuse.action", "Use template")}
+          <ChevronRight size={16} strokeWidth={2.6} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          data-testid="button-home-concierge-show-receipt"
+          onClick={() => setConciergeReceiptDetailsOpen((open) => !open)}
+          className="vyva-tap inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full bg-[#F5F3FF] px-3 font-body text-[12px] font-black text-vyva-purple transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+        >
+          {conciergeReceiptDetailsOpen
+            ? t("home.conciergeReuse.hideDetails", "Hide details")
+            : t("home.conciergeReuse.showDetails", "Show details")}
+          {conciergeReceiptDetailsOpen
+            ? <ChevronUp size={16} strokeWidth={2.6} aria-hidden="true" />
+            : <ChevronDown size={16} strokeWidth={2.6} aria-hidden="true" />}
+        </button>
+      </div>
     </div>
   ) : null;
+  const latestPendingShowVyvaReview = showVyvaReviewHistory.find((item) => !item.actionSaved) ?? null;
+  const showVyvaReviewNudge = latestPendingShowVyvaReview ? (
+    <button
+      type="button"
+      data-testid="card-home-show-vyva-review-resume"
+      onClick={() => handleNavigate(latestPendingShowVyvaReview.resumeRoute, {
+        state: {
+          showVyvaReviewHistoryId: latestPendingShowVyvaReview.id,
+          showVyvaResume: true,
+        },
+      })}
+      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#BFE7E1] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_58%,#F7FBFF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(15,118,110,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
+      aria-label={`${t("home.showVyvaReviewResume.kicker", "Recent Show VYVA")}: ${latestPendingShowVyvaReview.decision}`}
+    >
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F0FDFA] text-[#0F766E] min-[390px]:h-[54px] min-[390px]:w-[54px]">
+        <ShieldCheck size={24} strokeWidth={2.45} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-[#0F766E]">
+          {t("home.showVyvaReviewResume.kicker", "Recent Show VYVA")}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+          {t("home.showVyvaReviewResume.title", "Continue this review")}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+          {latestPendingShowVyvaReview.decision}
+        </span>
+        <span className="mt-1 block line-clamp-1 font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+          {latestPendingShowVyvaReview.summary}
+        </span>
+      </span>
+      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)] min-[390px]:inline-flex">
+        {t("home.showVyvaReviewResume.action", "Open")}
+      </span>
+      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-[#0F766E]" aria-hidden="true" />
+    </button>
+  ) : null;
+  const recoveryAction = recoveryNudge
+    ? homeMasterFastHelpActionById.get(recoveryNudge.journey.actionId)
+    : null;
+  const continueRecoveryNudge = () => {
+    if (!recoveryNudge) return;
+    if (recoveryNudge.kind !== "transport_provider") {
+      continueHomeFastHelp(recoveryNudge.journey, undefined, true);
+      return;
+    }
 
+    const resumed = resumeHomeFastHelpJourney(recoveryNudge.journey, homeFastHelpJourneyKey, {
+      reason: "recovery_nudge",
+      referenceId: HOME_FAST_HELP_RECOVERY_REFERENCE_ID,
+    });
+    const context = homeFastHelpContextForJourney(resumed, homeFastHelpJourneyKey);
+    const destinationState = resumed.destinationState ?? resumedHomeFastHelpState(resumed.actionId) ?? {};
+    const conciergePrefill = destinationState.conciergePrefill && typeof destinationState.conciergePrefill === "object"
+      ? destinationState.conciergePrefill as Record<string, unknown>
+      : {};
+    const message = typeof conciergePrefill.message === "string"
+      ? conciergePrefill.message
+      : t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.");
+    handleNavigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        returnState: withHomeFastHelpContextState(context, destinationState),
+        setupFocus: "transport",
+        setupFlow: CONCIERGE_FLOW_REFERENCES.transportBooking,
+        setupReason: "Add a saved transport provider",
+        conciergeResume: {
+          kind: "transport",
+          message,
+          pickup: "",
+          destination: "",
+          time: "now",
+          mobilityNeeds: [],
+        },
+        notice: t(
+          "home.recoveryNudge.transportSetupNotice",
+          "Save a trusted taxi or transport provider, then continue your ride.",
+        ),
+      },
+    });
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+  const deferRecoveryNudge = () => {
+    if (!recoveryNudge) return;
+    markHomeFastHelpJourney(
+      homeFastHelpContextForJourney(recoveryNudge.journey, homeFastHelpJourneyKey),
+      "abandoned",
+      { reason: "recovery_later" },
+    );
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+  const dismissRecoveryNudge = () => {
+    if (!recoveryNudge) return;
+    markHomeFastHelpJourney(
+      homeFastHelpContextForJourney(recoveryNudge.journey, homeFastHelpJourneyKey),
+      "dismissed",
+      { reason: "recovery_dismissed" },
+    );
+    setHomeFastHelpJourneys(readHomeFastHelpJourneys(homeFastHelpJourneyKey));
+  };
+  const fastHelpRecoveryNudge = recoveryNudge && recoveryAction ? (
+    <div
+      data-testid="card-home-fast-help-recovery"
+      data-resume-kind={homeResumeCandidate?.kind}
+      className="w-full min-w-0 rounded-[22px] border border-[#DDD6FE] bg-white p-3 shadow-[0_12px_28px_rgba(107,33,168,0.07)] min-[390px]:p-4"
+    >
+      <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
+          <History size={25} strokeWidth={2.45} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+            {recoveryNudge.kind === "transport_provider"
+              ? t("home.recoveryNudge.transportSetupTitle", "One quick setup first")
+              : recoveryNudge.kind === "blocked"
+                ? t("home.recoveryNudge.blockedTitle", "One quick step first")
+                : t("home.recoveryNudge.title", "Continue where you left off")}
+          </span>
+          <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2 min-[390px]:text-[14px]">
+            {recoveryNudge.kind === "transport_provider"
+              ? t("home.recoveryNudge.transportSetupDetail", "Add a trusted transport provider to continue your ride.")
+              : recoveryNudge.kind === "blocked"
+                ? t("home.recoveryNudge.blockedDetail", "Open {{action}} to see what is needed.", { action: recoveryAction.label })
+                : t("home.recoveryNudge.detail", "Continue {{action}} when you are ready.", { action: recoveryAction.label })}
+          </span>
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          data-testid="button-home-fast-help-recovery-continue"
+          onClick={continueRecoveryNudge}
+          className="vyva-tap min-h-[44px] rounded-full bg-vyva-purple px-2 font-body text-[12px] font-black text-white shadow-[0_8px_18px_rgba(107,33,168,0.14)] min-[390px]:text-[13px]"
+        >
+          {t("home.recoveryNudge.continue", "Continue")}
+        </button>
+        <button
+          type="button"
+          data-testid="button-home-fast-help-recovery-later"
+          onClick={deferRecoveryNudge}
+          className="vyva-tap min-h-[44px] rounded-full border border-[#DDD6FE] bg-[#F8F6FF] px-2 font-body text-[12px] font-black text-vyva-purple min-[390px]:text-[13px]"
+        >
+          {t("home.recoveryNudge.later", "Later")}
+        </button>
+        <button
+          type="button"
+          data-testid="button-home-fast-help-recovery-dismiss"
+          onClick={dismissRecoveryNudge}
+          className="vyva-tap min-h-[44px] rounded-full border border-[#E9E3DE] bg-white px-2 font-body text-[12px] font-black text-vyva-text-2 min-[390px]:text-[13px]"
+        >
+          {t("home.recoveryNudge.dismiss", "Dismiss")}
+        </button>
+      </div>
+    </div>
+  ) : null;
+  // Home master design: latest VYVA wordmark header, greeting, dormant voice orb, four app-mode
+  // shortcuts, and no extra Fast Help/nudge blocks on the landing screen.
   return (
     <MasterDashboardLayout
       testId="home-master-layout"
       cardGridTestId="home-pillar-cards"
       fastHelpTestId="home-fast-help"
+      launcherVariant="homeMaster"
+      intentLayer={homeIntentLayer !== "home"}
+      showHero={homeInteractionMode === "voice"}
+      showCards={homeInteractionMode === "touch" || homeIntentLayer !== "home"}
+      modeSwitcher={(
+        <>
+          <div
+            className={[
+              "mx-auto mb-4 grid w-full max-w-[13rem] grid-cols-2 rounded-full border p-0.5 shadow-[0_8px_22px_rgba(80,45,120,0.08)] sm:mb-6",
+              isHomeMasterDark
+                ? "border-white/15 bg-white/10"
+                : "border-[#E6DDF1] bg-white/85",
+            ].join(" ")}
+            aria-label={t("home.mode.label", "Home mode")}
+            data-testid="home-mode-switcher"
+          >
+            <button
+              type="button"
+              aria-pressed={homeInteractionMode === "voice"}
+              data-testid="button-home-mode-voice"
+              onClick={() => setHomeInteractionMode("voice")}
+              className={[
+                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
+                homeInteractionMode === "voice"
+                  ? "bg-vyva-purple text-white shadow-[0_7px_18px_rgba(107,33,168,0.22)]"
+                  : isHomeMasterDark
+                    ? "text-[#E8DDF3]"
+                    : "text-[#5D4865]",
+              ].join(" ")}
+            >
+              <Mic size={14} aria-hidden="true" />
+              {t("home.mode.voice", "Voice")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={homeInteractionMode === "touch"}
+              data-testid="button-home-mode-touch"
+              onClick={() => setHomeInteractionMode("touch")}
+              className={[
+                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
+                homeInteractionMode === "touch"
+                  ? "bg-[#0F8B82] text-white shadow-[0_7px_18px_rgba(15,139,130,0.20)]"
+                  : isHomeMasterDark
+                    ? "text-[#E8DDF3]"
+                    : "text-[#5D4865]",
+              ].join(" ")}
+            >
+              <Hand size={14} aria-hidden="true" />
+              {t("home.mode.touch", "Touch")}
+            </button>
+          </div>
+          {homeInteractionMode === "touch" ? (
+            <h1
+              data-testid="home-touch-heading"
+              className={[
+                "mb-5 text-center font-body text-[25px] font-bold leading-tight min-[390px]:text-[28px] sm:mb-7 sm:text-[32px]",
+                isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
+              ].join(" ")}
+            >
+              {activeIntentTitle}
+            </h1>
+          ) : null}
+        </>
+      )}
+      isDarkMode={isHomeMasterDark}
+      cardSectionTitle={homeMasterCardSectionTitle}
+      cardSectionDescription={homeMasterCardSectionDescription}
+      cardSectionMoreLabel={homeMasterMoreLabel}
+      onCardSectionMore={homeMasterMoreRoute ? () => handleNavigate(homeMasterMoreRoute) : undefined}
+      cardSectionMoreTestId={homeIntentLayer !== "home" ? `button-home-${homeIntentLayer}-more` : undefined}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
       hero={{
         icon: MessageCircle,
         eyebrow: t("home.master.heroEyebrow", "Today"),
-        title: greetingText,
+        title: homeMasterGreetingText,
+        subtitle: homeMasterHeroSubtitle,
+        subtitleTone: showHomeVoiceFirstUseHint ? "gold" : "default",
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
-          supportingLabel: t("home.master.voiceSupport", "Speak anytime"),
-          contextHint: t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step."),
+          supportingLabel: t("home.master.voiceSupport", "Tell VYVA what you need."),
+          contextHint: `${t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step.")} Current home context: ${selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? ""}`,
           voiceAgentSlug: "main-vyva",
-          voiceDynamicVariables: { app_entrypoint: "home_master_hero" },
+          voiceDynamicVariables: {
+            app_entrypoint: "home_master_hero",
+            home_context_kind: selectedHomeContextMessage?.kind ?? "default",
+            home_context_message: selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? "",
+            home_context_decision_reason: selectedHomeContextDecision?.reason ?? "default_greeting",
+            home_context_decision_score: String(selectedHomeContextDecision?.score ?? 0),
+          },
           autoStartListening: true,
           testId: "button-home-hero-talk",
+          onFirstVoiceOrbActivation: () => setShowVoiceOrbFirstUseHint(false),
         },
         testId: "home-master-hero",
+        messageActionLabel: selectedHomeContextMessage?.actionLabel,
+        onMessageAction: selectedHomeContextMessage?.actionRoute
+          ? openSelectedHomeContextMessage
+          : undefined,
+        onMessageDismiss: selectedHomeContextMessage?.dismissible
+          ? dismissSelectedHomeContextMessage
+          : undefined,
+        messageDismissLabel: t("home.context.actions.dismiss", "Dismiss this message"),
         tone: {
           iconBg: "#F5F3FF",
           iconColor: "#6B21A8",
@@ -1094,9 +2873,15 @@ const HomeScreen = () => {
           surface: "#FFFFFF",
         },
       }}
-      cards={homeMasterCards}
+      cards={homeMasterVisibleCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={conciergeHomeNudges}
+      beforeFastHelp={activeCompletionAction ? (
+        <CrossPillarSubflowCanvas
+          actionId={activeCompletionAction}
+          onContinue={continueCrossPillarSubflow}
+          onCancel={() => setHomeSubflow(null)}
+        />
+      ) : null}
     />
   );
 };

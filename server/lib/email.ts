@@ -15,11 +15,28 @@ type EmailMessage = {
   to: string;
   subject: string;
   text: string;
-  html: string;
+  html?: string;
   debugLabel: string;
   debugLink: string;
+  replyTo?: string;
   allowDevelopmentLog?: boolean;
 };
+
+export type SentEmailResult = {
+  provider: "development_log" | "resend";
+  id: string | null;
+  status: "logged" | "sent";
+};
+
+export interface SendOperationalEmailOptions {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+  replyTo?: string;
+  debugLabel?: string;
+  allowDevelopmentLog?: boolean;
+}
 
 export interface SendPasswordResetEmailOptions {
   to: string;
@@ -148,8 +165,9 @@ async function sendEmailMessage({
   html,
   debugLabel,
   debugLink,
+  replyTo: explicitReplyTo,
   allowDevelopmentLog = isDev,
-}: EmailMessage): Promise<void> {
+}: EmailMessage): Promise<SentEmailResult> {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
 
   if (!resendApiKey) {
@@ -158,13 +176,13 @@ async function sendEmailMessage({
       console.log(`[email:dev] To: ${to}`);
       console.log(`[email:dev] Subject: ${subject}`);
       console.log(`[email:dev] Link: ${debugLink}`);
-      return;
+      return { provider: "development_log", id: null, status: "logged" };
     }
     throw new Error(EMAIL_NOT_CONFIGURED_MESSAGE);
   }
 
   const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
-  const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
+  const replyTo = explicitReplyTo?.trim() || process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -177,18 +195,41 @@ async function sendEmailMessage({
       to: [to],
       subject,
       text,
-      html,
+      ...(html ? { html } : {}),
       reply_to: replyTo,
     }),
   });
+  const payload = await response.json().catch(async () => ({
+    message: await response.text().catch(() => response.statusText),
+  })) as ResendResponse;
 
   if (!response.ok) {
-    const payload = await response.json().catch(async () => ({
-      message: await response.text().catch(() => response.statusText),
-    })) as ResendResponse;
     const message = payload.message ?? payload.name ?? `Resend request failed with ${response.status}`;
     throw new Error(explainEmailProviderError(message, from, "Resend"));
   }
+
+  return { provider: "resend", id: payload.id ?? null, status: "sent" };
+}
+
+export async function sendOperationalEmail({
+  to,
+  subject,
+  text,
+  html,
+  replyTo,
+  debugLabel = "Operational",
+  allowDevelopmentLog,
+}: SendOperationalEmailOptions): Promise<SentEmailResult> {
+  return sendEmailMessage({
+    to,
+    subject,
+    text,
+    html,
+    debugLabel,
+    debugLink: "",
+    replyTo,
+    allowDevelopmentLog,
+  });
 }
 
 export async function sendPasswordResetEmail({

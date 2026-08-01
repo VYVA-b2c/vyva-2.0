@@ -6,6 +6,7 @@ import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState,
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
+  VYVA_VOICE_HOME_INTENT_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
   type VoiceAppAction,
 } from "@/lib/voiceNavigation";
@@ -32,6 +33,11 @@ const voiceActionState = vi.hoisted(() => ({
   activeAction: null as VoiceAppAction | null,
   completeActiveAction: vi.fn(),
   dismissActiveAction: vi.fn(),
+}));
+
+const voiceCanvasState = vi.hoisted(() => ({
+  activeScene: null as import("@/lib/voiceCanvasBridge").VoiceCanvasSceneEnvelope | null,
+  submitResponse: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -70,6 +76,13 @@ vi.mock("@/contexts/VoiceActionContext", () => ({
   }),
 }));
 
+vi.mock("@/contexts/VoiceCanvasContext", () => ({
+  useVoiceCanvasContext: () => ({
+    activeScene: voiceCanvasState.activeScene,
+    submitResponse: voiceCanvasState.submitResponse,
+  }),
+}));
+
 vi.mock("./StatusBar", () => ({
   default: () => <div data-testid="status-bar" />,
 }));
@@ -87,8 +100,13 @@ vi.mock("./MotivationMilestoneProvider", () => ({
 }));
 
 vi.mock("./VoiceCallOverlay", () => ({
-  default: ({ onEnd, onMinimize }: { onEnd: () => void; onMinimize?: () => void }) => (
+  default: ({ onEnd, onMinimize, canvasViewModel }: {
+    onEnd: () => void;
+    onMinimize?: () => void;
+    canvasViewModel?: { title: string } | null;
+  }) => (
     <div data-testid="voice-call-overlay">
+      {canvasViewModel ? <div data-testid="voice-canvas-surface">{canvasViewModel.title}</div> : null}
       {onMinimize && (
         <button type="button" data-testid="button-minimize-call" onClick={onMinimize}>
           Minimize
@@ -236,6 +254,8 @@ describe("app shell voice dock", () => {
     voiceActionState.activeAction = null;
     voiceActionState.completeActiveAction.mockClear();
     voiceActionState.dismissActiveAction.mockClear();
+    voiceCanvasState.activeScene = null;
+    voiceCanvasState.submitResponse.mockClear();
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
@@ -257,6 +277,29 @@ describe("app shell voice dock", () => {
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
+  });
+
+  it("opens a new Canvas scene and keeps the underlying page available after minimize", async () => {
+    voiceCanvasState.activeScene = {
+      owner: "concierge_ride",
+      revision: 1,
+      viewModel: {
+        sceneId: "ride-destination",
+        kind: "place",
+        title: "Where are you going?",
+      },
+    };
+
+    renderShell("/concierge");
+
+    await waitFor(() => expect(screen.getByTestId("voice-canvas-surface")).toHaveTextContent("Where are you going?"));
+    expect(screen.getByText("Page content")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+    expect(screen.getByText("Page content")).toBeVisible();
+    expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
   });
 
   it("uses compact copy when VYVA is speaking from the dock", () => {
@@ -313,6 +356,82 @@ describe("app shell voice dock", () => {
         route: "/mind-memory",
       });
     } finally {
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
+  it("turns a broad Health transcript into the Home Health choice layer", () => {
+    const homeIntentHandler = vi.fn();
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell("/");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "Mi salud",
+          transcriptEntry: { from: "user", text: "Mi salud", timestamp: 3 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
+  it("turns natural broad Health speech into the Home Health choice layer", () => {
+    const homeIntentHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+
+    try {
+      renderShell("/dev/home-master");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "Quiero ayuda con mi salud",
+          transcriptEntry: { from: "user", text: "Quiero ayuda con mi salud", timestamp: 4 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe("health");
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    }
+  });
+
+  it.each([
+    ["Mi salud", "health"],
+    ["My mind", "mind"],
+    ["Ma communaut\u00e9", "community"],
+    ["Mein Concierge", "concierge"],
+  ])("turns the broad %s transcript into the matching Home intent", (text, intent) => {
+    const homeIntentHandler = vi.fn();
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell("/");
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text,
+          transcriptEntry: { from: "user", text, timestamp: 5 },
+        },
+      }));
+
+      expect(homeIntentHandler).toHaveBeenCalledTimes(1);
+      expect(homeIntentHandler.mock.calls[0][0].detail).toBe(intent);
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_HOME_INTENT_EVENT, homeIntentHandler);
       window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
     }
   });

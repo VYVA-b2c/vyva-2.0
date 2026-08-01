@@ -1,6 +1,8 @@
 import {
+  CONCIERGE_PROVIDER_CATEGORIES,
   CONCIERGE_FLOW_REFERENCES,
   CONCIERGE_FLOW_REGISTRY,
+  getConciergeFlowDefinition,
   type ConciergeFlowReference,
 } from "./conciergeFlowRegistry";
 
@@ -87,6 +89,19 @@ export type WorkflowDomain =
   | "concierge"
   | "profile";
 
+export const WORKFLOW_DOMAINS: WorkflowDomain[] = [
+  "home",
+  "health",
+  "medication",
+  "mind_memory",
+  "learning",
+  "community",
+  "room",
+  "game",
+  "concierge",
+  "profile",
+];
+
 export type WorkflowEntrySurface =
   | "main_card"
   | "sub_card"
@@ -98,13 +113,74 @@ export type WorkflowEntrySurface =
   | "voice_action"
   | "profile_setup";
 
+export const WORKFLOW_ENTRY_SURFACES: WorkflowEntrySurface[] = [
+  "main_card",
+  "sub_card",
+  "fast_help",
+  "room_action",
+  "health_action",
+  "learning_action",
+  "game_action",
+  "voice_action",
+  "profile_setup",
+];
+
 export type WorkflowStatus = "ready" | "partial" | "planned" | "deferred";
+
+export const WORKFLOW_STATUSES: WorkflowStatus[] = ["ready", "partial", "planned", "deferred"];
+
+export type WorkflowCoverageState = "complete" | "partial" | "missing";
+export type WorkflowFlowStatus = "ready" | "partial" | "ui_only" | "blocked";
+
+export type WorkflowActionLevel = "light" | "guided" | "external_action" | "setup" | "admin";
+
+export const WORKFLOW_ACTION_LEVELS: WorkflowActionLevel[] = [
+  "light",
+  "guided",
+  "external_action",
+  "setup",
+  "admin",
+];
+
+export const WORKFLOW_ACTION_LEVEL_LABELS: Record<WorkflowActionLevel, string> = {
+  light: "Light",
+  guided: "Guided",
+  external_action: "External action",
+  setup: "Setup",
+  admin: "Admin",
+};
+
+export const WORKFLOW_ACTION_LEVEL_RULES: Record<WorkflowActionLevel, string> = {
+  light: "Open, save, complete, or resume inside VYVA without extra intake.",
+  guided: "Ask missing details, prepare a summary, or review sensitive context before saving.",
+  external_action: "Check provider or tool readiness, prepare the action, ask final confirmation, then capture outcome and receipt.",
+  setup: "Collect user, caregiver, provider, consent, or tool readiness details that enable future flows.",
+  admin: "Internal content or operations workflow, not a direct senior-facing action.",
+};
+
 export type WorkflowFallback =
   | "ask_user"
   | "open_setup"
   | "open_existing_screen"
   | "operator_review"
+  | "choose_input_type"
   | "safe_block"
+  | "none";
+
+export type WorkflowProfileDataSource =
+  | "basic_profile"
+  | "language"
+  | "timezone"
+  | "health_profile"
+  | "medications"
+  | "vitals"
+  | "mobility"
+  | "care_team"
+  | "trusted_providers"
+  | "learning_interests"
+  | "social_interests"
+  | "home_address"
+  | "documents_media"
   | "none";
 
 export interface WorkflowDefinition {
@@ -120,6 +196,12 @@ export interface WorkflowDefinition {
   primaryRoute?: string;
   relatedConciergeFlow?: ConciergeFlowReference;
   nextStep?: string;
+  actionLevel?: WorkflowActionLevel;
+  setupRequirement?: string;
+  findOptionsPath?: string;
+  receiptMoment?: string;
+  resumeBehavior?: string;
+  profileDataSources?: WorkflowProfileDataSource[];
 }
 
 export interface WorkflowEntryPoint {
@@ -132,6 +214,184 @@ export interface WorkflowEntryPoint {
   suggestedFlow: string;
 }
 
+export interface WorkflowActionLookup {
+  entryPointId: string;
+  workflowReference: WorkflowReference;
+  label: string;
+  source: string;
+  surface: WorkflowEntrySurface;
+  route?: string;
+  suggestedFlow: string;
+  workflowTitle: string;
+  domain: WorkflowDomain;
+  status: WorkflowStatus;
+  coverageState: WorkflowCoverageState;
+  nextStep: string;
+  completionState: string;
+  confirmationRule: string;
+  fallbackIfMissing: WorkflowFallback[];
+  relatedConciergeFlow?: ConciergeFlowReference;
+  actionLevel: WorkflowActionLevel;
+  actionLevelLabel: string;
+  actionLevelRule: string;
+}
+
+export interface WorkflowActionTarget {
+  entryPointId?: string;
+  workflow?: WorkflowReference;
+  source?: string;
+  surface?: WorkflowEntrySurface;
+  route?: string;
+  label?: string;
+}
+
+export interface WorkflowFlowMatrixRow {
+  reference: WorkflowReference;
+  domain: WorkflowDomain;
+  title: string;
+  currentStatus: WorkflowFlowStatus;
+  currentStatusLabel: string;
+  entryPoints: WorkflowEntryPoint[];
+  requiredSetup: string;
+  missingSetupFallback: string;
+  findOptionsPath: string;
+  confirmationRule: string;
+  receiptMoment: string;
+  resumeBehavior: string;
+  nextStep: string;
+  profileDataSources: WorkflowProfileDataSource[];
+  profileDataSourceLabels: string;
+}
+
+export type WorkflowSetupFallbackChoiceKind =
+  | "ask_detail"
+  | "add_provider"
+  | "add_trusted_contact"
+  | "find_options"
+  | "ask_family"
+  | "open_existing_screen"
+  | "operator_review"
+  | "choose_input_type"
+  | "safe_block"
+  | "none";
+
+export interface WorkflowSetupFallbackChoice {
+  kind: WorkflowSetupFallbackChoiceKind;
+  label: string;
+  description: string;
+  route?: string;
+  state?: Record<string, unknown>;
+}
+
+export interface WorkflowSetupFallbackOptions {
+  returnTo?: string;
+}
+
+export type WorkflowReadinessGateKind =
+  | "setup_fallback"
+  | "tool_readiness"
+  | "profile_data"
+  | "confirmation"
+  | "receipt"
+  | "resume";
+
+export type WorkflowReadinessGateState = "ready" | "needs_attention";
+
+export interface WorkflowReadinessGate {
+  kind: WorkflowReadinessGateKind;
+  label: string;
+  detail: string;
+  state: WorkflowReadinessGateState;
+}
+
+export interface WorkflowReadinessChecklistRow {
+  reference: WorkflowReference;
+  domain: WorkflowDomain;
+  title: string;
+  actionLevel: WorkflowActionLevel;
+  gates: WorkflowReadinessGate[];
+  needsAttention: WorkflowReadinessGateKind[];
+}
+
+export interface WorkflowCoverageCounts {
+  total: number;
+  complete: number;
+  partial: number;
+  missing: number;
+}
+
+export interface WorkflowCoverageSummary {
+  workflows: WorkflowCoverageCounts;
+  entryPoints: WorkflowCoverageCounts;
+  byDomain: Record<WorkflowDomain, WorkflowCoverageCounts>;
+  bySurface: Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
+  byStatus: Record<WorkflowStatus, number>;
+  byActionLevel: Record<WorkflowActionLevel, number>;
+  partialWorkflows: WorkflowReference[];
+  missingWorkflows: WorkflowReference[];
+}
+
+export type WorkflowParityStatus =
+  | "ready"
+  | "partial"
+  | "missing_resume"
+  | "missing_confirmation"
+  | "missing_setup_path"
+  | "needs_tool_service";
+
+export const WORKFLOW_PARITY_STATUSES: WorkflowParityStatus[] = [
+  "ready",
+  "partial",
+  "missing_resume",
+  "missing_confirmation",
+  "missing_setup_path",
+  "needs_tool_service",
+];
+
+export const WORKFLOW_PARITY_STATUS_LABELS: Record<WorkflowParityStatus, string> = {
+  ready: "Ready",
+  partial: "Partial",
+  missing_resume: "Missing resume",
+  missing_confirmation: "Missing confirmation",
+  missing_setup_path: "Missing setup path",
+  needs_tool_service: "Needs tool/service",
+};
+
+export type WorkflowReusablePattern =
+  | "setup_choice_panel"
+  | "return_resume_state"
+  | "confirmation_receipt"
+  | "action_readiness"
+  | "manual_fallback";
+
+export const WORKFLOW_REUSABLE_PATTERN_LABELS: Record<WorkflowReusablePattern, string> = {
+  setup_choice_panel: "Setup choice panel",
+  return_resume_state: "Return/resume state",
+  confirmation_receipt: "Confirmation receipt",
+  action_readiness: "Action readiness",
+  manual_fallback: "Manual fallback",
+};
+
+export interface WorkflowParityAuditItem {
+  workflowReference: WorkflowReference;
+  domain: WorkflowDomain;
+  title: string;
+  status: WorkflowParityStatus;
+  affectedEntryPointIds: string[];
+  reusablePatterns: WorkflowReusablePattern[];
+  backlogPriority: 1 | 2 | 3 | 4;
+  evidence: string;
+  nextStep: string;
+}
+
+export interface WorkflowParityAuditSummary {
+  total: number;
+  byStatus: Record<WorkflowParityStatus, number>;
+  byDomain: Record<WorkflowDomain, Record<WorkflowParityStatus, number>>;
+  ready: number;
+  blocked: number;
+}
+
 function conciergeWorkflowDefinitions(): WorkflowDefinition[] {
   return CONCIERGE_FLOW_REGISTRY.map((flow) => ({
     reference: flow.reference,
@@ -140,7 +400,7 @@ function conciergeWorkflowDefinitions(): WorkflowDefinition[] {
     summary: `Concierge flow using ${flow.tools.join(", ")} with final user control.`,
     status: flow.status,
     requiredInfo: flow.firstQuestions,
-    fallbackIfMissing: flow.savedData.includes("trusted_provider") ? ["open_setup", "operator_review"] : ["ask_user", "operator_review"],
+    fallbackIfMissing: flow.savedData.includes("trusted_provider") || flow.setupFocus ? ["open_setup", "operator_review"] : ["ask_user", "operator_review"],
     confirmationRule: flow.confirmationRule,
     completionState: "prepared, confirmed, handed off, and captured in Concierge history",
     primaryRoute: "/concierge",
@@ -286,15 +546,14 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
   {
     reference: APP_WORKFLOW_REFERENCES.medicationResearch,
     domain: "medication",
-    title: "Medication research",
-    summary: "Recent medication updates summarized in plain language.",
-    status: "partial",
+    title: "Medication updates",
+    summary: "Dated AEMPS, FDA, and PubMed records for saved medicines, with original sources and clinician discussion questions.",
+    status: "ready",
     requiredInfo: ["saved_medications"],
     fallbackIfMissing: ["open_existing_screen"],
-    confirmationRule: "Do not give dosing advice; suggest discussion points for a clinician.",
-    completionState: "research summary shown",
+    confirmationRule: "Never advise changing a medicine or dose; require confirmation before adding sourced questions to an appointment handoff.",
+    completionState: "dated source-backed updates reviewed or appointment questions prepared",
     primaryRoute: "/meds",
-    nextStep: "Connect research sources and citations before making it a stronger clinical workflow.",
   },
   {
     reference: APP_WORKFLOW_REFERENCES.healthPrevention,
@@ -324,12 +583,12 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
     reference: APP_WORKFLOW_REFERENCES.visualScan,
     domain: "health",
     title: "Visual scan",
-    summary: "Photo review for health or home-safety context.",
-    status: "partial",
-    requiredInfo: ["photo_or_camera", "concern"],
-    fallbackIfMissing: ["ask_user", "operator_review"],
+    summary: "Shared Show VYVA review for photos, uploads, pasted text, links, documents, phone numbers, and company names.",
+    status: "ready",
+    requiredInfo: ["review_input", "concern"],
+    fallbackIfMissing: ["choose_input_type", "ask_user", "operator_review"],
     confirmationRule: "Ask before uploading, sharing, or escalating the image.",
-    completionState: "photo reviewed or scan panel opened",
+    completionState: "review result shown with confirmation-safe follow-up actions",
     primaryRoute: "/health",
     relatedConciergeFlow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport,
     nextStep: "Extend the shared Show VYVA chooser to every screen that accepts photos, documents, text, or links.",
@@ -471,14 +730,13 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
     reference: APP_WORKFLOW_REFERENCES.learningReadAloud,
     domain: "learning",
     title: "Read lesson aloud",
-    summary: "Voice playback for the current lesson.",
-    status: "partial",
+    summary: "Resumable lesson playback in the selected app language using the matching system voice.",
+    status: "ready",
     requiredInfo: ["lesson"],
     fallbackIfMissing: ["open_existing_screen"],
     confirmationRule: "No confirmation needed.",
-    completionState: "lesson read aloud",
+    completionState: "lesson playback completed or safely paused for later",
     primaryRoute: "/learn",
-    nextStep: "Keep voice support aligned with the shared voice-action framework.",
   },
   {
     reference: APP_WORKFLOW_REFERENCES.learningSaveForLater,
@@ -938,6 +1196,56 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
   },
 ];
 
+const LIGHT_WORKFLOW_REFERENCES = new Set<WorkflowReference>([
+  APP_WORKFLOW_REFERENCES.homeHub,
+  APP_WORKFLOW_REFERENCES.healthHub,
+  APP_WORKFLOW_REFERENCES.mindMemoryHub,
+  APP_WORKFLOW_REFERENCES.memoryGames,
+  APP_WORKFLOW_REFERENCES.attentionTraining,
+  APP_WORKFLOW_REFERENCES.executiveFunction,
+  APP_WORKFLOW_REFERENCES.sharpenSenses,
+  APP_WORKFLOW_REFERENCES.relaxBreathe,
+  APP_WORKFLOW_REFERENCES.learningPlan,
+  APP_WORKFLOW_REFERENCES.learningTodayLesson,
+  APP_WORKFLOW_REFERENCES.learningReadAloud,
+  APP_WORKFLOW_REFERENCES.learningSaveForLater,
+  APP_WORKFLOW_REFERENCES.communityHub,
+  APP_WORKFLOW_REFERENCES.socialRoomList,
+  APP_WORKFLOW_REFERENCES.socialRoomEnter,
+  APP_WORKFLOW_REFERENCES.musicReact,
+  APP_WORKFLOW_REFERENCES.vitalsTracking,
+  APP_WORKFLOW_REFERENCES.medicationPlan,
+  APP_WORKFLOW_REFERENCES.medicationAdherence,
+  APP_WORKFLOW_REFERENCES.healthPrevention,
+  APP_WORKFLOW_REFERENCES.healthReports,
+  APP_WORKFLOW_REFERENCES.gameMemoryMatch,
+  APP_WORKFLOW_REFERENCES.gameSequenceMemory,
+  APP_WORKFLOW_REFERENCES.gameWordRecall,
+  APP_WORKFLOW_REFERENCES.gameNumberMemory,
+  APP_WORKFLOW_REFERENCES.gameRoutineMemory,
+  APP_WORKFLOW_REFERENCES.gameAssociationMemory,
+  APP_WORKFLOW_REFERENCES.gameStoryRecall,
+  APP_WORKFLOW_REFERENCES.gameRememberLater,
+  APP_WORKFLOW_REFERENCES.gameCuriousMinds,
+  APP_WORKFLOW_REFERENCES.gameDualTaskWalk,
+  APP_WORKFLOW_REFERENCES.gameRhythmTap,
+  APP_WORKFLOW_REFERENCES.gameNumberTrails,
+  APP_WORKFLOW_REFERENCES.gameCategorySort,
+  APP_WORKFLOW_REFERENCES.gameFaceName,
+  APP_WORKFLOW_REFERENCES.gameSpatialNavigator,
+  APP_WORKFLOW_REFERENCES.gameListenClosely,
+  APP_WORKFLOW_REFERENCES.gameBreathGarden,
+  APP_WORKFLOW_REFERENCES.gameScentMemory,
+]);
+
+const SETUP_WORKFLOW_REFERENCES = new Set<WorkflowReference>([
+  APP_WORKFLOW_REFERENCES.trustedProviders,
+]);
+
+const EXTERNAL_ACTION_WORKFLOW_REFERENCES = new Set<WorkflowReference>([
+  APP_WORKFLOW_REFERENCES.doctorNextStep,
+]);
+
 export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "home.route.root", workflow: APP_WORKFLOW_REFERENCES.homeHub, surface: "main_card", source: "AppRoutes", label: "Home", route: "/", suggestedFlow: "Open the main home hub." },
   { id: "home.card.health", workflow: APP_WORKFLOW_REFERENCES.healthHub, surface: "main_card", source: "HomeScreen", label: "My Health", route: "/health", suggestedFlow: "Open Health Plan hub." },
@@ -974,7 +1282,7 @@ export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "meds.fast.refill-help", workflow: CONCIERGE_FLOW_REFERENCES.otcPharmacy, surface: "fast_help", source: "MedsScreen", label: "Refill Help", route: "/concierge/shopping", suggestedFlow: "Use safe pharmacy help; do not handle prescription medicines without supported setup." },
   { id: "meds.fast.add-medicine", workflow: APP_WORKFLOW_REFERENCES.medicationAddByVoice, surface: "fast_help", source: "MedsScreen", label: "Add Medicine", route: "/meds", suggestedFlow: "Capture voice, parse medicine details, then save." },
   { id: "meds.fast.home-remedies", workflow: APP_WORKFLOW_REFERENCES.medicationHomeRemedies, surface: "fast_help", source: "MedsScreen", label: "Home Remedies", route: "/meds", suggestedFlow: "Prepare safe questions, never replace medicine." },
-  { id: "meds.fast.research", workflow: APP_WORKFLOW_REFERENCES.medicationResearch, surface: "fast_help", source: "MedsScreen", label: "Medication Research", route: "/meds", suggestedFlow: "Summarize updates without dosing advice." },
+  { id: "meds.fast.research", workflow: APP_WORKFLOW_REFERENCES.medicationResearch, surface: "fast_help", source: "MedsScreen", label: "Medication Research", route: "/meds", suggestedFlow: "Check dated AEMPS, FDA, and PubMed records, preserve direct sources, and prepare clinician questions without dosing advice." },
   { id: "mind.card.strengthen-memory", workflow: APP_WORKFLOW_REFERENCES.memoryGames, surface: "sub_card", source: "MindMemoryScreen", label: "Strengthen Memory", route: "/memory-games", suggestedFlow: "Open memory games." },
   { id: "mind.card.train-reflexes", workflow: APP_WORKFLOW_REFERENCES.attentionTraining, surface: "sub_card", source: "MindMemoryScreen", label: "Train Reflexes", route: "/attention-boosters", suggestedFlow: "Open attention training." },
   { id: "mind.card.boost-focus", workflow: APP_WORKFLOW_REFERENCES.executiveFunction, surface: "sub_card", source: "MindMemoryScreen", label: "Boost Focus", route: "/executive-function", suggestedFlow: "Open executive function exercises." },
@@ -1047,6 +1355,18 @@ export const WORKFLOW_ENTRY_POINTS: WorkflowEntryPoint[] = [
   { id: "game.breath-garden", workflow: APP_WORKFLOW_REFERENCES.gameBreathGarden, surface: "game_action", source: "SensesPage", label: "Breath Garden", route: "/senses/breath-garden", suggestedFlow: "Start breath garden." },
   { id: "game.scent-memory", workflow: APP_WORKFLOW_REFERENCES.gameScentMemory, surface: "game_action", source: "SensesPage", label: "Scent Memory", route: "/senses/scent-memory", suggestedFlow: "Start scent memory." },
   { id: "profile.setup.providers", workflow: APP_WORKFLOW_REFERENCES.trustedProviders, surface: "profile_setup", source: "ProvidersSection", label: "Trusted providers", route: "/onboarding/profile/providers", suggestedFlow: "Open focused provider setup." },
+  { id: "concierge.fast.safe-home", workflow: CONCIERGE_FLOW_REFERENCES.safeHomeSupport, surface: "fast_help", source: "ConciergeScreen", label: "Safe Home", route: "/safe-home", suggestedFlow: "Open safety support and ask what feels unsafe before any escalation." },
+  { id: "concierge.fast.paperwork-help", workflow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin, surface: "fast_help", source: "ConciergeScreen", label: "Paperwork Help", route: "/concierge", suggestedFlow: "Identify the form or admin task, collect missing details, and stop before sending." },
+  { id: "concierge.fast.find-plumber", workflow: CONCIERGE_FLOW_REFERENCES.homeService, surface: "fast_help", source: "ConciergeScreen", label: "Find Plumber", route: "/concierge", suggestedFlow: "Collect service type, urgency, address/access notes, and prepare provider options before contact." },
+  { id: "concierge.fast.check-scam", workflow: CONCIERGE_FLOW_REFERENCES.scamCheck, surface: "fast_help", source: "ConciergeScreen", label: "Check Scam", route: "/concierge", suggestedFlow: "Route by email, document, phone, company, or link and ask before forwarding, searching, or sharing details." },
+  { id: "concierge.fast.book-ride", workflow: CONCIERGE_FLOW_REFERENCES.transportBooking, surface: "fast_help", source: "ConciergeScreen", label: "Book Ride", route: "/concierge", suggestedFlow: "Ask destination, pickup, time, mobility needs, and provider preference before booking." },
+  { id: "concierge.fast.order-groceries", workflow: CONCIERGE_FLOW_REFERENCES.shoppingSupport, surface: "fast_help", source: "ConciergeScreen", label: "Order Groceries", route: "/concierge/shopping", suggestedFlow: "Prepare grocery choices and ask before ordering, paying, or contacting anyone." },
+  { id: "concierge.fast.otc-pharmacy", workflow: CONCIERGE_FLOW_REFERENCES.otcPharmacy, surface: "fast_help", source: "ConciergeScreen", label: "OTC Pharmacy", route: "/concierge", suggestedFlow: "Use a saved pharmacy and non-prescription item details, then confirm before contact." },
+  { id: "concierge.fast.find-specialist", workflow: CONCIERGE_FLOW_REFERENCES.careNavigation, surface: "fast_help", source: "ConciergeScreen", label: "Find Specialist", route: "/concierge", suggestedFlow: "Collect specialty, proximity, reputation, coverage, availability, and accessibility preferences, then prepare options before contact." },
+  { id: "concierge.fast.find-residence", workflow: CONCIERGE_FLOW_REFERENCES.careNavigation, surface: "fast_help", source: "ConciergeScreen", label: "Find Residence", route: "/concierge", suggestedFlow: "Compare care homes or residences by care need, location, price, reputation, and access needs, then prepare options before contact." },
+  { id: "concierge.fast.book-medical", workflow: CONCIERGE_FLOW_REFERENCES.medicalAppointment, surface: "fast_help", source: "ConciergeScreen", label: "Book Medical", route: "/concierge", suggestedFlow: "Ask reason, preferred time, provider, and coverage note before any booking or message." },
+  { id: "concierge.fast.government-help", workflow: CONCIERGE_FLOW_REFERENCES.insuranceAdmin, surface: "fast_help", source: "ConciergeScreen", label: "Government Help", route: "/concierge", suggestedFlow: "Collect official task, deadline, recipient, and missing documents before preparing the next step." },
+  { id: "concierge.fast.prepared-meals", workflow: CONCIERGE_FLOW_REFERENCES.shoppingSupport, surface: "fast_help", source: "ConciergeScreen", label: "Prepared Meals", route: "/concierge/shopping", suggestedFlow: "Prepare simple meal options and ask before ordering, paying, or contacting anyone." },
   { id: "concierge.action.transport", workflow: CONCIERGE_FLOW_REFERENCES.transportBooking, surface: "voice_action", source: "ConciergeScreen", label: "Book ride", route: "/concierge", suggestedFlow: "Collect ride details and confirm before booking." },
   { id: "concierge.action.otc-pharmacy", workflow: CONCIERGE_FLOW_REFERENCES.otcPharmacy, surface: "voice_action", source: "ConciergeScreen", label: "OTC pharmacy help", route: "/concierge", suggestedFlow: "Use saved pharmacy and only non-prescription support." },
   { id: "concierge.action.medical-appointment", workflow: CONCIERGE_FLOW_REFERENCES.medicalAppointment, surface: "voice_action", source: "ConciergeScreen", label: "Medical appointment", route: "/concierge", suggestedFlow: "Collect reason, provider, and timing, then confirm." },
@@ -1116,4 +1436,740 @@ export function workflowEntryPointsForSurface(surface: WorkflowEntrySurface): Wo
 
 export function deduplicateWorkflowReferences(references: WorkflowReference[]): WorkflowReference[] {
   return [...new Set(references)];
+}
+
+export function workflowCoverageState(status: WorkflowStatus): WorkflowCoverageState {
+  if (status === "ready") return "complete";
+  if (status === "partial") return "partial";
+  return "missing";
+}
+
+export function workflowFlowStatus(status: WorkflowStatus): WorkflowFlowStatus {
+  if (status === "ready") return "ready";
+  if (status === "partial") return "partial";
+  if (status === "planned") return "ui_only";
+  return "blocked";
+}
+
+export const WORKFLOW_FLOW_STATUS_LABELS: Record<WorkflowFlowStatus, string> = {
+  ready: "Ready",
+  partial: "Partial",
+  ui_only: "UI only",
+  blocked: "Blocked",
+};
+
+const FALLBACK_LABELS: Record<WorkflowFallback, string> = {
+  ask_user: "Ask the user for the missing detail in the flow.",
+  open_setup: "Open focused setup and return to the original task.",
+  open_existing_screen: "Open the existing page that manages this information.",
+  operator_review: "Offer VYVA or operator review when automation is not enough.",
+  choose_input_type: "Let the user choose camera, upload, pasted text, link, phone, or company input.",
+  safe_block: "Stop the action safely until required information or permission is present.",
+  none: "No setup fallback needed.",
+};
+
+const SAVED_DATA_LABELS: Record<string, string> = {
+  trusted_provider: "trusted provider",
+  coverage: "insurance or coverage",
+  mobility_preferences: "mobility preferences",
+  home_address: "home address",
+  contact_channel: "preferred contact channel",
+  trusted_contact: "trusted contact",
+  document_or_media: "document or media",
+};
+
+const PROFILE_DATA_SOURCE_LABELS: Record<WorkflowProfileDataSource, string> = {
+  basic_profile: "basic profile",
+  language: "language",
+  timezone: "timezone",
+  health_profile: "health profile",
+  medications: "saved medicines",
+  vitals: "vitals history",
+  mobility: "mobility preferences",
+  care_team: "care team",
+  trusted_providers: "trusted providers",
+  learning_interests: "learning interests",
+  social_interests: "social interests",
+  home_address: "home address",
+  documents_media: "documents or media",
+  none: "none",
+};
+
+function formatTokenList(values: readonly string[]): string {
+  if (values.length === 0) return "None";
+  return values.map((value) => value.replace(/_/g, " ")).join(", ");
+}
+
+function profileDataSourceLabel(source: WorkflowProfileDataSource): string {
+  return PROFILE_DATA_SOURCE_LABELS[source] ?? source.replace(/_/g, " ");
+}
+
+function uniqueProfileDataSources(values: readonly WorkflowProfileDataSource[]): WorkflowProfileDataSource[] {
+  const withoutNone = values.filter((value) => value !== "none");
+  const unique = [...new Set(withoutNone)];
+  return unique.length ? unique : ["none"];
+}
+
+function profileDataSourcesFromConciergeFlow(reference: ConciergeFlowReference): WorkflowProfileDataSource[] {
+  const flow = getConciergeFlowDefinition(reference);
+  const sources: WorkflowProfileDataSource[] = [];
+  if (flow.savedData.includes("trusted_provider")) sources.push("trusted_providers");
+  if (flow.savedData.includes("coverage")) sources.push("health_profile");
+  if (flow.savedData.includes("mobility_preferences")) sources.push("mobility");
+  if (flow.savedData.includes("home_address")) sources.push("home_address");
+  if (flow.savedData.includes("contact_channel")) sources.push("basic_profile");
+  if (flow.savedData.includes("trusted_contact")) sources.push("care_team");
+  if (flow.savedData.includes("document_or_media")) sources.push("documents_media");
+  return uniqueProfileDataSources(sources);
+}
+
+export function workflowProfileDataSources(reference: WorkflowReference): WorkflowProfileDataSource[] {
+  const workflow = getWorkflowDefinition(reference);
+  if (workflow.profileDataSources?.length) return uniqueProfileDataSources(workflow.profileDataSources);
+
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  const sources: WorkflowProfileDataSource[] = flowReference ? profileDataSourcesFromConciergeFlow(flowReference) : [];
+  const requiredInfo = new Set(workflow.requiredInfo);
+
+  if (workflow.domain === "home") sources.push("basic_profile", "timezone", "language");
+  if (workflow.domain === "health") sources.push("health_profile");
+  if (workflow.domain === "medication") sources.push("medications");
+  if (workflow.domain === "learning") sources.push("learning_interests", "language");
+  if (workflow.domain === "community" || workflow.domain === "room") sources.push("social_interests", "language");
+  if (workflow.domain === "game" || workflow.domain === "mind_memory") sources.push("language");
+  if (workflow.domain === "profile") sources.push("basic_profile");
+
+  if (requiredInfo.has("saved_medications")) sources.push("medications");
+  if (requiredInfo.has("reading_type") || requiredInfo.has("reading_value") || requiredInfo.has("reading_time")) sources.push("vitals");
+  if (requiredInfo.has("profile_signals")) sources.push("basic_profile", "health_profile", "mobility");
+  if (requiredInfo.has("interests") || requiredInfo.has("interest_choice")) sources.push("learning_interests");
+  if (requiredInfo.has("room_or_interest") || requiredInfo.has("activity_interest")) sources.push("social_interests");
+
+  return uniqueProfileDataSources(sources);
+}
+
+export function workflowProfileDataSourceLabels(reference: WorkflowReference): string {
+  return workflowProfileDataSources(reference).map(profileDataSourceLabel).join(", ");
+}
+
+function providerCategoryLabel(reference: ConciergeFlowReference): string | null {
+  const flow = getConciergeFlowDefinition(reference);
+  if (!flow.setupFocus && !flow.providerCategory) return null;
+  const categoryId = flow.setupFocus ?? flow.providerCategory;
+  return CONCIERGE_PROVIDER_CATEGORIES.find((category) => category.id === categoryId)?.label ?? categoryId ?? null;
+}
+
+function requiredSetupForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.setupRequirement) return workflow.setupRequirement;
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  if (flowReference) {
+    const flow = getConciergeFlowDefinition(flowReference);
+    const savedData = flow.savedData.map((key) => SAVED_DATA_LABELS[key] ?? key.replace(/_/g, " "));
+    const category = providerCategoryLabel(flowReference);
+    const setup = [
+      ...(category && flow.savedData.includes("trusted_provider") ? [`saved ${category.toLowerCase()} provider`] : []),
+      ...savedData.filter((item) => item !== "trusted provider"),
+    ];
+    return setup.length ? setup.join(", ") : "None";
+  }
+  return workflow.requiredInfo.length ? formatTokenList(workflow.requiredInfo) : "None";
+}
+
+function missingSetupFallbackForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.fallbackIfMissing.includes("none")) return FALLBACK_LABELS.none;
+  const parts = workflow.fallbackIfMissing.map((fallback) => FALLBACK_LABELS[fallback]);
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  if (flowReference) {
+    const category = providerCategoryLabel(flowReference);
+    if (category) {
+      parts.unshift(`If no ${category.toLowerCase()} is saved, offer: add usual provider, find nearby options, or ask family/caregiver to help.`);
+    }
+  }
+  return [...new Set(parts)].join(" ");
+}
+
+function findOptionsPathForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.findOptionsPath) return workflow.findOptionsPath;
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  if (flowReference) {
+    const flow = getConciergeFlowDefinition(flowReference);
+    if (flow.tools.includes("web_search") || flow.providerCategory) {
+      return "Use the shared provider/search criteria path: proximity, price, reputation, availability, accessibility, and coverage when relevant.";
+    }
+    return "Prepare the Concierge action path; use operator review when no direct search/tool is available.";
+  }
+  if (workflow.actionLevel === "setup" || workflow.domain === "profile") return "Not needed; this is setup itself.";
+  if (workflow.domain === "game" || workflow.domain === "learning" || workflow.domain === "room") return "Not needed; user chooses from in-app options.";
+  return "Use the relevant in-app page first; route to Concierge only when an external provider or service is needed.";
+}
+
+function receiptMomentForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.receiptMoment) return workflow.receiptMoment;
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  if (actionLevel === "external_action") return "Show an action-prepared or action-confirmed receipt before/after any external handoff.";
+  if (actionLevel === "setup") return "Show a saved setup confirmation and return option.";
+  return workflow.completionState;
+}
+
+function resumeBehaviorForWorkflow(workflow: WorkflowDefinition): string {
+  if (workflow.resumeBehavior) return workflow.resumeBehavior;
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  if (actionLevel === "external_action") return "Resume from Home, Concierge, or the originating screen through the saved pending task.";
+  if (actionLevel === "setup") return "Return to the original task through the setup return path when provided.";
+  return "Stay in the current in-app flow or reopen from the same entry point.";
+}
+
+export function workflowFlowMatrixRows(): WorkflowFlowMatrixRow[] {
+  return WORKFLOW_DEFINITIONS.map((workflow) => {
+    const currentStatus = workflowFlowStatus(workflow.status);
+    return {
+      reference: workflow.reference,
+      domain: workflow.domain,
+      title: workflow.title,
+      currentStatus,
+      currentStatusLabel: WORKFLOW_FLOW_STATUS_LABELS[currentStatus],
+      entryPoints: workflowEntryPointsFor(workflow.reference),
+      requiredSetup: requiredSetupForWorkflow(workflow),
+      missingSetupFallback: missingSetupFallbackForWorkflow(workflow),
+      findOptionsPath: findOptionsPathForWorkflow(workflow),
+      confirmationRule: workflow.confirmationRule,
+      receiptMoment: receiptMomentForWorkflow(workflow),
+      resumeBehavior: resumeBehaviorForWorkflow(workflow),
+      nextStep: workflow.nextStep ?? "Keep current flow available.",
+      profileDataSources: workflowProfileDataSources(workflow.reference),
+      profileDataSourceLabels: workflowProfileDataSourceLabels(workflow.reference),
+    };
+  });
+}
+
+function pushUniqueSetupChoice(choices: WorkflowSetupFallbackChoice[], choice: WorkflowSetupFallbackChoice): void {
+  if (!choices.some((item) => item.kind === choice.kind && item.route === choice.route)) {
+    choices.push(choice);
+  }
+}
+
+export function workflowSetupFallbackChoices(
+  reference: WorkflowReference,
+  options: WorkflowSetupFallbackOptions = {},
+): WorkflowSetupFallbackChoice[] {
+  const workflow = getWorkflowDefinition(reference);
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  const flow = flowReference ? getConciergeFlowDefinition(flowReference) : null;
+  const choices: WorkflowSetupFallbackChoice[] = [];
+  const returnTo = options.returnTo ?? workflow.primaryRoute;
+  const shouldUseFlowSetupChoices = workflow.domain === "concierge"
+    || workflow.fallbackIfMissing.includes("open_setup")
+    || !workflow.fallbackIfMissing.includes("choose_input_type");
+
+  if (workflow.fallbackIfMissing.includes("none")) {
+    return [{
+      kind: "none",
+      label: "No setup needed",
+      description: "This flow can continue without extra setup.",
+    }];
+  }
+
+  if (workflow.fallbackIfMissing.includes("ask_user")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "ask_detail",
+      label: "Ask a quick question",
+      description: `Ask for ${formatTokenList(workflow.requiredInfo).toLowerCase()} inside the current flow.`,
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("choose_input_type")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "choose_input_type",
+      label: "Choose input type",
+      description: "Let the user choose camera, upload, pasted text, link, phone number, or company lookup.",
+      route: workflow.primaryRoute,
+      state: { returnTo, workflowReference: workflow.reference },
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("open_existing_screen")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "open_existing_screen",
+      label: "Open the right page",
+      description: "Open the existing page that already manages this information.",
+      route: workflow.primaryRoute,
+      state: { returnTo, workflowReference: workflow.reference },
+    });
+  }
+
+  if (shouldUseFlowSetupChoices && flow && (workflow.fallbackIfMissing.includes("open_setup") || flow.savedData.includes("trusted_provider"))) {
+    const category = flow.setupFocus ?? flow.providerCategory;
+    const categoryLabel = flowReference ? providerCategoryLabel(flowReference) : null;
+    if (category) {
+      pushUniqueSetupChoice(choices, {
+        kind: "add_provider",
+        label: `Add usual ${categoryLabel?.toLowerCase() ?? "provider"}`,
+        description: "Save the trusted provider once, then return to the original task.",
+        route: "/onboarding/profile/providers",
+        state: {
+          setupFocus: category,
+          returnTo,
+          providerSetupHelpRequested: {
+            flowReference,
+            setupFocus: category,
+            setupReason: workflow.title,
+          },
+        },
+      });
+    }
+  }
+
+  if (shouldUseFlowSetupChoices && flow?.savedData.includes("trusted_contact")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "add_trusted_contact",
+      label: "Add trusted contact",
+      description: "Save a family member, caregiver, or trusted person before VYVA prepares contact steps.",
+      route: "/onboarding/profile/care-team",
+      state: {
+        returnTo,
+        providerSetupHelpRequested: {
+          flowReference,
+          setupFocus: "trusted_contact",
+          setupReason: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (shouldUseFlowSetupChoices && flow && (flow.providerCategory || flow.tools.includes("web_search"))) {
+    pushUniqueSetupChoice(choices, {
+      kind: "find_options",
+      label: "Find options nearby",
+      description: "Use search criteria such as proximity, price, reputation, availability, accessibility, and coverage when relevant.",
+      route: "/concierge",
+      state: {
+        returnTo,
+        conciergePrefill: {
+          flowReference,
+          mode: "find_options",
+          title: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (shouldUseFlowSetupChoices && flow && (flow.setupFocus || flow.providerCategory || flow.savedData.includes("trusted_provider") || flow.savedData.includes("trusted_contact"))) {
+    pushUniqueSetupChoice(choices, {
+      kind: "ask_family",
+      label: "Ask family or caregiver",
+      description: "Let a trusted helper set up the provider details before VYVA continues.",
+      route: "/onboarding/profile/care-team",
+      state: {
+        returnTo,
+        providerSetupHelpRequested: {
+          flowReference,
+          setupFocus: flow.setupFocus ?? flow.providerCategory ?? null,
+          setupReason: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("operator_review")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "operator_review",
+      label: "Ask VYVA to review",
+      description: "Use manual review when automation, providers, or tools are not ready enough.",
+      route: "/concierge",
+      state: {
+        returnTo,
+        conciergePrefill: {
+          flowReference,
+          mode: "operator_review",
+          title: workflow.title,
+        },
+      },
+    });
+  }
+
+  if (workflow.fallbackIfMissing.includes("safe_block")) {
+    pushUniqueSetupChoice(choices, {
+      kind: "safe_block",
+      label: "Stop safely",
+      description: "Pause this action until required information or permission is present.",
+    });
+  }
+
+  return choices.length ? choices : [{
+    kind: "none",
+    label: "No setup needed",
+    description: "This flow can continue without extra setup.",
+  }];
+}
+
+function readinessGate(
+  kind: WorkflowReadinessGateKind,
+  label: string,
+  detail: string,
+  state: WorkflowReadinessGateState = detail.trim().length > 0 ? "ready" : "needs_attention",
+): WorkflowReadinessGate {
+  return { kind, label, detail, state };
+}
+
+export function workflowReadinessChecklist(reference: WorkflowReference): WorkflowReadinessChecklistRow {
+  const workflow = getWorkflowDefinition(reference);
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  const flowReference = workflow.relatedConciergeFlow ?? (workflow.domain === "concierge" ? workflow.reference as ConciergeFlowReference : null);
+  const flow = flowReference ? getConciergeFlowDefinition(flowReference) : null;
+  const setupChoices = workflowSetupFallbackChoices(reference);
+  const setupReady = setupChoices.length > 0 && !setupChoices.every((choice) => choice.kind === "none" && workflow.fallbackIfMissing.includes("none") === false);
+  const toolDetail = flow
+    ? `Requires ${formatTokenList(flow.tools)}.`
+    : actionLevel === "external_action"
+      ? "External action must route through a related Concierge flow or explicit tool readiness gate."
+      : "No external tool readiness needed.";
+  const profileDetail = workflowProfileDataSourceLabels(reference);
+
+  const gates: WorkflowReadinessGate[] = [
+    readinessGate(
+      "setup_fallback",
+      "Missing setup fallback",
+      setupChoices.map((choice) => choice.label).join(", "),
+      setupReady ? "ready" : "needs_attention",
+    ),
+    readinessGate(
+      "profile_data",
+      "Profile data",
+      `Uses ${profileDetail}.`,
+      profileDetail.trim().length > 0 && profileDetail !== "none" ? "ready" : "needs_attention",
+    ),
+    readinessGate(
+      "confirmation",
+      "Final confirmation",
+      workflow.confirmationRule,
+    ),
+    readinessGate(
+      "receipt",
+      "Receipt moment",
+      receiptMomentForWorkflow(workflow),
+    ),
+    readinessGate(
+      "resume",
+      "Resume behavior",
+      resumeBehaviorForWorkflow(workflow),
+    ),
+  ];
+
+  if (actionLevel === "external_action") {
+    gates.splice(1, 0, readinessGate(
+      "tool_readiness",
+      "Tool readiness",
+      toolDetail,
+      flow && flow.tools.length > 0 ? "ready" : "needs_attention",
+    ));
+  }
+
+  return {
+    reference: workflow.reference,
+    domain: workflow.domain,
+    title: workflow.title,
+    actionLevel,
+    gates,
+    needsAttention: gates.filter((gate) => gate.state === "needs_attention").map((gate) => gate.kind),
+  };
+}
+
+export function workflowReadinessChecklistRows(): WorkflowReadinessChecklistRow[] {
+  return WORKFLOW_DEFINITIONS.map((workflow) => workflowReadinessChecklist(workflow.reference));
+}
+
+function emptyCoverageCounts(): WorkflowCoverageCounts {
+  return {
+    total: 0,
+    complete: 0,
+    partial: 0,
+    missing: 0,
+  };
+}
+
+function addCoverageCount(counts: WorkflowCoverageCounts, state: WorkflowCoverageState): void {
+  counts.total += 1;
+  counts[state] += 1;
+}
+
+function emptyDomainCoverage(): Record<WorkflowDomain, WorkflowCoverageCounts> {
+  return Object.fromEntries(
+    WORKFLOW_DOMAINS.map((domain) => [domain, emptyCoverageCounts()]),
+  ) as Record<WorkflowDomain, WorkflowCoverageCounts>;
+}
+
+function emptySurfaceCoverage(): Record<WorkflowEntrySurface, WorkflowCoverageCounts> {
+  return Object.fromEntries(
+    WORKFLOW_ENTRY_SURFACES.map((surface) => [surface, emptyCoverageCounts()]),
+  ) as Record<WorkflowEntrySurface, WorkflowCoverageCounts>;
+}
+
+function emptyStatusCounts(): Record<WorkflowStatus, number> {
+  return Object.fromEntries(WORKFLOW_STATUSES.map((status) => [status, 0])) as Record<WorkflowStatus, number>;
+}
+
+function emptyActionLevelCounts(): Record<WorkflowActionLevel, number> {
+  return Object.fromEntries(WORKFLOW_ACTION_LEVELS.map((level) => [level, 0])) as Record<WorkflowActionLevel, number>;
+}
+
+export function workflowActionLevelForDefinition(workflow: WorkflowDefinition): WorkflowActionLevel {
+  if (workflow.actionLevel) return workflow.actionLevel;
+  if (workflow.domain === "concierge") return "external_action";
+  if (workflow.domain === "profile" || SETUP_WORKFLOW_REFERENCES.has(workflow.reference)) return "setup";
+  if (EXTERNAL_ACTION_WORKFLOW_REFERENCES.has(workflow.reference) || workflow.relatedConciergeFlow) return "external_action";
+  if (LIGHT_WORKFLOW_REFERENCES.has(workflow.reference) || workflow.domain === "game") return "light";
+  return "guided";
+}
+
+export function workflowActionLevelForReference(reference: WorkflowReference): WorkflowActionLevel {
+  return workflowActionLevelForDefinition(getWorkflowDefinition(reference));
+}
+
+function toWorkflowActionLookup(entry: WorkflowEntryPoint): WorkflowActionLookup {
+  const workflow = getWorkflowDefinition(entry.workflow);
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  return {
+    entryPointId: entry.id,
+    workflowReference: workflow.reference,
+    label: entry.label,
+    source: entry.source,
+    surface: entry.surface,
+    route: entry.route,
+    suggestedFlow: entry.suggestedFlow,
+    workflowTitle: workflow.title,
+    domain: workflow.domain,
+    status: workflow.status,
+    coverageState: workflowCoverageState(workflow.status),
+    nextStep: workflow.nextStep ?? entry.suggestedFlow,
+    completionState: workflow.completionState,
+    confirmationRule: workflow.confirmationRule,
+    fallbackIfMissing: workflow.fallbackIfMissing,
+    relatedConciergeFlow: workflow.relatedConciergeFlow,
+    actionLevel,
+    actionLevelLabel: WORKFLOW_ACTION_LEVEL_LABELS[actionLevel],
+    actionLevelRule: WORKFLOW_ACTION_LEVEL_RULES[actionLevel],
+  };
+}
+
+export function workflowActionForEntryPoint(entryPointId: string): WorkflowActionLookup {
+  return toWorkflowActionLookup(getWorkflowEntryPoint(entryPointId));
+}
+
+export function workflowActionsForTarget(target: WorkflowActionTarget): WorkflowActionLookup[] {
+  return WORKFLOW_ENTRY_POINTS
+    .filter((entry) => {
+      if (target.entryPointId && entry.id !== target.entryPointId) return false;
+      if (target.workflow && entry.workflow !== target.workflow) return false;
+      if (target.source && entry.source !== target.source) return false;
+      if (target.surface && entry.surface !== target.surface) return false;
+      if (target.route && entry.route !== target.route) return false;
+      if (target.label && entry.label !== target.label) return false;
+      return true;
+    })
+    .map(toWorkflowActionLookup);
+}
+
+export function resolveWorkflowAction(target: WorkflowActionTarget): WorkflowActionLookup | null {
+  const matches = workflowActionsForTarget(target);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function getWorkflowCoverageSummary(): WorkflowCoverageSummary {
+  const workflows = emptyCoverageCounts();
+  const entryPoints = emptyCoverageCounts();
+  const byDomain = emptyDomainCoverage();
+  const bySurface = emptySurfaceCoverage();
+  const byStatus = emptyStatusCounts();
+  const byActionLevel = emptyActionLevelCounts();
+  const partialWorkflows: WorkflowReference[] = [];
+  const missingWorkflows: WorkflowReference[] = [];
+
+  WORKFLOW_DEFINITIONS.forEach((workflow) => {
+    const state = workflowCoverageState(workflow.status);
+    const actionLevel = workflowActionLevelForDefinition(workflow);
+    addCoverageCount(workflows, state);
+    addCoverageCount(byDomain[workflow.domain], state);
+    byStatus[workflow.status] += 1;
+    byActionLevel[actionLevel] += 1;
+    if (state === "partial") partialWorkflows.push(workflow.reference);
+    if (state === "missing") missingWorkflows.push(workflow.reference);
+  });
+
+  WORKFLOW_ENTRY_POINTS.forEach((entry) => {
+    const workflow = getWorkflowDefinition(entry.workflow);
+    const state = workflowCoverageState(workflow.status);
+    addCoverageCount(entryPoints, state);
+    addCoverageCount(bySurface[entry.surface], state);
+  });
+
+  return {
+    workflows,
+    entryPoints,
+    byDomain,
+    bySurface,
+    byStatus,
+    byActionLevel,
+    partialWorkflows,
+    missingWorkflows,
+  };
+}
+
+function emptyParityStatusCounts(): Record<WorkflowParityStatus, number> {
+  return Object.fromEntries(WORKFLOW_PARITY_STATUSES.map((status) => [status, 0])) as Record<WorkflowParityStatus, number>;
+}
+
+function emptyParityDomainCounts(): Record<WorkflowDomain, Record<WorkflowParityStatus, number>> {
+  return Object.fromEntries(
+    WORKFLOW_DOMAINS.map((domain) => [domain, emptyParityStatusCounts()]),
+  ) as Record<WorkflowDomain, Record<WorkflowParityStatus, number>>;
+}
+
+function conciergeFlowFor(reference: WorkflowReference) {
+  return CONCIERGE_FLOW_REGISTRY.find((flow) => flow.reference === reference);
+}
+
+function workflowHasConfirmationRule(workflow: WorkflowDefinition): boolean {
+  return /ask|confirm|before|never|no confirmation/i.test(workflow.confirmationRule);
+}
+
+function workflowHasSetupPath(workflow: WorkflowDefinition): boolean {
+  const conciergeFlow = conciergeFlowFor(workflow.reference);
+  if (!conciergeFlow?.setupFocus && !workflow.requiredInfo.includes("trusted_provider")) return true;
+  return workflow.fallbackIfMissing.includes("open_setup") || workflow.primaryRoute === "/onboarding/profile/providers";
+}
+
+function workflowHasResumeEvidence(workflow: WorkflowDefinition): boolean {
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  if (actionLevel !== "external_action") return true;
+  return /history|receipt|resume|resumed|captured|saved|prepared|handoff|handed off/i.test(
+    `${workflow.completionState} ${workflow.nextStep ?? ""}`,
+  );
+}
+
+function workflowNeedsRealToolService(workflow: WorkflowDefinition): boolean {
+  return [
+    CONCIERGE_FLOW_REFERENCES.shoppingSupport,
+    CONCIERGE_FLOW_REFERENCES.scamCheck,
+    CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+    CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+  ].includes(workflow.reference as ConciergeFlowReference);
+}
+
+function workflowParityStatusFor(workflow: WorkflowDefinition): WorkflowParityStatus {
+  const coverageState = workflowCoverageState(workflow.status);
+  if (coverageState === "missing") return "partial";
+  if (coverageState === "partial") return "partial";
+  if (!workflowHasSetupPath(workflow)) return "missing_setup_path";
+  if (!workflowHasConfirmationRule(workflow)) return "missing_confirmation";
+  if (!workflowHasResumeEvidence(workflow)) return "missing_resume";
+  if (workflowNeedsRealToolService(workflow)) return "needs_tool_service";
+  return "ready";
+}
+
+function reusablePatternsFor(workflow: WorkflowDefinition): WorkflowReusablePattern[] {
+  const actionLevel = workflowActionLevelForDefinition(workflow);
+  const patterns = new Set<WorkflowReusablePattern>();
+  if (workflow.fallbackIfMissing.includes("open_setup") || workflow.domain === "profile") patterns.add("setup_choice_panel");
+  if (actionLevel === "external_action") {
+    patterns.add("return_resume_state");
+    patterns.add("confirmation_receipt");
+    patterns.add("action_readiness");
+    patterns.add("manual_fallback");
+  }
+  if (workflow.relatedConciergeFlow) {
+    patterns.add("confirmation_receipt");
+    patterns.add("manual_fallback");
+  }
+  return [...patterns];
+}
+
+function backlogPriorityFor(status: WorkflowParityStatus, workflow: WorkflowDefinition): 1 | 2 | 3 | 4 {
+  if (status === "missing_confirmation" || status === "missing_setup_path") return 1;
+  if (status === "missing_resume") return 2;
+  if (status === "needs_tool_service") return 3;
+  if (status === "partial") return 3;
+  if (workflowActionLevelForDefinition(workflow) === "external_action") return 4;
+  return 4;
+}
+
+function parityEvidenceFor(status: WorkflowParityStatus, workflow: WorkflowDefinition): string {
+  if (status === "ready") return "Mapped entry points have a suggested flow, confirmation rule, completion state, and safe fallback.";
+  if (status === "needs_tool_service") return "The user journey is mapped, but real external execution still depends on configured call, email, upload, search, booking, or operator tools.";
+  if (status === "missing_setup_path") return "The workflow depends on saved provider or setup data, but the registry does not yet expose the setup choice path.";
+  if (status === "missing_confirmation") return "The workflow needs an explicit final confirmation rule before contact, booking, sharing, upload, payment, or submission.";
+  if (status === "missing_resume") return "The workflow needs a durable return point so users can continue after setup, provider choice, review, or a reply.";
+  return "The workflow opens, but the registry still marks implementation as incomplete.";
+}
+
+function parityNextStepFor(status: WorkflowParityStatus, workflow: WorkflowDefinition): string {
+  if (status === "ready") return workflow.nextStep ?? "Keep monitoring real usage and support outcomes.";
+  if (status === "needs_tool_service") return workflow.nextStep ?? "Connect the required service/tool behind the confirmation layer.";
+  if (status === "missing_setup_path") return "Add the provider/setup choice panel and return users to the original task after setup.";
+  if (status === "missing_confirmation") return "Add a final confirmation moment before the action can leave VYVA.";
+  if (status === "missing_resume") return "Store enough pending-task state to resume the original task after interruption.";
+  return workflow.nextStep ?? "Finish the incomplete mapped flow.";
+}
+
+export function getWorkflowParityAudit(): WorkflowParityAuditItem[] {
+  return WORKFLOW_DEFINITIONS.map((workflow) => {
+    const status = workflowParityStatusFor(workflow);
+    return {
+      workflowReference: workflow.reference,
+      domain: workflow.domain,
+      title: workflow.title,
+      status,
+      affectedEntryPointIds: workflowEntryPointsFor(workflow.reference).map((entry) => entry.id),
+      reusablePatterns: reusablePatternsFor(workflow),
+      backlogPriority: backlogPriorityFor(status, workflow),
+      evidence: parityEvidenceFor(status, workflow),
+      nextStep: parityNextStepFor(status, workflow),
+    };
+  });
+}
+
+export function workflowParityAuditForEntryPoint(entryPointId: string): WorkflowParityAuditItem {
+  const entry = getWorkflowEntryPoint(entryPointId);
+  const item = getWorkflowParityAudit().find((audit) => audit.workflowReference === entry.workflow);
+  if (!item) throw new Error(`No parity audit item for entry point: ${entryPointId}`);
+  return item;
+}
+
+export function getWorkflowParityBacklog(limit = 8): WorkflowParityAuditItem[] {
+  return getWorkflowParityAudit()
+    .filter((item) => item.status !== "ready")
+    .sort((left, right) => {
+      if (left.backlogPriority !== right.backlogPriority) return left.backlogPriority - right.backlogPriority;
+      if (left.domain !== right.domain) return left.domain.localeCompare(right.domain);
+      return left.title.localeCompare(right.title);
+    })
+    .slice(0, limit);
+}
+
+export function getWorkflowParityAuditSummary(): WorkflowParityAuditSummary {
+  const byStatus = emptyParityStatusCounts();
+  const byDomain = emptyParityDomainCounts();
+  getWorkflowParityAudit().forEach((item) => {
+    byStatus[item.status] += 1;
+    byDomain[item.domain][item.status] += 1;
+  });
+  return {
+    total: WORKFLOW_DEFINITIONS.length,
+    byStatus,
+    byDomain,
+    ready: byStatus.ready,
+    blocked: byStatus.missing_confirmation + byStatus.missing_resume + byStatus.missing_setup_path + byStatus.needs_tool_service,
+  };
+}
+
+export function nextWorkflowImplementationCandidates(limit = 5): WorkflowActionLookup[] {
+  return WORKFLOW_ENTRY_POINTS
+    .map(toWorkflowActionLookup)
+    .filter((action) => action.coverageState !== "complete")
+    .sort((left, right) => {
+      if (left.coverageState !== right.coverageState) {
+        return left.coverageState === "partial" ? -1 : 1;
+      }
+      return left.entryPointId.localeCompare(right.entryPointId);
+    })
+    .slice(0, limit);
 }

@@ -38,14 +38,24 @@ import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminTrustedHelpPartnersRouter from "./routes/adminTrustedHelpPartners.js";
 import adminConciergeQueueRouter from "./routes/adminConciergeQueue.js";
+import adminConciergeChannelReadinessRouter from "./routes/adminConciergeChannelReadiness.js";
+import adminCrossPillarToolReadinessRouter from "./routes/adminCrossPillarToolReadiness.js";
+import {
+  adminCrossPillarExecutionRouter,
+  crossPillarExecutionRouter,
+} from "./routes/crossPillarExecutionObservability.js";
+import adminConciergeInboundRepliesRouter from "./routes/adminConciergeInboundReplies.js";
+import adminProviderDirectoryRouter from "./routes/adminProviderDirectory.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
 import adminCognitiveAssessmentRouter from "./routes/adminCognitiveAssessment.js";
 import adminLearningRouter from "./routes/adminLearning.js";
+import adminContentIndexRouter from "./routes/adminContentIndex.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import { adminMarketingRouter } from "./routes/adminMarketing.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
 import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
+import resendWebhooksRouter from "./routes/resendWebhooks.js";
 import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
@@ -63,6 +73,8 @@ import {
   conciergeRecommendationsHandler,
 } from "./routes/concierge.js";
 import conciergeActionsRouter from "./routes/conciergeActions.js";
+import conciergeTasksRouter from "./routes/conciergeTasks.js";
+import conciergeNotificationsRouter from "./routes/conciergeNotifications.js";
 import appointmentsRouter from "./routes/appointments.js";
 import conciergeShoppingRouter from "./routes/conciergeShopping.js";
 import trustedHelpPartnersRouter from "./routes/trustedHelpPartners.js";
@@ -70,12 +82,15 @@ import transportRouter from "./routes/transport.js";
 import { woundScanHandler, woundScanHistoryHandler, woundScanDeleteHandler } from "./routes/woundScan.js";
 import { homeScanHandler, homeScanHistoryHandler, homeScanDeleteHandler } from "./routes/homeScan.js";
 import { scamCheckHandler, scamCheckHistoryHandler, scamCheckDeleteHandler } from "./routes/scamCheck.js";
+import { showVyvaReviewHandler } from "./routes/showVyvaReview.js";
 import { allergiesVoiceParseHandler } from "./routes/allergiesVoiceParse.js";
 import { addressVoiceParseHandler } from "./routes/addressVoiceParse.js";
 import activityRouter from "./routes/activity.js";
 import profileRouter from "./routes/profile.js";
 import healthDevicesSettingsRouter from "./routes/healthDevicesSettings.js";
 import homePlanRouter from "./routes/homePlan.js";
+import homeFastHelpSyncRouter from "./routes/homeFastHelpSync.js";
+import adminHomeFastHelpOutcomesRouter from "./routes/adminHomeFastHelpOutcomes.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
@@ -107,6 +122,11 @@ import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
+import {
+  CANVAS_FEATURE_FLAG_ENDPOINTS,
+  resolveCanvasFeatureFlag,
+  type CanvasFeatureFlagKey,
+} from "./lib/canvasFeatureFlags.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
@@ -148,6 +168,8 @@ app.get("/api/scam-check", authMiddleware, scamCheckHistoryHandler);
 app.get("/api/scam-check/history", authMiddleware, scamCheckHistoryHandler);
 app.delete("/api/scam-check/:id", authMiddleware, scamCheckDeleteHandler);
 
+app.post("/api/show-vyva/review", express.json({ limit: "10mb" }), authMiddleware, showVyvaReviewHandler);
+
 app.post("/api/triage/scan", express.json({ limit: "10mb" }), authMiddleware, requireUser, requireEntitlement("symptom_check"), triageScanHandler);
 
 app.post("/api/offers/analyze-document", express.json({ limit: "20mb" }), authMiddleware, analyzeOfferDocumentHandler);
@@ -162,6 +184,12 @@ app.use(
     },
   }),
   sendgridWebhooksRouter,
+);
+
+app.use(
+  "/api/webhooks/resend",
+  express.raw({ type: "application/json", limit: "2mb" }),
+  resendWebhooksRouter,
 );
 
 app.use(express.json({ limit: "20mb" }));
@@ -194,6 +222,8 @@ app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser,
 app.use("/api/concierge/shopping", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeShoppingRouter);
 app.use("/api/concierge/trusted-help", authMiddleware, requireUser, requireEntitlement("concierge"), trustedHelpPartnersRouter);
 app.use("/api/concierge/actions", conciergeActionsRouter);
+app.use("/api/concierge/tasks", conciergeTasksRouter);
+app.use("/api/concierge/notifications", conciergeNotificationsRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/transport", transportRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
@@ -209,10 +239,19 @@ app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsR
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/concierge/trusted-help-partners", authMiddleware, requireAdminUser, adminTrustedHelpPartnersRouter);
 app.use("/api/admin/concierge/queue", authMiddleware, requireAdminUser, adminConciergeQueueRouter);
+app.use("/api/admin/concierge/channel-readiness", authMiddleware, requireAdminUser, adminConciergeChannelReadinessRouter);
+app.use("/api/admin/cross-pillar/tool-readiness", authMiddleware, requireAdminUser, adminCrossPillarToolReadinessRouter);
+app.use("/api/cross-pillar/tool-readiness", authMiddleware, requireUser, adminCrossPillarToolReadinessRouter);
+app.use("/api/admin/cross-pillar/executions", authMiddleware, requireAdminUser, adminCrossPillarExecutionRouter);
+app.use("/api/cross-pillar/executions", authMiddleware, requireUser, crossPillarExecutionRouter);
+app.use("/api/admin/concierge/inbound-replies", authMiddleware, requireAdminUser, adminConciergeInboundRepliesRouter);
+app.use("/api/admin/providers", authMiddleware, requireAdminUser, adminProviderDirectoryRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
 app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adminCognitiveAssessmentRouter);
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
+app.use("/api/admin/content-index", authMiddleware, requireAdminUser, adminContentIndexRouter);
 app.use("/api/admin/marketing", authMiddleware, requireAdminUser, adminMarketingRouter);
+app.use("/api/admin/home/fast-help-outcomes", authMiddleware, requireAdminUser, adminHomeFastHelpOutcomesRouter);
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
 app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
@@ -222,6 +261,7 @@ app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
 app.use("/api/profile", authMiddleware, profileRouter);
 app.use("/api/settings/health-devices", authMiddleware, healthDevicesSettingsRouter);
+app.use("/api/home/fast-help", authMiddleware, requireUser, homeFastHelpSyncRouter);
 app.use("/api/home", authMiddleware, homePlanRouter);
 app.use("/api/weather", authMiddleware, weatherRouter);
 app.use("/api/breathing", authMiddleware, requireUser, breathingRouter);
@@ -283,6 +323,15 @@ app.get("/api/config/places-key", (_req, res) => {
     return res.status(404).json({ error: "Google Places API key is not configured on the server." });
   }
   return res.json({ configured: true, source: getGooglePlacesApiKeySource() });
+});
+
+function sendCanvasFeatureFlag(res: express.Response, feature: CanvasFeatureFlagKey) {
+  res.setHeader("cache-control", "no-store");
+  return res.json(resolveCanvasFeatureFlag(feature));
+}
+
+CANVAS_FEATURE_FLAG_ENDPOINTS.forEach(({ endpoint, feature }) => {
+  app.get(endpoint, (_req, res) => sendCanvasFeatureFlag(res, feature));
 });
 
 app.post("/api/places/autocomplete", async (req, res) => {

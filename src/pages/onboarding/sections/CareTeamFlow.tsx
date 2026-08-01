@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -201,6 +201,7 @@ const sectionHeaderClassName =
 
 export default function CareTeamFlow() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -233,6 +234,10 @@ export default function CareTeamFlow() {
   const [saving, setSaving] = useState(false);
   const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const returnState = location.state && typeof location.state === "object"
+    ? location.state as Record<string, unknown>
+    : null;
+  const conciergeReturnTo = returnState?.returnTo === "/concierge" ? "/concierge" : null;
 
   const setP = (field: keyof PersonForm, value: string) => setPerson((prev) => ({ ...prev, [field]: value }));
   const setC = (field: keyof ConsentState, value: boolean) => setConsent((prev) => ({ ...prev, [field]: value }));
@@ -303,6 +308,18 @@ export default function CareTeamFlow() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/careteam"] });
+      if (conciergeReturnTo) {
+        navigate(conciergeReturnTo, {
+          state: {
+            providerSetupHelpRequested: {
+              setupReason: typeof returnState?.setupReason === "string" ? returnState.setupReason : "",
+              conciergeResume: returnState?.conciergeResume ?? null,
+              helperName: person.name.trim(),
+            },
+          },
+        });
+        return;
+      }
       setStep(5);
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);

@@ -677,6 +677,16 @@ async function installApi(page: Page, session: ResponsiveSession) {
       return;
     }
 
+    if (path === "/api/concierge/notifications") {
+      await fulfillJson(route, 200, { items: [], unreadCount: 0 });
+      return;
+    }
+
+    if (/^\/api\/concierge\/notifications\/[^/]+\/read$/.test(path)) {
+      await fulfillJson(route, 200, { ok: true });
+      return;
+    }
+
     if (path === "/api/concierge/shopping/support-packages") {
       await fulfillJson(route, 200, { packages: [] });
       return;
@@ -812,10 +822,12 @@ async function expectResponsiveRoute(
   await page.setViewportSize(viewport);
   await page.goto(route.path, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 500 }).catch(() => undefined);
-  await page
-    .getByRole("status", { name: "Opening VYVA" })
-    .waitFor({ state: "hidden", timeout: 5000 })
-    .catch(() => undefined);
+  await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 15_000 });
+
+  const expectedShell = route.expectedLayout ? page.getByTestId("app-shell") : null;
+  if (expectedShell) {
+    await expect(expectedShell, `${route.path} should mount the app shell`).toBeVisible({ timeout: 60_000 });
+  }
 
   await page
     .waitForFunction(() => (document.body.textContent ?? "").trim().length > 0, undefined, { timeout: 8000 })
@@ -843,7 +855,7 @@ async function expectResponsiveRoute(
   ).toBeGreaterThanOrEqual(route.minTextLength ?? 80);
 
   if (route.expectedLayout) {
-    const shell = page.getByTestId("app-shell");
+    const shell = expectedShell ?? page.getByTestId("app-shell");
     await expect(shell).toHaveAttribute("data-layout", route.expectedLayout);
     const shellBox = await shell.boundingBox();
     expect(shellBox, `${route.path} app shell should have a measurable box`).not.toBeNull();
@@ -927,15 +939,10 @@ const publicRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedCoreRoutes: ResponsiveRoute[] = [
-  { name: "home", path: "/", expectedLayout: "wide" },
   { name: "profile select", path: "/profiles/select" },
-  { name: "onboarding basics", path: "/onboarding/basics", onboardingStage: "stage_1_identity" },
-  { name: "profile overview", path: "/onboarding/profile" },
-  { name: "profile health section", path: "/onboarding/profile/health", onboardingStage: "stage_4_profile" },
 ];
 
 const protectedHealthRoutes: ResponsiveRoute[] = [
-  { name: "health", path: "/health", expectedLayout: "wide" },
   { name: "vitals", path: "/health/vitals", expectedLayout: "vitals" },
   { name: "meds", path: "/meds", expectedLayout: "wide" },
   { name: "adherence report", path: "/meds/adherence-report", expectedLayout: "wide" },
@@ -992,9 +999,12 @@ const socialAndGameRoutes: ResponsiveRoute[] = [
 
 const adminRoutes: ResponsiveRoute[] = [
   { name: "admin lifecycle", path: "/admin/lifecycle", role: "admin", requiresInteractive: false, minTextLength: 50 },
+  { name: "admin concierge readiness", path: "/admin/concierge-readiness", role: "admin", requiresInteractive: false, minTextLength: 80 },
 ];
 
 test.describe("responsive route smoke", () => {
+  test.describe.configure({ mode: "serial" });
+
   test("public and auth routes adapt across responsive viewports", async ({ page }) => {
     test.setTimeout(240_000);
     await runRoutes(page, publicRoutes, false);

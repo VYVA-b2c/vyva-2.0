@@ -3,8 +3,25 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
+
+const overlayVoiceState = vi.hoisted(() => ({
+  status: "idle" as "idle" | "connecting" | "connected",
+  isSpeaking: false,
+  isConnecting: false,
+  isMicMuted: false,
+  voiceSessionPhase: "idle" as VoiceSessionPhase,
+}));
+
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useVyvaVoice: () => overlayVoiceState,
+}));
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback ?? key,
   }),
@@ -113,6 +130,11 @@ describe("VoiceCallOverlay voice room", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    overlayVoiceState.status = "idle";
+    overlayVoiceState.isSpeaking = false;
+    overlayVoiceState.isConnecting = false;
+    overlayVoiceState.isMicMuted = false;
+    overlayVoiceState.voiceSessionPhase = "idle";
     baseProps.onEnd.mockClear();
     baseProps.onMinimize.mockClear();
     canvasMocks.forEach((mock) => mock.mockClear());
@@ -139,26 +161,30 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
     expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
-    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Speaking");
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic on");
-    expect(screen.getByTestId("button-end-call")).toHaveTextContent("End");
-    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Touch");
+    expect(screen.queryByTestId("text-call-status")).not.toBeInTheDocument();
+    expect(screen.getByAltText("VYVA")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-private-listening-pill")).toHaveTextContent("Private listening on");
+    expect(screen.queryByTestId("button-toggle-call-mic")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-end-call")).toHaveTextContent("Pause");
+    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Type");
   });
 
   it("keeps user transcript as a small preview instead of a giant word", () => {
     renderOverlay([{ from: "user", text: "Hello VYVA", timestamp: 1 }]);
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("I'm listening");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Listening");
     expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: Hello VYVA");
   });
 
-  it("shows mic off when the microphone is muted", () => {
+  it("keeps the simple listening shell when the microphone is muted", () => {
     renderOverlay([], {
       isMicMuted: true,
       onMicToggle: vi.fn(),
     });
 
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic off");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Mic is off");
+    expect(screen.queryByTestId("button-toggle-call-mic")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-end-call")).toHaveTextContent("Pause");
   });
 
   it("keeps the latest VYVA caption visible after the user replies", () => {
@@ -212,8 +238,8 @@ describe("VoiceCallOverlay voice room", () => {
 
     expect(screen.queryByTestId("text-call-transcript-preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-call-transcript")).toHaveStyle({
-      maxWidth: "min(88vw, 560px)",
-      maxHeight: "min(34vh, 260px)",
+      maxWidth: "min(92vw, 760px)",
+      maxHeight: "min(42vh, 340px)",
       overflowWrap: "anywhere",
       margin: "0",
     });
@@ -226,6 +252,73 @@ describe("VoiceCallOverlay voice room", () => {
 
     expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
     expect(baseProps.onEnd).not.toHaveBeenCalled();
+  });
+
+  it("renders a Canvas question and submits typed input through the shared callback", () => {
+    const onCanvasPrimary = vi.fn();
+    renderOverlay([], {
+      canvasViewModel: {
+        sceneId: "ride-destination",
+        kind: "text-entry",
+        title: "Where are you going?",
+        textEntry: {
+          label: "Destination",
+          value: "",
+          placeholder: "Type an address",
+        },
+        primaryAction: { label: "Continue" },
+      },
+      onCanvasPrimary,
+    });
+
+    expect(screen.getByTestId("voice-canvas-surface")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-mode-zamora-orb")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Destination"), { target: { value: "10 Market Street" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(onCanvasPrimary).toHaveBeenCalledWith("10 Market Street");
+  });
+
+  it("keeps the VYVA agent presence visible inside an active Canvas scene", () => {
+    overlayVoiceState.status = "connected";
+    overlayVoiceState.isSpeaking = true;
+    overlayVoiceState.voiceSessionPhase = "speaking";
+
+    renderOverlay([], {
+      canvasViewModel: {
+        sceneId: "ride-provider",
+        kind: "choice",
+        title: "Which ride option looks best?",
+        helperText: "Compare the visible options while VYVA explains them.",
+        agentPresenceCopy: {
+          idleLabel: "VYVA is ready",
+          idleDescription: "Use voice or touch.",
+          listeningLabel: "Listening with you",
+          listeningDescription: "Say or tap one option.",
+          speakingLabel: "VYVA is speaking",
+          speakingDescription: "The screen stays on the same choice.",
+          thinkingLabel: "Checking options",
+          thinkingDescription: "Review the screen.",
+          accessibleLabel: "VYVA ride voice status",
+        },
+        blocks: [{
+          kind: "option-card",
+          id: "carecab",
+          title: "CareCab",
+          subtitle: "Best reputation",
+          accessibleLabel: "Choose CareCab",
+        }],
+      },
+    });
+
+    expect(screen.getByTestId("voice-canvas-surface")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-mode-zamora-orb")).not.toBeInTheDocument();
+    const canvas = screen.getByRole("region", { name: "Which ride option looks best?" });
+    expect(canvas).toHaveAttribute("data-agent-presence", "true");
+    expect(canvas).toHaveAttribute("data-agent-state", "speaking");
+    expect(screen.getByLabelText("VYVA ride voice status")).toHaveTextContent("VYVA is speaking");
+    expect(screen.getByText("The screen stays on the same choice.")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-canvas-agent-orb-ride-provider")).toBeInTheDocument();
   });
 
   it("calls the type escape when available", () => {
@@ -242,7 +335,10 @@ describe("VoiceCallOverlay voice room", () => {
     const onSos = vi.fn();
     window.addEventListener(VYVA_OPEN_SOS_EVENT, onSos);
 
-    renderOverlay([]);
+    renderOverlay([], {
+      connectionError: "Microphone permission was denied.",
+      connectionErrorCode: "MICROPHONE_PERMISSION_DENIED",
+    });
     fireEvent.click(screen.getByTestId("button-voice-sos"));
 
     expect(onSos).toHaveBeenCalledTimes(1);

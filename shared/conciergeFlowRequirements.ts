@@ -27,6 +27,7 @@ export type ConciergeFlowRequirementKey =
   | "shopping_need"
   | "shopping_context"
   | "goal"
+  | "action_type"
   | "website_or_contact";
 
 export type ConciergeRequirementDefinition = {
@@ -79,8 +80,8 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "home_access", labelEn: "Address or access", labelEs: "Direccion o acceso", payloadKeys: ["home_access_or_safety_notes", "access_notes", "home_address", "address", "location"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.shoppingSupport]: [
-    { key: "shopping_need", labelEn: "Shopping need", labelEs: "Necesidad de compra", payloadKeys: ["shopping_need", "item_text", "items", "draft_message", "message"], summaryFallback: true },
-    { key: "shopping_context", labelEn: "Context", labelEs: "Contexto", payloadKeys: ["category", "seller", "seller_site", "priority", "concern", "comparison_summary", "detail"], summaryFallback: true },
+    { key: "shopping_need", labelEn: "Shopping need", labelEs: "Necesidad de compra", payloadKeys: ["shopping_need", "item_text", "items", "offer_name", "deal_name", "review_target", "provider_name", "query", "draft_message", "message"], summaryFallback: true },
+    { key: "shopping_context", labelEn: "Context", labelEs: "Contexto", payloadKeys: ["category", "seller", "seller_site", "priority", "concern", "comparison_summary", "price_or_advantage", "criteria", "score", "detail"], summaryFallback: true },
   ],
   [CONCIERGE_FLOW_REFERENCES.careNavigation]: [
     { key: "care_need", labelEn: "Care need", labelEs: "Necesidad de cuidado", payloadKeys: ["provider_search_query", "query", "task_goal", "goal", "reason", "detail", "message", "draft_message"], summaryFallback: true },
@@ -88,8 +89,8 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "location_or_preference", labelEn: "Location or preference", labelEs: "Zona o preferencia", payloadKeys: ["location", "area", "address", "postcode", "criteria", "chosen_criteria"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.scamCheck]: [
-    { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["scam_type", "source_type", "document_url", "uploaded_file", "phone_number", "company_name", "email_body", "message"], summaryFallback: true },
-    { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "reason", "detail"], summaryFallback: true },
+    { key: "source", labelEn: "Source", labelEs: "Fuente", payloadKeys: ["review_source", "scam_detail", "document_url", "uploaded_file", "uploaded_document", "uploaded_image", "document_type", "phone_number", "company_name", "email_body", "sender", "link", "url", "show_vyva_input_type", "show_vyva_source"] },
+    { key: "concern", labelEn: "Concern", labelEs: "Riesgo", payloadKeys: ["concern", "what_worries_you", "risk_context", "review_question", "review_summary", "risk_level", "reason", "detail"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.safeHomeSupport]: [
     { key: "risk_type", labelEn: "Risk type", labelEs: "Tipo de riesgo", payloadKeys: ["risk_type", "safety_source", "safety_category", "service_type", "appointment_type"], summaryFallback: true },
@@ -97,12 +98,13 @@ const REQUIREMENTS_BY_FLOW: Record<ConciergeFlowReference, ConciergeRequirementD
     { key: "urgency", labelEn: "Urgency", labelEs: "Urgencia", payloadKeys: ["urgency", "priority", "requested_time"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.insuranceAdmin]: [
-    { key: "document_or_task", labelEn: "Task", labelEs: "Gestion", payloadKeys: ["document_type", "task_type", "admin_task", "reason", "detail"], summaryFallback: true },
+    { key: "document_or_task", labelEn: "Task", labelEs: "Gestion", payloadKeys: ["document_type", "task_type", "admin_task", "action_label", "reason", "detail"], summaryFallback: true },
     { key: "recipient", labelEn: "Recipient", labelEs: "Destinatario", payloadKeys: ["recipient", "recipient_name", "recipient_email", "provider_email", "email", "phone"] },
     { key: "deadline", labelEn: "Deadline", labelEs: "Fecha limite", payloadKeys: ["deadline", "due_date", "requested_time"] },
   ],
   [CONCIERGE_FLOW_REFERENCES.toolGatedTask]: [
     { key: "goal", labelEn: "Goal", labelEs: "Objetivo", payloadKeys: ["task_goal", "goal", "reason", "detail", "message", "draft_message"], summaryFallback: true },
+    { key: "action_type", labelEn: "Action type", labelEs: "Tipo de accion", payloadKeys: ["action_type", "requested_tool", "active_tool", "execution_channel", "preferred_channel"] },
     { key: "website_or_contact", labelEn: "Website or contact", labelEs: "Web o contacto", payloadKeys: ["recipient", "recipient_email", "website", "booking_url", "provider_name", "provider_email", "phone"] },
   ],
 };
@@ -132,7 +134,7 @@ export function conciergeFlowReferenceForPendingAction(input: ConciergeFlowRequi
   if (input.useCase === "order_medicine") return CONCIERGE_FLOW_REFERENCES.otcPharmacy;
   if (input.useCase === "home_service" || appointmentType === "home-service") return CONCIERGE_FLOW_REFERENCES.homeService;
   if (input.useCase === "find_provider") return CONCIERGE_FLOW_REFERENCES.careNavigation;
-  if (input.useCase === "shopping_request") return CONCIERGE_FLOW_REFERENCES.shoppingSupport;
+  if (input.useCase === "shopping_request" || input.useCase === "find_offers") return CONCIERGE_FLOW_REFERENCES.shoppingSupport;
   if (input.useCase === "book_appointment") return CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   if (input.useCase === "scam_check") return CONCIERGE_FLOW_REFERENCES.scamCheck;
   if (input.useCase === "insurance_admin" || input.useCase === "admin_task" || input.useCase === "paperwork") {

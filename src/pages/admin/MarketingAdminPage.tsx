@@ -2,7 +2,6 @@ import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type Re
 import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -10,7 +9,7 @@ import {
   Eye,
   ExternalLink,
   FileText,
-  Image as ImageIcon,
+  Languages,
   Megaphone,
   Pencil,
   Plus,
@@ -37,6 +36,16 @@ const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archive
 const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
+const CAMPAIGN_PAGE_SIZE = 5;
+const BULK_TRANSLATE_LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Spanish" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "it", label: "Italian" },
+  { code: "nl", label: "Dutch" },
+  { code: "pt", label: "Portuguese" },
+];
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
@@ -197,6 +206,34 @@ type ContentAsset = {
   metadata?: Record<string, unknown>;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+type BulkTranslatePreviewItem = {
+  sourceContentId: string;
+  sourceTitle: string;
+  targetLanguage: string;
+  exists: boolean;
+  aiSource?: string;
+  note?: string | null;
+  draft: {
+    title: string;
+    channel: Channel;
+    language: string;
+    status: string;
+    subject: string | null;
+    body: string;
+    htmlBody: string | null;
+    ctaLabel: string | null;
+    ctaUrl: string | null;
+  };
+  savedContent?: ContentAsset | null;
+};
+
+type BulkTranslateResponse = {
+  ok: boolean;
+  mode: "preview" | "save";
+  translations: BulkTranslatePreviewItem[];
+  savedContent?: ContentAsset[];
 };
 
 type MarketingMediaAsset = {
@@ -404,6 +441,17 @@ type SyncState = {
   runs: SyncRun[];
 };
 
+const normalizeSyncState = (state: SyncState | null | undefined): SyncState => ({
+  ...emptySync,
+  ...(state ?? {}),
+  endpointDiagnostics: {
+    ...emptySync.endpointDiagnostics,
+    ...(state?.endpointDiagnostics ?? {}),
+  },
+  lockedSendCapabilities: Array.isArray(state?.lockedSendCapabilities) ? state.lockedSendCapabilities : emptySync.lockedSendCapabilities,
+  runs: Array.isArray(state?.runs) ? state.runs : [],
+});
+
 type CampaignDraft = {
   name: string;
   audienceType: Audience;
@@ -599,6 +647,8 @@ const emptySync: SyncState = {
   emailScheduler: emptySummary.emailScheduler,
   runs: [],
 };
+
+const MARKETING_SYNC_ENDPOINT = "/api/admin/marketing/sync/source";
 
 const channelLabel: Record<Channel, string> = {
   email: "Email",
@@ -899,6 +949,14 @@ function contentOriginKey(item: ContentAsset) {
   const sourceType = metadataString(item.metadata, "lovable_source_type");
   if (sourceType) return sourceType;
   return item.source || "vyva";
+}
+
+function isMissingLovableContentAsset(item: ContentAsset) {
+  return contentOriginKey(item) === "missing_lovable_reference";
+}
+
+function isSelectableCampaignContent(item: ContentAsset) {
+  return item.status !== "archived" && !isMissingLovableContentAsset(item);
 }
 
 function contentSourceLabel(key: string) {
@@ -2241,6 +2299,144 @@ function LovableDesignPreview({
   );
 }
 
+function ContentTemplatePreview({
+  contentAsset,
+  linkedMediaAssets = [],
+  className = "",
+  testId = "marketing-content-template-preview",
+}: {
+  contentAsset: ContentAsset;
+  linkedMediaAssets?: MarketingMediaAsset[];
+  className?: string;
+  testId?: string;
+}) {
+  const mediaUrls = contentMediaPreviewUrls(contentAsset, linkedMediaAssets);
+  const hasVisualTemplate = Boolean(contentAsset.htmlBody?.trim()) || contentAsset.hasDesign || mediaUrls.length > 0;
+  const [showFullHtmlPreview, setShowFullHtmlPreview] = useState(false);
+
+  return (
+    <div className={`grid gap-4 ${className}`} data-testid={testId}>
+      <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Customer preview</p>
+            <h3 className="mt-1 font-serif text-2xl leading-tight text-[#241133]">{contentAsset.subject || contentAsset.title}</h3>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <Pill className={channelClass(contentAsset.channel)}>{channelLabel[contentAsset.channel]}</Pill>
+            <Pill className={statusClass(contentAsset.status)}>{contentAsset.status}</Pill>
+            <Pill className="bg-blue-50 text-blue-800">{contentAsset.language}</Pill>
+          </div>
+        </div>
+
+        {contentAsset.htmlBody ? (
+          <div className="grid gap-3">
+            {showFullHtmlPreview ? (
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-purple-100 bg-purple-50 px-4 py-3">
+                  <p className="text-sm font-black text-purple-900">Full HTML template preview</p>
+                  <button
+                    type="button"
+                    className="rounded-full border border-purple-200 bg-white px-3 py-1.5 text-xs font-black text-purple-800"
+                    onClick={() => setShowFullHtmlPreview(false)}
+                    data-testid={`${testId}-hide-html-preview`}
+                  >
+                    Hide full preview
+                  </button>
+                </div>
+                <iframe
+                  title={`Preview ${contentAsset.title}`}
+                  sandbox=""
+                  srcDoc={contentAsset.htmlBody}
+                  className="h-[520px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">HTML template available</p>
+                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-relaxed text-[#5b4a46]">
+                      Full email design is ready. Open it only when you need pixel-level review.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-purple-800"
+                    onClick={() => setShowFullHtmlPreview(true)}
+                    data-testid={`${testId}-show-html-preview`}
+                  >
+                    Show full template
+                  </button>
+                </div>
+                {contentAsset.body ? (
+                  <p className="mt-4 whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
+                    {contentAsset.body}
+                  </p>
+                ) : (
+                  <p className="mt-4 rounded-xl border border-dashed border-[#eadfd5] bg-white p-4 text-sm font-bold text-[#8b7a73]">
+                    No plain text copy imported. Use full template preview to inspect the HTML.
+                  </p>
+                )}
+              </div>
+            )}
+            {contentAsset.body ? (
+              <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3">
+                <summary className="cursor-pointer text-sm font-black text-[#241133]">Plain text copy</summary>
+                <p className="mt-3 whitespace-pre-wrap text-sm font-semibold leading-relaxed text-[#2f2135]">{contentAsset.body}</p>
+              </details>
+            ) : null}
+          </div>
+        ) : contentAsset.body ? (
+          <div className="min-h-[260px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-5 text-base font-semibold leading-relaxed text-[#2f2135]">
+            {contentAsset.body}
+          </div>
+        ) : (
+          <div className="min-h-[260px] rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-5 text-sm font-bold text-[#8b7a73]">
+            No visible copy imported for this item yet.
+          </div>
+        )}
+
+        {contentAsset.ctaLabel || contentAsset.ctaUrl ? (
+          <div className="mt-3 rounded-xl border border-purple-100 bg-purple-50 px-4 py-3 text-sm font-black text-purple-800">
+            CTA: {[contentAsset.ctaLabel, contentAsset.ctaUrl].filter(Boolean).join(" -> ")}
+          </div>
+        ) : null}
+      </div>
+
+      {contentAsset.hasDesign ? (
+        contentAsset.htmlBody ? (
+          <details className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3">
+            <summary className="cursor-pointer text-sm font-black text-[#241133]">Imported design fallback</summary>
+            <div className="mt-3">
+              <LovableDesignPreview contentAsset={contentAsset} testId={`${testId}-design`} mediaTestIdPrefix={`${testId}-design-media`} />
+            </div>
+          </details>
+        ) : (
+          <LovableDesignPreview contentAsset={contentAsset} testId={`${testId}-design`} mediaTestIdPrefix={`${testId}-design-media`} />
+        )
+      ) : null}
+
+      {mediaUrls.length ? (
+        <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+          <summary className="cursor-pointer text-sm font-black text-[#241133]">Media references ({mediaUrls.length})</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {mediaUrls.map((url, index) => (
+              <MediaPreviewTile key={url} url={url} testId={`${testId}-media-${index}`} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {!hasVisualTemplate ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+          This item exists in the library, but the import did not include HTML/design/media. Edit it here or re-sync after the source exports the full template.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function LinkedContentPreview({
   contentAsset,
   linkedMediaAssets,
@@ -2553,141 +2749,6 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   );
 }
 
-function LovableImportCoveragePanel({
-  run,
-  title = "Lovable import coverage",
-  subtitle = "Latest sync coverage across Lovable export and VYVA import.",
-  focusKeys,
-  onOpenSettings,
-}: {
-  run: SyncRun | null;
-  title?: string;
-  subtitle?: string;
-  focusKeys?: SyncCountKey[];
-  onOpenSettings: () => void;
-}) {
-  const parity = run ? syncParityItems(run.summary) : [];
-  const focusedParity = focusKeys?.length
-    ? focusKeys.flatMap((key) => parity.find((item) => item.key === key) ?? [])
-    : parity;
-  const contentSources = run ? syncContentSourceItems(run.summary) : [];
-  const fieldCoverage = run ? syncFieldCoverageItems(run.summary) : [];
-  const unmappedCount = run ? syncUnmappedCount(run.summary) : 0;
-  const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
-  const isFailed = run?.status === "failed";
-  const coverageNote = !run
-    ? "No Lovable sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
-    : isFailed
-      ? (run.error || "The last Lovable sync failed. Open Settings to inspect the error and retry.")
-      : focusedParity.length
-        ? "Use this as the quick truth table for what Lovable sent versus what VYVA stored."
-        : "The last Lovable sync did not report import coverage counts.";
-
-  return (
-    <SectionCard
-      title={title}
-      subtitle={run ? `${subtitle} Last run: ${run.status} / ${formatDate(run.createdAt)}.` : subtitle}
-      action={(
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
-          data-testid="button-marketing-open-sync-coverage-settings"
-        >
-          <Settings size={14} /> Sync settings
-        </button>
-      )}
-    >
-      <div className={`rounded-xl border p-3 text-sm font-bold ${isFailed ? "border-red-100 bg-red-50 text-red-800" : "border-blue-100 bg-blue-50 text-blue-900"}`} data-testid="marketing-lovable-import-coverage">
-        <p>{coverageNote}</p>
-        {focusedParity.length ? (
-          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {focusedParity.map((item) => {
-              const badgeClass = item.status === "missing"
-                ? "bg-red-50 text-red-800"
-                : item.status === "review"
-                  ? "bg-amber-50 text-amber-800"
-                  : item.status === "derived"
-                    ? "bg-blue-50 text-blue-800"
-                    : "bg-emerald-50 text-emerald-800";
-              const detail = item.status === "missing"
-                ? `${item.missing} missing`
-                : item.status === "review"
-                  ? `${item.skipped} skipped`
-                  : item.status === "derived"
-                    ? "derived"
-                    : "complete";
-              return (
-                <div key={item.key} className="rounded-lg bg-white p-3 text-[#241133]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-black">{item.label}</p>
-                    <Pill className={badgeClass}>{detail}</Pill>
-                  </div>
-                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">Lovable {item.exported} / VYVA {item.imported}</p>
-                  {item.skipped ? <p className="mt-1 text-xs font-bold text-amber-800">Skipped: {item.skipped}</p> : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-        {contentSources.length ? (
-          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-content-source-buckets">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable content buckets</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {contentSources.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.label}: {item.value}</Pill>)}
-            </div>
-          </div>
-        ) : null}
-        {fieldCoverage.length ? (
-          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-field-coverage">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped Lovable fields</p>
-            <div className="mt-2 grid gap-2">
-              {fieldCoverage.map((item) => (
-                <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
-                  <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
-                  {item.firstClassFields.length ? (
-                    <p className="mt-1 text-xs font-semibold text-emerald-800">
-                      Mapped: {item.firstClassFields.slice(0, 8).join(", ")}{item.firstClassFields.length > 8 ? ` +${item.firstClassFields.length - 8}` : ""}
-                    </p>
-                  ) : null}
-                  {item.metadataOnlyFields.length ? (
-                    <p className="mt-1 text-xs font-semibold text-amber-800">
-                      Metadata-only: {item.metadataOnlyFields.slice(0, 8).join(", ")}{item.metadataOnlyFields.length > 8 ? ` +${item.metadataOnlyFields.length - 8}` : ""}
-                    </p>
-                  ) : null}
-                  {(item.exportedFields.length || item.firstClassFields.length || item.metadataOnlyFields.length) ? (
-                    <details className="mt-2 rounded-lg border border-[#eadfd5] bg-white p-2 text-xs font-bold text-[#5b4a46]" data-testid={`marketing-lovable-field-map-${item.entity}`}>
-                      <summary className="cursor-pointer font-black text-[#241133]">View full field map</summary>
-                      <div className="mt-2 grid gap-2">
-                        {item.metadataOnlyFields.length ? (
-                          <p><span className="text-amber-800">Metadata-only:</span> {item.metadataOnlyFields.join(", ")}</p>
-                        ) : null}
-                        {item.firstClassFields.length ? (
-                          <p><span className="text-emerald-800">Mapped first-class:</span> {item.firstClassFields.join(", ")}</p>
-                        ) : null}
-                        {item.exportedFields.length ? (
-                          <p><span className="text-blue-800">All exported:</span> {item.exportedFields.join(", ")}</p>
-                        ) : null}
-                      </div>
-                    </details>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {run ? <LovableDestinationMap summary={run.summary} /> : null}
-        {unmappedCount || unmappedCampaignRecipientCount ? (
-          <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
-            {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
-            {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
-          </div>
-        ) : null}
-      </div>
-    </SectionCard>
-  );
-}
-
 function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }) {
   const rows = lovableDestinationRows.map((row) => ({ ...row, count: syncDestinationCount(summary, row) }));
   const hasCounts = rows.some((row) => row.count > 0);
@@ -2765,6 +2826,7 @@ export default function MarketingAdminPage() {
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
+  const [campaignPage, setCampaignPage] = useState(1);
   const [confirmingCampaignDeleteId, setConfirmingCampaignDeleteId] = useState<string | null>(null);
   const [confirmingCampaignSendId, setConfirmingCampaignSendId] = useState<string | null>(null);
   const [confirmingDueEmailSend, setConfirmingDueEmailSend] = useState(false);
@@ -2782,6 +2844,12 @@ export default function MarketingAdminPage() {
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
   const [confirmingContentDeleteId, setConfirmingContentDeleteId] = useState<string | null>(null);
+  const [bulkTranslateOpen, setBulkTranslateOpen] = useState(false);
+  const [bulkTranslateSourceIds, setBulkTranslateSourceIds] = useState<string[]>([]);
+  const [bulkTranslateLanguages, setBulkTranslateLanguages] = useState<string[]>(["es"]);
+  const [bulkTranslatePreview, setBulkTranslatePreview] = useState<BulkTranslatePreviewItem[]>([]);
+  const [bulkTranslateRunning, setBulkTranslateRunning] = useState(false);
+  const [bulkTranslateFeedback, setBulkTranslateFeedback] = useState("");
   const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
   const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
@@ -2842,8 +2910,8 @@ export default function MarketingAdminPage() {
       setAudiences(audienceBody.audiences);
     });
 
-    const syncRequest = api<SyncState>("/api/admin/marketing/sync/lovable").then((syncBody) => {
-      setSyncState(syncBody);
+    const syncRequest = api<SyncState>(MARKETING_SYNC_ENDPOINT).then((syncBody) => {
+      setSyncState(normalizeSyncState(syncBody));
     });
 
     const [marketingResult, syncResult] = await Promise.allSettled([marketingDataRequest, syncRequest]);
@@ -2886,6 +2954,7 @@ export default function MarketingAdminPage() {
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
+      if (isMissingLovableContentAsset(item)) continue;
       const key = contentOriginKey(item);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
@@ -2929,6 +2998,23 @@ export default function MarketingAdminPage() {
     return campaignMatchesSearch && matchesAudience && matchesChannel;
   }), [campaigns, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
+  const campaignPageCount = Math.max(1, Math.ceil(visibleCampaigns.length / CAMPAIGN_PAGE_SIZE));
+  const campaignPageStart = visibleCampaigns.length === 0 ? 0 : (campaignPage - 1) * CAMPAIGN_PAGE_SIZE + 1;
+  const campaignPageEnd = Math.min(visibleCampaigns.length, campaignPage * CAMPAIGN_PAGE_SIZE);
+  const pagedCampaigns = useMemo(
+    () => visibleCampaigns.slice((campaignPage - 1) * CAMPAIGN_PAGE_SIZE, campaignPage * CAMPAIGN_PAGE_SIZE),
+    [campaignPage, visibleCampaigns],
+  );
+
+  useEffect(() => {
+    setCampaignPage(1);
+  }, [search, audienceFilter, channelFilter]);
+
+  useEffect(() => {
+    if (campaignPage <= campaignPageCount) return;
+    setCampaignPage(campaignPageCount);
+  }, [campaignPage, campaignPageCount]);
+
   const visibleCampaignMetrics = useMemo(() => campaignMetrics.filter((metric) => {
     const campaign = metric.campaignId ? campaignById.get(metric.campaignId) ?? null : null;
     const metricMatchesSearch = matchesSearch(search, [
@@ -2960,6 +3046,7 @@ export default function MarketingAdminPage() {
   }, [campaignMetrics]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
+    if (isMissingLovableContentAsset(item)) return false;
     const contentMatchesSearch = matchesSearch(search, [
       item.id,
       item.title,
@@ -3198,7 +3285,8 @@ export default function MarketingAdminPage() {
   }, [mediaAssets, selectedContent]);
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
-  const latestSyncRun = syncState.runs[0] ?? null;
+  const syncRuns = Array.isArray(syncState.runs) ? syncState.runs : [];
+  const latestSyncRun = syncRuns[0] ?? null;
   const missingLovableReferenceContent = useMemo(
     () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
     [content],
@@ -3283,20 +3371,20 @@ export default function MarketingAdminPage() {
   }, [content.length, latestSyncRun, visibleContent.length]);
   const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
   const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
-  const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
+  const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && isSelectableCampaignContent(item)), [content]);
   const draftEmailChannel = campaignChannelsWithPrimary(campaignEditDraft).find((channel) => channel.channel === "email") ?? null;
   const selectedEmailContent = useMemo(
     () => emailContentAssets.find((item) => item.id === draftEmailChannel?.contentAssetId) ?? null,
     [draftEmailChannel?.contentAssetId, emailContentAssets],
   );
   const campaignDraftContentOptions = useMemo(
-    () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
+    () => content.filter((item) => item.channel === campaignDraft.channel && isSelectableCampaignContent(item)),
     [campaignDraft.channel, content],
   );
   const campaignEditPrimaryContentOptions = useMemo(() => {
-    const options = content.filter((item) => item.channel === campaignEditDraft.channel && item.status !== "archived");
+    const options = content.filter((item) => item.channel === campaignEditDraft.channel && isSelectableCampaignContent(item));
     const selected = campaignEditDraft.contentAssetId ? content.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null : null;
-    return selected && !options.some((item) => item.id === selected.id) ? [selected, ...options] : options;
+    return selected && isSelectableCampaignContent(selected) && !options.some((item) => item.id === selected.id) ? [selected, ...options] : options;
   }, [campaignEditDraft.channel, campaignEditDraft.contentAssetId, content]);
   const selectedCampaignDraftTargetAudience = useMemo(
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
@@ -3776,6 +3864,61 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setContentSaving(false);
+    }
+  }
+
+  function toggleBulkTranslateSource(contentId: string) {
+    setBulkTranslateSourceIds((current) => (
+      current.includes(contentId)
+        ? current.filter((id) => id !== contentId)
+        : [...current, contentId].slice(0, 25)
+    ));
+    setBulkTranslateFeedback("");
+  }
+
+  function toggleBulkTranslateLanguage(language: string) {
+    setBulkTranslateLanguages((current) => {
+      if (current.includes(language)) return current.filter((item) => item !== language);
+      return [...current, language];
+    });
+    setBulkTranslateFeedback("");
+  }
+
+  async function runBulkTranslate(mode: "preview" | "save") {
+    if (!bulkTranslateSourceIds.length) {
+      setBulkTranslateFeedback("Select at least one content item.");
+      return;
+    }
+    if (!bulkTranslateLanguages.length) {
+      setBulkTranslateFeedback("Select at least one target language.");
+      return;
+    }
+    setBulkTranslateRunning(true);
+    setBulkTranslateFeedback(mode === "preview" ? "Creating translation preview..." : "Saving translated drafts...");
+    try {
+      const result = await api<BulkTranslateResponse>("/api/admin/marketing/content/bulk-translate", {
+        method: "POST",
+        body: JSON.stringify({
+          contentIds: bulkTranslateSourceIds,
+          targetLanguages: bulkTranslateLanguages,
+          mode,
+        }),
+      });
+      setBulkTranslatePreview(result.translations);
+      if (mode === "save") {
+        await refreshAll();
+        setBulkTranslateFeedback(`Saved ${result.savedContent?.length ?? result.translations.length} translated drafts.`);
+        setContentActionFeedback("Translated drafts saved.");
+      } else {
+        setBulkTranslateFeedback(`Preview ready: ${result.translations.length} translations.`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Bulk translation failed.";
+      setBulkTranslateFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setBulkTranslateRunning(false);
     }
   }
 
@@ -4286,7 +4429,7 @@ export default function MarketingAdminPage() {
     setMessage("Running Lovable sync...");
     setSyncRunning(true);
     try {
-      const result = await api<{ summary?: Record<string, unknown> }>("/api/admin/marketing/sync/lovable/run", { method: "POST" });
+      const result = await api<{ summary?: Record<string, unknown> }>(`${MARKETING_SYNC_ENDPOINT}/run`, { method: "POST" });
       const completionMessage = syncCompletionMessage(result.summary);
       await refreshAll();
       setMessage(completionMessage);
@@ -4305,7 +4448,7 @@ export default function MarketingAdminPage() {
     setMessage("Checking Lovable export...");
     setExportPreviewRunning(true);
     try {
-      const result = await api<LovableExportPreview>("/api/admin/marketing/sync/lovable/preview");
+      const result = await api<LovableExportPreview>(`${MARKETING_SYNC_ENDPOINT}/preview`);
       const completionMessage = exportPreviewMessage(result.summary);
       setExportPreview(result);
       setExportPreviewFeedback(completionMessage);
@@ -4456,18 +4599,6 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Published" value={summary.totals.published} icon={CheckCircle2} />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Imported media refs" value={summary.totals.mediaAssets ?? mediaAssets.length} icon={ImageIcon} />
-                <MetricCard label="Journey enrollments" value={summary.totals.journeyEnrollments ?? journeyEnrollments.length} icon={Activity} />
-                <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
-                <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
-              </div>
-
-              <LovableImportCoveragePanel
-                run={latestSyncRun}
-                onOpenSettings={() => setActiveTab("settings")}
-              />
-
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
                 <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -4496,11 +4627,23 @@ export default function MarketingAdminPage() {
                 </SectionCard>
               </div>
 
-              <SectionCard title="Analytics snapshots" subtitle={`${visibleCampaignMetrics.length} visible of ${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
-                {visibleCampaignMetrics.length === 0 ? (
-                  <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
+              <details className="rounded-2xl border border-[#eadfd5] bg-white shadow-sm" data-testid="marketing-analytics-panel">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden">
+                  <span>
+                    <span className="block font-serif text-xl font-black text-[#241133]">Analytics</span>
+                    <span className="text-sm font-bold text-[#7d6b65]">
+                      {campaignMetrics.length ? `${visibleCampaignMetrics.length} visible performance rows` : "No imported performance rows yet"}
+                    </span>
+                  </span>
+                  <Pill className={campaignMetrics.length ? "bg-blue-50 text-blue-800" : "bg-[#fffaf4] text-[#8b7a73]"}>
+                    {campaignMetrics.length}
+                  </Pill>
+                </summary>
+                <div className="border-t border-[#eadfd5] p-4">
+                  {visibleCampaignMetrics.length === 0 ? (
+                    <EmptyState text={campaignMetrics.length ? "No imported analytics match the current filters." : "No campaign analytics imported yet."} />
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
                     <table className="w-full border-collapse text-left text-sm">
                       <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                         <tr>
@@ -4555,12 +4698,22 @@ export default function MarketingAdminPage() {
                         })}
                       </tbody>
                     </table>
-                  </div>
-                )}
-              </SectionCard>
+                    </div>
+                  )}
+                </div>
+              </details>
 
-              <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
-                <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
+              <details className="rounded-2xl border border-[#eadfd5] bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden">
+                  <span>
+                    <span className="block font-serif text-xl font-black text-[#241133]">New campaign</span>
+                    <span className="text-sm font-bold text-[#7d6b65]">Open only when you need to create one.</span>
+                  </span>
+                  <span className="inline-flex min-h-9 items-center justify-center rounded-xl bg-purple-700 px-4 text-sm font-black text-white">
+                    <Plus size={15} className="mr-1.5" /> Create
+                  </span>
+                </summary>
+                <form className="grid gap-3 border-t border-[#eadfd5] p-4" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
                       <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
@@ -4632,12 +4785,40 @@ export default function MarketingAdminPage() {
                   ) : null}
                   <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" />
                 </form>
-              </SectionCard>
+              </details>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
-                <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
+              <div className="grid gap-4">
+                <SectionCard
+                  title="Campaigns"
+                  subtitle={visibleCampaigns.length ? `${campaignPageStart}-${campaignPageEnd} of ${visibleCampaigns.length} shown.` : `0 of ${campaigns.length} shown.`}
+                  action={visibleCampaigns.length > CAMPAIGN_PAGE_SIZE ? (
+                    <div className="flex items-center gap-2" data-testid="marketing-campaign-pagination">
+                      <button
+                        type="button"
+                        onClick={() => setCampaignPage((page) => Math.max(1, page - 1))}
+                        disabled={campaignPage === 1}
+                        className="inline-flex min-h-9 items-center rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                        data-testid="button-marketing-campaign-prev-page"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm font-black text-[#7d6b65]" data-testid="marketing-campaign-page-label">
+                        Page {campaignPage} / {campaignPageCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCampaignPage((page) => Math.min(campaignPageCount, page + 1))}
+                        disabled={campaignPage === campaignPageCount}
+                        className="inline-flex min-h-9 items-center rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                        data-testid="button-marketing-campaign-next-page"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  ) : null}
+                >
                   <CampaignTable
-                    campaigns={visibleCampaigns}
+                    campaigns={pagedCampaigns}
                     contentById={contentById}
                     contentTitleById={contentTitleById}
                     metricsByCampaignId={campaignMetricSummaryByCampaignId}
@@ -4654,7 +4835,7 @@ export default function MarketingAdminPage() {
 
                 <SectionCard
                   title="Campaign details"
-                  subtitle={editingCampaign ? "Edit metadata, channel content, schedule, and recipient snapshots." : "Select a campaign from the list to edit it."}
+                  subtitle={editingCampaign ? "Edit essentials first. Extra source and metrics are below." : "Select a campaign from the list."}
                   action={editingCampaign ? (
                     campaignEditDraft.channel === "email" ? <Pill className="bg-emerald-50 text-emerald-800">Email enabled</Pill> : <Pill className="bg-amber-50 text-amber-800">Planning only</Pill>
                   ) : null}
@@ -4664,17 +4845,14 @@ export default function MarketingAdminPage() {
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-detail-panel">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Selected campaign</p>
                             <h3 className="mt-1 text-lg font-black text-[#241133]">{editingCampaign.name}</h3>
-                            <p className="mt-1 text-sm font-bold text-[#7d6b65]">{editingCampaign.objective || "No objective yet."}</p>
+                            {editingCampaign.objective ? (
+                              <p className="mt-1 line-clamp-2 text-sm font-bold text-[#7d6b65]">{editingCampaign.objective}</p>
+                            ) : null}
                           </div>
                           <Pill className={statusClass(editingCampaign.status)}>{editingCampaign.status}</Pill>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65]">
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="uppercase tracking-[0.12em]">Source</p>
-                            <p className="mt-1 text-[#241133]">{editingCampaign.source}</p>
-                          </div>
                           <div className="rounded-lg bg-white p-2">
                             <p className="uppercase tracking-[0.12em]">Schedule</p>
                             <p className="mt-1 text-[#241133]">{formatDate(editingCampaign.scheduleStartsAt)}</p>
@@ -4691,31 +4869,31 @@ export default function MarketingAdminPage() {
                             <p className="mt-1 text-[#241133]">{editingCampaign.recipientCount}</p>
                           </div>
                         </div>
-                        {editingCampaign.lovableExternalId ? (
-                          <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
-                        ) : null}
                       </div>
 
-                      <div className="grid gap-3 xl:grid-cols-2">
-                        <Field label="Source">
-                          <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
-                        </Field>
-                        <Field label="Lovable ID">
-                          <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
-                        </Field>
-                      </div>
-                      <Field label="Campaign metadata JSON">
-                        <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
-                      </Field>
-
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-black text-[#241133]">Performance</p>
-                            <p className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} imported metric rows linked to this campaign.</p>
-                          </div>
-                          <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
+                      <details className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                        <summary className="cursor-pointer text-sm font-black text-purple-700">Advanced source fields</summary>
+                        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                          <Field label="Source">
+                            <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
+                          </Field>
+                          <Field label="Lovable ID">
+                            <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
+                          </Field>
                         </div>
+                        <Field label="Campaign metadata JSON">
+                          <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
+                        </Field>
+                      </details>
+
+                      <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 marker:hidden">
+                          <span className="text-sm font-black text-[#241133]">Performance</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} rows</span>
+                            <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
+                          </span>
+                        </summary>
                         {selectedCampaignMetrics.length === 0 ? (
                           <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No performance metrics imported for this campaign yet.</p>
                         ) : (
@@ -4751,7 +4929,7 @@ export default function MarketingAdminPage() {
                             </div>
                           </div>
                         )}
-                      </div>
+                      </details>
 
                       <div className="grid gap-3">
                         <Field label="Campaign name">
@@ -4804,7 +4982,7 @@ export default function MarketingAdminPage() {
                           <Field label="Primary content asset">
                             <select
                               className={inputClass}
-                              value={campaignEditDraft.contentAssetId}
+                              value={campaignEditPrimaryContentOptions.some((item) => item.id === campaignEditDraft.contentAssetId) ? campaignEditDraft.contentAssetId : ""}
                               onChange={(event) => {
                                 const contentAssetId = event.target.value;
                                 setCampaignEditDraft((draft) => {
@@ -4821,6 +4999,11 @@ export default function MarketingAdminPage() {
                               <option value="">Select {channelLabel[campaignEditDraft.channel]} content</option>
                               {campaignEditPrimaryContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                             </select>
+                            {campaignEditDraft.contentAssetId && !campaignEditPrimaryContentOptions.some((item) => item.id === campaignEditDraft.contentAssetId) ? (
+                              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                                This campaign points to missing Lovable content. Choose a real content asset before sending.
+                              </p>
+                            ) : null}
                           </Field>
                         </div>
                         <div className="grid gap-3 xl:grid-cols-3">
@@ -5462,54 +5645,6 @@ export default function MarketingAdminPage() {
 
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
-              <LovableImportCoveragePanel
-                run={latestSyncRun}
-                title="Lovable content coverage"
-                subtitle="Quickly see whether Lovable exported templates, social posts, briefs, media, and campaign links."
-                focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
-                onOpenSettings={() => setActiveTab("settings")}
-              />
-              {missingLovableReferenceCount > 0 ? (
-                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="marketing-missing-content-reference-panel">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="max-w-4xl">
-                      <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-900">Needs Lovable content</p>
-                      <h3 className="mt-1 font-serif text-2xl text-[#241133]">Lovable referenced content that was not exported.</h3>
-                      <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">
-                        {missingLovableReferenceCount} campaign or journey content reference{missingLovableReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Lovable export data or a replacement content asset here.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-black text-white"
-                      onClick={() => {
-                        setSearch("");
-                        setChannelFilter("all");
-                        setContentSourceFilter("missing_lovable_reference");
-                        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
-                      }}
-                      data-testid="button-marketing-show-missing-content"
-                    >
-                      <Search size={15} /> Show placeholders
-                    </button>
-                  </div>
-                  {missingLovableReferenceContent.length ? (
-                    <div className="mt-4 grid gap-2">
-                      {missingLovableReferenceContent.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
-                          <span className="font-black text-[#241133]">{item.title}</span>
-                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
-                      Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Lovable exports the referenced content bodies.
-                    </p>
-                  )}
-                </div>
-              ) : null}
-
               <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">
                   <div className="grid gap-3 xl:grid-cols-[1fr_170px_140px_120px]">
@@ -5573,23 +5708,173 @@ export default function MarketingAdminPage() {
                 title="Content library"
                 subtitle={`${visibleContent.length} visible of ${content.length} assets.`}
                 action={(
-                  <select
-                    className={`${inputClass} w-[240px]`}
-                    value={contentSourceFilter}
-                    onChange={(event) => setContentSourceFilter(event.target.value)}
-                    aria-label="Content type filter"
-                    data-testid="select-marketing-content-source-filter"
-                  >
-                    <option value="all">All content types ({content.length})</option>
-                    {contentSourceOptions.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        {option.label} ({option.count})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-3 text-sm font-black text-purple-700 hover:bg-purple-50"
+                      onClick={() => setBulkTranslateOpen((open) => !open)}
+                      aria-expanded={bulkTranslateOpen}
+                      data-testid="button-marketing-open-bulk-translate"
+                    >
+                      <Languages size={15} /> Bulk translate
+                    </button>
+                    <select
+                      className={`${inputClass} w-[240px]`}
+                      value={contentSourceFilter}
+                      onChange={(event) => setContentSourceFilter(event.target.value)}
+                      aria-label="Content type filter"
+                      data-testid="select-marketing-content-source-filter"
+                    >
+                      <option value="all">All content types ({content.length})</option>
+                      {contentSourceOptions.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label} ({option.count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               >
                 <div className="grid gap-3">
+                  {bulkTranslateOpen ? (
+                    <div className="grid gap-4 rounded-xl border border-purple-200 bg-purple-50/60 p-4" data-testid="marketing-bulk-translate-panel">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-black text-[#241133]">Bulk translate</h4>
+                          <p className="mt-1 text-sm font-bold text-[#7d6b65]">Pick source content, choose target languages, preview, then save as VYVA drafts.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#2f2135]"
+                          onClick={() => setBulkTranslateOpen(false)}
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+                        <div className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Source content</p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-black text-purple-700"
+                                onClick={() => {
+                                  setBulkTranslateSourceIds(visibleContent.slice(0, 25).map((item) => item.id));
+                                  setBulkTranslateFeedback("");
+                                }}
+                              >
+                                Select visible
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-[#eadfd5] bg-white px-2 py-1 text-xs font-black text-[#5b4a46]"
+                                onClick={() => {
+                                  setBulkTranslateSourceIds([]);
+                                  setBulkTranslatePreview([]);
+                                  setBulkTranslateFeedback("");
+                                }}
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid max-h-[280px] gap-2 overflow-y-auto pr-1">
+                            {visibleContent.slice(0, 50).map((item) => (
+                              <label key={item.id} className="flex items-start gap-3 rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2 text-sm font-bold">
+                                <input
+                                  type="checkbox"
+                                  className="mt-1 h-4 w-4 accent-purple-700"
+                                  checked={bulkTranslateSourceIds.includes(item.id)}
+                                  onChange={() => toggleBulkTranslateSource(item.id)}
+                                  disabled={bulkTranslateRunning}
+                                  data-testid={`checkbox-marketing-bulk-translate-source-${item.id}`}
+                                />
+                                <span>
+                                  <span className="block font-black text-[#241133]">{item.title}</span>
+                                  <span className="mt-0.5 block text-xs text-[#7d6b65]">{channelLabel[item.channel]} - {item.language} - {item.status}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid content-start gap-3 rounded-xl border border-[#eadfd5] bg-white p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Target languages</p>
+                          <div className="flex flex-wrap gap-2">
+                            {BULK_TRANSLATE_LANGUAGES.map((language) => {
+                              const selected = bulkTranslateLanguages.includes(language.code);
+                              return (
+                                <button
+                                  key={language.code}
+                                  type="button"
+                                  className={`rounded-full border px-3 py-2 text-xs font-black ${selected ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-[#2f2135]"}`}
+                                  onClick={() => toggleBulkTranslateLanguage(language.code)}
+                                  disabled={bulkTranslateRunning}
+                                  aria-pressed={selected}
+                                  data-testid={`button-marketing-bulk-translate-language-${language.code}`}
+                                >
+                                  {language.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="grid gap-2 pt-1">
+                            <button
+                              type="button"
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              onClick={() => void runBulkTranslate("preview")}
+                              disabled={bulkTranslateRunning}
+                              data-testid="button-marketing-preview-bulk-translate"
+                            >
+                              <Eye size={15} /> {bulkTranslateRunning ? "Working..." : "Preview translations"}
+                            </button>
+                            <button
+                              type="button"
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                              onClick={() => void runBulkTranslate("save")}
+                              disabled={bulkTranslateRunning}
+                              data-testid="button-marketing-save-bulk-translate"
+                            >
+                              <Save size={15} /> Save as drafts
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {bulkTranslateFeedback ? (
+                        <p className={`rounded-xl px-4 py-3 text-sm font-bold ${/fail|required|select|could not/i.test(bulkTranslateFeedback) ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} role="status" data-testid="marketing-bulk-translate-feedback">
+                          {bulkTranslateFeedback}
+                        </p>
+                      ) : null}
+
+                      {bulkTranslatePreview.length ? (
+                        <div className="grid gap-2" data-testid="marketing-bulk-translate-preview">
+                          {bulkTranslatePreview.slice(0, 12).map((item) => (
+                            <article key={`${item.sourceContentId}-${item.targetLanguage}`} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-black text-[#241133]">{item.draft.title}</p>
+                                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">From {item.sourceTitle} to {item.targetLanguage.toUpperCase()}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Pill className={channelClass(item.draft.channel)}>{channelLabel[item.draft.channel]}</Pill>
+                                  <Pill className="bg-purple-50 text-purple-800">{item.draft.language}</Pill>
+                                  {item.exists ? <Pill className="bg-yellow-50 text-yellow-800">updates existing</Pill> : <Pill className="bg-emerald-50 text-emerald-800">new draft</Pill>}
+                                </div>
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-sm font-bold text-[#5b4a46]">{item.draft.subject || item.draft.body || "No copy returned."}</p>
+                              {item.note ? <p className="mt-2 text-xs font-bold text-yellow-800">{item.note}</p> : null}
+                            </article>
+                          ))}
+                          {bulkTranslatePreview.length > 12 ? (
+                            <p className="text-xs font-bold text-[#7d6b65]">Showing first 12 of {bulkTranslatePreview.length} preview translations.</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {contentActionFeedback ? (
                     <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} role="status" aria-live="polite" data-testid="marketing-content-action-feedback">
                       {contentActionFeedback}
@@ -5651,7 +5936,6 @@ export default function MarketingAdminPage() {
                             const isEditingContent = item.id === editingContentId && contentDrawerMode === "edit";
                             const isConfirmingDelete = confirmingContentDeleteId === item.id;
                             const rowMediaAssets = mediaAssets.filter((asset) => asset.contentAssetId === item.id);
-                            const rowMediaPreviewUrls = contentMediaPreviewUrls(item, rowMediaAssets);
                             const timelineParts = recordTimelineParts(item);
                             const usageItems = contentUsageById.get(item.id) ?? [];
                             return (
@@ -5801,36 +6085,12 @@ export default function MarketingAdminPage() {
                                           </button>
                                         </div>
                                       </div>
-                                      <div className="mt-4 grid gap-3" data-testid={`marketing-content-inline-preview-${item.id}`}>
-                                        <div className="whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
-                                          {item.body || item.subject || "No body copy yet."}
-                                        </div>
-                                        {item.htmlBody ? (
-                                          <iframe
-                                            title={`Inline preview ${item.title}`}
-                                            sandbox=""
-                                            srcDoc={item.htmlBody}
-                                            className="h-[320px] w-full rounded-xl border border-[#eadfd5] bg-white"
-                                          />
-                                        ) : null}
-                                        <LovableDesignPreview
-                                          contentAsset={item}
-                                          testId={`marketing-content-inline-design-preview-${item.id}`}
-                                          mediaTestIdPrefix={`marketing-content-inline-design-media-${item.id}`}
-                                        />
-                                        <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                                          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Media references</p>
-                                          {rowMediaPreviewUrls.length ? (
-                                            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                              {rowMediaPreviewUrls.map((url, index) => (
-                                                <MediaPreviewTile key={url} url={url} label={`${item.title} inline media ${index + 1}`} testId={`marketing-content-inline-media-preview-${item.id}-${index}`} />
-                                              ))}
-                                            </div>
-                                          ) : (
-                                            <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
-                                          )}
-                                        </div>
-                                      </div>
+                                      <ContentTemplatePreview
+                                        contentAsset={item}
+                                        linkedMediaAssets={rowMediaAssets}
+                                        className="mt-4"
+                                        testId={`marketing-content-inline-preview-${item.id}`}
+                                      />
                                     </div>
                                   ) : null}
                                   {isEditingContent ? (
@@ -6076,76 +6336,48 @@ export default function MarketingAdminPage() {
                   >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
-                        <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
-                      </div>
-                      {selectedContent.source === "lovable" ? (
-                        <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
-                          Imported from {contentOriginLabel(selectedContent)}
-                          {selectedContent.lovableExternalId ? (
-                            <span className="break-all"> - Lovable ID: {selectedContent.lovableExternalId}</span>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      <LovableContentSourceDetails content={selectedContent} />
-                      <ContentUsageList
-                        usages={selectedContentUsage}
-                        testId="marketing-selected-content-usage"
-                        onOpenCampaign={openContentUsageCampaign}
-                        onOpenJourney={openContentUsageJourney}
-                      />
-                      {selectedContent.htmlBody ? (
-                        <iframe
-                          title={`Preview ${selectedContent.title}`}
-                          sandbox=""
-                          srcDoc={selectedContent.htmlBody}
-                          className="h-[360px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                        <ContentTemplatePreview
+                          contentAsset={selectedContent}
+                          linkedMediaAssets={selectedContentMediaAssets}
+                          testId="marketing-content-customer-preview"
                         />
-                      ) : (
-                        <div className="min-h-[180px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
-                          {selectedContent.body || "No body copy yet."}
-                        </div>
-                      )}
-                      <LovableDesignPreview contentAsset={selectedContent} />
-                      <div className="grid gap-2 md:grid-cols-3">
-                        <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
-                        <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
-                        <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
-                      </div>
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-design-media-summary">
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable design/media</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {selectedContentDesignSummary?.arrayKeys.length ? selectedContentDesignSummary.arrayKeys.map((item) => (
-                            <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
-                          )) : (
-                            <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
-                          )}
-                          {selectedContentDesignSummary?.topLevelKeys.length ? (
-                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
-                          ) : null}
-                          <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
-                            Media refs: {selectedContentMediaPreviewUrls.length}
-                          </Pill>
-                        </div>
-                        {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-content-media-previews">
-                            {selectedContentMediaPreviewUrls.map((url) => (
-                              <MediaPreviewTile key={url} url={url} testId={`marketing-content-media-preview-${url}`} />
-                            ))}
+                        <ContentUsageList
+                          usages={selectedContentUsage}
+                          testId="marketing-selected-content-usage"
+                          onOpenCampaign={openContentUsageCampaign}
+                          onOpenJourney={openContentUsageJourney}
+                        />
+                        <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-admin-details">
+                          <summary className="cursor-pointer text-sm font-black text-[#241133]">Admin/source details</summary>
+                          <div className="mt-3 grid gap-3">
+                            {selectedContent.source === "lovable" ? (
+                              <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
+                                Imported from {contentOriginLabel(selectedContent)}
+                                {selectedContent.lovableExternalId ? (
+                                  <span className="break-all"> - Lovable ID: {selectedContent.lovableExternalId}</span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                            {selectedContentDesignSummary?.arrayKeys.length || selectedContentDesignSummary?.topLevelKeys.length || selectedContentMediaPreviewUrls.length ? (
+                              <div className="rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-content-design-media-summary">
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Imported structure</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {selectedContentDesignSummary?.arrayKeys.map((item) => (
+                                    <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
+                                  ))}
+                                  {selectedContentDesignSummary?.topLevelKeys.length ? (
+                                    <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.join(", ")}</Pill>
+                                  ) : null}
+                                  <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
+                                    Media refs: {selectedContentMediaPreviewUrls.length}
+                                  </Pill>
+                                </div>
+                              </div>
+                            ) : null}
+                            <LovableContentSourceDetails content={selectedContent} />
+                            <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
                           </div>
-                        ) : null}
-                        {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-3 grid gap-1">
-                            {selectedContentMediaPreviewUrls.map((url) => (
-                              <a key={url} className="break-all text-xs font-bold text-purple-700 underline" href={url} target="_blank" rel="noreferrer">{url}</a>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
-                        )}
-                      </div>
-                      <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
+                        </details>
                       </div>
                     ) : (
                       <EmptyState text="No content available." />
@@ -7034,8 +7266,8 @@ export default function MarketingAdminPage() {
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
                     <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Lovable export endpoint"}</p>
-                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
-                      <p className="text-sm font-black text-[#2f2135]">Server configuration check</p>
+                    <details className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
+                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">Server configuration</summary>
                       {syncDiagnostics ? (
                         <div className="mt-2 grid gap-1">
                           <p>Endpoint source: {syncDiagnostics.apiUrlSource ?? "unknown"}{syncDiagnostics.hasDefaultEndpoint ? " (built-in default)" : ""}</p>
@@ -7050,10 +7282,12 @@ export default function MarketingAdminPage() {
                       ) : (
                         <p className="mt-2 text-red-700">Sync configuration status is unavailable. A marketing data request may have failed before this status loaded, or the deployment may still be running an older backend bundle.</p>
                       )}
-                    </div>
-                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
+                    </details>
+                    <details className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
+                      <summary className="cursor-pointer text-sm font-black text-[#2f2135]">
+                        Scheduled email automation
+                      </summary>
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-black text-[#2f2135]">Scheduled email automation</p>
                         <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
                           {emailScheduler.enabled ? "Enabled" : "Disabled"}
                         </Pill>
@@ -7064,7 +7298,7 @@ export default function MarketingAdminPage() {
                           : "Manual Run due emails button only. Set MARKETING_EMAIL_SCHEDULER_ENABLED=true to automate scheduled email campaigns."}
                       </p>
                       <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
-                    </div>
+                    </details>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <button
@@ -7104,15 +7338,15 @@ export default function MarketingAdminPage() {
                     </p>
                   ) : null}
                   <div className="grid gap-2">
-                    {syncState.runs.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncState.runs.map((run) => (
-                      <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                    {syncRuns.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncRuns.map((run) => (
+                      <details key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 marker:hidden">
                           <Pill className={statusClass(run.status)}>{run.status}</Pill>
                           <span className="text-xs font-bold text-[#7d6b65]">{formatDate(run.createdAt)}</span>
-                        </div>
+                        </summary>
                         {run.error ? <p className="mt-2 text-sm font-bold text-red-700">{run.error}</p> : null}
                         <SyncRunDiagnostics run={run} />
-                      </div>
+                      </details>
                     ))}
                   </div>
                 </div>
@@ -7321,29 +7555,28 @@ function CampaignTable({
   confirmingDeleteId?: string | null;
 }) {
   const showActions = Boolean(onEdit || onDelete);
+  void metricsByCampaignId;
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
           <tr>
-            <th className="px-4 py-3">Campaign</th>
-            <th className="px-4 py-3">Audience</th>
-            <th className="px-4 py-3">Channels</th>
-            <th className="px-4 py-3">Schedule</th>
-            <th className="px-4 py-3">Performance</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Recipients</th>
-            {showActions ? <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
+            <th className="w-[30%] px-4 py-3">Campaign</th>
+            <th className="w-[16%] px-4 py-3">Audience</th>
+            <th className="w-[18%] px-4 py-3">Channels</th>
+            <th className="w-[14%] px-4 py-3">Schedule</th>
+            <th className="w-[12%] px-4 py-3">Status</th>
+            <th className="w-[10%] px-4 py-3 text-right">Recipients</th>
+            {showActions ? <th className="sticky right-0 z-20 w-[120px] border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={showActions ? 8 : 7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
             const deleteIsArmed = confirmingDeleteId === campaign.id;
             const targetAudience = campaignTargetAudience(campaign, audiences);
-            const metricSummary = metricsByCampaignId.get(campaign.id);
             return (
             <tr
               key={campaign.id}
@@ -7360,54 +7593,56 @@ function CampaignTable({
               aria-selected={isActive || undefined}
               data-testid={`row-marketing-campaign-${campaign.id}`}
             >
-              <td className="px-4 py-3">
-                <p className="font-black">{campaign.name}</p>
-                <p className="text-xs font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
+              <td className="max-w-[260px] px-4 py-3">
+                <p className="truncate font-black text-[#241133]">{campaign.name}</p>
+                <p className="mt-1 text-xs font-bold text-[#8b7a73]">{campaign.source}</p>
               </td>
-              <td className="px-4 py-3">
-                <p className="font-black">{campaign.audienceType.toUpperCase()}</p>
+              <td className="px-4 py-3 align-top">
+                <p className="font-black text-[#241133]">{campaign.audienceType.toUpperCase()}</p>
                 {targetAudience ? (
-                  <div className="mt-1 grid gap-1 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-campaign-target-list-${campaign.id}`}>
-                    <span className="text-purple-800">List: {targetAudience.name}</span>
-                    <span>{targetAudience.mappedMemberCount}/{targetAudience.memberCount} mapped</span>
-                  </div>
+                  <p className="mt-1 truncate text-xs font-bold text-purple-800" data-testid={`marketing-campaign-target-list-${campaign.id}`}>
+                    {targetAudience.name}
+                  </p>
                 ) : (
-                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All eligible contacts</p>
+                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All contacts</p>
                 )}
               </td>
               <td className="px-4 py-3">
-                <div className="grid gap-1.5">
+                <div className="flex max-w-[260px] flex-wrap gap-1.5">
                   {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
-                    const contentAsset = item.contentAssetId ? contentById.get(item.contentAssetId) : null;
-                    const contentTitle = contentAsset?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
-                    const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                    const linkedContent = item.contentAssetId ? contentById.get(item.contentAssetId) ?? null : null;
+                    const contentTitle = linkedContent?.title || (item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "");
                     return (
-                      <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-campaign-channel-link-${item.id}`}>
+                      <div key={item.id} className="flex flex-wrap items-center gap-1" data-testid={`marketing-campaign-channel-link-${item.id}`}>
                         <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                        <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
-                          {contentLabel}
-                        </span>
-                        {contentAsset && onPreviewContent ? (
+                        {contentTitle ? (
+                          <span className="max-w-[190px] truncate text-xs font-black text-[#5b4a46]">{contentTitle}</span>
+                        ) : item.contentAssetId ? (
+                          <span className="max-w-[190px] truncate text-xs font-black text-amber-800">Missing content</span>
+                        ) : null}
+                        {linkedContent && onPreviewContent ? (
                           <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              onPreviewContent(contentAsset);
+                              onPreviewContent(linkedContent);
                             }}
-                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                            disabled={actionsDisabled}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
                             data-testid={`button-marketing-preview-campaign-content-${item.id}`}
                           >
                             <Eye size={11} /> Preview
                           </button>
                         ) : null}
-                        {contentAsset && onEditContent ? (
+                        {linkedContent && onEditContent ? (
                           <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              onEditContent(contentAsset);
+                              onEditContent(linkedContent);
                             }}
-                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
+                            disabled={actionsDisabled}
+                            className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
                             data-testid={`button-marketing-edit-campaign-content-${item.id}`}
                           >
                             <Pencil size={11} /> Edit
@@ -7422,22 +7657,19 @@ function CampaignTable({
                 <p>{formatDate(campaign.scheduleStartsAt)}</p>
                 {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
               </td>
-              <td className="px-4 py-3">
-                <CampaignPerformanceSummary summary={metricSummary} testId={`marketing-campaign-performance-${campaign.id}`} />
-              </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
-              <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
+              <td className="px-4 py-3 text-right font-black">{campaign.recipientCount}</td>
               {showActions ? (
-                <td className={`sticky right-0 z-10 w-[230px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${isActive || deleteIsArmed ? "bg-purple-50" : "bg-white"}`}>
-                  <div className="flex w-[190px] flex-wrap gap-2">
+                <td className={`sticky right-0 z-10 w-[120px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${isActive || deleteIsArmed ? "bg-purple-50" : "bg-white"}`}>
+                  <div className="flex w-[88px] flex-col gap-2">
                     {onEdit ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" title="Edit campaign" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
                         <Pencil size={14} /> Edit
                       </button>
                     ) : null}
                     {onDelete ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300 ${deleteIsArmed ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
-                        <Trash2 size={14} /> {deleteIsArmed ? "Confirm delete" : "Delete"}
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300 ${deleteIsArmed ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} title={deleteIsArmed ? "Confirm delete" : "Delete campaign"} data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
+                        <Trash2 size={14} /> {deleteIsArmed ? "Confirm" : "Delete"}
                       </button>
                     ) : null}
                     {deleteIsArmed ? (
@@ -7520,7 +7752,7 @@ function MarketingCalendarView({
                         <p className="mt-1 text-xs font-bold text-[#7d6b65]">Ends {formatCalendarTime(campaign.scheduleEndsAt)}</p>
                       ) : null}
                       <h4 className="mt-1 font-black text-[#241133]">{campaign.name}</h4>
-                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{campaign.source}</p>
                     </div>
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
@@ -7613,7 +7845,7 @@ function MarketingCalendarView({
             data-testid={`button-marketing-calendar-unscheduled-${campaign.id}`}
           >
             <span className="block font-black text-[#241133]">{campaign.name}</span>
-            <span className="mt-1 block text-xs font-bold text-[#7d6b65]">{campaign.objective || campaign.source}</span>
+            <span className="mt-1 block text-xs font-bold text-[#7d6b65]">{campaign.source}</span>
             <span className="mt-2 flex flex-wrap gap-1.5">
               <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
               <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>

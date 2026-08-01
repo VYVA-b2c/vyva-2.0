@@ -10,6 +10,7 @@ import {
   translate,
   LANGUAGE_STORAGE_KEY,
 } from "./index";
+import { HOME_FAST_HELP_REASON_FALLBACKS } from "../lib/contextualHomeFastHelp";
 
 const LANGUAGE_SOURCE_STORAGE_KEY = "vyva_lang_source";
 const SUPPORTED_TEST_LANGUAGES = ["en", "es", "fr", "de", "it", "pt"] as const;
@@ -264,6 +265,33 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "meds.interactionSupport"),
         translate(language as keyof typeof expected, "meds.doctorReview"),
       ]).toEqual(labels);
+    }
+  });
+
+  it("keeps official medication update evidence and confirmation copy localized", () => {
+    const expectedTitles = {
+      en: "Medication updates",
+      es: "Actualizaciones de medicacion",
+      fr: "Actualites des medicaments",
+      de: "Medikamenten-Aktualisierungen",
+      it: "Aggiornamenti sui farmaci",
+      pt: "Atualizacoes de medicamentos",
+    } as const;
+
+    for (const [language, title] of Object.entries(expectedTitles)) {
+      const code = language as keyof typeof expectedTitles;
+      expect(translate(code, "meds.updates.title")).toBe(title);
+      expect(translate(code, "meds.updates.kind.recall")).not.toBe("meds.updates.kind.recall");
+      expect(translate(code, "meds.updates.kind.safety_warning")).not.toBe("meds.updates.kind.safety_warning");
+      expect(translate(code, "meds.updates.kind.availability_change")).not.toBe("meds.updates.kind.availability_change");
+      expect(translate(code, "meds.updates.kind.general_information")).not.toBe("meds.updates.kind.general_information");
+      expect(translate(code, "meds.updates.verification.not_verified")).not.toBe("meds.updates.verification.not_verified");
+      expect(translate(code, "meds.updates.verificationReason.formulation_unconfirmed")).not.toBe("meds.updates.verificationReason.formulation_unconfirmed");
+      expect(translate(code, "meds.updates.freshness.stale")).not.toBe("meds.updates.freshness.stale");
+      expect(translate(code, "meds.updates.openSource")).not.toBe("meds.updates.openSource");
+      expect(translate(code, "meds.updates.noMedicinesTitle")).not.toBe("meds.updates.noMedicinesTitle");
+      expect(translate(code, "meds.updates.confirmText")).not.toBe("meds.updates.confirmText");
+      expect(translate(code, "meds.updates.prepareAppointment")).not.toBe("meds.updates.prepareAppointment");
     }
   });
 
@@ -586,6 +614,34 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps contextual Home Fast Help reasons localized in every supported language", () => {
+    const reasonKeys = Object.keys(HOME_FAST_HELP_REASON_FALLBACKS);
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const reasonKey of reasonKeys) {
+        const key = `home.contextualFastHelp.reasons.${reasonKey}`;
+        const value = translate(language, key);
+        expect(value).not.toBe(key);
+        expect(value.trim().length).toBeGreaterThan(0);
+        if (language !== "en") expect(value).not.toBe(translate("en", key));
+      }
+    }
+  });
+
+  it("keeps Home Fast Help outcome copy localized in every supported language", () => {
+    const outcomeKeys = ["continue", "continueDetail", "blockedAlternative"];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const outcomeKey of outcomeKeys) {
+        const key = `home.contextualFastHelp.outcome.${outcomeKey}`;
+        const value = translate(language, key);
+        expect(value).not.toBe(key);
+        expect(value.trim().length).toBeGreaterThan(0);
+        if (language !== "en") expect(value).not.toBe(translate("en", key));
+      }
+    }
+  });
+
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
       en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "My Health Plan", "My Health Plan"],
@@ -646,6 +702,43 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "settings.notifications.supportModeAi"),
         translate(language as keyof typeof expected, "settings.notifications.supportModeHuman"),
       ]).toEqual(labels);
+    }
+  });
+
+  it("keeps lesson read-aloud controls localized for every supported app language", () => {
+    const keys = [
+      "learn.readAloud.play",
+      "learn.readAloud.pause",
+      "learn.readAloud.resume",
+      "learn.readAloud.replay",
+      "learn.readAloud.stop",
+      "learn.readAloud.unavailableDetail",
+      "learn.readAloud.reflectionIntro",
+    ];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const key of keys) {
+        expect(translate(language, key), `${language} should translate ${key}`).not.toBe(key);
+      }
+    }
+  });
+
+  it("keeps the Concierge ride Canvas localized for every supported app language", () => {
+    const keys = [
+      "voiceCanvas.ride.destinationTitle",
+      "voiceCanvas.ride.pickupTitle",
+      "voiceCanvas.ride.timeTitle",
+      "voiceCanvas.ride.mobilityTitle",
+      "voiceCanvas.ride.providerTitle",
+      "voiceCanvas.ride.confirmTitle",
+      "voiceCanvas.ride.confirmContact",
+      "voiceCanvas.ride.completedTitle",
+    ];
+
+    for (const language of SUPPORTED_TEST_LANGUAGES) {
+      for (const key of keys) {
+        expect(translate(language, key), `${language} should translate ${key}`).not.toBe(key);
+      }
     }
   });
 

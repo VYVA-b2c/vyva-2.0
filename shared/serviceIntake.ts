@@ -290,8 +290,11 @@ export function detectHomeServiceSafetyFlags(input: {
   const urgency = normalizeHomeServiceUrgency(input.urgency);
   const answers = compactRecord(input.answers);
   if (urgency === "now") flags.add("urgent");
+  if (answers.immediate_danger === "yes") flags.add("immediate_danger");
   if (type === "plumber" && answers.active_flooding === "yes") flags.add("active_water_damage");
   if (type === "electrician" && answers.problem_type === "sparks_smell") flags.add("electrical_hazard");
+  if (type === "locksmith" && answers.lockout_hazard === "yes") flags.add("lockout_hazard");
+  if (answers.environment_hazard === "yes") flags.add("environment_hazard");
   if (type === "electrician" && (answers.safety_risk === "hazard" || answers.safety_risk === "danger_now")) {
     flags.add("electrical_hazard");
     flags.add("immediate_danger");
@@ -389,4 +392,38 @@ export function homeServiceIntakeFromPreferences(preferences: unknown): HomeServ
   });
   const researchBrief = clean(record.research_brief);
   return researchBrief ? { ...intake, research_brief: researchBrief.slice(0, 900) } : intake;
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function textFromRecord(record: Record<string, unknown> | null, keys: string[]): string {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function homeServiceAnswerRecord(preferences: unknown): Record<string, unknown> | null {
+  const record = recordFromUnknown(preferences);
+  const intake = recordFromUnknown(record?.service_intake);
+  return recordFromUnknown(intake?.answers);
+}
+
+export function homeServiceAddressFromPreferences(preferences: unknown): string {
+  const record = recordFromUnknown(preferences);
+  const direct = textFromRecord(record, ["home_address", "address", "location"]);
+  if (direct) return direct;
+  return textFromRecord(homeServiceAnswerRecord(preferences), ["home_address", "location"]);
+}
+
+export function homeServiceAccessNotesFromPreferences(preferences: unknown): string {
+  const record = recordFromUnknown(preferences);
+  const direct = textFromRecord(record, ["home_access_or_safety_notes", "access_notes"]);
+  if (direct) return direct;
+  return textFromRecord(homeServiceAnswerRecord(preferences), ["access_notes", "home_access_or_safety_notes"]);
 }

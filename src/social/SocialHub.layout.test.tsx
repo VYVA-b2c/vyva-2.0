@@ -140,15 +140,15 @@ describe("SocialHub home-style layout", () => {
     expect(voiceHeroMock).not.toHaveBeenCalled();
 
     const primaryCards = screen.getByTestId("social-primary-cards");
-    expect(within(primaryCards).getByText("Make Friends")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Ask an Expert")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("What's On")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Share Stories")).toBeInTheDocument();
-    expect(within(primaryCards).getAllByRole("button").map((card) => card.textContent)).toEqual([
-      "Make Friends",
-      "Ask an Expert",
-      "Share Stories",
-      "What's On",
+    expect(within(primaryCards).getByRole("button", { name: "Make Friends. Find people like me" })).toBeInTheDocument();
+    expect(within(primaryCards).getByRole("button", { name: "Ask an Expert. Talk with a VYVA specialist" })).toBeInTheDocument();
+    expect(within(primaryCards).getByRole("button", { name: "Share Stories. A memory or song" })).toBeInTheDocument();
+    expect(within(primaryCards).getByRole("button", { name: "What's On. Movement and clubs" })).toBeInTheDocument();
+    expect(within(primaryCards).getAllByRole("button").map((card) => card.getAttribute("data-testid"))).toEqual([
+      "card-social-primary-match",
+      "card-social-primary-experts",
+      "card-social-primary-share",
+      "card-social-primary-activities",
     ]);
     expect(primaryCards).not.toHaveTextContent("Participate");
     expect(primaryCards).not.toHaveTextContent("Join In");
