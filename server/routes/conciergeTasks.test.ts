@@ -63,13 +63,18 @@ describe("Concierge task routes", () => {
     service.createConciergeTaskDraft.mockResolvedValue(task);
     const response = await request(app())
       .post("/api/concierge/tasks")
-      .send({ entry: { kind: "document" }, language: "en" })
+      .send({
+        entry: { kind: "document" },
+        language: "en",
+        idempotencyKey: "cross-pillar:handoff-1",
+      })
       .expect(201);
     expect(response.body.task.id).toBe(taskId);
     expect(service.createConciergeTaskDraft).toHaveBeenCalledWith({
       userId: "user-1",
       entry: { kind: "document" },
       language: "en",
+      idempotencyKey: "cross-pillar:handoff-1",
     });
   });
 

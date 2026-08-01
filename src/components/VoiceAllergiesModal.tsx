@@ -4,13 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { PurpleModal, VYVA_MODAL_PRIMARY_ACTION_CLASS, VYVA_MODAL_SECONDARY_ACTION_CLASS } from "@/components/vyva-ui";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
-
-const DISCLAIMER =
-  "This information is for general guidance only — always consult your doctor or allergist before making health decisions.";
-
-const ALLERGY_QA_PROMPT_SUFFIX = `IMPORTANT INSTRUCTION — ALLERGY Q&A MODE:
-You are answering allergy-related questions. Focus on natural remedies, avoidance strategies, symptom management tips, and lifestyle advice for allergy sufferers. After every single response you give, you MUST append this disclaimer verbatim on a new line: "${DISCLAIMER}"
-This disclaimer must appear at the end of every spoken and written response without exception.`;
+import { useLanguage } from "@/i18n";
 
 type ParseState = "idle" | "parsing" | "confirming" | "error";
 
@@ -33,6 +27,7 @@ export default function VoiceAllergiesModal({
   onOpenChange,
   onAddAllergies,
 }: VoiceAllergiesModalProps) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"add" | "ask">("add");
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [parsedAllergens, setParsedAllergens] = useState<string[]>([]);
@@ -44,14 +39,21 @@ export default function VoiceAllergiesModal({
   const { startVoice, stopVoice, status, isSpeaking, isConnecting, transcript } = useVyvaVoice();
 
   const isActive = status === "connected";
+  const disclaimer = t(
+    "onboarding.allergies.voice.disclaimer",
+    "This information is for general guidance only. Always consult your doctor or allergist before making health decisions.",
+  );
+  const allergyQaPromptSuffix = `IMPORTANT INSTRUCTION - ALLERGY Q&A MODE:
+You are answering allergy-related questions. Focus on avoidance strategies, symptom management tips, and lifestyle advice for allergy sufferers. After every response, append this disclaimer verbatim on a new line: "${disclaimer}"
+This disclaimer must appear at the end of every spoken and written response without exception.`;
 
   const statusLabel = isConnecting
-    ? "Connecting..."
+    ? t("onboarding.allergies.voice.connecting", "Connecting...")
     : isActive
     ? isSpeaking
-      ? "VYVA is speaking..."
-      : "Listening to you..."
-    : "Tap to start speaking";
+      ? t("onboarding.allergies.voice.speaking", "VYVA is speaking...")
+      : t("onboarding.allergies.voice.listening", "Listening to you...")
+    : t("onboarding.allergies.voice.tapToStart", "Tap to start speaking");
 
   const tabTranscript = transcript.slice(sessionStartIdx.current);
 
@@ -120,8 +122,8 @@ export default function VoiceAllergiesModal({
 
   const handleStartAsk = useCallback(async () => {
     sessionStartIdx.current = transcript.length;
-    await startVoice("allergy management questions", ALLERGY_QA_PROMPT_SUFFIX);
-  }, [transcript.length, startVoice]);
+    await startVoice("allergy management questions", allergyQaPromptSuffix);
+  }, [allergyQaPromptSuffix, transcript.length, startVoice]);
 
   const handleStopAsk = useCallback(async () => {
     await stopVoice();
@@ -142,12 +144,15 @@ export default function VoiceAllergiesModal({
   return (
     <PurpleModal
       Icon={Mic}
-      kicker="Allergies"
-      title="Voice assistant"
-      subtitle="Speak to add allergens or ask a follow-up question."
+      kicker={t("onboarding.allergies.voice.kicker", "Allergies")}
+      title={t("onboarding.allergies.voice.title", "Voice assistant")}
+      subtitle={t(
+        "onboarding.allergies.voice.subtitle",
+        "Speak to add allergens or ask a follow-up question.",
+      )}
       titleId="voice-allergies-title"
       onClose={handleClose}
-      closeLabel="Close"
+      closeLabel={t("onboarding.allergies.voice.close", "Close")}
       modalTestId="modal-voice-allergies"
       size="narrow"
       bodyClassName="flex max-h-[calc(88vh-132px)] flex-col p-0"
@@ -160,11 +165,13 @@ export default function VoiceAllergiesModal({
               </div>
               <div className="text-center">
                 <p className="font-body text-[15px] font-semibold text-gray-800 mb-1">
-                  Microphone not available
+                  {t("onboarding.allergies.voice.micUnavailableTitle", "Microphone not available")}
                 </p>
                 <p className="font-body text-[13px] text-gray-500">
-                  Your browser or device doesn't support microphone access. Please use a modern
-                  browser and ensure microphone permissions are granted.
+                  {t(
+                    "onboarding.allergies.voice.micUnavailableDescription",
+                    "Your browser or device doesn't support microphone access. Please use a modern browser and ensure microphone permissions are granted.",
+                  )}
                 </p>
               </div>
               <button
@@ -173,7 +180,7 @@ export default function VoiceAllergiesModal({
                 className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
                 data-testid="button-voice-allergies-close-fallback"
               >
-                Close
+                {t("onboarding.allergies.voice.close", "Close")}
               </button>
             </div>
           ) : (
@@ -188,14 +195,14 @@ export default function VoiceAllergiesModal({
                   className="flex-1 rounded-lg text-[13px] font-body data-[state=active]:bg-white"
                   data-testid="tab-voice-allergies-add"
                 >
-                  Add by voice
+                  {t("onboarding.allergies.voice.tabs.add", "Add by voice")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="ask"
                   className="flex-1 rounded-lg text-[13px] font-body data-[state=active]:bg-white"
                   data-testid="tab-voice-allergies-ask"
                 >
-                  Ask about allergies
+                  {t("onboarding.allergies.voice.tabs.ask", "Ask about allergies")}
                 </TabsTrigger>
               </TabsList>
 
@@ -208,15 +215,23 @@ export default function VoiceAllergiesModal({
                     isConnecting={isConnecting}
                     label={
                       parseState === "parsing"
-                        ? "Identifying your allergens..."
+                        ? t(
+                            "onboarding.allergies.voice.identifying",
+                            "Identifying your allergens...",
+                          )
                         : statusLabel
                     }
                   />
 
                   {parseState === "idle" && !isActive && (
                     <p className="font-body text-[13px] text-gray-500 text-center">
-                      Say something like:{" "}
-                      <em>"I'm allergic to peanuts, tree nuts, and penicillin"</em>
+                      {t("onboarding.allergies.voice.example", "For example:")}{" "}
+                      <em>
+                        {t(
+                          "onboarding.allergies.voice.examplePhrase",
+                          "I'm allergic to peanuts, tree nuts, and penicillin.",
+                        )}
+                      </em>
                     </p>
                   )}
 
@@ -246,7 +261,10 @@ export default function VoiceAllergiesModal({
                     <div className="flex items-center justify-center gap-2 py-6">
                       <Loader2 size={20} className="animate-spin text-amber-500" />
                       <span className="font-body text-[14px] text-gray-600">
-                        Identifying your allergens…
+                        {t(
+                          "onboarding.allergies.voice.identifying",
+                          "Identifying your allergens...",
+                        )}
                       </span>
                     </div>
                   )}
@@ -254,7 +272,10 @@ export default function VoiceAllergiesModal({
                   {parseState === "error" && (
                     <div className="flex flex-col items-center gap-3 py-4">
                       <p className="font-body text-[14px] text-red-600 text-center">
-                        Couldn't identify any allergens. Please try again.
+                        {t(
+                          "onboarding.allergies.voice.parseError",
+                          "Couldn't identify any allergens. Please try again.",
+                        )}
                       </p>
                       <button
                         type="button"
@@ -263,7 +284,7 @@ export default function VoiceAllergiesModal({
                         data-testid="button-voice-allergies-retry"
                       >
                         <RefreshCw size={14} className="mr-1.5" />
-                        Try again
+                        {t("onboarding.allergies.voice.tryAgain", "Try again")}
                       </button>
                     </div>
                   )}
@@ -271,7 +292,7 @@ export default function VoiceAllergiesModal({
                   {parseState === "confirming" && (
                     <div className="flex flex-col gap-3 overflow-y-auto">
                       <p className="font-body text-[14px] font-semibold text-gray-800">
-                        Here's what I heard:
+                        {t("onboarding.allergies.voice.heardTitle", "Here's what I heard:")}
                       </p>
                       <div
                         className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-col gap-2"
@@ -279,7 +300,10 @@ export default function VoiceAllergiesModal({
                       >
                         {parsedAllergens.length === 0 ? (
                           <p className="font-body text-[13px] text-gray-500 italic">
-                            No allergens were detected. Please try speaking more clearly.
+                            {t(
+                              "onboarding.allergies.voice.noneDetected",
+                              "No allergens were detected. Please try speaking more clearly.",
+                            )}
                           </p>
                         ) : (
                           <div className="flex flex-wrap gap-2">
@@ -304,7 +328,7 @@ export default function VoiceAllergiesModal({
                           data-testid="button-voice-allergies-tryagain"
                         >
                           <RefreshCw size={14} className="mr-1.5" />
-                          Try again
+                          {t("onboarding.allergies.voice.tryAgain", "Try again")}
                         </Button>
                         {parsedAllergens.length > 0 && (
                           <Button
@@ -313,7 +337,9 @@ export default function VoiceAllergiesModal({
                             data-testid="button-voice-allergies-confirm"
                           >
                             <CheckCircle2 size={14} className="mr-1.5" />
-                            Add {parsedAllergens.length === 1 ? "it" : "them"}
+                            {parsedAllergens.length === 1
+                              ? t("onboarding.allergies.voice.addOne", "Add it")
+                              : t("onboarding.allergies.voice.addMany", "Add them")}
                           </Button>
                         )}
                       </div>
@@ -330,7 +356,7 @@ export default function VoiceAllergiesModal({
                         data-testid="button-voice-allergies-stop"
                       >
                         <Square size={16} className="mr-2" />
-                        Stop & identify
+                        {t("onboarding.allergies.voice.stopIdentify", "Stop and identify")}
                       </Button>
                     ) : (
                       <Button
@@ -344,7 +370,9 @@ export default function VoiceAllergiesModal({
                         ) : (
                           <Mic size={16} className="mr-2" />
                         )}
-                        {isConnecting ? "Connecting…" : "Start speaking"}
+                        {isConnecting
+                          ? t("onboarding.allergies.voice.connecting", "Connecting...")
+                          : t("onboarding.allergies.voice.startSpeaking", "Start speaking")}
                       </Button>
                     )}
                   </div>
@@ -363,7 +391,10 @@ export default function VoiceAllergiesModal({
 
                   {!isActive && tabTranscript.length === 0 && (
                     <p className="font-body text-[13px] text-gray-500 text-center">
-                      Ask about natural remedies, avoidance tips, symptom management, and more.
+                      {t(
+                        "onboarding.allergies.voice.askDescription",
+                        "Ask about avoidance tips, symptom management, and more.",
+                      )}
                     </p>
                   )}
 
@@ -393,7 +424,7 @@ export default function VoiceAllergiesModal({
                             >
                               <Info size={11} className="text-amber-500 mt-0.5 flex-shrink-0" />
                               <p className="font-body text-[11px] text-amber-700 italic">
-                                {DISCLAIMER}
+                                {disclaimer}
                               </p>
                             </div>
                           )}
@@ -409,7 +440,7 @@ export default function VoiceAllergiesModal({
                   data-testid="banner-allergy-disclaimer"
                 >
                   <Info size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                  <p className="font-body text-[12px] text-amber-700">{DISCLAIMER}</p>
+                  <p className="font-body text-[12px] text-amber-700">{disclaimer}</p>
                 </div>
 
                 <div className="flex-shrink-0 pb-6 pt-1">
@@ -420,7 +451,7 @@ export default function VoiceAllergiesModal({
                       data-testid="button-voice-allergy-ask-stop"
                     >
                       <Square size={16} className="mr-2" />
-                      Stop
+                      {t("onboarding.allergies.voice.stop", "Stop")}
                     </Button>
                   ) : (
                     <Button
@@ -434,7 +465,9 @@ export default function VoiceAllergiesModal({
                       ) : (
                         <Mic size={16} className="mr-2" />
                       )}
-                      {isConnecting ? "Connecting…" : "Ask a question"}
+                      {isConnecting
+                        ? t("onboarding.allergies.voice.connecting", "Connecting...")
+                        : t("onboarding.allergies.voice.askQuestion", "Ask a question")}
                     </Button>
                   )}
                 </div>

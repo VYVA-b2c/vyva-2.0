@@ -238,14 +238,26 @@ function parseIsoDate(value: string): Date | null {
     : null;
 }
 
+function evidenceDateTodayUtc(): Date {
+  const testDateOverride = process.env.NODE_ENV === "test"
+    ? process.env.VYVA_QA_VALIDATION_TODAY
+    : undefined;
+  const overrideMatch = testDateOverride?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (overrideMatch) {
+    return new Date(`${overrideMatch[1]}-${overrideMatch[2]}-${overrideMatch[3]}T00:00:00.000Z`);
+  }
+
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+  );
+}
+
 function hasStaleOrFutureEvidenceDate(value: string): boolean {
   const dates = normalizeCell(value).match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
   if (dates.length === 0) return false;
 
-  const now = new Date();
-  const todayUtc = new Date(
-    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
-  );
+  const todayUtc = evidenceDateTodayUtc();
 
   return dates.some((dateValue) => {
     const date = parseIsoDate(dateValue);

@@ -51,6 +51,7 @@ export async function fetchConciergeTaskDraft(id: string): Promise<ConciergeTask
 export async function createConciergeTaskDraft(input: {
   entry: ConciergeTaskEntryPayload;
   language: string;
+  idempotencyKey?: string;
 }): Promise<ConciergeTaskDraft> {
   return taskResponse(await apiFetch("/api/concierge/tasks", {
     method: "POST",

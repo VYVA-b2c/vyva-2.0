@@ -3,13 +3,244 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceToolCall,
   actionForVoiceUtterance,
+  homeIntentForVoiceToolCall,
+  homeIntentForVoiceUtterance,
+  homeSubflowForVoiceToolCall,
+  homeSubflowForVoiceUtterance,
   isActionableVoiceText,
+  isVoiceHomeIntent,
+  isVoiceHomeSubflow,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
+  transitionForVoiceHomeIntent,
+  toolResultForVoiceHomeIntent,
+  VOICE_COVERAGE_LANGUAGES,
+  VOICE_HOME_SUBFLOW_PILLARS,
+  VOICE_HOME_SUBFLOW_SAMPLE_PHRASES,
   voiceActionRegistryEntries,
+  type VoiceHomeSubflowId,
 } from "./voiceNavigation";
 
+const localizedSubflowCases = Object.entries(VOICE_HOME_SUBFLOW_SAMPLE_PHRASES).flatMap(
+  ([actionId, phrases]) => VOICE_COVERAGE_LANGUAGES.map((language) => ({
+    actionId: actionId as VoiceHomeSubflowId,
+    language,
+    phrase: phrases[language],
+    pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId as VoiceHomeSubflowId],
+  })),
+);
+
+const toolCallCases: Array<{
+  actionId: VoiceHomeSubflowId;
+  parameters: Record<string, string>;
+}> = [
+  { actionId: "health-symptoms", parameters: { action_type: "health.symptoms" } },
+  { actionId: "health-vitals", parameters: { action_type: "health.vitals" } },
+  { actionId: "health-meds", parameters: { action_type: "medication" } },
+  { actionId: "health-doctor", parameters: { action_type: "health.doctor_support" } },
+  { actionId: "health-prevention", parameters: { action_type: "health.prevention" } },
+  { actionId: "health-visual-scan", parameters: { action_type: "health.visual_scan" } },
+  { actionId: "mind-memory", parameters: { action_type: "brain.memory" } },
+  { actionId: "mind-reflexes", parameters: { action_type: "brain.reflex" } },
+  { actionId: "mind-focus", parameters: { action_type: "brain.focus" } },
+  { actionId: "mind-senses", parameters: { action_type: "brain.senses" } },
+  { actionId: "community-friends", parameters: { action_type: "social.friend" } },
+  { actionId: "community-experts", parameters: { action_type: "social.expert" } },
+  { actionId: "community-share", parameters: { action_type: "social.share" } },
+  { actionId: "community-activities", parameters: { action_type: "social.event" } },
+  { actionId: "concierge-home", parameters: { action_type: "concierge.home_service" } },
+  { actionId: "concierge-care", parameters: { action_type: "concierge.provider_contact" } },
+  { actionId: "concierge-order", parameters: { action_type: "concierge.shopping" } },
+  { actionId: "concierge-book", parameters: { action_type: "concierge.ride" } },
+];
+
 describe("voice navigation actions", () => {
+  it("defines exactly 18 actions and six canonical language samples per action", () => {
+    expect(Object.keys(VOICE_HOME_SUBFLOW_SAMPLE_PHRASES)).toHaveLength(18);
+    expect(VOICE_COVERAGE_LANGUAGES).toHaveLength(6);
+    expect(localizedSubflowCases).toHaveLength(108);
+  });
+
+  it.each(localizedSubflowCases)(
+    "maps $language phrase for $actionId to its exact visual action",
+    ({ actionId, phrase, pillar }) => {
+      expect(homeSubflowForVoiceUtterance(phrase)).toEqual({ actionId, pillar });
+    },
+  );
+
+  it.each(toolCallCases)(
+    "maps agent tool parameters to $actionId",
+    ({ actionId, parameters }) => {
+      expect(homeSubflowForVoiceToolCall(parameters)).toEqual({
+        actionId,
+        pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId],
+      });
+    },
+  );
+
+  it.each([
+    ["Book a doctor appointment", "health-doctor"],
+    ["I have chest pain and need a taxi", "health-symptoms"],
+    ["I feel dizzy and want to order groceries", "health-symptoms"],
+    ["Help me book a taxi", "concierge-book"],
+  ] as const)(
+    "uses safety-first precedence for ambiguous request %s",
+    (phrase, actionId) => {
+      expect(homeSubflowForVoiceUtterance(phrase)?.actionId).toBe(actionId);
+    },
+  );
+
+  it.each([
+    ["Check my blood pressure", "health-vitals", "health"],
+    ["Recuérdame mis pastillas", "health-meds", "health"],
+    ["Je veux parler au médecin", "health-doctor", "health"],
+    ["Ich habe Schmerzen", "health-symptoms", "health"],
+    ["I'm not feeling well", "health-symptoms", "health"],
+    ["No me encuentro bien", "health-symptoms", "health"],
+    ["Je ne me sens pas bien", "health-symptoms", "health"],
+    ["Mir geht es nicht gut", "health-symptoms", "health"],
+    ["Non mi sento bene", "health-symptoms", "health"],
+    ["Nao me sinto bem", "health-symptoms", "health"],
+    ["Vorrei allenare la memoria", "mind-memory", "mind"],
+    ["Quero melhorar a atenção", "mind-focus", "mind"],
+    ["Find an activity nearby", "community-activities", "community"],
+    ["Quiero conocer gente", "community-friends", "community"],
+    ["J'ai besoin d'un plombier", "concierge-home", "concierge"],
+    ["Buche ein Taxi", "concierge-book", "concierge"],
+  ] as const)("maps specific multilingual request %s to %s", (utterance, actionId, pillar) => {
+    expect(homeSubflowForVoiceUtterance(utterance)).toEqual({ actionId, pillar });
+  });
+
+  it.each([
+    [{ route: "/health/symptom-check" }, "health-symptoms", "health"],
+    [{ action_type: "brain.memory" }, "mind-memory", "mind"],
+    [{ action_type: "social.event" }, "community-activities", "community"],
+    [{ action_type: "concierge.ride" }, "concierge-book", "concierge"],
+  ] as const)("maps a specific tool call to its Home action", (parameters, actionId, pillar) => {
+    expect(homeSubflowForVoiceToolCall(parameters)).toEqual({ actionId, pillar });
+  });
+
+  it("rejects malformed Home subflow events", () => {
+    expect(isVoiceHomeSubflow({ actionId: "health-vitals", pillar: "health" })).toBe(true);
+    expect(isVoiceHomeSubflow({ actionId: "health-vitals", pillar: "mind" })).toBe(false);
+    expect(isVoiceHomeSubflow({ actionId: "unknown", pillar: "health" })).toBe(false);
+  });
+
+  it.each([
+    "Health",
+    "My health",
+    "I need help with my health",
+    "Could you show my health options?",
+    "Salud",
+    "Mi salud",
+    "Quiero ayuda con mi salud",
+    "Muéstrame las opciones de mi salud",
+    "Meine Gesundheit",
+    "Ich brauche Hilfe bei meiner Gesundheit",
+    "Ma santé",
+    "Je voudrais de l'aide pour ma santé",
+    "La mia salute",
+    "Ho bisogno di aiuto con la mia salute",
+    "Minha saúde",
+    "Preciso de ajuda com a minha saúde",
+  ])("opens the Health choice layer for broad pillar request %s", (utterance) => {
+    expect(homeIntentForVoiceUtterance(utterance)).toBe("health");
+  });
+
+  it("keeps specific health requests on their exact action", () => {
+    expect(homeIntentForVoiceUtterance("Check my blood pressure")).toBeNull();
+    expect(homeIntentForVoiceUtterance("Necesito ayuda con dolor de pecho")).toBeNull();
+    expect(homeIntentForVoiceUtterance("Je veux prendre rendez-vous avec mon médecin")).toBeNull();
+    expect(actionForVoiceUtterance("Check my blood pressure")?.id).toBeTruthy();
+  });
+
+  it("turns a broad Health client-tool call into the Home Health choice layer", () => {
+    expect(homeIntentForVoiceToolCall({ domain: "health" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({ domain: "health", route: "/" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({
+      domain: "health",
+      action_type: "health.vitals_review",
+    })).toBeNull();
+    expect(homeIntentForVoiceToolCall({
+      domain: "health",
+      route: "/health/symptom-check",
+    })).toBeNull();
+  });
+
+  it.each([
+    ["My mind", "mind"],
+    ["Mi mente", "mind"],
+    ["Mon cerveau", "mind"],
+    ["Mein Gedächtnis", "mind"],
+    ["La mia memoria", "mind"],
+    ["Minha memória", "mind"],
+    ["My community", "community"],
+    ["Mi comunidad", "community"],
+    ["Ma communauté", "community"],
+    ["Meine Gemeinschaft", "community"],
+    ["La mia comunità", "community"],
+    ["Minha comunidade", "community"],
+    ["My concierge", "concierge"],
+    ["Mi concierge", "concierge"],
+    ["Mon concierge", "concierge"],
+    ["Mein Concierge", "concierge"],
+    ["Il mio concierge", "concierge"],
+    ["Meu concierge", "concierge"],
+  ])("recognises broad cross-pillar request %s", (utterance, intent) => {
+    expect(homeIntentForVoiceUtterance(utterance)).toBe(intent);
+  });
+
+  it("maps broad cross-pillar client tools without intercepting specific actions", () => {
+    expect(homeIntentForVoiceToolCall({ domain: "brain_coach" })).toBe("mind");
+    expect(homeIntentForVoiceToolCall({ domain: "social" })).toBe("community");
+    expect(homeIntentForVoiceToolCall({ domain: "concierge" })).toBe("concierge");
+    expect(homeIntentForVoiceToolCall({
+      domain: "concierge",
+      action_type: "concierge.ride_booking",
+    })).toBeNull();
+  });
+
+  it("owns one canonical visual transition for every broad pillar intent", () => {
+    expect(transitionForVoiceHomeIntent("health")).toEqual({
+      kind: "home_layer",
+      layer: "health",
+    });
+    expect(transitionForVoiceHomeIntent("mind")).toEqual({
+      kind: "home_layer",
+      layer: "mind",
+    });
+    expect(transitionForVoiceHomeIntent("community")).toEqual({
+      kind: "home_layer",
+      layer: "community",
+    });
+    expect(transitionForVoiceHomeIntent("concierge")).toEqual({
+      kind: "home_layer",
+      layer: "concierge",
+    });
+  });
+
+  it("returns stable agent tool acknowledgements for every pillar", () => {
+    expect(toolResultForVoiceHomeIntent("health")).toBe("Showing the Health choices.");
+    expect(toolResultForVoiceHomeIntent("mind")).toBe("Showing the Mind choices.");
+    expect(toolResultForVoiceHomeIntent("community")).toBe("Showing the Community choices.");
+    expect(toolResultForVoiceHomeIntent("concierge")).toBe("Showing the Concierge choices.");
+  });
+
+  it("rejects malformed pillar event details", () => {
+    expect(isVoiceHomeIntent("health")).toBe(true);
+    expect(isVoiceHomeIntent("mind")).toBe(true);
+    expect(isVoiceHomeIntent("unknown")).toBe(false);
+    expect(isVoiceHomeIntent({ intent: "health" })).toBe(false);
+    expect(isVoiceHomeIntent(null)).toBe(false);
+  });
+
+  it("accepts the pillar alias used by alternate agent configurations", () => {
+    expect(homeIntentForVoiceToolCall({ pillar: "health" })).toBe("health");
+    expect(homeIntentForVoiceToolCall({ pillar: "brain-coach" })).toBe("mind");
+    expect(homeIntentForVoiceToolCall({ pillar: "community" })).toBe("community");
+    expect(homeIntentForVoiceToolCall({ pillar: "concierge" })).toBe("concierge");
+  });
+
   it("ignores punctuation-only and filler transcript noise", () => {
     expect(isActionableVoiceText("'")).toBe(false);
     expect(isActionableVoiceText("...")).toBe(false);

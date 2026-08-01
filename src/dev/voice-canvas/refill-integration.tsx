@@ -216,6 +216,21 @@ export default function Gallery() {
   const params = new URLSearchParams(location.search);
   const spanish = params.get("locale") === "es";
   const evidenceSafe = params.get("evidence") === "sanitized";
+  const galleryText = spanish
+    ? {
+        eyebrow: "VYVA · Canvas de renovación de medicación",
+        title: "Preparación de renovación de medicación",
+        subtitle: "Solo preparación · sin pedido, aprobación, contacto ni escritura de datos antes de confirmar",
+        success: "Resultado correcto",
+        blocked: "Resultado bloqueado",
+      }
+    : {
+        eyebrow: "VYVA · Medication Refill Canvas",
+        title: "Medication refill preparation",
+        subtitle: "Preparation only · no order, approval, contact, or data write before confirmation",
+        success: "Successful result",
+        blocked: "Blocked result",
+      };
   const confirm = useCallback(async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     if (failure) throw new Error("The preparation service is temporarily unavailable.");
@@ -312,13 +327,13 @@ export default function Gallery() {
   return (
     <main className="vc-gallery vc-integration-gallery">
       <header>
-        <p>VYVA · Medication Refill Canvas</p>
-        <h1>Medication refill preparation</h1>
-        <span>Preparation only · no order, approval, contact, or data write before confirmation</span>
+        <p>{galleryText.eyebrow}</p>
+        <h1>{galleryText.title}</h1>
+        <span>{galleryText.subtitle}</span>
       </header>
       <div className="vc-demo-toolbar">
-        <button onClick={() => setFailure(false)}>Successful result</button>
-        <button onClick={() => setFailure(true)}>Blocked result</button>
+        <button onClick={() => setFailure(false)}>{galleryText.success}</button>
+        <button onClick={() => setFailure(true)}>{galleryText.blocked}</button>
       </div>
       <div className="vc-gallery-stage">
         <RefillVoiceCanvas

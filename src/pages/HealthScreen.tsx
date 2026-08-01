@@ -1641,6 +1641,13 @@ const HealthScreen = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specialistRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
+  useEffect(() => {
+    const state = location.state as { openVisualScan?: boolean } | null;
+    if (state?.openVisualScan) {
+      setVisualScanOpen(true);
+    }
+  }, [location.state]);
+
   const headlineBase = t("health.allGoodToday", "All good today");
   const headlineText = firstName ? `${headlineBase}, ${firstName}` : headlineBase;
   const specialistLanguage = activeLanguage(appLanguage);

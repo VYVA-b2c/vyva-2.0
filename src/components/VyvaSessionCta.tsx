@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, MessageCircle, Mic } from "lucide-react";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
+import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
 import {
   type VoiceConnectionErrorCode,
   type VoiceDiagnosticStep,
   type TranscriptEntry,
   useVyvaVoice,
 } from "@/hooks/useVyvaVoice";
+import { hasSeenVoiceOrbHint, rememberVoiceOrbHint } from "@/lib/voiceOrbHint";
 import { emitVoiceOverlayPresence } from "@/lib/voiceOverlayFocus";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
@@ -29,7 +31,10 @@ type VyvaSessionCtaProps = {
   className?: string;
   iconClassName?: string;
   supportingLabel?: string;
-  visual?: "default" | "voiceRail";
+  visual?: "default" | "voiceRail" | "voiceOrb";
+  voiceOrbDark?: boolean;
+  voiceOrbSize?: number;
+  onFirstVoiceOrbActivation?: () => void;
 };
 
 type VoiceControls = {
@@ -111,6 +116,9 @@ export function VyvaSessionCta({
   iconClassName,
   supportingLabel,
   visual = "default",
+  voiceOrbDark = false,
+  voiceOrbSize = 144,
+  onFirstVoiceOrbActivation,
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
   const {
@@ -130,6 +138,7 @@ export function VyvaSessionCta({
   } = voice;
   const [focusedOverlayRequested, setFocusedOverlayRequested] = useState(false);
   const [focusedOverlayHasStarted, setFocusedOverlayHasStarted] = useState(false);
+  const [showVoiceOrbHint, setShowVoiceOrbHint] = useState(() => !hasSeenVoiceOrbHint());
   const voiceStartOptions = useVoiceStartOptions(voiceAgentSlug, voiceDynamicVariables, autoStartListening);
 
   const isActive = status === "connected";
@@ -186,6 +195,12 @@ export function VyvaSessionCta({
 
     if (canStartVoice && !canStartVoice()) return;
 
+    if (visual === "voiceOrb" && showVoiceOrbHint) {
+      setShowVoiceOrbHint(false);
+      rememberVoiceOrbHint();
+      onFirstVoiceOrbActivation?.();
+    }
+
     setFocusedOverlayHasStarted(false);
     setFocusedOverlayRequested(true);
     void Promise.resolve(startVoice(contextHint, undefined, voiceStartOptions)).catch(() => {});
@@ -223,6 +238,7 @@ export function VyvaSessionCta({
 
   const Icon = isPreparing ? Loader2 : isActive || isConnecting ? MessageCircle : Mic;
   const isVoiceRail = visual === "voiceRail";
+  const isVoiceOrb = visual === "voiceOrb";
   const railSupportingLabel = isPreparing
     ? preparingLabel ?? "Checking voice"
     : isConnecting
@@ -261,7 +277,16 @@ export function VyvaSessionCta({
           aria-label={accessibleLabel}
           className={className}
         >
-          {isVoiceRail ? (
+          {isVoiceOrb ? (
+            <>
+              <ZamoraVoiceOrb
+                state={isPreparing || isConnecting ? "listening" : isActive ? (isSpeaking ? "speaking" : "listening") : "idle"}
+                size={voiceOrbSize}
+                isDark={voiceOrbDark}
+                testId="home-dormant-zamora-orb"
+              />
+            </>
+          ) : isVoiceRail ? (
             <>
               <span className="absolute inset-[-7px] rounded-full bg-[#F3E8FF] opacity-50" aria-hidden="true" />
               <span className="absolute inset-[-2px] rounded-full bg-[radial-gradient(circle,#FFFFFF_0%,#F8F2FF_62%,#FFF9F2_100%)] shadow-[0_10px_22px_rgba(107,33,168,0.10)]" aria-hidden="true" />

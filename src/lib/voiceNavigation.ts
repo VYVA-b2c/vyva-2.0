@@ -22,11 +22,260 @@ export const VYVA_VOICE_USER_MESSAGE_EVENT = "vyva:voice-user-message";
 export const VYVA_VOICE_APP_ACTION_EVENT = "vyva:voice-app-action";
 export const VYVA_VOICE_APP_ACTION_RESULT_EVENT = "vyva:voice-app-action-result";
 export const VYVA_VOICE_SPECIALIST_TRANSFER_EVENT = "vyva:voice-specialist-transfer";
+export const VYVA_VOICE_HOME_INTENT_EVENT = "vyva:voice-home-intent";
+export const VYVA_VOICE_HOME_SUBFLOW_EVENT = "vyva:voice-home-subflow";
 
 export type VoiceUserMessageDetail = {
   text: string;
   transcriptEntry: TranscriptEntry;
 };
+
+export type VoiceHomeIntent = "health" | "mind" | "community" | "concierge";
+export type VoiceHomeSubflowId =
+  | "health-symptoms"
+  | "health-vitals"
+  | "health-meds"
+  | "health-doctor"
+  | "health-prevention"
+  | "health-visual-scan"
+  | "mind-memory"
+  | "mind-reflexes"
+  | "mind-focus"
+  | "mind-senses"
+  | "community-friends"
+  | "community-experts"
+  | "community-share"
+  | "community-activities"
+  | "concierge-home"
+  | "concierge-care"
+  | "concierge-order"
+  | "concierge-book";
+
+export type VoiceHomeSubflow = {
+  pillar: VoiceHomeIntent;
+  actionId: VoiceHomeSubflowId;
+};
+
+export const VOICE_HOME_SUBFLOW_PILLARS: Record<VoiceHomeSubflowId, VoiceHomeIntent> = {
+  "health-symptoms": "health",
+  "health-vitals": "health",
+  "health-meds": "health",
+  "health-doctor": "health",
+  "health-prevention": "health",
+  "health-visual-scan": "health",
+  "mind-memory": "mind",
+  "mind-reflexes": "mind",
+  "mind-focus": "mind",
+  "mind-senses": "mind",
+  "community-friends": "community",
+  "community-experts": "community",
+  "community-share": "community",
+  "community-activities": "community",
+  "concierge-home": "concierge",
+  "concierge-care": "concierge",
+  "concierge-order": "concierge",
+  "concierge-book": "concierge",
+};
+
+export type VoiceCoverageLanguage = "en" | "es" | "fr" | "de" | "it" | "pt";
+
+export const VOICE_COVERAGE_LANGUAGES: readonly VoiceCoverageLanguage[] = [
+  "en",
+  "es",
+  "fr",
+  "de",
+  "it",
+  "pt",
+] as const;
+
+export const VOICE_HOME_SUBFLOW_SAMPLE_PHRASES: Record<
+  VoiceHomeSubflowId,
+  Record<VoiceCoverageLanguage, string>
+> = {
+  "health-symptoms": {
+    en: "I am feeling sick",
+    es: "Tengo dolor",
+    fr: "J'ai une douleur",
+    de: "Ich habe Schmerzen",
+    it: "Ho dolore",
+    pt: "Estou com dor",
+  },
+  "health-vitals": {
+    en: "Check my blood pressure",
+    es: "Quiero revisar mi presion",
+    fr: "Je veux verifier ma tension",
+    de: "Ich mochte meinen Blutdruck prufen",
+    it: "Voglio controllare la pressione",
+    pt: "Quero verificar a pressao",
+  },
+  "health-meds": {
+    en: "Help with my medication",
+    es: "Ayuda con mi medicacion",
+    fr: "Aide avec mes medicaments",
+    de: "Hilfe mit meinen Medikamenten",
+    it: "Aiuto con i miei farmaci",
+    pt: "Ajuda com os meus medicamentos",
+  },
+  "health-doctor": {
+    en: "I need my doctor",
+    es: "Necesito un medico",
+    fr: "Je veux parler au medecin",
+    de: "Ich brauche einen Arzt",
+    it: "Ho bisogno del medico",
+    pt: "Preciso de um medico",
+  },
+  "health-prevention": {
+    en: "Show my prevention check",
+    es: "Quiero revisar mi prevencion",
+    fr: "Je veux voir ma prevention",
+    de: "Zeige mir meine Vorsorge",
+    it: "Voglio vedere la prevenzione",
+    pt: "Quero ver a minha prevencao",
+  },
+  "health-visual-scan": {
+    en: "Review this health photo",
+    es: "Revisa esta foto de salud",
+    fr: "Regarde cette photo de sante",
+    de: "Prufe dieses Gesundheitsfoto",
+    it: "Controlla questa foto di salute",
+    pt: "Verifica esta foto de saude",
+  },
+  "mind-memory": {
+    en: "I want a memory exercise",
+    es: "Quiero un ejercicio de memoria",
+    fr: "Je veux un exercice de memoire",
+    de: "Ich mochte eine Gedachtnisubung",
+    it: "Voglio un esercizio di memoria",
+    pt: "Quero um exercicio de memoria",
+  },
+  "mind-reflexes": {
+    en: "I want to train my reflexes",
+    es: "Quiero entrenar mis reflejos",
+    fr: "Je veux entrainer mes reflexes",
+    de: "Ich mochte meine Reflexe trainieren",
+    it: "Voglio allenare i riflessi",
+    pt: "Quero treinar os reflexos",
+  },
+  "mind-focus": {
+    en: "Help me improve my focus",
+    es: "Quiero mejorar mi atencion",
+    fr: "Je veux ameliorer mon attention",
+    de: "Ich mochte meine Aufmerksamkeit verbessern",
+    it: "Voglio migliorare la concentrazione",
+    pt: "Quero melhorar a atencao",
+  },
+  "mind-senses": {
+    en: "Show me a senses exercise",
+    es: "Quiero un ejercicio de sentidos",
+    fr: "Je veux un exercice des sens",
+    de: "Ich mochte eine Sinne Ubung",
+    it: "Voglio un esercizio dei sensi",
+    pt: "Quero um exercicio dos sentidos",
+  },
+  "community-friends": {
+    en: "I want to meet people",
+    es: "Quiero conocer gente",
+    fr: "Je veux rencontrer des amis",
+    de: "Ich mochte Leute treffen",
+    it: "Voglio conoscere persone",
+    pt: "Quero conhecer pessoas",
+  },
+  "community-experts": {
+    en: "I need expert advice",
+    es: "Necesito consejo de un experto",
+    fr: "Je veux un conseil expert",
+    de: "Ich brauche Beratung von einem Experten",
+    it: "Voglio il consiglio di un esperto",
+    pt: "Preciso do conselho de um especialista",
+  },
+  "community-share": {
+    en: "I want to share a story",
+    es: "Quiero compartir una historia",
+    fr: "Je veux partager une histoire",
+    de: "Ich mochte eine Geschichte teilen",
+    it: "Voglio condividere una storia",
+    pt: "Quero partilhar uma historia",
+  },
+  "community-activities": {
+    en: "Find an activity nearby",
+    es: "Busca una actividad cercana",
+    fr: "Trouve une activite proche",
+    de: "Finde eine Veranstaltung",
+    it: "Trova una attivita vicina",
+    pt: "Encontra uma atividade perto",
+  },
+  "concierge-home": {
+    en: "I need a home repair",
+    es: "Necesito una reparacion en casa",
+    fr: "J'ai besoin d'une reparation a domicile",
+    de: "Ich brauche eine Reparatur zu Hause",
+    it: "Ho bisogno di una riparazione domestica",
+    pt: "Preciso de um reparo em casa",
+  },
+  "concierge-care": {
+    en: "Help me find personal care",
+    es: "Ayudame a buscar cuidados personales",
+    fr: "Aide-moi a trouver une aide a domicile",
+    de: "Hilf mir eine Pflegekraft zu finden",
+    it: "Aiutami a trovare assistenza personale",
+    pt: "Ajuda-me a encontrar cuidados pessoais",
+  },
+  "concierge-order": {
+    en: "Help me order groceries",
+    es: "Ayudame con un pedido de compras",
+    fr: "Aide-moi a commander des courses",
+    de: "Hilf mir einen Einkauf zu bestellen",
+    it: "Aiutami a ordinare la spesa",
+    pt: "Ajuda-me a encomendar compras",
+  },
+  "concierge-book": {
+    en: "Help me book a taxi",
+    es: "Ayudame a reservar un taxi",
+    fr: "Aide-moi a reserver un taxi",
+    de: "Hilf mir ein Taxi zu buchen",
+    it: "Aiutami a prenotare un taxi",
+    pt: "Ajuda-me a reservar um transporte",
+  },
+};
+
+export function isVoiceHomeIntent(value: unknown): value is VoiceHomeIntent {
+  return value === "health"
+    || value === "mind"
+    || value === "community"
+    || value === "concierge";
+}
+
+export type VoiceHomeIntentTransition =
+  | { kind: "home_layer"; layer: VoiceHomeIntent };
+
+const VOICE_HOME_INTENT_TRANSITIONS: Record<VoiceHomeIntent, VoiceHomeIntentTransition> = {
+  health: { kind: "home_layer", layer: "health" },
+  mind: { kind: "home_layer", layer: "mind" },
+  community: { kind: "home_layer", layer: "community" },
+  concierge: { kind: "home_layer", layer: "concierge" },
+};
+
+export function transitionForVoiceHomeIntent(intent: VoiceHomeIntent): VoiceHomeIntentTransition {
+  return VOICE_HOME_INTENT_TRANSITIONS[intent];
+}
+
+export function toolResultForVoiceHomeIntent(intent: VoiceHomeIntent) {
+  const labels: Record<VoiceHomeIntent, string> = {
+    health: "Health",
+    mind: "Mind",
+    community: "Community",
+    concierge: "Concierge",
+  };
+  return `Showing the ${labels[intent]} choices.`;
+}
+
+export function isVoiceHomeSubflow(value: unknown): value is VoiceHomeSubflow {
+  if (!value || typeof value !== "object") return false;
+  const detail = value as Partial<VoiceHomeSubflow>;
+  return typeof detail.actionId === "string"
+    && detail.actionId in VOICE_HOME_SUBFLOW_PILLARS
+    && detail.pillar === VOICE_HOME_SUBFLOW_PILLARS[detail.actionId as VoiceHomeSubflowId];
+}
 
 export type VoiceAppActionDomain =
   | "meds"
@@ -89,6 +338,14 @@ export function emitVoiceUserMessage(detail: VoiceUserMessageDetail) {
   window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT, { detail }));
 }
 
+export function emitVoiceHomeIntent(intent: VoiceHomeIntent) {
+  window.dispatchEvent(new CustomEvent<VoiceHomeIntent>(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
+}
+
+export function emitVoiceHomeSubflow(subflow: VoiceHomeSubflow) {
+  window.dispatchEvent(new CustomEvent<VoiceHomeSubflow>(VYVA_VOICE_HOME_SUBFLOW_EVENT, { detail: subflow }));
+}
+
 export function emitVoiceAppAction(action: VoiceAppAction) {
   window.dispatchEvent(new CustomEvent<VoiceAppAction>(VYVA_VOICE_APP_ACTION_EVENT, { detail: action }));
 }
@@ -108,6 +365,158 @@ function normalizeIntentText(text: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function voiceHomeSubflow(actionId: VoiceHomeSubflowId): VoiceHomeSubflow {
+  return { actionId, pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId] };
+}
+
+const VOICE_HOME_SUBFLOW_UTTERANCES: Array<[VoiceHomeSubflowId, RegExp]> = [
+  ["health-symptoms", /\b(?:not feeling well|do not feel well|don't feel well|feel(?:ing)? unwell|feel(?:ing)? sick|no me (?:encuentro|siento) bien|me (?:encuentro|siento) mal|je ne me sens pas bien|je me sens mal|mir geht es nicht gut|ich fuhle mich (?:nicht gut|unwohl)|non mi sento bene|mi sento male|nao me sinto bem|estou me sentindo mal|sinto-me mal)\b/],
+  ["health-vitals", /\b(?:blood pressure|pulse|oxygen|temperature|weight|glucose|vitals?|presion|tension|pulso|oxigeno|temperatura|peso|glucosa|constantes?|pouls|oxygene|poids|glycemie|blutdruck|sauerstoff|gewicht|pressione|polso|ossigeno|glucosio|pressao|oxigenio|glicose)\b/],
+  ["health-meds", /\b(?:medications?|medicines?|pills?|doses?|medicacion|medicina|pastillas?|dosis|medicaments?|medikament\w*|tabletten?|farmac\w*|pillol\w*|medicament\w*|remedio|comprimido)\b/],
+  ["health-doctor", /\b(?:doctor|gp|physician|medico|medecin|arzt)\b/],
+  ["health-symptoms", /\b(?:symptoms?|pain|fever|dizzy|sintomas?|dolor|fiebre|mareo|symptomes?|douleur|fievre|vertige|schmerzen?|fieber|schwindel|sintomo|dolore|febbre|vertigine|dor|febre|tontura)\b/],
+  ["health-prevention", /\b(?:prevention|preventive|checkup|screening|vaccine|prevencion|chequeo|cribado|vacuna|prevention|depistage|vaccin|vorsorge|pravention|impfung|prevenzione|controllo preventivo|vaccino|prevencao|rastreio|vacina)\b/],
+  ["health-visual-scan", /\b(?:health (?:photo|image)|scan this|review this (?:photo|image)|foto de salud|imagen de salud|revisa esta foto|photo de sante|image de sante|regarde cette photo|gesundheitsfoto|gesundheitsbild|prufe dieses foto|foto di salute|immagine di salute|controlla questa foto|foto de saude|imagem de saude|verifica esta foto)\b/],
+  ["mind-memory", /\b(?:memory|remember|recall|memoria|recordar|souvenir|memoire|gedachtnis\w*|erinner\w*|ricord\w*|lembr\w*)\b/],
+  ["mind-reflexes", /\b(?:reflex\w*|reaction|speed|reflej\w*|reaccion|reaktion|rifless\w*|reazione|reflexo\w*|reacao)\b/],
+  ["mind-focus", /\b(?:focus|attention|concentration|concentr\w*|atencion|aufmerksamkeit|attenzione|atencao)\b/],
+  ["mind-senses", /\b(?:senses?|listen|hearing|breath|smell|sentidos?|escuchar|respirar|olor|sens|ecouter|souffle|odeur|sinne|horen|atmen|geruch|sensi|ascolt|respiro|olfatto|sentidos|ouvir|respirar|cheiro)\b/],
+  ["community-experts", /\b(?:expert|advice|asesor|consejo|experto|expert|conseil|experte|beratung|esperto|consiglio|especialista|conselho)\b/],
+  ["community-share", /\b(?:share (?:a )?(?:story|memory|song)|compartir|partager|teilen|condividere|partilhar)\b/],
+  ["community-activities", /\b(?:activity|activities|events?|club|actividad|evento|activite|evenement|veranstaltung|attivita|evento|atividade)\b/],
+  ["community-friends", /\b(?:friends?|meet people|company|amigos?|conocer gente|compagnie|amis?|rencontrer|freunde|leute treffen|amici|conoscere persone|amigos|conhecer pessoas)\b/],
+  ["concierge-home", /\b(?:home service|repair|cleaning|plumber|electrician|servicio del hogar|reparacion|limpieza|fontanero|service a domicile|reparation|menage|plombier|hausservice|reparatur|reinigung|klempner|servizio domestico|riparazione|pulizia|idraulico|servico domestico|reparo|limpeza|canalizador)\b/],
+  ["concierge-care", /\b(?:personal care|caregiver|residence|home care|cuidador|residencia|cuidados|aide a domicile|aidant|residence|pflege|pflegekraft|betreuung|assistenza|badante|residenza|cuidador|lar|cuidados)\b/],
+  ["concierge-order", /\b(?:order|shopping|groceries|delivery|pedido|compras|comida|commande|courses|livraison|bestellen|einkauf|lieferung|ordine|spesa|consegna|encomenda|compras|entrega)\b/],
+  ["concierge-book", /\b(?:book|booking|appointment|reservation|ride|taxi|cita|reserva|transporte|rendez-vous|reservation|taxi|buchen|termin|reservierung|fahrt|prenot|appuntamento|trasporto|marcar|reserva|transporte)\b/],
+];
+
+export function homeSubflowForVoiceUtterance(text: string): VoiceHomeSubflow | null {
+  const normalized = normalizeIntentText(text).replace(/[!?.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  const match = VOICE_HOME_SUBFLOW_UTTERANCES.find(([, pattern]) => pattern.test(normalized));
+  return match ? voiceHomeSubflow(match[0]) : null;
+}
+
+export function homeSubflowForVoiceToolCall(parameters: Record<string, unknown>): VoiceHomeSubflow | null {
+  const lookup = [
+    stringParam(parameters, "action_type"),
+    stringParam(parameters, "action_id"),
+    normalizeVoiceActionRoute(stringParam(parameters, "route")),
+    stringParam(parameters, "domain"),
+  ].join(" ").toLowerCase().replace(/-/g, "_");
+
+  const mappings: Array<[VoiceHomeSubflowId, RegExp]> = [
+    ["health-vitals", /health[._/](?:vitals|vital)|\/health\/vitals/],
+    ["health-meds", /(?:^|\s)(?:meds|medication)|\/meds/],
+    ["health-doctor", /health[._/](?:doctor|doctor_support)|\/health\/doctor/],
+    ["health-symptoms", /health[._/](?:symptom|symptoms)|\/health\/symptom/],
+    ["health-prevention", /health[._/](?:prevention|preventive|screening)|\/health\/prevention/],
+    ["health-visual-scan", /health[._/](?:visual_scan|photo_review|image_review)|\/health\/visual_scan/],
+    ["mind-memory", /brain[._/](?:memory|recall)|\/memory_games/],
+    ["mind-reflexes", /brain[._/](?:reflex|reaction)|\/attention_boosters/],
+    ["mind-focus", /brain[._/](?:focus|attention|executive)|\/executive_function/],
+    ["mind-senses", /brain[._/](?:senses|listen|breath|scent)|\/senses/],
+    ["community-experts", /social[._/](?:expert|advice)|\/social_rooms\/experts/],
+    ["community-share", /social[._/](?:share|story)|\/social_rooms\/share/],
+    ["community-activities", /social[._/](?:activit|event)|\/social_rooms\/activities/],
+    ["community-friends", /social[._/](?:friend|companion|rooms?)|\/social_rooms/],
+    ["concierge-home", /concierge[._/](?:home_service|repair|cleaning)/],
+    ["concierge-care", /concierge[._/](?:care|provider_contact|residence)/],
+    ["concierge-order", /concierge[._/](?:order|shopping|delivery)|\/concierge\/shopping/],
+    ["concierge-book", /concierge[._/](?:appointment|booking|ride)/],
+  ];
+  const match = mappings.find(([, pattern]) => pattern.test(lookup));
+  return match ? voiceHomeSubflow(match[0]) : null;
+}
+
+export function toolResultForVoiceHomeSubflow(subflow: VoiceHomeSubflow) {
+  return `Showing ${subflow.actionId.replace(/^[^-]+-/, "").replace(/-/g, " ")} in the ${subflow.pillar} choices.`;
+}
+
+export function homeIntentForVoiceUtterance(text: string): VoiceHomeIntent | null {
+  const normalized = normalizeIntentText(text)
+    .replace(/[!?.,;:]+/g, "")
+    .trim();
+  const specificHealthSignals = [
+    /\b(?:symptom|pain|fever|dizzy|blood pressure|pulse|oxygen|temperature|weight|glucose|doctor|appointment|medication|medicine|pill|dose)\b/,
+    /\b(?:sintoma|dolor|fiebre|mareo|presion|tension|pulso|oxigeno|temperatura|peso|glucosa|medico|doctor|cita|medicacion|medicina|pastilla|dosis)\b/,
+    /\b(?:symptome|douleur|fievre|vertige|tension|pouls|oxygene|temperature|poids|glycemie|medecin|rendez-vous|medicament|dose)\b/,
+    /\b(?:symptom|schmerz|fieber|schwindel|blutdruck|puls|sauerstoff|temperatur|gewicht|glukose|arzt|termin|medikament|tablette|dosis)\b/,
+    /\b(?:sintomo|dolore|febbre|vertigine|pressione|polso|ossigeno|temperatura|peso|glucosio|medico|appuntamento|medicina|farmaco|pillola|dose)\b/,
+    /\b(?:sintoma|dor|febre|tontura|pressao|pulso|oxigenio|temperatura|peso|glicose|medico|consulta|medicamento|remedio|comprimido|dose)\b/,
+  ];
+
+  if (specificHealthSignals.some((pattern) => pattern.test(normalized))) return null;
+
+  const broadHealthRequests = [
+    /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?health(?:\s+(?:page|menu|options|section|help|support))?$/,
+    /^(?:could|can|would)\s+you\s+(?:open|show)\s+(?:me\s+)?(?:my\s+)?health(?:\s+(?:page|menu|options|section))?$/,
+    /^(?:i\s+(?:need|want|would like)\s+)?(?:some\s+)?(?:help|support)\s+with\s+(?:my\s+)?health$/,
+    /^(?:i\s+(?:need|want|would like)\s+)?health\s+(?:help|support)$/,
+    /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?salud(?:\s+(?:pagina|menu|opciones|seccion|ayuda|apoyo))?$/,
+    /^(?:muestra|muestrame|ensena|ensename|abre)\s+(?:las\s+)?(?:opciones|pagina|seccion|menu)\s+de\s+(?:mi\s+)?salud$/,
+    /^(?:quiero|necesito|me gustaria)?\s*(?:ayuda|apoyo)\s+(?:con|para)\s+mi\s+salud$/,
+    /^(?:(?:offne|zeige|gehe zu)\s+)?(?:meine\s+)?gesundheit(?:\s+(?:seite|menu|optionen|bereich|hilfe|unterstutzung))?$/,
+    /^(?:ich\s+(?:brauche|mochte)\s+)?(?:hilfe|unterstutzung)\s+(?:fur|bei)\s+(?:meine[r]?\s+)?gesundheit$/,
+    /^(?:(?:ouvre|affiche|va a)\s+)?(?:ma\s+)?sante(?:\s+(?:page|menu|options|rubrique|aide|soutien))?$/,
+    /^(?:je\s+(?:veux|voudrais|souhaite)\s+)?(?:de l[' ]?)?(?:aide|soutien)\s+(?:pour|avec)\s+ma\s+sante$/,
+    /^(?:(?:apri|mostra|vai a)\s+)?(?:la\s+mia\s+)?salute(?:\s+(?:pagina|menu|opzioni|sezione|aiuto|supporto))?$/,
+    /^(?:voglio|vorrei|ho bisogno di)?\s*(?:aiuto|supporto)\s+(?:con|per)\s+la\s+mia\s+salute$/,
+    /^(?:(?:abre|mostra|va para)\s+)?(?:a\s+minha\s+|minha\s+)?saude(?:\s+(?:pagina|menu|opcoes|secao|ajuda|apoio))?$/,
+    /^(?:quero|preciso de|gostaria de)?\s*(?:ajuda|apoio)\s+(?:com|para)\s+a\s+minha\s+saude$/,
+  ];
+
+  if (broadHealthRequests.some((pattern) => pattern.test(normalized))) return "health";
+
+  const broadPillarRequests: Array<[VoiceHomeIntent, RegExp[]]> = [
+    ["mind", [
+      /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?(?:mind|brain|cognitive)(?:\s+(?:page|menu|options|section|activities|exercises))?$/,
+      /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?(?:mente|cerebro)(?:\s+(?:pagina|menu|opciones|seccion|actividades|ejercicios))?$/,
+      /^(?:(?:ouvre|affiche|va a)\s+)?(?:mon\s+)?(?:cerveau|cognition)(?:\s+(?:page|menu|options|rubrique|activites|exercices))?$/,
+      /^(?:(?:offne|zeige|gehe zu)\s+)?(?:mein\s+)?(?:gehirn|gedachtnis)(?:\s+(?:seite|menu|optionen|bereich|ubungen))?$/,
+      /^(?:(?:apri|mostra|vai a)\s+)?(?:la\s+mia\s+)?(?:mente|memoria)(?:\s+(?:pagina|menu|opzioni|sezione|attivita|esercizi))?$/,
+      /^(?:(?:abre|mostra|va para)\s+)?(?:a\s+minha\s+|minha\s+)?(?:mente|memoria)(?:\s+(?:pagina|menu|opcoes|secao|atividades|exercicios))?$/,
+    ]],
+    ["community", [
+      /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?(?:community|social)(?:\s+(?:page|menu|options|section|rooms))?$/,
+      /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?comunidad(?:\s+(?:pagina|menu|opciones|seccion|salas))?$/,
+      /^(?:(?:ouvre|affiche|va a)\s+)?(?:ma\s+)?communaute(?:\s+(?:page|menu|options|rubrique|salons))?$/,
+      /^(?:(?:offne|zeige|gehe zu)\s+)?(?:meine\s+)?gemeinschaft(?:\s+(?:seite|menu|optionen|bereich|raume))?$/,
+      /^(?:(?:apri|mostra|vai a)\s+)?(?:la\s+mia\s+)?comunita(?:\s+(?:pagina|menu|opzioni|sezione|stanze))?$/,
+      /^(?:(?:abre|mostra|va para)\s+)?(?:a\s+minha\s+|minha\s+)?comunidade(?:\s+(?:pagina|menu|opcoes|secao|salas))?$/,
+    ]],
+    ["concierge", [
+      /^(?:(?:open|show|go to|take me to)\s+)?(?:my\s+)?concierge(?:\s+(?:page|menu|options|section|services))?$/,
+      /^(?:(?:abre|muestra|ve a|llevame a)\s+)?(?:mi\s+)?concierge(?:\s+(?:pagina|menu|opciones|seccion|servicios))?$/,
+      /^(?:(?:ouvre|affiche|va a)\s+)?(?:mon\s+)?concierge(?:\s+(?:page|menu|options|rubrique|services))?$/,
+      /^(?:(?:offne|zeige|gehe zu)\s+)?(?:mein\s+)?concierge(?:\s+(?:seite|menu|optionen|bereich|dienste))?$/,
+      /^(?:(?:apri|mostra|vai a)\s+)?(?:il\s+mio\s+)?concierge(?:\s+(?:pagina|menu|opzioni|sezione|servizi))?$/,
+      /^(?:(?:abre|mostra|va para)\s+)?(?:o\s+meu\s+|meu\s+)?concierge(?:\s+(?:pagina|menu|opcoes|secao|servicos))?$/,
+    ]],
+  ];
+
+  return broadPillarRequests.find(([, patterns]) => patterns.some((pattern) => pattern.test(normalized)))?.[0] ?? null;
+}
+
+export function homeIntentForVoiceToolCall(parameters: Record<string, unknown>): VoiceHomeIntent | null {
+  const domain = (
+    stringParam(parameters, "domain")
+    || stringParam(parameters, "pillar")
+  ).replace(/-/g, "_");
+  const actionType = stringParam(parameters, "action_type");
+  const actionId = stringParam(parameters, "action_id");
+  const route = normalizeVoiceActionRoute(stringParam(parameters, "route"));
+
+  if (!actionType && !actionId && (!route || route === "/")) {
+    if (domain === "health") return "health";
+    if (["brain", "mind", "cognitive", "brain_coach"].includes(domain)) return "mind";
+    if (["social", "community"].includes(domain)) return "community";
+    if (domain === "concierge") return "concierge";
+  }
+
+  return null;
 }
 
 const VOICE_NON_ACTIONABLE_FILLERS = new Set([

@@ -6,12 +6,18 @@ import { getAgentAppContextVariables, subscribeAgentAppContext } from "@/lib/age
 import { apiFetch } from "@/lib/queryClient";
 import {
   actionForVoiceToolCall,
+  homeIntentForVoiceToolCall,
+  homeSubflowForVoiceToolCall,
   emitVoiceAppAction,
   emitVoiceAppActionResult,
+  emitVoiceHomeIntent,
+  emitVoiceHomeSubflow,
   emitVoiceSpecialistTransfer,
   emitVoiceUserMessage,
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
+  toolResultForVoiceHomeIntent,
+  toolResultForVoiceHomeSubflow,
 } from "@/lib/voiceNavigation";
 import {
   ensureVoiceSessionId,
@@ -443,11 +449,11 @@ function normalizeTranscriptText(text: string) {
 
 function formatDisconnectDetails(details: DisconnectionDetails) {
   if (details.reason === "user") return null;
+  if (details.reason !== "error") return null;
 
   const closeCode = "closeCode" in details && details.closeCode ? ` code ${details.closeCode}` : "";
   const closeReason = "closeReason" in details && details.closeReason ? `: ${details.closeReason}` : "";
-  const message = details.reason === "error" ? details.message : "Agent ended the session";
-  return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${message}`;
+  return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${details.message}`;
 }
 
 async function requestVoiceMicrophonePermission() {
@@ -1442,6 +1448,16 @@ function useVyvaVoiceController() {
             ...(sessionOptions.clientTools ?? {}),
             open_app_action: async (parameters: unknown) => {
               const params = toolParameters(parameters);
+              const homeSubflow = homeSubflowForVoiceToolCall(params);
+              if (homeSubflow) {
+                emitVoiceHomeSubflow(homeSubflow);
+                return toolResultForVoiceHomeSubflow(homeSubflow);
+              }
+              const homeIntent = homeIntentForVoiceToolCall(params);
+              if (homeIntent) {
+                emitVoiceHomeIntent(homeIntent);
+                return toolResultForVoiceHomeIntent(homeIntent);
+              }
               const action = actionForVoiceToolCall(params);
               if (!action) {
                 return "App action was not opened because the route, domain, or action type was not recognised.";

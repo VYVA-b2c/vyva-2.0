@@ -10,6 +10,7 @@ import {
   mergeHeroMessages,
   selectHeroMessageFromCatalog,
   type HeroCopy,
+  type HeroApprovedActionId,
   type HeroLanguage,
   type HeroMessageDefinition,
   type HeroMessageEventType,
@@ -20,6 +21,11 @@ import {
   type HeroSurface,
   validateHeroMessageResult,
 } from "@/lib/heroMessages";
+import {
+  HOME_CONTEXT_DECISION_LABELS,
+  decideHomeContextMessage,
+  type HomeContextMessage,
+} from "@/lib/homeContextMessages";
 
 type AdminSource = "built_in" | "database";
 
@@ -59,7 +65,16 @@ type HeroMetricRow = {
 type OverviewFilter = "all" | "needs_attention" | "managed" | "fallback";
 
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
-const SURFACES: HeroSurface[] = ["home", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
+const SURFACES: HeroSurface[] = ["home", "home_voice", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
+const HOME_ACTIONS: Array<{ id: HeroApprovedActionId; label: string }> = [
+  { id: "none", label: "No action" },
+  { id: "health", label: "Open My Health" },
+  { id: "medication", label: "Open Medication" },
+  { id: "mind", label: "Open My Mind" },
+  { id: "community", label: "Open My Community" },
+  { id: "concierge", label: "Open My Concierge" },
+  { id: "prevention", label: "Open Prevention" },
+];
 const REASONS: HeroReason[] = ["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"];
 const PERIODS: HeroPeriod[] = ["morning", "afternoon", "evening", "night"];
 const SAFETY_LEVELS: HeroSafetyLevel[] = ["normal", "medical", "urgent"];
@@ -220,7 +235,36 @@ function metricCount(metrics: HeroMetricRow[], surface: HeroSurface, messageId: 
     .reduce((sum, metric) => sum + Number(metric.count ?? 0), 0);
 }
 
-function HeroPreview({ copy, source }: { copy: HeroCopy; source: HeroMessageSource | AdminSource }) {
+function lifecycleMetricCount(
+  metrics: HeroMetricRow[],
+  surface: HeroSurface,
+  messageId: string,
+  language: HeroLanguage,
+  eventTypes: HeroMessageEventType[],
+) {
+  return eventTypes.reduce(
+    (sum, eventType) => sum + metricCount(metrics, surface, messageId, language, eventType),
+    0,
+  );
+}
+
+function HeroPreview({ copy, source, surface }: { copy: HeroCopy; source: HeroMessageSource | AdminSource; surface: HeroSurface }) {
+  if (surface === "home_voice") {
+    return (
+      <div className="overflow-hidden rounded-2xl bg-[#241441] p-6 text-center text-white shadow-sm" data-testid="hero-live-preview">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-200">Home voice</p>
+        <p className="mt-2 text-xs font-bold text-white/65">
+          {HOME_CONTEXT_DECISION_LABELS.admin_campaign}: shown after urgent, active-flow, and personal messages.
+        </p>
+        <div className="mx-auto mt-6 h-24 w-24 rounded-full border border-purple-300/30 bg-purple-500 shadow-[0_0_40px_rgba(168,85,247,0.45)]" />
+        <h3 className="mt-6 text-3xl font-black leading-tight" data-testid="hero-preview-headline">{copy.headline || "Untitled message"}</h3>
+        <p className="mx-auto mt-3 max-w-sm text-base font-bold text-white/75">{copy.subtitle || "No supporting message"}</p>
+        {copy.actionId && copy.actionId !== "none" && (
+          <p className="mt-5 text-sm font-black text-emerald-200">{copy.ctaLabel || "Open"}</p>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#5b16a5] to-[#8f35d0] p-5 text-white shadow-sm" data-testid="hero-live-preview">
       <div className="flex items-center justify-between gap-3">
@@ -304,17 +348,25 @@ export default function HeroMessagesAdminPage() {
     const activeWarnings = active ? copyWarnings(active, language) : [];
     if (result.source === "fallback") activeWarnings.push(result.fallbackReason === "invalid_selected_message" ? "Invalid managed copy caused fallback" : "No usable surface copy");
     if (result.headline.trim().toLowerCase() === "vyva") activeWarnings.push("Generic fallback headline");
-    const impressions = metricCount(metrics, surface, result.messageId, language, "impression");
-    const clicks = metricCount(metrics, surface, result.messageId, language, "cta_click");
+    const shown = lifecycleMetricCount(metrics, surface, result.messageId, language, ["impression", "shown"]);
+    const opened = lifecycleMetricCount(metrics, surface, result.messageId, language, ["cta_click", "opened"]);
+    const deferred = metricCount(metrics, surface, result.messageId, language, "deferred");
+    const dismissed = lifecycleMetricCount(metrics, surface, result.messageId, language, ["dismiss", "dismissed"]);
+    const completed = metricCount(metrics, surface, result.messageId, language, "completed");
+    const voiceEngaged = metricCount(metrics, surface, result.messageId, language, "voice_engaged");
     return {
       surface,
       result,
       priority: active?.priority ?? 0,
       lastEdited: result.source === "managed" ? formatDate(active?.updated_at) : sourceLabel(result.source),
       warnings: activeWarnings,
-      impressions,
-      clicks,
-      ctr: impressions ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%",
+      shown,
+      opened,
+      deferred,
+      dismissed,
+      completed,
+      voiceEngaged,
+      ctr: shown ? `${((opened / shown) * 100).toFixed(1)}%` : "0.0%",
     };
   }), [allMessages, language, metrics, selectionCatalog]);
   const overviewCounts = useMemo<Record<OverviewFilter, number>>(() => ({
@@ -337,6 +389,80 @@ export default function HeroMessagesAdminPage() {
     upcomingEventType: diagnosticEventType || null,
     recentActivity: diagnosticActivity || null,
   }, selectionCatalog), [diagnosticActivity, diagnosticEventType, diagnosticLanguage, diagnosticPeriod, diagnosticSafety, diagnosticSurface, selectionCatalog]);
+  const homeDecisionPreview = useMemo(() => {
+    const now = diagnosticDate(diagnosticPeriod).getTime();
+    const fallback: HomeContextMessage = {
+      id: "preview:fallback",
+      kind: "default",
+      title: "Calm greeting",
+      priority: 0,
+      category: "general",
+      source: "fallback",
+    };
+    const managed: HomeContextMessage = {
+      id: `admin:${diagnosticResult.messageId}`,
+      kind: "feature",
+      title: diagnosticResult.headline,
+      supportingText: diagnosticResult.subtitle,
+      actionLabel: diagnosticResult.ctaLabel,
+      actionRoute: diagnosticResult.ctaRoute,
+      priority: allMessages.find((item) => item.message_id === diagnosticResult.messageId)?.priority ?? 50,
+      nonUrgent: true,
+      source: diagnosticResult.source === "managed" ? "managed" : "built_in",
+    };
+    const contextual: HomeContextMessage[] = [];
+    if (diagnosticSafety === "urgent") {
+      contextual.push({
+        id: "preview:urgent",
+        kind: "urgent",
+        title: "Urgent support",
+        priority: 100,
+        category: "health",
+        intentTags: ["health"],
+        source: "built_in",
+      });
+    }
+    if (diagnosticEventType === "medication" || diagnosticEventType === "appointment") {
+      contextual.push({
+        id: `preview:${diagnosticEventType}`,
+        kind: "reminder",
+        title: diagnosticEventType === "medication" ? "Medication reminder" : "Appointment reminder",
+        priority: 60,
+        category: diagnosticEventType,
+        dueAt: now + 20 * 60_000,
+        intentTags: [diagnosticEventType === "medication" ? "health" : "doctor"],
+        source: "built_in",
+      });
+    }
+    if (diagnosticActivity) {
+      contextual.push({
+        id: `preview:flow:${diagnosticActivity}`,
+        kind: "flow",
+        title: `Continue ${diagnosticActivity.replaceAll("_", " ")}`,
+        priority: 70,
+        category: diagnosticActivity === "social"
+          ? "community"
+          : diagnosticActivity === "concierge"
+            ? "concierge"
+            : "health",
+        intentTags: [diagnosticActivity],
+        source: "built_in",
+      });
+    }
+    return decideHomeContextMessage(
+      [managed, ...contextual, fallback],
+      {},
+      now,
+      { activeIntent: diagnosticActivity || diagnosticEventType || null },
+    );
+  }, [
+    allMessages,
+    diagnosticActivity,
+    diagnosticEventType,
+    diagnosticPeriod,
+    diagnosticResult,
+    diagnosticSafety,
+  ]);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
@@ -578,7 +704,7 @@ export default function HeroMessagesAdminPage() {
 
                 <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
                   <div className="lg:sticky lg:top-4 lg:self-start">
-                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} />
+                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} surface={selectedMessage.surface} />
                     <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                       <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
                       <div className="mt-3 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>
@@ -641,6 +767,18 @@ export default function HeroMessagesAdminPage() {
                           <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} />
                           <LimitNote label="CTA" value={selectedCopy.ctaLabel} wordsLimit={HERO_LIMITS.ctaWords} charsLimit={HERO_LIMITS.ctaChars} />
                         </Field>
+                        {selectedMessage.surface === "home_voice" && (
+                          <Field label="Approved Home action" optional>
+                            <select
+                              className="w-full rounded-xl border border-[#eadfd5] px-3 py-2"
+                              value={selectedCopy.actionId ?? "none"}
+                              onChange={(event) => updateCopy(selectedMessage.message_id, { actionId: event.target.value as HeroApprovedActionId })}
+                              data-testid="select-home-hero-action"
+                            >
+                              {HOME_ACTIONS.map((action) => <option key={action.id} value={action.id}>{action.label}</option>)}
+                            </select>
+                          </Field>
+                        )}
                         <Field label="Subtitle" optional>
                           <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
                           <LimitNote label="Subtitle" value={selectedCopy.subtitle} wordsLimit={HERO_LIMITS.subtitleWords} charsLimit={HERO_LIMITS.subtitleChars} />
@@ -707,11 +845,11 @@ export default function HeroMessagesAdminPage() {
             </p>
 
             <div className="mt-3 overflow-hidden rounded-xl border border-[#eadfd5]">
-              <div className="hidden grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
+              <div className="hidden grid-cols-[0.9fr_0.45fr_1.25fr_0.55fr_0.8fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
                 <span>Surface and active copy</span>
                 <span>Source</span>
-                <span>Views / clicks</span>
-                <span>CTR</span>
+                <span>Message lifecycle</span>
+                <span>Open rate</span>
                 <span>Status</span>
               </div>
               <div className="max-h-[460px] overflow-auto">
@@ -720,7 +858,7 @@ export default function HeroMessagesAdminPage() {
                 ) : filteredOverview.map((item) => (
                   <article
                     key={item.surface}
-                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] lg:items-center"
+                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[0.9fr_0.45fr_1.25fr_0.55fr_0.8fr] lg:items-center"
                     data-testid={`card-hero-overview-${item.surface}`}
                   >
                     <div className="min-w-0">
@@ -731,15 +869,22 @@ export default function HeroMessagesAdminPage() {
                     <div>
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
                     </div>
-                    <div className="text-sm">
-                      <p className="flex items-center gap-1 font-black">
-                        <span>{item.impressions}</span>
-                        <span className="text-[#8b7a73]">/</span>
-                        <span>{item.clicks}</span>
-                      </p>
-                      <p className="text-xs font-bold text-[#8b7a73]">views / clicks</p>
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-2 text-xs" data-testid={`hero-lifecycle-${item.surface}`}>
+                      {[
+                        ["Shown", item.shown],
+                        ["Opened", item.opened],
+                        ["Deferred", item.deferred],
+                        ["Dismissed", item.dismissed],
+                        ["Completed", item.completed],
+                        ["Voice", item.voiceEngaged],
+                      ].map(([label, count]) => (
+                        <div key={label}>
+                          <p className="font-black text-[#2f2135]">{count}</p>
+                          <p className="font-bold text-[#8b7a73]">{label}</p>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-sm font-black">{item.ctr}</div>
+                    <div className="text-sm font-black">{item.ctr} open rate</div>
                     <div className="flex flex-wrap gap-1.5">{warningPills(item.warnings)}</div>
                   </article>
                 ))}
@@ -799,6 +944,28 @@ export default function HeroMessagesAdminPage() {
                 <div><p className="text-[#8b7a73]">Fallback</p><p className="font-black">{diagnosticResult.fallbackReason ?? "No"}</p></div>
               </div>
             </div>
+            {homeDecisionPreview ? (
+              <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 p-4" data-testid="home-message-decision-preview">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">
+                  Why this user sees this message now
+                </p>
+                <p className="mt-2 text-lg font-black">{homeDecisionPreview.message.title}</p>
+                <p className="mt-1 text-sm font-bold text-[#6f5f78]">{homeDecisionPreview.explanation}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {homeDecisionPreview.factors.map((factor) => (
+                    <div key={`${factor.key}:${factor.label}`} className="rounded-lg bg-white p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-black">{factor.label}</span>
+                        <span className={factor.points >= 0 ? "font-black text-emerald-700" : "font-black text-amber-700"}>
+                          {factor.points > 0 ? "+" : ""}{factor.points}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[#7d6b65]">{factor.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         </section>
       </section>

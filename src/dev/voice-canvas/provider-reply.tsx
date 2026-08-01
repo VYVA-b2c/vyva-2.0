@@ -281,6 +281,25 @@ export default function ProviderReplyGallery() {
   const spanish = params.get("locale") === "es";
   const startsAtReview = params.get("scene") === "review";
   const evidenceSafe = params.get("evidence") === "sanitized";
+  const galleryText = spanish
+    ? {
+        eyebrow: "VYVA · Canvas de respuesta del proveedor",
+        title: "Respuesta del proveedor",
+        subtitle: "Guardar primero. Completar después.",
+        toolbarLabel: "Simulación de respuesta del proveedor",
+        success: "Resultado correcto",
+        blocked: "Resultado bloqueado",
+        needsDate: "Necesita fecha/hora",
+      }
+    : {
+        eyebrow: "VYVA · Provider Reply Canvas",
+        title: "Provider reply flow",
+        subtitle: "Save first. Complete separately.",
+        toolbarLabel: "Provider reply simulation",
+        success: "Successful result",
+        blocked: "Blocked result",
+        needsDate: "Needs date/time",
+      };
   const save = useCallback(async () => {
     await new Promise((resolve) => setTimeout(resolve, 250));
     if (mode === "failure") throw new Error(spanish ? "No se pudo guardar." : "Could not save.");
@@ -295,14 +314,14 @@ export default function ProviderReplyGallery() {
   return (
     <main className="vc-gallery vc-integration-gallery">
       <header>
-        <p>VYVA - Provider Reply Canvas</p>
-        <h1>{spanish ? "Respuesta del proveedor" : "Provider reply flow"}</h1>
-        <span>{spanish ? "Guardar primero. Completar despues." : "Save first. Complete separately."}</span>
+        <p>{galleryText.eyebrow}</p>
+        <h1>{galleryText.title}</h1>
+        <span>{galleryText.subtitle}</span>
       </header>
-      <div className="vc-demo-toolbar" role="group" aria-label="Provider reply simulation">
-        <button type="button" aria-pressed={mode === "success"} onClick={() => setMode("success")}>Successful result</button>
-        <button type="button" aria-pressed={mode === "failure"} onClick={() => setMode("failure")}>Blocked result</button>
-        <button type="button" aria-pressed={scheduled} onClick={() => setScheduled((value) => !value)}>Needs date/time</button>
+      <div className="vc-demo-toolbar" role="group" aria-label={galleryText.toolbarLabel}>
+        <button type="button" aria-pressed={mode === "success"} onClick={() => setMode("success")}>{galleryText.success}</button>
+        <button type="button" aria-pressed={mode === "failure"} onClick={() => setMode("failure")}>{galleryText.blocked}</button>
+        <button type="button" aria-pressed={scheduled} onClick={() => setScheduled((value) => !value)}>{galleryText.needsDate}</button>
       </div>
       <div className="vc-gallery-stage">
         <ProviderReplyVoiceCanvas

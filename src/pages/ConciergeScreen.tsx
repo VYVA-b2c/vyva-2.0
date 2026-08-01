@@ -277,6 +277,7 @@ type ConciergeLocationState = {
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
   conciergePendingId?: unknown;
+  crossPillarIdempotencyKey?: unknown;
 } | null;
 
 type ConciergeProviderRouteAction = {
@@ -9531,6 +9532,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
     () => coerceConciergeTaskEntry((location.state as ConciergeLocationState)?.conciergeTaskEntry),
     [location.state],
   );
+  const crossPillarIdempotencyKey = useMemo(() => {
+    const value = (location.state as ConciergeLocationState)?.crossPillarIdempotencyKey;
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  }, [location.state]);
   const locale = language.split("-")[0].toLowerCase();
   const isSpanish = locale === "es";
   const autoStartVoice = useRouteVoiceAutoStart();
@@ -9604,7 +9609,11 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   useEffect(() => {
     if (mode !== "task" || taskId !== "new" || !taskEntry || taskCreationStartedRef.current) return;
     taskCreationStartedRef.current = true;
-    void createConciergeTaskDraft({ entry: taskEntry, language: locale })
+    void createConciergeTaskDraft({
+      entry: taskEntry,
+      language: locale,
+      idempotencyKey: crossPillarIdempotencyKey,
+    })
       .then((createdTask) => {
         queryClient.setQueryData(["/api/concierge/tasks", createdTask.id], createdTask);
         void queryClient.invalidateQueries({ queryKey: ["/api/concierge/tasks"] });
@@ -9614,7 +9623,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         taskCreationStartedRef.current = false;
         setChatError(isSpanish ? "No he podido guardar esta tarea." : "I could not save this task.");
       });
-  }, [isSpanish, locale, mode, navigate, queryClient, taskEntry, taskId]);
+  }, [crossPillarIdempotencyKey, isSpanish, locale, mode, navigate, queryClient, taskEntry, taskId]);
 
   useEffect(() => {
     if (!(persistedTaskQuery.error instanceof ConciergeTaskNoLongerActiveError)) return;

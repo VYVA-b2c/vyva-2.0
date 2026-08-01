@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CANVAS_REAL_DEVICE_QA_READY_STATUS,
   evaluateCanvasRealDeviceQaMatrix,
@@ -576,6 +576,15 @@ function removeFeatureEndpointRow(markdown: string, endpoint: string): string {
 }
 
 describe("Canvas real-device QA sign-off", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-20T12:00:00.000Z"));
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps the committed matrix explicitly pending until deployed QA is recorded", () => {
     const result = evaluateCanvasRealDeviceQaMatrix(realDeviceQaMatrix());
 

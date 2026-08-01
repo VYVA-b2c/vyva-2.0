@@ -2661,6 +2661,43 @@ export const insertConciergeTaskNotificationSchema = createInsertSchema(concierg
 export type InsertConciergeTaskNotification = z.infer<typeof insertConciergeTaskNotificationSchema>;
 export type ConciergeTaskNotification = typeof conciergeTaskNotifications.$inferSelect;
 
+export const crossPillarExecutionAttempts = pgTable("cross_pillar_execution_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull(),
+  handoff_id: text("handoff_id").notNull(),
+  attempt_number: integer("attempt_number").notNull(),
+  action_id: text("action_id").notNull(),
+  pillar: text("pillar").notNull(),
+  workflow_reference: text("workflow_reference").notNull(),
+  tool_families: text("tool_families").array().notNull().default([]),
+  confirmation_id: text("confirmation_id"),
+  outcome: text("outcome").notNull(),
+  started_at: timestamp("started_at", { withTimezone: true }).notNull(),
+  finished_at: timestamp("finished_at", { withTimezone: true }),
+  duration_ms: integer("duration_ms"),
+  fallback_path: text("fallback_path"),
+  fallback_reason: text("fallback_reason"),
+  idempotency_key: text("idempotency_key").notNull(),
+  retry_of_attempt_id: uuid("retry_of_attempt_id"),
+  what_happened: text("what_happened"),
+  what_remains: text("what_remains"),
+  error_code: text("error_code"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("cross_pillar_execution_attempts_user_handoff_attempt_unique")
+    .on(t.user_id, t.handoff_id, t.attempt_number),
+  index("cross_pillar_execution_attempts_user_recent_idx").on(t.user_id, t.started_at.desc()),
+]);
+
+export const insertCrossPillarExecutionAttemptSchema = createInsertSchema(crossPillarExecutionAttempts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type InsertCrossPillarExecutionAttempt = z.infer<typeof insertCrossPillarExecutionAttemptSchema>;
+export type CrossPillarExecutionAttempt = typeof crossPillarExecutionAttempts.$inferSelect;
+
 export const conciergeTaskDrafts = pgTable("concierge_task_drafts", {
   id:                uuid("id").primaryKey().defaultRandom(),
   user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
@@ -3604,6 +3641,7 @@ export const schema = {
   conciergePending,
   conciergeInboundMessages,
   conciergeTaskNotifications,
+  crossPillarExecutionAttempts,
   conciergeTaskDrafts,
   conciergeSessions,
   appointmentRequests,

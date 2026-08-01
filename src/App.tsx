@@ -533,6 +533,41 @@ function RootRoute() {
   );
 }
 
+function HomeMasterPreviewRoute() {
+  queryClient.setQueryData(["/api/profile"], {
+    firstName: "Karim",
+    lastName: "",
+    email: "",
+    phone: "",
+    country: "ES",
+    timezone: "Europe/Madrid",
+    language: "es",
+    languagePreference: "es",
+    profileId: "home-master-preview",
+    street: "",
+    cityState: "",
+    postalCode: "",
+    caregiverName: "",
+    caregiverContact: "",
+  });
+  queryClient.setQueryData(["/api/meds/adherence-report"], {
+    todaySummary: {
+      scheduled: 1,
+      remaining: 1,
+    },
+    nextDose: {
+      name: "Monoprost",
+      minutesUntil: 25,
+    },
+  });
+
+  return (
+    <AppShell>
+      <HomeScreen />
+    </AppShell>
+  );
+}
+
 function CaregiverRouteGuard() {
   const { user } = useAuth();
   const location = useLocation();
@@ -630,6 +665,12 @@ const App = () => (
                 <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey" element={<VyvaCaregiverDashboard />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
+                ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
                 ) : null}

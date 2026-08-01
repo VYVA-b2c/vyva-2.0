@@ -14,7 +14,11 @@ import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
+  emitVoiceHomeIntent,
+  emitVoiceHomeSubflow,
   emitVoiceAppAction,
+  homeIntentForVoiceUtterance,
+  homeSubflowForVoiceUtterance,
   isActionableVoiceText,
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
@@ -28,6 +32,8 @@ import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { useVoiceCanvasContext } from "@/contexts/VoiceCanvasContext";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
@@ -38,6 +44,8 @@ import {
 } from "@/lib/voiceOverlayFocus";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
+import { acknowledgeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
+import CrossPillarHandoffRecovery from "./CrossPillarHandoffRecovery";
 
 type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
@@ -474,9 +482,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
+  const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
+  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const { size: readableTextSize } = useReadableTextSize();
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
+  const crossPillarHandoffId = typeof routeState?.crossPillarHandoffId === "string"
+    ? routeState.crossPillarHandoffId
+    : null;
   const chatModeParam = new URLSearchParams(location.search).get("mode");
   const isChatVoiceMode =
     location.pathname === "/chat" &&
@@ -486,6 +500,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? "max-w-none"
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
+      : isHomeRoute
+        ? "max-w-[430px] sm:max-w-[560px] md:max-w-[820px] lg:max-w-[980px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
@@ -530,6 +546,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     retry: false,
   });
   const sosProfileContact = emergencyProfileContactFromState(onboardingState);
+
+  useEffect(() => {
+    if (!crossPillarHandoffId) return;
+    acknowledgeCrossPillarHandoff(crossPillarHandoffId);
+  }, [crossPillarHandoffId, location.pathname]);
 
   useEffect(() => {
     const handleVoiceOverlayPresence = (event: Event) => {
@@ -645,6 +666,19 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       if (!detail?.text) return;
       if (!isActionableVoiceText(detail.text)) return;
 
+      if (location.pathname === "/" || location.pathname === "/dev/home-master") {
+        const homeSubflow = homeSubflowForVoiceUtterance(detail.text);
+        if (homeSubflow) {
+          emitVoiceHomeSubflow(homeSubflow);
+          return;
+        }
+        const homeIntent = homeIntentForVoiceUtterance(detail.text);
+        if (homeIntent) {
+          emitVoiceHomeIntent(homeIntent);
+          return;
+        }
+      }
+
       const action = actionForVoiceUtterance(detail.text);
       if (!action) return;
 
@@ -659,7 +693,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
     return () => window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleVoiceUserMessage);
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleVoiceAppAction = (event: Event) => {
@@ -759,15 +793,22 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
+      <div className={`flex min-h-screen justify-center ${isHomeRoute ? (isHomeMasterDark ? "bg-[#080715]" : "bg-white") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
-        className={`relative w-full ${shellMaxWidthClassName}`}
+        data-home-master-theme={isHomeRoute && isHomeMasterDark ? "dark" : "light"}
+        data-vyva-text-size={readableTextSize}
+        className={`relative w-full ${shellMaxWidthClassName} ${isHomeRoute ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
       >
-        {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        {!isFullScreen && (
+          <StatusBar
+            wide={!isHomeRoute && (isWideRoute || isVitalsRoute)}
+            variant={isHomeRoute ? "homeMaster" : "default"}
+          />
+        )}
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -781,7 +822,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </main>
         {!isFullScreen && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
-            <BottomNav wide={isWideRoute || isVitalsRoute} onSosClick={() => {
+            <BottomNav wide={!isHomeRoute && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);
             }} />
           </div>
@@ -795,7 +836,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {!isFullScreen && !isHomeRoute && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}
@@ -836,6 +877,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             }}
           />
         )}
+        <CrossPillarHandoffRecovery />
       </div>
       </div>
     </MotivationMilestoneProvider>

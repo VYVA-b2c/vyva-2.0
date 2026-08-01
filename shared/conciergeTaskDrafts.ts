@@ -59,11 +59,13 @@ export const conciergeTaskProgressPayloadSchema = z.object({
   shortlistIds: z.array(z.string().max(200)).max(50).optional(),
   requestId: z.string().max(200).nullable().optional(),
   selectedProviderOptionId: z.string().max(200).nullable().optional(),
+  crossPillarIdempotencyKey: z.string().max(300).optional(),
 }).strict();
 
 export const createConciergeTaskDraftSchema = z.object({
   entry: conciergeTaskEntryPayloadSchema,
   language: z.string().trim().min(2).max(12).optional(),
+  idempotencyKey: z.string().trim().min(1).max(300).optional(),
 }).strict();
 
 export const updateConciergeTaskDraftSchema = z.object({

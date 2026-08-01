@@ -671,6 +671,21 @@ function cellIndex(table: MarkdownTable, header: string): number {
   );
 }
 
+function reviewerDateTodayUtc(): Date {
+  const testDateOverride = process.env.NODE_ENV === "test"
+    ? process.env.VYVA_QA_VALIDATION_TODAY
+    : undefined;
+  const overrideMatch = testDateOverride?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (overrideMatch) {
+    return new Date(`${overrideMatch[1]}-${overrideMatch[2]}-${overrideMatch[3]}T00:00:00.000Z`);
+  }
+
+  const today = new Date();
+  return new Date(
+    Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
+  );
+}
+
 function hasValidReviewerDate(value: string): boolean {
   const normalized = normalizeCell(value);
   const dateMatch = normalized.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
@@ -678,10 +693,7 @@ function hasValidReviewerDate(value: string): boolean {
 
   const date = new Date(`${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime())) return false;
-  const today = new Date();
-  const todayUtc = new Date(
-    Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
-  );
+  const todayUtc = reviewerDateTodayUtc();
   if (date > todayUtc) return false;
   if (todayUtc.getTime() - date.getTime() > maxLaunchEvidenceAgeMs) {
     return false;
