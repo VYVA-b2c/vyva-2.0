@@ -118,6 +118,7 @@ const AccountSettings = lazy(() => import("./pages/settings/AccountSettings"));
 const HealthDevicesSettings = lazy(() => import("./pages/settings/HealthDevicesSettings"));
 const NotificationsSettings = lazy(() => import("./pages/settings/NotificationsSettings"));
 const ScheduledSupportSettings = lazy(() => import("./pages/settings/ScheduledSupportSettings"));
+const TrustedHelpSettings = lazy(() => import("./pages/settings/TrustedHelpSettings"));
 const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage"));
 const SocialHub = lazy(() => import("./social/SocialHub"));
 const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
@@ -139,6 +140,7 @@ const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessA
 const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCoverageAdminPage"));
 const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
+const TrustedHelpPartnersAdminPage = lazy(() => import("./pages/admin/TrustedHelpPartnersAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
 const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
 const ProviderDirectoryAdminPage = lazy(() => import("./pages/admin/ProviderDirectoryAdminPage"));
@@ -686,6 +688,12 @@ const App = () => (
                 {import.meta.env.DEV ? (
                   <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
                 ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/trusted-help" element={<TrustedHelpSettings />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
+                ) : null}
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
@@ -698,6 +706,7 @@ const App = () => (
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-readiness" element={<AdminRoute><ConciergeReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/trusted-help-partners" element={<AdminRoute><TrustedHelpPartnersAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/providers" element={<AdminRoute><ProviderDirectoryAdminPage /></AdminRoute>} />
@@ -732,6 +741,7 @@ const App = () => (
                   <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
+                  <Route path="/settings/trusted-help" element={<AppShell><TrustedHelpSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
                   <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />

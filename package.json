@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"PORT=3001 tsx server/index.ts\" \"vite\"",
+    "dev:replit": "cross-env PORT=5000 NODE_ENV=development tsx server/index.ts",
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
     "preview:adherence": "node scripts/preview-adherence-report.mjs",

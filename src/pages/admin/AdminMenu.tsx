@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  BadgeCheck,
   BookOpen,
   Brain,
   CalendarCheck,
@@ -54,6 +55,7 @@ const adminItems: AdminItem[] = [
   { label: "Providers", path: "/admin/providers", description: "Trusted contacts", icon: ScrollText },
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts", icon: Mic },
   { label: "Supply packages", path: "/admin/concierge-supplies", description: "Concierge supplies and kits", icon: Package },
+  { label: "Trusted partners", path: "/admin/trusted-help-partners", description: "Concierge provider catalog", icon: BadgeCheck },
   { label: "Caregivers", path: "/admin/proxy-pending", description: "Elder assignments and support", icon: HeartHandshake },
 ];
 

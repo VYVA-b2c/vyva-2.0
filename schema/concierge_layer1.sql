@@ -1,4 +1,4 @@
-CREATE TABLE user_providers (
+CREATE TABLE IF NOT EXISTS user_providers (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -31,7 +31,7 @@ CREATE TABLE user_providers (
 );
 
 
-CREATE TABLE concierge_pending (
+CREATE TABLE IF NOT EXISTS concierge_pending (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -78,7 +78,7 @@ CREATE TABLE concierge_pending (
 );
 
 
-CREATE TABLE concierge_sessions (
+CREATE TABLE IF NOT EXISTS concierge_sessions (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -136,7 +136,7 @@ CREATE TABLE concierge_sessions (
 );
 
 
-CREATE TABLE concierge_reminders (
+CREATE TABLE IF NOT EXISTS concierge_reminders (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id              text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 
@@ -175,6 +175,11 @@ ALTER TABLE concierge_pending   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE concierge_sessions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE concierge_reminders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "user_own_providers" ON user_providers;
+DROP POLICY IF EXISTS "user_own_pending" ON concierge_pending;
+DROP POLICY IF EXISTS "user_own_sessions" ON concierge_sessions;
+DROP POLICY IF EXISTS "user_own_reminders" ON concierge_reminders;
+
 CREATE POLICY "user_own_providers"
   ON user_providers FOR ALL
   USING (auth.uid()::text = user_id);
@@ -192,25 +197,25 @@ CREATE POLICY "user_own_reminders"
   USING (auth.uid()::text = user_id);
 
 
-CREATE INDEX idx_up_user_category
+CREATE INDEX IF NOT EXISTS idx_up_user_category
   ON user_providers (user_id, category, is_primary)
   WHERE is_active = true;
 
-CREATE INDEX idx_up_user_usecount
+CREATE INDEX IF NOT EXISTS idx_up_user_usecount
   ON user_providers (user_id, use_count DESC)
   WHERE is_active = true;
 
-CREATE INDEX idx_cp_user_status
+CREATE INDEX IF NOT EXISTS idx_cp_user_status
   ON concierge_pending (user_id, status)
   WHERE status IN ('pending', 'calling');
 
-CREATE INDEX idx_cs_user_started
+CREATE INDEX IF NOT EXISTS idx_cs_user_started
   ON concierge_sessions (user_id, started_at DESC);
 
-CREATE INDEX idx_cs_user_usecase
+CREATE INDEX IF NOT EXISTS idx_cs_user_usecase
   ON concierge_sessions (user_id, use_case, started_at DESC);
 
-CREATE INDEX idx_cr_user_active
+CREATE INDEX IF NOT EXISTS idx_cr_user_active
   ON concierge_reminders (user_id, reminder_date ASC)
   WHERE is_active = true AND triggered = false;
 
