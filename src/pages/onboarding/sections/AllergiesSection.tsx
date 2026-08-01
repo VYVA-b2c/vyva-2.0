@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useAutoSave } from "@/hooks/useAutoSave";
 import VoiceAllergiesModal from "@/components/VoiceAllergiesModal";
-import { AlertTriangle, Plus, Mic, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Plus, Mic } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -219,29 +220,17 @@ export default function AllergiesSection() {
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-allergies-autosave" }}
         />
 
-        {/* Add by voice banner */}
-        <button
-          type="button"
-          data-testid="button-allergies-voice"
+        <ProfileVoiceAction
+          icon={Mic}
+          title={t("onboarding.allergies.addByVoice", "Add by voice")}
+          description={t(
+            "onboarding.allergies.addByVoiceDescription",
+            "Say what you react to. VYVA will add it to the list.",
+          )}
           onClick={() => setVoiceModalOpen(true)}
-          className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#F9D66A] bg-[#FFF8DB] px-5 py-5 text-left shadow-[0_16px_36px_rgba(245,158,11,0.13)] transition hover:-translate-y-0.5"
-          style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}
-        >
-          <div
-            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl shadow-[0_10px_20px_rgba(245,158,11,0.24)]"
-            style={{ background: "#F59E0B" }}
-          >
-            <Mic size={16} className="text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#92400E" }}>
-              {t("onboarding.allergies.addByVoice", "Add by voice")}
-            </p>
-            <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#B45309" }}>
-              {t("onboarding.allergies.addByVoiceDescription", "Say what you react to. VYVA will add it to the list.")}
-            </p>
-          </div>
-        </button>
+          testId="button-allergies-voice"
+          tone="amber"
+        />
 
         {/* Voice allergies modal */}
         <VoiceAllergiesModal
@@ -250,28 +239,17 @@ export default function AllergiesSection() {
           onAddAllergies={handleVoiceAddAllergies}
         />
 
-        <div className="rounded-[24px] border border-[#FDE68A] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
-          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">
-            {t("onboarding.allergies.nonePrompt", "No allergies to add?")}
-          </p>
-          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-            {t("onboarding.allergies.noneDescription", "Choose this if there are no known allergies right now.")}
-          </p>
-          <button
-            type="button"
-            aria-pressed={noKnownAllergies}
-            data-testid="button-allergies-no-known"
-            onClick={toggleNoKnownAllergies}
-            className={`mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition ${
-              noKnownAllergies
-                ? "border-[#C9890A] bg-[#C9890A] text-white shadow-[0_14px_26px_rgba(201,137,10,0.18)]"
-                : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
-            }`}
-          >
-            <CheckCircle2 size={18} />
-            {t("onboarding.allergies.noneButton", "No known allergies")}
-          </button>
-        </div>
+        <ProfileNoneOption
+          title={t("onboarding.allergies.noneButton", "No known allergies")}
+          description={t(
+            "onboarding.allergies.noneDescription",
+            "Choose this if there are no known allergies right now.",
+          )}
+          selected={noKnownAllergies}
+          onClick={toggleNoKnownAllergies}
+          testId="button-allergies-no-known"
+          tone="amber"
+        />
 
         {isLoading ? (
           <div className="flex flex-col gap-3">
