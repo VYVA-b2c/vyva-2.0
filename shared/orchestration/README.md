@@ -435,3 +435,67 @@ Follow-up primary and fallback Channels require consent coverage. Escalation
 must correlate its Specialist proposal, Flow rule, target, Channel, consent,
 active escalation and safety basis where applicable. Catalogue cardinality
 alone is not authorization evidence.
+
+## Orchestrator compatibility boundary
+
+Task 5 defines inert contracts between six current legacy seams and a future
+Central Orchestrator integration. It reuses frozen Task 1 event/Flow-state,
+Task 3/3.5 catalogue and Task 4 policy contracts without importing legacy
+implementations.
+
+Registry V1 requires exactly the six canonical seams at their supported
+versions. The boundary models minimized input/output snapshots, facade
+requests and decisions, non-executable adapter plans, authority
+non-broadening, observed legacy effects, shadow comparison, parity, synthetic
+golden cases, evidence, supplied feature-flag state, rollback recommendations,
+safe failure and observability.
+
+`legacy_only` is the default. `shadow_compare` fixes delivery authority to the
+legacy handler and rejects adapter delivery. Observed legacy session writes and
+browser events can be recorded without authorizing Task 5 to repeat them.
+`candidate_delivery` and `authoritative` are forward-compatible vocabulary and
+cannot become effective through any public parser in this contract version.
+
+The duplicated Task 1 event and Flow state must be fully identical after
+canonical parsing. A strict comparator registry, comparison-policy registry,
+closed seven-dimension parity matrix, closed versioned policy-difference
+authority matrix and present structured `sha256` digests govern comparison.
+The current `LEGACY_FORMAT_ONLY` exception applies only to a response and
+requires the exact allowed Task 4 response-guidance finding, adjudication,
+subject and approved response plan. Its response evidence must bind the
+observed legacy-output digest and its required `sha256`/canonicalization
+`1.0.0` provenance to the response comparison, bind the canonical
+digest/reference to the same request and Task 4 decision, and preserve
+required disclaimers, prohibited claims, medication references and explicit
+safety/consent/privacy/emergency invariants. Task 5 validates supplied digest
+correlation and does not compute digests. Evidence resolves exact frozen
+versions and contains every registered golden invariant exactly once.
+Snapshot age is bounded by the resolved policy.
+
+Adapter source authority must narrow the exact Task 4 subject and
+adjudication; every effect must narrow that plan, resolve its source plan and
+preserve Flow version, Presentation safety/privacy, Tool details, escalation
+Channel and seam-specific browser-event capability. Tool details include the
+exact risk level of the Task 4 request's authorized Tool proposal. That exact
+risk is mandatory for every Tool adapter plan, including plans with no
+effects; omitted, transformed, cross-Tool or cross-request risk fails. Provider
+and execution authority remain false. Feature flags bind to current parity;
+deterministic safe-failure classifications have one fixed public error each.
+Low-level schemas are structural only; request-bound decisions require
+`validateCompatibilityDecisionForRequest`. Audit metadata excludes raw
+sensitive content, credentials, provider payloads, clients, executable
+endpoints/URLs, connection destinations and hidden reasoning while permitting
+inert declarative policy/reference fields. Bounded high-confidence
+JWT/API/access/private-key/authorization patterns are rejected under neutral
+keys as deterministic defense in depth, not comprehensive secret scanning.
+JWT-like values are detected structurally as exactly three bounded non-empty
+base64url segments; short dotted semantic IDs and reason/version values remain
+valid. Safe opaque references and ordinary token-policy prose remain valid,
+and errors never echo detected values.
+`sourcePathReference` is valid only in the dedicated legacy-seam descriptor as
+a repository-relative inert path and is prohibited in generic metadata.
+
+Task 5 does not route traffic, turn on flags, execute adapters, change session
+behavior, replace a legacy handler, persist, render, schedule or deliver.
+Production integration requires a separate reviewed milestone. See
+`docs/ORCHESTRATOR_COMPATIBILITY_BOUNDARY.md`.

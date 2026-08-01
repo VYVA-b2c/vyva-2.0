@@ -1677,7 +1677,60 @@ with 7 passing and 48 failing request-aware scenarios.
 - **Rollback:** remove the unused Task 4 contracts, fixtures, tests and
   documentation references.
 
-### Task 5 — Preventive Health flow implementation behind feature flag
+### Task 5 — Orchestrator compatibility boundary contracts
+
+- **Scope:** inert typed contracts describing the compatibility boundary
+  between current handlers and a future Central Orchestrator integration.
+- **Affected:** new
+  `shared/orchestration/compatibilityBoundary.ts`, fixtures/tests, additive
+  error vocabulary, `docs/ORCHESTRATOR_COMPATIBILITY_BOUNDARY.md` and
+  orchestration documentation.
+- **Must not touch:** routes, APIs, database or migrations, React,
+  voice/AI/Mem0/provider integrations, service workers, schedulers, live
+  feature flags, session behavior or frozen Task 1–4 semantics.
+- **Acceptance:** complete exact six-seam V1 registry; minimized legacy
+  input/output and effect snapshots; full canonical identity of duplicated
+  Task 1 event and Flow-state values; exact frozen-version bundle; strict
+  non-executable comparator and comparison-policy registries; a closed
+  seven-dimension parity matrix; present matching supported digests for byte
+  equivalence; synthetic golden cases with complete unique registered
+  invariants; policy-bounded snapshot age; subject-specific Task 4 authority;
+  a closed versioned policy-difference authority matrix with exact category,
+  dimension, policy, outcome, subject, adjudication and approved-plan
+  correlation; exact Flow version, Presentation safety/privacy, Tool risk and
+  authorization, including mandatory exact Tool risk on zero-effect Tool
+  adapter plans; escalation and browser-event seam capability validation;
+  source-plan resolution;
+  legacy-only default and isolated shadow comparison; modeled but prohibited
+  effective candidate/authoritative delivery; current-parity-gated inert
+  feature flags; narrowing rollback; deterministic classification/error
+  mappings; response-digest evidence bound to the observed legacy output,
+  its exact `sha256`/canonicalization `1.0.0` provenance and the same request,
+  Task 4 decision and approved response constraints;
+  bounded recursively audit-safe metadata that rejects executable
+  provider/client/endpoint/URL/connection keys and values plus
+  high-confidence neutral-key credential shapes, including exactly three
+  bounded non-empty base64url JWT-like segments, while retaining safe opaque
+  references and short dotted semantic values; `sourcePathReference` allowed
+  only in the dedicated
+  repository-relative legacy-seam field; typed fixed-message errors; no
+  runtime imports.
+- **Validation boundary:** exported low-level schemas are structural
+  composition primitives only. Public parsers apply local semantics; a
+  request-bound compatibility decision is valid only after
+  `validateCompatibilityDecisionForRequest` resolves the canonical
+  registries, Task 4 subjects, evidence, flags and references.
+- **Runtime:** none. Task 5 does not route traffic, turn on flags, execute
+  adapters, change sessions, dispatch browser events, persist, render,
+  schedule, deliver or replace a legacy handler.
+- **Dependencies:** frozen Tasks 1–4.
+- **Rollback:** remove the unused contracts, fixtures, tests and documentation
+  references.
+- **Integration gate:** production use requires a separate reviewed milestone
+  defining live capture, flag authority, shadow isolation, evidence
+  persistence, adapter execution, monitoring and operational rollback.
+
+### Task 6 — Preventive Health flow implementation behind feature flag
 
 - **Scope:** declarative flow implementation and Specialist adapter using
   existing prevention/check-in services; pilot off.
@@ -1687,11 +1740,11 @@ with 7 passing and 48 failing request-aware scenarios.
   behavior.
 - **Acceptance:** user entry, questions, normalized answers, confirmation and
   structured completion; no external notification.
-- **Dependencies:** frozen Tasks 1–4 and a separately approved runtime
+- **Dependencies:** frozen Tasks 1–5 and a separately approved runtime
   integration design.
 - **Rollback:** disable flag.
 
-### Task 6 — Proactive engagement contract and audit model
+### Task 7 — Proactive engagement contract and audit model
 
 - **Scope:** engagement events, consent-decision schema and additive audit migration; no sends.
 - **Affected:** shared proactive contracts, engagement audit service, reviewed migration, tests/docs.
