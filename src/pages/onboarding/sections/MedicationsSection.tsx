@@ -177,7 +177,12 @@ export default function MedicationsSection() {
   const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
   const [expandedMedIds, setExpandedMedIds] = useState<Set<string>>(() => new Set([initialMed.id]));
   const [detailsOpenMedIds, setDetailsOpenMedIds] = useState<Set<string>>(() => new Set());
-  const { mode: companionMode, setGuidance, clearGuidance } = useOnboardingCompanionGuidance();
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+  } = useOnboardingCompanionGuidance();
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
@@ -208,7 +213,7 @@ export default function MedicationsSection() {
       voiceStatus: "idle",
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.startPrompt",
-        "Add by voice, enter the medication name, or choose no current medications.",
+        "Tell VYVA your medicines, enter the medication name, or choose no current medications.",
       ),
       activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
     });
@@ -306,6 +311,24 @@ export default function MedicationsSection() {
       activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
     });
     scheduleAutoSave();
+  };
+
+  const startVoiceMedicationCapture = () => {
+    const guidance = {
+      voiceStatus: "listening",
+      currentPrompt: t(
+        "onboarding.medications.voiceGuidance.speakPrompt",
+        "Tell VYVA the medication name, strength, and routine if you know them.",
+      ),
+      activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+    } as const;
+    if (companionMode === "voice") {
+      setGuidance(guidance);
+    } else {
+      setCompanionMode("voice");
+      window.setTimeout(() => setGuidance(guidance), 0);
+    }
+    setVoiceModalOpen(true);
   };
 
   const updateFrequency = (id: string, value: string) => {
@@ -568,34 +591,25 @@ export default function MedicationsSection() {
         <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.addByVoice}>
           <ProfileVoiceAction
             icon={Mic}
-            title={t("onboarding.medications.addByVoice", "Add by voice")}
+            title={t("onboarding.medications.tellVyva", "Tell VYVA your medicines")}
             description={t(
-              "onboarding.medications.addByVoiceDescription",
-              "Tell VYVA which medicines you take. It will fill in the details.",
+              "onboarding.medications.tellVyvaDescription",
+              "Say the name, strength, or routine.",
             )}
-            onClick={() => {
-              setMedicationVoiceGuidance({
-                voiceStatus: "listening",
-                currentPrompt: t(
-                  "onboarding.medications.voiceGuidance.speakPrompt",
-                  "Tell VYVA the medication name, strength, and routine if you know them.",
-                ),
-                activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
-              });
-              setVoiceModalOpen(true);
-            }}
+            onClick={startVoiceMedicationCapture}
             onFocus={() =>
               setMedicationVoiceGuidance({
                 voiceStatus: "listening",
                 currentPrompt: t(
                   "onboarding.medications.voiceGuidance.addByVoicePrompt",
-                  "Use this to add a medication by speaking.",
+                  "Use this to tell VYVA about a medication.",
                 ),
                 activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
               })
             }
             testId="button-meds-voice"
-            tone="amber"
+            tone={companionMode === "voice" ? "amber" : "purple"}
+            className={companionMode === "voice" ? undefined : "bg-white shadow-[0_8px_18px_rgba(53,28,87,0.06)]"}
           />
         </OnboardingCompanionTarget>
 
