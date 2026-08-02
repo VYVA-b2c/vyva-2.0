@@ -150,7 +150,12 @@ export default function ConditionsSection() {
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [speakItMatches, setSpeakItMatches] = useState<string[]>([]);
   const [showDailyLifeContext, setShowDailyLifeContext] = useState(false);
-  const { mode: companionMode, setGuidance, clearGuidance } = useOnboardingCompanionGuidance();
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+  } = useOnboardingCompanionGuidance();
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
@@ -172,7 +177,7 @@ export default function ConditionsSection() {
       voiceStatus: "idle",
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.startPrompt",
-        "Add by voice, search by name, or choose no known conditions.",
+        "Tell VYVA, search by name, or choose no known conditions.",
       ),
       activeTargetId: "health-add-by-voice",
     });
@@ -322,6 +327,24 @@ export default function ConditionsSection() {
     });
   };
 
+  const startVoiceConditionCapture = () => {
+    const guidance = {
+      voiceStatus: "listening",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.speakPrompt",
+        "Tell VYVA one or more health conditions.",
+      ),
+      activeTargetId: "health-add-by-voice",
+    } as const;
+    if (companionMode === "voice") {
+      setGuidance(guidance);
+    } else {
+      setCompanionMode("voice");
+      window.setTimeout(() => setGuidance(guidance), 0);
+    }
+    setSpeakItOpen(true);
+  };
+
   const confirmSpeakItMatches = () => {
     const newSelected = Array.from(new Set([...selected, ...speakItMatches]));
     const addedNames = speakItMatches.join(", ");
@@ -406,36 +429,47 @@ export default function ConditionsSection() {
           <button
             type="button"
             data-testid="button-conditions-speak-it"
-            onClick={() => {
-              setVoiceGuidance({
-                voiceStatus: "listening",
-                currentPrompt: t(
-                  "onboarding.conditions.voiceGuidance.speakPrompt",
-                  "Tell VYVA one or more health conditions.",
-                ),
-                activeTargetId: "health-add-by-voice",
-              });
-              setSpeakItOpen(true);
-            }}
-            className="group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border border-vyva-purple bg-vyva-purple px-4 py-3 text-left shadow-[0_10px_22px_rgba(107,33,168,0.18)] transition hover:bg-[#5B1A8F] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20"
+            onClick={startVoiceConditionCapture}
+            className={cn(
+              "group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/20",
+              companionMode === "voice"
+                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] hover:bg-[#5B1A8F]"
+                : "border-[#DCC8FF] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(53,28,87,0.06)] hover:bg-[#F8F3FF]",
+            )}
           >
             <div
-              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/16"
+              className={cn(
+                "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full",
+                companionMode === "voice" ? "bg-white/16" : "bg-[#F3E8FF]",
+              )}
             >
-              <Mic size={20} className="text-white" />
+              <Mic size={20} className={companionMode === "voice" ? "text-white" : "text-vyva-purple"} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-body text-[18px] font-black leading-tight text-white">
-                {t("onboarding.conditions.addByVoice", "Add by voice")}
+              <p className={cn(
+                "font-body text-[18px] font-black leading-tight",
+                companionMode === "voice" ? "text-white" : "text-vyva-purple",
+              )}>
+                {t("onboarding.conditions.tellVyva", "Tell VYVA")}
               </p>
-              <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-white/85">
+              <p className={cn(
+                "mt-1 font-body text-[14px] font-semibold leading-snug",
+                companionMode === "voice" ? "text-white/85" : "text-vyva-text-2",
+              )}>
                 {t(
-                  "onboarding.conditions.addByVoiceDescription",
-                  "Tell VYVA which conditions you live with.",
+                  "onboarding.conditions.tellVyvaDescription",
+                  "Say one or more health conditions.",
                 )}
               </p>
             </div>
-            <ChevronRight size={22} className="shrink-0 text-white/75 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+            <ChevronRight
+              size={22}
+              className={cn(
+                "shrink-0 transition-transform group-hover:translate-x-0.5",
+                companionMode === "voice" ? "text-white/75" : "text-vyva-purple/65",
+              )}
+              aria-hidden="true"
+            />
           </button>
         </OnboardingCompanionTarget>
 

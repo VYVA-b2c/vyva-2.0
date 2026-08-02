@@ -151,6 +151,9 @@ describe("profile section reviewed-empty choices", () => {
 
     const chip = await screen.findByTestId("onboarding-companion-mode-chip");
     expect(chip).toHaveTextContent("VYVA can talk you through this page.");
+    expect(screen.getByTestId("button-conditions-speak-it")).toHaveTextContent("Tell VYVA");
+    expect(screen.getByTestId("button-conditions-speak-it")).toHaveTextContent("Say one or more health conditions.");
+    expect(screen.queryByText("Add by voice")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-conditions-speak-it").parentElement).toHaveAttribute(
       "data-vyva-companion-target-active",
       "true",
@@ -181,6 +184,38 @@ describe("profile section reviewed-empty choices", () => {
       "true",
     );
     expect(screen.getByTestId("button-conditions-save")).toBeEnabled();
+  });
+
+  it("keeps health voice and tactile modes on the same UI and returns to voice when Tell VYVA is tapped", async () => {
+    seedOnboardingState();
+    renderSection(<ConditionsSection />);
+
+    expect(await screen.findByTestId("button-conditions-speak-it")).toBeInTheDocument();
+    expect(screen.getByTestId("input-conditions-search")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-section-companion-mode-tactile"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-companion-mode-chip")).toHaveTextContent(
+        "Use touch or keyboard controls quietly.",
+      );
+    });
+    expect(screen.getByTestId("button-conditions-speak-it")).toBeInTheDocument();
+    expect(screen.queryByText("Voice-only health screen")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-vyva-companion-target-active='true']")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-conditions-speak-it"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("button-section-companion-mode-voice")).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByTestId("onboarding-companion-mode-chip")).toHaveTextContent("Listening");
+    });
+    expect(screen.getByTestId("button-conditions-speak-it").parentElement).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("keeps medications incomplete until no current medications is selected", async () => {
@@ -229,6 +264,9 @@ describe("profile section reviewed-empty choices", () => {
 
     const chip = await screen.findByTestId("onboarding-companion-mode-chip");
     expect(chip).toHaveTextContent("VYVA can talk you through this page.");
+    expect(screen.getByTestId("button-meds-voice")).toHaveTextContent("Tell VYVA your medicines");
+    expect(screen.getByTestId("button-meds-voice")).toHaveTextContent("Say the name, strength, or routine.");
+    expect(screen.queryByText("Add by voice")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-meds-voice").parentElement).toHaveAttribute(
       "data-vyva-companion-target-active",
       "true",
@@ -273,6 +311,18 @@ describe("profile section reviewed-empty choices", () => {
     expect(screen.getByTestId("button-meds-voice")).toBeInTheDocument();
     expect(screen.queryByText("Voice-only medication screen")).not.toBeInTheDocument();
     expect(document.querySelector("[data-vyva-companion-target-active='true']")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-meds-voice"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("button-section-companion-mode-voice")).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByTestId("onboarding-companion-mode-chip")).toHaveTextContent("Listening");
+    });
+    expect(screen.getByTestId("button-meds-voice").parentElement).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("keeps allergies incomplete until no known allergies is selected", async () => {
