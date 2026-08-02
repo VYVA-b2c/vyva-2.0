@@ -496,7 +496,7 @@ describe("admin marketing router", () => {
       .expect(500);
 
     expect(response.body.error).toContain('Missing table "marketing_media_assets"');
-    expect(response.body.error).toContain("0064_marketing_parity_completion.sql");
+    expect(response.body.error).toContain("0076_marketing_source_templates_tags.sql");
   });
 
   it("creates scheduled campaign snapshots without communication dispatch rows", async () => {
@@ -1444,6 +1444,28 @@ describe("admin marketing router", () => {
         button_text: "Read more",
         link: "https://v2.vyva.life/template",
       }],
+      structuredTemplates: [{
+        id: "template:structured-1",
+        name: "Partner outreach",
+        description: "Reusable B2B campaign fields",
+        category: "b2b",
+        language: "en",
+        fields: [{
+          name: "headline",
+          type: "text",
+          required: true,
+          placeholder: "A better way to support families",
+        }],
+        ownerUserId: "lovable-owner-1",
+        updatedAt: "2026-07-05T11:00:00.000Z",
+      }],
+      contactTags: [{
+        id: "contact_tag:partner",
+        name: "Partner",
+        color: "#7c3aed",
+        ownerUserId: "lovable-owner-1",
+        updatedAt: "2026-07-05T11:30:00.000Z",
+      }],
       social_posts: [{
         id: "post-1",
         headline: "Partner post",
@@ -1668,6 +1690,30 @@ describe("admin marketing router", () => {
       cta_url: null,
       media_assets: [{ url: "https://cdn.example.test/bare-url-hero.webp", sourceField: "url" }],
       lovable_external_id: "content:bare-url-image",
+    });
+    expect(table("marketing_campaign_templates")).toHaveLength(1);
+    expect(table("marketing_campaign_templates")[0]).toMatchObject({
+      name: "Partner outreach",
+      description: "Reusable B2B campaign fields",
+      category: "b2b",
+      language: "en",
+      fields: [{
+        name: "headline",
+        type: "text",
+        required: true,
+        placeholder: "A better way to support families",
+      }],
+      source: "lovable",
+      lovable_external_id: "template:structured-1",
+      owner_external_id: "lovable-owner-1",
+    });
+    expect(table("marketing_contact_tags")).toHaveLength(1);
+    expect(table("marketing_contact_tags")[0]).toMatchObject({
+      name: "Partner",
+      color: "#7c3aed",
+      source: "lovable",
+      lovable_external_id: "contact_tag:partner",
+      owner_external_id: "lovable-owner-1",
     });
     const journeyPresetContent = table("marketing_content_assets").find((row) => row.lovable_external_id === "journey_step_preset:onboarding_step_1");
     expect(journeyPresetContent).toMatchObject({

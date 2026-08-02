@@ -11,7 +11,9 @@ import {
   marketingCampaignChannels,
   marketingCampaignMetrics,
   marketingCampaignRecipients,
+  marketingCampaignTemplates,
   marketingCampaigns,
+  marketingContactTags,
   marketingContacts,
   marketingContentAssets,
   marketingJourneyEnrollments,
@@ -48,10 +50,10 @@ function marketingSchemaErrorMessage(error: unknown, fallback: string) {
   const missingRelation = /relation "([^"]+)" does not exist/i.exec(message)?.[1];
   const missingColumn = /column (?:"?([^"\s]+)"?\.)?"?([^"\s]+)"? does not exist/i.exec(message)?.[2];
   if (code === "42P01" || missingRelation) {
-    return `Marketing database schema is behind this build. Missing table "${missingRelation ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, then retry.`;
+    return `Marketing database schema is behind this build. Missing table "${missingRelation ?? "unknown"}". Apply the committed marketing migrations through 0076_marketing_source_templates_tags.sql, then retry.`;
   }
   if (code === "42703" || missingColumn) {
-    return `Marketing database schema is behind this build. Missing column "${missingColumn ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, then retry.`;
+    return `Marketing database schema is behind this build. Missing column "${missingColumn ?? "unknown"}". Apply the committed marketing migrations through 0076_marketing_source_templates_tags.sql, then retry.`;
   }
   return fallback;
 }
@@ -938,6 +940,19 @@ function lovableContentPayload(payload: Record<string, unknown>) {
   ];
 }
 
+function lovableCampaignTemplatePayload(payload: Record<string, unknown>) {
+  return arrayFrom(
+    payload.structuredTemplates
+      ?? payload.structured_templates
+      ?? payload.campaignTemplates
+      ?? payload.campaign_templates,
+  );
+}
+
+function lovableContactTagPayload(payload: Record<string, unknown>) {
+  return arrayFrom(payload.contactTags ?? payload.contact_tags);
+}
+
 function lovableMediaPayload(payload: Record<string, unknown>) {
   return arrayFrom(
     payload.mediaAssets
@@ -1485,6 +1500,23 @@ function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boo
 }
 
 const fieldCoverageAliases = {
+  campaignTemplates: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["name", "title"],
+    ["description"],
+    ["category"],
+    ["language", "lang", "locale"],
+    ["fields"],
+    ["ownerUserId", "owner_user_id"],
+    ["updatedAt", "updated_at"],
+  ],
+  contactTags: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["name", "label"],
+    ["color", "colour"],
+    ["ownerUserId", "owner_user_id"],
+    ["updatedAt", "updated_at"],
+  ],
   content: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
     ["metadata", "content", "asset", "template", "emailTemplate", "email_template", "socialPost", "social_post", "post", "contentBrief", "content_brief", "properties", "fields", "customFields", "custom_fields"],
@@ -3697,6 +3729,51 @@ async function upsertSourceContent(raw: unknown, now: Date, actorLabel: string) 
   return { content, mediaAssetCount };
 }
 
+async function upsertSourceCampaignTemplate(raw: unknown, now: Date) {
+  const row = asRecord(raw);
+  const externalId = normalizeSourceId(row);
+  if (!externalId) return null;
+  const payload = {
+    name: textFrom(row, ["name", "title"], "Untitled template"),
+    description: emptyToNull(textFrom(row, ["description"])),
+    category: emptyToNull(textFrom(row, ["category"])),
+    language: textFrom(row, ["language", "locale"], "en"),
+    fields: arrayFrom(row.fields),
+    source: "lovable",
+    lovable_external_id: externalId,
+    owner_external_id: emptyToNull(textFrom(row, ["ownerUserId", "owner_user_id", "userId", "user_id"])),
+    metadata: { lovable: row },
+    last_synced_at: now,
+    updated_at: now,
+  };
+  const [template] = await db.insert(marketingCampaignTemplates)
+    .values(payload)
+    .onConflictDoUpdate({ target: marketingCampaignTemplates.lovable_external_id, set: payload })
+    .returning();
+  return template;
+}
+
+async function upsertSourceContactTag(raw: unknown, now: Date) {
+  const row = asRecord(raw);
+  const externalId = normalizeSourceId(row);
+  if (!externalId) return null;
+  const payload = {
+    name: textFrom(row, ["name", "label"], "Untitled tag"),
+    color: emptyToNull(textFrom(row, ["color", "colour"])),
+    source: "lovable",
+    lovable_external_id: externalId,
+    owner_external_id: emptyToNull(textFrom(row, ["ownerUserId", "owner_user_id", "userId", "user_id"])),
+    metadata: { lovable: row },
+    last_synced_at: now,
+    updated_at: now,
+  };
+  const [tag] = await db.insert(marketingContactTags)
+    .values(payload)
+    .onConflictDoUpdate({ target: marketingContactTags.lovable_external_id, set: payload })
+    .returning();
+  return tag;
+}
+
 async function upsertMissingSourceContentReference(
   externalId: string,
   channel: string,
@@ -4495,6 +4572,8 @@ adminMarketingRouter.post("/sync/source/run", async (req, res) => {
 
     const actorLabel = actor(req);
     const contentPayload = lovableContentPayload(payload);
+    const campaignTemplatePayload = lovableCampaignTemplatePayload(payload);
+    const contactTagPayload = lovableContactTagPayload(payload);
     const standaloneMediaPayload = lovableMediaPayload(payload);
     const contactPayload = lovableContactPayload(payload);
     const campaignPayload = lovableCampaignPayload(payload);
@@ -4526,6 +4605,16 @@ adminMarketingRouter.post("/sync/source/run", async (req, res) => {
     }
     for (const [index, item] of standaloneMediaPayload.entries()) {
       if (await upsertSourceStandaloneMedia(item, now, contentByExternalId, index)) mediaAssetCount += 1;
+    }
+
+    let campaignTemplateCount = 0;
+    for (const item of campaignTemplatePayload) {
+      if (await upsertSourceCampaignTemplate(item, now)) campaignTemplateCount += 1;
+    }
+
+    let contactTagCount = 0;
+    for (const item of contactTagPayload) {
+      if (await upsertSourceContactTag(item, now)) contactTagCount += 1;
     }
 
     const contactRows = [];
@@ -4725,6 +4814,8 @@ adminMarketingRouter.post("/sync/source/run", async (req, res) => {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
+      campaignTemplates: campaignTemplatePayload.length,
+      contactTags: contactTagPayload.length,
       journeyStepPresetContent: journeyStepPresetExportCount,
       mediaAssets: mediaAssetExportCount,
       campaignChannels: campaignChannelExportCount,
@@ -4737,6 +4828,8 @@ adminMarketingRouter.post("/sync/source/run", async (req, res) => {
     };
     const fieldCoverage = {
       content: fieldCoverageForPayload(contentPayload, fieldCoverageAliases.content),
+      campaignTemplates: fieldCoverageForPayload(campaignTemplatePayload, fieldCoverageAliases.campaignTemplates),
+      contactTags: fieldCoverageForPayload(contactTagPayload, fieldCoverageAliases.contactTags),
       media: fieldCoverageForPayload([...contentPayload.flatMap((item) => {
         const row = asRecord(item);
         return contentMediaAssetsFrom(row);
@@ -4756,6 +4849,8 @@ adminMarketingRouter.post("/sync/source/run", async (req, res) => {
       campaigns: campaignCount,
       contacts: contactRows.length,
       content: contentRows.length,
+      campaignTemplates: campaignTemplateCount,
+      contactTags: contactTagCount,
       journeyStepPresetContent: journeyStepPresetContentCount,
       missingContentReferences: missingContentReferenceCount,
       mediaAssets: mediaAssetCount,
@@ -4780,6 +4875,8 @@ adminMarketingRouter.post("/sync/source/run", async (req, res) => {
         campaigns: exported.campaigns - imported.campaigns,
         contacts: exported.contacts - imported.contacts,
         content: exported.content - imported.content,
+        campaignTemplates: exported.campaignTemplates - imported.campaignTemplates,
+        contactTags: exported.contactTags - imported.contactTags,
         journeyStepPresetContent: exported.journeyStepPresetContent - imported.journeyStepPresetContent,
         mediaAssets: exported.mediaAssets - imported.mediaAssets,
         campaignChannels: exported.campaignChannels - imported.campaignChannels,
