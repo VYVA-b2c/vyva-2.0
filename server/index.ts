@@ -3,7 +3,7 @@ import cors from "cors";
 import path from "path";
 import fs from "fs/promises";
 import "dotenv/config";
-import { routerHandler } from "./routes/router.js";
+import { orchestratorRouterHandler } from "./orchestrator/orchestrator.js";
 import { liveChatHandler } from "./routes/chat.js";
 import { conversationReadinessHandler, conversationTokenHandler } from "./routes/conversationToken.js";
 import { voiceContextHandler } from "./routes/voiceContext.js";
@@ -194,7 +194,7 @@ app.use(
 
 app.use(express.json({ limit: "20mb" }));
 
-app.post("/api/router", routerHandler);
+app.post("/api/router", orchestratorRouterHandler);
 app.post("/api/chat", authMiddleware, liveChatHandler);
 app.use("/api/public/callback-onboarding", callbackOnboardingRouter);
 app.post("/api/voice-context", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceContextHandler);

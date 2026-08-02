@@ -1245,18 +1245,38 @@ This decision does not prevent the future hierarchy. The initial Health Speciali
 
 ### Stage 1 — Orchestrator shell
 
-- **Objective:** one compatibility shell around existing router.
-- **Reuse:** `router.ts`, safety, context, policy, plans.
-- **Files likely affected:** `server/routes/agents/router.ts`, the route mount/handler, flag configuration, and new orchestrator modules.
-- **New files:** orchestrator façade, decision record, and feature-flag definitions.
-- **Dependencies:** Stage 0 contracts.
-- **Flag:** off by default; shadow mode.
-- **Acceptance:** legacy response/session writes are byte/semantic-equivalent for golden cases.
-- **Tests:** router parity, safety precedence, failure fallback.
-- **Observability:** legacy vs shell decision comparison.
-- **Rollback:** flag routes directly to legacy handler.
+- **Objective:** one compatibility shell around the existing
+  `POST /api/router` handler while retaining the legacy handler as the only
+  delivery and side-effect authority.
+- **Reuse:** unchanged `server/routes/router.ts`, safety, context, policy,
+  plans and the frozen Task 5 mode/feature-flag schemas.
+- **Implemented files:** `server/orchestrator/*`, the single route mount in
+  `server/index.ts`, and `docs/ORCHESTRATOR_SHELL.md`.
+- **Runtime record:** strict minimized
+  `OrchestratorShellDecisionRecord`; it is not and does not fabricate a full
+  Task 5 `CompatibilityDecisionRecord`.
+- **Dependencies:** frozen Stage 0 Tasks 1–5.
+- **Flag:** `legacy_only` by default; only fully validated, deterministic,
+  selected `shadow_compare` can become effective. Candidate and authoritative
+  delivery remain impossible.
+- **Acceptance:** the legacy handler is called exactly once; status/body and
+  existing side effects remain legacy-owned; shadow starts only after legacy
+  delivery and receives minimized immutable observations; response digesting
+  observes only the Express-emitted JSON payload and does not serialize the
+  original response value before Express.
+- **Tests:** real-router missing-field, normal and safety parity with mocked
+  dependency boundaries and exact side-effect counts; safety precedence,
+  exact-once invocation, fail-closed modes including strict canonical UTC
+  expiry parsing, failure fallback, shadow timeout/isolation and telemetry
+  minimization.
+- **Observability:** non-persistent status/digest/timing comparison with random
+  shell correlation IDs and fixed safe classifications; no request or response
+  body, identity, prompt, memory or token data.
+- **Rollback:** unset the mode or request `legacy_only` to disable all shadow
+  work; a reviewed code rollback can restore the direct route mount.
 - **Risk:** high.
-- **Do not change:** agent IDs, prompts, client tools.
+- **Do not change:** legacy routing logic, agent IDs, prompts, client Tools,
+  session/database/Mem0 behavior, Task 1–5 semantics or later-stage ownership.
 
 ### Stage 2 — Shared event and state model
 
@@ -1730,19 +1750,32 @@ with 7 passing and 48 failing request-aware scenarios.
   defining live capture, flag authority, shadow isolation, evidence
   persistence, adapter execution, monitoring and operational rollback.
 
-### Task 6 — Preventive Health flow implementation behind feature flag
+### Task 6 — Stage 1 Orchestrator shell
 
-- **Scope:** declarative flow implementation and Specialist adapter using
-  existing prevention/check-in services; pilot off.
-- **Affected:** new Health flow files, minimal wrappers around Health/check-in
-  services, tests.
-- **Must not touch:** symptom triage, current unflagged UI, caregiver alert
-  behavior.
-- **Acceptance:** user entry, questions, normalized answers, confirmation and
-  structured completion; no external notification.
-- **Dependencies:** frozen Tasks 1–5 and a separately approved runtime
-  integration design.
-- **Rollback:** disable flag.
+- **Scope:** exact-once compatibility shell around `POST /api/router`, closed
+  fail-safe live-mode resolver, frozen Task 5 feature-flag correlation,
+  minimized response observation, bounded non-delivering shadow comparison and
+  replaceable non-blocking telemetry.
+- **Affected:** new `server/orchestrator/*`, the existing route mount only, and
+  focused Stage 1 documentation.
+- **Must not touch:** `router.ts` routing or effects, frozen Task 1–5
+  semantics, database/migrations, providers, Mem0, React, voice integrations,
+  agent IDs, prompts or client Tools.
+- **Acceptance:** legacy delivery remains exclusive and exact-once; only
+  `legacy_only` and `shadow_compare` can be effective; shadow cannot deliver,
+  persist or call runtime dependencies; all shell failures fall back without
+  changing the legacy response. Shadow requires a completed current-request
+  `res.json()` observation; a legacy handler that returns without a JSON
+  response remains unscheduled and unchanged. Configured evidence references
+  are identifiers, not substantive or cryptographic verification. The Stage 1
+  evaluator is immediate; any later evaluator requires cooperative cancellation
+  and reviewed concurrency/resource bounds.
+- **Dependencies:** frozen Tasks 1–5.
+- **Rollback:** disable shadow through the default/explicit `legacy_only` mode,
+  or separately revert the route mount.
+- **Remaining work:** Task 6 does not implement Preventive Health. The first
+  Health Flow remains the separately gated Stage 4 migration after the shared
+  event/state runtime work and required product approval.
 
 ### Task 7 — Proactive engagement contract and audit model
 
