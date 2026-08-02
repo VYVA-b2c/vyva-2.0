@@ -144,6 +144,44 @@ describe("profile section reviewed-empty choices", () => {
     expect(screen.getByText("Living situation")).toBeInTheDocument();
   });
 
+  it("uses companion guidance in health without saving before an explicit choice", async () => {
+    seedOnboardingState();
+    renderSection(<ConditionsSection />);
+
+    const chip = await screen.findByTestId("onboarding-companion-mode-chip");
+    expect(chip).toHaveTextContent("VYVA can talk you through this page.");
+    expect(screen.getByTestId("button-conditions-speak-it").parentElement).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.focus(screen.getByTestId("input-conditions-search"));
+
+    expect(chip).toHaveTextContent("Listening");
+    expect(chip).toHaveTextContent("Search by condition name, or say the condition to VYVA.");
+    expect(screen.getByTestId("input-conditions-search").closest("[data-vyva-companion-target]")).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("moves health guidance to review after a selection while save remains explicit", async () => {
+    seedOnboardingState();
+    renderSection(<ConditionsSection />);
+
+    fireEvent.click(await screen.findByTestId("accordion-heart"));
+    fireEvent.click(screen.getByTestId("card-condition-hypertension"));
+
+    expect(screen.getByTestId("onboarding-companion-mode-chip")).toHaveTextContent("Selected Hypertension");
+    expect(screen.getByTestId("button-conditions-save").closest("[data-vyva-companion-target]")).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(screen.getByTestId("button-conditions-save")).toBeEnabled();
+  });
+
   it("keeps medications incomplete until no current medications is selected", async () => {
     seedOnboardingState();
     renderSection(<MedicationsSection />);
