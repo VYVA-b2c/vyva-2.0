@@ -4,7 +4,12 @@ export type ProfileVoiceSection =
   | "health"
   | "medications"
   | "allergies"
-  | "emergency";
+  | "emergency"
+  | "providers"
+  | "devices"
+  | "diet"
+  | "hobbies"
+  | "cognitive";
 
 export type ProfileVoiceDraftKind =
   | "basics"
@@ -12,7 +17,12 @@ export type ProfileVoiceDraftKind =
   | "health-conditions"
   | "medications"
   | "allergies"
-  | "emergency-contact";
+  | "emergency-contact"
+  | "provider"
+  | "devices"
+  | "diet"
+  | "hobbies"
+  | "cognitive";
 
 export type ProfileVoiceCommandKind = "remove" | "try-again" | "skip";
 
@@ -278,6 +288,77 @@ export function createEmergencyVoiceDraft(transcript: string): ProfileVoiceDraft
   };
 }
 
+export function createProviderVoiceDraft(transcript: string): ProfileVoiceDraft | null {
+  const email = findEmail(transcript);
+  const phone = findPhone(transcript);
+  const name = firstRegexMatch(transcript, [
+    /\b(?:provider is|provider name is|add provider|doctor is|pharmacy is|clinic is|contact is)\s+([a-z0-9][a-z0-9\s'&.-]{1,80}?)(?=\s+(?:and|phone|email|address|at|in)\b|$)/i,
+  ]);
+  const address = firstRegexMatch(transcript, [
+    /\b(?:address is|located at|at)\s+(.{4,100}?)(?=\s+(?:and|phone|email)\b|$)/i,
+  ]);
+
+  const metadata: Record<string, string> = {
+    ...(name ? { name: titleCaseName(name) } : {}),
+    ...(address ? { address } : {}),
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+  };
+  const rows = rowsFromMetadata(metadata, [
+    { id: "name", label: "Provider" },
+    { id: "address", label: "Address" },
+    { id: "phone", label: "Phone" },
+    { id: "email", label: "Email" },
+  ]);
+  if (rows.length === 0) return null;
+
+  return {
+    id: `providers:${rows.map((row) => row.value).join("|").toLowerCase()}`,
+    section: "providers",
+    kind: "provider",
+    title: "Review provider",
+    helper: "VYVA found these provider details. Add them only if they look right.",
+    values: rows.map((row) => row.value),
+    rows,
+    metadata,
+  };
+}
+
+export function createSimpleChoiceVoiceDraft({
+  section,
+  kind,
+  title,
+  helper,
+  label,
+  values,
+  metadata,
+}: {
+  section: ProfileVoiceSection;
+  kind: ProfileVoiceDraftKind;
+  title: string;
+  helper: string;
+  label: string;
+  values: string[];
+  metadata?: Record<string, string>;
+}): ProfileVoiceDraft | null {
+  const uniqueValues = unique(values.map(cleanDisplayValue).filter(Boolean));
+  if (uniqueValues.length === 0 && !metadata) return null;
+  return {
+    id: `${section}:${uniqueValues.join("|").toLowerCase() || JSON.stringify(metadata)}`,
+    section,
+    kind,
+    title,
+    helper,
+    values: uniqueValues,
+    rows: uniqueValues.map((value) => ({
+      id: value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      label,
+      value,
+    })),
+    metadata,
+  };
+}
+
 export function parseProfileVoiceCommand(
   section: ProfileVoiceSection,
   transcript: string,
@@ -390,6 +471,11 @@ export function parseProfileVoiceTranscript(
   if (section === "emergency") {
     const draft = createEmergencyVoiceDraft(transcript);
     return draft ? { type: "draft", draft } : { type: "empty", section, reason: "No emergency contact recognised" };
+  }
+
+  if (section === "providers") {
+    const draft = createProviderVoiceDraft(transcript);
+    return draft ? { type: "draft", draft } : { type: "empty", section, reason: "No provider recognised" };
   }
 
   if (section === "health") {

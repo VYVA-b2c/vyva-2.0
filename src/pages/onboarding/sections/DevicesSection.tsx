@@ -1,17 +1,29 @@
 // src/pages/onboarding/sections/DevicesSection.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
+import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
-import { Activity } from "lucide-react";
+import { Activity, Mic } from "lucide-react";
+import {
+  applyProfileVoiceCorrection,
+  createSimpleChoiceVoiceDraft,
+  parseProfileVoiceCommand,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 const PLATFORMS = [
   { id: "phone_camera", emoji: "", name: "Phone camera (VitalLens)", sub: "Built-in  HR  Breathing rate  HRV", connection: "built_in", alwaysActive: true },
@@ -49,23 +61,38 @@ export default function DevicesSection() {
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>(["phone_camera"]);
   const [connectedDevices, setConnectedDevices] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [speakItOpen, setSpeakItOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const devicesAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "devices",
+        sectionLabel: "Devices & sensors",
+        voicePrompt: "Tell VYVA which health devices you use.",
+        expectedFields: ["platforms", "devices"],
+        targetIds: {
+          addByVoice: "devices-add-by-voice",
+          draftReview: "devices-voice-draft",
+          reviewSave: "devices-review-save",
+        },
+      }),
+    [],
+  );
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
-
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/devices", {
-        method: "POST",
-        body: JSON.stringify({ devices: buildDevicesPayload(connectedPlatforms, connectedDevices) }),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-    },
-    2000,
-  );
 
   const { data, isLoading } = useQuery<{ profile: { devices?: { type: string }[] } | null }>({
     queryKey: ["/api/onboarding/state"],
@@ -83,19 +110,157 @@ export default function DevicesSection() {
     }
   }, [data]);
 
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  const startVoiceDevicesCapture = useCallback(() => {
+    setCompanionMode("voice");
+    setGuidance({
+      voiceStatus: "listening",
+      draftStatus: "listening",
+      currentSectionId: devicesAgentSectionConfig.sectionId,
+      currentSectionLabel: devicesAgentSectionConfig.sectionLabel,
+      currentPrompt: devicesAgentSectionConfig.voicePrompt,
+      activeTargetId: devicesAgentSectionConfig.targetIds?.addByVoice,
+    });
+    setSpeakItOpen(true);
+  }, [devicesAgentSectionConfig, setCompanionMode, setGuidance]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-devices-voice-capture",
+      label: "Add by voice",
+      description: "Say the health devices you use.",
+      sectionConfig: devicesAgentSectionConfig,
+      targetId: devicesAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceDevicesCapture,
+    });
+    return unregister;
+  }, [devicesAgentSectionConfig, registerVoiceAction, startVoiceDevicesCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: devicesAgentSectionConfig.sectionId,
+      currentSectionLabel: devicesAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review these devices before adding them." : devicesAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? devicesAgentSectionConfig.targetIds?.draftReview
+        : devicesAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, devicesAgentSectionConfig, setGuidance, voiceDraft]);
+
   const togglePlatform = (id: string, alwaysActive?: boolean) => {
     if (alwaysActive) return;
     setConnectedPlatforms((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const toggleDevice = (type: string) => {
     setConnectedDevices((prev) =>
       prev.includes(type) ? prev.filter((x) => x !== type) : [...prev, type]
     );
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
+  };
+
+  const createDevicesDraft = (transcript: string) => {
+    const lower = transcript.toLowerCase();
+    const matches = [
+      ...PLATFORMS.filter((platform) =>
+        lower.includes(platform.name.toLowerCase().split(" ")[0]) ||
+        lower.includes(platform.id.replace(/_/g, " ")),
+      ).map((platform) => platform.name),
+      ...INDIVIDUAL_DEVICES.filter((device) =>
+        !device.comingSoon &&
+        (lower.includes(device.label.toLowerCase()) || lower.includes(device.type.replace(/_/g, " "))),
+      ).map((device) => device.label),
+    ];
+    return createSimpleChoiceVoiceDraft({
+      section: "devices",
+      kind: "devices",
+      title: "Review devices",
+      helper: "VYVA found these devices. Add them only if they look right.",
+      label: "Device",
+      values: matches,
+    });
+  };
+
+  const handleSpeakItDone = (transcript: string) => {
+    setSpeakItOpen(false);
+    const command = parseProfileVoiceCommand("devices", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceDevicesCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: corrected ? "corrected-draft" : "needs-clarification" });
+      return;
+    }
+    const draft = createDevicesDraft(transcript);
+    if (!draft) {
+      setVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        lastHeardText: transcript,
+        error: "VYVA could not find devices in that.",
+        activeTargetId: devicesAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+    setVoiceDraft(draft);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "parsed-draft",
+      lastHeardText: transcript,
+      activeTargetId: devicesAgentSectionConfig.targetIds?.draftReview,
+    });
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const platformNames = new Map(PLATFORMS.map((platform) => [platform.name, platform.id]));
+    const deviceNames = new Map(INDIVIDUAL_DEVICES.map((device) => [device.label, device.type]));
+    setConnectedPlatforms((current) =>
+      Array.from(new Set([
+        ...current,
+        ...voiceDraft.values.map((value) => platformNames.get(value)).filter(Boolean) as string[],
+      ])),
+    );
+    setConnectedDevices((current) =>
+      Array.from(new Set([
+        ...current,
+        ...voiceDraft.values.map((value) => deviceNames.get(value)).filter(Boolean) as string[],
+      ])),
+    );
+    setVoiceDraft(null);
+    setAutoSaveStatus("idle");
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: devicesAgentSectionConfig.targetIds?.reviewSave,
+    });
   };
 
   const handleSave = async () => {
@@ -112,6 +277,7 @@ export default function DevicesSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       setAutoSaveStatus("saved");
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigating = true;
       navTimerRef.current = setTimeout(() => navigate("/onboarding/complete/devices"), 300);
     } catch (err) {
@@ -135,6 +301,40 @@ export default function DevicesSection() {
           ]}
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-devices-autosave" }}
         />
+
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="devices-add-by-voice">
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Add by voice"
+              description="Say which devices you use."
+              onClick={startVoiceDevicesCapture}
+              testId="button-devices-speak-it"
+              disabled={isLoading}
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId="devices-voice-draft">
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Add devices"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={startVoiceDevicesCapture}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => {
+                const command = parseProfileVoiceCommand("devices", `remove ${value}`);
+                if (!command) return;
+                setVoiceDraft((current) => current ? applyProfileVoiceCorrection(current, command) : current);
+                setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+              }}
+              testId="panel-devices-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {isLoading ? (
           <div className="flex flex-col gap-3" data-testid="skeleton-devices-content">
@@ -215,12 +415,22 @@ export default function DevicesSection() {
         )}
 
         <div className="flex flex-col gap-2 pt-2">
+          <OnboardingCompanionTarget targetId="devices-review-save">
           <Button data-testid="button-devices-save" onClick={handleSave} disabled={saving || isLoading} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
             {saving ? "Saving..." : "Save devices"}
           </Button>
+          </OnboardingCompanionTarget>
           <button data-testid="button-devices-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
+      {speakItOpen ? (
+        <SpeakItOverlay
+          title="Tell VYVA your devices"
+          hint='e.g. "I use a Fitbit, smartwatch, and blood pressure monitor"'
+          onDone={handleSpeakItDone}
+          onCancel={() => setSpeakItOpen(false)}
+        />
+      ) : null}
     </PhoneFrame>
   );
 }

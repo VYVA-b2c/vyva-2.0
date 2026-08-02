@@ -112,6 +112,9 @@ describe("ProvidersSection trusted provider setup", () => {
     fireEvent.click(screen.getByTestId("button-manual-channel-whatsapp"));
     fireEvent.click(screen.getByTestId("button-manual-add"));
 
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("button-providers-save"));
+
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     const [, init] = apiFetchMock.mock.calls[0];
     const body = JSON.parse(String(init?.body));
@@ -140,6 +143,9 @@ describe("ProvidersSection trusted provider setup", () => {
     ]);
 
     fireEvent.click(await screen.findByTestId("button-provider-default-provider-2"));
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("button-providers-save"));
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     const [, init] = apiFetchMock.mock.calls.at(-1)!;
@@ -231,6 +237,9 @@ describe("ProvidersSection trusted provider setup", () => {
     fireEvent.change(await screen.findByTestId("input-merchant-notes"), { target: { value: "Ask for the pharmacist." } });
     fireEvent.click(screen.getByTestId("button-merchant-save"));
 
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("button-providers-save"));
+
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     const [, init] = apiFetchMock.mock.calls.at(-1)!;
     const body = JSON.parse(String(init?.body));
@@ -284,6 +293,10 @@ describe("ProvidersSection trusted provider setup", () => {
     expect(screen.getByTestId("button-manual-channel-whatsapp")).toHaveClass("bg-vyva-purple");
 
     fireEvent.click(screen.getByTestId("button-manual-add"));
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("button-providers-save"));
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     const [, init] = apiFetchMock.mock.calls[0];

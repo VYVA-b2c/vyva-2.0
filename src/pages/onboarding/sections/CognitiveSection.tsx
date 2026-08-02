@@ -1,18 +1,30 @@
 // src/pages/onboarding/sections/CognitiveSection.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
+import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
-import { BadgeCheck, Brain, Clock3, MessagesSquare, Moon, Repeat, Sparkles, Sun } from "lucide-react";
+import { BadgeCheck, Brain, Clock3, MessagesSquare, Mic, Moon, Repeat, Sparkles, Sun } from "lucide-react";
+import {
+  applyProfileVoiceCorrection,
+  createSimpleChoiceVoiceDraft,
+  parseProfileVoiceCommand,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 type CognitiveForm = {
   memory_difficulties: string;
@@ -82,6 +94,43 @@ export default function CognitiveSection() {
     communication_style: "standard",
   });
   const [saving, setSaving] = useState(false);
+  const [speakItOpen, setSpeakItOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const cognitiveAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "cognitive",
+        sectionLabel: "Cognitive profile",
+        voicePrompt: "Tell VYVA your memory support, pace, and brain coach preferences.",
+        expectedFields: [
+          "memory_difficulties",
+          "cognitive_diagnosis",
+          "session_length_mins",
+          "training_time",
+          "pace",
+          "variety",
+          "communication_style",
+        ],
+        targetIds: {
+          addByVoice: "cognitive-add-by-voice",
+          draftReview: "cognitive-voice-draft",
+          reviewSave: "cognitive-review-save",
+        },
+      }),
+    [],
+  );
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const formRef = useRef(form);
   useEffect(() => { formRef.current = form; }, [form]);
@@ -97,23 +146,175 @@ export default function CognitiveSection() {
     }
   }, [data]);
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/cognitive", {
-        method: "POST",
-        body: JSON.stringify(formRef.current),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
     },
-    2000,
+    [companionMode, setGuidance],
   );
+
+  const startVoiceCognitiveCapture = useCallback(() => {
+    setCompanionMode("voice");
+    setGuidance({
+      voiceStatus: "listening",
+      draftStatus: "listening",
+      currentSectionId: cognitiveAgentSectionConfig.sectionId,
+      currentSectionLabel: cognitiveAgentSectionConfig.sectionLabel,
+      currentPrompt: cognitiveAgentSectionConfig.voicePrompt,
+      activeTargetId: cognitiveAgentSectionConfig.targetIds?.addByVoice,
+    });
+    setSpeakItOpen(true);
+  }, [cognitiveAgentSectionConfig, setCompanionMode, setGuidance]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-cognitive-voice-capture",
+      label: "Add by voice",
+      description: "Say pace, memory, or session preferences.",
+      sectionConfig: cognitiveAgentSectionConfig,
+      targetId: cognitiveAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceCognitiveCapture,
+    });
+    return unregister;
+  }, [cognitiveAgentSectionConfig, registerVoiceAction, startVoiceCognitiveCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: cognitiveAgentSectionConfig.sectionId,
+      currentSectionLabel: cognitiveAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review these brain coach preferences before applying them." : cognitiveAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? cognitiveAgentSectionConfig.targetIds?.draftReview
+        : cognitiveAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, cognitiveAgentSectionConfig, companionMode, setGuidance, voiceDraft]);
 
   const set = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
+  };
+
+  const createCognitiveDraft = (transcript: string) => {
+    const lower = transcript.toLowerCase();
+    const metadata: Record<string, string> = {};
+    if (lower.includes("mild")) metadata.memory_difficulties = "mild";
+    if (lower.includes("moderate") || lower.includes("more support")) metadata.memory_difficulties = "moderate";
+    if (lower.includes("no concerns") || lower.includes("no memory")) metadata.memory_difficulties = "none";
+    if (lower.includes("mci")) metadata.cognitive_diagnosis = "mci";
+    if (lower.includes("dementia")) metadata.cognitive_diagnosis = "early_dementia";
+    if (lower.includes("alzheimer")) metadata.cognitive_diagnosis = "alzheimers";
+    if (lower.includes("parkinson")) metadata.cognitive_diagnosis = "parkinsons";
+    const session = lower.match(/\b(5|10|15|20)\s*(?:minute|min)\b/);
+    if (session?.[1]) metadata.session_length_mins = session[1];
+    if (lower.includes("morning")) metadata.training_time = "morning";
+    if (lower.includes("afternoon")) metadata.training_time = "afternoon";
+    if (lower.includes("any time") || lower.includes("no preference")) metadata.training_time = "no_preference";
+    if (lower.includes("very slow")) metadata.pace = "very_slow";
+    else if (lower.includes("slower") || lower.includes("slow")) metadata.pace = "slower";
+    else if (lower.includes("normal pace")) metadata.pace = "normal";
+    if (lower.includes("repeat")) metadata.variety = "repeating";
+    if (lower.includes("variety")) metadata.variety = "variety";
+    if (lower.includes("very simple")) metadata.communication_style = "very_simple";
+    else if (lower.includes("simple") || lower.includes("simpler")) metadata.communication_style = "simpler";
+    else if (lower.includes("standard")) metadata.communication_style = "standard";
+
+    const labels: Record<string, string> = {
+      none: "No concerns",
+      mild: "Mild support",
+      moderate: "More support",
+      mci: "MCI",
+      early_dementia: "Early dementia",
+      alzheimers: "Alzheimer's",
+      parkinsons: "Parkinson's",
+      no_preference: "Any time",
+      very_slow: "Very slow",
+      slower: "Slower",
+      normal: "Normal",
+      repeating: "Enjoy repeating",
+      variety: "Prefer variety",
+      very_simple: "Very simple",
+      simpler: "Simpler language",
+      standard: "Standard",
+      morning: "Morning",
+      afternoon: "Afternoon",
+    };
+    const rows = Object.entries(metadata).map(([field, value]) => `${field}: ${labels[value] ?? value}`);
+    return createSimpleChoiceVoiceDraft({
+      section: "cognitive",
+      kind: "cognitive",
+      title: "Review cognitive preferences",
+      helper: "VYVA found these brain coach settings. Apply them only if they look right.",
+      label: "Preference",
+      values: rows,
+      metadata,
+    });
+  };
+
+  const handleSpeakItDone = (transcript: string) => {
+    setSpeakItOpen(false);
+    const command = parseProfileVoiceCommand("cognitive", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceCognitiveCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: corrected ? "corrected-draft" : "needs-clarification" });
+      return;
+    }
+    const draft = createCognitiveDraft(transcript);
+    if (!draft) {
+      setVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        lastHeardText: transcript,
+        error: "VYVA could not find cognitive preferences in that.",
+        activeTargetId: cognitiveAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+    setVoiceDraft(draft);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "parsed-draft",
+      lastHeardText: transcript,
+      activeTargetId: cognitiveAgentSectionConfig.targetIds?.draftReview,
+    });
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    setForm((prev) => ({
+      ...prev,
+      ...metadata,
+      session_length_mins: metadata.session_length_mins
+        ? Number(metadata.session_length_mins)
+        : prev.session_length_mins,
+    }));
+    setVoiceDraft(null);
+    setAutoSaveStatus("idle");
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: cognitiveAgentSectionConfig.targetIds?.reviewSave,
+    });
   };
 
   const handleSave = async () => {
@@ -128,6 +329,8 @@ export default function CognitiveSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+      setAutoSaveStatus("saved");
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigate("/onboarding/complete/cognitive");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -154,6 +357,40 @@ export default function CognitiveSection() {
           ]}
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-cognitive-autosave" }}
         />
+
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="cognitive-add-by-voice">
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Add by voice"
+              description="Say pace, memory, or brain coach preferences."
+              onClick={startVoiceCognitiveCapture}
+              testId="button-cognitive-speak-it"
+              disabled={isLoading}
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId="cognitive-voice-draft">
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Apply preferences"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={startVoiceCognitiveCapture}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => {
+                const command = parseProfileVoiceCommand("cognitive", `remove ${value}`);
+                if (!command) return;
+                setVoiceDraft((current) => current ? applyProfileVoiceCorrection(current, command) : current);
+                setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+              }}
+              testId="panel-cognitive-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         <div className="flex flex-col gap-7">
           <div className="space-y-3">
@@ -242,12 +479,22 @@ export default function CognitiveSection() {
         </div>
 
         <div className="flex flex-col gap-2 pt-2">
+          <OnboardingCompanionTarget targetId="cognitive-review-save">
           <Button data-testid="button-cognitive-save" onClick={handleSave} disabled={saving || isLoading} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f]">
             {saving ? "Saving..." : "Save cognitive profile"}
           </Button>
+          </OnboardingCompanionTarget>
           <button data-testid="button-cognitive-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">Skip for now</button>
         </div>
       </div>
+      {speakItOpen ? (
+        <SpeakItOverlay
+          title="Tell VYVA your brain coach preferences"
+          hint='e.g. "Mild support, 10 minute sessions, slower pace, simple language"'
+          onDone={handleSpeakItDone}
+          onCancel={() => setSpeakItOpen(false)}
+        />
+      ) : null}
     </PhoneFrame>
   );
 }
