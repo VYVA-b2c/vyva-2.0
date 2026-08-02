@@ -3,6 +3,13 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import {
+  companionGuidanceForMode,
+  ONBOARDING_COMPANION_TARGETS,
+  type OnboardingCompanionGuidancePatch,
+} from "@/components/onboarding/onboardingCompanionGuidanceTemplate";
+import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Input } from "@/components/ui/input";
@@ -61,6 +68,7 @@ const FOOD_OPTIONS: SeniorChoiceOption[] = [
   { label: "Without food", value: "without_food", icon: <Coffee size={17} /> },
   { label: "Doesn't matter", value: "doesnt_matter", icon: <BadgeCheck size={17} /> },
 ];
+const MEDICATION_COMPANION_TARGETS = ONBOARDING_COMPANION_TARGETS.medications;
 
 function isCustomFrequency(value: string): boolean {
   return Boolean(value && !STANDARD_FREQUENCIES.includes(value));
@@ -169,6 +177,7 @@ export default function MedicationsSection() {
   const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
   const [expandedMedIds, setExpandedMedIds] = useState<Set<string>>(() => new Set([initialMed.id]));
   const [detailsOpenMedIds, setDetailsOpenMedIds] = useState<Set<string>>(() => new Set());
+  const { mode: companionMode, setGuidance, clearGuidance } = useOnboardingCompanionGuidance();
 
   // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
@@ -180,6 +189,32 @@ export default function MedicationsSection() {
   useEffect(() => { noKnownMedicationsRef.current = noKnownMedications; }, [noKnownMedications]);
   useEffect(() => { busyRef.current = saving || autoSaving || adding || !!removingId; }, [saving, autoSaving, adding, removingId]);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
+
+  const setMedicationVoiceGuidance = useCallback(
+    (guidance: OnboardingCompanionGuidancePatch) => {
+      const voiceGuidance = companionGuidanceForMode(companionMode, guidance);
+      if (voiceGuidance) setGuidance(voiceGuidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      currentPrompt: t(
+        "onboarding.medications.voiceGuidance.startPrompt",
+        "Add by voice, enter the medication name, or choose no current medications.",
+      ),
+      activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, setGuidance, t]);
   const completePath = () => {
     const returnTo = searchParams.get("returnTo");
     return returnTo
@@ -234,6 +269,14 @@ export default function MedicationsSection() {
   const updateMed = (id: string, field: keyof Omit<Medication, "id">, value: string) => {
     if (value.trim()) setNoKnownMedications(false);
     setMeds((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
+    setMedicationVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.medications.voiceGuidance.reviewPrompt",
+        "Review the medication details, then save when ready.",
+      ),
+      activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
+    });
     scheduleAutoSave();
   };
 
@@ -248,6 +291,20 @@ export default function MedicationsSection() {
       setDetailsOpenMedIds(new Set());
       setCustomFrequencyMedIds(new Set());
     }
+    setMedicationVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.medications.voiceGuidance.noCurrentPrompt",
+        "No current medications is selected. Save when you are ready.",
+      ),
+      lastHeardText: next
+        ? t(
+            "onboarding.medications.voiceGuidance.noCurrentSelected",
+            "Selected no current medications",
+          )
+        : undefined,
+      activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
+    });
     scheduleAutoSave();
   };
 
@@ -375,6 +432,18 @@ export default function MedicationsSection() {
       if (hasAdvancedMedicationDetails(newMed)) {
         setDetailsOpenMedIds((prev) => cloneSetWith(prev, newId));
       }
+      setMedicationVoiceGuidance({
+        voiceStatus: "speaking",
+        currentPrompt: t(
+          "onboarding.medications.voiceGuidance.voiceAddedPrompt",
+          "I added the medication details. Review them before saving.",
+        ),
+        lastHeardText: t("onboarding.medications.voiceGuidance.voiceAdded", {
+          name: voiceMed.name,
+          defaultValue: `Added ${voiceMed.name}`,
+        }),
+        activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
+      });
       let res: Response | undefined;
       try {
         res = await saveMedsToServer(updated, false);
@@ -392,7 +461,7 @@ export default function MedicationsSection() {
         setAdding(false);
       }
     },
-    [adding, removingId, saving, meds, setAutoSaveStatus, toast]
+    [adding, removingId, saving, meds, setAutoSaveStatus, setMedicationVoiceGuidance, t, toast]
   );
 
   const hasUnsavedChanges = useCallback((): boolean => {
@@ -496,29 +565,63 @@ export default function MedicationsSection() {
           }}
         />
 
-        <ProfileVoiceAction
-          icon={Mic}
-          title={t("onboarding.medications.addByVoice", "Add by voice")}
-          description={t(
-            "onboarding.medications.addByVoiceDescription",
-            "Tell VYVA which medicines you take. It will fill in the details.",
-          )}
-          onClick={() => setVoiceModalOpen(true)}
-          testId="button-meds-voice"
-          tone="amber"
-        />
+        <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.addByVoice}>
+          <ProfileVoiceAction
+            icon={Mic}
+            title={t("onboarding.medications.addByVoice", "Add by voice")}
+            description={t(
+              "onboarding.medications.addByVoiceDescription",
+              "Tell VYVA which medicines you take. It will fill in the details.",
+            )}
+            onClick={() => {
+              setMedicationVoiceGuidance({
+                voiceStatus: "listening",
+                currentPrompt: t(
+                  "onboarding.medications.voiceGuidance.speakPrompt",
+                  "Tell VYVA the medication name, strength, and routine if you know them.",
+                ),
+                activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+              });
+              setVoiceModalOpen(true);
+            }}
+            onFocus={() =>
+              setMedicationVoiceGuidance({
+                voiceStatus: "listening",
+                currentPrompt: t(
+                  "onboarding.medications.voiceGuidance.addByVoicePrompt",
+                  "Use this to add a medication by speaking.",
+                ),
+                activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+              })
+            }
+            testId="button-meds-voice"
+            tone="amber"
+          />
+        </OnboardingCompanionTarget>
 
-        <ProfileNoneOption
-          title={t("onboarding.medications.noneKnown", "No current medications")}
-          description={t(
-            "onboarding.medications.noneKnownDescription",
-            "Choose this if there are no current medicines to add.",
-          )}
-          selected={noKnownMedications}
-          onClick={toggleNoKnownMedications}
-          testId="button-meds-no-current"
-          tone="green"
-        />
+        <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.noCurrent}>
+          <ProfileNoneOption
+            title={t("onboarding.medications.noneKnown", "No current medications")}
+            description={t(
+              "onboarding.medications.noneKnownDescription",
+              "Choose this if there are no current medicines to add.",
+            )}
+            selected={noKnownMedications}
+            onClick={toggleNoKnownMedications}
+            onFocus={() =>
+              setMedicationVoiceGuidance({
+                voiceStatus: "listening",
+                currentPrompt: t(
+                  "onboarding.medications.voiceGuidance.noCurrentQuestion",
+                  "Choose this only if there are no current medications.",
+                ),
+                activeTargetId: MEDICATION_COMPANION_TARGETS.noCurrent,
+              })
+            }
+            testId="button-meds-no-current"
+            tone="green"
+          />
+        </OnboardingCompanionTarget>
 
         {isLoading ? (
           <MedSkeleton />
@@ -535,7 +638,8 @@ export default function MedicationsSection() {
                 customFrequencyMedIds.has(med.id) || isCustomFrequency(med.frequency);
 
               return (
-                <div
+                <OnboardingCompanionTarget
+                  targetId={idx === 0 ? MEDICATION_COMPANION_TARGETS.firstMedication : `medications-medication-${idx + 1}`}
                   key={med.id}
                   data-testid={`card-med-${med.id}`}
                   className={`relative flex flex-col gap-6 overflow-hidden rounded-[30px] border bg-white p-5 shadow-[0_20px_48px_rgba(53,28,87,0.08)] sm:p-6 ${
@@ -649,20 +753,70 @@ export default function MedicationsSection() {
                     </div>
                   </div>
                   <FormField label={<FieldLabel icon={<Pill size={16} />}>Medication name</FieldLabel>} required optionalLabel="Optional" requiredLabel="Needed">
-                    <Input data-testid={`input-med-name-${idx}`} placeholder="e.g. Metformin" value={med.name} onChange={(e) => updateMed(med.id, "name", e.target.value)} className={inputClassName} />
+                    <Input
+                      data-testid={`input-med-name-${idx}`}
+                      placeholder="e.g. Metformin"
+                      value={med.name}
+                      onFocus={() =>
+                        setMedicationVoiceGuidance({
+                          voiceStatus: "listening",
+                          currentPrompt: t(
+                            "onboarding.medications.voiceGuidance.namePrompt",
+                            "Type or say the medication name. The name is enough to save.",
+                          ),
+                          activeTargetId: idx === 0 ? MEDICATION_COMPANION_TARGETS.firstMedication : `medications-medication-${idx + 1}`,
+                        })
+                      }
+                      onChange={(e) => updateMed(med.id, "name", e.target.value)}
+                      className={inputClassName}
+                    />
                   </FormField>
                   <ResponsiveGrid columns="two" gap="lg">
                     <FormField label={<FieldLabel icon={<Sparkles size={16} />}>Dosage</FieldLabel>} hint="Strength or amount, if you know it.">
-                      <Input data-testid={`input-med-dosage-${idx}`} placeholder="e.g. 500mg" value={med.dosage} onChange={(e) => updateMed(med.id, "dosage", e.target.value)} className={inputClassName} />
+                      <Input
+                        data-testid={`input-med-dosage-${idx}`}
+                        placeholder="e.g. 500mg"
+                        value={med.dosage}
+                        onFocus={() =>
+                          setMedicationVoiceGuidance({
+                            voiceStatus: "listening",
+                            currentPrompt: t(
+                              "onboarding.medications.voiceGuidance.dosagePrompt",
+                              "Add the strength only if you know it.",
+                            ),
+                            activeTargetId: idx === 0 ? MEDICATION_COMPANION_TARGETS.firstMedication : `medications-medication-${idx + 1}`,
+                          })
+                        }
+                        onChange={(e) => updateMed(med.id, "dosage", e.target.value)}
+                        className={inputClassName}
+                      />
                     </FormField>
                     <FormField label={<FieldLabel icon={<Clock3 size={16} />}>Time or routine</FieldLabel>} hint="Examples: morning and evening, bedtime, or 08:00, 20:00.">
-                      <SeniorChoiceChips
-                        options={TIME_PRESETS}
-                        value={med.times}
-                        onChange={(value) => updateTimePreset(med.id, value)}
-                        testIdPrefix={`chip-med-time-${idx}`}
-                      />
-                      <Input data-testid={`input-med-times-${idx}`} placeholder="Morning and evening" value={med.times} onChange={(e) => updateMed(med.id, "times", e.target.value)} className={inputClassName} />
+                      <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.routine}>
+                        <SeniorChoiceChips
+                          options={TIME_PRESETS}
+                          value={med.times}
+                          onChange={(value) => updateTimePreset(med.id, value)}
+                          testIdPrefix={`chip-med-time-${idx}`}
+                        />
+                        <Input
+                          data-testid={`input-med-times-${idx}`}
+                          placeholder="Morning and evening"
+                          value={med.times}
+                          onFocus={() =>
+                            setMedicationVoiceGuidance({
+                              voiceStatus: "listening",
+                              currentPrompt: t(
+                                "onboarding.medications.voiceGuidance.routinePrompt",
+                                "Choose a routine, or type the usual time.",
+                              ),
+                              activeTargetId: MEDICATION_COMPANION_TARGETS.routine,
+                            })
+                          }
+                          onChange={(e) => updateMed(med.id, "times", e.target.value)}
+                          className={inputClassName}
+                        />
+                      </OnboardingCompanionTarget>
                     </FormField>
                   </ResponsiveGrid>
                   <div className="rounded-[24px] border border-[#EDE2F8] bg-[#FBF8FF] p-4">
@@ -728,38 +882,52 @@ export default function MedicationsSection() {
                   ) : null}
                     </>
                   )}
-                </div>
+                </OnboardingCompanionTarget>
               );
             })}
 
-            <button
-              type="button"
-              data-testid="button-meds-add"
-              onClick={addMed}
-              disabled={busy || isLoading}
-              className="flex min-h-[58px] items-center justify-center gap-2 rounded-full border-2 border-dashed border-vyva-purple/40 bg-white text-[17px] font-black text-[#6b21a8] shadow-[0_12px_26px_rgba(53,28,87,0.06)] disabled:opacity-40"
-            >
-              {adding ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Plus size={18} />
-              )}
-              {adding ? "Adding..." : "Add another medication"}
-            </button>
+            <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.addAnother}>
+              <button
+                type="button"
+                data-testid="button-meds-add"
+                onFocus={() =>
+                  setMedicationVoiceGuidance({
+                    voiceStatus: "listening",
+                    currentPrompt: t(
+                      "onboarding.medications.voiceGuidance.addAnotherPrompt",
+                      "Add another medication only if there is another current medicine.",
+                    ),
+                    activeTargetId: MEDICATION_COMPANION_TARGETS.addAnother,
+                  })
+                }
+                onClick={addMed}
+                disabled={busy || isLoading}
+                className="flex min-h-[58px] w-full items-center justify-center gap-2 rounded-full border-2 border-dashed border-vyva-purple/40 bg-white text-[17px] font-black text-[#6b21a8] shadow-[0_12px_26px_rgba(53,28,87,0.06)] disabled:opacity-40"
+              >
+                {adding ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Plus size={18} />
+                )}
+                {adding ? "Adding..." : "Add another medication"}
+              </button>
+            </OnboardingCompanionTarget>
           </>
         )}
 
-        <ProfileCompletionBar
-          saving={saving || autoSaving}
-          onSave={handleSave}
-          disabled={adding || !!removingId || isLoading || !hasMedicationSectionContent}
-          saveLabel={t("onboarding.medications.saveContinue", "Save and continue")}
-          savingLabel={t("onboarding.medications.saving", "Saving...")}
-          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-          skipLabel={t("onboarding.medications.skip", "Skip for now")}
-          onSkip={() => confirmNavigation("/onboarding/profile")}
-          testId="button-meds-save"
-        />
+        <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.reviewSave}>
+          <ProfileCompletionBar
+            saving={saving || autoSaving}
+            onSave={handleSave}
+            disabled={adding || !!removingId || isLoading || !hasMedicationSectionContent}
+            saveLabel={t("onboarding.medications.saveContinue", "Save and continue")}
+            savingLabel={t("onboarding.medications.saving", "Saving...")}
+            helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+            skipLabel={t("onboarding.medications.skip", "Skip for now")}
+            onSkip={() => confirmNavigation("/onboarding/profile")}
+            testId="button-meds-save"
+          />
+        </OnboardingCompanionTarget>
       </div>
 
       <VoiceMedsModal

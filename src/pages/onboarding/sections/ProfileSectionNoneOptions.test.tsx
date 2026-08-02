@@ -79,6 +79,7 @@ function lastPostedBody() {
 
 describe("profile section reviewed-empty choices", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     apiFetchMock.mockReset();
     apiFetchMock.mockResolvedValue(jsonResponse({ ok: true }));
   });
@@ -220,6 +221,58 @@ describe("profile section reviewed-empty choices", () => {
       medications: [{ medication_name: "Metformin" }],
       no_known_medications: false,
     });
+  });
+
+  it("uses companion guidance in medications without saving before entry or explicit review", async () => {
+    seedOnboardingState();
+    renderSection(<MedicationsSection />);
+
+    const chip = await screen.findByTestId("onboarding-companion-mode-chip");
+    expect(chip).toHaveTextContent("VYVA can talk you through this page.");
+    expect(screen.getByTestId("button-meds-voice").parentElement).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.focus(screen.getByTestId("input-med-name-0"));
+
+    expect(chip).toHaveTextContent("Listening");
+    expect(chip).toHaveTextContent("The name is enough to save.");
+    expect(screen.getByTestId("card-med-med-1")).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("input-med-name-0"), { target: { value: "Metformin" } });
+
+    expect(chip).toHaveTextContent("Thinking");
+    expect(chip).toHaveTextContent("Review the medication details");
+    expect(screen.getByTestId("button-meds-save").closest("[data-vyva-companion-target]")).toHaveAttribute(
+      "data-vyva-companion-target-active",
+      "true",
+    );
+  });
+
+  it("keeps medication voice and tactile modes on the same UI while tactile clears voice target guidance", async () => {
+    seedOnboardingState();
+    renderSection(<MedicationsSection />);
+
+    expect(await screen.findByTestId("button-meds-voice")).toBeInTheDocument();
+    expect(screen.getByTestId("button-meds-no-current")).toBeInTheDocument();
+    expect(screen.getByTestId("input-med-name-0")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-section-companion-mode-tactile"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-companion-mode-chip")).toHaveTextContent(
+        "Use touch or keyboard controls quietly.",
+      );
+    });
+    expect(screen.getByTestId("button-meds-voice")).toBeInTheDocument();
+    expect(screen.queryByText("Voice-only medication screen")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-vyva-companion-target-active='true']")).not.toBeInTheDocument();
   });
 
   it("keeps allergies incomplete until no known allergies is selected", async () => {
