@@ -1,5 +1,5 @@
 // src/pages/onboarding/sections/MedicationsSection.tsx
-import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
@@ -9,7 +9,8 @@ import {
   ONBOARDING_COMPANION_TARGETS,
   type OnboardingCompanionGuidancePatch,
 } from "@/components/onboarding/onboardingCompanionGuidanceTemplate";
-import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { Input } from "@/components/ui/input";
@@ -183,7 +184,30 @@ export default function MedicationsSection() {
     setGuidance,
     clearGuidance,
     registerVoiceAction,
-  } = useOnboardingCompanionGuidance();
+  } = useOnboardingAgent();
+  const medicationAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "medications",
+        sectionLabel: t("onboarding.medications.title", "Medications"),
+        voicePrompt: t(
+          "onboarding.medications.voiceGuidance.speakPrompt",
+          "Tell VYVA the medication name, strength, and routine if you know them.",
+        ),
+        expectedFields: ["medication_name", "dosage", "frequency", "scheduled_times"],
+        draftRowLabels: {
+          medication: t("onboarding.medications.voiceDraft.medicationLabel", "Medication"),
+          strength: t("onboarding.medications.voiceDraft.strengthLabel", "Strength"),
+          routine: t("onboarding.medications.voiceDraft.routineLabel", "Routine"),
+        },
+        targetIds: {
+          addByVoice: MEDICATION_COMPANION_TARGETS.addByVoice,
+          draftReview: MEDICATION_COMPANION_TARGETS.firstMedication,
+          reviewSave: MEDICATION_COMPANION_TARGETS.reviewSave,
+        },
+      }),
+    [t],
+  );
 
   const medsRef = useRef(meds);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -207,17 +231,18 @@ export default function MedicationsSection() {
 
     setGuidance({
       voiceStatus: "idle",
-      currentSectionId: "medications",
-      currentSectionLabel: t("onboarding.medications.title", "Medications"),
+      draftStatus: "idle",
+      currentSectionId: medicationAgentSectionConfig.sectionId,
+      currentSectionLabel: medicationAgentSectionConfig.sectionLabel,
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.startPrompt",
         "Tell VYVA your medicines, enter the medication name, or choose no current medications.",
       ),
-      activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+      activeTargetId: medicationAgentSectionConfig.targetIds?.addByVoice,
     });
 
     return () => clearGuidance();
-  }, [clearGuidance, companionMode, setGuidance, t]);
+  }, [clearGuidance, companionMode, medicationAgentSectionConfig, setGuidance, t]);
   const completePath = () => {
     const returnTo = searchParams.get("returnTo");
     return returnTo
@@ -258,6 +283,7 @@ export default function MedicationsSection() {
     setMeds((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
     setMedicationVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.reviewPrompt",
         "Review the medication details, then save when ready.",
@@ -279,6 +305,7 @@ export default function MedicationsSection() {
     }
     setMedicationVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.noCurrentPrompt",
         "No current medications is selected. Save when you are ready.",
@@ -296,13 +323,11 @@ export default function MedicationsSection() {
   const startVoiceMedicationCapture = useCallback(() => {
     const guidance = {
       voiceStatus: "listening",
-      currentSectionId: "medications",
-      currentSectionLabel: t("onboarding.medications.title", "Medications"),
-      currentPrompt: t(
-        "onboarding.medications.voiceGuidance.speakPrompt",
-        "Tell VYVA the medication name, strength, and routine if you know them.",
-      ),
-      activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+      draftStatus: "listening",
+      currentSectionId: medicationAgentSectionConfig.sectionId,
+      currentSectionLabel: medicationAgentSectionConfig.sectionLabel,
+      currentPrompt: medicationAgentSectionConfig.voicePrompt,
+      activeTargetId: medicationAgentSectionConfig.targetIds?.addByVoice,
     } as const;
     if (companionMode === "voice") {
       setGuidance(guidance);
@@ -311,7 +336,7 @@ export default function MedicationsSection() {
       window.setTimeout(() => setGuidance(guidance), 0);
     }
     setVoiceModalOpen(true);
-  }, [companionMode, setCompanionMode, setGuidance, t]);
+  }, [companionMode, medicationAgentSectionConfig, setCompanionMode, setGuidance]);
 
   useEffect(
     () =>
@@ -323,11 +348,12 @@ export default function MedicationsSection() {
           "Say the name, strength, or routine.",
         ),
         sectionId: "medications",
-        sectionLabel: t("onboarding.medications.title", "Medications"),
-        targetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+        sectionLabel: medicationAgentSectionConfig.sectionLabel,
+        targetId: medicationAgentSectionConfig.targetIds?.addByVoice,
+        sectionConfig: medicationAgentSectionConfig,
         onStart: startVoiceMedicationCapture,
       }),
-    [registerVoiceAction, startVoiceMedicationCapture, t],
+    [medicationAgentSectionConfig, registerVoiceAction, startVoiceMedicationCapture, t],
   );
 
   const updateFrequency = (id: string, value: string) => {
@@ -382,6 +408,7 @@ export default function MedicationsSection() {
     setDetailsOpenMedIds((prev) => cloneSetWithout(prev, newMed.id));
     setMedicationVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.reviewPrompt",
         "Review the medication details, then save when ready.",
@@ -406,6 +433,7 @@ export default function MedicationsSection() {
     setDetailsOpenMedIds((prev) => cloneSetWithout(prev, id));
     setMedicationVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.reviewPrompt",
         "Review the medication details, then save when ready.",
@@ -440,6 +468,7 @@ export default function MedicationsSection() {
       }
       setMedicationVoiceGuidance({
         voiceStatus: "speaking",
+        draftStatus: "confirmed-locally",
         currentPrompt: t(
           "onboarding.medications.voiceGuidance.voiceAddedPrompt",
           "I added the medication details. Review them before saving.",
@@ -489,6 +518,7 @@ export default function MedicationsSection() {
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
       setSavedMeds(meds);
       setAutoSaveStatus("saved");
+      setMedicationVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigating = true;
       navTimerRef.current = setTimeout(() => navigate(completePath()), 300);
     } catch (err) {

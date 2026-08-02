@@ -1,11 +1,12 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
-import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
@@ -158,7 +159,28 @@ export default function ConditionsSection() {
     setGuidance,
     clearGuidance,
     registerVoiceAction,
-  } = useOnboardingCompanionGuidance();
+  } = useOnboardingAgent();
+  const healthAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "health",
+        sectionLabel: t("onboarding.conditions.title", "Health profile"),
+        voicePrompt: t(
+          "onboarding.conditions.voiceGuidance.speakPrompt",
+          "Tell VYVA one or more health conditions.",
+        ),
+        expectedFields: ["conditions", "mobility", "living_situation"],
+        draftRowLabels: {
+          condition: t("onboarding.conditions.voiceDraft.conditionLabel", "Condition"),
+        },
+        targetIds: {
+          addByVoice: "health-add-by-voice",
+          draftReview: "health-speak-confirm",
+          reviewSave: "health-review-save",
+        },
+      }),
+    [t],
+  );
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
@@ -178,17 +200,18 @@ export default function ConditionsSection() {
 
     setGuidance({
       voiceStatus: "idle",
-      currentSectionId: "health",
-      currentSectionLabel: t("onboarding.conditions.title", "Health profile"),
+      draftStatus: "idle",
+      currentSectionId: healthAgentSectionConfig.sectionId,
+      currentSectionLabel: healthAgentSectionConfig.sectionLabel,
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.startPrompt",
         "Tell VYVA, search by name, or choose no known conditions.",
       ),
-      activeTargetId: "health-add-by-voice",
+      activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
     });
 
     return () => clearGuidance();
-  }, [clearGuidance, companionMode, setGuidance, t]);
+  }, [clearGuidance, companionMode, healthAgentSectionConfig, setGuidance, t]);
 
   const buildConditionsPayload = () => ({
     health_conditions: selected,
@@ -236,6 +259,7 @@ export default function ConditionsSection() {
     setSelected((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
     setVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.reviewPrompt",
         "Review your selected conditions, then save when ready.",
@@ -244,7 +268,7 @@ export default function ConditionsSection() {
         name,
         defaultValue: `Selected ${name}`,
       }),
-      activeTargetId: "health-review-save",
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
     });
   };
 
@@ -262,6 +286,7 @@ export default function ConditionsSection() {
     }
     setVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.noKnownPrompt",
         "No known conditions is selected. Save when you are ready.",
@@ -272,7 +297,7 @@ export default function ConditionsSection() {
             "Selected no known conditions",
           )
         : undefined,
-      activeTargetId: "health-review-save",
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
     });
   };
 
@@ -290,6 +315,7 @@ export default function ConditionsSection() {
     if (matches.length === 0) {
       setVoiceGuidance({
         voiceStatus: "error",
+        draftStatus: "needs-clarification",
         currentPrompt: t(
           "onboarding.conditions.voiceGuidance.tryAgainPrompt",
           "Try speaking again, search by name, or choose manually.",
@@ -298,7 +324,7 @@ export default function ConditionsSection() {
           "onboarding.conditions.voiceGuidance.noMatch",
           "No condition was recognised.",
         ),
-        activeTargetId: "health-add-by-voice",
+        activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
       });
       toast({ title: "No conditions recognised", description: "Try speaking more slowly or select conditions manually below." });
       return;
@@ -306,6 +332,7 @@ export default function ConditionsSection() {
     setSpeakItMatches(matches);
     setVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "parsed-draft",
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.confirmMatchesPrompt",
         "Review what VYVA heard, then add these if correct.",
@@ -314,20 +341,18 @@ export default function ConditionsSection() {
         conditions: matches.join(", "),
         defaultValue: `Heard: ${matches.join(", ")}`,
       }),
-      activeTargetId: "health-speak-confirm",
+      activeTargetId: healthAgentSectionConfig.targetIds?.draftReview,
     });
   };
 
   const startVoiceConditionCapture = useCallback(() => {
     const guidance = {
       voiceStatus: "listening",
-      currentSectionId: "health",
-      currentSectionLabel: t("onboarding.conditions.title", "Health profile"),
-      currentPrompt: t(
-        "onboarding.conditions.voiceGuidance.speakPrompt",
-        "Tell VYVA one or more health conditions.",
-      ),
-      activeTargetId: "health-add-by-voice",
+      draftStatus: "listening",
+      currentSectionId: healthAgentSectionConfig.sectionId,
+      currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+      currentPrompt: healthAgentSectionConfig.voicePrompt,
+      activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
     } as const;
     if (companionMode === "voice") {
       setGuidance(guidance);
@@ -336,7 +361,7 @@ export default function ConditionsSection() {
       window.setTimeout(() => setGuidance(guidance), 0);
     }
     setSpeakItOpen(true);
-  }, [companionMode, setCompanionMode, setGuidance, t]);
+  }, [companionMode, healthAgentSectionConfig, setCompanionMode, setGuidance]);
 
   useEffect(
     () =>
@@ -348,11 +373,12 @@ export default function ConditionsSection() {
           "Say one or more health conditions.",
         ),
         sectionId: "health",
-        sectionLabel: t("onboarding.conditions.title", "Health profile"),
-        targetId: "health-add-by-voice",
+        sectionLabel: healthAgentSectionConfig.sectionLabel,
+        targetId: healthAgentSectionConfig.targetIds?.addByVoice,
+        sectionConfig: healthAgentSectionConfig,
         onStart: startVoiceConditionCapture,
       }),
-    [registerVoiceAction, startVoiceConditionCapture, t],
+    [healthAgentSectionConfig, registerVoiceAction, startVoiceConditionCapture, t],
   );
 
   const confirmSpeakItMatches = () => {
@@ -363,6 +389,7 @@ export default function ConditionsSection() {
     setSpeakItMatches([]);
     setVoiceGuidance({
       voiceStatus: "speaking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.reviewPrompt",
         "Review your selected conditions, then save when ready.",
@@ -371,7 +398,7 @@ export default function ConditionsSection() {
         conditions: addedNames,
         defaultValue: `Added: ${addedNames}`,
       }),
-      activeTargetId: "health-review-save",
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
     });
     toast({
       title: t("onboarding.toast.healthConditionsUpdated.title", "Health conditions updated"),
@@ -425,9 +452,10 @@ export default function ConditionsSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-      setAutoSaveStatus("saved");
-      navigating = true;
+        await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
+        setAutoSaveStatus("saved");
+        setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
+        navigating = true;
       navTimerRef.current = setTimeout(() => navigate(completePath()), 300);
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);

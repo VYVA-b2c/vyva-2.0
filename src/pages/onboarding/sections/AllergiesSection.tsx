@@ -1,12 +1,13 @@
 // src/pages/onboarding/sections/AllergiesSection.tsx
-import { useState, useEffect, useCallback, KeyboardEvent } from "react";
+import { useState, useEffect, useCallback, useMemo, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import {
   ONBOARDING_COMPANION_TARGETS,
 } from "@/components/onboarding/onboardingCompanionGuidanceTemplate";
-import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
@@ -80,7 +81,28 @@ export default function AllergiesSection() {
     setGuidance,
     clearGuidance,
     registerVoiceAction,
-  } = useOnboardingCompanionGuidance();
+  } = useOnboardingAgent();
+  const allergyAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "allergies",
+        sectionLabel: t("onboarding.allergies.title", "Allergies"),
+        voicePrompt: t(
+          "onboarding.allergies.voiceGuidance.speakPrompt",
+          "Tell VYVA one or more allergies.",
+        ),
+        expectedFields: ["known_allergies"],
+        draftRowLabels: {
+          allergy: t("onboarding.allergies.voiceDraft.allergyLabel", "Allergy"),
+        },
+        targetIds: {
+          addByVoice: ALLERGY_COMPANION_TARGETS.addByVoice,
+          draftReview: ALLERGY_COMPANION_TARGETS.voiceDraft,
+          reviewSave: ALLERGY_COMPANION_TARGETS.reviewSave,
+        },
+      }),
+    [t],
+  );
   const allergyLabel = (value: string) => {
     const common = COMMON_ALLERGENS.find((item) => item.value.toLowerCase() === value.toLowerCase());
     return common
@@ -104,28 +126,27 @@ export default function AllergiesSection() {
 
     setGuidance({
       voiceStatus: "idle",
-      currentSectionId: "allergies",
-      currentSectionLabel: t("onboarding.allergies.title", "Allergies"),
+      draftStatus: "idle",
+      currentSectionId: allergyAgentSectionConfig.sectionId,
+      currentSectionLabel: allergyAgentSectionConfig.sectionLabel,
       currentPrompt: t(
         "onboarding.allergies.voiceGuidance.startPrompt",
         "Tell VYVA an allergy, enter one manually, or choose no known allergies.",
       ),
-      activeTargetId: ALLERGY_COMPANION_TARGETS.addByVoice,
+      activeTargetId: allergyAgentSectionConfig.targetIds?.addByVoice,
     });
 
     return () => clearGuidance();
-  }, [clearGuidance, companionMode, setGuidance, t]);
+  }, [allergyAgentSectionConfig, clearGuidance, companionMode, setGuidance, t]);
 
   const startVoiceAllergiesCapture = useCallback(() => {
     const guidance = {
       voiceStatus: "listening",
-      currentSectionId: "allergies",
-      currentSectionLabel: t("onboarding.allergies.title", "Allergies"),
-      currentPrompt: t(
-        "onboarding.allergies.voiceGuidance.speakPrompt",
-        "Tell VYVA one or more allergies.",
-      ),
-      activeTargetId: ALLERGY_COMPANION_TARGETS.addByVoice,
+      draftStatus: "listening",
+      currentSectionId: allergyAgentSectionConfig.sectionId,
+      currentSectionLabel: allergyAgentSectionConfig.sectionLabel,
+      currentPrompt: allergyAgentSectionConfig.voicePrompt,
+      activeTargetId: allergyAgentSectionConfig.targetIds?.addByVoice,
     } as const;
     if (companionMode === "voice") {
       setGuidance(guidance);
@@ -134,7 +155,7 @@ export default function AllergiesSection() {
       window.setTimeout(() => setGuidance(guidance), 0);
     }
     setVoiceModalOpen(true);
-  }, [companionMode, setCompanionMode, setGuidance, t]);
+  }, [allergyAgentSectionConfig, companionMode, setCompanionMode, setGuidance]);
 
   useEffect(
     () =>
@@ -146,11 +167,12 @@ export default function AllergiesSection() {
           "Say what you react to.",
         ),
         sectionId: "allergies",
-        sectionLabel: t("onboarding.allergies.title", "Allergies"),
-        targetId: ALLERGY_COMPANION_TARGETS.addByVoice,
+        sectionLabel: allergyAgentSectionConfig.sectionLabel,
+        targetId: allergyAgentSectionConfig.targetIds?.addByVoice,
+        sectionConfig: allergyAgentSectionConfig,
         onStart: startVoiceAllergiesCapture,
       }),
-    [registerVoiceAction, startVoiceAllergiesCapture, t],
+    [allergyAgentSectionConfig, registerVoiceAction, startVoiceAllergiesCapture, t],
   );
 
   const { data, isLoading } = useQuery<{ profile: { known_allergies?: string[] | null; no_known_allergies?: boolean } | null }>({
@@ -197,6 +219,7 @@ export default function AllergiesSection() {
     }
     setAllergyVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.allergies.voiceGuidance.noKnownPrompt",
         "No known allergies is selected. Save when you are ready.",
@@ -228,6 +251,7 @@ export default function AllergiesSection() {
     setVoiceDraft(draft);
     setAllergyVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: "parsed-draft",
       currentPrompt: t(
         "onboarding.allergies.voiceGuidance.reviewPrompt",
         "Review what VYVA heard, then add these if correct.",
@@ -247,6 +271,7 @@ export default function AllergiesSection() {
     setVoiceDraft(null);
     setAllergyVoiceGuidance({
       voiceStatus: "speaking",
+      draftStatus: "confirmed-locally",
       currentPrompt: t(
         "onboarding.allergies.voiceGuidance.savePrompt",
         "Review your allergy list, then save when ready.",
@@ -269,6 +294,7 @@ export default function AllergiesSection() {
     setVoiceDraft(applyProfileVoiceCorrection(voiceDraft, command));
     setAllergyVoiceGuidance({
       voiceStatus: "thinking",
+      draftStatus: command.kind === "remove" ? "corrected-draft" : "idle",
       currentPrompt: t(
         "onboarding.allergies.voiceGuidance.correctionPrompt",
         "Review the updated draft before adding it.",
@@ -294,6 +320,7 @@ export default function AllergiesSection() {
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
       setAutoSaveStatus("saved");
+      setAllergyVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigate("/onboarding/complete/allergies");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
