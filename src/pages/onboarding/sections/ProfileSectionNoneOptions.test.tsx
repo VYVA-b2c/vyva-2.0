@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -25,11 +25,49 @@ vi.mock("@/components/onboarding/SpeakItOverlay", () => ({
 }));
 
 vi.mock("@/components/VoiceMedsModal", () => ({
-  default: () => null,
+  default: ({ open, onAddMedication }: {
+    open: boolean;
+    onAddMedication: (med: {
+      name: string;
+      dosage: string;
+      frequency: string;
+      times: string;
+      with_food: string;
+      prescribed_by: string;
+    }) => void;
+  }) => open ? (
+    <button
+      type="button"
+      data-testid="button-mock-voice-meds-add"
+      onClick={() =>
+        onAddMedication({
+          name: "Metformin",
+          dosage: "500mg",
+          frequency: "",
+          times: "Morning",
+          with_food: "",
+          prescribed_by: "",
+        })
+      }
+    >
+      Add mock medication
+    </button>
+  ) : null,
 }));
 
 vi.mock("@/components/VoiceAllergiesModal", () => ({
-  default: () => null,
+  default: ({ open, onAddAllergies }: {
+    open: boolean;
+    onAddAllergies: (allergies: string[]) => void;
+  }) => open ? (
+    <button
+      type="button"
+      data-testid="button-mock-voice-allergies-add"
+      onClick={() => onAddAllergies(["Penicillin", "Latex"])}
+    >
+      Add mock allergies
+    </button>
+  ) : null,
 }));
 
 const apiFetchMock = vi.mocked(apiFetch);
@@ -325,6 +363,28 @@ describe("profile section reviewed-empty choices", () => {
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
+  it("adds medication voice output locally and waits for explicit save before writing", async () => {
+    seedOnboardingState();
+    renderSection(<MedicationsSection />);
+
+    fireEvent.click(await screen.findByTestId("button-meds-voice"));
+    fireEvent.click(screen.getByTestId("button-mock-voice-meds-add"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-med-name-1")).toHaveValue("Metformin");
+    });
+    expect(screen.getByTestId("input-med-dosage-1")).toHaveValue("500mg");
+    expect(screen.getByTestId("input-med-times-1")).toHaveValue("Morning");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-meds-save"));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/onboarding/section/medications",
+      expect.objectContaining({ method: "POST" }),
+    ));
+  });
+
   it("keeps allergies incomplete until no known allergies is selected", async () => {
     seedOnboardingState();
     renderSection(<AllergiesSection />);
@@ -364,5 +424,35 @@ describe("profile section reviewed-empty choices", () => {
       known_allergies: ["Penicillin"],
       no_known_allergies: false,
     });
+  });
+
+  it("reviews allergies voice output as a draft before applying or saving", async () => {
+    seedOnboardingState();
+    renderSection(<AllergiesSection />);
+
+    fireEvent.click(await screen.findByTestId("button-allergies-voice"));
+    fireEvent.click(screen.getByTestId("button-mock-voice-allergies-add"));
+
+    const draft = await screen.findByTestId("panel-allergies-voice-draft");
+    expect(draft).toHaveTextContent("Review allergies");
+    expect(within(draft).getByText("Penicillin")).toBeInTheDocument();
+    expect(within(draft).getByText("Latex")).toBeInTheDocument();
+    expect(screen.queryByTestId("tag-allergy-penicillin")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-profile-voice-draft-remove-latex"));
+    expect(within(draft).queryByText("Latex")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-profile-voice-draft-confirm"));
+
+    expect(await screen.findByTestId("tag-allergy-penicillin")).toBeInTheDocument();
+    expect(screen.queryByTestId("tag-allergy-latex")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-allergies-save"));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/onboarding/section/medications",
+      expect.objectContaining({ method: "POST" }),
+    ));
   });
 });

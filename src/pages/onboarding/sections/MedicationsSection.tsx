@@ -467,24 +467,9 @@ export default function MedicationsSection() {
         }),
         activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
       });
-      let res: Response | undefined;
-      try {
-        res = await saveMedsToServer(updated, false);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setSavedMeds(updated);
-        setAutoSaveStatus("saved");
-        queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-      } catch (err) {
-        setMeds(previous);
-        const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-        toast({ title: "Could not add medication", description: msg, variant: "destructive" });
-      } finally {
-        setAdding(false);
-      }
+      setAdding(false);
     },
-    [adding, removingId, saving, meds, setAutoSaveStatus, setMedicationVoiceGuidance, t, toast]
+    [adding, removingId, saving, meds, setMedicationVoiceGuidance, t]
   );
 
   const hasUnsavedChanges = useCallback((): boolean => {

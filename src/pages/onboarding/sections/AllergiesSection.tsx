@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +15,12 @@ import { AlertTriangle, Plus, Mic } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import {
+  applyProfileVoiceCorrection,
+  createAllergiesVoiceDraft,
+  parseProfileVoiceCommand,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 const COMMON_ALLERGENS = [
   { value: "Penicillin", key: "penicillin" },
@@ -59,6 +66,7 @@ export default function AllergiesSection() {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
   const allergyLabel = (value: string) => {
     const common = COMMON_ALLERGENS.find((item) => item.value.toLowerCase() === value.toLowerCase());
     return common
@@ -147,16 +155,30 @@ export default function AllergiesSection() {
       });
       return;
     }
+    const draft = createAllergiesVoiceDraft(novel);
+    if (!draft) return;
+    setVoiceDraft(draft);
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
     setNoKnownAllergies(false);
-    setAllergies((prev) => Array.from(new Set([...prev, ...novel])));
-    scheduleAutoSave();
+    setAllergies((prev) => Array.from(new Set([...prev, ...voiceDraft.values])));
+    setVoiceDraft(null);
     toast({
       title: t("onboarding.toast.allergyListUpdated.title", "Allergy list updated"),
       description: t("onboarding.toast.allergyListUpdated.description", {
-        count: novel.length,
+        count: voiceDraft.values.length,
         defaultValue: "{{count}} allergen was added to your profile.",
       }),
     });
+  };
+
+  const applyVoiceDraftCorrection = (transcript: string) => {
+    if (!voiceDraft) return;
+    const command = parseProfileVoiceCommand("allergies", transcript);
+    if (!command) return;
+    setVoiceDraft(applyProfileVoiceCorrection(voiceDraft, command));
   };
 
   const handleSave = async () => {
@@ -238,6 +260,23 @@ export default function AllergiesSection() {
           onOpenChange={setVoiceModalOpen}
           onAddAllergies={handleVoiceAddAllergies}
         />
+
+        {voiceDraft ? (
+          <ProfileVoiceDraftReview
+            draft={voiceDraft}
+            confirmLabel={t("onboarding.allergies.voiceDraft.confirm", "Add these")}
+            tryAgainLabel={t("onboarding.allergies.voiceDraft.tryAgain", "Try again")}
+            dismissLabel={t("onboarding.allergies.voiceDraft.dismiss", "Dismiss")}
+            onConfirm={confirmVoiceDraft}
+            onTryAgain={() => {
+              setVoiceDraft(null);
+              setVoiceModalOpen(true);
+            }}
+            onDismiss={() => setVoiceDraft(null)}
+            onRemoveRow={(value) => applyVoiceDraftCorrection(`remove ${value}`)}
+            testId="panel-allergies-voice-draft"
+          />
+        ) : null}
 
         <ProfileNoneOption
           title={t("onboarding.allergies.noneButton", "No known allergies")}

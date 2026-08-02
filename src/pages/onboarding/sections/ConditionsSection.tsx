@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
@@ -17,6 +18,7 @@ import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { useTranslation } from "react-i18next";
+import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 
 const CATEGORIES: { id: string; label: string }[] = [
   { id: "heart",       label: "Heart & circulation" },
@@ -372,6 +374,25 @@ export default function ConditionsSection() {
     });
   };
 
+  const speakItDraft: ProfileVoiceDraft | null = speakItMatches.length > 0
+    ? {
+        id: `health:${speakItMatches.join("|").toLowerCase()}`,
+        section: "health",
+        kind: "health-conditions",
+        title: t("onboarding.conditions.voiceDraft.title", "Review health conditions"),
+        helper: t(
+          "onboarding.conditions.voiceDraft.helper",
+          "VYVA found these from what you said. Add them only if they look right.",
+        ),
+        values: speakItMatches,
+        rows: speakItMatches.map((name) => ({
+          id: name.toLowerCase().replace(/\s+/g, "-"),
+          label: t("onboarding.conditions.voiceDraft.rowLabel", "Condition"),
+          value: name,
+        })),
+      }
+    : null;
+
   const toggleCat = (catId: string) => {
     setOpenCat((prev) => (prev === catId ? null : catId));
   };
@@ -474,29 +495,24 @@ export default function ConditionsSection() {
         </OnboardingCompanionTarget>
 
         {/* Speak-it confirmation */}
-        {speakItMatches.length > 0 && (
+        {speakItDraft && (
           <OnboardingCompanionTarget targetId="health-speak-confirm">
-            <div
-              className="rounded-[14px] px-4 py-3"
-              style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}
-              data-testid="panel-conditions-speak-it-confirm"
-            >
-              <p className="font-body text-[13px] font-semibold text-green-800 mb-2">
-                VYVA found {speakItMatches.length} condition{speakItMatches.length > 1 ? "s" : ""}:
-              </p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {speakItMatches.map((name) => (
-                  <span key={name} className="inline-flex items-center gap-1 bg-white text-green-800 text-[11px] px-2.5 py-1 rounded-full border border-green-200 font-medium">
-                    <CheckCircle2 size={10} className="text-green-600" />
-                    {name}
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setSpeakItMatches([])} className="flex-1 py-2 rounded-full font-body text-[13px] font-medium text-gray-600 bg-white border border-gray-200 min-h-[40px]" data-testid="button-conditions-speak-it-reject">Dismiss</button>
-                <button onClick={confirmSpeakItMatches} className="flex-1 py-2 rounded-full font-body text-[13px] font-medium text-white min-h-[40px]" style={{ background: "#0A7C4E" }} data-testid="button-conditions-speak-it-confirm">Add these</button>
-              </div>
-            </div>
+            <ProfileVoiceDraftReview
+              draft={speakItDraft}
+              confirmLabel={t("onboarding.conditions.voiceDraft.confirm", "Add these")}
+              tryAgainLabel={t("onboarding.conditions.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.conditions.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmSpeakItMatches}
+              onTryAgain={() => {
+                setSpeakItMatches([]);
+                startVoiceConditionCapture();
+              }}
+              onDismiss={() => setSpeakItMatches([])}
+              onRemoveRow={(value) =>
+                setSpeakItMatches((current) => current.filter((name) => name !== value))
+              }
+              testId="panel-conditions-speak-it-confirm"
+            />
           </OnboardingCompanionTarget>
         )}
 
