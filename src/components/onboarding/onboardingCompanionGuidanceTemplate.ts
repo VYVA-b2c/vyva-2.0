@@ -23,6 +23,12 @@ export const ONBOARDING_COMPANION_TARGETS = {
     addAnother: "medications-add-another",
     reviewSave: "medications-review-save",
   },
+  allergies: {
+    addByVoice: "allergies-add-by-voice",
+    voiceDraft: "allergies-voice-draft",
+    noKnown: "allergies-no-known",
+    reviewSave: "allergies-review-save",
+  },
 } as const;
 
 export function companionGuidanceForMode(

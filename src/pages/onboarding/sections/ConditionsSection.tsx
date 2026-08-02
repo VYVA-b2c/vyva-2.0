@@ -1,5 +1,5 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
@@ -157,6 +157,7 @@ export default function ConditionsSection() {
     setMode: setCompanionMode,
     setGuidance,
     clearGuidance,
+    registerVoiceAction,
   } = useOnboardingCompanionGuidance();
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -177,6 +178,8 @@ export default function ConditionsSection() {
 
     setGuidance({
       voiceStatus: "idle",
+      currentSectionId: "health",
+      currentSectionLabel: t("onboarding.conditions.title", "Health profile"),
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.startPrompt",
         "Tell VYVA, search by name, or choose no known conditions.",
@@ -329,9 +332,11 @@ export default function ConditionsSection() {
     });
   };
 
-  const startVoiceConditionCapture = () => {
+  const startVoiceConditionCapture = useCallback(() => {
     const guidance = {
       voiceStatus: "listening",
+      currentSectionId: "health",
+      currentSectionLabel: t("onboarding.conditions.title", "Health profile"),
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.speakPrompt",
         "Tell VYVA one or more health conditions.",
@@ -345,7 +350,24 @@ export default function ConditionsSection() {
       window.setTimeout(() => setGuidance(guidance), 0);
     }
     setSpeakItOpen(true);
-  };
+  }, [companionMode, setCompanionMode, setGuidance, t]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-health-voice-capture",
+        label: t("onboarding.conditions.tellVyva", "Tell VYVA"),
+        description: t(
+          "onboarding.conditions.tellVyvaDescription",
+          "Say one or more health conditions.",
+        ),
+        sectionId: "health",
+        sectionLabel: t("onboarding.conditions.title", "Health profile"),
+        targetId: "health-add-by-voice",
+        onStart: startVoiceConditionCapture,
+      }),
+    [registerVoiceAction, startVoiceConditionCapture, t],
+  );
 
   const confirmSpeakItMatches = () => {
     const newSelected = Array.from(new Set([...selected, ...speakItMatches]));
@@ -446,53 +468,38 @@ export default function ConditionsSection() {
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
         />
 
-        <OnboardingCompanionTarget targetId="health-add-by-voice">
-          <button
-            type="button"
-            data-testid="button-conditions-speak-it"
-            onClick={startVoiceConditionCapture}
-            className={cn(
-              "group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/20",
-              companionMode === "voice"
-                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] hover:bg-[#5B1A8F]"
-                : "border-[#DCC8FF] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(53,28,87,0.06)] hover:bg-[#F8F3FF]",
-            )}
-          >
-            <div
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="health-add-by-voice">
+            <button
+              type="button"
+              data-testid="button-conditions-speak-it"
+              onClick={startVoiceConditionCapture}
               className={cn(
-                "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full",
-                companionMode === "voice" ? "bg-white/16" : "bg-[#F3E8FF]",
+                "group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border border-[#DCC8FF] bg-white px-4 py-3 text-left text-vyva-purple shadow-[0_8px_18px_rgba(53,28,87,0.06)] transition hover:bg-[#F8F3FF] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20",
               )}
             >
-              <Mic size={20} className={companionMode === "voice" ? "text-white" : "text-vyva-purple"} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className={cn(
-                "font-body text-[18px] font-black leading-tight",
-                companionMode === "voice" ? "text-white" : "text-vyva-purple",
-              )}>
-                {t("onboarding.conditions.tellVyva", "Tell VYVA")}
-              </p>
-              <p className={cn(
-                "mt-1 font-body text-[14px] font-semibold leading-snug",
-                companionMode === "voice" ? "text-white/85" : "text-vyva-text-2",
-              )}>
-                {t(
-                  "onboarding.conditions.tellVyvaDescription",
-                  "Say one or more health conditions.",
-                )}
-              </p>
-            </div>
-            <ChevronRight
-              size={22}
-              className={cn(
-                "shrink-0 transition-transform group-hover:translate-x-0.5",
-                companionMode === "voice" ? "text-white/75" : "text-vyva-purple/65",
-              )}
-              aria-hidden="true"
-            />
-          </button>
-        </OnboardingCompanionTarget>
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F3E8FF]">
+                <Mic size={20} className="text-vyva-purple" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[18px] font-black leading-tight text-vyva-purple">
+                  {t("onboarding.conditions.tellVyva", "Tell VYVA")}
+                </p>
+                <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                  {t(
+                    "onboarding.conditions.tellVyvaDescription",
+                    "Say one or more health conditions.",
+                  )}
+                </p>
+              </div>
+              <ChevronRight
+                size={22}
+                className="shrink-0 text-vyva-purple/65 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </button>
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {/* Speak-it confirmation */}
         {speakItDraft && (

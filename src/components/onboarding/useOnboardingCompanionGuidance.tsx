@@ -19,16 +19,35 @@ export type OnboardingCompanionVoiceStatus =
 export interface OnboardingCompanionGuidanceState {
   mode: OnboardingCompanionMode;
   voiceStatus: OnboardingCompanionVoiceStatus;
+  currentSectionId?: string;
+  currentSectionLabel?: string;
   currentPrompt?: string;
   activeTargetId?: string;
   lastHeardText?: string;
   error?: string;
+  primaryVoiceActionId?: string;
+  primaryVoiceActionLabel?: string;
+  primaryVoiceActionDescription?: string;
+}
+
+export interface OnboardingCompanionVoiceActionRegistration {
+  id: string;
+  label: string;
+  description?: string;
+  sectionId?: string;
+  sectionLabel?: string;
+  targetId?: string;
+  onStart: () => void;
 }
 
 export interface OnboardingCompanionGuidanceActions {
   setMode: (mode: OnboardingCompanionMode) => void;
   setGuidance: (state: Partial<Omit<OnboardingCompanionGuidanceState, "mode">>) => void;
   clearGuidance: () => void;
+  registerVoiceAction: (
+    action: OnboardingCompanionVoiceActionRegistration
+  ) => () => void;
+  runPrimaryVoiceAction: () => void;
 }
 
 export type OnboardingCompanionGuidance = OnboardingCompanionGuidanceState &
@@ -36,6 +55,7 @@ export type OnboardingCompanionGuidance = OnboardingCompanionGuidanceState &
 
 const STORAGE_KEY = "vyva.onboarding.companionMode.v1";
 const GUIDANCE_CHANGE_EVENT = "vyva:onboarding-companion-guidance-change";
+const voiceActionHandlers = new Map<string, () => void>();
 
 const DEFAULT_STATE: OnboardingCompanionGuidanceState = {
   mode: "voice",
@@ -93,6 +113,13 @@ function sanitizeGuidanceState(
   if ("activeTargetId" in state) sanitized.activeTargetId = cleanText(state.activeTargetId);
   if ("lastHeardText" in state) sanitized.lastHeardText = cleanText(state.lastHeardText);
   if ("error" in state) sanitized.error = cleanText(state.error);
+  if ("currentSectionId" in state) sanitized.currentSectionId = cleanText(state.currentSectionId);
+  if ("currentSectionLabel" in state) sanitized.currentSectionLabel = cleanText(state.currentSectionLabel);
+  if ("primaryVoiceActionId" in state) sanitized.primaryVoiceActionId = cleanText(state.primaryVoiceActionId);
+  if ("primaryVoiceActionLabel" in state) sanitized.primaryVoiceActionLabel = cleanText(state.primaryVoiceActionLabel);
+  if ("primaryVoiceActionDescription" in state) {
+    sanitized.primaryVoiceActionDescription = cleanText(state.primaryVoiceActionDescription);
+  }
 
   return sanitized;
 }
@@ -174,14 +201,63 @@ export function OnboardingCompanionGuidanceProvider({
   const clearGuidance = useCallback(() => {
     const cleared: Partial<OnboardingCompanionGuidanceState> = {
       voiceStatus: "idle",
+      currentSectionId: undefined,
+      currentSectionLabel: undefined,
       currentPrompt: undefined,
       activeTargetId: undefined,
       lastHeardText: undefined,
       error: undefined,
+      primaryVoiceActionId: undefined,
+      primaryVoiceActionLabel: undefined,
+      primaryVoiceActionDescription: undefined,
     };
     setState((current) => ({ ...current, ...cleared }));
     emitGuidanceChange(cleared);
   }, []);
+
+  const registerVoiceAction = useCallback(
+    (action: OnboardingCompanionVoiceActionRegistration) => {
+      const actionId = cleanText(action.id);
+      if (!actionId) return () => undefined;
+
+      voiceActionHandlers.set(actionId, action.onStart);
+      const registered: Partial<OnboardingCompanionGuidanceState> = {
+        currentSectionId: cleanText(action.sectionId),
+        currentSectionLabel: cleanText(action.sectionLabel),
+        primaryVoiceActionId: actionId,
+        primaryVoiceActionLabel: cleanText(action.label),
+        primaryVoiceActionDescription: cleanText(action.description),
+      };
+      setState((current) => ({ ...current, ...registered }));
+      emitGuidanceChange(registered);
+
+      return () => {
+        const currentHandler = voiceActionHandlers.get(actionId);
+        if (currentHandler === action.onStart) {
+          voiceActionHandlers.delete(actionId);
+        }
+        const cleared: Partial<OnboardingCompanionGuidanceState> = {
+          currentSectionId: undefined,
+          currentSectionLabel: undefined,
+          activeTargetId: undefined,
+          primaryVoiceActionId: undefined,
+          primaryVoiceActionLabel: undefined,
+          primaryVoiceActionDescription: undefined,
+        };
+        setState((current) =>
+          current.primaryVoiceActionId === actionId ? { ...current, ...cleared } : current
+        );
+        emitGuidanceChange(cleared);
+      };
+    },
+    []
+  );
+
+  const runPrimaryVoiceAction = useCallback(() => {
+    const actionId = state.primaryVoiceActionId;
+    if (!actionId) return;
+    voiceActionHandlers.get(actionId)?.();
+  }, [state.primaryVoiceActionId]);
 
   const value = useMemo<OnboardingCompanionGuidance>(
     () => ({
@@ -189,8 +265,10 @@ export function OnboardingCompanionGuidanceProvider({
       setMode,
       setGuidance,
       clearGuidance,
+      registerVoiceAction,
+      runPrimaryVoiceAction,
     }),
-    [clearGuidance, setGuidance, setMode, state]
+    [clearGuidance, registerVoiceAction, runPrimaryVoiceAction, setGuidance, setMode, state]
   );
 
   return (
@@ -262,14 +340,63 @@ function useStandaloneGuidance(
   const clearGuidance = useCallback(() => {
     const cleared: Partial<OnboardingCompanionGuidanceState> = {
       voiceStatus: "idle",
+      currentSectionId: undefined,
+      currentSectionLabel: undefined,
       currentPrompt: undefined,
       activeTargetId: undefined,
       lastHeardText: undefined,
       error: undefined,
+      primaryVoiceActionId: undefined,
+      primaryVoiceActionLabel: undefined,
+      primaryVoiceActionDescription: undefined,
     };
     setState((current) => ({ ...current, ...cleared }));
     emitGuidanceChange(cleared);
   }, []);
+
+  const registerVoiceAction = useCallback(
+    (action: OnboardingCompanionVoiceActionRegistration) => {
+      const actionId = cleanText(action.id);
+      if (!actionId) return () => undefined;
+
+      voiceActionHandlers.set(actionId, action.onStart);
+      const registered: Partial<OnboardingCompanionGuidanceState> = {
+        currentSectionId: cleanText(action.sectionId),
+        currentSectionLabel: cleanText(action.sectionLabel),
+        primaryVoiceActionId: actionId,
+        primaryVoiceActionLabel: cleanText(action.label),
+        primaryVoiceActionDescription: cleanText(action.description),
+      };
+      setState((current) => ({ ...current, ...registered }));
+      emitGuidanceChange(registered);
+
+      return () => {
+        const currentHandler = voiceActionHandlers.get(actionId);
+        if (currentHandler === action.onStart) {
+          voiceActionHandlers.delete(actionId);
+        }
+        const cleared: Partial<OnboardingCompanionGuidanceState> = {
+          currentSectionId: undefined,
+          currentSectionLabel: undefined,
+          activeTargetId: undefined,
+          primaryVoiceActionId: undefined,
+          primaryVoiceActionLabel: undefined,
+          primaryVoiceActionDescription: undefined,
+        };
+        setState((current) =>
+          current.primaryVoiceActionId === actionId ? { ...current, ...cleared } : current
+        );
+        emitGuidanceChange(cleared);
+      };
+    },
+    []
+  );
+
+  const runPrimaryVoiceAction = useCallback(() => {
+    const actionId = state.primaryVoiceActionId;
+    if (!actionId) return;
+    voiceActionHandlers.get(actionId)?.();
+  }, [state.primaryVoiceActionId]);
 
   return useMemo(
     () => ({
@@ -277,8 +404,10 @@ function useStandaloneGuidance(
       setMode,
       setGuidance,
       clearGuidance,
+      registerVoiceAction,
+      runPrimaryVoiceAction,
     }),
-    [clearGuidance, setGuidance, setMode, state]
+    [clearGuidance, registerVoiceAction, runPrimaryVoiceAction, setGuidance, setMode, state]
   );
 }
 
