@@ -1506,6 +1506,7 @@
     }
   },
   "onboarding": {
+    "allSections": "All",
     "careTeam": {
       "roles": {
         "familyMember": "Family member",
@@ -1559,13 +1560,80 @@
       "retry": "Retry",
       "rosterTitle": "👥 Your care team",
       "rosterSubtitle": "People you've added to support you. You control exactly what each person can see.",
+      "roster": {
+        "heroAria": "Care team overview",
+        "kicker": "Support circle",
+        "stepLabel": "Step {{current}} of {{total}}",
+        "title": "Your support",
+        "subtitle": "People you've added to support you. You control exactly what each person can see.",
+        "voice": {
+          "label": "Talk to VYVA",
+          "activeLabel": "Voice is open",
+          "connectingLabel": "Opening voice",
+          "preparingLabel": "Checking voice",
+          "errorLabel": "Voice needs help",
+          "supportingLabel": "Ask who to add",
+          "context": "Help the user review their care team, decide who to add, explain sharing permissions clearly, and guide them to add or resend an invite. Do not give medical advice."
+        },
+        "metrics": {
+          "active": "Connected",
+          "activeDetail": "Can receive updates now",
+          "pending": "Waiting",
+          "pendingDetail": "Invites not accepted yet",
+          "attention": "Check",
+          "attentionDetail": "Needs a resend or review"
+        },
+        "highlightsAria": "Sharing options",
+        "highlights": {
+          "updates": "Daily summaries and important changes",
+          "safety": "Urgent alerts when help may be needed",
+          "health": "Health reports only when you allow it"
+        },
+        "peopleAria": "People in your care team",
+        "peopleHeading": "Your people",
+        "peopleSub": "Review invites, contact details, and access state.",
+        "addShort": "Add",
+        "wizardAria": "Care team steps",
+        "wizard": {
+          "people": "People",
+          "sharing": "Sharing",
+          "invite": "Invite",
+          "controlled": "Controlled",
+          "next": "Next"
+        },
+        "member": {
+          "attention": "Needs attention",
+          "connected": "Connected",
+          "waiting": "Waiting for acceptance",
+          "privateInvite": "Invite sent",
+          "inviteSent": "Invite sent",
+          "inviteSentBy": "Invite sent by {{channel}}",
+          "deliveryNeedsAttention": "Delivery needs attention",
+          "deliveryNeedsAttentionBy": "Delivery needs attention by {{channel}}",
+          "deliveryInProgress": "Sending invite",
+          "deliveryStatus": "Invite status: {{status}}",
+          "sharingControl": "You control their sharing permissions.",
+          "changeAnytime": "Change or remove access whenever needed."
+        },
+        "privacyTitle": "Control sharing",
+        "privacyShort": "Adjust any time.",
+        "inviteTitle": "Invite someone",
+        "inviteSub": "Choose who to add next.",
+        "back": "Back",
+        "nextAction": "Next",
+        "profileBack": "Profile",
+        "finish": "Done"
+      },
       "rosterInfoBanner": "Change what each person can see any time in Settings → Privacy & consent.",
       "addAnother": "+ Add another person",
       "doneBack": "Done — back to profile",
       "resending": "Resending…",
       "resendInvite": "↻ Resend invite",
+      "resendShort": "Resend",
       "removeAccess": "Remove access",
+      "removeShort": "Remove",
       "cancelInvite": "Cancel invite",
+      "cancelShort": "Cancel",
       "confirmRemoveAccess": "Remove {{name}}'s access? They'll no longer receive any updates.",
       "confirmCancelInvite": "Cancel {{name}}'s invitation? The link will stop working.",
       "keep": "Keep",

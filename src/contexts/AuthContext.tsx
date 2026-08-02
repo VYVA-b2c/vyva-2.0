@@ -5,6 +5,7 @@ import { getLanguageSnapshot, setAccountLanguage } from "@/i18n";
 import { signInWithSupabase } from "@/lib/supabaseAuth";
 
 const ONBOARDING_STATE_KEY = ["/api/onboarding/state"] as const;
+const LOCAL_PREVIEW_AUTH_KEY = "vyva_local_preview_auth";
 const LOCAL_API_UNAVAILABLE_MESSAGE =
   "Local API is not running. Start the backend on port 3001 and make sure DATABASE_URL is set.";
 
@@ -125,6 +126,70 @@ function responseUser(data: {
   };
 }
 
+function canUseLocalPreviewAuth(): boolean {
+  if (!import.meta.env.DEV || typeof window === "undefined") return false;
+  return window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+}
+
+function isLocalPreviewAuthEnabled(): boolean {
+  if (!canUseLocalPreviewAuth()) return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("local_preview") === "1") {
+      window.localStorage.setItem(LOCAL_PREVIEW_AUTH_KEY, "1");
+      return true;
+    }
+    return window.localStorage.getItem(LOCAL_PREVIEW_AUTH_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function clearLocalPreviewAuth(): void {
+  try {
+    window.localStorage.removeItem(LOCAL_PREVIEW_AUTH_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function base64UrlJson(value: unknown): string {
+  return window.btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
+}
+
+function localPreviewCurrentUser(): CurrentUserResult {
+  const language = getLanguageSnapshot().language;
+  const now = Math.floor(Date.now() / 1000);
+  const token = [
+    base64UrlJson({ alg: "none", typ: "JWT" }),
+    base64UrlJson({
+      sub: "local-preview-user",
+      email: "local.preview@vyva.dev",
+      exp: now + 60 * 60 * 8,
+      iat: now,
+      iss: "vyva-local-preview",
+    }),
+    "local-preview",
+  ].join(".");
+
+  return {
+    token,
+    prevSeenAt: null,
+    user: {
+      id: "local-preview-user",
+      email: "local.preview@vyva.dev",
+      phone: null,
+      language,
+      activeProfileId: "local-preview-profile",
+      activeProfileRole: "owner",
+      profileCount: 1,
+      needsProfileSetup: false,
+      needsProfileSelection: false,
+      role: "user",
+    },
+  };
+}
+
 async function loadCurrentUser(token?: string | null, fallback?: { userId?: string; email?: string | null }): Promise<CurrentUserResult> {
   const headers = languageHeaders(token ? { Authorization: `Bearer ${token}` } : undefined);
   const response = await fetch("/api/auth/me", {
@@ -165,6 +230,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return u;
   }, []);
 
+  const applyLocalPreviewAuth = useCallback(() => {
+    const currentUser = localPreviewCurrentUser();
+    if (currentUser.token) setToken(currentUser.token);
+    setTokenState(currentUser.token);
+    setUser(currentUser.user);
+    setLastSeenAt(currentUser.prevSeenAt);
+    if (currentUser.user.language) setAccountLanguage(currentUser.user.language);
+    queryClient.setQueryData(ONBOARDING_STATE_KEY, {
+      onboardingState: { current_stage: "complete" },
+      profile: { current_stage: "complete" },
+    });
+    return currentUser.user;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", {
@@ -175,6 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Local session cleanup should still happen if the network request fails.
     } finally {
       clearToken();
+      clearLocalPreviewAuth();
       setTokenState(null);
       setUser(null);
       setLastSeenAt(null);
@@ -184,6 +264,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshCurrentUser = useCallback(async () => {
+    if (isLocalPreviewAuthEnabled()) {
+      return applyLocalPreviewAuth();
+    }
+
     const stored = getToken();
     const currentUser = await loadCurrentUser(stored);
     if (currentUser.token) {
@@ -198,9 +282,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ONBOARDING_STATE_KEY });
     queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
     return currentUser.user;
-  }, []);
+  }, [applyLocalPreviewAuth]);
 
   useEffect(() => {
+    if (isLocalPreviewAuthEnabled()) {
+      applyLocalPreviewAuth();
+      setIsLoading(false);
+      return;
+    }
+
     const stored = getToken();
     const usableStored = stored && isAuthenticated() ? stored : null;
 
@@ -224,7 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [applyLocalPreviewAuth]);
 
   const login = useCallback(async (identifier: string | AuthIdentifier, password: string) => {
     const email = emailFromIdentifier(identifier);

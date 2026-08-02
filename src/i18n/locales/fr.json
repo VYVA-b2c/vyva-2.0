@@ -1386,6 +1386,7 @@
     }
   },
   "onboarding": {
+    "allSections": "Tout",
     "careTeam": {
       "roles": {
         "familyMember": "Membre de la famille",
@@ -1439,13 +1440,80 @@
       "retry": "Réessayer",
       "rosterTitle": "👥 Votre équipe de soins",
       "rosterSubtitle": "Les personnes que vous avez ajoutées pour vous soutenir. Vous contrôlez exactement ce que chaque personne peut voir.",
+      "roster": {
+        "heroAria": "Vue d'ensemble de l'équipe de soins",
+        "kicker": "Cercle de soutien",
+        "stepLabel": "Étape {{current}} sur {{total}}",
+        "title": "Votre soutien",
+        "subtitle": "Les personnes que vous avez ajoutées pour vous soutenir. Vous contrôlez exactement ce que chaque personne peut voir.",
+        "voice": {
+          "label": "Parler à VYVA",
+          "activeLabel": "La voix est ouverte",
+          "connectingLabel": "Ouverture de la voix",
+          "preparingLabel": "Vérification de la voix",
+          "errorLabel": "La voix a besoin d'aide",
+          "supportingLabel": "Demander qui ajouter",
+          "context": "Aidez l'utilisateur à revoir son équipe de soins, décider qui ajouter, expliquer clairement les autorisations de partage et le guider pour ajouter ou renvoyer une invitation. Ne donnez pas de conseil médical."
+        },
+        "metrics": {
+          "active": "Connectés",
+          "activeDetail": "Peuvent recevoir des mises à jour",
+          "pending": "En attente",
+          "pendingDetail": "Invitations pas encore acceptées",
+          "attention": "À vérifier",
+          "attentionDetail": "Renvoi ou revue nécessaire"
+        },
+        "highlightsAria": "Options de partage",
+        "highlights": {
+          "updates": "Résumés quotidiens et changements importants",
+          "safety": "Alertes urgentes quand une aide peut être nécessaire",
+          "health": "Rapports de santé seulement si vous l'autorisez"
+        },
+        "peopleAria": "Personnes dans votre équipe de soins",
+        "peopleHeading": "Vos personnes",
+        "peopleSub": "Vérifiez les invitations, les contacts et l'état des accès.",
+        "addShort": "Ajouter",
+        "wizardAria": "Étapes de l'équipe de soins",
+        "wizard": {
+          "people": "Personnes",
+          "sharing": "Partage",
+          "invite": "Inviter",
+          "controlled": "Contrôlé",
+          "next": "Suivant"
+        },
+        "member": {
+          "attention": "À vérifier",
+          "connected": "Connecté",
+          "waiting": "En attente d'acceptation",
+          "privateInvite": "Invitation envoyée",
+          "inviteSent": "Invitation envoyée",
+          "inviteSentBy": "Invitation envoyée par {{channel}}",
+          "deliveryNeedsAttention": "Livraison à vérifier",
+          "deliveryNeedsAttentionBy": "Livraison à vérifier par {{channel}}",
+          "deliveryInProgress": "Invitation en cours",
+          "deliveryStatus": "Statut : {{status}}",
+          "sharingControl": "Vous contrôlez ses autorisations de partage.",
+          "changeAnytime": "Vous pouvez modifier ou retirer l'accès à tout moment."
+        },
+        "privacyTitle": "Contrôler le partage",
+        "privacyShort": "Modifiable à tout moment.",
+        "inviteTitle": "Inviter quelqu'un",
+        "inviteSub": "Choisissez qui ajouter.",
+        "back": "Retour",
+        "nextAction": "Suivant",
+        "profileBack": "Profil",
+        "finish": "Terminé"
+      },
       "rosterInfoBanner": "Modifiez ce que chaque personne peut voir à tout moment dans Paramètres → Confidentialité et consentement.",
       "addAnother": "+ Ajouter une autre personne",
       "doneBack": "Terminé — retour au profil",
       "resending": "Renvoi en cours…",
       "resendInvite": "↻ Renvoyer l'invitation",
+      "resendShort": "Renvoyer",
       "removeAccess": "Supprimer l'accès",
+      "removeShort": "Retirer",
       "cancelInvite": "Annuler l'invitation",
+      "cancelShort": "Annuler",
       "confirmRemoveAccess": "Supprimer l'accès de {{name}} ? Il/elle ne recevra plus aucune mise à jour.",
       "confirmCancelInvite": "Annuler l'invitation de {{name}} ? Le lien cessera de fonctionner.",
       "keep": "Conserver",
