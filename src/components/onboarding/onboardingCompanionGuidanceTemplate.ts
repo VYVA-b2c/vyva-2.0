@@ -1,10 +1,10 @@
 import type {
-  OnboardingCompanionGuidanceState,
-  OnboardingCompanionMode,
-} from "./useOnboardingCompanionGuidance";
+  OnboardingAgentMode,
+  OnboardingAgentState,
+} from "./useOnboardingAgent";
 
 export type OnboardingCompanionGuidancePatch = Partial<
-  Omit<OnboardingCompanionGuidanceState, "mode">
+  Omit<OnboardingAgentState, "mode">
 >;
 
 export const ONBOARDING_COMPANION_TARGETS = {
@@ -32,9 +32,20 @@ export const ONBOARDING_COMPANION_TARGETS = {
 } as const;
 
 export function companionGuidanceForMode(
-  mode: OnboardingCompanionMode,
+  mode: OnboardingAgentMode,
   guidance: OnboardingCompanionGuidancePatch,
 ): OnboardingCompanionGuidancePatch | null {
   if (mode !== "voice") return null;
   return guidance;
+}
+
+export type OnboardingAgentGuidancePatch = OnboardingCompanionGuidancePatch;
+
+export const ONBOARDING_AGENT_TARGETS = ONBOARDING_COMPANION_TARGETS;
+
+export function onboardingAgentGuidanceForMode(
+  mode: OnboardingAgentMode,
+  guidance: OnboardingAgentGuidancePatch,
+): OnboardingAgentGuidancePatch | null {
+  return companionGuidanceForMode(mode, guidance);
 }
