@@ -1,19 +1,31 @@
 // src/pages/onboarding/sections/AllergiesSection.tsx
-import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import { useState, useEffect, useCallback, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import {
+  ONBOARDING_COMPANION_TARGETS,
+} from "@/components/onboarding/onboardingCompanionGuidanceTemplate";
+import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import VoiceAllergiesModal from "@/components/VoiceAllergiesModal";
 import { AlertTriangle, Plus, Mic } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import {
+  applyProfileVoiceCorrection,
+  createAllergiesVoiceDraft,
+  parseProfileVoiceCommand,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 const COMMON_ALLERGENS = [
   { value: "Penicillin", key: "penicillin" },
@@ -49,6 +61,8 @@ const ALLERGEN_ICON: Record<string, string> = {
   "Bee stings": "Bee",
 };
 
+const ALLERGY_COMPANION_TARGETS = ONBOARDING_COMPANION_TARGETS.allergies;
+
 
 export default function AllergiesSection() {
   const navigate = useNavigate();
@@ -59,6 +73,14 @@ export default function AllergiesSection() {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingCompanionGuidance();
   const allergyLabel = (value: string) => {
     const common = COMMON_ALLERGENS.find((item) => item.value.toLowerCase() === value.toLowerCase());
     return common
@@ -66,8 +88,70 @@ export default function AllergiesSection() {
       : value;
   };
 
-  const allergiesRef = useRef(allergies);
-  useEffect(() => { allergiesRef.current = allergies; }, [allergies]);
+  const setAllergyVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      currentSectionId: "allergies",
+      currentSectionLabel: t("onboarding.allergies.title", "Allergies"),
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.startPrompt",
+        "Tell VYVA an allergy, enter one manually, or choose no known allergies.",
+      ),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, setGuidance, t]);
+
+  const startVoiceAllergiesCapture = useCallback(() => {
+    const guidance = {
+      voiceStatus: "listening",
+      currentSectionId: "allergies",
+      currentSectionLabel: t("onboarding.allergies.title", "Allergies"),
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.speakPrompt",
+        "Tell VYVA one or more allergies.",
+      ),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.addByVoice,
+    } as const;
+    if (companionMode === "voice") {
+      setGuidance(guidance);
+    } else {
+      setCompanionMode("voice");
+      window.setTimeout(() => setGuidance(guidance), 0);
+    }
+    setVoiceModalOpen(true);
+  }, [companionMode, setCompanionMode, setGuidance, t]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-allergies-voice-capture",
+        label: t("onboarding.allergies.addByVoice", "Tell VYVA"),
+        description: t(
+          "onboarding.allergies.addByVoiceDescription",
+          "Say what you react to.",
+        ),
+        sectionId: "allergies",
+        sectionLabel: t("onboarding.allergies.title", "Allergies"),
+        targetId: ALLERGY_COMPANION_TARGETS.addByVoice,
+        onStart: startVoiceAllergiesCapture,
+      }),
+    [registerVoiceAction, startVoiceAllergiesCapture, t],
+  );
 
   const { data, isLoading } = useQuery<{ profile: { known_allergies?: string[] | null; no_known_allergies?: boolean } | null }>({
     queryKey: ["/api/onboarding/state"],
@@ -80,24 +164,11 @@ export default function AllergiesSection() {
     setNoKnownAllergies(Boolean(data.profile?.no_known_allergies) && (!Array.isArray(saved) || saved.length === 0));
   }, [data]);
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/medications", {
-        method: "POST",
-        body: JSON.stringify({
-          known_allergies: allergiesRef.current,
-          no_known_allergies: noKnownAllergies && allergiesRef.current.length === 0,
-        }),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-    },
-    1500,
-  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const addAllergy = (raw: string) => {
     const value = raw.trim();
@@ -111,12 +182,10 @@ export default function AllergiesSection() {
     const updated = [...allergies, value];
     setAllergies(updated);
     setInput("");
-    scheduleAutoSave();
   };
 
   const removeAllergy = (name: string) => {
     setAllergies((prev) => prev.filter((a) => a !== name));
-    scheduleAutoSave();
   };
 
   const toggleNoKnownAllergies = () => {
@@ -126,7 +195,14 @@ export default function AllergiesSection() {
       setAllergies([]);
       setInput("");
     }
-    scheduleAutoSave();
+    setAllergyVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.noKnownPrompt",
+        "No known allergies is selected. Save when you are ready.",
+      ),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.reviewSave,
+    });
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -147,15 +223,57 @@ export default function AllergiesSection() {
       });
       return;
     }
+    const draft = createAllergiesVoiceDraft(novel);
+    if (!draft) return;
+    setVoiceDraft(draft);
+    setAllergyVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.reviewPrompt",
+        "Review what VYVA heard, then add these if correct.",
+      ),
+      lastHeardText: t("onboarding.allergies.voiceGuidance.heardAllergies", {
+        allergies: novel.join(", "),
+        defaultValue: `Heard: ${novel.join(", ")}`,
+      }),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.voiceDraft,
+    });
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
     setNoKnownAllergies(false);
-    setAllergies((prev) => Array.from(new Set([...prev, ...novel])));
-    scheduleAutoSave();
+    setAllergies((prev) => Array.from(new Set([...prev, ...voiceDraft.values])));
+    setVoiceDraft(null);
+    setAllergyVoiceGuidance({
+      voiceStatus: "speaking",
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.savePrompt",
+        "Review your allergy list, then save when ready.",
+      ),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.reviewSave,
+    });
     toast({
       title: t("onboarding.toast.allergyListUpdated.title", "Allergy list updated"),
       description: t("onboarding.toast.allergyListUpdated.description", {
-        count: novel.length,
+        count: voiceDraft.values.length,
         defaultValue: "{{count}} allergen was added to your profile.",
       }),
+    });
+  };
+
+  const applyVoiceDraftCorrection = (transcript: string) => {
+    if (!voiceDraft) return;
+    const command = parseProfileVoiceCommand("allergies", transcript);
+    if (!command) return;
+    setVoiceDraft(applyProfileVoiceCorrection(voiceDraft, command));
+    setAllergyVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.correctionPrompt",
+        "Review the updated draft before adding it.",
+      ),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.voiceDraft,
     });
   };
 
@@ -175,6 +293,7 @@ export default function AllergiesSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      setAutoSaveStatus("saved");
       navigate("/onboarding/complete/allergies");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -220,17 +339,21 @@ export default function AllergiesSection() {
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-allergies-autosave" }}
         />
 
-        <ProfileVoiceAction
-          icon={Mic}
-          title={t("onboarding.allergies.addByVoice", "Add by voice")}
-          description={t(
-            "onboarding.allergies.addByVoiceDescription",
-            "Say what you react to. VYVA will add it to the list.",
-          )}
-          onClick={() => setVoiceModalOpen(true)}
-          testId="button-allergies-voice"
-          tone="amber"
-        />
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId={ALLERGY_COMPANION_TARGETS.addByVoice}>
+            <ProfileVoiceAction
+              icon={Mic}
+              title={t("onboarding.allergies.addByVoice", "Add by voice")}
+              description={t(
+                "onboarding.allergies.addByVoiceDescription",
+                "Say what you react to. VYVA will add it to the list.",
+              )}
+              onClick={startVoiceAllergiesCapture}
+              testId="button-allergies-voice"
+              tone="amber"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {/* Voice allergies modal */}
         <VoiceAllergiesModal
@@ -239,17 +362,38 @@ export default function AllergiesSection() {
           onAddAllergies={handleVoiceAddAllergies}
         />
 
-        <ProfileNoneOption
-          title={t("onboarding.allergies.noneButton", "No known allergies")}
-          description={t(
-            "onboarding.allergies.noneDescription",
-            "Choose this if there are no known allergies right now.",
-          )}
-          selected={noKnownAllergies}
-          onClick={toggleNoKnownAllergies}
-          testId="button-allergies-no-known"
-          tone="amber"
-        />
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId={ALLERGY_COMPANION_TARGETS.voiceDraft}>
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel={t("onboarding.allergies.voiceDraft.confirm", "Add these")}
+              tryAgainLabel={t("onboarding.allergies.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.allergies.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={() => {
+                setVoiceDraft(null);
+                startVoiceAllergiesCapture();
+              }}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => applyVoiceDraftCorrection(`remove ${value}`)}
+              testId="panel-allergies-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        <OnboardingCompanionTarget targetId={ALLERGY_COMPANION_TARGETS.noKnown}>
+          <ProfileNoneOption
+            title={t("onboarding.allergies.noneButton", "No known allergies")}
+            description={t(
+              "onboarding.allergies.noneDescription",
+              "Choose this if there are no known allergies right now.",
+            )}
+            selected={noKnownAllergies}
+            onClick={toggleNoKnownAllergies}
+            testId="button-allergies-no-known"
+            tone="amber"
+          />
+        </OnboardingCompanionTarget>
 
         {isLoading ? (
           <div className="flex flex-col gap-3">
@@ -348,17 +492,19 @@ export default function AllergiesSection() {
           </>
         )}
 
-        <ProfileCompletionBar
-          saving={saving}
-          onSave={handleSave}
-          disabled={isLoading || !hasAllergySectionContent}
-          saveLabel={t("onboarding.allergies.saveContinue", "Save and continue")}
-          savingLabel={t("onboarding.allergies.saving", "Saving...")}
-          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
-          skipLabel={t("onboarding.allergies.skip", "Skip for now")}
-          onSkip={() => navigate("/onboarding/profile")}
-          testId="button-allergies-save"
-        />
+        <OnboardingCompanionTarget targetId={ALLERGY_COMPANION_TARGETS.reviewSave}>
+          <ProfileCompletionBar
+            saving={saving}
+            onSave={handleSave}
+            disabled={isLoading || !hasAllergySectionContent}
+            saveLabel={t("onboarding.allergies.saveContinue", "Save and continue")}
+            savingLabel={t("onboarding.allergies.saving", "Saving...")}
+            helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+            skipLabel={t("onboarding.allergies.skip", "Skip for now")}
+            onSkip={() => navigate("/onboarding/profile")}
+            testId="button-allergies-save"
+          />
+        </OnboardingCompanionTarget>
       </div>
     </PhoneFrame>
   );

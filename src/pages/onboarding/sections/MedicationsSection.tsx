@@ -20,7 +20,7 @@ import { Trash2, Loader2, Plus, CheckCircle2, AlertCircle, Mic, Pill, Clock3, Ut
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { friendlyError } from "@/lib/apiError";
 import VoiceMedsModal, { type MedicationForForm } from "@/components/VoiceMedsModal";
 
@@ -170,7 +170,7 @@ export default function MedicationsSection() {
   const [savedMeds, setSavedMeds] = useState<Medication[]>([initialMed]);
   const [noKnownMedications, setNoKnownMedications] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [autoSaving, setAutoSaving] = useState(false);
+  const autoSaving = false;
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
@@ -182,17 +182,13 @@ export default function MedicationsSection() {
     setMode: setCompanionMode,
     setGuidance,
     clearGuidance,
+    registerVoiceAction,
   } = useOnboardingCompanionGuidance();
 
-  // Refs so auto-save closure always sees the latest values
   const medsRef = useRef(meds);
-  const noKnownMedicationsRef = useRef(noKnownMedications);
-  const busyRef = useRef(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { medsRef.current = meds; }, [meds]);
-  useEffect(() => { noKnownMedicationsRef.current = noKnownMedications; }, [noKnownMedications]);
-  useEffect(() => { busyRef.current = saving || autoSaving || adding || !!removingId; }, [saving, autoSaving, adding, removingId]);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
 
   const setMedicationVoiceGuidance = useCallback(
@@ -211,6 +207,8 @@ export default function MedicationsSection() {
 
     setGuidance({
       voiceStatus: "idle",
+      currentSectionId: "medications",
+      currentSectionLabel: t("onboarding.medications.title", "Medications"),
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.startPrompt",
         "Tell VYVA your medicines, enter the medication name, or choose no current medications.",
@@ -249,27 +247,11 @@ export default function MedicationsSection() {
     }
   }, [data, isLoading]);
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
-    async () => {
-      if (busyRef.current) return;
-      setAutoSaving(true);
-      try {
-        const currentMeds = medsRef.current;
-        const res = await saveMedsToServer(currentMeds, noKnownMedicationsRef.current);
-        if (!res.ok) {
-          const msg = await friendlyError(new Error(), res);
-          throw new Error(msg);
-        }
-        setSavedMeds([...currentMeds]);
-        queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-      } finally {
-        setAutoSaving(false);
-      }
-    },
-    2000,
-  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const updateMed = (id: string, field: keyof Omit<Medication, "id">, value: string) => {
     if (value.trim()) setNoKnownMedications(false);
@@ -282,7 +264,6 @@ export default function MedicationsSection() {
       ),
       activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
     });
-    scheduleAutoSave();
   };
 
   const toggleNoKnownMedications = () => {
@@ -310,12 +291,13 @@ export default function MedicationsSection() {
         : undefined,
       activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
     });
-    scheduleAutoSave();
   };
 
-  const startVoiceMedicationCapture = () => {
+  const startVoiceMedicationCapture = useCallback(() => {
     const guidance = {
       voiceStatus: "listening",
+      currentSectionId: "medications",
+      currentSectionLabel: t("onboarding.medications.title", "Medications"),
       currentPrompt: t(
         "onboarding.medications.voiceGuidance.speakPrompt",
         "Tell VYVA the medication name, strength, and routine if you know them.",
@@ -329,7 +311,24 @@ export default function MedicationsSection() {
       window.setTimeout(() => setGuidance(guidance), 0);
     }
     setVoiceModalOpen(true);
-  };
+  }, [companionMode, setCompanionMode, setGuidance, t]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-medications-voice-capture",
+        label: t("onboarding.medications.tellVyva", "Tell VYVA"),
+        description: t(
+          "onboarding.medications.tellVyvaDescription",
+          "Say the name, strength, or routine.",
+        ),
+        sectionId: "medications",
+        sectionLabel: t("onboarding.medications.title", "Medications"),
+        targetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+        onStart: startVoiceMedicationCapture,
+      }),
+    [registerVoiceAction, startVoiceMedicationCapture, t],
+  );
 
   const updateFrequency = (id: string, value: string) => {
     if (value === "other") {
@@ -371,40 +370,31 @@ export default function MedicationsSection() {
     setExpandedMedIds((prev) => cloneSetWithout(prev, id));
   };
 
-  const addMed = async () => {
+  const addMed = () => {
     if (adding || removingId || saving) return;
     setAdding(true);
     setNoKnownMedications(false);
-    const previous = meds;
     counterRef.current += 1;
     const newMed = emptyMed(`med-${counterRef.current}`);
-    const updated = [...previous, newMed];
+    const updated = [...meds, newMed];
     setMeds(updated);
     setExpandedMedIds((prev) => cloneSetWith(prev, newMed.id));
     setDetailsOpenMedIds((prev) => cloneSetWithout(prev, newMed.id));
-    let res: Response | undefined;
-    try {
-      res = await saveMedsToServer(updated, false);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSavedMeds(updated);
-      setAutoSaveStatus("saved");
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    } catch (err) {
-      setMeds(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not add medication row", description: msg, variant: "destructive" });
-    } finally {
-      setAdding(false);
-    }
+    setMedicationVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.medications.voiceGuidance.reviewPrompt",
+        "Review the medication details, then save when ready.",
+      ),
+      activeTargetId: MEDICATION_COMPANION_TARGETS.firstMedication,
+    });
+    setAdding(false);
   };
 
-  const removeMed = async (id: string) => {
+  const removeMed = (id: string) => {
     if (removingId || adding || saving) return;
     setRemovingId(id);
-    const previous = meds;
-    const filtered = previous.filter((m) => m.id !== id);
+    const filtered = meds.filter((m) => m.id !== id);
     counterRef.current += 1;
     const updated = filtered.length > 0 ? filtered : [emptyMed(`med-${counterRef.current}`)];
     setMeds(updated);
@@ -414,22 +404,15 @@ export default function MedicationsSection() {
       return next;
     });
     setDetailsOpenMedIds((prev) => cloneSetWithout(prev, id));
-    let res: Response | undefined;
-    try {
-      res = await saveMedsToServer(updated, noKnownMedications);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSavedMeds(updated);
-      setAutoSaveStatus("saved");
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    } catch (err) {
-      setMeds(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not remove medication", description: msg, variant: "destructive" });
-    } finally {
-      setRemovingId(null);
-    }
+    setMedicationVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.medications.voiceGuidance.reviewPrompt",
+        "Review the medication details, then save when ready.",
+      ),
+      activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
+    });
+    setRemovingId(null);
   };
 
   const addMedFromVoice = useCallback(
@@ -467,24 +450,9 @@ export default function MedicationsSection() {
         }),
         activeTargetId: MEDICATION_COMPANION_TARGETS.reviewSave,
       });
-      let res: Response | undefined;
-      try {
-        res = await saveMedsToServer(updated, false);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setSavedMeds(updated);
-        setAutoSaveStatus("saved");
-        queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-      } catch (err) {
-        setMeds(previous);
-        const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-        toast({ title: "Could not add medication", description: msg, variant: "destructive" });
-      } finally {
-        setAdding(false);
-      }
+      setAdding(false);
     },
-    [adding, removingId, saving, meds, setAutoSaveStatus, setMedicationVoiceGuidance, t, toast]
+    [adding, removingId, saving, meds, setMedicationVoiceGuidance, t]
   );
 
   const hasUnsavedChanges = useCallback((): boolean => {
@@ -575,7 +543,7 @@ export default function MedicationsSection() {
           )}
           compact
           badges={[
-            { label: "Autosaves", color: "green" },
+            { label: "Review before save", color: "green" },
             { label: "Voice option", color: "amber" },
             { label: "Name is enough", color: "purple" },
           ]}
@@ -588,30 +556,32 @@ export default function MedicationsSection() {
           }}
         />
 
-        <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.addByVoice}>
-          <ProfileVoiceAction
-            icon={Mic}
-            title={t("onboarding.medications.tellVyva", "Tell VYVA your medicines")}
-            description={t(
-              "onboarding.medications.tellVyvaDescription",
-              "Say the name, strength, or routine.",
-            )}
-            onClick={startVoiceMedicationCapture}
-            onFocus={() =>
-              setMedicationVoiceGuidance({
-                voiceStatus: "listening",
-                currentPrompt: t(
-                  "onboarding.medications.voiceGuidance.addByVoicePrompt",
-                  "Use this to tell VYVA about a medication.",
-                ),
-                activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
-              })
-            }
-            testId="button-meds-voice"
-            tone={companionMode === "voice" ? "amber" : "purple"}
-            className={companionMode === "voice" ? undefined : "bg-white shadow-[0_8px_18px_rgba(53,28,87,0.06)]"}
-          />
-        </OnboardingCompanionTarget>
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.addByVoice}>
+            <ProfileVoiceAction
+              icon={Mic}
+              title={t("onboarding.medications.tellVyva", "Tell VYVA your medicines")}
+              description={t(
+                "onboarding.medications.tellVyvaDescription",
+                "Say the name, strength, or routine.",
+              )}
+              onClick={startVoiceMedicationCapture}
+              onFocus={() =>
+                setMedicationVoiceGuidance({
+                  voiceStatus: "listening",
+                  currentPrompt: t(
+                    "onboarding.medications.voiceGuidance.addByVoicePrompt",
+                    "Use this to tell VYVA about a medication.",
+                  ),
+                  activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+                })
+              }
+              testId="button-meds-voice"
+              tone="purple"
+              className="bg-white shadow-[0_8px_18px_rgba(53,28,87,0.06)]"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.noCurrent}>
           <ProfileNoneOption

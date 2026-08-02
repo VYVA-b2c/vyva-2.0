@@ -1,9 +1,10 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { useOnboardingCompanionGuidance } from "@/components/onboarding/useOnboardingCompanionGuidance";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
@@ -11,12 +12,13 @@ import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboard
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { useTranslation } from "react-i18next";
+import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 
 const CATEGORIES: { id: string; label: string }[] = [
   { id: "heart",       label: "Heart & circulation" },
@@ -155,6 +157,7 @@ export default function ConditionsSection() {
     setMode: setCompanionMode,
     setGuidance,
     clearGuidance,
+    registerVoiceAction,
   } = useOnboardingCompanionGuidance();
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -175,6 +178,8 @@ export default function ConditionsSection() {
 
     setGuidance({
       voiceStatus: "idle",
+      currentSectionId: "health",
+      currentSectionLabel: t("onboarding.conditions.title", "Health profile"),
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.startPrompt",
         "Tell VYVA, search by name, or choose no known conditions.",
@@ -204,22 +209,11 @@ export default function ConditionsSection() {
       : "/onboarding/complete/conditions";
   };
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/conditions", {
-        method: "POST",
-        body: JSON.stringify(buildConditionsPayload()),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    },
-    2000,
-  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const { data, isLoading } = useQuery<{
     profile: { conditions?: SavedCondition[]; mobility_level?: string; living_situation?: string; no_known_conditions?: boolean } | null;
@@ -252,12 +246,10 @@ export default function ConditionsSection() {
       }),
       activeTargetId: "health-review-save",
     });
-    scheduleAutoSave();
   };
 
   const removeSelected = (name: string) => {
     setSelected((prev) => prev.filter((x) => x !== name));
-    scheduleAutoSave();
   };
 
   const toggleNoKnownConditions = () => {
@@ -282,11 +274,10 @@ export default function ConditionsSection() {
         : undefined,
       activeTargetId: "health-review-save",
     });
-    scheduleAutoSave();
   };
 
-  const handleMobility = (value: string) => { setMobility(value); scheduleAutoSave(); };
-  const handleLiving   = (value: string) => { setLiving(value);   scheduleAutoSave(); };
+  const handleMobility = (value: string) => { setMobility(value); };
+  const handleLiving   = (value: string) => { setLiving(value); };
   const hasHealthSectionContent = selected.length > 0 || Boolean(mobility) || Boolean(living) || noKnownConditions;
   const mobilityLabel = MOBILITY_CHOICES.find((option) => option.value === mobility)?.label;
   const livingLabel = LIVING_CHOICES.find((option) => option.value === living)?.label;
@@ -327,9 +318,11 @@ export default function ConditionsSection() {
     });
   };
 
-  const startVoiceConditionCapture = () => {
+  const startVoiceConditionCapture = useCallback(() => {
     const guidance = {
       voiceStatus: "listening",
+      currentSectionId: "health",
+      currentSectionLabel: t("onboarding.conditions.title", "Health profile"),
       currentPrompt: t(
         "onboarding.conditions.voiceGuidance.speakPrompt",
         "Tell VYVA one or more health conditions.",
@@ -343,7 +336,24 @@ export default function ConditionsSection() {
       window.setTimeout(() => setGuidance(guidance), 0);
     }
     setSpeakItOpen(true);
-  };
+  }, [companionMode, setCompanionMode, setGuidance, t]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-health-voice-capture",
+        label: t("onboarding.conditions.tellVyva", "Tell VYVA"),
+        description: t(
+          "onboarding.conditions.tellVyvaDescription",
+          "Say one or more health conditions.",
+        ),
+        sectionId: "health",
+        sectionLabel: t("onboarding.conditions.title", "Health profile"),
+        targetId: "health-add-by-voice",
+        onStart: startVoiceConditionCapture,
+      }),
+    [registerVoiceAction, startVoiceConditionCapture, t],
+  );
 
   const confirmSpeakItMatches = () => {
     const newSelected = Array.from(new Set([...selected, ...speakItMatches]));
@@ -371,6 +381,25 @@ export default function ConditionsSection() {
       }),
     });
   };
+
+  const speakItDraft: ProfileVoiceDraft | null = speakItMatches.length > 0
+    ? {
+        id: `health:${speakItMatches.join("|").toLowerCase()}`,
+        section: "health",
+        kind: "health-conditions",
+        title: t("onboarding.conditions.voiceDraft.title", "Review health conditions"),
+        helper: t(
+          "onboarding.conditions.voiceDraft.helper",
+          "VYVA found these from what you said. Add them only if they look right.",
+        ),
+        values: speakItMatches,
+        rows: speakItMatches.map((name) => ({
+          id: name.toLowerCase().replace(/\s+/g, "-"),
+          label: t("onboarding.conditions.voiceDraft.rowLabel", "Condition"),
+          value: name,
+        })),
+      }
+    : null;
 
   const toggleCat = (catId: string) => {
     setOpenCat((prev) => (prev === catId ? null : catId));
@@ -425,78 +454,58 @@ export default function ConditionsSection() {
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
         />
 
-        <OnboardingCompanionTarget targetId="health-add-by-voice">
-          <button
-            type="button"
-            data-testid="button-conditions-speak-it"
-            onClick={startVoiceConditionCapture}
-            className={cn(
-              "group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/20",
-              companionMode === "voice"
-                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] hover:bg-[#5B1A8F]"
-                : "border-[#DCC8FF] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(53,28,87,0.06)] hover:bg-[#F8F3FF]",
-            )}
-          >
-            <div
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="health-add-by-voice">
+            <button
+              type="button"
+              data-testid="button-conditions-speak-it"
+              onClick={startVoiceConditionCapture}
               className={cn(
-                "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full",
-                companionMode === "voice" ? "bg-white/16" : "bg-[#F3E8FF]",
+                "group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border border-[#DCC8FF] bg-white px-4 py-3 text-left text-vyva-purple shadow-[0_8px_18px_rgba(53,28,87,0.06)] transition hover:bg-[#F8F3FF] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20",
               )}
             >
-              <Mic size={20} className={companionMode === "voice" ? "text-white" : "text-vyva-purple"} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className={cn(
-                "font-body text-[18px] font-black leading-tight",
-                companionMode === "voice" ? "text-white" : "text-vyva-purple",
-              )}>
-                {t("onboarding.conditions.tellVyva", "Tell VYVA")}
-              </p>
-              <p className={cn(
-                "mt-1 font-body text-[14px] font-semibold leading-snug",
-                companionMode === "voice" ? "text-white/85" : "text-vyva-text-2",
-              )}>
-                {t(
-                  "onboarding.conditions.tellVyvaDescription",
-                  "Say one or more health conditions.",
-                )}
-              </p>
-            </div>
-            <ChevronRight
-              size={22}
-              className={cn(
-                "shrink-0 transition-transform group-hover:translate-x-0.5",
-                companionMode === "voice" ? "text-white/75" : "text-vyva-purple/65",
-              )}
-              aria-hidden="true"
-            />
-          </button>
-        </OnboardingCompanionTarget>
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F3E8FF]">
+                <Mic size={20} className="text-vyva-purple" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[18px] font-black leading-tight text-vyva-purple">
+                  {t("onboarding.conditions.tellVyva", "Tell VYVA")}
+                </p>
+                <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                  {t(
+                    "onboarding.conditions.tellVyvaDescription",
+                    "Say one or more health conditions.",
+                  )}
+                </p>
+              </div>
+              <ChevronRight
+                size={22}
+                className="shrink-0 text-vyva-purple/65 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </button>
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {/* Speak-it confirmation */}
-        {speakItMatches.length > 0 && (
+        {speakItDraft && (
           <OnboardingCompanionTarget targetId="health-speak-confirm">
-            <div
-              className="rounded-[14px] px-4 py-3"
-              style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}
-              data-testid="panel-conditions-speak-it-confirm"
-            >
-              <p className="font-body text-[13px] font-semibold text-green-800 mb-2">
-                VYVA found {speakItMatches.length} condition{speakItMatches.length > 1 ? "s" : ""}:
-              </p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {speakItMatches.map((name) => (
-                  <span key={name} className="inline-flex items-center gap-1 bg-white text-green-800 text-[11px] px-2.5 py-1 rounded-full border border-green-200 font-medium">
-                    <CheckCircle2 size={10} className="text-green-600" />
-                    {name}
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setSpeakItMatches([])} className="flex-1 py-2 rounded-full font-body text-[13px] font-medium text-gray-600 bg-white border border-gray-200 min-h-[40px]" data-testid="button-conditions-speak-it-reject">Dismiss</button>
-                <button onClick={confirmSpeakItMatches} className="flex-1 py-2 rounded-full font-body text-[13px] font-medium text-white min-h-[40px]" style={{ background: "#0A7C4E" }} data-testid="button-conditions-speak-it-confirm">Add these</button>
-              </div>
-            </div>
+            <ProfileVoiceDraftReview
+              draft={speakItDraft}
+              confirmLabel={t("onboarding.conditions.voiceDraft.confirm", "Add these")}
+              tryAgainLabel={t("onboarding.conditions.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.conditions.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmSpeakItMatches}
+              onTryAgain={() => {
+                setSpeakItMatches([]);
+                startVoiceConditionCapture();
+              }}
+              onDismiss={() => setSpeakItMatches([])}
+              onRemoveRow={(value) =>
+                setSpeakItMatches((current) => current.filter((name) => name !== value))
+              }
+              testId="panel-conditions-speak-it-confirm"
+            />
           </OnboardingCompanionTarget>
         )}
 

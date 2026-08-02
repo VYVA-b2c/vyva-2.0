@@ -35,10 +35,14 @@ export function OnboardingCompanionModeChip({
   const {
     mode,
     voiceStatus,
+    currentSectionLabel,
     currentPrompt,
     lastHeardText,
     error,
+    primaryVoiceActionLabel,
+    primaryVoiceActionDescription,
     setMode,
+    runPrimaryVoiceAction,
   } = useOnboardingCompanionGuidance();
 
   const options: Array<{
@@ -66,8 +70,9 @@ export function OnboardingCompanionModeChip({
   const description = voiceActive
     ? error ?? lastHeardText ?? currentPrompt ?? statusLabel
     : mode === "voice"
-      ? voiceDescription
+      ? primaryVoiceActionDescription ?? voiceDescription
       : tactileDescription;
+  const canRunVoiceAction = mode === "voice" && Boolean(primaryVoiceActionLabel);
 
   return (
     <div
@@ -105,14 +110,32 @@ export function OnboardingCompanionModeChip({
         </div>
       </div>
 
-      <div
-        role="radiogroup"
-        aria-label={accessibleLabel}
-        className="grid min-h-[46px] grid-cols-2 rounded-full border border-vyva-purple/15 bg-[#FFFCF8] p-1"
-      >
-        {options.map(({ id, label, description, Icon }) => {
-          const selected = mode === id;
-          return (
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {canRunVoiceAction ? (
+          <button
+            type="button"
+            data-testid="button-section-companion-primary-voice-action"
+            onClick={runPrimaryVoiceAction}
+            className="inline-flex min-h-[46px] min-w-0 items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 text-[13px] font-black text-white shadow-[0_10px_20px_rgba(107,33,168,0.20)] transition hover:bg-[#5D1AA8] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FACC15] motion-reduce:transition-none"
+            aria-label={
+              currentSectionLabel
+                ? `${primaryVoiceActionLabel}. ${currentSectionLabel}`
+                : primaryVoiceActionLabel
+            }
+          >
+            <Mic2 size={15} aria-hidden="true" />
+            <span className="min-w-0 truncate">{primaryVoiceActionLabel}</span>
+          </button>
+        ) : null}
+
+        <div
+          role="radiogroup"
+          aria-label={accessibleLabel}
+          className="grid min-h-[46px] grid-cols-2 rounded-full border border-vyva-purple/15 bg-[#FFFCF8] p-1"
+        >
+          {options.map(({ id, label, description, Icon }) => {
+            const selected = mode === id;
+            return (
             <button
               key={id}
               type="button"
@@ -130,8 +153,9 @@ export function OnboardingCompanionModeChip({
               <Icon size={15} aria-hidden="true" />
               <span className="min-w-0 truncate">{label}</span>
             </button>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
