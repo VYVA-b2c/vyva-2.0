@@ -1,5 +1,5 @@
 // src/pages/onboarding/sections/AllergiesSection.tsx
-import { useState, useEffect, useRef, useCallback, KeyboardEvent } from "react";
+import { useState, useEffect, useCallback, KeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import VoiceAllergiesModal from "@/components/VoiceAllergiesModal";
 import { AlertTriangle, Plus, Mic } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
@@ -87,9 +87,6 @@ export default function AllergiesSection() {
       ? t(`onboarding.allergies.common.${common.key}`, common.value)
       : value;
   };
-
-  const allergiesRef = useRef(allergies);
-  useEffect(() => { allergiesRef.current = allergies; }, [allergies]);
 
   const setAllergyVoiceGuidance = useCallback(
     (guidance: Parameters<typeof setGuidance>[0]) => {
@@ -167,24 +164,11 @@ export default function AllergiesSection() {
     setNoKnownAllergies(Boolean(data.profile?.no_known_allergies) && (!Array.isArray(saved) || saved.length === 0));
   }, [data]);
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/medications", {
-        method: "POST",
-        body: JSON.stringify({
-          known_allergies: allergiesRef.current,
-          no_known_allergies: noKnownAllergies && allergiesRef.current.length === 0,
-        }),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-    },
-    1500,
-  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const addAllergy = (raw: string) => {
     const value = raw.trim();
@@ -198,12 +182,10 @@ export default function AllergiesSection() {
     const updated = [...allergies, value];
     setAllergies(updated);
     setInput("");
-    scheduleAutoSave();
   };
 
   const removeAllergy = (name: string) => {
     setAllergies((prev) => prev.filter((a) => a !== name));
-    scheduleAutoSave();
   };
 
   const toggleNoKnownAllergies = () => {
@@ -213,7 +195,14 @@ export default function AllergiesSection() {
       setAllergies([]);
       setInput("");
     }
-    scheduleAutoSave();
+    setAllergyVoiceGuidance({
+      voiceStatus: "thinking",
+      currentPrompt: t(
+        "onboarding.allergies.voiceGuidance.noKnownPrompt",
+        "No known allergies is selected. Save when you are ready.",
+      ),
+      activeTargetId: ALLERGY_COMPANION_TARGETS.reviewSave,
+    });
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -304,6 +293,7 @@ export default function AllergiesSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      setAutoSaveStatus("saved");
       navigate("/onboarding/complete/allergies");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);

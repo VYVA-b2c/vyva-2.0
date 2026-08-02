@@ -12,7 +12,7 @@ import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboard
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -209,22 +209,11 @@ export default function ConditionsSection() {
       : "/onboarding/complete/conditions";
   };
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/conditions", {
-        method: "POST",
-        body: JSON.stringify(buildConditionsPayload()),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    },
-    2000,
-  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const { data, isLoading } = useQuery<{
     profile: { conditions?: SavedCondition[]; mobility_level?: string; living_situation?: string; no_known_conditions?: boolean } | null;
@@ -257,12 +246,10 @@ export default function ConditionsSection() {
       }),
       activeTargetId: "health-review-save",
     });
-    scheduleAutoSave();
   };
 
   const removeSelected = (name: string) => {
     setSelected((prev) => prev.filter((x) => x !== name));
-    scheduleAutoSave();
   };
 
   const toggleNoKnownConditions = () => {
@@ -287,11 +274,10 @@ export default function ConditionsSection() {
         : undefined,
       activeTargetId: "health-review-save",
     });
-    scheduleAutoSave();
   };
 
-  const handleMobility = (value: string) => { setMobility(value); scheduleAutoSave(); };
-  const handleLiving   = (value: string) => { setLiving(value);   scheduleAutoSave(); };
+  const handleMobility = (value: string) => { setMobility(value); };
+  const handleLiving   = (value: string) => { setLiving(value); };
   const hasHealthSectionContent = selected.length > 0 || Boolean(mobility) || Boolean(living) || noKnownConditions;
   const mobilityLabel = MOBILITY_CHOICES.find((option) => option.value === mobility)?.label;
   const livingLabel = LIVING_CHOICES.find((option) => option.value === living)?.label;

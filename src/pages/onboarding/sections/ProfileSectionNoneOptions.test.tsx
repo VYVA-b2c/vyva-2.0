@@ -123,6 +123,7 @@ describe("profile section reviewed-empty choices", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     queryClient.clear();
     vi.unstubAllGlobals();
   });
@@ -224,6 +225,21 @@ describe("profile section reviewed-empty choices", () => {
       "true",
     );
     expect(screen.getByTestId("button-conditions-save")).toBeEnabled();
+  });
+
+  it("does not autosave health tactile edits before explicit save", async () => {
+    seedOnboardingState();
+    renderSection(<ConditionsSection />);
+
+    fireEvent.click(await screen.findByTestId("accordion-heart"));
+    fireEvent.click(screen.getByTestId("card-condition-hypertension"));
+    apiFetchMock.mockClear();
+
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(2500);
+    await Promise.resolve();
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("keeps health voice and tactile modes on the same UI and returns to voice when Tell VYVA is tapped", async () => {
@@ -331,6 +347,22 @@ describe("profile section reviewed-empty choices", () => {
       "data-vyva-companion-target-active",
       "true",
     );
+  });
+
+  it("does not autosave medication tactile edits before explicit save", async () => {
+    seedOnboardingState();
+    renderSection(<MedicationsSection />);
+
+    fireEvent.change(await screen.findByTestId("input-med-name-0"), {
+      target: { value: "Metformin" },
+    });
+    apiFetchMock.mockClear();
+
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(2500);
+    await Promise.resolve();
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("keeps medication voice and tactile modes on the same UI while tactile clears voice target guidance", async () => {
@@ -454,5 +486,22 @@ describe("profile section reviewed-empty choices", () => {
       "/api/onboarding/section/medications",
       expect.objectContaining({ method: "POST" }),
     ));
+  });
+
+  it("does not autosave allergy tactile edits before explicit save", async () => {
+    seedOnboardingState();
+    renderSection(<AllergiesSection />);
+
+    fireEvent.change(await screen.findByTestId("input-allergies-new"), {
+      target: { value: "Penicillin" },
+    });
+    fireEvent.click(screen.getByTestId("button-allergies-add"));
+    apiFetchMock.mockClear();
+
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(2500);
+    await Promise.resolve();
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 });
