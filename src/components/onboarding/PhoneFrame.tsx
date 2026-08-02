@@ -1,5 +1,7 @@
 import { ArrowLeft, LayoutGrid } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { useToastSurface } from "@/hooks/useToastSurface";
 
 interface PhoneFrameProps {
@@ -10,6 +12,7 @@ interface PhoneFrameProps {
   onBack?: () => void;
   showAllSections?: boolean;
   onAllSections?: () => void;
+  showCompanionMode?: boolean;
 }
 
 export function PhoneFrame({
@@ -20,9 +23,11 @@ export function PhoneFrame({
   onBack,
   showAllSections = false,
   onAllSections,
+  showCompanionMode = true,
 }: PhoneFrameProps) {
   const hasTopBar = Boolean(subtitle || showBack || showAllSections);
   const toastSurfaceRef = useToastSurface<HTMLDivElement>();
+  const { t } = useTranslation();
 
   return (
     <div
@@ -69,6 +74,45 @@ export function PhoneFrame({
               <div className="h-11 w-11 flex-shrink-0" aria-hidden="true" />
             )}
           </div>
+        ) : null}
+
+        {showCompanionMode ? (
+          <OnboardingCompanionModeChip
+            compactLabel={t("profile.overview.companionMode.compactLabel", "VYVA mode")}
+            voiceLabel={t("profile.overview.companionMode.voiceLabel", "Voice")}
+            voiceDescription={t(
+              "profile.overview.companionMode.voiceDescription",
+              "VYVA can talk you through this page."
+            )}
+            tactileLabel={t("profile.overview.companionMode.tactileLabel", "Tactile")}
+            tactileDescription={t(
+              "profile.overview.companionMode.tactileDescription",
+              "Use touch or keyboard controls quietly."
+            )}
+            accessibleLabel={t(
+              "profile.overview.companionMode.accessibleLabel",
+              "Choose voice or tactile help for profile setup"
+            )}
+            statusLabels={{
+              idle: t("profile.overview.companionMode.status.idle", "Ready"),
+              listening: t(
+                "profile.overview.companionMode.status.listening",
+                "Listening"
+              ),
+              speaking: t(
+                "profile.overview.companionMode.status.speaking",
+                "Speaking"
+              ),
+              thinking: t(
+                "profile.overview.companionMode.status.thinking",
+                "Thinking"
+              ),
+              error: t(
+                "profile.overview.companionMode.status.error",
+                "Needs attention"
+              ),
+            }}
+          />
         ) : null}
 
         <div className={hasTopBar ? "mt-4" : "mt-3"}>{children}</div>
