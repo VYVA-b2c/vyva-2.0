@@ -6,6 +6,7 @@ import {
   Building2, Users, ShieldAlert, Lock, CreditCard, Star,
   CheckCircle2, UserCheck, Sparkles,
 } from "lucide-react";
+import { OnboardingCompanionModeToggle } from "@/components/onboarding/OnboardingCompanionModeToggle";
 import { SectionCard } from "@/components/onboarding/SectionCard";
 import { deriveCompletedSections } from "@/lib/profileCompletion";
 
@@ -164,6 +165,29 @@ const ProfileOverview = () => {
             </div>
           </div>
         </div>
+
+        <OnboardingCompanionModeToggle
+          title={t("profile.overview.companionMode.title", "Choose your mode")}
+          helperText={t(
+            "profile.overview.companionMode.helper",
+            "Switch between voice and tactile help anytime."
+          )}
+          compactLabel={t("profile.overview.companionMode.compactLabel", "VYVA mode")}
+          voiceLabel={t("profile.overview.companionMode.voiceLabel", "Voice")}
+          voiceDescription={t(
+            "profile.overview.companionMode.voiceDescription",
+            "VYVA can talk you through this page."
+          )}
+          tactileLabel={t("profile.overview.companionMode.tactileLabel", "Tactile")}
+          tactileDescription={t(
+            "profile.overview.companionMode.tactileDescription",
+            "Use touch or keyboard controls quietly."
+          )}
+          accessibleLabel={t(
+            "profile.overview.companionMode.accessibleLabel",
+            "Choose voice or tactile help for profile setup"
+          )}
+        />
 
         {/* Proxy banner */}
         {!isLoading && proxyName && (
