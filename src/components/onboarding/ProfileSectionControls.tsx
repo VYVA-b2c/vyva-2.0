@@ -1,3 +1,4 @@
+import type { FocusEventHandler } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CheckCircle2, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ type ProfileVoiceActionProps = {
   disabled?: boolean;
   busy?: boolean;
   busyLabel?: string;
+  onFocus?: FocusEventHandler<HTMLButtonElement>;
 };
 
 export function ProfileVoiceAction({
@@ -52,6 +54,7 @@ export function ProfileVoiceAction({
   disabled = false,
   busy = false,
   busyLabel,
+  onFocus,
 }: ProfileVoiceActionProps) {
   const colors = toneClasses[tone];
 
@@ -60,6 +63,7 @@ export function ProfileVoiceAction({
       type="button"
       data-testid={testId}
       onClick={onClick}
+      onFocus={onFocus}
       disabled={disabled || busy}
       className={cn(
         "group flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border px-4 py-3 text-left shadow-[0_10px_24px_rgba(53,28,87,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(53,28,87,0.1)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15 disabled:pointer-events-none disabled:opacity-60",
@@ -104,6 +108,7 @@ type ProfileNoneOptionProps = {
   testId: string;
   tone?: ControlTone;
   className?: string;
+  onFocus?: FocusEventHandler<HTMLButtonElement>;
 };
 
 export function ProfileNoneOption({
@@ -114,6 +119,7 @@ export function ProfileNoneOption({
   testId,
   tone = "purple",
   className,
+  onFocus,
 }: ProfileNoneOptionProps) {
   const colors = toneClasses[tone];
 
@@ -123,6 +129,7 @@ export function ProfileNoneOption({
       aria-pressed={selected}
       data-testid={testId}
       onClick={onClick}
+      onFocus={onFocus}
       className={cn(
         "flex min-h-[62px] w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15",
         selected ? colors.selected : colors.idle,
