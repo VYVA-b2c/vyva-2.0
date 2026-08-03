@@ -8,7 +8,11 @@ import type {
 } from "@/components/onboarding/useOnboardingAgent";
 import type { ProfileOnboardingAgentSectionId } from "@/components/onboarding/profileOnboardingAgentSections";
 import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
-import type { OnboardingVoiceUiState } from "@/lib/onboardingVoiceUiState";
+import {
+  buildOnboardingSectionVoiceUiState,
+  onboardingVoiceUiStateContextUpdate,
+  type OnboardingVoiceUiState,
+} from "@/lib/onboardingVoiceUiState";
 import {
   createOnboardingElevenLabsRuntimeStartRequest,
   subscribeOnboardingElevenLabsRuntimeEvents,
@@ -103,6 +107,16 @@ export function useOnboardingElevenLabsSectionRuntime({
     [setGuidance],
   );
 
+  const currentUiState = useCallback(
+    (fallback?: OnboardingVoiceUiState) =>
+      uiStateRef.current?.() ??
+      fallback ??
+      buildOnboardingSectionVoiceUiState({
+        sectionConfig: sectionConfigRef.current,
+      }),
+    [],
+  );
+
   useEffect(
     () =>
       subscribeOnboardingElevenLabsRuntimeEvents(sectionConfig.sectionId, (event) => {
@@ -110,6 +124,15 @@ export function useOnboardingElevenLabsSectionRuntime({
         if (event.type === "draft") {
           onDraftRef.current?.(event.draft, event);
           if (!onDraftRef.current) setVoiceDraftRef.current?.(event.draft);
+          vyvaVoice?.sendContextUpdate?.(onboardingVoiceUiStateContextUpdate(
+            buildOnboardingSectionVoiceUiState({
+              sectionConfig: activeSectionConfig,
+              phase: "reviewing",
+              reviewCardVisible: true,
+              missingFields: [],
+              selectedCount: event.draft.values.length || event.draft.rows.length,
+            }),
+          ));
           setVoiceGuidance({
             voiceStatus: "thinking",
             draftStatus: "parsed-draft",
@@ -144,7 +167,7 @@ export function useOnboardingElevenLabsSectionRuntime({
           });
         }
       }),
-    [sectionConfig.sectionId, setVoiceGuidance],
+    [sectionConfig.sectionId, setVoiceGuidance, vyvaVoice],
   );
 
   const startRuntimeCapture = useCallback(
@@ -169,7 +192,7 @@ export function useOnboardingElevenLabsSectionRuntime({
         mode: "voice",
         existingProfileSummary: existingProfileSummaryRef.current?.(),
         activeDraftId: activeDraftIdRef.current?.(),
-        uiState: uiStateRef.current?.(),
+        uiState: currentUiState(),
       });
 
       await vyvaVoice.startVoice(
@@ -180,7 +203,7 @@ export function useOnboardingElevenLabsSectionRuntime({
       afterRuntimeStart?.();
       return true;
     },
-    [setCompanionMode, setGuidance, vyvaVoice],
+    [currentUiState, setCompanionMode, setGuidance, vyvaVoice],
   );
 
   return { startRuntimeCapture };
