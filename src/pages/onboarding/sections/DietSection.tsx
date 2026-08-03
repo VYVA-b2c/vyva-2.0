@@ -8,6 +8,7 @@ import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionContro
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
@@ -92,18 +93,19 @@ export default function DietSection() {
     [companionMode, setGuidance],
   );
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: dietAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => [...selected, notes].filter(Boolean).join(", ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceDietCapture = useCallback(() => {
-    setCompanionMode("voice");
-    setGuidance({
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: dietAgentSectionConfig.sectionId,
-      currentSectionLabel: dietAgentSectionConfig.sectionLabel,
-      currentPrompt: dietAgentSectionConfig.voicePrompt,
-      activeTargetId: dietAgentSectionConfig.targetIds?.addByVoice,
-    });
-    setSpeakItOpen(true);
-  }, [dietAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(() => {
     const unregister = registerVoiceAction({

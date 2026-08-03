@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
+import {
+  PROFILE_ONBOARDING_AGENT_SECTION_IDS,
+  createProfileOnboardingAgentSectionConfig,
+} from "@/components/onboarding/profileOnboardingAgentSections";
 import {
   adaptOnboardingElevenLabsOutput,
   createOnboardingElevenLabsRuntimeStartRequest,
@@ -66,6 +69,46 @@ describe("onboarding ElevenLabs runtime adapter", () => {
     expect(String(request.options.dynamicVariables.active_section_schema_json)).toContain("\"sectionId\":\"health\"");
     expect(String(request.options.dynamicVariables.onboarding_output_schema_json)).toContain("\"eventType\"");
   });
+
+  it.each(PROFILE_ONBOARDING_AGENT_SECTION_IDS)(
+    "builds a safe local-review runtime request for the %s section",
+    (sectionId) => {
+      const section = createProfileOnboardingAgentSectionConfig({
+        sectionId,
+        sectionLabel: `${sectionId} label`,
+        voicePrompt: `Tell VYVA about ${sectionId}.`,
+        expectedFields: [`${sectionId}_field`],
+      });
+
+      const request = createOnboardingElevenLabsRuntimeStartRequest({
+        sectionConfig: section,
+        language: "en",
+        mode: "voice",
+        activeDraftId: `${sectionId}:draft`,
+      });
+
+      expect(request.options.agentSlug).toBe("onboarding-profile");
+      expect(request.options.dynamicVariables).toMatchObject({
+        active_section_id: sectionId,
+        active_section_label: `${sectionId} label`,
+        active_section_review_required: true,
+        active_section_explicit_save_required: true,
+        onboarding_mode: "voice",
+      });
+      expect(String(request.options.dynamicVariables.active_section_schema_json)).toContain(
+        `"sectionId":"${sectionId}"`,
+      );
+      const agentContract = JSON.parse(
+        String(request.options.dynamicVariables.onboarding_agent_contract_json),
+      ) as { safetyRules: string[] };
+      expect(agentContract.safetyRules).toEqual(
+        expect.arrayContaining([
+          "Return structured local drafts only; never save profile data.",
+          "The app may persist a section only after the user presses the section Save control.",
+        ]),
+      );
+    },
+  );
 
   it("converts safe structured draft output into a local profile review draft", () => {
     const result = adaptOnboardingElevenLabsOutput({ output: JSON.stringify(safeDraftOutput) });

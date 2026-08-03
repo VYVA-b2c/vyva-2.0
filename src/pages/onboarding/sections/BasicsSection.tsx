@@ -7,6 +7,7 @@ import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionContro
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { SiFacebook, SiInstagram, SiWhatsapp } from "react-icons/si";
@@ -217,18 +218,26 @@ export default function BasicsSection() {
     [companionMode, setGuidance],
   );
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: basicsAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => {
+      const fullName = joinFullName(formRef.current.firstName, formRef.current.lastName);
+      return [
+        fullName ? `Current name: ${fullName}` : "",
+        formRef.current.email ? `Current email: ${formRef.current.email}` : "",
+        formRef.current.phoneLocal ? `Current phone: ${formRef.current.phoneLocal}` : "",
+      ].filter(Boolean).join(". ") || undefined;
+    },
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceBasicsCapture = useCallback(() => {
-    setCompanionMode("voice");
-    setGuidance({
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: basicsAgentSectionConfig.sectionId,
-      currentSectionLabel: basicsAgentSectionConfig.sectionLabel,
-      currentPrompt: basicsAgentSectionConfig.voicePrompt,
-      activeTargetId: basicsAgentSectionConfig.targetIds?.addByVoice,
-    });
-    setSpeakItOpen(true);
-  }, [basicsAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(() => {
     const unregister = registerVoiceAction({

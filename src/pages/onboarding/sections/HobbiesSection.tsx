@@ -7,6 +7,7 @@ import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionContro
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -349,18 +350,19 @@ export default function HobbiesSection() {
     [companionMode, setGuidance],
   );
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: hobbiesAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => selected.join(", ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceHobbiesCapture = useCallback(() => {
-    setCompanionMode("voice");
-    setGuidance({
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: hobbiesAgentSectionConfig.sectionId,
-      currentSectionLabel: hobbiesAgentSectionConfig.sectionLabel,
-      currentPrompt: hobbiesAgentSectionConfig.voicePrompt,
-      activeTargetId: hobbiesAgentSectionConfig.targetIds?.addByVoice,
-    });
-    setSpeakItOpen(true);
-  }, [hobbiesAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(() => {
     const unregister = registerVoiceAction({

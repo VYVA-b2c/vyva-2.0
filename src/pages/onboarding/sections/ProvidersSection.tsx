@@ -23,6 +23,7 @@ import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDra
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Input } from "@/components/ui/input";
@@ -587,18 +588,18 @@ const ProvidersSection = () => {
     [companionMode, setGuidance],
   );
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: providersAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceProviderCapture = useCallback(() => {
-    setCompanionMode("voice");
-    setGuidance({
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: providersAgentSectionConfig.sectionId,
-      currentSectionLabel: providersAgentSectionConfig.sectionLabel,
-      currentPrompt: providersAgentSectionConfig.voicePrompt,
-      activeTargetId: providersAgentSectionConfig.targetIds?.addByVoice,
-    });
-    setSpeakItOpen(true);
-  }, [providersAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(() => {
     const unregister = registerVoiceAction({
