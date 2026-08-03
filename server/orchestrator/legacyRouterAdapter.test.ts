@@ -139,6 +139,36 @@ describe("legacy router adapter", () => {
     expect(JSON.stringify(observation)).not.toContain("response body");
   });
 
+  it("omits absent response digest instead of retaining explicit undefined", async () => {
+    const adapter = createLegacyRouterAdapter((_req, res) =>
+      res.json({ ok: true }), () => 10);
+    const res = {
+      statusCode: 200,
+      status(this: Response, code: number) {
+        this.statusCode = code;
+        return this;
+      },
+      json(this: Response) {
+        return this;
+      },
+      send(this: Response) {
+        return this;
+      },
+    } as unknown as Response;
+
+    const observation = await adapter({} as Request, res);
+
+    expect(observation).toMatchObject({
+      invocationCount: 1,
+      completed: true,
+      statusCode: 200,
+      responseKind: "object",
+      latencyBucket: "lt_10ms",
+    });
+    expect(Object.prototype.hasOwnProperty.call(observation, "responseDigest"))
+      .toBe(false);
+  });
+
   it("restores response methods after successful delivery", async () => {
     const app = express();
     const adapter = createLegacyRouterAdapter((_req, res) =>

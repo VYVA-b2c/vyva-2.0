@@ -2949,6 +2949,80 @@ export const insertVoiceTimelineEventSchema = createInsertSchema(voiceTimelineEv
 export type InsertVoiceTimelineEvent = z.infer<typeof insertVoiceTimelineEventSchema>;
 export type VoiceTimelineEventRow = typeof voiceTimelineEvents.$inferSelect;
 
+export const orchestrationEventStateEvents = pgTable("orchestration_event_state_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  event_id: text("event_id").notNull().unique(),
+  schema_version: text("schema_version").notNull(),
+  event_type: text("event_type").notNull(),
+  occurred_at: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  received_at: timestamp("received_at", { withTimezone: true }),
+  correlation_id: text("correlation_id").notNull(),
+  causation_id: text("causation_id"),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id"),
+  session_id: text("session_id"),
+  flow_id: text("flow_id"),
+  flow_version: text("flow_version"),
+  channel: text("channel").notNull(),
+  locale: text("locale"),
+  source: text("source").notNull(),
+  modality: text("modality"),
+  trigger_source: text("trigger_source"),
+  payload: jsonb("payload").notNull().default({}),
+  metadata: jsonb("metadata").notNull().default({}),
+  safety_context: jsonb("safety_context").notNull().default({}),
+  normalized_event: jsonb("normalized_event").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("orchestration_event_state_events_correlation_idx").on(t.correlation_id, t.occurred_at),
+  index("orchestration_event_state_events_causation_idx").on(t.causation_id),
+  index("orchestration_event_state_events_session_idx").on(t.session_id, t.occurred_at),
+  index("orchestration_event_state_events_occurred_idx").on(t.occurred_at),
+]);
+
+export const orchestrationFlowStateProjections = pgTable("orchestration_flow_state_projections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  flow_key: text("flow_key").notNull(),
+  flow_version_key: text("flow_version_key").notNull(),
+  flow_id: text("flow_id"),
+  flow_version: text("flow_version"),
+  session_id: text("session_id").notNull(),
+  user_id: text("user_id").notNull(),
+  state: text("state").notNull(),
+  is_active: boolean("is_active").notNull().default(false),
+  expected_input: jsonb("expected_input"),
+  pending_tool: jsonb("pending_tool"),
+  interrupted_state: text("interrupted_state"),
+  resume_metadata: jsonb("resume_metadata"),
+  context: jsonb("context").notNull().default({}),
+  completion_outcome: jsonb("completion_outcome"),
+  correlation_id: text("correlation_id"),
+  causation_event_id: text("causation_event_id"),
+  metadata: jsonb("metadata").notNull().default({}),
+  normalized_flow_state: jsonb("normalized_flow_state").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  persisted_at: timestamp("persisted_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("orchestration_flow_state_projections_identity_unique").on(t.session_id, t.flow_key, t.flow_version_key),
+  uniqueIndex("orchestration_flow_state_projections_one_active_session_idx")
+    .on(t.session_id)
+    .where(sql`${t.is_active} = true`),
+  index("orchestration_flow_state_projections_session_idx").on(t.session_id, t.updated_at),
+  index("orchestration_flow_state_projections_flow_idx").on(t.flow_id, t.flow_version),
+  index("orchestration_flow_state_projections_correlation_idx").on(t.correlation_id),
+]);
+
+export const insertOrchestrationEventStateEventSchema = createInsertSchema(orchestrationEventStateEvents).omit({ id: true, created_at: true });
+export type InsertOrchestrationEventStateEvent = z.infer<typeof insertOrchestrationEventStateEventSchema>;
+export type OrchestrationEventStateEventRow = typeof orchestrationEventStateEvents.$inferSelect;
+
+export const insertOrchestrationFlowStateProjectionSchema = createInsertSchema(orchestrationFlowStateProjections).omit({ id: true, created_at: true, persisted_at: true });
+export type InsertOrchestrationFlowStateProjection = z.infer<typeof insertOrchestrationFlowStateProjectionSchema>;
+export type OrchestrationFlowStateProjectionRow = typeof orchestrationFlowStateProjections.$inferSelect;
+
 export const voiceQaSessionReviews = pgTable("voice_qa_session_reviews", {
   id:         uuid("id").primaryKey().defaultRandom(),
   session_id: text("session_id").notNull().unique(),
@@ -3719,6 +3793,8 @@ export const schema = {
   utilityReviewRuns,
   conciergeRecommendationFeedback,
   voiceRecommendationFeedback,
+  orchestrationEventStateEvents,
+  orchestrationFlowStateProjections,
   voiceTriageSessions,
   homePlanCards,
   homeFastHelpJourneys,

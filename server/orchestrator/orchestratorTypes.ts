@@ -175,3 +175,23 @@ export type ShadowEvaluator = (
 ) => ShadowEvaluationResult | Promise<ShadowEvaluationResult>;
 
 export type OrchestratorTaskScheduler = (task: () => void) => void;
+
+export type EventStateShellObservationInput = Readonly<{
+  observationId?: string;
+  idempotencyReference?: string;
+  shellCorrelationId: string;
+  observation: LegacyRouterObservation;
+  occurredAt: string;
+  receivedAt: string;
+  userId?: string;
+  sessionId?: string;
+  locale?: string;
+  inputChannel: "voice" | "touch" | "text" | "system";
+  inputKind: "utterance" | "touch_action" | "typed_text" | "system_delivery" | "unknown";
+  contentDigest?: string;
+  contentLengthBucket?: "empty" | "lt_20" | "lt_100" | "lt_500" | "gte_500";
+  responseDigest?: string;
+  nonExecutable: true;
+}>;
+
+export type EventStateShellObserver = (input: EventStateShellObservationInput) => void;

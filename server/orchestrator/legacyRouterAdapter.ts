@@ -103,10 +103,10 @@ export function createLegacyRouterAdapter(
       completed,
       statusCode,
       responseKind: kind,
-      responseDigest: digest,
       latencyBucket: orchestratorLatencyBucket(
         Math.max(0, safeMonotonicNow() - startedAt),
       ),
+      ...(digest !== undefined ? { responseDigest: digest } : {}),
     });
   };
 }
