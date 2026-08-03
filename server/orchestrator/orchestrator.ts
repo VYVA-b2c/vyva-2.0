@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { routerHandler } from "../routes/router.js";
 import { resolveOrchestratorShellMode } from "./orchestratorFeatureFlags.js";
 import { createLegacyRouterAdapter } from "./legacyRouterAdapter.js";
 import { emitOrchestratorTelemetry } from "./orchestratorTelemetry.js";
+import { eventStateShellObserver } from "./eventStateRuntime.js";
 import {
   ORCHESTRATOR_SHELL_DELIVERY_AUTHORITY,
   ORCHESTRATOR_SHELL_ROUTE_ID,
@@ -15,6 +16,8 @@ import {
   type OrchestratorShellDecisionRecord,
   type OrchestratorShellModeResolution,
   type OrchestratorTaskScheduler,
+  type EventStateShellObserver,
+  type EventStateShellObservationInput,
   type ShadowEvaluationInput,
   type ShadowEvaluator,
 } from "./orchestratorTypes.js";
@@ -35,6 +38,7 @@ export type OrchestratorRouterDependencies = {
   currentTime?: () => Date;
   idFactory?: () => string;
   taskScheduler?: OrchestratorTaskScheduler;
+  eventStateObserver?: EventStateShellObserver;
   shadowTimeoutMs?: number;
   env?: Readonly<Record<string, string | undefined>>;
   monotonicNow?: () => number;
@@ -80,6 +84,108 @@ function cohortKeyFor(req: Request): string | undefined {
     return body.user_id;
   }
   return undefined;
+}
+
+function sha256(value: string): string {
+  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function boundedBodyString(body: Record<string, unknown>, key: string, maxLength = 160): string | undefined {
+  const value = body[key];
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= maxLength ? trimmed : undefined;
+}
+
+function boundedOpaqueBodyString(
+  body: Record<string, unknown>,
+  key: string,
+  maxLength = 160,
+): string | undefined {
+  const value = body[key];
+  return typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maxLength &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(value)
+    ? value
+    : undefined;
+}
+
+function lengthBucket(value: string | undefined): EventStateShellObservationInput["contentLengthBucket"] {
+  if (!value) return "empty";
+  if (value.length < 20) return "lt_20";
+  if (value.length < 100) return "lt_100";
+  if (value.length < 500) return "lt_500";
+  return "gte_500";
+}
+
+function inputChannelFor(body: Record<string, unknown>): EventStateShellObservationInput["inputChannel"] {
+  const channel = boundedBodyString(body, "channel", 32);
+  if (channel === "voice" || channel === "touch" || channel === "text") return channel;
+  if (typeof body.utterance === "string") return "voice";
+  if (typeof body.text === "string") return "text";
+  if (typeof body.action_id === "string") return "touch";
+  return "system";
+}
+
+function inputKindFor(body: Record<string, unknown>): EventStateShellObservationInput["inputKind"] {
+  if (typeof body.utterance === "string") return "utterance";
+  if (typeof body.text === "string") return "typed_text";
+  if (typeof body.action_id === "string") return "touch_action";
+  return "unknown";
+}
+
+function minimizedEventStateObservation(input: {
+  req: Request;
+  correlationId: string;
+  observation: LegacyRouterObservation;
+  occurredAt: string;
+  receivedAt: string;
+}): EventStateShellObservationInput | undefined {
+  if (!input.req.body || typeof input.req.body !== "object") return undefined;
+  const body = input.req.body as Record<string, unknown>;
+  const userId = boundedBodyString(body, "user_id");
+  const sessionId = boundedBodyString(body, "session_id");
+  const idempotencyReference = boundedOpaqueBodyString(
+    body,
+    "idempotency_reference",
+  );
+  if (!idempotencyReference) return undefined;
+  const locale = boundedBodyString(body, "locale", 32);
+  const content = typeof body.utterance === "string"
+    ? body.utterance
+    : typeof body.text === "string"
+      ? body.text
+      : undefined;
+  const inputChannel = inputChannelFor(body);
+  const inputKind = inputKindFor(body);
+  const observationIdentity = {
+    routeId: ORCHESTRATOR_SHELL_ROUTE_ID,
+    correlationId: input.correlationId,
+    statusCode: input.observation.statusCode,
+    ...(userId !== undefined ? { userId } : {}),
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(input.observation.responseDigest !== undefined ? { responseDigest: input.observation.responseDigest } : {}),
+  };
+  const observationId = `event.shell.${sha256(JSON.stringify(observationIdentity)).slice("sha256:".length, "sha256:".length + 32)}`;
+
+  return {
+    observationId,
+    idempotencyReference,
+    shellCorrelationId: input.correlationId,
+    observation: input.observation,
+    occurredAt: input.occurredAt,
+    receivedAt: input.receivedAt,
+    inputChannel,
+    inputKind,
+    contentLengthBucket: lengthBucket(content),
+    nonExecutable: true,
+    ...(userId !== undefined ? { userId } : {}),
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(locale !== undefined ? { locale } : {}),
+    ...(content !== undefined ? { contentDigest: sha256(content) } : {}),
+    ...(input.observation.responseDigest !== undefined ? { responseDigest: input.observation.responseDigest } : {}),
+  };
 }
 
 function failClosedMode(
@@ -202,6 +308,7 @@ export function createOrchestratorRouterHandler(
   const currentTime = dependencies.currentTime ?? (() => new Date());
   const idFactory = dependencies.idFactory ?? randomUUID;
   const taskScheduler = dependencies.taskScheduler ?? defaultTaskScheduler;
+  const observeEventState = dependencies.eventStateObserver ?? eventStateShellObserver;
   const env = dependencies.env ?? process.env;
   const shadowTimeoutMs = clampShadowTimeout(dependencies.shadowTimeoutMs);
 
@@ -262,6 +369,24 @@ export function createOrchestratorRouterHandler(
         // The original legacy error remains the only propagated error.
       }
       throw error;
+    }
+
+    if (observation.completed) {
+      try {
+        const eventStateNow = safeNow(currentTime);
+        const eventStateInput = eventStateNow
+          ? minimizedEventStateObservation({
+              req,
+              correlationId,
+              observation,
+              occurredAt: eventStateNow.toISOString(),
+              receivedAt: eventStateNow.toISOString(),
+            })
+          : undefined;
+        if (eventStateInput) observeEventState(eventStateInput);
+      } catch {
+        // Task 7 event/state observation is shadow-only and cannot affect delivery.
+      }
     }
 
     if (modeState.effectiveMode !== "shadow_compare") {

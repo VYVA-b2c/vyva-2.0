@@ -1280,18 +1280,19 @@ This decision does not prevent the future hierarchy. The initial Health Speciali
 
 ### Stage 2 — Shared event and state model
 
-- **Objective:** persist/emit normalized events and map lifecycle without owning domain state.
-- **Reuse:** voice timeline and session tables.
-- **Files likely affected:** new `shared/orchestration/events.ts`, `flowState.ts`, event persistence/service files, minimal adapters in voice action/canvas bridges.
-- **New files:** interaction envelope and flow-state compatibility store/service.
-- **Dependencies:** Stage 1.
-- **Flag:** shadow event emission.
-- **Acceptance:** voice/tap/text fixtures produce canonical events; one active-flow invariant is testable.
-- **Tests:** reducer/state-transition/property tests.
-- **Observability:** correlation/causation completeness.
-- **Rollback:** stop emitting new records.
+- **Objective:** emit normalized events and map lifecycle compatibility projections without owning domain state.
+- **Reuse:** frozen Task 1 event/Flow-state contracts and the Stage 1 shell post-delivery seam. Existing voice timeline and session tables provide evidence for scope, but are not overloaded with canonical event semantics in the first runtime slice.
+- **Files likely affected:** Task 7 server-orchestrator event/state runtime modules, one narrow Stage 1 shell observer hook, additive compatibility schema/migration and Stage 2 documentation.
+- **New files:** interaction-event runtime normalizer, Flow-state projection reducer, durable compatibility store, bounded in-memory test/local repository, event-state feature flag, nonblocking telemetry, additive event/state migration and `docs/SHARED_EVENT_STATE_RUNTIME.md`.
+- **Dependencies:** Stage 1 shell and frozen Task 1 parsers.
+- **Flag:** `flag.orchestrator.event_state_shadow`, default disabled, with `disabled` and `shadow_emit` modes only.
+- **Acceptance:** voice/tap/text runtime fixtures normalize through frozen parsers; shell observations emit only minimized plain-data facts after established legacy JSON delivery; durable writes are idempotent by semantic digest; persisted causation parents are validated; one active-Flow invariant is enforced at session scope.
+- **Tests:** normalization, correlation/causation, reducer/state-transition, idempotency/persistence, shadow-safety and deterministic adversarial loops.
+- **Observability:** minimized non-persistent telemetry for normalization/parser/persistence outcomes plus correlation/causation completeness; no raw text, prompts, memory, tokens or user payload bodies.
+- **Rollback:** disable the Task 7 flag to stop new shadow records. The additive compatibility tables can remain unused; dropping them requires a reviewed data-retention decision.
+- **Canonical identity and digest rule:** Task 7 uses one descriptor-safe deep inert clone before caller-owned Flow, event or shell-observation graphs can reach frozen parsers, digest generation, duplicate lookup, telemetry or persistence, plus one strict recursive canonical-JSON serializer with lexicographically sorted object keys, preserved dense-array order, explicit absent-versus-null semantics and versioned event/Flow SHA-256 domains. Sparse arrays and explicit `undefined` values are rejected, and descriptor inspection rejects accessor properties without invoking getters or setters. Optional fields are represented by property absence only; explicit `null` remains present and differs from absence. Shell-delivery event UUIDs derive only from a bounded explicit authoritative `idempotency_reference`, adapter identity and event type; shell correlation and attempt timestamps are excluded from retry identity. Because the current router has no pre-existing durable interaction identifier, a missing or malformed reference fails closed. The first persisted attempt retains correlation/timestamps, exact retries are database-enforced no-ops, and Task 7 remains shadow-only and non-authoritative.
 - **Risk:** medium.
-- **Do not change:** domain tables.
+- **Do not change:** domain tables, legacy responses, routing, provider calls, Mem0, Tools, Specialists or authoritative domain state.
 
 ### Stage 3 — Proactive engagement contracts
 
@@ -1777,13 +1778,13 @@ with 7 passing and 48 failing request-aware scenarios.
   Health Flow remains the separately gated Stage 4 migration after the shared
   event/state runtime work and required product approval.
 
-### Task 7 — Proactive engagement contract and audit model
+### Task 7 — Stage 2 shared event and state runtime
 
-- **Scope:** engagement events, consent-decision schema and additive audit migration; no sends.
-- **Affected:** shared proactive contracts, engagement audit service, reviewed migration, tests/docs.
-- **Must not touch:** dispatcher polling, service worker, live call paths.
-- **Acceptance:** records every required audit field; deterministic allow/block fixtures; no outreach side effects.
-- **Rollback:** stop writes; additive table retained or removed by reviewed rollback migration.
+- **Scope:** shadow-only runtime normalization into frozen Task 1 `InteractionEvent` records, Flow-state compatibility projection, session scoped one-active-Flow invariant, durable additive compatibility persistence and minimized telemetry.
+- **Affected:** Task 7 server-orchestrator runtime modules, a narrow Stage 1 shell post-delivery observer hook, additive schema/migration, migration tests and Stage 2 documentation.
+- **Must not touch:** domain tables, legacy routing authority, provider paths, Mem0, Tools, Specialists, React screens, candidate delivery or authoritative delivery.
+- **Acceptance:** voice, tap and text fixtures produce canonical events through frozen parsers; shell observation starts only after established legacy JSON delivery and forwards no raw Express object; disabled/invalid config fails closed; durable event writes are idempotent by semantic digest; stale or causally invalid submissions are rejected; one-active-Flow invariant is enforced.
+- **Rollback:** disable `VYVA_EVENT_STATE_SHADOW_MODE` or set it to `disabled`; no legacy route rollback is required for data emission. The additive compatibility tables may remain unused unless a reviewed retention decision approves dropping them.
 
 ---
 
