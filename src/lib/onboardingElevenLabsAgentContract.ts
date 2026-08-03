@@ -12,6 +12,10 @@ import type {
   ProfileVoiceDraftKind,
   ProfileVoiceDraftRow,
 } from "@/lib/profileVoiceCompletion";
+import {
+  serializeOnboardingVoiceUiState,
+  type OnboardingVoiceUiState,
+} from "@/lib/onboardingVoiceUiState";
 
 export type OnboardingElevenLabsEventType =
   | "draft"
@@ -78,6 +82,7 @@ export interface OnboardingElevenLabsSessionContextInput {
   mode: "voice" | "tactile";
   existingProfileSummary?: string;
   activeDraftId?: string;
+  uiState?: OnboardingVoiceUiState;
 }
 
 export interface OnboardingElevenLabsSessionContext {
@@ -96,6 +101,14 @@ export interface OnboardingElevenLabsSessionContext {
   profile_summary: string;
   language: string;
   onboarding_mode: "voice" | "tactile";
+  voice_ui_state_json?: string;
+  voice_ui_phase?: string;
+  voice_ui_visible_task?: string;
+  voice_ui_review_card_visible?: boolean;
+  voice_ui_missing_fields?: string;
+  voice_ui_allowed_actions?: string;
+  voice_ui_forbidden_actions?: string;
+  voice_ui_suggested_prompt?: string;
   active_draft_id?: string;
 }
 
@@ -413,7 +426,18 @@ export const ONBOARDING_ELEVENLABS_AGENT_CONTRACT: OnboardingElevenLabsAgentCont
     "language",
     "onboarding_mode",
   ],
-  optionalContextKeys: ["profile_summary", "active_draft_id"],
+  optionalContextKeys: [
+    "profile_summary",
+    "active_draft_id",
+    "voice_ui_state_json",
+    "voice_ui_phase",
+    "voice_ui_visible_task",
+    "voice_ui_review_card_visible",
+    "voice_ui_missing_fields",
+    "voice_ui_allowed_actions",
+    "voice_ui_forbidden_actions",
+    "voice_ui_suggested_prompt",
+  ],
   allowedOutputEvents: ["draft", "command", "clarification", "status"],
   correctionCommands: ["remove", "try-again", "skip"],
   safetyRules: [
@@ -504,8 +528,10 @@ export function createOnboardingElevenLabsSessionContext({
   mode,
   existingProfileSummary,
   activeDraftId,
+  uiState,
 }: OnboardingElevenLabsSessionContextInput): OnboardingElevenLabsSessionContext {
   const schema = onboardingElevenLabsSchemaForSection(sectionConfig.sectionId);
+  const voiceUiStateJson = uiState ? serializeOnboardingVoiceUiState(uiState) : undefined;
   return {
     agent_contract_id: ONBOARDING_ELEVENLABS_AGENT_CONTRACT.id,
     conversation_plan_id: ONBOARDING_ELEVENLABS_AGENT_CONTRACT.conversationPlanId,
@@ -522,6 +548,18 @@ export function createOnboardingElevenLabsSessionContext({
     profile_summary: existingProfileSummary?.trim() || "No existing profile summary supplied.",
     language,
     onboarding_mode: mode,
+    ...(uiState && voiceUiStateJson
+      ? {
+          voice_ui_state_json: voiceUiStateJson,
+          voice_ui_phase: uiState.phase,
+          voice_ui_visible_task: uiState.visibleTask,
+          voice_ui_review_card_visible: uiState.reviewCardVisible,
+          voice_ui_missing_fields: uiState.missingFields.join(", "),
+          voice_ui_allowed_actions: uiState.allowedActions.join(", "),
+          voice_ui_forbidden_actions: uiState.forbiddenActions.join(", "),
+          voice_ui_suggested_prompt: uiState.suggestedPrompt,
+        }
+      : {}),
     ...(activeDraftId ? { active_draft_id: activeDraftId } : {}),
   };
 }
@@ -531,6 +569,9 @@ export function buildOnboardingElevenLabsSystemPrompt() {
     "You are the VYVA Onboarding Profile Agent.",
     "Help the user complete exactly one active onboarding profile section at a time.",
     "Use the active section context and ask only for missing details that belong to that section.",
+    "Follow the app-provided voice_ui_state_json first when deciding whether to collect, clarify, or help the user review.",
+    "When voice_ui_review_card_visible is true, stop collecting new details unless the user asks to edit or try again.",
+    "When the UI state says the user is reviewing, explain that the visible review card must be checked and the app Save button must be pressed for persistence.",
     "The app has already selected the user, account, profile, route, and active onboarding section.",
     "Never ask the user for account ID, profile ID, user ID, app IDs, API keys, credentials, or setup details.",
     "Never tell the user to navigate to another app or page; stay with the current onboarding section.",

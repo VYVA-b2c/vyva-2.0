@@ -23,9 +23,13 @@ import { useTranslation } from "react-i18next";
 import { getLanguageSnapshot } from "@/i18n";
 import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 import {
+  onboardingVoiceUiStateContextUpdate,
+} from "@/lib/onboardingVoiceUiState";
+import {
   createOnboardingElevenLabsRuntimeStartRequest,
   subscribeOnboardingElevenLabsRuntimeEvents,
 } from "@/lib/onboardingElevenLabsRuntimeAdapter";
+import { buildHealthOnboardingVoiceUiState } from "./conditionsVoiceUiState";
 
 const CATEGORIES: { id: string; label: string }[] = [
   { id: "heart",       label: "Heart & circulation" },
@@ -215,6 +219,15 @@ export default function ConditionsSection() {
           setSpeakItOpen(false);
           setSpeakItMatches([]);
           setElevenLabsDraft(event.draft);
+          vyvaVoice?.sendContextUpdate(onboardingVoiceUiStateContextUpdate({
+            ...buildHealthOnboardingVoiceUiState({
+              sectionConfig: healthAgentSectionConfig,
+              selectedCount: event.draft.values.length || event.draft.rows.length,
+              noKnownConditions: false,
+              reviewCardVisible: true,
+            }),
+            selectedCount: event.draft.values.length || event.draft.rows.length,
+          }));
           setVoiceGuidance({
             voiceStatus: "thinking",
             draftStatus: "parsed-draft",
@@ -249,7 +262,7 @@ export default function ConditionsSection() {
           });
         }
       }),
-    [healthAgentSectionConfig, setVoiceGuidance],
+    [healthAgentSectionConfig, setVoiceGuidance, vyvaVoice],
   );
 
   useEffect(() => {
@@ -406,6 +419,14 @@ export default function ConditionsSection() {
   };
 
   const startVoiceConditionCapture = useCallback(async () => {
+    const reviewVisible = Boolean(elevenLabsDraftIdRef.current);
+    const selectedCount = selectedRef.current.length;
+    const healthUiState = buildHealthOnboardingVoiceUiState({
+      sectionConfig: healthAgentSectionConfig,
+      selectedCount,
+      noKnownConditions,
+      reviewCardVisible: reviewVisible,
+    });
     const guidance = {
       voiceStatus: "listening",
       draftStatus: "listening",
@@ -429,6 +450,7 @@ export default function ConditionsSection() {
           ? `Current health conditions selected in app: ${selectedRef.current.join(", ")}`
           : undefined,
         activeDraftId: elevenLabsDraftIdRef.current,
+        uiState: healthUiState,
       });
       await vyvaVoice.startVoice(
         startRequest.contextHint,
@@ -438,7 +460,7 @@ export default function ConditionsSection() {
       return;
     }
     setSpeakItOpen(true);
-  }, [companionMode, healthAgentSectionConfig, setCompanionMode, setGuidance, vyvaVoice]);
+  }, [companionMode, healthAgentSectionConfig, noKnownConditions, setCompanionMode, setGuidance, vyvaVoice]);
 
   useEffect(
     () =>
@@ -495,6 +517,28 @@ export default function ConditionsSection() {
     setNoKnownConditions(false);
     setSelected(newSelected);
     setElevenLabsDraft(null);
+    vyvaVoice?.sendContextUpdate(onboardingVoiceUiStateContextUpdate({
+      pagePath: "/onboarding/profile/health",
+      sectionId: "health",
+      sectionLabel: healthAgentSectionConfig.sectionLabel,
+      phase: "confirmed-locally",
+      visibleTask: "The draft has been added locally; the user must press Save and continue to persist it.",
+      missingFields: [],
+      reviewCardVisible: false,
+      allowedActions: ["press_save_button", "switch_mode"],
+      forbiddenActions: [
+        "ask_account_id",
+        "ask_profile_id",
+        "ask_user_id",
+        "navigate_away",
+        "save_without_button_press",
+        "external_action",
+      ],
+      suggestedPrompt: "Tell the user the conditions are added locally and they should press Save and continue when ready.",
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+      selectedCount: newSelected.length,
+      visibleDataSummary: `${newSelected.length} health condition${newSelected.length === 1 ? "" : "s"} selected in the app.`,
+    }));
     setVoiceGuidance({
       voiceStatus: "speaking",
       draftStatus: "confirmed-locally",

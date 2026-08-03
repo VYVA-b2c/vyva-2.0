@@ -49,6 +49,19 @@ describe("onboarding ElevenLabs runtime adapter", () => {
       language: "es",
       mode: "voice",
       existingProfileSummary: "Current health conditions selected in app: Hypertension",
+      uiState: {
+        pagePath: "/onboarding/profile/health",
+        sectionId: "health",
+        sectionLabel: "Health profile",
+        phase: "collecting",
+        visibleTask: "Collect health conditions for a local review draft.",
+        missingFields: ["conditions"],
+        reviewCardVisible: false,
+        allowedActions: ["ask_question", "collect_draft", "show_local_review"],
+        forbiddenActions: ["ask_account_id", "navigate_away", "save_without_button_press"],
+        suggestedPrompt: "Ask which health conditions the user lives with.",
+        activeTargetId: "health-add-by-voice",
+      },
     });
 
     expect(request.contextHint).toBe("Tell VYVA one or more health conditions.");
@@ -69,9 +82,14 @@ describe("onboarding ElevenLabs runtime adapter", () => {
       language: "es",
       onboarding_mode: "voice",
       app_entrypoint: "onboarding-profile",
+      voice_ui_phase: "collecting",
+      voice_ui_review_card_visible: false,
+      voice_ui_missing_fields: "conditions",
+      voice_ui_suggested_prompt: "Ask which health conditions the user lives with.",
     });
     expect(String(request.options.dynamicVariables.active_section_schema_json)).toContain("\"sectionId\":\"health\"");
     expect(String(request.options.dynamicVariables.onboarding_output_schema_json)).toContain("\"eventType\"");
+    expect(String(request.options.dynamicVariables.voice_ui_state_json)).toContain("\"visibleTask\":\"Collect health conditions");
     expect(request.systemPrompt).toContain("Never ask the user for account ID");
   });
 

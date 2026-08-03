@@ -81,6 +81,7 @@ export function createOnboardingElevenLabsRuntimeStartRequest({
   mode,
   existingProfileSummary,
   activeDraftId,
+  uiState,
 }: OnboardingElevenLabsSessionContextInput): OnboardingElevenLabsRuntimeStartRequest {
   const context = createOnboardingElevenLabsSessionContext({
     sectionConfig,
@@ -88,6 +89,7 @@ export function createOnboardingElevenLabsRuntimeStartRequest({
     mode,
     existingProfileSummary,
     activeDraftId,
+    uiState,
   });
   const sectionSchema = onboardingElevenLabsSchemaForSection(sectionConfig.sectionId);
   const dynamicVariables: Record<string, DynamicVariableValue> = {

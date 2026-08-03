@@ -8,6 +8,7 @@ import type {
 } from "@/components/onboarding/useOnboardingAgent";
 import type { ProfileOnboardingAgentSectionId } from "@/components/onboarding/profileOnboardingAgentSections";
 import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
+import type { OnboardingVoiceUiState } from "@/lib/onboardingVoiceUiState";
 import {
   createOnboardingElevenLabsRuntimeStartRequest,
   subscribeOnboardingElevenLabsRuntimeEvents,
@@ -25,6 +26,7 @@ interface UseOnboardingElevenLabsSectionRuntimeInput {
   onDraft?: (draft: ProfileVoiceDraft, event: Extract<OnboardingElevenLabsRuntimeEvent, { type: "draft" }>) => void;
   existingProfileSummary?: () => string | undefined;
   activeDraftId?: () => string | undefined;
+  uiState?: () => OnboardingVoiceUiState | undefined;
 }
 
 interface StartRuntimeCaptureInput {
@@ -54,12 +56,14 @@ export function useOnboardingElevenLabsSectionRuntime({
   onDraft,
   existingProfileSummary,
   activeDraftId,
+  uiState,
 }: UseOnboardingElevenLabsSectionRuntimeInput) {
   const vyvaVoice = useOptionalVyvaVoice();
   const sectionConfigRef = useRef(sectionConfig);
   const companionModeRef = useRef(companionMode);
   const existingProfileSummaryRef = useRef(existingProfileSummary);
   const activeDraftIdRef = useRef(activeDraftId);
+  const uiStateRef = useRef(uiState);
   const onDraftRef = useRef(onDraft);
   const setVoiceDraftRef = useRef(setVoiceDraft);
 
@@ -78,6 +82,10 @@ export function useOnboardingElevenLabsSectionRuntime({
   useEffect(() => {
     activeDraftIdRef.current = activeDraftId;
   }, [activeDraftId]);
+
+  useEffect(() => {
+    uiStateRef.current = uiState;
+  }, [uiState]);
 
   useEffect(() => {
     onDraftRef.current = onDraft;
@@ -161,6 +169,7 @@ export function useOnboardingElevenLabsSectionRuntime({
         mode: "voice",
         existingProfileSummary: existingProfileSummaryRef.current?.(),
         activeDraftId: activeDraftIdRef.current?.(),
+        uiState: uiStateRef.current?.(),
       });
 
       await vyvaVoice.startVoice(
