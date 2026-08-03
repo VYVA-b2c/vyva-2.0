@@ -6286,7 +6286,7 @@ export default function MarketingAdminPage() {
                 </FloatingPanelPortal>
                 ) : null}
 
-                <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
+                <SectionCard title="Media" subtitle={`${visibleMediaAssets.length} asset${visibleMediaAssets.length === 1 ? "" : "s"} available.`}>
                   {mediaFeedback && !mediaEditDraft ? (
                     <p className={`mb-3 rounded-xl px-4 py-3 text-sm font-bold ${mediaFeedback.toLowerCase().includes("updated") || mediaFeedback.toLowerCase().includes("deleted") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-media-feedback">
                       {mediaFeedback}
@@ -6353,35 +6353,35 @@ export default function MarketingAdminPage() {
                     </form>
                     </div>
                   ) : null}
-                  <div className="grid gap-3" data-testid="marketing-media-assets-list">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
-                      <EmptyState text="No media references imported yet." />
+                      <EmptyState text="No media imported yet." />
                     ) : visibleMediaAssets.map((asset) => {
                       const linkedContent = asset.contentAssetId ? content.find((item) => item.id === asset.contentAssetId) ?? null : null;
-                      const timelineParts = recordTimelineParts(asset);
+                      const mediaUrl = asset.localUrl || asset.originalUrl;
+                      const title = asset.contentTitle || mediaPreviewLabel(asset.originalUrl);
                       return (
-                        <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
+                        <article key={asset.id} className={`overflow-hidden rounded-xl border bg-white ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 ring-2 ring-purple-100" : "border-[#eadfd5]"}`}>
+                          <div data-testid={`marketing-media-preview-${asset.id}`}>
+                            <MediaPreviewTile url={mediaUrl} label={title} />
+                          </div>
+                          <div className="grid gap-3 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-[#241133]">{title}</p>
+                                <p className="mt-1 truncate text-xs font-bold text-[#7d6b65]">{linkedContent ? "Linked content" : "Not linked to content"}</p>
+                              </div>
+                              <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
+                            </div>
                             <div className="flex flex-wrap gap-1.5">
                               <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
-                              <Pill className="bg-violet-50 text-violet-700">{asset.source}</Pill>
+                              {asset.localUrl ? <Pill className="bg-emerald-50 text-emerald-800">local copy</Pill> : null}
                             </div>
-                            <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
                           </div>
-                          <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
-                          {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
-                          {timelineParts.length ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`marketing-media-timeline-${asset.id}`}>
-                              {timelineParts.map((part) => <Pill key={part} className="bg-white text-[#7d6b65]">{part}</Pill>)}
-                            </div>
-                          ) : null}
-                          <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
-                            <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
-                          </div>
-                          <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
-                          {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
-                          <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
-                          <div className="mt-3 flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2 border-t border-[#eadfd5] p-3">
+                            <a href={mediaUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`link-marketing-open-media-${asset.id}`}>
+                              <ExternalLink size={13} /> Open
+                            </a>
                             {linkedContent ? (
                               <>
                                 <button type="button" onClick={() => previewContent(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-preview-media-content-${asset.id}`}>
