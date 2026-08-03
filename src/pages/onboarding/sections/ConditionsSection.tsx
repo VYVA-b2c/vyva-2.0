@@ -200,12 +200,12 @@ export default function ConditionsSection() {
     elevenLabsDraftIdRef.current = elevenLabsDraft?.id;
   }, [elevenLabsDraft?.id]);
 
-  const setVoiceGuidance = (
+  const setVoiceGuidance = useCallback((
     guidance: Parameters<typeof setGuidance>[0],
   ) => {
     if (companionMode !== "voice") return;
     setGuidance(guidance);
-  };
+  }, [companionMode, setGuidance]);
 
   useEffect(
     () =>
@@ -248,7 +248,7 @@ export default function ConditionsSection() {
           });
         }
       }),
-    [healthAgentSectionConfig],
+    [healthAgentSectionConfig, setVoiceGuidance],
   );
 
   useEffect(() => {
