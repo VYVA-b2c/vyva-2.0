@@ -11,6 +11,7 @@ import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { AutoSaveStatus } from "@/hooks/useAutoSave";
@@ -19,7 +20,12 @@ import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { useTranslation } from "react-i18next";
+import { getLanguageSnapshot } from "@/i18n";
 import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
+import {
+  createOnboardingElevenLabsRuntimeStartRequest,
+  subscribeOnboardingElevenLabsRuntimeEvents,
+} from "@/lib/onboardingElevenLabsRuntimeAdapter";
 
 const CATEGORIES: { id: string; label: string }[] = [
   { id: "heart",       label: "Heart & circulation" },
@@ -143,6 +149,7 @@ export default function ConditionsSection() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const vyvaVoice = useOptionalVyvaVoice();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [noKnownConditions, setNoKnownConditions] = useState(false);
@@ -152,6 +159,9 @@ export default function ConditionsSection() {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [speakItMatches, setSpeakItMatches] = useState<string[]>([]);
+  const [elevenLabsDraft, setElevenLabsDraft] = useState<ProfileVoiceDraft | null>(null);
+  const selectedRef = useRef<string[]>([]);
+  const elevenLabsDraftIdRef = useRef<string | undefined>(undefined);
   const [showDailyLifeContext, setShowDailyLifeContext] = useState(false);
   const {
     mode: companionMode,
@@ -184,13 +194,63 @@ export default function ConditionsSection() {
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  useEffect(() => {
+    elevenLabsDraftIdRef.current = elevenLabsDraft?.id;
+  }, [elevenLabsDraft?.id]);
 
-  const setVoiceGuidance = (
+  const setVoiceGuidance = useCallback((
     guidance: Parameters<typeof setGuidance>[0],
   ) => {
     if (companionMode !== "voice") return;
     setGuidance(guidance);
-  };
+  }, [companionMode, setGuidance]);
+
+  useEffect(
+    () =>
+      subscribeOnboardingElevenLabsRuntimeEvents(healthAgentSectionConfig.sectionId, (event) => {
+        if (event.type === "draft") {
+          setSpeakItOpen(false);
+          setSpeakItMatches([]);
+          setElevenLabsDraft(event.draft);
+          setVoiceGuidance({
+            voiceStatus: "thinking",
+            draftStatus: "parsed-draft",
+            currentSectionId: event.sectionId,
+            currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+            currentPrompt: healthAgentSectionConfig.voicePrompt,
+            activeTargetId: healthAgentSectionConfig.targetIds?.draftReview,
+          });
+          return;
+        }
+
+        if (event.type === "clarification") {
+          setVoiceGuidance({
+            voiceStatus: "speaking",
+            draftStatus: "needs-clarification",
+            currentSectionId: event.sectionId,
+            currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+            currentPrompt: event.question,
+            activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+          });
+          return;
+        }
+
+        if (event.type === "status") {
+          setVoiceGuidance({
+            voiceStatus: event.voiceStatus,
+            draftStatus: event.voiceStatus === "error" ? "needs-clarification" : "listening",
+            currentSectionId: event.sectionId,
+            currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+            currentPrompt: event.message ?? healthAgentSectionConfig.voicePrompt,
+            activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+          });
+        }
+      }),
+    [healthAgentSectionConfig, setVoiceGuidance],
+  );
 
   useEffect(() => {
     if (companionMode !== "voice") {
@@ -345,7 +405,7 @@ export default function ConditionsSection() {
     });
   };
 
-  const startVoiceConditionCapture = useCallback(() => {
+  const startVoiceConditionCapture = useCallback(async () => {
     const guidance = {
       voiceStatus: "listening",
       draftStatus: "listening",
@@ -360,8 +420,25 @@ export default function ConditionsSection() {
       setCompanionMode("voice");
       window.setTimeout(() => setGuidance(guidance), 0);
     }
+    if (vyvaVoice) {
+      const startRequest = createOnboardingElevenLabsRuntimeStartRequest({
+        sectionConfig: healthAgentSectionConfig,
+        language: getLanguageSnapshot().language,
+        mode: "voice",
+        existingProfileSummary: selectedRef.current.length
+          ? `Current health conditions selected in app: ${selectedRef.current.join(", ")}`
+          : undefined,
+        activeDraftId: elevenLabsDraftIdRef.current,
+      });
+      await vyvaVoice.startVoice(
+        startRequest.contextHint,
+        startRequest.systemPrompt,
+        startRequest.options,
+      );
+      return;
+    }
     setSpeakItOpen(true);
-  }, [companionMode, healthAgentSectionConfig, setCompanionMode, setGuidance]);
+  }, [companionMode, healthAgentSectionConfig, setCompanionMode, setGuidance, vyvaVoice]);
 
   useEffect(
     () =>
@@ -404,6 +481,37 @@ export default function ConditionsSection() {
       title: t("onboarding.toast.healthConditionsUpdated.title", "Health conditions updated"),
       description: t("onboarding.toast.healthConditionsUpdated.description", {
         count: speakItMatches.length,
+        defaultValue: "{{count}} condition was added to your profile.",
+      }),
+    });
+  };
+
+  const confirmElevenLabsDraft = () => {
+    if (!elevenLabsDraft) return;
+    const values = elevenLabsDraft.values.length
+      ? elevenLabsDraft.values
+      : elevenLabsDraft.rows.map((row) => row.value);
+    const newSelected = Array.from(new Set([...selected, ...values]));
+    setNoKnownConditions(false);
+    setSelected(newSelected);
+    setElevenLabsDraft(null);
+    setVoiceGuidance({
+      voiceStatus: "speaking",
+      draftStatus: "confirmed-locally",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.reviewPrompt",
+        "Review your selected conditions, then save when ready.",
+      ),
+      lastHeardText: t("onboarding.conditions.voiceGuidance.addedConditions", {
+        conditions: values.join(", "),
+        defaultValue: `Added: ${values.join(", ")}`,
+      }),
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+    });
+    toast({
+      title: t("onboarding.toast.healthConditionsUpdated.title", "Health conditions updated"),
+      description: t("onboarding.toast.healthConditionsUpdated.description", {
+        count: values.length,
         defaultValue: "{{count}} condition was added to your profile.",
       }),
     });
@@ -533,6 +641,33 @@ export default function ConditionsSection() {
                 setSpeakItMatches((current) => current.filter((name) => name !== value))
               }
               testId="panel-conditions-speak-it-confirm"
+            />
+          </OnboardingCompanionTarget>
+        )}
+
+        {elevenLabsDraft && (
+          <OnboardingCompanionTarget targetId="health-speak-confirm">
+            <ProfileVoiceDraftReview
+              draft={elevenLabsDraft}
+              confirmLabel={t("onboarding.conditions.voiceDraft.confirm", "Add these")}
+              tryAgainLabel={t("onboarding.conditions.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.conditions.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmElevenLabsDraft}
+              onTryAgain={() => {
+                setElevenLabsDraft(null);
+                void startVoiceConditionCapture();
+              }}
+              onDismiss={() => setElevenLabsDraft(null)}
+              onRemoveRow={(value) =>
+                setElevenLabsDraft((current) => current
+                  ? {
+                      ...current,
+                      rows: current.rows.filter((row) => row.value !== value),
+                      values: current.values.filter((rowValue) => rowValue !== value),
+                    }
+                  : current)
+              }
+              testId="panel-conditions-elevenlabs-confirm"
             />
           </OnboardingCompanionTarget>
         )}

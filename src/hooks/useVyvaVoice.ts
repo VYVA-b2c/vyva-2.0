@@ -27,6 +27,7 @@ import {
 } from "@/lib/voiceSessionBridge";
 import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
+import { dispatchOnboardingElevenLabsOutput } from "@/lib/onboardingElevenLabsRuntimeAdapter";
 import {
   selectSpeechVoice,
   supportsSpeechPlayback,
@@ -735,6 +736,7 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
   if (agentSlug === "safety" || agentSlug === "safe-home" || agentSlug === "sos") return "safety";
   if (agentSlug === "concierge") return "concierge";
+  if (agentSlug === "onboarding-profile") return "onboarding_profile";
   if (agentSlug === "brain-coach" || agentSlug === "brain_coach") return "brain_coach";
   if (options?.roomSlug || agentSlug) return "social";
   return undefined;
@@ -1561,6 +1563,12 @@ function useVyvaVoiceController() {
               return recorded
                 ? `Recorded ${rawAction} feedback for ${recommendationId}.`
                 : "Feedback could not be recorded.";
+            },
+            record_onboarding_profile_output: async (parameters: unknown) => {
+              const result = dispatchOnboardingElevenLabsOutput(parameters);
+              return result.ok
+                ? `Onboarding ${result.event.type} was shared with the app for local review.`
+                : `Onboarding output was rejected: ${result.reason}`;
             },
           },
           onConversationCreated: (createdConversation) => {
