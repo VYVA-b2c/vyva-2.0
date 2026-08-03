@@ -58,6 +58,10 @@ describe("onboarding ElevenLabs runtime adapter", () => {
     expect(request.options.dynamicVariables).toMatchObject({
       agent_contract_id: "vyva_onboarding_profile",
       conversation_plan_id: "onboarding_profile_collection_v1",
+      agent_domain: "onboarding_profile",
+      user_id: "app-managed-profile",
+      account_id: "app-managed",
+      profile_id: "app-managed",
       active_section_id: "health",
       active_section_label: "Health profile",
       active_section_review_required: true,
@@ -68,6 +72,7 @@ describe("onboarding ElevenLabs runtime adapter", () => {
     });
     expect(String(request.options.dynamicVariables.active_section_schema_json)).toContain("\"sectionId\":\"health\"");
     expect(String(request.options.dynamicVariables.onboarding_output_schema_json)).toContain("\"eventType\"");
+    expect(request.systemPrompt).toContain("Never ask the user for account ID");
   });
 
   it.each(PROFILE_ONBOARDING_AGENT_SECTION_IDS)(

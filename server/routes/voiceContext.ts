@@ -13,6 +13,7 @@ const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "health",
   "concierge",
   "brain_coach",
+  "onboarding_profile",
   "companion",
   "doctor",
   "social",
@@ -22,7 +23,7 @@ function normalizeSlug(value?: string) {
   return value?.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") || "";
 }
 
-function resolveDomain(body: Record<string, unknown>): VoiceContextDomain {
+export function resolveVoiceContextDomain(body: Record<string, unknown>): VoiceContextDomain {
   const rawDomain = typeof body.domain === "string" ? normalizeSlug(body.domain) : "";
   if (KNOWN_DOMAINS.has(rawDomain as VoiceContextDomain)) {
     return rawDomain as VoiceContextDomain;
@@ -34,6 +35,13 @@ function resolveDomain(body: Record<string, unknown>): VoiceContextDomain {
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
+  if (
+    agentSlug === "onboarding-profile" ||
+    agentSlug === "profile-onboarding" ||
+    agentSlug === "onboarding_profile"
+  ) {
+    return "onboarding_profile";
+  }
   if (roomSlug || agentSlug) return "social";
   return "companion";
 }
@@ -54,7 +62,7 @@ export async function voiceContextHandler(req: Request, res: Response) {
 
   try {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const domain = resolveDomain(body);
+    const domain = resolveVoiceContextDomain(body);
     const memoryQuery = typeof body.memory_query === "string" ? body.memory_query : "";
     const appEntrypoint = typeof body.app_entrypoint === "string" ? body.app_entrypoint : "";
     const conversationId =
