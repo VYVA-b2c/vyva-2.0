@@ -6,6 +6,7 @@ import {
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
 } from "@/lib/voiceSessionBridge";
 import { VYVA_VOICE_HOME_INTENT_EVENT } from "@/lib/voiceNavigation";
+import { VYVA_ONBOARDING_ELEVENLABS_OUTPUT_EVENT } from "@/lib/onboardingElevenLabsRuntimeAdapter";
 
 const voiceMocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -294,6 +295,75 @@ describe("useVyvaVoice", () => {
 
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(expect.stringContaining("No, I can stand safely."));
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(expect.stringContaining("How long has this been happening?"));
+  });
+
+  it("shares validated onboarding profile structured output with the app as a local event", async () => {
+    let controller: VoiceController | null = null;
+    const handler = vi.fn();
+    window.addEventListener(VYVA_ONBOARDING_ELEVENLABS_OUTPUT_EVENT, handler);
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("Tell VYVA one or more health conditions.", undefined, {
+        agentSlug: "onboarding-profile",
+        autoStartListening: true,
+        skipMicrophone: true,
+        dynamicVariables: {
+          app_entrypoint: "onboarding-profile",
+          conversation_plan_id: "onboarding_profile_collection_v1",
+          active_section_id: "health",
+        },
+      });
+    });
+
+    const contextCall = voiceMocks.apiFetch.mock.calls.find(([url]) => url === "/api/voice-context");
+    const contextBody = JSON.parse(((contextCall?.[1] as RequestInit | undefined)?.body as string | undefined) ?? "{}");
+    expect(contextBody).toMatchObject({
+      domain: "onboarding_profile",
+      agent_slug: "onboarding-profile",
+      app_entrypoint: "onboarding-profile",
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    const result = await sessionOptions?.clientTools?.record_onboarding_profile_output?.({
+      eventType: "draft",
+      sectionId: "health",
+      lifecycle: "parsed-draft",
+      draft: {
+        kind: "health-conditions",
+        title: "Review health conditions",
+        helper: "Add these only if they look right.",
+        rows: [{ id: "diabetes", label: "Condition", value: "Diabetes Type 2" }],
+        values: ["Diabetes Type 2"],
+      },
+      safety: {
+        localOnly: true,
+        requiresReview: true,
+        requiresExplicitSave: true,
+        mayTriggerExternalAction: false,
+      },
+    });
+
+    expect(result).toContain("local review");
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect((handler.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
+      type: "draft",
+      sectionId: "health",
+      draft: {
+        values: ["Diabetes Type 2"],
+      },
+    });
+
+    window.removeEventListener(VYVA_ONBOARDING_ELEVENLABS_OUTPUT_EVENT, handler);
   });
 
   it("adds final ElevenLabs agent messages to the visible VYVA transcript", async () => {

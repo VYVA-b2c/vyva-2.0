@@ -15,6 +15,10 @@ const ENV_KEYS = [
   "ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID",
   "ELEVENLABS_HEALTH_AGENT_ID",
   "ELEVENLABS_CONCIERGE_AGENT_ID",
+  "ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID",
+  "ELEVENLABS_PROFILE_ONBOARDING_AGENT_ID",
+  "ELEVENLABS_ONBOARDING_AGENT_ID",
+  "VITE_ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID",
   "ELEVENLABS_API_KEY",
   "VITE_ELEVENLABS_API_KEY",
   "ELEVENLABS_CONVAI_API_KEY",
@@ -78,6 +82,16 @@ describe("conversation token agent resolution", () => {
     expect(resolved.expectedKeys).toContain("ELEVENLABS_HEALTH_AGENT_ID");
   });
 
+  it("resolves the dedicated onboarding profile agent slug", () => {
+    process.env.ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID = "agent_onboarding_profile";
+
+    const resolved = resolveSocialAgentId("onboarding-profile");
+
+    expect(resolved.agentId).toBe("agent_onboarding_profile");
+    expect(resolved.resolvedSlug).toBe("onboarding-profile");
+    expect(resolved.expectedKeys).toContain("ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID");
+  });
+
   it("returns a missing agent code when no matching agent is configured", async () => {
     const res = await request(buildApp())
       .post("/token")
@@ -104,6 +118,26 @@ describe("conversation token agent resolution", () => {
     expect(res.body).toMatchObject({
       ready: true,
       agent_slug: "concierge",
+      source: "slug",
+      agent_id_present: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("checks onboarding profile readiness with the same slug resolver", async () => {
+    process.env.ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID = "agent_onboarding_profile";
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "onboarding-profile" })
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ready: true,
+      agent_slug: "onboarding-profile",
       source: "slug",
       agent_id_present: true,
     });
