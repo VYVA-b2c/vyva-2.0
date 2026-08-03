@@ -57,6 +57,19 @@ describe("ElevenLabs onboarding agent contract", () => {
       mode: "voice",
       existingProfileSummary: "Profile has no saved trusted provider yet.",
       activeDraftId: "providers:zamora-clinic",
+      uiState: {
+        pagePath: "/onboarding/profile/providers",
+        sectionId: "providers",
+        sectionLabel: "Trusted providers",
+        phase: "collecting",
+        visibleTask: "Collect one provider for review.",
+        missingFields: ["name"],
+        reviewCardVisible: false,
+        allowedActions: ["ask_question", "collect_draft", "show_local_review"],
+        forbiddenActions: ["ask_account_id", "navigate_away", "save_without_button_press"],
+        suggestedPrompt: "Ask for the provider name.",
+        activeTargetId: "providers-add-by-voice",
+      },
     });
 
     expect(context).toMatchObject({
@@ -73,7 +86,16 @@ describe("ElevenLabs onboarding agent contract", () => {
       language: "es",
       onboarding_mode: "voice",
       active_draft_id: "providers:zamora-clinic",
+      voice_ui_phase: "collecting",
+      voice_ui_visible_task: "Collect one provider for review.",
+      voice_ui_review_card_visible: false,
+      voice_ui_missing_fields: "name",
+      voice_ui_allowed_actions: "ask_question, collect_draft, show_local_review",
+      voice_ui_forbidden_actions: "ask_account_id, navigate_away, save_without_button_press",
+      voice_ui_suggested_prompt: "Ask for the provider name.",
     });
+    expect(String(context.voice_ui_state_json)).toContain("\"sectionId\":\"providers\"");
+    expect(String(context.voice_ui_state_json)).toContain("\"reviewCardVisible\":false");
     expect(JSON.stringify(context)).not.toMatch(/api|post|save-section|booking|call/i);
   });
 
@@ -84,6 +106,8 @@ describe("ElevenLabs onboarding agent contract", () => {
     expect(prompt).toContain("structured JSON");
     expect(prompt).toContain("must never save profile data");
     expect(prompt).toContain("call, message, book, navigate, pay");
+    expect(prompt).toContain("Follow the app-provided voice_ui_state_json first");
+    expect(prompt).toContain("visible review card must be checked");
     expect(prompt).toContain("Never ask the user for account ID");
     expect(prompt).toContain("Never tell the user to navigate to another app or page");
   });
