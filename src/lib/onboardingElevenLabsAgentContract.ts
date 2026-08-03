@@ -83,6 +83,10 @@ export interface OnboardingElevenLabsSessionContextInput {
 export interface OnboardingElevenLabsSessionContext {
   agent_contract_id: OnboardingElevenLabsAgentContract["id"];
   conversation_plan_id: OnboardingElevenLabsAgentContract["conversationPlanId"];
+  agent_domain: "onboarding_profile";
+  user_id: "app-managed-profile";
+  account_id: "app-managed";
+  profile_id: "app-managed";
   active_section_id: ProfileOnboardingAgentSectionId;
   active_section_label: string;
   active_section_prompt: string;
@@ -399,6 +403,7 @@ export const ONBOARDING_ELEVENLABS_AGENT_CONTRACT: OnboardingElevenLabsAgentCont
   requiredContextKeys: [
     "agent_contract_id",
     "conversation_plan_id",
+    "agent_domain",
     "active_section_id",
     "active_section_label",
     "active_section_prompt",
@@ -414,6 +419,8 @@ export const ONBOARDING_ELEVENLABS_AGENT_CONTRACT: OnboardingElevenLabsAgentCont
   safetyRules: [
     "Return structured local drafts only; never save profile data.",
     "Never trigger calls, messages, bookings, navigation, payments, or external service actions.",
+    "Never ask the user for account ID, profile ID, user ID, app IDs, API keys, credentials, or setup details.",
+    "Never tell the user to navigate to another app or page to provide onboarding context.",
     "Every draft must be reviewed in the app before it can be applied locally.",
     "The app may persist a section only after the user presses the section Save control.",
     "The saved lifecycle state is app-only and must not be emitted by the ElevenLabs agent.",
@@ -461,6 +468,8 @@ export const ONBOARDING_ELEVENLABS_AGENT_CONTRACT: OnboardingElevenLabsAgentCont
 };
 
 const FORBIDDEN_OUTPUT_KEYS = new Set([
+  "accountId",
+  "account_id",
   "apiFetch",
   "apiEndpoint",
   "booking",
@@ -471,10 +480,14 @@ const FORBIDDEN_OUTPUT_KEYS = new Set([
   "navigation",
   "payment",
   "post",
+  "profileId",
+  "profile_id",
   "save",
   "sendMessage",
   "toolCall",
   "url",
+  "userId",
+  "user_id",
 ]);
 
 export function onboardingElevenLabsSectionSchemas() {
@@ -496,6 +509,10 @@ export function createOnboardingElevenLabsSessionContext({
   return {
     agent_contract_id: ONBOARDING_ELEVENLABS_AGENT_CONTRACT.id,
     conversation_plan_id: ONBOARDING_ELEVENLABS_AGENT_CONTRACT.conversationPlanId,
+    agent_domain: "onboarding_profile",
+    user_id: "app-managed-profile",
+    account_id: "app-managed",
+    profile_id: "app-managed",
     active_section_id: sectionConfig.sectionId,
     active_section_label: sectionConfig.sectionLabel || schema.sectionLabel,
     active_section_prompt: sectionConfig.voicePrompt || schema.voicePrompt,
@@ -514,6 +531,9 @@ export function buildOnboardingElevenLabsSystemPrompt() {
     "You are the VYVA Onboarding Profile Agent.",
     "Help the user complete exactly one active onboarding profile section at a time.",
     "Use the active section context and ask only for missing details that belong to that section.",
+    "The app has already selected the user, account, profile, route, and active onboarding section.",
+    "Never ask the user for account ID, profile ID, user ID, app IDs, API keys, credentials, or setup details.",
+    "Never tell the user to navigate to another app or page; stay with the current onboarding section.",
     "Return only the structured JSON output schema supplied by the app.",
     "A draft is local-only. The app must show it for review before applying it locally.",
     "You may handle correction commands: remove, try-again, skip, and confirm-locally.",

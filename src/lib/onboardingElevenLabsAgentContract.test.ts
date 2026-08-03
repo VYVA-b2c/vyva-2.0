@@ -62,6 +62,10 @@ describe("ElevenLabs onboarding agent contract", () => {
     expect(context).toMatchObject({
       agent_contract_id: "vyva_onboarding_profile",
       conversation_plan_id: "onboarding_profile_collection_v1",
+      agent_domain: "onboarding_profile",
+      user_id: "app-managed-profile",
+      account_id: "app-managed",
+      profile_id: "app-managed",
       active_section_id: "providers",
       active_section_label: "Trusted providers",
       active_section_review_required: true,
@@ -80,6 +84,8 @@ describe("ElevenLabs onboarding agent contract", () => {
     expect(prompt).toContain("structured JSON");
     expect(prompt).toContain("must never save profile data");
     expect(prompt).toContain("call, message, book, navigate, pay");
+    expect(prompt).toContain("Never ask the user for account ID");
+    expect(prompt).toContain("Never tell the user to navigate to another app or page");
   });
 
   it("accepts local-only draft output with review rows", () => {
@@ -143,6 +149,17 @@ describe("ElevenLabs onboarding agent contract", () => {
           requiresExplicitSave: false,
           mayTriggerExternalAction: true,
         },
+      },
+      {
+        eventType: "draft",
+        sectionId: "health",
+        lifecycle: "parsed-draft",
+        draft: {
+          kind: "health-conditions",
+          rows: [{ id: "condition", label: "Condition", value: "High blood pressure" }],
+          metadata: { account_id: "please-enter-account-id" },
+        },
+        safety: localOnlySafety,
       },
     ];
 
