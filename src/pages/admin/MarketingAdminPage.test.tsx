@@ -733,12 +733,13 @@ afterEach(() => {
 });
 
 describe("MarketingAdminPage", () => {
-  it("shows the marketing admin nav, tabs, filters, and email send readiness", async () => {
+  it("shows the marketing admin home link, tabs, and filters without the global admin carousel", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Marketing" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Marketing.*Campaigns, contacts and sync/i })).toBeInTheDocument();
-    expect(screen.getByTestId("marketing-send-readiness-panel")).toHaveTextContent("Email campaign sending is enabled");
+    expect(screen.getByRole("link", { name: "Admin home" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByRole("navigation", { name: "Admin sections" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketing-send-readiness-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Total campaigns");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Audiences");
     expect(screen.getByTestId("marketing-dashboard-tab")).not.toHaveTextContent("Imported media refs");
@@ -749,7 +750,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Overflow metric 10");
     expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     fireEvent.click(screen.getByTestId("button-marketing-open-metric-campaign-metric-1"));
-    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
     expect(screen.getByText('Opened campaign "Caregiver welcome" from imported analytics.')).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("Partners");
@@ -832,7 +833,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
 
     fireEvent.click(within(screen.getByTestId("marketing-selected-content-usage")).getByTestId("button-marketing-open-content-usage-campaign:campaign-1:channel-1-linkedin"));
-    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");
@@ -2007,13 +2008,12 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
 
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
-    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
     expect(screen.getByTestId("input-marketing-edit-campaign-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-campaign-lovable-id")).toHaveValue("lovable-campaign-1");
     expect(screen.getByTestId("textarea-marketing-edit-campaign-metadata")).toHaveValue(JSON.stringify({ extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" }, targetAudience: { lovableExternalId: "lovable-audience-1" } }, null, 2));
     expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
-    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
-    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
+    expect(screen.getByText("1 recipients are currently snapshotted for this campaign.")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("66 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");

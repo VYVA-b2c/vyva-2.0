@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
@@ -10,6 +11,7 @@ import {
   ExternalLink,
   FileText,
   Languages,
+  LayoutGrid,
   Megaphone,
   Pencil,
   Plus,
@@ -25,8 +27,6 @@ import {
   ArrowDown,
   ArrowUp,
 } from "lucide-react";
-import AdminMenu from "./AdminMenu";
-import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 
 const CHANNELS = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
@@ -37,6 +37,7 @@ const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
 const CAMPAIGN_PAGE_SIZE = 5;
+const MARKETING_FOUNDATION_BANNER_DISMISSED_KEY = "vyva.marketing.foundationBanner.dismissed";
 const BULK_TRANSLATE_LANGUAGES = [
   { code: "en", label: "English" },
   { code: "es", label: "Spanish" },
@@ -2612,9 +2613,9 @@ function LockedSendPanel() {
   );
 }
 
-function SectionCard({ title, subtitle, children, action }: { title: string; subtitle?: string; children: ReactNode; action?: ReactNode }) {
+function SectionCard({ title, subtitle, children, action, className = "" }: { title: string; subtitle?: string; children: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <section className="rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm">
+    <section className={`rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-[#241133]">{title}</h2>
@@ -2840,6 +2841,10 @@ export default function MarketingAdminPage() {
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
   const [campaignPage, setCampaignPage] = useState(1);
+  const [showFoundationBanner, setShowFoundationBanner] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(MARKETING_FOUNDATION_BANNER_DISMISSED_KEY) !== "true";
+  });
   const [confirmingCampaignDeleteId, setConfirmingCampaignDeleteId] = useState<string | null>(null);
   const [confirmingCampaignSendId, setConfirmingCampaignSendId] = useState<string | null>(null);
   const [confirmingDueEmailSend, setConfirmingDueEmailSend] = useState(false);
@@ -4575,31 +4580,50 @@ export default function MarketingAdminPage() {
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
-        <AdminPageHeader
-          title="Marketing"
-          subtitle="Campaign planning, Lovable migration, audiences, content, schedules, and email dispatch through the existing VYVA provider stack."
-        >
-          <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((error) => setMessage(error.message))}>
-            <RefreshCw size={16} /> Refresh
-          </button>
-          {message && <span className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">{message}</span>}
-        </AdminPageHeader>
-
-        <AdminMenu />
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-serif text-3xl leading-tight text-[#2f2135]">Marketing</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 py-3 font-bold text-[#2f2135] shadow-sm transition hover:border-purple-200 hover:text-purple-700"
+            >
+              <LayoutGrid size={16} /> Admin home
+            </Link>
+            <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((error) => setMessage(error.message))}>
+              <RefreshCw size={16} /> Refresh
+            </button>
+            {message && <span className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">{message}</span>}
+          </div>
+        </header>
 
         <section className="mt-5 grid gap-4">
-          <div className="overflow-hidden rounded-[18px] border border-purple-200 bg-[#2f2135] text-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-4 p-5">
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-purple-200">Marketing engine foundation</p>
-                <h2 className="mt-2 text-3xl font-black">Plan campaigns now. Send email safely.</h2>
-                <p className="mt-2 max-w-3xl text-sm font-semibold text-white/70">This module absorbs Lovable marketing data and sends saved email campaign snapshots through VYVA. WhatsApp and social channels remain planning-only until their provider controls are ready.</p>
+          {showFoundationBanner ? (
+            <div className="overflow-hidden rounded-[18px] border border-purple-200 bg-[#2f2135] text-white shadow-sm" data-testid="marketing-foundation-banner">
+              <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.18em] text-purple-200">Marketing engine foundation</p>
+                  <h2 className="mt-2 text-3xl font-black">Plan campaigns now. Send email safely.</h2>
+                  <p className="mt-2 max-w-3xl text-sm font-semibold text-white/70">This module absorbs Lovable marketing data and sends saved email campaign snapshots through VYVA. WhatsApp and social channels remain planning-only until their provider controls are ready.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Pill className="bg-white/10 text-white"><CheckCircle2 size={13} className="mr-1" /> Email enabled</Pill>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFoundationBanner(false);
+                      window.localStorage.setItem(MARKETING_FOUNDATION_BANNER_DISMISSED_KEY, "true");
+                    }}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
+                    aria-label="Hide marketing engine banner"
+                    title="Hide banner"
+                    data-testid="button-dismiss-marketing-foundation-banner"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                </div>
               </div>
-              <Pill className="bg-white/10 text-white"><CheckCircle2 size={13} className="mr-1" /> Email enabled</Pill>
             </div>
-          </div>
-
-          <LockedSendPanel />
+          ) : null}
 
           <div className="rounded-[14px] border border-[#eadfd5] bg-white p-2 shadow-sm">
             <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Marketing admin sections">
@@ -4935,104 +4959,12 @@ export default function MarketingAdminPage() {
                 </SectionCard>
 
                 <SectionCard
-                  title="Campaign details"
-                  subtitle={editingCampaign ? "Edit essentials first. Extra source and metrics are below." : "Select a campaign from the list."}
-                  action={editingCampaign ? (
-                    campaignEditDraft.channel === "email" ? <Pill className="bg-emerald-50 text-emerald-800">Email enabled</Pill> : <Pill className="bg-amber-50 text-amber-800">Planning only</Pill>
-                  ) : null}
+                  title={editingCampaign ? "Edit campaign" : "Campaign details"}
+                  subtitle={editingCampaign ? "Change the message, audience, schedule, and recipients." : "Select a campaign from the list."}
                 >
                   {editingCampaign ? (
                     <form className="grid gap-4" onSubmit={(event) => saveCampaignEdit(event, editingCampaign.id).catch((error) => setMessage(error.message))} data-testid="marketing-campaign-edit-form">
-                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-detail-panel">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="mt-1 text-lg font-black text-[#241133]">{editingCampaign.name}</h3>
-                            {editingCampaign.objective ? (
-                              <p className="mt-1 line-clamp-2 text-sm font-bold text-[#7d6b65]">{editingCampaign.objective}</p>
-                            ) : null}
-                          </div>
-                          <Pill className={statusClass(editingCampaign.status)}>{editingCampaign.status}</Pill>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65]">
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="uppercase tracking-[0.12em]">Schedule</p>
-                            <p className="mt-1 text-[#241133]">{formatDate(editingCampaign.scheduleStartsAt)}</p>
-                            {editingCampaign.scheduleEndsAt ? (
-                              <p className="mt-1 text-[#7d6b65]">Ends {formatDate(editingCampaign.scheduleEndsAt)}</p>
-                            ) : null}
-                          </div>
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="uppercase tracking-[0.12em]">Timezone</p>
-                            <p className="mt-1 text-[#241133]">{editingCampaign.timezone}</p>
-                          </div>
-                          <div className="rounded-lg bg-white p-2">
-                            <p className="uppercase tracking-[0.12em]">Recipients</p>
-                            <p className="mt-1 text-[#241133]">{editingCampaign.recipientCount}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <details className="rounded-xl border border-[#eadfd5] bg-white p-3">
-                        <summary className="cursor-pointer text-sm font-black text-purple-700">Advanced source fields</summary>
-                        <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                          <Field label="Source">
-                            <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
-                          </Field>
-                          <Field label="Lovable ID">
-                            <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
-                          </Field>
-                        </div>
-                        <Field label="Campaign metadata JSON">
-                          <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
-                        </Field>
-                      </details>
-
-                      <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 marker:hidden">
-                          <span className="text-sm font-black text-[#241133]">Performance</span>
-                          <span className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} rows</span>
-                            <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
-                          </span>
-                        </summary>
-                        {selectedCampaignMetrics.length === 0 ? (
-                          <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No performance metrics imported for this campaign yet.</p>
-                        ) : (
-                          <div className="mt-3 grid gap-3">
-                            <div className="grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65] xl:grid-cols-4">
-                              <div className="rounded-lg bg-white p-2">
-                                <p className="uppercase tracking-[0.12em]">Delivered</p>
-                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.delivered}</p>
-                              </div>
-                              <div className="rounded-lg bg-white p-2">
-                                <p className="uppercase tracking-[0.12em]">Opened</p>
-                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.opened}</p>
-                              </div>
-                              <div className="rounded-lg bg-white p-2">
-                                <p className="uppercase tracking-[0.12em]">Clicked</p>
-                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.clicked}</p>
-                              </div>
-                              <div className="rounded-lg bg-white p-2">
-                                <p className="uppercase tracking-[0.12em]">Replies</p>
-                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.replied}</p>
-                              </div>
-                            </div>
-                            <div className="grid gap-2">
-                              {selectedCampaignMetrics.map((metric) => (
-                                <div key={metric.id} className="grid gap-2 rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">
-                                  <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
-                                    <span>{metric.delivered} delivered, {metric.clicked} clicked</span>
-                                  </div>
-                                  <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-campaign-metric-metadata-${metric.id}`} />
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </details>
-
-                      <div className="grid gap-3">
+                      <div className="grid gap-3" data-testid="marketing-campaign-detail-panel">
                         <Field label="Campaign name">
                           <input className={inputClass} value={campaignEditDraft.name} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, name: event.target.value }))} data-testid="input-marketing-edit-campaign-name" />
                         </Field>
@@ -5317,6 +5249,66 @@ export default function MarketingAdminPage() {
                           </div>
                         ) : null}
                       </div>
+
+                      <details className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                        <summary className="cursor-pointer text-sm font-black text-purple-700">Advanced source fields</summary>
+                        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                          <Field label="Source">
+                            <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
+                          </Field>
+                          <Field label="Lovable ID">
+                            <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
+                          </Field>
+                        </div>
+                        <Field label="Campaign metadata JSON">
+                          <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
+                        </Field>
+                      </details>
+
+                      <details className="rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-campaign-performance-panel">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 marker:hidden">
+                          <span className="text-sm font-black text-purple-700">Performance</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} rows</span>
+                            <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
+                          </span>
+                        </summary>
+                        {selectedCampaignMetrics.length === 0 ? (
+                          <p className="mt-3 rounded-lg bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]">No performance metrics imported for this campaign yet.</p>
+                        ) : (
+                          <div className="mt-3 grid gap-3">
+                            <div className="grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65] xl:grid-cols-4">
+                              <div className="rounded-lg bg-[#fffaf4] p-2">
+                                <p className="uppercase tracking-[0.12em]">Delivered</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.delivered}</p>
+                              </div>
+                              <div className="rounded-lg bg-[#fffaf4] p-2">
+                                <p className="uppercase tracking-[0.12em]">Opened</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.opened}</p>
+                              </div>
+                              <div className="rounded-lg bg-[#fffaf4] p-2">
+                                <p className="uppercase tracking-[0.12em]">Clicked</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.clicked}</p>
+                              </div>
+                              <div className="rounded-lg bg-[#fffaf4] p-2">
+                                <p className="uppercase tracking-[0.12em]">Replies</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.replied}</p>
+                              </div>
+                            </div>
+                            <div className="grid gap-2">
+                              {selectedCampaignMetrics.map((metric) => (
+                                <div key={metric.id} className="grid gap-2 rounded-lg bg-[#fffaf4] p-2 text-xs font-bold text-[#7d6b65]">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
+                                    <span>{metric.delivered} delivered, {metric.clicked} clicked</span>
+                                  </div>
+                                  <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-campaign-metric-metadata-${metric.id}`} />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </details>
 
                       <div className="grid gap-2">
                         <button type="submit" disabled={campaignSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-campaign">
@@ -5746,7 +5738,7 @@ export default function MarketingAdminPage() {
 
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
-              <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
+              <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references." className="order-2">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">
                   <div className="grid gap-3 xl:grid-cols-[1fr_170px_140px_120px]">
                     <Field label="Title">
@@ -5808,6 +5800,7 @@ export default function MarketingAdminPage() {
               <SectionCard
                 title="Content library"
                 subtitle={`${visibleContent.length} visible of ${content.length} assets.`}
+                className="order-1"
                 action={(
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -6017,18 +6010,18 @@ export default function MarketingAdminPage() {
                     </div>
                   ) : (
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
-                      <table className="min-w-[1180px] border-collapse text-left text-sm">
+                      <table className="min-w-[1180px] table-fixed border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
-                            <th className="px-4 py-3">Content</th>
-                            <th className="px-4 py-3">Type</th>
-                            <th className="px-4 py-3">Channel</th>
-                            <th className="px-4 py-3">Language</th>
-                            <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3">Design/media</th>
-                            <th className="px-4 py-3">CTA</th>
-                            <th className="px-4 py-3">Source</th>
-                            <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
+                            <th className="w-[260px] px-4 py-3">Content</th>
+                            <th className="w-[110px] px-4 py-3">Type</th>
+                            <th className="w-[110px] px-4 py-3">Channel</th>
+                            <th className="w-[90px] px-4 py-3">Language</th>
+                            <th className="w-[105px] px-4 py-3">Status</th>
+                            <th className="w-[140px] px-4 py-3">Design/media</th>
+                            <th className="w-[180px] px-4 py-3">CTA</th>
+                            <th className="w-[170px] px-4 py-3">Source</th>
+                            <th className="sticky right-0 z-20 w-[180px] border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -6149,7 +6142,7 @@ export default function MarketingAdminPage() {
                               </td>
                             </tr>
                             {isPreviewingContent || isEditingContent || isConfirmingDelete ? (
-                              <tr className="border-t border-purple-100 bg-purple-50/80">
+                              <tr className="hidden border-t border-purple-100 bg-purple-50/80">
                                 <td colSpan={9} className="px-4 py-3">
                                   {isPreviewingContent ? (
                                     <div className="rounded-xl border border-purple-200 bg-white px-4 py-3 text-sm font-bold text-purple-950 shadow-sm" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
@@ -7663,7 +7656,7 @@ function CampaignTable({
         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
           <tr>
             <th className="w-[30%] px-4 py-3">Campaign</th>
-            <th className="w-[16%] px-4 py-3">Audience</th>
+            <th className="w-[16%] px-4 py-3">Target</th>
             <th className="w-[18%] px-4 py-3">Channels</th>
             <th className="w-[14%] px-4 py-3">Schedule</th>
             <th className="w-[12%] px-4 py-3">Status</th>
@@ -7705,7 +7698,7 @@ function CampaignTable({
                     {targetAudience.name}
                   </p>
                 ) : (
-                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All contacts</p>
+                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">All eligible contacts</p>
                 )}
               </td>
               <td className="px-4 py-3">
