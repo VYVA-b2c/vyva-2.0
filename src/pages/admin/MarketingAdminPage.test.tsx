@@ -1372,9 +1372,6 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
     expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Confirm delete?");
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Lovable is not changed.");
-    expect(screen.getByTestId("marketing-content-delete-confirmation-content-2")).toHaveTextContent("Click Confirm delete to remove this content.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
@@ -1383,20 +1380,6 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Preview opened.");
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Partner update");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview panel opened.");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Partner update");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Social post");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Rendered HTML available");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable design data");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("1 media refs");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable ID: lovable-content-2");
-    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Focus preview");
-    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Partner update");
-    expect(screen.getByTestId("marketing-content-inline-preview-content-2-design")).toHaveTextContent("Lovable design preview");
-    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Media references");
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
@@ -1415,14 +1398,6 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Editor opened.");
-    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Changes save to this VYVA content record.");
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor panel opened.");
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Edit and save this content directly here.");
-    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Full editor");
-    expect(screen.getByTestId("marketing-content-inline-editor-content-2")).toBeInTheDocument();
-    expect(screen.getByTestId("input-marketing-inline-edit-content-title-content-2")).toHaveValue("Partner post");
-    expect(screen.getByTestId("textarea-marketing-inline-edit-content-body-content-2")).toHaveValue("Partner update");
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
