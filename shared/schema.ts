@@ -2949,6 +2949,42 @@ export const insertVoiceTimelineEventSchema = createInsertSchema(voiceTimelineEv
 export type InsertVoiceTimelineEvent = z.infer<typeof insertVoiceTimelineEventSchema>;
 export type VoiceTimelineEventRow = typeof voiceTimelineEvents.$inferSelect;
 
+export const proactiveEngagementShadowAudits = pgTable("proactive_engagement_shadow_audits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  audit_id: text("audit_id").notNull().unique(),
+  schema_version: text("schema_version").notNull(),
+  policy_version: text("policy_version").notNull(),
+  idempotency_key: text("idempotency_key").notNull().unique(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  schedule_id: text("schedule_id").notNull(),
+  purpose_id: text("purpose_id").notNull(),
+  decision: text("decision").notNull(),
+  proposed_channel: text("proposed_channel"),
+  reason_codes: text("reason_codes").array().notNull().default([]),
+  due_at: timestamp("due_at", { withTimezone: true }).notNull(),
+  evaluated_at: timestamp("evaluated_at", { withTimezone: true }).notNull(),
+  timezone: text("timezone").notNull(),
+  consent_status: text("consent_status").notNull(),
+  quiet_hours_status: text("quiet_hours_status").notNull(),
+  limit_status: text("limit_status").notNull(),
+  duplicate_status: text("duplicate_status").notNull(),
+  source_classification: text("source_classification").notNull(),
+  normalized_audit: jsonb("normalized_audit").notNull(),
+  semantic_digest: text("semantic_digest").notNull(),
+  shadow_only: boolean("shadow_only").notNull().default(true),
+  non_executable: boolean("non_executable").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("proactive_engagement_shadow_audits_occurrence_idx").on(t.schedule_occurrence_id, t.policy_version),
+  index("proactive_engagement_shadow_audits_schedule_idx").on(t.schedule_id, t.evaluated_at),
+  index("proactive_engagement_shadow_audits_decision_idx").on(t.decision, t.evaluated_at),
+  index("proactive_engagement_shadow_audits_created_idx").on(t.created_at),
+]);
+
+export const insertProactiveEngagementShadowAuditSchema = createInsertSchema(proactiveEngagementShadowAudits).omit({ id: true, created_at: true });
+export type InsertProactiveEngagementShadowAudit = z.infer<typeof insertProactiveEngagementShadowAuditSchema>;
+export type ProactiveEngagementShadowAuditRow = typeof proactiveEngagementShadowAudits.$inferSelect;
+
 export const orchestrationEventStateEvents = pgTable("orchestration_event_state_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   event_id: text("event_id").notNull().unique(),

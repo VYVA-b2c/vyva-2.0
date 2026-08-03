@@ -1297,15 +1297,17 @@ This decision does not prevent the future hierarchy. The initial Health Speciali
 ### Stage 3 — Proactive engagement contracts
 
 - **Objective:** normalize schedule, consent, channel, outcome and audit without sending new outreach.
-- **Reuse:** schedule, communication, consent, channel preference tables.
-- **Files likely affected:** new `server/engagement/*`, shared proactive contracts, additive schema/migration, schedule-policy adapter.
-- **New files:** policy-decision and engagement-audit contracts/tables.
-- **Dependencies:** event contract.
-- **Flag:** audit shadow mode.
-- **Acceptance:** due schedules produce deterministic allow/block decisions.
-- **Tests:** timezone, cross-midnight quiet hours, revocation, limits, fallback.
-- **Observability:** decision reason codes.
-- **Rollback:** disable shadow evaluator.
+- **Reuse:** schedule, communication, consent and channel-preference tables as evidence sources only. Existing dispatcher/provider services remain authoritative and unchanged.
+- **Files likely affected:** new `shared/engagement/*`, new `server/engagement/*`, additive schema/migration, schedule-policy adapter and `docs/PROACTIVE_ENGAGEMENT_SHADOW_POLICY.md`.
+- **New files:** strict proactive-evaluation, policy-decision and engagement-audit contracts; pure deterministic policy evaluator; audit-shadow feature flag; minimized telemetry; idempotent audit persistence; additive `proactive_engagement_shadow_audits` table; scheduled-interaction snapshot adapter.
+- **Dependencies:** frozen Task 1 event vocabulary where relevant and Task 7 inert-clone/canonical-digest conventions. Task 8 must not reinterpret frozen Task 1–7 semantics.
+- **Flag:** `flag.engagement.audit_shadow`, version `1.0.0`, default disabled, with `disabled` and `audit_shadow` modes only. Environment is configured through `VYVA_ENGAGEMENT_AUDIT_SHADOW_*`; production requires an explicit allow guard.
+- **Acceptance:** minimized due-schedule snapshots produce deterministic allow/block audit decisions for schedule due-state, purpose/channel consent, revocation, IANA timezone validation and canonicalization, canonical UTC timestamp normalization, quiet hours, cooldown, frequency, fatigue, duplicate occurrence and channel fallback. A Task 8 `allow` is not dispatch authorization, and a Task 8 `block` does not suppress live behavior.
+- **Tests:** strict contracts, unknown-field rejection, descriptor-safe exported schema parsing, explicit-undefined/accessor/sparse-array rejection, IANA timezone alias canonicalization and DST, canonical UTC timestamp normalization, normalized-instant timestamp comparisons, same-day and cross-midnight quiet hours, consent revocation/expiry/subject scope, limits/fatigue/cooldown, deterministic fallback, no automatic call fallback without purpose-specific opt-in, idempotency, persistence, telemetry minimization and runtime isolation.
+- **Observability:** minimized non-persistent decision telemetry with closed reason codes and coarse classifications only; no raw user IDs in telemetry, no contact data, no message content, no provider payloads, no prompts and no memory content.
+- **Rollback:** unset or disable the Task 8 flag to stop evaluation, audit writes and success telemetry. The additive audit table can remain unused; dropping it requires reviewed retention approval.
+- **Stage 3 boundary:** no outreach, push subscription, deep-link token, provider call, dispatcher mutation, queue, retry, worker, lease, Health Flow start/restore, Specialist call, Tool execution, Mem0 call, caregiver/operator escalation, candidate delivery or authoritative delivery.
+- **Current integration decision:** implement the runtime and scheduled-interaction adapter without live dispatcher wiring. A future audit-only hook must be approved separately at a post-authoritative due-selection or post-dispatch-decision seam that cannot delay, trigger or suppress live dispatch.
 - **Risk:** high.
 - **Do not change:** live dispatcher behavior.
 
