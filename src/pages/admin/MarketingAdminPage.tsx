@@ -675,6 +675,19 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
+function isDateThisWeek(value: string | null) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return date >= start && date < end;
+}
+
 function formatCalendarDay(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unscheduled";
@@ -3270,6 +3283,40 @@ export default function MarketingAdminPage() {
     return enrollmentMatchesSearch && matchesAudience && matchesChannel;
   }), [journeyEnrollments, search, audienceFilter, channelFilter, journeyById, contactByJourneyEnrollmentId]);
 
+  const globalFiltersActive = Boolean(search.trim()) || channelFilter !== "all" || audienceFilter !== "all";
+  const dashboardTotals = useMemo(() => ({
+    campaigns: visibleCampaigns.length,
+    audiences: new Set([
+      ...visibleCampaigns.map((campaign) => campaign.audienceType),
+      ...visibleContacts.map((contact) => contact.audienceType),
+    ]).size,
+    thisWeek: visibleCampaigns.filter((campaign) => isDateThisWeek(campaign.scheduleStartsAt)).length,
+    scheduled: visibleCampaigns.filter((campaign) => normalizeCampaignStatus(campaign.status) === "scheduled").length,
+    published: visibleCampaigns.filter((campaign) => normalizeCampaignStatus(campaign.status) === "published").length,
+  }), [visibleCampaigns, visibleContacts]);
+  const dashboardByChannel = useMemo(() => CHANNELS.map((channel) => ({
+    channel,
+    campaigns: visibleCampaigns.filter((campaign) => campaign.channels.some((item) => item.channel === channel)).length,
+    content: visibleContent.filter((item) => item.channel === channel).length,
+  })), [visibleCampaigns, visibleContent]);
+  const dashboardByAudience = useMemo(() => AUDIENCES.map((audienceType) => ({
+    audienceType,
+    campaigns: visibleCampaigns.filter((campaign) => campaign.audienceType === audienceType).length,
+    contacts: visibleContacts.filter((contact) => contact.audienceType === audienceType).length,
+  })), [visibleCampaigns, visibleContacts]);
+  const dashboardChannelsToShow = useMemo(() => {
+    const usefulChannels = dashboardByChannel.filter((item) => item.campaigns > 0 || item.content > 0);
+    if (channelFilter === "all") return usefulChannels.length ? usefulChannels : dashboardByChannel;
+    const selectedChannel = dashboardByChannel.find((item) => item.channel === channelFilter);
+    return selectedChannel ? [selectedChannel] : [];
+  }, [channelFilter, dashboardByChannel]);
+  const dashboardAudiencesToShow = useMemo(() => {
+    if (audienceFilter !== "all") {
+      return dashboardByAudience.filter((item) => item.audienceType === audienceFilter);
+    }
+    return dashboardByAudience.filter((item) => item.campaigns > 0 || item.contacts > 0);
+  }, [audienceFilter, dashboardByAudience]);
+
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
@@ -4579,50 +4626,104 @@ export default function MarketingAdminPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]" aria-hidden="true" />
               <input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns, journeys, content, contacts, lists, or media" data-testid="input-marketing-search" />
             </label>
-            <select className={inputClass} value={channelFilter} onChange={(event) => setChannelFilter(event.target.value as Channel | "all")} aria-label="Channel filter">
+            <select className={inputClass} value={channelFilter} onChange={(event) => setChannelFilter(event.target.value as Channel | "all")} aria-label="Channel filter" data-testid="select-marketing-channel-filter">
               <option value="all">All channels</option>
               {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
             </select>
-            <select className={inputClass} value={audienceFilter} onChange={(event) => setAudienceFilter(event.target.value as Audience | "all")} aria-label="Audience filter">
+            <select className={inputClass} value={audienceFilter} onChange={(event) => setAudienceFilter(event.target.value as Audience | "all")} aria-label="Audience filter" data-testid="select-marketing-audience-filter">
               <option value="all">All audiences</option>
               {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
             </select>
+            <div className="xl:col-span-3">
+              {globalFiltersActive ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 text-sm font-bold text-purple-900" data-testid="marketing-active-filters">
+                  <span className="text-xs uppercase tracking-[0.12em] text-purple-700">Filters active</span>
+                  {search.trim() ? <Pill className="bg-white text-purple-800">Search: {search.trim()}</Pill> : null}
+                  {channelFilter !== "all" ? <Pill className={channelClass(channelFilter)}>{channelLabel[channelFilter]}</Pill> : null}
+                  {audienceFilter !== "all" ? <Pill className="bg-white text-purple-800">{audienceFilter.toUpperCase()}</Pill> : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setChannelFilter("all");
+                      setAudienceFilter("all");
+                    }}
+                    className="ml-auto inline-flex min-h-8 items-center justify-center rounded-lg border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 hover:bg-purple-100"
+                    data-testid="button-marketing-clear-global-filters"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <p className="rounded-xl bg-[#fbf8f5] px-3 py-2 text-sm font-bold text-[#7d6b65]" data-testid="marketing-active-filters">
+                  Filters apply instantly across this page.
+                </p>
+              )}
+            </div>
           </div>
 
           {activeTab === "dashboard" && (
             <div className="grid gap-4" data-testid="marketing-dashboard-tab">
+              {globalFiltersActive ? (
+                <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-900">
+                  Showing filtered dashboard results: {visibleCampaigns.length} of {campaigns.length} campaigns, {visibleContent.length} of {content.filter((item) => !isMissingLovableContentAsset(item)).length} content assets, {visibleContacts.length} of {contacts.length} contacts.
+                </p>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <MetricCard label="Total campaigns" value={summary.totals.campaigns} icon={Megaphone} />
-                <MetricCard label="Audiences" value={summary.totals.audiences} icon={UsersRound} />
-                <MetricCard label="This week" value={summary.totals.thisWeek} icon={CalendarDays} />
-                <MetricCard label="Scheduled" value={summary.totals.scheduled} icon={Clock} />
-                <MetricCard label="Published" value={summary.totals.published} icon={CheckCircle2} />
+                <MetricCard label={globalFiltersActive ? "Campaigns shown" : "Total campaigns"} value={dashboardTotals.campaigns} icon={Megaphone} />
+                <MetricCard label={globalFiltersActive ? "Audiences shown" : "Audiences"} value={dashboardTotals.audiences} icon={UsersRound} />
+                <MetricCard label="This week" value={dashboardTotals.thisWeek} icon={CalendarDays} />
+                <MetricCard label="Scheduled" value={dashboardTotals.scheduled} icon={Clock} />
+                <MetricCard label="Published" value={dashboardTotals.published} icon={CheckCircle2} />
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
-                <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
+                <SectionCard title="Campaign coverage" subtitle="Click a card to filter the page.">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {summary.byChannel.map((item) => (
-                      <div key={item.channel} className={`rounded-xl border p-3 ${channelClass(item.channel)}`}>
-                        <p className="font-black">{channelLabel[item.channel]}</p>
-                        <p className="mt-2 text-2xl font-black">{item.campaigns}</p>
-                        <p className="text-xs font-bold opacity-80">campaign routes / {item.content} content assets</p>
-                      </div>
-                    ))}
+                    {dashboardChannelsToShow.map((item) => {
+                      const active = channelFilter === item.channel;
+                      return (
+                        <button
+                          key={item.channel}
+                          type="button"
+                          onClick={() => setChannelFilter(active ? "all" : item.channel)}
+                          className={`min-h-[104px] rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${channelClass(item.channel)} ${active ? "ring-2 ring-purple-400" : ""}`}
+                          aria-pressed={active}
+                          data-testid={`button-marketing-channel-card-${item.channel}`}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="font-black">{channelLabel[item.channel]}</span>
+                            {active ? <Pill className="bg-white text-purple-800">Selected</Pill> : null}
+                          </span>
+                          <span className="mt-2 block text-2xl font-black">{item.campaigns}</span>
+                          <span className="block text-xs font-bold opacity-80">{item.content} content assets</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </SectionCard>
 
-                <SectionCard title="By audience" subtitle="B2C, B2B, and combined campaigns.">
+                <SectionCard title="Audience coverage" subtitle="Click an audience to filter.">
                   <div className="grid gap-3">
-                    {summary.byAudience.map((item) => (
-                      <div key={item.audienceType} className="flex items-center justify-between rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <div>
-                          <p className="font-black">{item.audienceType.toUpperCase()}</p>
-                          <p className="text-xs font-bold text-[#8b7a73]">{item.campaigns} campaigns / {item.contacts} contacts</p>
-                        </div>
-                        <span className="text-sm font-black text-[#8b7a73]">Audience</span>
-                      </div>
-                    ))}
+                    {dashboardAudiencesToShow.map((item) => {
+                      const active = audienceFilter === item.audienceType;
+                      return (
+                        <button
+                          key={item.audienceType}
+                          type="button"
+                          onClick={() => setAudienceFilter(active ? "all" : item.audienceType)}
+                          className={`flex min-h-[74px] items-center justify-between gap-3 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${active ? "border-purple-300 bg-purple-50 ring-2 ring-purple-300" : "border-[#eadfd5] bg-[#fffaf4]"}`}
+                          aria-pressed={active}
+                          data-testid={`button-marketing-audience-card-${item.audienceType}`}
+                        >
+                          <span>
+                            <span className="block font-black">{item.audienceType.toUpperCase()}</span>
+                            <span className="text-xs font-bold text-[#8b7a73]">{item.campaigns} campaigns / {item.contacts} contacts</span>
+                          </span>
+                          {active ? <Pill className="bg-white text-purple-800">Selected</Pill> : null}
+                        </button>
+                      );
+                    })}
                   </div>
                 </SectionCard>
               </div>
