@@ -20,6 +20,7 @@ import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { useTranslation } from "react-i18next";
+import { getLanguageSnapshot } from "@/i18n";
 import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 import {
   createOnboardingElevenLabsRuntimeStartRequest,
@@ -147,7 +148,7 @@ export default function ConditionsSection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const vyvaVoice = useOptionalVyvaVoice();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -422,7 +423,7 @@ export default function ConditionsSection() {
     if (vyvaVoice) {
       const startRequest = createOnboardingElevenLabsRuntimeStartRequest({
         sectionConfig: healthAgentSectionConfig,
-        language: i18n.language || "en",
+        language: getLanguageSnapshot().language,
         mode: "voice",
         existingProfileSummary: selectedRef.current.length
           ? `Current health conditions selected in app: ${selectedRef.current.join(", ")}`
@@ -437,7 +438,7 @@ export default function ConditionsSection() {
       return;
     }
     setSpeakItOpen(true);
-  }, [companionMode, healthAgentSectionConfig, i18n.language, setCompanionMode, setGuidance, vyvaVoice]);
+  }, [companionMode, healthAgentSectionConfig, setCompanionMode, setGuidance, vyvaVoice]);
 
   useEffect(
     () =>
