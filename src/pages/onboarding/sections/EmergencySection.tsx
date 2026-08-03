@@ -7,6 +7,7 @@ import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionContro
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
@@ -84,18 +85,18 @@ export default function EmergencySection() {
     [companionMode, setGuidance],
   );
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: emergencyAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceEmergencyCapture = useCallback(() => {
-    setCompanionMode("voice");
-    setGuidance({
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: emergencyAgentSectionConfig.sectionId,
-      currentSectionLabel: emergencyAgentSectionConfig.sectionLabel,
-      currentPrompt: emergencyAgentSectionConfig.voicePrompt,
-      activeTargetId: emergencyAgentSectionConfig.targetIds?.addByVoice,
-    });
-    setSpeakItOpen(true);
-  }, [emergencyAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(() => {
     const unregister = registerVoiceAction({

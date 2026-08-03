@@ -10,9 +10,11 @@ import {
   type OnboardingCompanionGuidancePatch,
 } from "@/components/onboarding/onboardingCompanionGuidanceTemplate";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormField, ResponsiveGrid } from "@/components/vyva-ui";
@@ -24,6 +26,7 @@ import { queryClient, apiFetch } from "@/lib/queryClient";
 import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { friendlyError } from "@/lib/apiError";
 import VoiceMedsModal, { type MedicationForForm } from "@/components/VoiceMedsModal";
+import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 
 interface Medication {
   id: string;
@@ -175,6 +178,7 @@ export default function MedicationsSection() {
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
   const [customFrequencyMedIds, setCustomFrequencyMedIds] = useState<Set<string>>(() => new Set());
   const [expandedMedIds, setExpandedMedIds] = useState<Set<string>>(() => new Set([initialMed.id]));
   const [detailsOpenMedIds, setDetailsOpenMedIds] = useState<Set<string>>(() => new Set());
@@ -320,23 +324,19 @@ export default function MedicationsSection() {
     });
   };
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: medicationAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => medsRef.current.filter((med) => med.name.trim()).map(medicationSummary).join("; ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceMedicationCapture = useCallback(() => {
-    const guidance = {
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: medicationAgentSectionConfig.sectionId,
-      currentSectionLabel: medicationAgentSectionConfig.sectionLabel,
-      currentPrompt: medicationAgentSectionConfig.voicePrompt,
-      activeTargetId: medicationAgentSectionConfig.targetIds?.addByVoice,
-    } as const;
-    if (companionMode === "voice") {
-      setGuidance(guidance);
-    } else {
-      setCompanionMode("voice");
-      window.setTimeout(() => setGuidance(guidance), 0);
-    }
-    setVoiceModalOpen(true);
-  }, [companionMode, medicationAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setVoiceModalOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(
     () =>
@@ -484,6 +484,59 @@ export default function MedicationsSection() {
     [adding, removingId, saving, meds, setMedicationVoiceGuidance, t]
   );
 
+  const medicationDraftRow = (draft: ProfileVoiceDraft, ids: string[]) => {
+    const normalizedIds = new Set(ids.map((id) => id.toLowerCase()));
+    return draft.rows.find((row) => normalizedIds.has(row.id.toLowerCase()))?.value ?? "";
+  };
+
+  const medicationFromVoiceDraft = (draft: ProfileVoiceDraft): MedicationForForm => {
+    const metadata = draft.metadata ?? {};
+    const name =
+      metadata.name ||
+      metadata.medication_name ||
+      metadata.medication ||
+      medicationDraftRow(draft, ["name", "medication_name", "medication"]) ||
+      draft.values[0] ||
+      "";
+    const dosage =
+      metadata.dosage ||
+      metadata.strength ||
+      medicationDraftRow(draft, ["dosage", "strength"]);
+    const routine =
+      metadata.routine ||
+      metadata.frequency ||
+      metadata.scheduled_times ||
+      medicationDraftRow(draft, ["routine", "frequency", "scheduled_times", "times"]);
+
+    return {
+      name,
+      dosage,
+      frequency: metadata.frequency ?? "",
+      times: metadata.times ?? routine,
+      with_food: metadata.with_food ?? "",
+      prescribed_by: metadata.prescribed_by ?? "",
+    };
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const medication = medicationFromVoiceDraft(voiceDraft);
+    if (!medication.name.trim()) {
+      setMedicationVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        currentPrompt: t(
+          "onboarding.medications.voiceGuidance.nameNeededPrompt",
+          "Please tell VYVA the medication name before adding it.",
+        ),
+        activeTargetId: MEDICATION_COMPANION_TARGETS.addByVoice,
+      });
+      return;
+    }
+    void addMedFromVoice(medication);
+    setVoiceDraft(null);
+  };
+
   const hasUnsavedChanges = useCallback((): boolean => {
     const hasUnsavedNewMeds = meds
       .slice(savedMeds.length)
@@ -609,6 +662,33 @@ export default function MedicationsSection() {
               testId="button-meds-voice"
               tone="purple"
               className="bg-white shadow-[0_8px_18px_rgba(53,28,87,0.06)]"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId={MEDICATION_COMPANION_TARGETS.firstMedication}>
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel={t("onboarding.medications.voiceDraft.confirm", "Add this medication")}
+              tryAgainLabel={t("onboarding.medications.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.medications.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={() => {
+                setVoiceDraft(null);
+                startVoiceMedicationCapture();
+              }}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) =>
+                setVoiceDraft((current) => current
+                  ? {
+                      ...current,
+                      rows: current.rows.filter((row) => row.value !== value),
+                      values: current.values.filter((rowValue) => rowValue !== value),
+                    }
+                  : current)
+              }
+              testId="panel-meds-elevenlabs-confirm"
             />
           </OnboardingCompanionTarget>
         ) : null}

@@ -7,6 +7,7 @@ import {
   ONBOARDING_COMPANION_TARGETS,
 } from "@/components/onboarding/onboardingCompanionGuidanceTemplate";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileCompletionBar, ProfileNoneOption, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
@@ -139,23 +140,19 @@ export default function AllergiesSection() {
     return () => clearGuidance();
   }, [allergyAgentSectionConfig, clearGuidance, companionMode, setGuidance, t]);
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: allergyAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => allergies.join(", ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceAllergiesCapture = useCallback(() => {
-    const guidance = {
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: allergyAgentSectionConfig.sectionId,
-      currentSectionLabel: allergyAgentSectionConfig.sectionLabel,
-      currentPrompt: allergyAgentSectionConfig.voicePrompt,
-      activeTargetId: allergyAgentSectionConfig.targetIds?.addByVoice,
-    } as const;
-    if (companionMode === "voice") {
-      setGuidance(guidance);
-    } else {
-      setCompanionMode("voice");
-      window.setTimeout(() => setGuidance(guidance), 0);
-    }
-    setVoiceModalOpen(true);
-  }, [allergyAgentSectionConfig, companionMode, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setVoiceModalOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(
     () =>

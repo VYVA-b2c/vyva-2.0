@@ -6,7 +6,9 @@ export type ProfileOnboardingAgentSectionId =
   | "health"
   | "medications"
   | "allergies"
+  | "gp"
   | "providers"
+  | "care-team"
   | "emergency"
   | "devices"
   | "diet"
@@ -19,7 +21,9 @@ export const PROFILE_ONBOARDING_AGENT_SECTION_IDS: readonly ProfileOnboardingAge
   "health",
   "medications",
   "allergies",
+  "gp",
   "providers",
+  "care-team",
   "emergency",
   "devices",
   "diet",

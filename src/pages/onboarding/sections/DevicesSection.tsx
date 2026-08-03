@@ -7,6 +7,7 @@ import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionContro
 import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Button } from "@/components/ui/button";
@@ -118,18 +119,19 @@ export default function DevicesSection() {
     [companionMode, setGuidance],
   );
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: devicesAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => [...connectedPlatforms, ...connectedDevices].join(", ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
   const startVoiceDevicesCapture = useCallback(() => {
-    setCompanionMode("voice");
-    setGuidance({
-      voiceStatus: "listening",
-      draftStatus: "listening",
-      currentSectionId: devicesAgentSectionConfig.sectionId,
-      currentSectionLabel: devicesAgentSectionConfig.sectionLabel,
-      currentPrompt: devicesAgentSectionConfig.voicePrompt,
-      activeTargetId: devicesAgentSectionConfig.targetIds?.addByVoice,
-    });
-    setSpeakItOpen(true);
-  }, [devicesAgentSectionConfig, setCompanionMode, setGuidance]);
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
 
   useEffect(() => {
     const unregister = registerVoiceAction({
