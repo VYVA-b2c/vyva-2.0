@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -15,9 +15,16 @@ import {
   MessageCircle,
   Link2,
   ShieldCheck,
+  Mic,
 } from "lucide-react";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
-import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileCompletionBar, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
+import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlacesSearch, PlaceResult, PlaceCategory, CATEGORY_TYPES } from "@/components/onboarding/PlacesSearch";
@@ -36,6 +43,12 @@ import {
   savedProviderContactReadiness,
 } from "../../../../shared/conciergeSavedProviders";
 import { useTranslation } from "react-i18next";
+import {
+  applyProfileVoiceCorrection,
+  parseProfileVoiceCommand,
+  parseProfileVoiceTranscript,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 interface ProviderCategory {
   id: ConciergeProviderCategoryId;
@@ -443,6 +456,30 @@ const ProvidersSection = () => {
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [editingProvider, setEditingProvider] = useState<ProviderEntry | null>(null);
+  const [speakItOpen, setSpeakItOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const providersAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "providers",
+        sectionLabel: "Trusted providers",
+        voicePrompt: "Tell VYVA a provider name, phone, email, or address.",
+        expectedFields: ["name", "address", "phone", "email"],
+        targetIds: {
+          addByVoice: "providers-add-by-voice",
+          draftReview: "providers-voice-draft",
+          reviewSave: "providers-review-save",
+        },
+      }),
+    [],
+  );
   const counterRef = useRef(0);
   const loadedRef = useRef(false);
 
@@ -542,9 +579,117 @@ const ProvidersSection = () => {
     setSearchKey((k) => k + 1);
   };
 
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  const startVoiceProviderCapture = useCallback(() => {
+    setCompanionMode("voice");
+    setGuidance({
+      voiceStatus: "listening",
+      draftStatus: "listening",
+      currentSectionId: providersAgentSectionConfig.sectionId,
+      currentSectionLabel: providersAgentSectionConfig.sectionLabel,
+      currentPrompt: providersAgentSectionConfig.voicePrompt,
+      activeTargetId: providersAgentSectionConfig.targetIds?.addByVoice,
+    });
+    setSpeakItOpen(true);
+  }, [providersAgentSectionConfig, setCompanionMode, setGuidance]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-providers-voice-capture",
+      label: "Add by voice",
+      description: "Say a provider name and contact details.",
+      sectionConfig: providersAgentSectionConfig,
+      targetId: providersAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceProviderCapture,
+    });
+    return unregister;
+  }, [providersAgentSectionConfig, registerVoiceAction, startVoiceProviderCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: providersAgentSectionConfig.sectionId,
+      currentSectionLabel: providersAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review this provider before adding it." : providersAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? providersAgentSectionConfig.targetIds?.draftReview
+        : providersAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, providersAgentSectionConfig, setGuidance, voiceDraft]);
+
+  const handleSpeakItDone = (transcript: string) => {
+    setSpeakItOpen(false);
+    const command = parseProfileVoiceCommand("providers", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceProviderCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: corrected ? "corrected-draft" : "needs-clarification" });
+      return;
+    }
+    const result = parseProfileVoiceTranscript("providers", transcript);
+    if (result.type !== "draft") {
+      setVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        lastHeardText: transcript,
+        error: "VYVA could not find provider details in that.",
+        activeTargetId: providersAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+    setVoiceDraft(result.draft);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "parsed-draft",
+      lastHeardText: transcript,
+      activeTargetId: providersAgentSectionConfig.targetIds?.draftReview,
+    });
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    setManualName(metadata.name ?? manualName);
+    setManualAddress(metadata.address ?? manualAddress);
+    setManualPhone(metadata.phone ?? manualPhone);
+    setManualEmail(metadata.email ?? manualEmail);
+    setManualPreferredChannel(metadata.email ? "email" : metadata.phone ? "phone" : manualPreferredChannel);
+    setShowManualForm(true);
+    setPending(null);
+    setVoiceDraft(null);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: providersAgentSectionConfig.targetIds?.reviewSave,
+    });
+  };
+
   const addFromPending = async () => {
     if (!pending || !pending.name.trim() || adding || saving) return;
-    setAdding(true);
     counterRef.current += 1;
     const resolvedMapsUrl =
       pending.mapsUrl ||
@@ -569,26 +714,12 @@ const ProvidersSection = () => {
     };
     const updated = normalizeSavedProviderDefaults([...providers, entry]);
     setProviders(updated);
-    const snapshot = pending;
     setPending(null);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await finishFocusedSetup(entry);
-    } catch (err) {
-      setProviders(providers);
-      setPending(snapshot);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not add provider", description: msg, variant: "destructive" });
-    } finally {
-      setAdding(false);
-    }
+    toast({ title: "Provider added locally", description: "Review the list, then save this section." });
   };
 
   const addFromManual = async () => {
     if (!manualName.trim() || adding || saving) return;
-    setAdding(true);
     counterRef.current += 1;
     const resolvedMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
       [manualName.trim(), manualAddress.trim()].filter(Boolean).join(" ")
@@ -612,17 +743,6 @@ const ProvidersSection = () => {
     };
     const updated = normalizeSavedProviderDefaults([...providers, entry]);
     setProviders(updated);
-    const snapshotName = manualName;
-    const snapshotAddress = manualAddress;
-    const snapshotPhone = manualPhone;
-    const snapshotEmail = manualEmail;
-    const snapshotWhatsapp = manualWhatsapp;
-    const snapshotBookingUrl = manualBookingUrl;
-    const snapshotWebsite = manualWebsite;
-    const snapshotNotes = manualNotes;
-    const snapshotIsTrusted = manualIsTrusted;
-    const snapshotPreferredChannel = manualPreferredChannel;
-    const snapshotCanContact = manualCanContactAfterConfirmation;
     setManualName("");
     setManualAddress("");
     setManualPhone("");
@@ -635,49 +755,14 @@ const ProvidersSection = () => {
     setManualPreferredChannel("phone");
     setManualCanContactAfterConfirmation(true);
     setShowManualForm(false);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await finishFocusedSetup(entry);
-    } catch (err) {
-      setProviders(providers);
-      setManualName(snapshotName);
-      setManualAddress(snapshotAddress);
-      setManualPhone(snapshotPhone);
-      setManualEmail(snapshotEmail);
-      setManualWhatsapp(snapshotWhatsapp);
-      setManualBookingUrl(snapshotBookingUrl);
-      setManualWebsite(snapshotWebsite);
-      setManualNotes(snapshotNotes);
-      setManualIsTrusted(snapshotIsTrusted);
-      setManualPreferredChannel(snapshotPreferredChannel);
-      setManualCanContactAfterConfirmation(snapshotCanContact);
-      setShowManualForm(true);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not add provider", description: msg, variant: "destructive" });
-    } finally {
-      setAdding(false);
-    }
+    toast({ title: "Provider added locally", description: "Review the list, then save this section." });
   };
 
   const removeProvider = async (id: string) => {
     if (removingId || saving) return;
-    setRemovingId(id);
-    const previous = providers;
     const updated = normalizeSavedProviderDefaults(providers.filter((p) => p.id !== id));
     setProviders(updated);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      setProviders(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not remove provider", description: msg, variant: "destructive" });
-    } finally {
-      setRemovingId(null);
-    }
+    toast({ title: "Provider removed locally", description: "Save this section to keep the change." });
   };
 
   const handleSave = async () => {
@@ -688,6 +773,14 @@ const ProvidersSection = () => {
       res = await saveProvidersToServer(providers);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
+      if (setupReturnTo) {
+        const defaultReady = providers.find((provider) => provider.is_default && provider.is_trusted !== false);
+        if (defaultReady) {
+          await finishFocusedSetup(defaultReady);
+          return;
+        }
+      }
       navigate("/onboarding/complete/providers");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -739,48 +832,22 @@ const ProvidersSection = () => {
       : replaced;
     const updatedList = normalizeSavedProviderDefaults(demoted);
     setProviders(updatedList);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updatedList);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({
-        title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
-        description: t("onboarding.toast.providerUpdated.description", {
-          name: entry.name || t("onboarding.toast.providerUpdated.fallbackName", "This provider"),
-          defaultValue: "{{name}} was saved to your trusted providers.",
-        }),
-      });
-    } catch (err) {
-      setProviders(providers);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not update provider", description: msg, variant: "destructive" });
-      throw err;
-    }
+    toast({
+      title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
+      description: "Review the details, then save this section.",
+    });
   };
 
   const setDefaultProvider = async (providerId: string) => {
     if (saving || adding || removingId) return;
     const target = providers.find((provider) => provider.id === providerId);
     if (!target || target.is_trusted === false || target.is_default) return;
-    const previous = providers;
     const updated = normalizeSavedProviderDefaults(providers.map((provider) => ({
       ...provider,
       is_default: provider.category === target.category ? provider.id === providerId : provider.is_default,
     })));
     setProviders(updated);
-    setSaving(true);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({ title: "Default provider updated", description: `${target.name} will be used first by Concierge.` });
-    } catch (err) {
-      setProviders(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not update default provider", description: msg, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    toast({ title: "Default provider updated locally", description: "Save this section to keep the change." });
   };
 
   const chooseProviderForConcierge = async (providerId: string) => {
@@ -792,26 +859,12 @@ const ProvidersSection = () => {
       return;
     }
 
-    const previous = providers;
     const updated = normalizeSavedProviderDefaults(providers.map((provider) => ({
       ...provider,
       is_default: provider.category === target.category ? provider.id === providerId : provider.is_default,
     })));
-    const selected = updated.find((provider) => provider.id === providerId) ?? target;
     setProviders(updated);
-    setSaving(true);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await finishFocusedSetup(selected);
-    } catch (err) {
-      setProviders(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not select provider", description: msg, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    toast({ title: "Provider selected locally", description: "Save and continue to use this provider." });
   };
 
   const categoryLabel = activeCategoryDef?.label ?? "provider";
@@ -843,6 +896,21 @@ const ProvidersSection = () => {
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
+        <OnboardingCompanionModeChip
+          compactLabel="VYVA mode"
+          voiceLabel="Voice"
+          voiceDescription="VYVA can talk you through this page."
+          tactileLabel="Tactile"
+          tactileDescription="Use touch or keyboard controls quietly."
+          accessibleLabel="Choose voice or tactile help for profile setup"
+          statusLabels={{
+            idle: "Ready",
+            listening: "Listening",
+            speaking: "Speaking",
+            thinking: "Thinking",
+            error: "Needs attention",
+          }}
+        />
         <ProfileSectionHero
           icon={Building2}
           title={t("onboarding.providers.title", "Trusted providers")}
@@ -857,6 +925,40 @@ const ProvidersSection = () => {
             { label: "Trusted list", color: "purple" },
           ]}
         />
+
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="providers-add-by-voice">
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Add by voice"
+              description="Say a provider name, phone, email, or address."
+              onClick={startVoiceProviderCapture}
+              testId="button-providers-speak-it"
+              disabled={isLoading}
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId="providers-voice-draft">
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Use these details"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={startVoiceProviderCapture}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => {
+                const command = parseProfileVoiceCommand("providers", `remove ${value}`);
+                if (!command) return;
+                setVoiceDraft((current) => current ? applyProfileVoiceCorrection(current, command) : current);
+                setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+              }}
+              testId="panel-providers-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         <CategoryFilterBar
           categories={PROVIDER_CATEGORIES}
@@ -1360,6 +1462,7 @@ const ProvidersSection = () => {
       </div>
 
       <div className="px-5 py-6">
+        <OnboardingCompanionTarget targetId="providers-review-save">
         <ProfileCompletionBar
           saving={saving}
           onSave={handleSave}
@@ -1371,6 +1474,7 @@ const ProvidersSection = () => {
           onSkip={() => navigate("/onboarding/profile")}
           testId="button-providers-save"
         />
+        </OnboardingCompanionTarget>
       </div>
 
       {editingProvider && (
@@ -1383,6 +1487,14 @@ const ProvidersSection = () => {
           onSave={handleEditSave}
         />
       )}
+      {speakItOpen ? (
+        <SpeakItOverlay
+          title="Tell VYVA a provider"
+          hint='e.g. "Provider is Zamora Pharmacy, phone +34 600 000 000"'
+          onDone={handleSpeakItDone}
+          onCancel={() => setSpeakItOpen(false)}
+        />
+      ) : null}
     </div>
   );
 };

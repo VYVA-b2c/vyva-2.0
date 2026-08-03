@@ -1,7 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Camera, CheckCircle2, ChevronDown, User } from "lucide-react";
+import { ChevronLeft, Camera, CheckCircle2, ChevronDown, Mic, User } from "lucide-react";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
+import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { SiFacebook, SiInstagram, SiWhatsapp } from "react-icons/si";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +19,17 @@ import {
 } from "@/components/ui/select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { LANGUAGES } from "@/i18n/languages";
 import { useTranslation } from "react-i18next";
+import {
+  applyProfileVoiceCorrection,
+  parseProfileVoiceCommand,
+  parseProfileVoiceTranscript,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 import {
   buildOnboardingIdentityPayload,
   compressAvatarFile,
@@ -157,9 +170,97 @@ export default function BasicsSection() {
 
   const [saving,       setSaving]       = useState(false);
   const [saveSuccess,  setSaveSuccess]  = useState(false);
+  const [speakItOpen, setSpeakItOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef(form);
   useEffect(() => { formRef.current = form; }, [form]);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const basicsAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "basics",
+        sectionLabel: "Basic details",
+        voicePrompt: "Tell VYVA your name, phone, or email.",
+        expectedFields: ["fullName", "preferredName", "email", "phoneLocal"],
+        draftRowLabels: {
+          fullName: "Full name",
+          preferredName: "Preferred name",
+          email: "Email",
+          phoneLocal: "Phone",
+        },
+        targetIds: {
+          addByVoice: "basics-add-by-voice",
+          draftReview: "basics-voice-draft",
+          reviewSave: "basics-review-save",
+        },
+      }),
+    [],
+  );
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
+
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  const startVoiceBasicsCapture = useCallback(() => {
+    setCompanionMode("voice");
+    setGuidance({
+      voiceStatus: "listening",
+      draftStatus: "listening",
+      currentSectionId: basicsAgentSectionConfig.sectionId,
+      currentSectionLabel: basicsAgentSectionConfig.sectionLabel,
+      currentPrompt: basicsAgentSectionConfig.voicePrompt,
+      activeTargetId: basicsAgentSectionConfig.targetIds?.addByVoice,
+    });
+    setSpeakItOpen(true);
+  }, [basicsAgentSectionConfig, setCompanionMode, setGuidance]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-basics-voice-capture",
+      label: "Tell VYVA",
+      description: "Say your name, phone, or email.",
+      sectionConfig: basicsAgentSectionConfig,
+      targetId: basicsAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceBasicsCapture,
+    });
+    return unregister;
+  }, [basicsAgentSectionConfig, registerVoiceAction, startVoiceBasicsCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: basicsAgentSectionConfig.sectionId,
+      currentSectionLabel: basicsAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review the details before adding them." : basicsAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? basicsAgentSectionConfig.targetIds?.draftReview
+        : basicsAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [basicsAgentSectionConfig, clearGuidance, companionMode, setGuidance, voiceDraft]);
 
   const { data, isLoading } = useQuery<{ profile: ServerProfile | null }>({
     queryKey: ["/api/onboarding/state"],
@@ -208,23 +309,6 @@ export default function BasicsSection() {
       : "/onboarding/complete/basics";
   };
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
-    async () => {
-      const f = formRef.current;
-      if (validateIdentityBasics(f).firstName) return;
-      const res = await apiFetch("/api/onboarding/basics", {
-        method: "POST",
-        body: JSON.stringify(buildPayload(f)),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    },
-    2000,
-  );
-
   const avatarMutation = useMutation({
     mutationFn: async (dataUrl: string | null) => {
       const res = await apiFetch("/api/profile/avatar", {
@@ -250,24 +334,91 @@ export default function BasicsSection() {
 
   const set = <K extends keyof BasicsForm>(field: K, value: BasicsForm[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const setFullName = (value: string) => {
     setForm((prev) => ({ ...prev, ...splitFullName(value) }));
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const setPhoneNumber = (value: string) => {
     const phone = splitPhoneNumber(value, form.phoneCountry);
     setForm((prev) => ({ ...prev, ...phone }));
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const handleDobChange = (day: string, month: string, year: string) => {
     const assembled = assembleDob(day, month, year);
     setForm((prev) => ({ ...prev, dateOfBirth: assembled }));
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
+  };
+
+  const handleSpeakItDone = (transcript: string) => {
+    setSpeakItOpen(false);
+    const command = parseProfileVoiceCommand("basics", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceBasicsCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({
+        voiceStatus: "idle",
+        draftStatus: corrected ? "corrected-draft" : "needs-clarification",
+        lastHeardText: transcript,
+        activeTargetId: corrected
+          ? basicsAgentSectionConfig.targetIds?.draftReview
+          : basicsAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+
+    const result = parseProfileVoiceTranscript("basics", transcript);
+    if (result.type === "draft") {
+      setVoiceDraft(result.draft);
+      setVoiceGuidance({
+        voiceStatus: "idle",
+        draftStatus: "parsed-draft",
+        lastHeardText: transcript,
+        activeTargetId: basicsAgentSectionConfig.targetIds?.draftReview,
+      });
+      return;
+    }
+
+    setVoiceGuidance({
+      voiceStatus: "error",
+      draftStatus: "needs-clarification",
+      lastHeardText: transcript,
+      error: "VYVA could not find basic details in that.",
+      activeTargetId: basicsAgentSectionConfig.targetIds?.addByVoice,
+    });
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    setForm((prev) => {
+      const next = { ...prev };
+      if (metadata.fullName) Object.assign(next, splitFullName(metadata.fullName));
+      if (metadata.preferredName) next.preferredName = metadata.preferredName;
+      if (metadata.email) next.email = metadata.email;
+      if (metadata.phoneLocal) Object.assign(next, splitPhoneNumber(metadata.phoneLocal, prev.phoneCountry));
+      return next;
+    });
+    setVoiceDraft(null);
+    setAutoSaveStatus("idle");
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: basicsAgentSectionConfig.targetIds?.reviewSave,
+    });
   };
 
   const handleAvatarClick = () => fileInputRef.current?.click();
@@ -305,6 +456,8 @@ export default function BasicsSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
+      setAutoSaveStatus("saved");
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       setSaveSuccess(true);
       setTimeout(() => navigate(completePath()), 1500);
     } catch (err) {
@@ -339,6 +492,21 @@ export default function BasicsSection() {
       </div>
 
       <div className="mx-auto flex w-full max-w-[760px] flex-1 flex-col space-y-7 overflow-y-auto px-4 pb-8 sm:px-5">
+        <OnboardingCompanionModeChip
+          compactLabel="VYVA mode"
+          voiceLabel="Voice"
+          voiceDescription="VYVA can talk you through this page."
+          tactileLabel="Tactile"
+          tactileDescription="Use touch or keyboard controls quietly."
+          accessibleLabel="Choose voice or tactile help for profile setup"
+          statusLabels={{
+            idle: "Ready",
+            listening: "Listening",
+            speaking: "Speaking",
+            thinking: "Thinking",
+            error: "Needs attention",
+          }}
+        />
         <ProfileSectionHero
           icon={User}
           title="About you"
@@ -351,6 +519,40 @@ export default function BasicsSection() {
           ]}
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-basics-autosave" }}
         />
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="basics-add-by-voice">
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Add by voice"
+              description="Say your name, phone, or email."
+              onClick={startVoiceBasicsCapture}
+              testId="button-basics-speak-it"
+              disabled={isLoading}
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId="basics-voice-draft">
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Add these"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={startVoiceBasicsCapture}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => {
+                const command = parseProfileVoiceCommand("basics", `remove ${value}`);
+                if (!command) return;
+                setVoiceDraft((current) =>
+                  current ? applyProfileVoiceCorrection(current, command) : current,
+                );
+                setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+              }}
+              testId="panel-basics-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
         {/* Avatar + greeting card */}
         <div className="bg-white rounded-[22px] border border-vyva-border px-5 py-5 flex flex-col items-center gap-3"
              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
@@ -746,6 +948,7 @@ export default function BasicsSection() {
 
         {/* Save button */}
         <div className="space-y-2 pt-1">
+          <OnboardingCompanionTarget targetId="basics-review-save">
           <button
             data-testid="button-basics-save"
             type="button"
@@ -765,6 +968,7 @@ export default function BasicsSection() {
               "Looks good, save!"
             )}
           </button>
+          </OnboardingCompanionTarget>
           <button
             data-testid="button-basics-skip"
             type="button"
@@ -775,6 +979,14 @@ export default function BasicsSection() {
           </button>
         </div>
       </div>
+      {speakItOpen ? (
+        <SpeakItOverlay
+          title="Tell VYVA your basics"
+          hint='e.g. "My name is Karim Haddad, my phone is +34 612 345 678"'
+          onDone={handleSpeakItDone}
+          onCancel={() => setSpeakItOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

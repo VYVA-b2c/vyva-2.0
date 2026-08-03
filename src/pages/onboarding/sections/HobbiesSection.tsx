@@ -1,19 +1,29 @@
 // src/pages/onboarding/sections/HobbiesSection.tsx
-import { useState, useEffect, useRef, KeyboardEvent } from "react";
+import { useState, useEffect, useRef, KeyboardEvent, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { useTranslation } from "react-i18next";
+import {
+  applyProfileVoiceCorrection,
+  createSimpleChoiceVoiceDraft,
+  parseProfileVoiceCommand,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 import {
   Plus,
   Dumbbell,
@@ -27,7 +37,6 @@ import {
   ChevronDown,
   Check,
   Mic,
-  CheckCircle2,
   Sparkles,
 } from "lucide-react";
 
@@ -272,7 +281,34 @@ export default function HobbiesSection() {
   const [saving, setSaving] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [speakItOpen, setSpeakItOpen] = useState(false);
-  const [speakItMatches, setSpeakItMatches] = useState<string[]>([]);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const hobbiesAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "hobbies",
+        sectionLabel: "Hobbies & interests",
+        voicePrompt: "Tell VYVA what you enjoy.",
+        expectedFields: ["hobbies", "followUps", "personality"],
+        targetIds: {
+          addByVoice: "hobbies-add-by-voice",
+          draftReview: "hobbies-voice-draft",
+          reviewSave: "hobbies-review-save",
+        },
+      }),
+    [],
+  );
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const selectedRef = useRef(selected);
   const followUpsRef = useRef(followUps);
@@ -305,24 +341,58 @@ export default function HobbiesSection() {
     }
   }, [data]);
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/hobbies", {
-        method: "POST",
-        body: JSON.stringify({
-          hobbies: selectedRef.current,
-          followUps: followUpsRef.current,
-          personality: personalityRef.current,
-        }),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
     },
-    2000,
+    [companionMode, setGuidance],
   );
+
+  const startVoiceHobbiesCapture = useCallback(() => {
+    setCompanionMode("voice");
+    setGuidance({
+      voiceStatus: "listening",
+      draftStatus: "listening",
+      currentSectionId: hobbiesAgentSectionConfig.sectionId,
+      currentSectionLabel: hobbiesAgentSectionConfig.sectionLabel,
+      currentPrompt: hobbiesAgentSectionConfig.voicePrompt,
+      activeTargetId: hobbiesAgentSectionConfig.targetIds?.addByVoice,
+    });
+    setSpeakItOpen(true);
+  }, [hobbiesAgentSectionConfig, setCompanionMode, setGuidance]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-hobbies-voice-capture",
+      label: "Add by voice",
+      description: "Say what you enjoy.",
+      sectionConfig: hobbiesAgentSectionConfig,
+      targetId: hobbiesAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceHobbiesCapture,
+    });
+    return unregister;
+  }, [hobbiesAgentSectionConfig, registerVoiceAction, startVoiceHobbiesCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: hobbiesAgentSectionConfig.sectionId,
+      currentSectionLabel: hobbiesAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review these interests before adding them." : hobbiesAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? hobbiesAgentSectionConfig.targetIds?.draftReview
+        : hobbiesAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, hobbiesAgentSectionConfig, setGuidance, voiceDraft]);
 
   //  Personality quiz helpers
 
@@ -332,7 +402,7 @@ export default function HobbiesSection() {
   const handlePersonalityAnswer = (answer: string) => {
     const updated = { ...personalityRef.current, [currentQuestion.id]: answer };
     setPersonality(updated);
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
     if (quizStep < totalQuizSteps - 1) {
       setQuizStep((s) => s + 1);
     } else {
@@ -364,20 +434,43 @@ export default function HobbiesSection() {
       updated = [...selected, hobby];
     }
     setSelected(updated);
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const handleFollowUpChange = (hobby: string, value: string) => {
     const updated = { ...followUps, [hobby]: value };
     setFollowUps(updated);
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const handleSpeakItDone = (transcript: string) => {
     setSpeakItOpen(false);
     if (!transcript) return;
+    const command = parseProfileVoiceCommand("hobbies", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceHobbiesCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: corrected ? "corrected-draft" : "needs-clarification" });
+      return;
+    }
     const matches = matchHobbiesFromTranscript(transcript);
     if (matches.length === 0) {
+      setVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        lastHeardText: transcript,
+        error: "VYVA could not find hobbies in that.",
+        activeTargetId: hobbiesAgentSectionConfig.targetIds?.addByVoice,
+      });
       toast({
         title: "No hobbies recognised",
         description: "Try speaking more slowly or select your hobbies manually below.",
@@ -393,18 +486,38 @@ export default function HobbiesSection() {
       });
       return;
     }
-    setSpeakItMatches(newMatches.length > 0 ? newMatches : matches);
+    const draft = createSimpleChoiceVoiceDraft({
+      section: "hobbies",
+      kind: "hobbies",
+      title: "Review hobbies",
+      helper: "VYVA found these interests. Add them only if they look right.",
+      label: "Hobby",
+      values: newMatches.length > 0 ? newMatches : matches,
+    });
+    setVoiceDraft(draft);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "parsed-draft",
+      lastHeardText: transcript,
+      activeTargetId: hobbiesAgentSectionConfig.targetIds?.draftReview,
+    });
   };
 
   const confirmSpeakItMatches = () => {
-    const updated = Array.from(new Set([...selected, ...speakItMatches]));
+    if (!voiceDraft) return;
+    const updated = Array.from(new Set([...selected, ...voiceDraft.values]));
     setSelected(updated);
-    setSpeakItMatches([]);
-    scheduleAutoSave();
+    setVoiceDraft(null);
+    setAutoSaveStatus("idle");
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: hobbiesAgentSectionConfig.targetIds?.reviewSave,
+    });
     toast({
       title: t("onboarding.toast.hobbiesUpdated.title", "Hobbies updated"),
       description: t("onboarding.toast.hobbiesUpdated.description", {
-        count: speakItMatches.length,
+        count: voiceDraft.values.length,
         defaultValue: "{{count}} hobby was added to your profile.",
       }),
     });
@@ -421,7 +534,7 @@ export default function HobbiesSection() {
     const updated = [...selected, value];
     setSelected(updated);
     setCustomInput("");
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const removeItem = (item: string) => {
@@ -431,7 +544,7 @@ export default function HobbiesSection() {
       delete newFollowUps[item];
       setFollowUps(newFollowUps);
     }
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -458,6 +571,8 @@ export default function HobbiesSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
+      setAutoSaveStatus("saved");
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigate("/onboarding/complete/hobbies");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -495,54 +610,39 @@ export default function HobbiesSection() {
           <LoadingSkeleton />
         ) : (
           <>
-            <ProfileVoiceAction
-              icon={Mic}
-              title="Add by voice"
-              description="Say what you enjoy. VYVA will turn it into better conversations."
-              onClick={() => setSpeakItOpen(true)}
-              testId="button-hobbies-speak-it"
-            />
+            {companionMode !== "voice" ? (
+              <OnboardingCompanionTarget targetId="hobbies-add-by-voice">
+                <ProfileVoiceAction
+                  icon={Mic}
+                  title="Add by voice"
+                  description="Say what you enjoy. VYVA will turn it into better conversations."
+                  onClick={startVoiceHobbiesCapture}
+                  testId="button-hobbies-speak-it"
+                />
+              </OnboardingCompanionTarget>
+            ) : null}
 
             {/* Confirmation panel for matched hobbies */}
-            {speakItMatches.length > 0 && (
-              <div
-                className="rounded-2xl px-4 py-3"
-                style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}
-                data-testid="panel-hobbies-speak-it-confirm"
-              >
-                <p className="font-body text-[14px] font-semibold text-green-800 mb-2">
-                  VYVA found {speakItMatches.length} {speakItMatches.length === 1 ? "hobby" : "hobbies"}:
-                </p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {speakItMatches.map((name) => (
-                    <span
-                      key={name}
-                      className="inline-flex items-center gap-1 bg-white text-green-800 text-[13px] px-3 py-1 rounded-full border border-green-200 font-medium"
-                    >
-                      <CheckCircle2 size={12} className="text-green-600" />
-                      {name}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSpeakItMatches([])}
-                    className="flex-1 py-2 rounded-full font-body text-[14px] font-medium text-gray-600 bg-white border border-gray-200 min-h-[44px]"
-                    data-testid="button-hobbies-speak-it-dismiss"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    onClick={confirmSpeakItMatches}
-                    className="flex-1 py-2 rounded-full font-body text-[14px] font-medium text-white min-h-[44px]"
-                    style={{ background: "#0A7C4E" }}
-                    data-testid="button-hobbies-speak-it-confirm"
-                  >
-                    Add these
-                  </button>
-                </div>
-              </div>
-            )}
+            {voiceDraft ? (
+              <OnboardingCompanionTarget targetId="hobbies-voice-draft">
+                <ProfileVoiceDraftReview
+                  draft={voiceDraft}
+                  confirmLabel="Add hobbies"
+                  tryAgainLabel="Try again"
+                  dismissLabel="Dismiss"
+                  onConfirm={confirmSpeakItMatches}
+                  onTryAgain={startVoiceHobbiesCapture}
+                  onDismiss={() => setVoiceDraft(null)}
+                  onRemoveRow={(value) => {
+                    const command = parseProfileVoiceCommand("hobbies", `remove ${value}`);
+                    if (!command) return;
+                    setVoiceDraft((current) => current ? applyProfileVoiceCorrection(current, command) : current);
+                    setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+                  }}
+                  testId="panel-hobbies-voice-draft"
+                />
+              </OnboardingCompanionTarget>
+            ) : null}
 
             {/* SpeakIt overlay */}
             {speakItOpen && (
@@ -642,6 +742,7 @@ export default function HobbiesSection() {
 
         {/* Save button */}
         <div className="flex flex-col gap-2 pt-2">
+          <OnboardingCompanionTarget targetId="hobbies-review-save">
           <Button
             data-testid="button-hobbies-save"
             onClick={handleSave}
@@ -650,6 +751,7 @@ export default function HobbiesSection() {
           >
             {saving ? "Saving..." : "Save hobbies & interests"}
           </Button>
+          </OnboardingCompanionTarget>
           <button
             data-testid="button-hobbies-skip"
             onClick={() => navigate("/onboarding/profile")}

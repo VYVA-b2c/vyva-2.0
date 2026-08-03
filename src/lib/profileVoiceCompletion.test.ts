@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyProfileVoiceCorrection,
+  createAddressVoiceDraft,
   createAllergiesVoiceDraft,
   parseProfileVoiceCommand,
   parseProfileVoiceTranscript,
@@ -57,6 +58,48 @@ describe("profile voice completion adapter", () => {
     expect(result.type).toBe("draft");
     if (result.type !== "draft") return;
     expect(result.draft.values).toEqual(["Peanuts", "Shellfish"]);
+  });
+
+  it("parses structured profile sections into review drafts with metadata", () => {
+    const basics = parseProfileVoiceTranscript(
+      "basics",
+      "My name is Karim Haddad and my email is karim@example.com phone +34 612 345 678",
+    );
+    expect(basics.type).toBe("draft");
+    if (basics.type !== "draft") return;
+    expect(basics.draft.kind).toBe("basics");
+    expect(basics.draft.metadata).toMatchObject({
+      fullName: "Karim Haddad",
+      email: "karim@example.com",
+      phoneLocal: "+34 612 345 678",
+    });
+
+    const address = createAddressVoiceDraft({
+      address_line_1: "42 Calle Mayor",
+      city: "Zamora",
+      postcode: "49001",
+      country: "Spain",
+    });
+    expect(address?.kind).toBe("address");
+    expect(address?.metadata).toMatchObject({
+      address_line_1: "42 Calle Mayor",
+      city: "Zamora",
+      postcode: "49001",
+      country: "Spain",
+    });
+
+    const emergency = parseProfileVoiceTranscript(
+      "emergency",
+      "My emergency contact is Sara my daughter phone +34 612 345 678",
+    );
+    expect(emergency.type).toBe("draft");
+    if (emergency.type !== "draft") return;
+    expect(emergency.draft.kind).toBe("emergency-contact");
+    expect(emergency.draft.metadata).toMatchObject({
+      name: "Sara",
+      relationship: "Daughter",
+      primary_phone: "+34 612 345 678",
+    });
   });
 
   it("recognises correction commands and removes matching draft rows", () => {
