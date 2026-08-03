@@ -827,9 +827,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-customer-preview")).toHaveTextContent("partner.png");
     expect(within(screen.getByTestId("marketing-content-preview-panel")).getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
-    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
-    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
-    expect(screen.getByTestId("marketing-media-timeline-media-1")).toHaveTextContent("Synced");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-media-assets-list")).not.toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-media-assets-list")).not.toHaveTextContent("Lovable ID: media-1");
+    expect(screen.getByTestId("link-marketing-open-media-media-1")).toHaveAttribute("href", "https://cdn.example.test/partner.png");
     expect(screen.getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
 
     fireEvent.click(within(screen.getByTestId("marketing-selected-content-usage")).getByTestId("button-marketing-open-content-usage-campaign:campaign-1:channel-1-linkedin"));
@@ -1055,7 +1056,8 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-105")).toHaveTextContent("recipient-export-105");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
-    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/asset-13.png");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("asset-13.png");
+    expect(screen.getByTestId("marketing-media-assets-list")).not.toHaveTextContent("https://cdn.example.test/asset-13.png");
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("embedded-7.png");
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Design block 9");
@@ -1083,7 +1085,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner hero image" } });
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
-    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Partner post");
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "lovable-audience-1" } });
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
@@ -1142,7 +1144,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
-    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Partner post");
 
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
 
@@ -1459,8 +1461,8 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
-    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
-    expect(openMetadataPanel("marketing-media-metadata-media-1")).toHaveTextContent("Partner hero image");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Partner post");
+    expect(screen.queryByTestId("marketing-media-metadata-media-1")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-media-content-media-1"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
