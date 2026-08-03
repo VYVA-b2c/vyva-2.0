@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Mic, Stethoscope } from "lucide-react";
+import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
@@ -368,6 +369,22 @@ const GPSection = () => {
       </div>
 
       <div className="flex-1 px-5 space-y-7">
+        <OnboardingCompanionModeChip
+          compactLabel="VYVA mode"
+          voiceLabel="Voice"
+          voiceDescription="VYVA can talk you through this page."
+          tactileLabel="Tactile"
+          tactileDescription="Use touch or keyboard controls quietly."
+          accessibleLabel="Choose voice or tactile help for GP details"
+          statusLabels={{
+            idle: "Ready",
+            listening: "Listening",
+            speaking: "Speaking",
+            thinking: "Thinking",
+            error: "Needs attention",
+          }}
+        />
+
         <ProfileSectionHero
           icon={Stethoscope}
           title="Doctor details"
