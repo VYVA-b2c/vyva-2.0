@@ -3138,6 +3138,50 @@ export const insertMarketingContentAssetSchema = createInsertSchema(marketingCon
 export type InsertMarketingContentAsset = z.infer<typeof insertMarketingContentAssetSchema>;
 export type MarketingContentAssetRow = typeof marketingContentAssets.$inferSelect;
 
+export const marketingCampaignTemplates = pgTable("marketing_campaign_templates", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  description:         text("description"),
+  category:            text("category"),
+  language:            text("language").notNull().default("en"),
+  fields:              jsonb("fields").notNull().default([]),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  owner_external_id:   text("owner_external_id"),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaign_templates_category_idx").on(t.category),
+  index("marketing_campaign_templates_language_idx").on(t.language),
+  index("marketing_campaign_templates_source_idx").on(t.source),
+]);
+
+export const insertMarketingCampaignTemplateSchema = createInsertSchema(marketingCampaignTemplates).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaignTemplate = z.infer<typeof insertMarketingCampaignTemplateSchema>;
+export type MarketingCampaignTemplateRow = typeof marketingCampaignTemplates.$inferSelect;
+
+export const marketingContactTags = pgTable("marketing_contact_tags", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  color:               text("color"),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  owner_external_id:   text("owner_external_id"),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_contact_tags_name_idx").on(t.name),
+  index("marketing_contact_tags_source_idx").on(t.source),
+]);
+
+export const insertMarketingContactTagSchema = createInsertSchema(marketingContactTags).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingContactTag = z.infer<typeof insertMarketingContactTagSchema>;
+export type MarketingContactTagRow = typeof marketingContactTags.$inferSelect;
+
 export const marketingMediaAssets = pgTable("marketing_media_assets", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   content_asset_id:    uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "cascade" }),
