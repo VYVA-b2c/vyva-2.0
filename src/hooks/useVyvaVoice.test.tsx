@@ -102,6 +102,17 @@ function VoiceHarness({ onController }: { onController: (controller: VoiceContro
       <div data-testid="voice-transcript">
         {controller.transcript.map((entry) => `${entry.from}:${entry.text}`).join("|")}
       </div>
+      <div data-testid="onboarding-live-diagnostic">
+        {controller.onboardingVoiceLiveDiagnostic
+          ? [
+              controller.onboardingVoiceLiveDiagnostic.phase,
+              controller.onboardingVoiceLiveDiagnostic.sectionId,
+              controller.onboardingVoiceLiveDiagnostic.connected ? "connected" : "not-connected",
+              controller.onboardingVoiceLiveDiagnostic.starterSent ? "starter-sent" : "starter-pending",
+              controller.onboardingVoiceLiveDiagnostic.clientToolReceived ? "tool-received" : "tool-pending",
+            ].join("|")
+          : "none"}
+      </div>
     </>
   );
 }
@@ -387,24 +398,30 @@ describe("useVyvaVoice", () => {
     });
 
     expect(screen.getByTestId("voice-transcript")).not.toHaveTextContent("Start Health profile now.");
+    expect(screen.getByTestId("onboarding-live-diagnostic")).toHaveTextContent(
+      "starter_sent|health|connected|starter-sent|tool-pending",
+    );
 
-    const result = await sessionOptions?.clientTools?.record_onboarding_profile_output?.({
-      eventType: "draft",
-      sectionId: "health",
-      lifecycle: "parsed-draft",
-      draft: {
-        kind: "health-conditions",
-        title: "Review health conditions",
-        helper: "Add these only if they look right.",
-        rows: [{ id: "diabetes", label: "Condition", value: "Diabetes Type 2" }],
-        values: ["Diabetes Type 2"],
-      },
-      safety: {
-        localOnly: true,
-        requiresReview: true,
-        requiresExplicitSave: true,
-        mayTriggerExternalAction: false,
-      },
+    let result: string | number | void | undefined;
+    await act(async () => {
+      result = await sessionOptions?.clientTools?.record_onboarding_profile_output?.({
+        eventType: "draft",
+        sectionId: "health",
+        lifecycle: "parsed-draft",
+        draft: {
+          kind: "health-conditions",
+          title: "Review health conditions",
+          helper: "Add these only if they look right.",
+          rows: [{ id: "diabetes", label: "Condition", value: "Diabetes Type 2" }],
+          values: ["Diabetes Type 2"],
+        },
+        safety: {
+          localOnly: true,
+          requiresReview: true,
+          requiresExplicitSave: true,
+          mayTriggerExternalAction: false,
+        },
+      });
     });
 
     expect(result).toContain("local review");
@@ -415,6 +432,11 @@ describe("useVyvaVoice", () => {
       draft: {
         values: ["Diabetes Type 2"],
       },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-live-diagnostic")).toHaveTextContent(
+        "tool_received|health|connected|starter-sent|tool-received",
+      );
     });
 
     window.removeEventListener(VYVA_ONBOARDING_ELEVENLABS_OUTPUT_EVENT, handler);

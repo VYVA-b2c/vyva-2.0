@@ -21,7 +21,24 @@ vi.mock("@/lib/queryClient", async () => {
 });
 
 vi.mock("@/components/onboarding/SpeakItOverlay", () => ({
-  default: () => null,
+  default: ({ title, onDone, onCancel }: {
+    title: string;
+    onDone: (transcript: string) => void;
+    onCancel: () => void;
+  }) => (
+    <div data-testid="mock-speak-it-overlay" aria-label={title}>
+      <button
+        type="button"
+        data-testid="button-mock-speak-it-done"
+        onClick={() => onDone("I have high cholesterol")}
+      >
+        Use spoken conditions
+      </button>
+      <button type="button" data-testid="button-mock-speak-it-cancel" onClick={onCancel}>
+        Cancel voice
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/VoiceMedsModal", () => ({
@@ -199,6 +216,7 @@ describe("profile section reviewed-empty choices", () => {
 
     expect(chip).toHaveTextContent("Listening");
     expect(chip).toHaveTextContent("Tell VYVA one or more health conditions.");
+    expect(screen.getByTestId("mock-speak-it-overlay")).toHaveAccessibleName("Tell VYVA your conditions");
     expect(apiFetchMock).not.toHaveBeenCalled();
 
     fireEvent.focus(screen.getByTestId("input-conditions-search"));
@@ -268,7 +286,25 @@ describe("profile section reviewed-empty choices", () => {
       expect(screen.getByTestId("button-section-companion-mode-voice")).toHaveAttribute("aria-checked", "true");
       expect(screen.getByTestId("onboarding-companion-mode-chip")).toHaveTextContent("Listening");
     });
+    expect(screen.getByTestId("mock-speak-it-overlay")).toHaveAccessibleName("Tell VYVA your conditions");
     expect(screen.queryByTestId("button-conditions-speak-it")).not.toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("turns health voice capture into a local review draft without autosaving", async () => {
+    seedOnboardingState();
+    renderSection(<ConditionsSection />);
+
+    fireEvent.click(await screen.findByTestId("button-section-companion-primary-voice-action"));
+    fireEvent.click(screen.getByTestId("button-mock-speak-it-done"));
+
+    expect(await screen.findByTestId("panel-conditions-speak-it-confirm")).toHaveTextContent("High cholesterol");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add these" }));
+
+    expect(screen.getByTestId("button-remove-condition-high-cholesterol")).toBeInTheDocument();
+    expect(screen.getByTestId("button-conditions-save")).toBeEnabled();
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 

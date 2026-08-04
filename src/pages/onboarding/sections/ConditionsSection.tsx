@@ -441,6 +441,8 @@ export default function ConditionsSection() {
       setCompanionMode("voice");
       window.setTimeout(() => setGuidance(guidance), 0);
     }
+    setSpeakItMatches([]);
+    setSpeakItOpen(true);
     if (vyvaVoice) {
       const startRequest = createOnboardingElevenLabsRuntimeStartRequest({
         sectionConfig: healthAgentSectionConfig,
@@ -452,15 +454,20 @@ export default function ConditionsSection() {
         activeDraftId: elevenLabsDraftIdRef.current,
         uiState: healthUiState,
       });
-      await vyvaVoice.startVoice(
+      void vyvaVoice.startVoice(
         startRequest.contextHint,
         startRequest.systemPrompt,
         startRequest.options,
-      );
-      return;
+      ).catch(() => {
+        setVoiceGuidance({
+          voiceStatus: "listening",
+          draftStatus: "listening",
+          currentPrompt: healthAgentSectionConfig.voicePrompt,
+          activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+        });
+      });
     }
-    setSpeakItOpen(true);
-  }, [companionMode, healthAgentSectionConfig, noKnownConditions, setCompanionMode, setGuidance, vyvaVoice]);
+  }, [companionMode, healthAgentSectionConfig, noKnownConditions, setCompanionMode, setGuidance, setVoiceGuidance, vyvaVoice]);
 
   useEffect(
     () =>

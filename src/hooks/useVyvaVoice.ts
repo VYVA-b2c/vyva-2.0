@@ -296,6 +296,19 @@ export type VoiceResolvedSessionContext = {
   dynamicVariables: Record<string, string | number | boolean>;
 };
 
+export type OnboardingVoiceLiveDiagnostic = {
+  phase: "starting" | "connected" | "starter_sent" | "tool_received" | "error";
+  sectionId?: string;
+  sectionLabel?: string;
+  agentSlug?: string;
+  connected: boolean;
+  starterSent: boolean;
+  clientToolReceived: boolean;
+  lastEvent?: string;
+  error?: string;
+  updatedAt: number;
+};
+
 type SendTextOptions = {
   invisibleInTranscript?: boolean;
 };
@@ -770,6 +783,30 @@ function onboardingStarterUserMessage(dynamicVariables: Record<string, string | 
   ].join(" ");
 }
 
+function isOnboardingVoiceStart(options: StartVoiceOptions | undefined) {
+  return inferVoiceContextDomain(options) === "onboarding_profile" ||
+    dynamicString(options?.dynamicVariables, "conversation_plan_id") === "onboarding_profile_collection_v1" ||
+    dynamicString(options?.dynamicVariables, "app_entrypoint") === "onboarding-profile";
+}
+
+function onboardingLiveDiagnosticFromVariables(
+  phase: OnboardingVoiceLiveDiagnostic["phase"],
+  variables: Record<string, string | number | boolean>,
+  patch: Partial<Omit<OnboardingVoiceLiveDiagnostic, "phase" | "updatedAt">> = {},
+): OnboardingVoiceLiveDiagnostic {
+  return {
+    phase,
+    sectionId: dynamicString(variables, "active_section_id") || undefined,
+    sectionLabel: dynamicString(variables, "active_section_label") || undefined,
+    agentSlug: "onboarding-profile",
+    connected: false,
+    starterSent: false,
+    clientToolReceived: false,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+}
+
 function sessionOverridesForResolvedContext(
   sessionOptions: PartialOptions,
   resolvedSystemPrompt: string | undefined,
@@ -855,6 +892,8 @@ function useVyvaVoiceController() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastErrorCode, setLastErrorCode] = useState<VoiceConnectionErrorCode | null>(null);
   const [voiceDiagnostics, setVoiceDiagnostics] = useState<VoiceDiagnosticStep[]>(() => createVoiceDiagnostics({ skipMicrophone: false }));
+  const [onboardingVoiceLiveDiagnostic, setOnboardingVoiceLiveDiagnostic] =
+    useState<OnboardingVoiceLiveDiagnostic | null>(null);
   const [hasMicrophone, setHasMicrophone] = useState(false);
   const systemPromptRef = useRef<string | undefined>(undefined);
   const statusRef = useRef<"idle" | "connecting" | "connected">("idle");
@@ -1305,6 +1344,18 @@ function useVyvaVoiceController() {
       streamingVyvaTranscriptShouldAppendRef.current = false;
       setLastError(null);
       setLastErrorCode(null);
+      if (isOnboardingVoiceStart(options)) {
+        setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+          "starting",
+          options?.dynamicVariables ?? {},
+          {
+            agentSlug: options?.agentSlug,
+            lastEvent: "start requested",
+          },
+        ));
+      } else {
+        setOnboardingVoiceLiveDiagnostic(null);
+      }
       setHasMicrophone(false);
       setIsMicMuted(true);
       const voiceSessionId = getVoiceSessionId();
@@ -1343,6 +1394,17 @@ function useVyvaVoiceController() {
         const errorCode = voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED");
         setLastError(detail);
         setLastErrorCode(errorCode);
+        if (isOnboardingVoiceStart(options)) {
+          setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+            "error",
+            options?.dynamicVariables ?? {},
+            {
+              agentSlug: options?.agentSlug,
+              error: detail,
+              lastEvent: "readiness failed",
+            },
+          ));
+        }
         markVoiceDiagnosticFailure(errorCode, detail);
         setVoiceStatus("idle");
         setVoicePreparing(false);
@@ -1381,6 +1443,17 @@ function useVyvaVoiceController() {
           const errorCode = voiceConnectionErrorCode(err, "MICROPHONE_ACCESS_FAILED");
           setLastError(detail);
           setLastErrorCode(errorCode);
+          if (isOnboardingVoiceStart(options)) {
+            setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+              "error",
+              options?.dynamicVariables ?? {},
+              {
+                agentSlug: options?.agentSlug,
+                error: detail,
+                lastEvent: "microphone failed",
+              },
+            ));
+          }
           markVoiceDiagnosticFailure(errorCode, detail);
           setVoiceStatus("idle");
           setVoicePreparing(false);
@@ -1408,6 +1481,16 @@ function useVyvaVoiceController() {
         dynamicString(resolvedDynamicVariables, "routing_domain")
         || dynamicString(resolvedDynamicVariables, "transfer_domain")
         || inferVoiceContextDomain(options);
+      if (resolvedDomain === "onboarding_profile") {
+        setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+          "starting",
+          resolvedDynamicVariables,
+          {
+            agentSlug: options?.agentSlug,
+            lastEvent: "context resolved",
+          },
+        ));
+      }
       const resolvedAppEntrypoint =
         dynamicString(resolvedDynamicVariables, "app_entrypoint")
         || dynamicString(options?.dynamicVariables, "app_entrypoint")
@@ -1618,6 +1701,21 @@ function useVyvaVoiceController() {
                 : "Feedback could not be recorded.";
             },
             record_onboarding_profile_output: async (parameters: unknown) => {
+              setOnboardingVoiceLiveDiagnostic((current) => current
+                ? {
+                    ...current,
+                    phase: "tool_received",
+                    clientToolReceived: true,
+                    lastEvent: "client tool received",
+                    updatedAt: Date.now(),
+                  }
+                : onboardingLiveDiagnosticFromVariables("tool_received", resolvedDynamicVariables, {
+                    agentSlug: options?.agentSlug,
+                    connected: true,
+                    starterSent: true,
+                    clientToolReceived: true,
+                    lastEvent: "client tool received",
+                  }));
               const result = dispatchOnboardingElevenLabsOutput(parameters);
               return result.ok
                 ? `Onboarding ${result.event.type} was shared with the app for local review.`
@@ -1645,6 +1743,20 @@ function useVyvaVoiceController() {
             setIsMicMuted(skipMicrophone ? true : !autoStartListening);
             setIsTransferring(false);
             transferPendingRef.current = false;
+            if (resolvedDomain === "onboarding_profile") {
+              setOnboardingVoiceLiveDiagnostic((current) => ({
+                ...onboardingLiveDiagnosticFromVariables("connected", resolvedDynamicVariables, {
+                  agentSlug: options?.agentSlug,
+                  connected: true,
+                  lastEvent: "ElevenLabs connected",
+                }),
+                ...current,
+                phase: "connected",
+                connected: true,
+                lastEvent: "ElevenLabs connected",
+                updatedAt: Date.now(),
+              }));
+            }
             if (resolvedSystemPrompt?.trim()) {
               try {
                 conversationRef.current?.sendContextualUpdate(resolvedSystemPrompt);
@@ -1658,6 +1770,20 @@ function useVyvaVoiceController() {
                 hiddenOutgoingMessagesRef.current.push(normalizeTranscriptText(starterMessage));
                 conversationRef.current?.sendUserMessage(starterMessage);
                 conversationRef.current?.sendUserActivity();
+                setOnboardingVoiceLiveDiagnostic((current) => ({
+                  ...onboardingLiveDiagnosticFromVariables("starter_sent", resolvedDynamicVariables, {
+                    agentSlug: options?.agentSlug,
+                    connected: true,
+                    starterSent: true,
+                    lastEvent: "starter sent",
+                  }),
+                  ...current,
+                  phase: "starter_sent",
+                  connected: true,
+                  starterSent: true,
+                  lastEvent: "starter sent",
+                  updatedAt: Date.now(),
+                }));
               } catch (error) {
                 hiddenOutgoingMessagesRef.current = hiddenOutgoingMessagesRef.current.filter(
                   (entry) => entry !== normalizeTranscriptText(starterMessage),
@@ -1697,6 +1823,20 @@ function useVyvaVoiceController() {
               console.warn("[VYVA] Voice session closed:", details);
               setLastError(message);
               setLastErrorCode("VOICE_SESSION_CLOSED");
+              if (resolvedDomain === "onboarding_profile") {
+                setOnboardingVoiceLiveDiagnostic((current) => ({
+                  ...onboardingLiveDiagnosticFromVariables("error", resolvedDynamicVariables, {
+                    agentSlug: options?.agentSlug,
+                    error: message,
+                    lastEvent: "session closed",
+                  }),
+                  ...current,
+                  phase: "error",
+                  error: message,
+                  lastEvent: "session closed",
+                  updatedAt: Date.now(),
+                }));
+              }
               markVoiceDiagnosticFailure("VOICE_SESSION_CLOSED", message);
               recordVoiceTimelineEvent({
                 kind: "session_error",
@@ -1722,6 +1862,20 @@ function useVyvaVoiceController() {
             console.error("[VYVA] Voice session error:", message, context);
             setLastError(message);
             setLastErrorCode("VOICE_SESSION_ERROR");
+            if (resolvedDomain === "onboarding_profile") {
+              setOnboardingVoiceLiveDiagnostic((current) => ({
+                ...onboardingLiveDiagnosticFromVariables("error", resolvedDynamicVariables, {
+                  agentSlug: options?.agentSlug,
+                  error: message,
+                  lastEvent: "session error",
+                }),
+                ...current,
+                phase: "error",
+                error: message,
+                lastEvent: "session error",
+                updatedAt: Date.now(),
+              }));
+            }
             markVoiceDiagnosticFailure("VOICE_SESSION_ERROR", message);
             setIsTransferring(false);
             transferPendingRef.current = false;
@@ -1815,6 +1969,20 @@ function useVyvaVoiceController() {
         const errorCode = voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED");
         setLastError(detail);
         setLastErrorCode(errorCode);
+        if (resolvedDomain === "onboarding_profile") {
+          setOnboardingVoiceLiveDiagnostic((current) => ({
+            ...onboardingLiveDiagnosticFromVariables("error", resolvedDynamicVariables, {
+              agentSlug: options?.agentSlug,
+              error: detail,
+              lastEvent: "session start failed",
+            }),
+            ...current,
+            phase: "error",
+            error: detail,
+            lastEvent: "session start failed",
+            updatedAt: Date.now(),
+          }));
+        }
         markVoiceDiagnosticFailure(errorCode, detail);
         setVoiceStatus("idle");
         setIsConnecting(false);
@@ -1969,6 +2137,7 @@ function useVyvaVoiceController() {
     lastError,
     lastErrorCode,
     voiceDiagnostics,
+    onboardingVoiceLiveDiagnostic,
     transcript,
     lastResolvedSessionContext,
     systemPromptRef,
