@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
+import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, MicOff, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -2771,48 +2771,59 @@ const HomeScreen = () => {
         <>
           <div
             className={[
-              "mx-auto mb-4 grid w-full max-w-[13rem] grid-cols-2 rounded-full border p-0.5 shadow-[0_8px_22px_rgba(80,45,120,0.08)] sm:mb-6",
-              isHomeMasterDark
-                ? "border-white/15 bg-white/10"
-                : "border-[#E6DDF1] bg-white/85",
+              "mb-2 flex justify-end px-3 min-[390px]:px-5 sm:mb-3 sm:px-8",
             ].join(" ")}
-            aria-label={t("home.mode.label", "Home mode")}
             data-testid="home-mode-switcher"
           >
-            <button
-              type="button"
-              aria-pressed={homeInteractionMode === "voice"}
-              data-testid="button-home-mode-voice"
-              onClick={() => setHomeInteractionMode("voice")}
+            <div
               className={[
-                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
-                homeInteractionMode === "voice"
-                  ? "bg-vyva-purple text-white shadow-[0_7px_18px_rgba(107,33,168,0.22)]"
-                  : isHomeMasterDark
-                    ? "text-[#E8DDF3]"
-                    : "text-[#5D4865]",
+                "inline-flex rounded-full border p-1 shadow-[0_8px_22px_rgba(80,45,120,0.08)]",
+                isHomeMasterDark
+                  ? "border-white/15 bg-white/10"
+                  : "border-[#E6DDF1] bg-white/85",
               ].join(" ")}
+              aria-label={t("home.mode.label", "Home mode")}
+              role="group"
             >
-              <Mic size={14} aria-hidden="true" />
-              {t("home.mode.voice", "Voice")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={homeInteractionMode === "touch"}
-              data-testid="button-home-mode-touch"
-              onClick={() => setHomeInteractionMode("touch")}
-              className={[
-                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
-                homeInteractionMode === "touch"
-                  ? "bg-[#0F8B82] text-white shadow-[0_7px_18px_rgba(15,139,130,0.20)]"
-                  : isHomeMasterDark
-                    ? "text-[#E8DDF3]"
-                    : "text-[#5D4865]",
-              ].join(" ")}
-            >
-              <Hand size={14} aria-hidden="true" />
-              {t("home.mode.touch", "Touch")}
-            </button>
+              <button
+                type="button"
+                aria-pressed={homeInteractionMode === "voice"}
+                aria-label={t("home.mode.voiceAria", "Voice mode: VYVA can speak and listen")}
+                title={t("home.mode.voice", "Voice")}
+                data-testid="button-home-mode-voice"
+                onClick={() => setHomeInteractionMode("voice")}
+                className={[
+                  "vyva-tap flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  homeInteractionMode === "voice"
+                    ? "bg-vyva-purple text-white shadow-[0_7px_18px_rgba(107,33,168,0.22)]"
+                    : isHomeMasterDark
+                      ? "text-[#E8DDF3]"
+                      : "text-[#5D4865]",
+                ].join(" ")}
+              >
+                <Mic size={16} aria-hidden="true" />
+                <span className="sr-only">{t("home.mode.voice", "Voice")}</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={homeInteractionMode === "touch"}
+                aria-label={t("home.mode.touchAria", "Touch mode: VYVA stays quiet and follows taps")}
+                title={t("home.mode.touch", "Touch")}
+                data-testid="button-home-mode-touch"
+                onClick={() => setHomeInteractionMode("touch")}
+                className={[
+                  "vyva-tap flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  homeInteractionMode === "touch"
+                    ? "bg-[#0F8B82] text-white shadow-[0_7px_18px_rgba(15,139,130,0.20)]"
+                    : isHomeMasterDark
+                      ? "text-[#E8DDF3]"
+                      : "text-[#5D4865]",
+                ].join(" ")}
+              >
+                {homeInteractionMode === "touch" ? <MicOff size={16} aria-hidden="true" /> : <Hand size={16} aria-hidden="true" />}
+                <span className="sr-only">{t("home.mode.touch", "Touch")}</span>
+              </button>
+            </div>
           </div>
           {homeInteractionMode === "touch" ? (
             <h1
