@@ -51,6 +51,15 @@ type MockConversation = {
 
 type MockStartSessionOptions = {
   clientTools?: Record<string, (parameters: unknown) => Promise<string>>;
+  dynamicVariables?: Record<string, string | number | boolean>;
+  overrides?: {
+    agent?: {
+      firstMessage?: string;
+      prompt?: {
+        prompt?: string;
+      };
+    };
+  };
   onConversationCreated?: (conversation: MockConversation) => void;
   onConnect?: () => void;
   onMessage?: (payload: unknown) => void;
@@ -313,16 +322,24 @@ describe("useVyvaVoice", () => {
     await waitFor(() => expect(controller).not.toBeNull());
 
     await act(async () => {
-      await controller?.startVoice("Tell VYVA one or more health conditions.", undefined, {
-        agentSlug: "onboarding-profile",
-        autoStartListening: true,
-        skipMicrophone: true,
-        dynamicVariables: {
-          app_entrypoint: "onboarding-profile",
-          conversation_plan_id: "onboarding_profile_collection_v1",
-          active_section_id: "health",
+      await controller?.startVoice(
+        "Tell VYVA one or more health conditions.",
+        [
+          "Return structured local drafts only; never save profile data.",
+          "Never ask the user for account ID, profile ID, user ID, app IDs, API keys, credentials, or setup details.",
+        ].join(" "),
+        {
+          agentSlug: "onboarding-profile",
+          autoStartListening: true,
+          skipMicrophone: true,
+          dynamicVariables: {
+            app_entrypoint: "onboarding-profile",
+            conversation_plan_id: "onboarding_profile_collection_v1",
+            active_section_id: "health",
+            active_section_label: "Health profile",
+          },
         },
-      });
+      );
     });
 
     const contextCall = voiceMocks.apiFetch.mock.calls.find(([url]) => url === "/api/voice-context");
@@ -334,6 +351,21 @@ describe("useVyvaVoice", () => {
     });
 
     const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    expect(sessionOptions?.dynamicVariables).toMatchObject({
+      app_entrypoint: "onboarding-profile",
+      conversation_plan_id: "onboarding_profile_collection_v1",
+      active_section_id: "health",
+      active_section_label: "Health profile",
+    });
+    expect(sessionOptions?.overrides?.agent?.firstMessage).toBe(
+      "I'm ready for Health profile. Tell me what you'd like me to add.",
+    );
+    expect(sessionOptions?.overrides?.agent?.prompt?.prompt).toContain(
+      "Return structured local drafts only; never save profile data.",
+    );
+    expect(sessionOptions?.overrides?.agent?.prompt?.prompt).toContain(
+      "Never ask the user for account ID",
+    );
     const result = await sessionOptions?.clientTools?.record_onboarding_profile_output?.({
       eventType: "draft",
       sectionId: "health",
