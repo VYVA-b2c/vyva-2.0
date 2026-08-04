@@ -2344,7 +2344,6 @@ function ContentTemplatePreview({
 }) {
   const mediaUrls = contentMediaPreviewUrls(contentAsset, linkedMediaAssets);
   const hasVisualTemplate = Boolean(contentAsset.htmlBody?.trim()) || contentAsset.hasDesign || mediaUrls.length > 0;
-  const [showFullHtmlPreview, setShowFullHtmlPreview] = useState(false);
 
   return (
     <div className={`grid gap-4 ${className}`} data-testid={testId}>
@@ -2363,55 +2362,13 @@ function ContentTemplatePreview({
 
         {contentAsset.htmlBody ? (
           <div className="grid gap-3">
-            {showFullHtmlPreview ? (
-              <div className="grid gap-3">
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-purple-100 bg-purple-50 px-4 py-3">
-                  <p className="text-sm font-black text-purple-900">Full HTML template preview</p>
-                  <button
-                    type="button"
-                    className="rounded-full border border-purple-200 bg-white px-3 py-1.5 text-xs font-black text-purple-800"
-                    onClick={() => setShowFullHtmlPreview(false)}
-                    data-testid={`${testId}-hide-html-preview`}
-                  >
-                    Hide full preview
-                  </button>
-                </div>
-                <iframe
-                  title={`Preview ${contentAsset.title}`}
-                  sandbox=""
-                  srcDoc={contentAsset.htmlBody}
-                  className="h-[520px] w-full rounded-xl border border-[#eadfd5] bg-white"
-                />
-              </div>
-            ) : (
-              <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">HTML template available</p>
-                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-relaxed text-[#5b4a46]">
-                      Full email design is ready. Open it only when you need pixel-level review.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-purple-800"
-                    onClick={() => setShowFullHtmlPreview(true)}
-                    data-testid={`${testId}-show-html-preview`}
-                  >
-                    Show full template
-                  </button>
-                </div>
-                {contentAsset.body ? (
-                  <p className="mt-4 whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
-                    {contentAsset.body}
-                  </p>
-                ) : (
-                  <p className="mt-4 rounded-xl border border-dashed border-[#eadfd5] bg-white p-4 text-sm font-bold text-[#8b7a73]">
-                    No plain text copy imported. Use full template preview to inspect the HTML.
-                  </p>
-                )}
-              </div>
-            )}
+            <iframe
+              title={`Preview ${contentAsset.title}`}
+              sandbox=""
+              srcDoc={contentAsset.htmlBody}
+              className="h-[640px] w-full rounded-xl border border-[#eadfd5] bg-white"
+              data-testid={`${testId}-html-preview`}
+            />
             {contentAsset.body ? (
               <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3">
                 <summary className="cursor-pointer text-sm font-black text-[#241133]">Plain text copy</summary>
