@@ -1,4 +1,5 @@
 import { Hand, Mic2, Sparkles } from "lucide-react";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
   type OnboardingCompanionMode,
   type OnboardingCompanionVoiceStatus,
@@ -23,6 +24,30 @@ const DEFAULT_STATUS_LABELS: Record<OnboardingCompanionVoiceStatus, string> = {
   error: "Needs attention",
 };
 
+function isVoiceDebugEnabled() {
+  if (typeof window === "undefined") return false;
+  return window.location.search.includes("voiceDebug=1") ||
+    window.localStorage.getItem("vyva.voiceDebug") === "1";
+}
+
+function compactVoiceDiagnosticLabel(
+  diagnostic: NonNullable<ReturnType<typeof useOptionalVyvaVoice>>["onboardingVoiceLiveDiagnostic"] | undefined,
+  fallbackError?: string | null,
+) {
+  if (!diagnostic) return fallbackError ? `Voice error: ${fallbackError}` : "Voice debug: no live onboarding diagnostic yet";
+  if (diagnostic.phase === "error") {
+    return `Voice error: ${diagnostic.lastEvent ?? "failed"}${diagnostic.error ? ` · ${diagnostic.error}` : ""}`;
+  }
+
+  const parts = [
+    diagnostic.connected ? "connected" : "not connected",
+    diagnostic.starterSent ? "starter sent" : "starter pending",
+    diagnostic.clientToolReceived ? "tool received" : "tool pending",
+  ];
+  const section = diagnostic.sectionLabel || diagnostic.sectionId;
+  return `Voice debug: ${section ? `${section} · ` : ""}${parts.join(" · ")}`;
+}
+
 export function OnboardingCompanionModeChip({
   compactLabel,
   voiceLabel,
@@ -44,6 +69,7 @@ export function OnboardingCompanionModeChip({
     setMode,
     runPrimaryVoiceAction,
   } = useOnboardingCompanionGuidance();
+  const vyvaVoice = useOptionalVyvaVoice();
 
   const options: Array<{
     id: OnboardingCompanionMode;
@@ -74,6 +100,11 @@ export function OnboardingCompanionModeChip({
       : tactileDescription;
   const hasVoiceAction = Boolean(primaryVoiceActionLabel);
   const canRunVoiceAction = mode === "voice" && hasVoiceAction;
+  const showVoiceDebug = mode === "voice" && isVoiceDebugEnabled();
+  const liveDiagnosticLabel = compactVoiceDiagnosticLabel(
+    vyvaVoice?.onboardingVoiceLiveDiagnostic,
+    vyvaVoice?.lastError,
+  );
 
   const selectMode = (nextMode: OnboardingCompanionMode) => {
     setMode(nextMode);
@@ -117,6 +148,16 @@ export function OnboardingCompanionModeChip({
           </p>
         </div>
       </div>
+
+      {showVoiceDebug ? (
+        <p
+          className="rounded-2xl bg-[#2D174A]/90 px-3 py-2 text-[11px] font-bold leading-snug text-white"
+          data-testid="onboarding-voice-live-diagnostic"
+          aria-live="polite"
+        >
+          {liveDiagnosticLabel}
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         {canRunVoiceAction ? (
