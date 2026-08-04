@@ -759,6 +759,17 @@ function onboardingFirstMessage(dynamicVariables: Record<string, string | number
     : "I'm ready for this profile section. Tell me what you'd like me to add.";
 }
 
+function onboardingStarterUserMessage(dynamicVariables: Record<string, string | number | boolean>) {
+  const sectionLabel = dynamicString(dynamicVariables, "active_section_label");
+  const sectionText = sectionLabel || "this profile section";
+  return [
+    `Start ${sectionText} now.`,
+    "Speak one short prompt to the user, then listen for their answer.",
+    "Use the active app section and client tool to create a local review draft.",
+    "Do not ask for account ID, profile ID, user ID, app IDs, API keys, credentials, or setup details.",
+  ].join(" ");
+}
+
 function sessionOverridesForResolvedContext(
   sessionOptions: PartialOptions,
   resolvedSystemPrompt: string | undefined,
@@ -1639,6 +1650,19 @@ function useVyvaVoiceController() {
                 conversationRef.current?.sendContextualUpdate(resolvedSystemPrompt);
               } catch (error) {
                 console.warn("[VYVA] Failed to send initial voice context:", error);
+              }
+            }
+            if (resolvedDomain === "onboarding_profile") {
+              const starterMessage = onboardingStarterUserMessage(resolvedDynamicVariables);
+              try {
+                hiddenOutgoingMessagesRef.current.push(normalizeTranscriptText(starterMessage));
+                conversationRef.current?.sendUserMessage(starterMessage);
+                conversationRef.current?.sendUserActivity();
+              } catch (error) {
+                hiddenOutgoingMessagesRef.current = hiddenOutgoingMessagesRef.current.filter(
+                  (entry) => entry !== normalizeTranscriptText(starterMessage),
+                );
+                console.warn("[VYVA] Failed to send onboarding voice starter:", error);
               }
             }
             recordVoiceTimelineEvent({

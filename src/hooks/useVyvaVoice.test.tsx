@@ -46,6 +46,7 @@ type MockConversation = {
   endSession: ReturnType<typeof vi.fn>;
   setMicMuted: ReturnType<typeof vi.fn>;
   sendUserMessage: ReturnType<typeof vi.fn>;
+  sendUserActivity: ReturnType<typeof vi.fn>;
   sendContextualUpdate: ReturnType<typeof vi.fn>;
 };
 
@@ -81,6 +82,7 @@ function createConversation() {
     endSession: vi.fn().mockResolvedValue(undefined),
     setMicMuted: vi.fn(),
     sendUserMessage: vi.fn(),
+    sendUserActivity: vi.fn(),
     sendContextualUpdate: vi.fn(),
   };
   createdConversations.push(conversation);
@@ -237,6 +239,8 @@ describe("useVyvaVoice", () => {
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(
       "Use the health voice context without overriding the ElevenLabs prompt.",
     );
+    expect(createdConversations[0].sendUserMessage).not.toHaveBeenCalled();
+    expect(createdConversations[0].sendUserActivity).not.toHaveBeenCalled();
   });
 
   it("shares the ElevenLabs conversation id with the symptom check page", async () => {
@@ -366,6 +370,24 @@ describe("useVyvaVoice", () => {
     expect(sessionOptions?.overrides?.agent?.prompt?.prompt).toContain(
       "Never ask the user for account ID",
     );
+    expect(createdConversations[0].sendUserMessage).toHaveBeenCalledWith(expect.stringContaining(
+      "Start Health profile now.",
+    ));
+    expect(createdConversations[0].sendUserMessage).toHaveBeenCalledWith(expect.stringContaining(
+      "Do not ask for account ID",
+    ));
+    expect(createdConversations[0].sendUserActivity).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      sessionOptions?.onMessage?.({
+        role: "user",
+        source: "user",
+        message: createdConversations[0].sendUserMessage.mock.calls[0]?.[0],
+      });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).not.toHaveTextContent("Start Health profile now.");
+
     const result = await sessionOptions?.clientTools?.record_onboarding_profile_output?.({
       eventType: "draft",
       sectionId: "health",
