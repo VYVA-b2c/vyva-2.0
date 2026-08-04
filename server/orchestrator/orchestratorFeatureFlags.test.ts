@@ -3,7 +3,11 @@ import { parseCompatibilityFeatureFlagState } from "../../shared/orchestration/c
 import {
   ORCHESTRATOR_SHELL_ENV,
   ORCHESTRATOR_SHELL_FLAG,
+  PREVENTIVE_HEALTH_FLOW_ENV,
+  PREVENTIVE_HEALTH_FLOW_FLAG,
   computeOrchestratorCohortBucket,
+  computePreventiveHealthFlowCohortBucket,
+  resolvePreventiveHealthFlowMode,
   resolveOrchestratorShellMode,
 } from "./orchestratorFeatureFlags.js";
 
@@ -345,6 +349,182 @@ describe("orchestrator shell feature flags", () => {
     expect(result).toMatchObject({
       effectiveMode: "legacy_only",
       reasonCode: "orchestrator_shell_task5_flag_invalid",
+    });
+  });
+});
+
+function validPreventiveHealthEnv(
+  overrides: Record<string, string | undefined> = {},
+): Record<string, string | undefined> {
+  return {
+    VYVA_HEALTH_PREVENTIVE_FLOW_MODE: "authoritative",
+    VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: "10000",
+    VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS: undefined,
+    VYVA_HEALTH_PREVENTIVE_FLOW_DENY_USERS: undefined,
+    VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_PRODUCTION: "false",
+    NODE_ENV: "staging",
+    ...overrides,
+  };
+}
+
+function resolvePreventive(
+  env: Record<string, string | undefined>,
+  userId = "user-task9",
+) {
+  return resolvePreventiveHealthFlowMode({
+    env,
+    now: NOW,
+    userId,
+    cohortKey: userId,
+  });
+}
+
+describe("preventive Health Flow feature flags", () => {
+  it("owns literal Task 9 flag identity and environment names", () => {
+    expect(PREVENTIVE_HEALTH_FLOW_FLAG).toEqual({
+      flagId: "flag.health.preventive_flow",
+      flagVersion: "1.0.0",
+      defaultMode: "legacy_only",
+      deliveryAuthority: "central_orchestrator",
+    });
+    expect(PREVENTIVE_HEALTH_FLOW_ENV).toEqual({
+      mode: "VYVA_HEALTH_PREVENTIVE_FLOW_MODE",
+      rolloutBasisPoints: "VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS",
+      allowUsers: "VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS",
+      denyUsers: "VYVA_HEALTH_PREVENTIVE_FLOW_DENY_USERS",
+      allowProduction: "VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_PRODUCTION",
+      environment: "NODE_ENV",
+    });
+  });
+
+  it("is disabled by default when configuration is absent", () => {
+    expect(resolvePreventive({})).toMatchObject({
+      requestedMode: "legacy_only",
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_legacy_default",
+    });
+  });
+
+  it("allows an explicitly allowlisted user without requiring rollout percentage", () => {
+    expect(resolvePreventive(validPreventiveHealthEnv({
+      VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: undefined,
+      VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS: "user-task9",
+    }))).toMatchObject({
+      requestedMode: "authoritative",
+      effectiveMode: "authoritative",
+      reasonCode: "preventive_health_flow_allowlist_matched",
+      allowlistMatched: true,
+    });
+  });
+
+  it("gives explicit deny precedence over allowlist and rollout", () => {
+    expect(resolvePreventive(validPreventiveHealthEnv({
+      VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS: "user-task9",
+      VYVA_HEALTH_PREVENTIVE_FLOW_DENY_USERS: "user-task9",
+    }))).toMatchObject({
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_denylist_matched",
+      denylistMatched: true,
+      allowlistMatched: true,
+    });
+  });
+
+  it("selects and excludes deterministic percentage cohorts", () => {
+    const users = Array.from({ length: 500 }, (_, index) => `user-task9-${index}`);
+    const selected = users.find((userId) =>
+      computePreventiveHealthFlowCohortBucket(userId) < 5_000);
+    const excluded = users.find((userId) =>
+      computePreventiveHealthFlowCohortBucket(userId) >= 5_000);
+    expect(selected).toBeDefined();
+    expect(excluded).toBeDefined();
+
+    const env = validPreventiveHealthEnv({
+      VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: "5000",
+    });
+    expect(resolvePreventive(env, selected!).effectiveMode).toBe("authoritative");
+    expect(resolvePreventive(env, excluded!)).toMatchObject({
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_cohort_not_selected",
+    });
+    expect(computePreventiveHealthFlowCohortBucket(selected!)).toBe(
+      computePreventiveHealthFlowCohortBucket(selected!),
+    );
+  });
+
+  it("treats zero rollout as valid configuration that selects no cohort", () => {
+    expect(resolvePreventive(validPreventiveHealthEnv({
+      VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: "0",
+    }))).toMatchObject({
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_cohort_not_selected",
+    });
+  });
+
+  it.each(["-1", "10001", "5.5", "not-a-number", " 5000", "5000 ", "5\t000", "5000\r\n"])(
+    "fails malformed rollout %s closed",
+    (rollout) => {
+      expect(resolvePreventive(validPreventiveHealthEnv({
+        VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: rollout,
+      }))).toMatchObject({
+        effectiveMode: "legacy_only",
+        reasonCode: "preventive_health_flow_rollout_invalid",
+      });
+    },
+  );
+
+  it.each([
+    ["mode", { VYVA_HEALTH_PREVENTIVE_FLOW_MODE: " authoritative " }, "preventive_health_flow_mode_invalid"],
+    ["allowlist", { VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS: " user-task9 " }, "preventive_health_flow_allowlist_invalid"],
+    ["allowlist newline", { VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS: "user-task9\r\n" }, "preventive_health_flow_allowlist_invalid"],
+    ["denylist", { VYVA_HEALTH_PREVENTIVE_FLOW_DENY_USERS: " user-task9 " }, "preventive_health_flow_denylist_invalid"],
+    ["production gate", { VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_PRODUCTION: " true " }, "preventive_health_flow_production_gate_invalid"],
+    ["environment", { NODE_ENV: " staging " }, "preventive_health_flow_environment_invalid"],
+  ])(
+    "fails closed on whitespace-polluted %s configuration",
+    (_field, overrides, reasonCode) => {
+      expect(resolvePreventive(validPreventiveHealthEnv(overrides))).toMatchObject({
+        effectiveMode: "legacy_only",
+        reasonCode,
+      });
+    },
+  );
+
+  it.each([
+    ["user id", " user-task9", undefined],
+    ["cohort id", "user-task9", " user-task9"],
+  ])("fails closed on whitespace-polluted %s", (_label, userId, cohortKey) => {
+    const env = validPreventiveHealthEnv({
+      VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_USERS: undefined,
+      VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: "10000",
+    });
+    const result = resolvePreventiveHealthFlowMode({
+      env,
+      now: NOW,
+      userId,
+      cohortKey,
+    });
+    expect(result).toMatchObject({
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_user_missing",
+    });
+  });
+
+  it("fails closed when neither allowlist nor percentage rollout is configured", () => {
+    expect(resolvePreventive(validPreventiveHealthEnv({
+      VYVA_HEALTH_PREVENTIVE_FLOW_ROLLOUT_BPS: undefined,
+    }))).toMatchObject({
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_rollout_missing",
+    });
+  });
+
+  it("blocks production use without an explicit production authorization", () => {
+    expect(resolvePreventive(validPreventiveHealthEnv({
+      NODE_ENV: "production",
+      VYVA_HEALTH_PREVENTIVE_FLOW_ALLOW_PRODUCTION: "false",
+    }))).toMatchObject({
+      effectiveMode: "legacy_only",
+      reasonCode: "preventive_health_flow_production_not_authorized",
     });
   });
 });
