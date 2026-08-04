@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingCompanionModeChip } from "./OnboardingCompanionModeChip";
 import { OnboardingCompanionTarget } from "./OnboardingCompanionTarget";
 import {
@@ -55,6 +55,30 @@ function TargetControls() {
   );
 }
 
+function RegisteredVoiceAction({ onStart }: { onStart: () => void }) {
+  const { registerVoiceAction, setMode } = useOnboardingCompanionGuidance();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setMode("tactile");
+        registerVoiceAction({
+          id: "profile-health-voice-capture",
+          label: "Tell VYVA",
+          description: "Tell VYVA which health conditions you live with.",
+          sectionId: "health",
+          sectionLabel: "Health profile",
+          targetId: "health-add-by-voice",
+          onStart,
+        });
+      }}
+    >
+      Register health voice
+    </button>
+  );
+}
+
 describe("OnboardingCompanionTarget", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -105,6 +129,26 @@ describe("OnboardingCompanionTarget", () => {
     expect(screen.getByText("Visible target").parentElement).not.toHaveAttribute(
       "data-vyva-companion-target-active"
     );
+  });
+
+  it("starts the registered section capture when Voice is selected from tactile mode", async () => {
+    const onStart = vi.fn();
+    render(
+      <OnboardingCompanionGuidanceProvider>
+        <RegisteredVoiceAction onStart={onStart} />
+        <OnboardingCompanionModeChip {...chipProps} />
+      </OnboardingCompanionGuidanceProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Register health voice" }));
+    expect(screen.getByRole("radio", { name: /Tactile/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /Voice/ }));
+
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
   });
 
   it.each([390, 768, 1440])(

@@ -752,6 +752,41 @@ function dynamicString(
   return "";
 }
 
+function onboardingFirstMessage(dynamicVariables: Record<string, string | number | boolean>) {
+  const sectionLabel = dynamicString(dynamicVariables, "active_section_label");
+  return sectionLabel
+    ? `I'm ready for ${sectionLabel}. Tell me what you'd like me to add.`
+    : "I'm ready for this profile section. Tell me what you'd like me to add.";
+}
+
+function sessionOverridesForResolvedContext(
+  sessionOptions: PartialOptions,
+  resolvedSystemPrompt: string | undefined,
+  resolvedDomain: string | undefined,
+  resolvedDynamicVariables: Record<string, string | number | boolean>,
+): PartialOptions["overrides"] {
+  const existing = sessionOptions.overrides;
+  if (resolvedDomain !== "onboarding_profile") return existing;
+
+  const prompt = resolvedSystemPrompt?.trim();
+
+  return {
+    ...existing,
+    agent: {
+      ...existing?.agent,
+      ...(prompt
+        ? {
+            prompt: {
+              ...existing?.agent?.prompt,
+              prompt,
+            },
+          }
+        : {}),
+      firstMessage: onboardingFirstMessage(resolvedDynamicVariables),
+    },
+  };
+}
+
 function toolParameters(parameters: unknown): Record<string, unknown> {
   return parameters && typeof parameters === "object"
     ? parameters as Record<string, unknown>
@@ -1439,9 +1474,16 @@ function useVyvaVoiceController() {
         if (!isCurrentSession()) return;
 
         updateVoiceDiagnostic("elevenlabs_session", "running", "Opening browser voice session");
+        const initialSessionOverrides = sessionOverridesForResolvedContext(
+          sessionOptions,
+          resolvedSystemPrompt,
+          resolvedDomain,
+          resolvedDynamicVariables,
+        );
         const conversation = await Conversation.startSession({
           ...sessionOptions,
           textOnly: skipMicrophone,
+          ...(initialSessionOverrides ? { overrides: initialSessionOverrides } : {}),
           dynamicVariables: {
             ...getAgentAppContextVariables(),
             ...resolvedDynamicVariables,

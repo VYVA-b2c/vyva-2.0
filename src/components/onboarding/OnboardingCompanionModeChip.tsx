@@ -72,7 +72,15 @@ export function OnboardingCompanionModeChip({
     : mode === "voice"
       ? primaryVoiceActionDescription ?? voiceDescription
       : tactileDescription;
-  const canRunVoiceAction = mode === "voice" && Boolean(primaryVoiceActionLabel);
+  const hasVoiceAction = Boolean(primaryVoiceActionLabel);
+  const canRunVoiceAction = mode === "voice" && hasVoiceAction;
+
+  const selectMode = (nextMode: OnboardingCompanionMode) => {
+    setMode(nextMode);
+    if (nextMode === "voice" && hasVoiceAction && voiceStatus === "idle") {
+      window.setTimeout(runPrimaryVoiceAction, 0);
+    }
+  };
 
   return (
     <div
@@ -143,7 +151,7 @@ export function OnboardingCompanionModeChip({
               aria-checked={selected}
               aria-label={`${label}. ${description}`}
               data-testid={`button-section-companion-mode-${id}`}
-              onClick={() => setMode(id)}
+              onClick={() => selectMode(id)}
               className={`flex min-h-[38px] min-w-0 items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-black transition-all focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FACC15] motion-reduce:transition-none ${
                 selected
                   ? "bg-vyva-purple text-white shadow-[0_8px_16px_rgba(107,33,168,0.20)]"
