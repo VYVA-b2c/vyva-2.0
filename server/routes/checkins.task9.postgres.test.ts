@@ -87,6 +87,15 @@ function safeScratchDatabase(url: string): boolean {
   }
 }
 
+async function ensurePgcryptoExtension(client: InstanceType<typeof Client>) {
+  await client.query("select pg_advisory_lock(9078, 9)");
+  try {
+    await client.query("create extension if not exists pgcrypto");
+  } finally {
+    await client.query("select pg_advisory_unlock(9078, 9)");
+  }
+}
+
 function installTask9Env() {
   process.env.DATABASE_URL = task9PostgresUrl;
   process.env.VYVA_HEALTH_PREVENTIVE_FLOW_MODE = "authoritative";
@@ -156,7 +165,7 @@ describeRealPostgres("Task 9 real PostgreSQL repository and route idempotency", 
   }
 
   async function applyMigrations() {
-    await postgres().query("create extension if not exists pgcrypto");
+    await ensurePgcryptoExtension(postgres());
     await postgres().query(`
       create table public.caregiver_alerts (
         id uuid primary key default gen_random_uuid(),

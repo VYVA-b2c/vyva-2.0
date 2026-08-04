@@ -24,6 +24,15 @@ function safeScratchDatabase(url: string): boolean {
   }
 }
 
+async function ensurePgcryptoExtension(client: InstanceType<typeof Client>) {
+  await client.query("select pg_advisory_lock(9078, 9)");
+  try {
+    await client.query("create extension if not exists pgcrypto");
+  } finally {
+    await client.query("select pg_advisory_unlock(9078, 9)");
+  }
+}
+
 describe("Task 9 preventive Health completion identity migration", () => {
   it("is additive to the existing check-in session table", () => {
     expect(migrationSql).toContain("alter table public.checkin_sessions");
@@ -105,7 +114,7 @@ describeRealPostgres("Task 9 real PostgreSQL migration behavior", () => {
     await postgres().query("drop table if exists public.checkin_sessions cascade");
     await postgres().query("drop table if exists public.checkin_trend_state cascade");
     await postgres().query("drop table if exists public.caregiver_alerts cascade");
-    await postgres().query("create extension if not exists pgcrypto");
+    await ensurePgcryptoExtension(postgres());
     await postgres().query(`
       create table public.caregiver_alerts (
         id uuid primary key default gen_random_uuid(),
