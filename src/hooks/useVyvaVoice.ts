@@ -281,6 +281,7 @@ type StartVoiceOptions = {
   roomSlug?: string;
   skipMicrophone?: boolean;
   autoStartListening?: boolean;
+  forceRestart?: boolean;
   dynamicVariables?: Record<string, string | number | boolean>;
 };
 
@@ -1330,7 +1331,16 @@ function useVyvaVoiceController() {
       systemPrompt?: string,
       options?: StartVoiceOptions,
     ) => {
-      if (statusRef.current !== "idle" || isPreparingRef.current) return;
+      const shouldForceRestart = options?.forceRestart === true && isOnboardingVoiceStart(options);
+      if (statusRef.current !== "idle" || isPreparingRef.current) {
+        if (!shouldForceRestart) return;
+        userClosingRef.current = true;
+        teardown();
+        userClosingRef.current = false;
+        releaseVoiceInstance(voiceInstanceIdRef.current);
+        setVoiceStatus("idle");
+        setHasEnded(false);
+      }
       // Manual teardown invalidates old callbacks before they can clear this flag.
       userClosingRef.current = false;
       const sessionGeneration = sessionGenerationRef.current + 1;

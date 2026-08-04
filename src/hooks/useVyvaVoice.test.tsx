@@ -219,6 +219,56 @@ describe("useVyvaVoice", () => {
     expect(createdConversations).toHaveLength(2);
   });
 
+  it("force-restarts a stale onboarding voice session and sends a fresh starter prompt", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    const onboardingOptions = {
+      agentSlug: "onboarding-profile",
+      autoStartListening: true,
+      skipMicrophone: true,
+      dynamicVariables: {
+        app_entrypoint: "onboarding-profile",
+        conversation_plan_id: "onboarding_profile_collection_v1",
+        active_section_id: "health",
+        active_section_label: "Health profile",
+      },
+    } as const;
+
+    await act(async () => {
+      await controller?.startVoice("Tell VYVA one or more health conditions.", "Profile prompt", onboardingOptions);
+    });
+
+    expect(voiceMocks.startSession).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("voice-status")).toHaveTextContent("connected");
+    expect(createdConversations[0].sendUserMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Start Health profile now."),
+    );
+
+    await act(async () => {
+      await controller?.startVoice("Tell VYVA one or more health conditions.", "Profile prompt", {
+        ...onboardingOptions,
+        forceRestart: true,
+      });
+    });
+
+    expect(createdConversations[0].endSession).toHaveBeenCalledTimes(1);
+    expect(voiceMocks.startSession).toHaveBeenCalledTimes(2);
+    expect(createdConversations[1].sendUserMessage).toHaveBeenCalledWith(
+      expect.stringContaining("Start Health profile now."),
+    );
+    expect(screen.getByTestId("onboarding-live-diagnostic")).toHaveTextContent("starter_sent|health|connected|starter-sent");
+  });
+
   it("does not send prompt overrides when router returns voice context", async () => {
     let controller: VoiceController | null = null;
 
