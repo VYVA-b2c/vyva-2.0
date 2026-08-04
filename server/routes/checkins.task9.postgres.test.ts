@@ -96,6 +96,14 @@ async function ensurePgcryptoExtension(client: InstanceType<typeof Client>) {
   }
 }
 
+async function lockTask9PostgresHarness(client: InstanceType<typeof Client>) {
+  await client.query("select pg_advisory_lock(9078, 10)");
+}
+
+async function unlockTask9PostgresHarness(client: InstanceType<typeof Client>) {
+  await client.query("select pg_advisory_unlock(9078, 10)");
+}
+
 function installTask9Env() {
   process.env.DATABASE_URL = task9PostgresUrl;
   process.env.VYVA_HEALTH_PREVENTIVE_FLOW_MODE = "authoritative";
@@ -126,7 +134,6 @@ describeRealPostgres("Task 9 real PostgreSQL repository and route idempotency", 
 
   afterAll(async () => {
     if (!admin) return;
-    await resetDatabase();
     await admin.end();
   });
 
@@ -144,6 +151,7 @@ describeRealPostgres("Task 9 real PostgreSQL repository and route idempotency", 
     dailyMonitor.markDailyCheckinCompleted.mockResolvedValue(undefined);
     dailyMonitor.getDailyCheckinTodayStatus.mockReset();
     installTask9Env();
+    await lockTask9PostgresHarness(postgres());
     await resetDatabase();
     await applyMigrations();
   });
@@ -155,7 +163,12 @@ describeRealPostgres("Task 9 real PostgreSQL repository and route idempotency", 
     } catch {
       // Some skipped or failed imports never create a pool.
     }
-    vi.resetModules();
+    try {
+      await resetDatabase();
+    } finally {
+      await unlockTask9PostgresHarness(postgres());
+      vi.resetModules();
+    }
   });
 
   async function resetDatabase() {

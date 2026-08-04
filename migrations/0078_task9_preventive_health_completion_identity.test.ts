@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const migrationSql = readFileSync(
   join(process.cwd(), "migrations/0078_task9_preventive_health_completion_identity.sql"),
@@ -31,6 +31,14 @@ async function ensurePgcryptoExtension(client: InstanceType<typeof Client>) {
   } finally {
     await client.query("select pg_advisory_unlock(9078, 9)");
   }
+}
+
+async function lockTask9PostgresHarness(client: InstanceType<typeof Client>) {
+  await client.query("select pg_advisory_lock(9078, 10)");
+}
+
+async function unlockTask9PostgresHarness(client: InstanceType<typeof Client>) {
+  await client.query("select pg_advisory_unlock(9078, 10)");
 }
 
 describe("Task 9 preventive Health completion identity migration", () => {
@@ -99,9 +107,6 @@ describeRealPostgres("Task 9 real PostgreSQL migration behavior", () => {
 
   afterAll(async () => {
     if (!client) return;
-    await client.query("drop table if exists public.checkin_sessions cascade");
-    await client.query("drop table if exists public.checkin_trend_state cascade");
-    await client.query("drop table if exists public.caregiver_alerts cascade");
     await client.end();
   });
 
@@ -109,6 +114,20 @@ describeRealPostgres("Task 9 real PostgreSQL migration behavior", () => {
     if (!client) throw new Error("Task 9 PostgreSQL client was not initialized");
     return client;
   }
+
+  beforeEach(async () => {
+    await lockTask9PostgresHarness(postgres());
+  });
+
+  afterEach(async () => {
+    try {
+      await postgres().query("drop table if exists public.checkin_sessions cascade");
+      await postgres().query("drop table if exists public.checkin_trend_state cascade");
+      await postgres().query("drop table if exists public.caregiver_alerts cascade");
+    } finally {
+      await unlockTask9PostgresHarness(postgres());
+    }
+  });
 
   async function resetAndApplyPrerequisites() {
     await postgres().query("drop table if exists public.checkin_sessions cascade");
