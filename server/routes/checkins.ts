@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import OpenAI from "openai";
 import { z } from "zod";
 import { pool } from "../db.js";
@@ -18,6 +18,15 @@ import {
   type GrammaticalGender,
 } from "../lib/userPersonalization.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
+import type { AnswerSubmissionModality } from "../../shared/orchestration/flowState.js";
+import {
+  attemptPreventiveHealthCheckin,
+  type PreventiveHealthCompletionClaim,
+  type PreventiveHealthPersistedCompletion,
+  type PreventiveHealthPersistenceIdentity,
+} from "../health/preventiveHealthOrchestrator.js";
+import { evaluatePreventiveCheckinSafety } from "../health/preventiveHealthSafety.js";
+import type { EventStateCompatibilityStore } from "../orchestrator/eventStatePersistence.js";
 
 const router = Router();
 
@@ -85,7 +94,7 @@ type SharedCheckinReport = {
 
 let checkinPersistencePromise: Promise<void> | null = null;
 
-async function ensureCheckinPersistenceTables() {
+export async function ensureCheckinPersistenceTables() {
   if (!checkinPersistencePromise) {
     checkinPersistencePromise = (async () => {
       await pool.query(`
@@ -103,11 +112,26 @@ async function ensureCheckinPersistenceTables() {
           feeling_label text,
           overall_state text,
           vyva_reading text,
+          why_today text,
+          trend_note text,
+          personal_plan text,
+          app_suggestion text,
+          suggested_app_action text,
           right_now jsonb not null default '[]'::jsonb,
           today_actions jsonb not null default '[]'::jsonb,
           highlight text,
           flag_caregiver boolean not null default false,
           watch_for text,
+          orchestration_flow_id text,
+          orchestration_flow_version text,
+          orchestration_flow_instance_id text,
+          orchestration_completion_reference text,
+          orchestration_answer_digest text,
+          orchestration_completion_status text,
+          orchestration_claim_token text,
+          orchestration_claimed_at timestamptz,
+          orchestration_claim_expires_at timestamptz,
+          orchestration_failure_reason text,
           language text not null default 'es',
           completed boolean not null default false,
           abandoned boolean not null default false,
@@ -131,11 +155,26 @@ async function ensureCheckinPersistenceTables() {
           add column if not exists feeling_label text,
           add column if not exists overall_state text,
           add column if not exists vyva_reading text,
+          add column if not exists why_today text,
+          add column if not exists trend_note text,
+          add column if not exists personal_plan text,
+          add column if not exists app_suggestion text,
+          add column if not exists suggested_app_action text,
           add column if not exists right_now jsonb not null default '[]'::jsonb,
           add column if not exists today_actions jsonb not null default '[]'::jsonb,
           add column if not exists highlight text,
           add column if not exists flag_caregiver boolean not null default false,
           add column if not exists watch_for text,
+          add column if not exists orchestration_flow_id text,
+          add column if not exists orchestration_flow_version text,
+          add column if not exists orchestration_flow_instance_id text,
+          add column if not exists orchestration_completion_reference text,
+          add column if not exists orchestration_answer_digest text,
+          add column if not exists orchestration_completion_status text,
+          add column if not exists orchestration_claim_token text,
+          add column if not exists orchestration_claimed_at timestamptz,
+          add column if not exists orchestration_claim_expires_at timestamptz,
+          add column if not exists orchestration_failure_reason text,
           add column if not exists language text not null default 'es',
           add column if not exists completed boolean not null default false,
           add column if not exists abandoned boolean not null default false,
@@ -174,6 +213,18 @@ async function ensureCheckinPersistenceTables() {
       await pool.query(`
         create index if not exists checkin_sessions_user_created_idx
           on checkin_sessions(user_id, created_at desc)
+      `);
+
+      await pool.query(`
+        create unique index if not exists checkin_sessions_task9_completion_unique_idx
+          on checkin_sessions(
+            user_id,
+            orchestration_flow_id,
+            orchestration_flow_version,
+            orchestration_flow_instance_id,
+            orchestration_completion_reference
+          )
+          where orchestration_completion_reference is not null
       `);
     })().catch((err) => {
       checkinPersistencePromise = null;
@@ -642,31 +693,10 @@ function fallbackResult(profile: ProfileContext, answers: CheckinAnswers): AiChe
   const poorSleep = ["mal", "muy_mal"].includes(answers.sleep_quality);
   const lowMood = ["triste", "ansiosa"].includes(answers.mood);
   const hasSymptoms = answers.symptoms.some((s) => s !== "ninguno");
-  const urgentSafetyFlag = answers.safety_flags.some((flag) =>
-    ["severe_now", "chest_pressure", "confusion_now", "sudden_weakness"].includes(flag)
-  );
-  const urgentDetailFlag = answers.symptom_details.some((detail) =>
-    [
-      "fever_temp_39",
-      "breath_rest",
-      "breath_speaking",
-      "dizzy_faint",
-      "nausea_vomiting",
-      "headache_sudden",
-      "headache_vision",
-      "chest_pressure_detail",
-      "confusion_now_detail",
-    ].includes(detail)
-  );
-  const mildSafetySignal = answers.safety_flags.includes("mild_stable") || answers.safety_flags.includes("resolved");
-  const seriousSymptom =
-    answers.symptoms.includes("falta_aire") ||
-    answers.symptoms.includes("confusion") ||
-    answers.body_areas.includes("pecho");
-  const safetySignal =
-    urgentSafetyFlag ||
-    urgentDetailFlag ||
-    (seriousSymptom && !mildSafetySignal);
+  const safety = evaluatePreventiveCheckinSafety(answers);
+  const urgentSafetyFlag = safety.urgentSafetyFlag;
+  const mildSafetySignal = safety.mildSafetySignal;
+  const safetySignal = safety.safetySignal;
   const limitedMobility = ["stick_or_frame", "wheelchair_part_time", "wheelchair_full_time", "housebound"]
     .includes(profile.mobility_level ?? "");
   const locationLabel = profile.location.city || profile.city || "tu zona";
@@ -881,10 +911,11 @@ async function saveSession(userId: string, language: string, answers: CheckinAns
     const inserted = await pool.query(
       `insert into checkin_sessions (
         user_id, energy_level, mood, body_areas, sleep_quality, symptoms, symptom_details, safety_flags, social_contact,
-        feeling_label, overall_state, vyva_reading, right_now, today_actions, highlight,
+        feeling_label, overall_state, vyva_reading, why_today, trend_note, personal_plan,
+        app_suggestion, suggested_app_action, right_now, today_actions, highlight,
         flag_caregiver, watch_for, language, completed, duration_seconds
       ) values (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18,true,$19
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22,$23,true,$24
       )
       returning id`,
       [
@@ -900,6 +931,11 @@ async function saveSession(userId: string, language: string, answers: CheckinAns
         result.feeling_label,
         result.overall_state,
         result.vyva_reading,
+        result.why_today ?? null,
+        result.trend_note ?? null,
+        result.personal_plan ?? null,
+        result.app_suggestion ?? null,
+        result.suggested_app_action ?? null,
         JSON.stringify(result.right_now),
         JSON.stringify(result.today_actions),
         result.highlight,
@@ -914,6 +950,493 @@ async function saveSession(userId: string, language: string, answers: CheckinAns
     console.warn("[checkins] session not saved; has the checkin schema been applied?", err);
     return undefined;
   }
+}
+
+function deterministicPreventiveHealthSessionId(input: {
+  accountUserId: string;
+  userId: string;
+  language: string;
+  answers: CheckinAnswers;
+  dateKey: string;
+}): string {
+  const stableAnswers = {
+    energy_level: input.answers.energy_level,
+    mood: input.answers.mood,
+    body_areas: [...input.answers.body_areas].sort(),
+    sleep_quality: input.answers.sleep_quality,
+    symptoms: [...input.answers.symptoms].sort(),
+    symptom_details: [...input.answers.symptom_details].sort(),
+    safety_flags: [...input.answers.safety_flags].sort(),
+    social_contact: input.answers.social_contact,
+  };
+  const digest = createHash("sha256")
+    .update(JSON.stringify({
+      task: "task9.first_health_flow",
+      accountUserId: input.accountUserId,
+      userId: input.userId,
+      language: input.language,
+      dateKey: input.dateKey,
+      stableAnswers,
+    }))
+    .digest("hex")
+    .slice(0, 32);
+  return `session.health.preventive_check.${digest}`;
+}
+
+function stringArrayFromRow(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+export function setPreventiveHealthTrustedModality(
+  res: Response,
+  modality: AnswerSubmissionModality,
+): void {
+  res.locals.preventiveHealthTrustedModality = modality;
+}
+
+function resolveTrustedPreventiveHealthModality(
+  res: Response,
+): AnswerSubmissionModality {
+  const candidate = res.locals.preventiveHealthTrustedModality;
+  return candidate === "voice" || candidate === "text" || candidate === "touch"
+    ? candidate
+    : "touch";
+}
+
+function resolveTrustedPreventiveHealthEventStore(
+  res: Response,
+): EventStateCompatibilityStore | undefined {
+  const candidate = res.locals.preventiveHealthEventStore;
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    typeof (candidate as EventStateCompatibilityStore).writeInteractionEvent === "function" &&
+    typeof (candidate as EventStateCompatibilityStore).writeFlowProjection === "function"
+  ) {
+    return candidate as EventStateCompatibilityStore;
+  }
+  return undefined;
+}
+
+function resultFromCheckinSessionRow(row: Record<string, unknown>): AiCheckinResult {
+  return {
+    feeling_label: typeof row.feeling_label === "string" ? row.feeling_label : "",
+    overall_state: (
+      row.overall_state === "excellent" ||
+      row.overall_state === "good" ||
+      row.overall_state === "moderate" ||
+      row.overall_state === "tired" ||
+      row.overall_state === "low"
+    ) ? row.overall_state : "moderate",
+    vyva_reading: typeof row.vyva_reading === "string" ? row.vyva_reading : "",
+    why_today: typeof row.why_today === "string" ? row.why_today : null,
+    trend_note: typeof row.trend_note === "string" ? row.trend_note : null,
+    personal_plan: typeof row.personal_plan === "string" ? row.personal_plan : null,
+    app_suggestion: typeof row.app_suggestion === "string" ? row.app_suggestion : null,
+    suggested_app_action: (
+      row.suggested_app_action === "concierge" ||
+      row.suggested_app_action === "symptom" ||
+      row.suggested_app_action === "vitals" ||
+      row.suggested_app_action === "care" ||
+      row.suggested_app_action === "meditation" ||
+      row.suggested_app_action === "social" ||
+      row.suggested_app_action === "music" ||
+      row.suggested_app_action === "exercise" ||
+      row.suggested_app_action === "chess" ||
+      row.suggested_app_action === "cooking" ||
+      row.suggested_app_action === "art" ||
+      row.suggested_app_action === "literature"
+    ) ? row.suggested_app_action : null,
+    right_now: stringArrayFromRow(row.right_now),
+    today_actions: stringArrayFromRow(row.today_actions),
+    highlight: typeof row.highlight === "string" ? row.highlight : "",
+    flag_caregiver: row.flag_caregiver === true,
+    watch_for: typeof row.watch_for === "string" ? row.watch_for : null,
+  };
+}
+
+function persistedCompletionFromRow(
+  row: Record<string, unknown>,
+  inserted: boolean,
+): PreventiveHealthPersistedCompletion<AiCheckinResult> | undefined {
+  if (typeof row.id !== "string") return undefined;
+  return {
+    sessionId: row.id,
+    result: resultFromCheckinSessionRow(row),
+    inserted,
+  };
+}
+
+const PREVENTIVE_HEALTH_CLAIM_EXPIRY_MS = 15 * 60 * 1000;
+const PREVENTIVE_HEALTH_PENDING_RETRY_AFTER_SECONDS = 2;
+const TASK9_IDENTITY_TEXT = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
+const TASK9_DIGEST = /^sha256:[a-f0-9]{64}$/;
+
+function assertTask9Identity(userId: string, identity: PreventiveHealthPersistenceIdentity): void {
+  const values = [
+    userId,
+    identity.flowId,
+    identity.flowVersion,
+    identity.flowInstanceId,
+    identity.completionReference,
+  ];
+  if (!values.every((value) => TASK9_IDENTITY_TEXT.test(value))) {
+    throw new Error("Invalid Task 9 completion identity");
+  }
+  if (!TASK9_DIGEST.test(identity.answerDigest)) {
+    throw new Error("Invalid Task 9 answer digest");
+  }
+}
+
+function claimExpiry(now: Date): string {
+  return new Date(now.getTime() + PREVENTIVE_HEALTH_CLAIM_EXPIRY_MS).toISOString();
+}
+
+export async function loadPreventiveHealthCompletedSession(
+  userId: string,
+  identity: PreventiveHealthPersistenceIdentity,
+): Promise<PreventiveHealthPersistedCompletion<AiCheckinResult> | undefined> {
+  try {
+    assertTask9Identity(userId, identity);
+    await ensureCheckinPersistenceTables();
+    const existing = await pool.query(
+      `select id, feeling_label, overall_state, vyva_reading, why_today, trend_note,
+              personal_plan, app_suggestion, suggested_app_action, right_now,
+              today_actions, highlight, flag_caregiver, watch_for
+       from checkin_sessions
+       where user_id = $1
+         and completed = true
+         and orchestration_flow_id = $2
+         and orchestration_flow_version = $3
+         and orchestration_flow_instance_id = $4
+         and orchestration_completion_reference = $5
+         and orchestration_answer_digest = $6
+       order by completed_at desc
+       limit 1`,
+      [
+        userId,
+        identity.flowId,
+        identity.flowVersion,
+        identity.flowInstanceId,
+        identity.completionReference,
+        identity.answerDigest,
+      ],
+    );
+    const row = existing.rows[0] as Record<string, unknown> | undefined;
+    return row ? persistedCompletionFromRow(row, false) : undefined;
+  } catch (err) {
+    console.warn("[checkins] Task 9 idempotency lookup unavailable:", err);
+    throw err;
+  }
+}
+
+export async function acquirePreventiveHealthCompletionClaim(
+  userId: string,
+  language: string,
+  answers: CheckinAnswers,
+  durationSeconds: number | null,
+  identity: PreventiveHealthPersistenceIdentity,
+  now: Date,
+): Promise<PreventiveHealthCompletionClaim<AiCheckinResult>> {
+  assertTask9Identity(userId, identity);
+  await ensureCheckinPersistenceTables();
+  const claimToken = randomUUID();
+  const nowIso = now.toISOString();
+  const expiresIso = claimExpiry(now);
+  const claim = await pool.query(
+    `insert into checkin_sessions (
+      user_id, energy_level, mood, body_areas, sleep_quality, symptoms, symptom_details,
+      safety_flags, social_contact, language, completed, duration_seconds,
+      orchestration_flow_id, orchestration_flow_version, orchestration_flow_instance_id,
+      orchestration_completion_reference, orchestration_answer_digest,
+      orchestration_completion_status, orchestration_claim_token,
+      orchestration_claimed_at, orchestration_claim_expires_at
+    ) values (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11,$12,$13,$14,$15,$16,
+      'pending',$17,$18::timestamptz,$19::timestamptz
+    )
+    on conflict (
+      user_id,
+      orchestration_flow_id,
+      orchestration_flow_version,
+      orchestration_flow_instance_id,
+      orchestration_completion_reference
+    ) where orchestration_completion_reference is not null
+    do nothing
+    returning id, orchestration_claim_expires_at`,
+    [
+      userId,
+      answers.energy_level,
+      answers.mood,
+      answers.body_areas,
+      answers.sleep_quality,
+      answers.symptoms,
+      answers.symptom_details,
+      answers.safety_flags,
+      answers.social_contact,
+      language,
+      durationSeconds,
+      identity.flowId,
+      identity.flowVersion,
+      identity.flowInstanceId,
+      identity.completionReference,
+      identity.answerDigest,
+      claimToken,
+      nowIso,
+      expiresIso,
+    ],
+  );
+  const claimedRow = claim.rows[0] as Record<string, unknown> | undefined;
+  if (claimedRow && typeof claimedRow.id === "string") {
+    return {
+      state: "claimed",
+      sessionId: claimedRow.id,
+      claimToken,
+      claimExpiresAt: expiresIso,
+    };
+  }
+
+  const completed = await loadPreventiveHealthCompletedSession(userId, identity);
+  if (completed) {
+    return { state: "completed", completion: completed };
+  }
+
+  const observed = await pool.query(
+    `select id, orchestration_completion_status, orchestration_claim_expires_at
+     from checkin_sessions
+     where user_id = $1
+       and orchestration_flow_id = $2
+       and orchestration_flow_version = $3
+       and orchestration_flow_instance_id = $4
+       and orchestration_completion_reference = $5
+       and orchestration_answer_digest = $6
+     limit 1`,
+    [
+      userId,
+      identity.flowId,
+      identity.flowVersion,
+      identity.flowInstanceId,
+      identity.completionReference,
+      identity.answerDigest,
+    ],
+  );
+  const observedRow = observed.rows[0] as Record<string, unknown> | undefined;
+  const status = typeof observedRow?.orchestration_completion_status === "string"
+    ? observedRow.orchestration_completion_status
+    : "pending";
+  const claimExpiresAt = observedRow?.orchestration_claim_expires_at instanceof Date
+    ? observedRow.orchestration_claim_expires_at.toISOString()
+    : typeof observedRow?.orchestration_claim_expires_at === "string"
+      ? observedRow.orchestration_claim_expires_at
+      : undefined;
+  const expired = claimExpiresAt !== undefined && Date.parse(claimExpiresAt) <= now.getTime();
+  if (status === "failed" || expired) {
+    const recovered = await pool.query(
+      `update checkin_sessions
+       set orchestration_completion_status = 'pending',
+           orchestration_claim_token = $7,
+           orchestration_claimed_at = $8::timestamptz,
+           orchestration_claim_expires_at = $9::timestamptz,
+           orchestration_failure_reason = null
+       where user_id = $1
+         and orchestration_flow_id = $2
+         and orchestration_flow_version = $3
+         and orchestration_flow_instance_id = $4
+         and orchestration_completion_reference = $5
+         and orchestration_answer_digest = $6
+         and completed = false
+         and (
+           orchestration_completion_status = 'failed'
+           or orchestration_claim_expires_at <= $8::timestamptz
+         )
+       returning id`,
+      [
+        userId,
+        identity.flowId,
+        identity.flowVersion,
+        identity.flowInstanceId,
+        identity.completionReference,
+        identity.answerDigest,
+        claimToken,
+        nowIso,
+        expiresIso,
+      ],
+    );
+    const recoveredRow = recovered.rows[0] as Record<string, unknown> | undefined;
+    if (recoveredRow && typeof recoveredRow.id === "string") {
+      return {
+        state: "claimed",
+        sessionId: recoveredRow.id,
+        claimToken,
+        claimExpiresAt: expiresIso,
+      };
+    }
+    const completedAfterRecoveryRace = await loadPreventiveHealthCompletedSession(userId, identity);
+    if (completedAfterRecoveryRace) {
+      return { state: "completed", completion: completedAfterRecoveryRace };
+    }
+  }
+
+  return {
+    state: "pending",
+    retryAfterSeconds: PREVENTIVE_HEALTH_PENDING_RETRY_AFTER_SECONDS,
+    ...(claimExpiresAt !== undefined ? { claimExpiresAt } : {}),
+  };
+}
+
+export async function completePreventiveHealthClaim(
+  userId: string,
+  language: string,
+  answers: CheckinAnswers,
+  result: AiCheckinResult,
+  durationSeconds: number | null,
+  identity: PreventiveHealthPersistenceIdentity,
+  claimToken: string,
+  now: Date,
+): Promise<PreventiveHealthPersistedCompletion<AiCheckinResult> | undefined> {
+  try {
+    assertTask9Identity(userId, identity);
+    await ensureCheckinPersistenceTables();
+    const saved = await pool.query(
+      `update checkin_sessions
+       set energy_level = $2,
+           mood = $3,
+           body_areas = $4,
+           sleep_quality = $5,
+           symptoms = $6,
+           symptom_details = $7,
+           safety_flags = $8,
+           social_contact = $9,
+           feeling_label = $10,
+           overall_state = $11,
+           vyva_reading = $12,
+           why_today = $13,
+           trend_note = $14,
+           personal_plan = $15,
+           app_suggestion = $16,
+           suggested_app_action = $17,
+           right_now = $18::jsonb,
+           today_actions = $19::jsonb,
+           highlight = $20,
+           flag_caregiver = $21,
+           watch_for = $22,
+           language = $23,
+           completed = true,
+           abandoned = false,
+           duration_seconds = $24,
+           completed_at = $30::timestamptz,
+           orchestration_completion_status = 'completed',
+           orchestration_failure_reason = null
+       where user_id = $1
+         and orchestration_flow_id = $25
+         and orchestration_flow_version = $26
+         and orchestration_flow_instance_id = $27
+         and orchestration_completion_reference = $28
+         and orchestration_answer_digest = $29
+         and orchestration_claim_token = $31
+         and orchestration_completion_status = 'pending'
+         and completed = false
+       returning id, feeling_label, overall_state, vyva_reading, why_today, trend_note,
+                 personal_plan, app_suggestion, suggested_app_action, right_now,
+                 today_actions, highlight, flag_caregiver, watch_for,
+                 true as inserted`,
+      [
+        userId,
+        answers.energy_level,
+        answers.mood,
+        answers.body_areas,
+        answers.sleep_quality,
+        answers.symptoms,
+        answers.symptom_details,
+        answers.safety_flags,
+        answers.social_contact,
+        result.feeling_label,
+        result.overall_state,
+        result.vyva_reading,
+        result.why_today ?? null,
+        result.trend_note ?? null,
+        result.personal_plan ?? null,
+        result.app_suggestion ?? null,
+        result.suggested_app_action ?? null,
+        JSON.stringify(result.right_now),
+        JSON.stringify(result.today_actions),
+        result.highlight,
+        result.flag_caregiver,
+        result.watch_for,
+        language,
+        durationSeconds,
+        identity.flowId,
+        identity.flowVersion,
+        identity.flowInstanceId,
+        identity.completionReference,
+        identity.answerDigest,
+        now.toISOString(),
+        claimToken,
+      ],
+    );
+    const row = saved.rows[0] as Record<string, unknown> | undefined;
+    if (row) {
+      return persistedCompletionFromRow(row, row.inserted === true);
+    }
+    return loadPreventiveHealthCompletedSession(userId, identity);
+  } catch (err) {
+    console.warn("[checkins] Task 9 completion not saved:", err);
+    return undefined;
+  }
+}
+
+export async function markPreventiveHealthClaimFailed(
+  userId: string,
+  identity: PreventiveHealthPersistenceIdentity,
+  claimToken: string,
+  reasonCode: "preventive_health_flow_generation_failed" | "preventive_health_flow_persistence_failed",
+  now: Date,
+): Promise<void> {
+  try {
+    assertTask9Identity(userId, identity);
+    await ensureCheckinPersistenceTables();
+    await pool.query(
+      `update checkin_sessions
+       set orchestration_completion_status = 'failed',
+           orchestration_failure_reason = $7,
+           orchestration_claim_expires_at = $8::timestamptz
+       where user_id = $1
+         and orchestration_flow_id = $2
+         and orchestration_flow_version = $3
+         and orchestration_flow_instance_id = $4
+         and orchestration_completion_reference = $5
+         and orchestration_answer_digest = $6
+         and orchestration_claim_token = $9
+         and orchestration_completion_status = 'pending'
+         and completed = false`,
+      [
+        userId,
+        identity.flowId,
+        identity.flowVersion,
+        identity.flowInstanceId,
+        identity.completionReference,
+        identity.answerDigest,
+        reasonCode,
+        now.toISOString(),
+        claimToken,
+      ],
+    );
+  } catch (err) {
+    console.warn("[checkins] Task 9 failed claim was not marked retryable:", err);
+  }
+}
+
+function safetyPreemptedResult(profile: ProfileContext, answers: CheckinAnswers): AiCheckinResult {
+  const fallback = fallbackResult(profile, answers);
+  return {
+    ...fallback,
+    overall_state: fallback.overall_state === "low" ? "low" : "moderate",
+    flag_caregiver: true,
+    watch_for: fallback.watch_for ??
+      "Si aparece dolor en el pecho, dificultad para respirar, confusion o debilidad repentina, pide ayuda urgente.",
+  };
 }
 
 async function updateTrend(userId: string, answers: CheckinAnswers, result: AiCheckinResult) {
@@ -997,6 +1520,93 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
       profile = minimalProfileContext(language);
     }
     const effectiveLanguage = normalizeAppLanguage(language, profile.language);
+    const now = new Date();
+    const orchestration = await attemptPreventiveHealthCheckin({
+      accountUserId: req.user!.id,
+      userId,
+      profileId: userId,
+      sessionId: deterministicPreventiveHealthSessionId({
+        accountUserId: req.user!.id,
+        userId,
+        language: effectiveLanguage,
+        answers,
+        dateKey: now.toISOString().slice(0, 10),
+      }),
+      profile,
+      answers,
+      language: effectiveLanguage,
+      durationSeconds: duration_seconds ?? null,
+      env: process.env,
+      now,
+      modality: resolveTrustedPreventiveHealthModality(res),
+      locale: effectiveLanguage,
+      dependencies: {
+        generateResult,
+        acquireCompletionClaim: acquirePreventiveHealthCompletionClaim,
+        completeClaim: completePreventiveHealthClaim,
+        markClaimFailed: markPreventiveHealthClaimFailed,
+        loadCompletedSession: loadPreventiveHealthCompletedSession,
+        updateTrend,
+        markDailyCheckinCompleted,
+        eventStore: resolveTrustedPreventiveHealthEventStore(res),
+      },
+    });
+    if (orchestration.outcome === "completed") {
+      return res.json({
+        result: orchestration.result,
+        session_id: orchestration.sessionId,
+        meta: {
+          used_minimal_profile: usedMinimalProfile,
+          orchestration: orchestration.meta,
+        },
+      });
+    }
+
+    if (orchestration.outcome === "blocked") {
+      if (orchestration.reasonCode === "preventive_health_flow_safety_preempted") {
+        return res.status(orchestration.statusCode).json({
+          result: safetyPreemptedResult(profile, answers),
+          session_id: null,
+          meta: {
+            used_minimal_profile: usedMinimalProfile,
+            orchestration: orchestration.meta,
+          },
+        });
+      }
+      return res.status(orchestration.statusCode).json({
+        error: "Unable to complete this check-in safely right now.",
+        session_id: null,
+        meta: {
+          used_minimal_profile: usedMinimalProfile,
+          orchestration: orchestration.meta,
+        },
+      });
+    }
+
+    if (orchestration.outcome === "pending") {
+      return res.status(202).json({
+        error: "This check-in is still being prepared. Please retry shortly.",
+        session_id: null,
+        retry_after_seconds: orchestration.retryAfterSeconds,
+        meta: {
+          used_minimal_profile: usedMinimalProfile,
+          orchestration: orchestration.meta,
+        },
+      });
+    }
+
+    if (orchestration.outcome === "retryable") {
+      return res.status(503).json({
+        error: "Unable to complete this check-in right now. Please retry shortly.",
+        session_id: null,
+        retry_after_seconds: orchestration.retryAfterSeconds,
+        meta: {
+          used_minimal_profile: usedMinimalProfile,
+          orchestration: orchestration.meta,
+        },
+      });
+    }
+
     const result = await generateResult(profile, answers, effectiveLanguage);
     const sessionId = await saveSession(userId, effectiveLanguage, answers, result, duration_seconds ?? null);
     await updateTrend(userId, answers, result);

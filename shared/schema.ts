@@ -452,11 +452,26 @@ export const checkinSessions = pgTable("checkin_sessions", {
   feeling_label:    text("feeling_label"),
   overall_state:    text("overall_state"),
   vyva_reading:     text("vyva_reading"),
+  why_today:        text("why_today"),
+  trend_note:       text("trend_note"),
+  personal_plan:    text("personal_plan"),
+  app_suggestion:   text("app_suggestion"),
+  suggested_app_action: text("suggested_app_action"),
   right_now:        jsonb("right_now").notNull().default([]),
   today_actions:    jsonb("today_actions").notNull().default([]),
   highlight:        text("highlight"),
   flag_caregiver:   boolean("flag_caregiver").notNull().default(false),
   watch_for:        text("watch_for"),
+  orchestration_flow_id: text("orchestration_flow_id"),
+  orchestration_flow_version: text("orchestration_flow_version"),
+  orchestration_flow_instance_id: text("orchestration_flow_instance_id"),
+  orchestration_completion_reference: text("orchestration_completion_reference"),
+  orchestration_answer_digest: text("orchestration_answer_digest"),
+  orchestration_completion_status: text("orchestration_completion_status"),
+  orchestration_claim_token: text("orchestration_claim_token"),
+  orchestration_claimed_at: timestamp("orchestration_claimed_at", { withTimezone: true }),
+  orchestration_claim_expires_at: timestamp("orchestration_claim_expires_at", { withTimezone: true }),
+  orchestration_failure_reason: text("orchestration_failure_reason"),
   language:         text("language").notNull().default("es"),
   completed:        boolean("completed").notNull().default(false),
   abandoned:        boolean("abandoned").notNull().default(false),
@@ -464,7 +479,17 @@ export const checkinSessions = pgTable("checkin_sessions", {
   started_at:       timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   completed_at:     timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
   created_at:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("checkin_sessions_task9_completion_unique_idx")
+    .on(
+      t.user_id,
+      t.orchestration_flow_id,
+      t.orchestration_flow_version,
+      t.orchestration_flow_instance_id,
+      t.orchestration_completion_reference,
+    )
+    .where(sql`${t.orchestration_completion_reference} is not null`),
+]);
 
 export const insertCheckinSessionSchema = createInsertSchema(checkinSessions).omit({ id: true, started_at: true, completed_at: true, created_at: true });
 export type InsertCheckinSession = z.infer<typeof insertCheckinSessionSchema>;
