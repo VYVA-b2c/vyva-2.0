@@ -9,10 +9,14 @@ import { dispatchOnboardingElevenLabsOutput } from "@/lib/onboardingElevenLabsRu
 import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 import { useOnboardingElevenLabsSectionRuntime } from "./useOnboardingElevenLabsSectionRuntime";
 
-const { startVoice, optionalVoice } = vi.hoisted(() => ({
+const { startVoice, sendContextUpdate, optionalVoice } = vi.hoisted(() => ({
   startVoice: vi.fn(),
+  sendContextUpdate: vi.fn(),
   optionalVoice: {
-    current: undefined as undefined | null | { startVoice: ReturnType<typeof vi.fn> },
+    current: undefined as undefined | null | {
+      startVoice: ReturnType<typeof vi.fn>;
+      sendContextUpdate: ReturnType<typeof vi.fn>;
+    },
   },
 }));
 
@@ -41,7 +45,8 @@ describe("useOnboardingElevenLabsSectionRuntime", () => {
   beforeEach(() => {
     startVoice.mockReset();
     startVoice.mockResolvedValue(undefined);
-    optionalVoice.current = { startVoice };
+    sendContextUpdate.mockReset();
+    optionalVoice.current = { startVoice, sendContextUpdate };
   });
 
   it.each(PROFILE_ONBOARDING_AGENT_SECTION_IDS)(
@@ -83,8 +88,18 @@ describe("useOnboardingElevenLabsSectionRuntime", () => {
           language: "es",
           onboarding_mode: "voice",
           active_draft_id: `${sectionId}:draft`,
+          voice_ui_phase: "collecting",
+          voice_ui_review_card_visible: false,
+          voice_ui_missing_fields: `${sectionId}_field`,
+          voice_ui_forbidden_actions: expect.stringContaining("ask_account_id"),
         },
       });
+      expect(String(startVoice.mock.calls[0]?.[2].dynamicVariables.voice_ui_state_json)).toContain(
+        `"sectionId":"${sectionId}"`,
+      );
+      expect(String(startVoice.mock.calls[0]?.[2].dynamicVariables.voice_ui_state_json)).toContain(
+        "\"reviewCardVisible\":false",
+      );
       expect(String(startVoice.mock.calls[0]?.[2].dynamicVariables.active_section_schema_json)).toContain(
         `"sectionId":"${sectionId}"`,
       );
@@ -144,6 +159,9 @@ describe("useOnboardingElevenLabsSectionRuntime", () => {
         activeTargetId: "address-draft",
       }),
     );
+    expect(sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Phase: reviewing."));
+    expect(sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Review card visible: yes."));
+    expect(sendContextUpdate).toHaveBeenCalledWith(expect.stringContaining("Forbidden actions: ask_account_id"));
   });
 
   it("falls back to the section-local voice UI when no voice provider is mounted", async () => {
