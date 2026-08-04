@@ -13,6 +13,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useOptionalVyvaVoice: () => null,
+}));
+
 describe("PhoneFrame companion mode", () => {
   beforeEach(() => {
     window.localStorage.clear();
