@@ -108,7 +108,7 @@ export function OnboardingCompanionModeChip({
 
   const selectMode = (nextMode: OnboardingCompanionMode) => {
     setMode(nextMode);
-    if (nextMode === "voice" && hasVoiceAction && voiceStatus === "idle") {
+    if (nextMode === "voice" && hasVoiceAction) {
       window.setTimeout(runPrimaryVoiceAction, 0);
     }
   };

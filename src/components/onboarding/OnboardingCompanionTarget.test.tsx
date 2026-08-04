@@ -151,6 +151,25 @@ describe("OnboardingCompanionTarget", () => {
     await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
   });
 
+  it("restarts the registered section capture when Voice is tapped again", async () => {
+    const onStart = vi.fn();
+    render(
+      <OnboardingCompanionGuidanceProvider>
+        <RegisteredVoiceAction onStart={onStart} />
+        <OnboardingCompanionModeChip {...chipProps} />
+      </OnboardingCompanionGuidanceProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Register health voice" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Voice/ }));
+
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("radio", { name: /Voice/ }));
+
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(2));
+  });
+
   it.each([390, 768, 1440])(
     "keeps long labels targetable at %s px",
     (width) => {

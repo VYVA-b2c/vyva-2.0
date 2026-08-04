@@ -457,7 +457,7 @@ export default function ConditionsSection() {
       void vyvaVoice.startVoice(
         startRequest.contextHint,
         startRequest.systemPrompt,
-        startRequest.options,
+        { ...startRequest.options, forceRestart: true },
       ).catch(() => {
         setVoiceGuidance({
           voiceStatus: "listening",
