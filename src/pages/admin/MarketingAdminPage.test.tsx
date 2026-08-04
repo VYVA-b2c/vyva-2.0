@@ -831,11 +831,9 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Customer preview");
-    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("HTML template available");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Plain text copy");
-    expect(screen.queryByTitle("Preview Partner post")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("marketing-content-customer-preview-show-html-preview"));
     expect(screen.getByTitle("Preview Partner post")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-content-customer-preview-html-preview")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Lovable design preview");
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Partner hero");
     expect(screen.getByTestId("marketing-content-customer-preview-design")).toHaveTextContent("Lovable builder copy");
