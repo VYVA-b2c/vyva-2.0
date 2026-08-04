@@ -675,7 +675,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
   content?: unknown[];
   mediaAssets?: unknown[];
   analytics?: typeof analytics;
-} = {}) {
+} = {}, initialPath = "/admin/marketing") {
   const syncResponse = { ...sync, ...syncOverride };
   const campaignsResponse = dataOverride.campaigns ?? campaigns;
   const contactsResponse = dataOverride.contacts ?? contacts;
@@ -722,7 +722,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
   });
 
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/marketing"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialPath]}>
       <MarketingAdminPage />
     </MemoryRouter>,
   );
@@ -733,6 +733,31 @@ afterEach(() => {
 });
 
 describe("MarketingAdminPage", () => {
+  it("opens the requested marketing tab from a direct URL", async () => {
+    renderPage({}, {}, "/admin/marketing/content");
+
+    expect(await screen.findByTestId("marketing-content-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("tab-marketing-content")).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows audience cards with eligible contact counts", async () => {
+    renderPage({}, {
+      contacts: [
+        {
+          ...contacts[0],
+          id: "contact-both",
+          audienceType: "both",
+          fullName: "Shared contact",
+        },
+      ],
+    });
+
+    expect(await screen.findByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("button-marketing-audience-card-b2c")).toHaveTextContent("1 campaigns / 1 contacts");
+    expect(screen.getByTestId("button-marketing-audience-card-b2b")).toHaveTextContent("1 campaigns / 1 contacts");
+    expect(screen.getByTestId("button-marketing-audience-card-both")).toHaveTextContent("0 campaigns / 1 contacts");
+  });
+
   it("shows the marketing admin home link, tabs, and filters without the global admin carousel", async () => {
     renderPage();
 
