@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
@@ -57,6 +57,23 @@ type JourneyStatus = typeof JOURNEY_STATUSES[number];
 type ContentStatus = typeof CONTENT_STATUSES[number];
 type ConsentStatus = typeof CONSENT_STATUSES[number];
 type CountOption = { value: string; label: string; count: number };
+
+const MARKETING_BASE_PATH = "/admin/marketing";
+
+function isMarketingTab(value: string): value is Tab {
+  return TABS.includes(value as Tab);
+}
+
+function marketingTabFromPath(pathname: string): Tab {
+  const normalized = pathname.replace(/\/+$/, "");
+  const lastSegment = normalized.split("/").pop() ?? "";
+  if (!lastSegment || lastSegment === "marketing") return "dashboard";
+  return isMarketingTab(lastSegment) ? lastSegment : "dashboard";
+}
+
+function marketingTabPath(tab: Tab) {
+  return tab === "dashboard" ? MARKETING_BASE_PATH : `${MARKETING_BASE_PATH}/${tab}`;
+}
 
 type MarketingSummary = {
   totals: {
@@ -2799,7 +2816,9 @@ const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg
 const floatingContentPanelClass = "fixed bottom-6 left-1/2 top-20 z-[9999] w-[min(980px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-300 bg-white p-4 shadow-[0_24px_80px_rgba(36,17,51,0.35)]";
 
 export default function MarketingAdminPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>(() => marketingTabFromPath(location.pathname));
   const [contactView, setContactView] = useState<ContactView>("contacts");
   const [summary, setSummary] = useState<MarketingSummary>(emptySummary);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -2942,6 +2961,22 @@ export default function MarketingAdminPage() {
   useEffect(() => {
     refreshAll().catch((error) => setMessage(error.message));
   }, []);
+
+  useEffect(() => {
+    const nextTab = marketingTabFromPath(location.pathname);
+    setActiveTab((current) => (current === nextTab ? current : nextTab));
+
+    const normalizedPath = location.pathname.replace(/\/+$/, "") || MARKETING_BASE_PATH;
+    const canonicalPath = marketingTabPath(nextTab);
+    if (normalizedPath.startsWith(`${MARKETING_BASE_PATH}/`) && normalizedPath !== canonicalPath) {
+      navigate(canonicalPath, { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  function openMarketingTab(tab: Tab) {
+    setActiveTab(tab);
+    navigate(marketingTabPath(tab));
+  }
 
   const contentById = useMemo(() => new Map(content.map((item) => [item.id, item])), [content]);
   const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
@@ -3307,7 +3342,7 @@ export default function MarketingAdminPage() {
   const dashboardByAudience = useMemo(() => AUDIENCES.map((audienceType) => ({
     audienceType,
     campaigns: visibleCampaigns.filter((campaign) => campaign.audienceType === audienceType).length,
-    contacts: visibleContacts.filter((contact) => contact.audienceType === audienceType).length,
+    contacts: visibleContacts.filter((contact) => campaignAllowsContact(audienceType, contact.audienceType)).length,
   })), [visibleCampaigns, visibleContacts]);
   const dashboardChannelsToShow = useMemo(() => {
     const usefulChannels = dashboardByChannel.filter((item) => item.campaigns > 0 || item.content > 0);
@@ -3545,7 +3580,7 @@ export default function MarketingAdminPage() {
 
   function openCampaignFromCalendar(campaign: Campaign) {
     startCampaignEdit(campaign);
-    setActiveTab("dashboard");
+    openMarketingTab("dashboard");
   }
 
   function cancelCampaignEdit() {
@@ -3998,7 +4033,7 @@ export default function MarketingAdminPage() {
   }
 
   function previewContent(contentAsset: ContentAsset) {
-    setActiveTab("content");
+    openMarketingTab("content");
     setSelectedContentId(contentAsset.id);
     setEditingContentId(null);
     setContentEditDraft(null);
@@ -4009,7 +4044,7 @@ export default function MarketingAdminPage() {
   }
 
   function startContentEdit(contentAsset: ContentAsset) {
-    setActiveTab("content");
+    openMarketingTab("content");
     setSelectedContentId(contentAsset.id);
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
@@ -4046,7 +4081,7 @@ export default function MarketingAdminPage() {
     }
     closeContentDrawer();
     startCampaignEdit(campaign);
-    setActiveTab("dashboard");
+    openMarketingTab("dashboard");
   }
 
   function openContentUsageJourney(journeyId: string) {
@@ -4057,7 +4092,7 @@ export default function MarketingAdminPage() {
     }
     closeContentDrawer();
     startJourneyEdit(journey);
-    setActiveTab("journeys");
+    openMarketingTab("journeys");
   }
 
   async function saveContentEdit(event: FormEvent) {
@@ -4124,7 +4159,7 @@ export default function MarketingAdminPage() {
   }
 
   function startMediaEdit(asset: MarketingMediaAsset) {
-    setActiveTab("content");
+    openMarketingTab("content");
     setEditingMediaAssetId(asset.id);
     setMediaEditDraft(mediaEditDraftFromAsset(asset));
     setConfirmingMediaDeleteId(null);
@@ -4261,7 +4296,7 @@ export default function MarketingAdminPage() {
   }
 
   function startContactEdit(contact: MarketingContact) {
-    setActiveTab("contacts");
+    openMarketingTab("contacts");
     setContactView("contacts");
     setEditingContactId(contact.id);
     setContactEditDraft(contactEditDraftFromContact(contact));
@@ -4373,7 +4408,7 @@ export default function MarketingAdminPage() {
   }
 
   function startAudienceEdit(audience: MarketingAudience) {
-    setActiveTab("contacts");
+    openMarketingTab("contacts");
     setContactView("lists");
     setEditingAudienceId(audience.id);
     setAudienceEditDraft(audienceEditDraftFromAudience(audience));
@@ -4633,7 +4668,7 @@ export default function MarketingAdminPage() {
                   type="button"
                   role="tab"
                   aria-selected={activeTab === tab}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => openMarketingTab(tab)}
                   className={`min-h-11 shrink-0 rounded-xl px-4 text-sm font-black transition ${
                     activeTab === tab ? "bg-purple-700 text-white shadow-sm" : "text-[#5b4a46] hover:bg-[#fbf8f5] hover:text-purple-700"
                   }`}
@@ -5999,7 +6034,7 @@ export default function MarketingAdminPage() {
                             <button
                               type="button"
                               className="inline-flex min-h-9 items-center justify-center rounded-xl bg-purple-700 px-3 text-xs font-black text-white"
-                              onClick={() => setActiveTab("settings")}
+                              onClick={() => openMarketingTab("settings")}
                               data-testid="button-marketing-open-sync-settings"
                             >
                               Open sync settings
