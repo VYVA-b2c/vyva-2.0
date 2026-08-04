@@ -823,10 +823,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Social post");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
-    expect(screen.getByTestId("marketing-content-timeline-content-2")).toHaveTextContent("Updated");
-    expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("Caregiver welcome");
-    expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("LinkedIn campaign channel");
+    expect(screen.getByTestId("marketing-content-library-table")).not.toHaveTextContent("Lovable ID: lovable-content-2");
+    expect(screen.queryByTestId("marketing-content-timeline-content-2")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketing-content-usage-content-2")).not.toBeInTheDocument();
     expect(screen.queryByTestId("marketing-content-usage-content-1")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
@@ -1162,7 +1161,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "social_post" } });
 
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1-1 of 1 shown");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Welcome email");
 
@@ -1173,7 +1172,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
 
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1-1 of 1 shown");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-content-library-table")).not.toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
@@ -1492,7 +1491,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-preview-media-content-media-1"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
-    fireEvent.click(screen.getByTestId("button-marketing-edit-media-content-media-1"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-previewed-content"));
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
 

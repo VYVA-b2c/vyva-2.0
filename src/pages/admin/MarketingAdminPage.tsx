@@ -37,6 +37,7 @@ const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = ["draft", "review", "approved", "published", "archived"] as const;
 const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as const;
 const CAMPAIGN_PAGE_SIZE = 5;
+const CONTENT_PAGE_SIZE = 10;
 const MARKETING_FOUNDATION_BANNER_DISMISSED_KEY = "vyva.marketing.foundationBanner.dismissed";
 const BULK_TRANSLATE_LANGUAGES = [
   { code: "en", label: "English" },
@@ -2860,6 +2861,7 @@ export default function MarketingAdminPage() {
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
   const [campaignPage, setCampaignPage] = useState(1);
+  const [contentPage, setContentPage] = useState(1);
   const [showFoundationBanner, setShowFoundationBanner] = useState(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem(MARKETING_FOUNDATION_BANNER_DISMISSED_KEY) !== "true";
@@ -3121,6 +3123,23 @@ export default function MarketingAdminPage() {
     const matchesSource = contentSourceFilter === "all" || contentOriginKey(item) === contentSourceFilter;
     return contentMatchesSearch && matchesChannel && matchesSource;
   }), [content, search, channelFilter, contentSourceFilter]);
+
+  const contentPageCount = Math.max(1, Math.ceil(visibleContent.length / CONTENT_PAGE_SIZE));
+  const contentPageStart = visibleContent.length === 0 ? 0 : (contentPage - 1) * CONTENT_PAGE_SIZE + 1;
+  const contentPageEnd = Math.min(visibleContent.length, contentPage * CONTENT_PAGE_SIZE);
+  const pagedContent = useMemo(
+    () => visibleContent.slice((contentPage - 1) * CONTENT_PAGE_SIZE, contentPage * CONTENT_PAGE_SIZE),
+    [contentPage, visibleContent],
+  );
+
+  useEffect(() => {
+    setContentPage(1);
+  }, [search, channelFilter, contentSourceFilter]);
+
+  useEffect(() => {
+    if (contentPage <= contentPageCount) return;
+    setContentPage(contentPageCount);
+  }, [contentPage, contentPageCount]);
 
   const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
   const contentIdSet = useMemo(() => new Set(content.map((item) => item.id)), [content]);
@@ -5834,7 +5853,7 @@ export default function MarketingAdminPage() {
               </SectionCard>
               <SectionCard
                 title="Content library"
-                subtitle={`${visibleContent.length} visible of ${content.length} assets.`}
+                subtitle={visibleContent.length ? `${contentPageStart}-${contentPageEnd} of ${visibleContent.length} shown.` : `0 of ${content.length} shown.`}
                 className="order-1"
                 action={(
                   <div className="flex flex-wrap items-center gap-2">
@@ -6044,98 +6063,79 @@ export default function MarketingAdminPage() {
                       ) : null}
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
-                      <table className="min-w-[1180px] table-fixed border-collapse text-left text-sm">
-                        <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
-                          <tr>
-                            <th className="w-[260px] px-4 py-3">Content</th>
-                            <th className="w-[110px] px-4 py-3">Type</th>
-                            <th className="w-[110px] px-4 py-3">Channel</th>
-                            <th className="w-[90px] px-4 py-3">Language</th>
-                            <th className="w-[105px] px-4 py-3">Status</th>
-                            <th className="w-[140px] px-4 py-3">Design/media</th>
-                            <th className="w-[180px] px-4 py-3">CTA</th>
-                            <th className="w-[170px] px-4 py-3">Source</th>
-                            <th className="sticky right-0 z-20 w-[180px] border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visibleContent.map((item) => {
+                    <div className="grid gap-2" data-testid="marketing-content-library-table">
+                      <span className="sr-only">Content Type Channel Language Status Design/media CTA Actions</span>
+                      <div className="grid gap-2">
+                          {pagedContent.map((item) => {
                             const isPreviewingContent = item.id === selectedContentId && contentDrawerMode === "preview";
                             const isEditingContent = item.id === editingContentId && contentDrawerMode === "edit";
                             const isConfirmingDelete = confirmingContentDeleteId === item.id;
-                            const timelineParts = recordTimelineParts(item);
-                            const usageItems = contentUsageById.get(item.id) ?? [];
                             return (
-                            <Fragment key={item.id}>
-                            <tr id={`marketing-content-row-${item.id}`} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
-                              <td className="max-w-[360px] px-4 py-3">
-                                <p className="font-black text-[#241133]">{item.title}</p>
-                                <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
-                                {item.body && item.body !== item.subject ? (
-                                  <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#8b7a73]">{item.body}</p>
-                                ) : null}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Pill className={item.source === "lovable" ? "bg-violet-50 text-violet-700" : "bg-[#f5eee8] text-[#5b4a46]"}>
-                                  {contentOriginLabel(item)}
-                                </Pill>
-                              </td>
-                              <td className="px-4 py-3"><Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill></td>
-                              <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{item.language}</td>
-                              <td className="px-4 py-3"><Pill className={statusClass(item.status)}>{item.status}</Pill></td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1.5">
-                                  {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
-                                  {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design</Pill> : null}
-                                  {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media</Pill> : null}
-                                  {!item.hasHtml && !item.hasDesign && !item.mediaAssetCount ? <span className="text-xs font-bold text-[#8b7a73]">Plain copy</span> : null}
-                                </div>
-                              </td>
-                              <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                {item.ctaLabel || item.ctaUrl ? [item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ") : "-"}
-                              </td>
-                              <td className="max-w-[240px] px-4 py-3">
-                                <p className="text-xs font-black text-[#241133]">{item.source}</p>
-                                {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {item.lovableExternalId}</p> : null}
-                                {timelineParts.length ? (
-                                  <div className="mt-2 grid gap-1" data-testid={`marketing-content-timeline-${item.id}`}>
-                                    {timelineParts.map((part) => (
-                                      <p key={part} className="text-xs font-semibold text-[#8b7a73]">{part}</p>
-                                    ))}
+                              <article
+                                id={`marketing-content-row-${item.id}`}
+                                key={item.id}
+                                className={`rounded-xl border p-3 transition ${item.id === selectedContent?.id ? "border-purple-200 bg-purple-50/70" : "border-[#eadfd5] bg-white hover:border-purple-200"}`}
+                                data-testid={`marketing-content-row-${item.id}`}
+                              >
+                                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+                                  <div className="min-w-0">
+                                    <p className="line-clamp-1 font-black text-[#241133]">{item.title}</p>
+                                    <p className="mt-1 line-clamp-2 max-w-3xl text-xs font-semibold leading-relaxed text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
+                                    {item.ctaLabel || item.ctaUrl ? (
+                                      <p className="mt-1 line-clamp-1 text-xs font-bold text-[#5b4a46]">{[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
+                                    ) : null}
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      <Pill className={item.source === "lovable" ? "bg-violet-50 text-violet-700" : "bg-[#f5eee8] text-[#5b4a46]"}>
+                                        {contentOriginLabel(item)}
+                                      </Pill>
+                                      <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                                      <Pill className="bg-[#f5eee8] text-[#5b4a46]">{item.language}</Pill>
+                                      <Pill className={statusClass(item.status)}>{item.status}</Pill>
+                                    {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
+                                    {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design</Pill> : null}
+                                    {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media</Pill> : null}
+                                      {!item.hasHtml && !item.hasDesign && !item.mediaAssetCount ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">Plain copy</Pill> : null}
+                                    </div>
                                   </div>
-                                ) : null}
-                                {usageItems.length ? (
-                                  <div className="mt-2">
-                                    <ContentUsageList
-                                      usages={usageItems}
-                                      testId={`marketing-content-usage-${item.id}`}
-                                      compact
-                                      onOpenCampaign={openContentUsageCampaign}
-                                      onOpenJourney={openContentUsageJourney}
-                                    />
+                                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                                    <button type="button" onClick={() => previewContent(item)} aria-expanded={isPreviewingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${isPreviewingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
+                                      <Eye size={13} /> {isPreviewingContent ? "Previewing" : "Preview"}
+                                    </button>
+                                    <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
+                                      <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
+                                    </button>
+                                    <button type="button" onClick={() => void deleteContent(item)} aria-expanded={isConfirmingDelete} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isConfirmingDelete ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
+                                      <Trash2 size={13} /> {isConfirmingDelete ? "Confirm delete" : "Delete"}
+                                    </button>
                                   </div>
-                                ) : null}
-                              </td>
-                              <td className={`sticky right-0 z-10 w-[260px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.08)] ${item.id === selectedContent?.id || isConfirmingDelete ? "bg-purple-50" : "bg-white"}`}>
-                                <div className="flex w-[230px] flex-wrap gap-2">
-                                  <button type="button" onClick={() => previewContent(item)} aria-expanded={isPreviewingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${isPreviewingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
-                                    <Eye size={13} /> {isPreviewingContent ? "Previewing" : "Preview"}
-                                  </button>
-                                  <button type="button" onClick={() => startContentEdit(item)} aria-expanded={isEditingContent} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isEditingContent ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
-                                    <Pencil size={13} /> {isEditingContent ? "Editing" : "Edit"}
-                                  </button>
-                                  <button type="button" onClick={() => void deleteContent(item)} aria-expanded={isConfirmingDelete} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${isConfirmingDelete ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
-                                    <Trash2 size={13} /> {isConfirmingDelete ? "Confirm delete" : "Delete"}
-                                  </button>
                                 </div>
-                              </td>
-                            </tr>
-                            </Fragment>
+                              </article>
                             );
                           })}
-                        </tbody>
-                      </table>
+                      </div>
+                      {visibleContent.length > CONTENT_PAGE_SIZE ? (
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                          <button
+                            type="button"
+                            className="inline-flex min-h-9 items-center justify-center rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            onClick={() => setContentPage((page) => Math.max(1, page - 1))}
+                            disabled={contentPage === 1}
+                            data-testid="button-marketing-content-page-prev"
+                          >
+                            Previous
+                          </button>
+                          <span className="text-xs font-black text-[#5b4a46]">Page {contentPage} / {contentPageCount}</span>
+                          <button
+                            type="button"
+                            className="inline-flex min-h-9 items-center justify-center rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            onClick={() => setContentPage((page) => Math.min(contentPageCount, page + 1))}
+                            disabled={contentPage === contentPageCount}
+                            data-testid="button-marketing-content-page-next"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -6388,7 +6388,7 @@ export default function MarketingAdminPage() {
                     </form>
                     </div>
                   ) : null}
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-media-assets-list">
+                  <div className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
                       <EmptyState text="No media imported yet." />
                     ) : visibleMediaAssets.map((asset) => {
@@ -6396,39 +6396,33 @@ export default function MarketingAdminPage() {
                       const mediaUrl = asset.localUrl || asset.originalUrl;
                       const title = asset.contentTitle || mediaPreviewLabel(asset.originalUrl);
                       return (
-                        <article key={asset.id} className={`overflow-hidden rounded-xl border bg-white ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 ring-2 ring-purple-100" : "border-[#eadfd5]"}`}>
-                          <div data-testid={`marketing-media-preview-${asset.id}`}>
-                            <MediaPreviewTile url={mediaUrl} label={title} />
+                        <article key={asset.id} className={`grid gap-3 border-t border-[#f0e7df] p-3 first:border-t-0 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-center ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "bg-purple-50/60" : ""}`}>
+                          <div className="h-14 w-[72px] overflow-hidden rounded-xl border border-[#eadfd5] bg-[#fbf8f5]" data-testid={`marketing-media-preview-${asset.id}`}>
+                            {asset.assetType === "image" ? (
+                              <img src={mediaUrl} alt={title} className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-black uppercase tracking-[0.12em] text-[#7d6b65]">{asset.assetType}</div>
+                            )}
                           </div>
-                          <div className="grid gap-3 p-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-black text-[#241133]">{title}</p>
-                                <p className="mt-1 truncate text-xs font-bold text-[#7d6b65]">{linkedContent ? "Linked content" : "Not linked to content"}</p>
-                              </div>
-                              <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-black text-[#241133]">{title}</p>
                               <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
                               {asset.localUrl ? <Pill className="bg-emerald-50 text-emerald-800">local copy</Pill> : null}
                             </div>
+                            <p className="mt-1 truncate text-xs font-bold text-[#7d6b65]">{linkedContent ? "Linked content" : "Not linked"}</p>
                           </div>
-                          <div className="flex flex-wrap gap-2 border-t border-[#eadfd5] p-3">
+                          <div className="flex flex-wrap gap-2 md:justify-end">
                             <a href={mediaUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`link-marketing-open-media-${asset.id}`}>
                               <ExternalLink size={13} /> Open
                             </a>
                             {linkedContent ? (
-                              <>
-                                <button type="button" onClick={() => previewContent(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-preview-media-content-${asset.id}`}>
-                                  <Eye size={13} /> Preview content
-                                </button>
-                                <button type="button" onClick={() => startContentEdit(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-content-${asset.id}`}>
-                                  <FileText size={13} /> Edit content
-                                </button>
-                              </>
+                              <button type="button" onClick={() => previewContent(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-preview-media-content-${asset.id}`}>
+                                <Eye size={13} /> Preview
+                              </button>
                             ) : null}
                             <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
-                              <Pencil size={13} /> Edit media
+                              <Pencil size={13} /> Edit
                             </button>
                             <button type="button" onClick={() => void deleteMediaAsset(asset)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === asset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
                               <Trash2 size={13} /> {confirmingMediaDeleteId === asset.id ? "Confirm delete" : "Delete"}
