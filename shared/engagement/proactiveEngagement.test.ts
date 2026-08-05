@@ -214,6 +214,7 @@ describe("Task 8 proactive engagement shared contracts", () => {
 
   it("uses closed channel and reason vocabularies", () => {
     expect(proactiveChannelSchema.safeParse("whatsapp").success).toBe(true);
+    expect(proactiveChannelSchema.safeParse("web_push").success).toBe(true);
     expect(proactiveChannelSchema.safeParse("push").success).toBe(false);
     expect(proactiveReasonCodeSchema.safeParse("quiet_hours").success).toBe(true);
     expect(proactiveReasonCodeSchema.safeParse("provider_error_raw").success).toBe(false);

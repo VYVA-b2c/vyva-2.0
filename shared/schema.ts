@@ -21,7 +21,7 @@
 
 import {
   pgTable, pgEnum, unique, uniqueIndex, primaryKey, index, foreignKey,
-  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType
+  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType, check
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -919,7 +919,14 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
   max_outbound_calls_per_day:    integer("max_outbound_calls_per_day").default(1),
   max_whatsapp_messages_per_day: integer("max_whatsapp_messages_per_day").default(5),
   concierge_task_notifications_enabled: boolean("concierge_task_notifications_enabled").notNull().default(true),
-});
+  preventive_web_push_enabled: boolean("preventive_web_push_enabled").notNull().default(false),
+  preventive_web_push_consent_revision: integer("preventive_web_push_consent_revision").notNull().default(0),
+  preventive_web_push_consent_updated_at: timestamp("preventive_web_push_consent_updated_at", { withTimezone: true }),
+  preventive_web_push_consent_granted_at: timestamp("preventive_web_push_consent_granted_at", { withTimezone: true }),
+  preventive_web_push_consent_revoked_at: timestamp("preventive_web_push_consent_revoked_at", { withTimezone: true }),
+}, (t) => [
+  check("user_channel_preferences_preventive_web_push_revision_chk", sql`${t.preventive_web_push_consent_revision} >= 0`),
+]);
 
 export const insertUserChannelPreferencesSchema = createInsertSchema(userChannelPreferences).omit({ id: true, updated_at: true });
 export type InsertUserChannelPreferences = z.infer<typeof insertUserChannelPreferencesSchema>;
@@ -3010,6 +3017,119 @@ export const insertProactiveEngagementShadowAuditSchema = createInsertSchema(pro
 export type InsertProactiveEngagementShadowAudit = z.infer<typeof insertProactiveEngagementShadowAuditSchema>;
 export type ProactiveEngagementShadowAuditRow = typeof proactiveEngagementShadowAudits.$inferSelect;
 
+export const preventiveWebPushSubscriptions = pgTable("preventive_web_push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  endpoint_digest: text("endpoint_digest").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  content_encoding: text("content_encoding").notNull().default("aes128gcm"),
+  user_agent: text("user_agent"),
+  status: text("status").notNull().default("active"),
+  consent_revision: integer("consent_revision").notNull().default(0),
+  failure_count: integer("failure_count").notNull().default(0),
+  last_provider_status: integer("last_provider_status"),
+  last_seen_at: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_web_push_subscriptions_user_status_idx").on(t.user_id, t.status),
+  index("preventive_web_push_subscriptions_updated_idx").on(t.updated_at),
+  check("preventive_web_push_subscriptions_status_chk", sql`${t.status} in ('active', 'inactive', 'revoked', 'expired')`),
+  check("preventive_web_push_subscriptions_endpoint_digest_chk", sql`${t.endpoint_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_subscriptions_endpoint_https_chk", sql`${t.endpoint} like 'https://%'`),
+  check("preventive_web_push_subscriptions_keys_nonempty_chk", sql`length(${t.p256dh}) between 80 and 120 and length(${t.auth}) between 16 and 40`),
+  check("preventive_web_push_subscriptions_failure_count_chk", sql`${t.failure_count} >= 0`),
+]);
+
+export const preventiveWebPushDeliveries = pgTable("preventive_web_push_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  delivery_key: text("delivery_key").notNull().unique(),
+  user_id: text("user_id").notNull(),
+  subscription_id: uuid("subscription_id").notNull(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  schedule_id: text("schedule_id").notNull(),
+  purpose_id: text("purpose_id").notNull(),
+  channel: text("channel").notNull().default("web_push"),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  status: text("status").notNull().default("requested"),
+  policy_audit_id: text("policy_audit_id"),
+  policy_decision_digest: text("policy_decision_digest"),
+  entry_token_digest: text("entry_token_digest"),
+  provider_attempt_id: text("provider_attempt_id"),
+  provider_attempt_number: integer("provider_attempt_number").notNull().default(0),
+  provider_status: integer("provider_status"),
+  failure_reason: text("failure_reason"),
+  requested_at: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  sending_claim_token: text("sending_claim_token"),
+  sending_claim_expires_at: timestamp("sending_claim_expires_at", { withTimezone: true }),
+  provider_attempt_started_at: timestamp("provider_attempt_started_at", { withTimezone: true }),
+  provider_attempt_accepted_at: timestamp("provider_attempt_accepted_at", { withTimezone: true }),
+  sent_at: timestamp("sent_at", { withTimezone: true }),
+  failed_at: timestamp("failed_at", { withTimezone: true }),
+  opened_at: timestamp("opened_at", { withTimezone: true }),
+  flow_started_at: timestamp("flow_started_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_web_push_deliveries_user_status_idx").on(t.user_id, t.status),
+  index("preventive_web_push_deliveries_occurrence_idx").on(t.schedule_occurrence_id, t.purpose_id),
+  check("preventive_web_push_deliveries_status_chk", sql`${t.status} in ('requested', 'sending', 'provider_attempt_started', 'delivery_uncertain', 'sent', 'failed_permanent', 'failed_retryable', 'opened', 'flow_started')`),
+  check("preventive_web_push_deliveries_channel_chk", sql`${t.channel} = 'web_push'`),
+  check("preventive_web_push_deliveries_purpose_chk", sql`${t.purpose_id} = 'daily_wellbeing_check'`),
+  check("preventive_web_push_deliveries_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("preventive_web_push_deliveries_delivery_key_chk", sql`length(${t.delivery_key}) between 1 and 512`),
+  check("preventive_web_push_deliveries_required_ids_chk", sql`length(${t.user_id}) between 1 and 160 and length(${t.schedule_occurrence_id}) between 1 and 200 and length(${t.schedule_id}) between 1 and 200`),
+  check("preventive_web_push_deliveries_token_digest_chk", sql`${t.entry_token_digest} is null or ${t.entry_token_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_deliveries_policy_digest_chk", sql`${t.policy_decision_digest} is null or ${t.policy_decision_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_deliveries_claim_chk", sql`(${t.sending_claim_token} is null and ${t.sending_claim_expires_at} is null) or (length(${t.sending_claim_token}) between 1 and 160 and ${t.sending_claim_expires_at} is not null)`),
+  check("preventive_web_push_deliveries_provider_attempt_count_chk", sql`${t.provider_attempt_number} >= 0`),
+  check("preventive_web_push_deliveries_provider_attempt_id_chk", sql`${t.provider_attempt_id} is null or length(${t.provider_attempt_id}) between 1 and 160`),
+  check("preventive_web_push_deliveries_provider_attempt_required_chk", sql`${t.status} not in ('provider_attempt_started', 'delivery_uncertain', 'sent') or ${t.provider_attempt_id} is not null`),
+]);
+
+export const preventiveWebPushEntryTokens = pgTable("preventive_web_push_entry_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  token_digest: text("token_digest").notNull().unique(),
+  delivery_id: uuid("delivery_id").notNull(),
+  user_id: text("user_id").notNull(),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  allowed_route: text("allowed_route").notNull().default("/health/check-in"),
+  status: text("status").notNull().default("active"),
+  issued_at: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  opened_at: timestamp("opened_at", { withTimezone: true }),
+  flow_started_at: timestamp("flow_started_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_web_push_entry_tokens_delivery_idx").on(t.delivery_id),
+  index("preventive_web_push_entry_tokens_user_status_idx").on(t.user_id, t.status),
+  check("preventive_web_push_entry_tokens_status_chk", sql`${t.status} in ('active', 'opened', 'flow_started', 'revoked', 'expired')`),
+  check("preventive_web_push_entry_tokens_digest_chk", sql`${t.token_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_web_push_entry_tokens_route_chk", sql`${t.allowed_route} = '/health/check-in'`),
+  check("preventive_web_push_entry_tokens_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("preventive_web_push_entry_tokens_expiry_chk", sql`${t.expires_at} > ${t.issued_at}`),
+]);
+
+export const insertPreventiveWebPushSubscriptionSchema = createInsertSchema(preventiveWebPushSubscriptions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveWebPushSubscription = z.infer<typeof insertPreventiveWebPushSubscriptionSchema>;
+export type PreventiveWebPushSubscriptionRow = typeof preventiveWebPushSubscriptions.$inferSelect;
+
+export const insertPreventiveWebPushDeliverySchema = createInsertSchema(preventiveWebPushDeliveries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveWebPushDelivery = z.infer<typeof insertPreventiveWebPushDeliverySchema>;
+export type PreventiveWebPushDeliveryRow = typeof preventiveWebPushDeliveries.$inferSelect;
+
+export const insertPreventiveWebPushEntryTokenSchema = createInsertSchema(preventiveWebPushEntryTokens).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveWebPushEntryToken = z.infer<typeof insertPreventiveWebPushEntryTokenSchema>;
+export type PreventiveWebPushEntryTokenRow = typeof preventiveWebPushEntryTokens.$inferSelect;
+
 export const orchestrationEventStateEvents = pgTable("orchestration_event_state_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   event_id: text("event_id").notNull().unique(),
@@ -3906,6 +4026,9 @@ export const schema = {
   utilityReviewRuns,
   conciergeRecommendationFeedback,
   voiceRecommendationFeedback,
+  preventiveWebPushSubscriptions,
+  preventiveWebPushDeliveries,
+  preventiveWebPushEntryTokens,
   orchestrationEventStateEvents,
   orchestrationFlowStateProjections,
   voiceTriageSessions,
