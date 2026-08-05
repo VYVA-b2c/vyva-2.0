@@ -486,7 +486,7 @@ describe("Home fast service actions", () => {
 
     renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Don't forget Monoprost in 25 min.");
   });
 
   it("quietly updates an active voice session when the selected Home message changes", () => {
@@ -544,7 +544,7 @@ describe("Home fast service actions", () => {
     });
 
     renderHomeScreen();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Don't forget Monoprost in 25 min.");
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {

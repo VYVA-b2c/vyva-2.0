@@ -1926,7 +1926,7 @@
         afternoon: "How are you feeling?",
         evening: "How are you feeling?",
       },
-      nextMedicationNudge: "In {{minutes}} min: {{name}}.",
+      nextMedicationNudge: "Don't forget {{name}} in {{minutes}} min.",
       medicationNudge: "{{count}} doses left today.",
       voiceSupport: "Tap the orb to begin.",
       chooseCategory: "Today tray",
