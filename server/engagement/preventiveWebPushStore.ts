@@ -337,7 +337,15 @@ export class PostgresPreventiveWebPushStore implements PreventiveWebPushStore {
               preventive_web_push_consent_granted_at,
               preventive_web_push_consent_revoked_at,
               updated_at
-            ) values ($1, $2, 1, $3, case when $2 then $3 else null end, case when $2 then null else $3 end, $3)
+            ) values (
+              $1,
+              $2,
+              1,
+              $3::timestamptz,
+              case when $2 then $3::timestamptz else null::timestamptz end,
+              case when $2 then null::timestamptz else $3::timestamptz end,
+              $3::timestamptz
+            )
             on conflict (user_id) do update set
               preventive_web_push_enabled = excluded.preventive_web_push_enabled,
               preventive_web_push_consent_revision = user_channel_preferences.preventive_web_push_consent_revision + 1,
