@@ -141,6 +141,7 @@ export default function MasterDashboardLayout({
   const isHomeMaster = launcherVariant === "homeMaster";
   const isHomeMasterDark = isHomeMaster && isDarkMode;
   const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
+  const isHomeMasterTopLevelCards = isHomeMaster && !isHomeMasterIntentLayer;
   const isHomeMasterContextMessage = isHomeMaster && Boolean(hero.messageActionLabel || hero.onMessageDismiss);
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
@@ -199,7 +200,7 @@ export default function MasterDashboardLayout({
       className={[
         "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
         isHomeMaster
-          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[100px] min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] lg:max-w-[920px]"
+          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] md:pb-[132px] lg:max-w-[920px]"
           : "",
       ].join(" ")}
       data-testid={testId}
@@ -351,7 +352,7 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showCards ? <section className={isHomeMaster ? (isHomeMasterIntentLayer ? "mt-2 sm:mt-3 md:mt-4" : "mt-6 sm:mt-7 md:mt-8 lg:mt-10") : "mt-4"} aria-label={cardSectionTitle || "Today tray"} data-testid={cardGridTestId}>
+      {showCards ? <section className={isHomeMaster ? (isHomeMasterIntentLayer ? "mt-2 sm:mt-3 md:mt-4" : "mt-1 min-[390px]:mt-2 sm:mt-4 md:mt-5") : "mt-4"} aria-label={cardSectionTitle || "Today tray"} data-testid={cardGridTestId}>
         {cardSectionTitle ? (
           <div>
             {isHomeMasterIntentLayer ? null : (
@@ -361,10 +362,19 @@ export default function MasterDashboardLayout({
             )}
           </div>
         ) : null}
-        <div className={isHomeMaster ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-1 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-5") : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
+        <div className={isHomeMaster ? (isHomeMasterIntentLayer ? "grid grid-cols-1 gap-2.5 min-[390px]:gap-3 sm:gap-3.5 md:gap-4" : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4 md:gap-4 lg:gap-5") : "grid grid-cols-2 gap-3 min-[390px]:gap-3.5 md:grid-cols-4"}>
           {cards.map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
+            const cardBorderColor = isHomeMasterDark ? "rgba(255,255,255,0.14)" : card.tone.border;
+            const cardLeftBorderColor = isHomeMaster && isHomeMasterIntentLayer ? card.tone.iconColor : cardBorderColor;
+            const homeMasterTitleClass = isHomeMasterTopLevelCards
+              ? isHomeMasterDark
+                ? "block max-w-[8rem] font-body text-[18px] font-extrabold leading-[1.05] !text-[#FFF8FF] min-[390px]:text-[19px] sm:text-[21px] md:max-w-[10rem] md:text-[22px]"
+                : "block max-w-[8rem] font-body text-[18px] font-extrabold leading-[1.05] text-vyva-text-1 min-[390px]:text-[19px] sm:text-[21px] md:max-w-[10rem] md:text-[22px]"
+              : isHomeMasterDark
+                ? "block font-body text-[16px] font-extrabold leading-[1.08] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]"
+                : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
             return (
               <button
                 key={card.id}
@@ -380,21 +390,30 @@ export default function MasterDashboardLayout({
                   isHomeMaster
                     ? isHomeMasterIntentLayer
                       ? "relative flex min-h-[64px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[70px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[78px] sm:rounded-[20px] sm:p-4 sm:pr-12 md:min-h-[86px] md:p-5 md:pr-14 lg:min-h-[92px] lg:p-5 lg:pr-14"
-                      : "relative flex min-h-[74px] flex-row items-center justify-start gap-3 rounded-[17px] p-3 pr-10 shadow-[0_8px_18px_rgba(63,45,35,0.055)] min-[390px]:min-h-[82px] min-[390px]:rounded-[18px] min-[390px]:p-3.5 min-[390px]:pr-11 sm:min-h-[92px] sm:rounded-[22px] sm:p-4 sm:pr-12 md:min-h-[104px] md:p-5 md:pr-14 lg:min-h-[112px] lg:p-5 lg:pr-14"
+                      : "relative flex min-h-[128px] flex-col items-start justify-between gap-3 rounded-[22px] p-3.5 pr-8 shadow-[0_14px_28px_rgba(10,7,20,0.14)] min-[390px]:min-h-[136px] min-[390px]:rounded-[24px] min-[390px]:p-4 min-[390px]:pr-9 sm:min-h-[148px] sm:p-5 md:min-h-[156px] lg:min-h-[164px]"
                     : "flex min-h-[96px] items-center gap-3 min-[390px]:min-h-[104px] md:min-h-[138px] md:flex-col md:items-start md:justify-between md:rounded-[24px]",
                 ].join(" ")}
                 style={{
-                  borderColor: isHomeMasterDark ? "rgba(255,255,255,0.14)" : card.tone.border,
-                  borderLeftColor: card.tone.iconColor,
-                  borderLeftWidth: isHomeMaster ? "5px" : undefined,
+                  borderTopColor: cardBorderColor,
+                  borderRightColor: cardBorderColor,
+                  borderBottomColor: cardBorderColor,
+                  borderLeftColor: cardLeftBorderColor,
+                  borderLeftWidth: isHomeMaster && isHomeMasterIntentLayer ? "5px" : undefined,
                   background: isHomeMaster
                     ? isHomeMasterDark
-                      ? "linear-gradient(145deg, rgba(255,255,255,0.105) 0%, rgba(255,255,255,0.07) 100%)"
-                      : "rgba(255,255,255,0.92)"
+                      ? isHomeMasterTopLevelCards
+                        ? `linear-gradient(145deg, rgba(255,255,255,0.155) 0%, rgba(255,255,255,0.085) 60%, ${card.tone.iconColor}18 100%)`
+                        : "linear-gradient(145deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0.075) 100%)"
+                      : isHomeMasterTopLevelCards
+                        ? `linear-gradient(145deg, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.9) 58%, ${card.tone.iconBg} 100%)`
+                        : "linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.88) 100%)"
                     : `linear-gradient(145deg, ${card.tone.surface ?? "#FFFFFF"} 0%, #FFFFFF 52%, ${card.tone.iconBg} 100%)`,
                   ...(card.highlighted
                     ? {
-                        borderColor: card.tone.iconColor,
+                        borderTopColor: card.tone.iconColor,
+                        borderRightColor: card.tone.iconColor,
+                        borderBottomColor: card.tone.iconColor,
+                        borderLeftColor: card.tone.iconColor,
                         boxShadow: `0 12px 28px ${card.tone.iconColor}22`,
                         outlineColor: card.tone.iconColor,
                         "--tw-ring-color": card.tone.iconColor,
@@ -406,12 +425,16 @@ export default function MasterDashboardLayout({
                   <span
                     className={[
                       "relative flex flex-shrink-0 items-center justify-center rounded-[20px] shadow-[0_10px_20px_rgba(63,45,35,0.06)]",
-                      isHomeMaster ? "h-7 w-7 rounded-[9px] min-[390px]:h-8 min-[390px]:w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 lg:h-11 lg:w-11" : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
+                      isHomeMaster
+                        ? isHomeMasterTopLevelCards
+                          ? "h-11 w-11 rounded-[15px] sm:h-12 sm:w-12 md:h-[52px] md:w-[52px] md:rounded-[17px]"
+                          : "h-7 w-7 rounded-[9px] min-[390px]:h-8 min-[390px]:w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 lg:h-11 lg:w-11"
+                        : "h-14 w-14 min-[390px]:h-[60px] min-[390px]:w-[60px] md:h-[68px] md:w-[68px] md:rounded-[24px]",
                     ].join(" ")}
                     style={{ background: isHomeMaster ? card.tone.iconBg : "#FFFFFF", color: card.tone.iconColor }}
                   >
                     {!isHomeMaster ? <span className="absolute inset-2 rounded-[16px] opacity-80" style={{ background: card.tone.iconBg }} aria-hidden="true" /> : null}
-                    <Icon className="relative" size={isHomeMaster ? 15 : 28} strokeWidth={2.55} aria-hidden="true" />
+                    <Icon className="relative" size={isHomeMasterTopLevelCards ? 22 : isHomeMaster ? 15 : 28} strokeWidth={2.55} aria-hidden="true" />
                   </span>
                   <span className={`min-w-0 flex-1 ${isHomeMaster ? "hidden" : "md:hidden"}`}>
                     <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
@@ -439,7 +462,9 @@ export default function MasterDashboardLayout({
                   <ChevronRight
                     size={14}
                     strokeWidth={2.4}
-                    className={isHomeMasterDark ? "absolute right-2.5 top-2.5 text-white/50" : "absolute right-2.5 top-2.5 text-vyva-text-3"}
+                    className={isHomeMasterDark
+                      ? `absolute ${isHomeMasterTopLevelCards ? "right-3.5 top-3.5 translate-y-0" : "right-3 top-1/2 -translate-y-1/2"} text-white/50`
+                      : `absolute ${isHomeMasterTopLevelCards ? "right-3.5 top-3.5 translate-y-0" : "right-3 top-1/2 -translate-y-1/2"} text-vyva-text-3`}
                     aria-hidden="true"
                   />
                 ) : null}
@@ -451,8 +476,8 @@ export default function MasterDashboardLayout({
                     {card.highlightLabel}
                   </span>
                 ) : null}
-                <span className={`min-w-0 pr-1 ${isHomeMaster ? "block flex-1" : "mt-3 hidden md:block"}`}>
-                  <span className={isHomeMasterDark ? "block font-body text-[16px] font-extrabold leading-[1.06] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]" : "block font-body text-[16px] font-extrabold leading-[1.06] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[22px] lg:text-[24px]"}>
+                <span className={`min-w-0 pr-1 ${isHomeMaster ? isHomeMasterTopLevelCards ? "block w-full" : "block flex-1" : "mt-3 hidden md:block"}`}>
+                  <span className={homeMasterTitleClass}>
                     {card.title}
                   </span>
                   {isHomeMaster && card.detail ? (
@@ -489,7 +514,7 @@ export default function MasterDashboardLayout({
             type="button"
             onClick={onCardSectionMore}
             data-testid={cardSectionMoreTestId}
-            className={isHomeMasterDark ? "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-white/14 bg-white/10 px-4 py-2.5 font-body text-[13px] font-black text-[#FFF8FF]" : "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-2.5 font-body text-[13px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)]"}
+            className={isHomeMasterDark ? "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.10] px-4 py-2.5 font-body text-[13px] font-black text-[#FFF8FF]" : "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-2.5 font-body text-[13px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)]"}
           >
             {cardSectionMoreLabel ?? "More"}
             <ChevronRight size={14} strokeWidth={2.5} aria-hidden="true" />

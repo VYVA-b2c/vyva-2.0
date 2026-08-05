@@ -1,8 +1,16 @@
-import { ALargeSmall, CircleUser, Moon, Settings, Sun } from "lucide-react";
+import { ALargeSmall, CircleUser, Hand, Mic, Moon, Settings, Sun } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
+import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  VYVA_HOME_MODE_CONTROL_EVENT,
+  readLatestHomeModeControl,
+  type HomeInteractionMode,
+  type HomeModeControlDetail,
+} from "@/lib/homeModeControl";
 import ConciergeTaskNotificationBell from "./ConciergeTaskNotificationBell";
 import { VyvaMark } from "./VyvaMark";
 
@@ -16,6 +24,9 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
   const { language, t } = useLanguage();
   const { isDark, toggleTheme } = useHomeMasterTheme();
   const { isLarge: isReadableTextLarge, toggleSize: toggleReadableTextSize } = useReadableTextSize();
+  const [homeControlsVisible, setHomeControlsVisible] = useState(true);
+  const [homeModeControl, setHomeModeControl] = useState<HomeModeControlDetail | null>(() => readLatestHomeModeControl());
+  const homeControlsHideTimerRef = useRef<number | null>(null);
   const now = new Date();
   const localeByLanguage: Record<string, string> = {
     es: "es-ES",
@@ -30,13 +41,57 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
   const time = now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
 
+  useEffect(() => {
+    if (variant !== "homeMaster") return;
+    if (import.meta.env.MODE === "test") return;
+    if (homeControlsHideTimerRef.current) {
+      window.clearTimeout(homeControlsHideTimerRef.current);
+    }
+    homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 4200);
+    return () => {
+      if (homeControlsHideTimerRef.current) {
+        window.clearTimeout(homeControlsHideTimerRef.current);
+        homeControlsHideTimerRef.current = null;
+      }
+    };
+  }, [variant]);
+
+  useEffect(() => {
+    if (variant !== "homeMaster") return;
+    const handleHomeModeControl = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : null;
+      if (!detail || (detail.mode !== "voice" && detail.mode !== "touch")) return;
+      setHomeModeControl(detail as HomeModeControlDetail);
+    };
+
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_EVENT, handleHomeModeControl);
+    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_EVENT, handleHomeModeControl);
+  }, [variant]);
+
   if (variant === "homeMaster") {
     const homeIconButtonClass = isDark
-      ? "vyva-tap flex h-7 !min-h-7 w-7 items-center justify-center rounded-[9px] border border-white/18 bg-white/[0.09] shadow-[0_8px_16px_rgba(0,0,0,0.16)]"
-      : "vyva-tap flex h-7 !min-h-7 w-7 items-center justify-center rounded-[9px] border bg-white/92 shadow-[0_8px_16px_rgba(63,45,35,0.06)]";
+      ? "vyva-tap flex h-9 !min-h-9 w-9 items-center justify-center rounded-full border border-transparent bg-transparent text-[#F6F0FF] transition-colors hover:bg-white/[0.10] focus-visible:bg-white/[0.12]"
+      : "vyva-tap flex h-9 !min-h-9 w-9 items-center justify-center rounded-full border border-transparent bg-transparent text-[#6B5173] transition-colors hover:bg-[#F7F1FF] focus-visible:bg-[#F7F1FF]";
     const darkIconStyle = isDark ? { color: "#F6F0FF" } : undefined;
+    const revealHomeControls = () => {
+      setHomeControlsVisible(true);
+      if (import.meta.env.MODE === "test") return;
+      if (homeControlsHideTimerRef.current) {
+        window.clearTimeout(homeControlsHideTimerRef.current);
+      }
+      homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 4200);
+    };
+    const modeControlNextMode: HomeInteractionMode = homeModeControl?.mode === "voice" ? "touch" : "voice";
+    const ModeControlIcon = homeModeControl?.mode === "voice" ? Hand : Mic;
+    const modeControlVisible = homeControlsVisible || Boolean(homeModeControl?.visible);
+    const handleHomeModeControlClick = () => {
+      revealHomeControls();
+      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
+        detail: { mode: modeControlNextMode },
+      }));
+    };
     return (
-      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-4 min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] lg:max-w-[920px]">
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-3 min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] lg:max-w-[920px]">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"
@@ -48,10 +103,23 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
               <VyvaMark variant="white" className="h-[22px] w-[23px]" />
             </span>
           </button>
-          <div className="flex shrink-0 items-center gap-1">
+          <div
+            className={`flex shrink-0 items-center gap-0.5 rounded-full border px-1 py-1 backdrop-blur-xl transition-all duration-700 focus-within:opacity-100 hover:opacity-100 motion-reduce:transition-none ${
+              isDark
+                ? "border-white/[0.12] bg-[#170C2A]/[0.54] shadow-[0_16px_34px_rgba(0,0,0,0.22)]"
+                : "border-[#EDE4F4] bg-white/[0.86] shadow-[0_12px_26px_rgba(60,33,82,0.12)]"
+            } ${
+              modeControlVisible
+                ? "translate-y-0 opacity-100"
+                : "-translate-y-1 opacity-0"
+            }`}
+            onMouseEnter={revealHomeControls}
+            onFocus={revealHomeControls}
+            data-testid="home-master-utility-dock"
+          >
             <button
               onClick={() => navigate("/settings")}
-              className={`${homeIconButtonClass} ${isDark ? "" : "border-[#E9D5FF] text-vyva-purple"}`}
+              className={homeIconButtonClass}
               style={darkIconStyle}
               data-testid="button-my-profile"
               aria-label={t("nav.myProfile")}
@@ -61,7 +129,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             <button
               type="button"
               onClick={toggleReadableTextSize}
-              className={`${homeIconButtonClass} ${isDark ? isReadableTextLarge ? "!border-white/28 !bg-white/16 !text-white" : "" : isReadableTextLarge ? "border-[#8B5CF6] bg-[#F4ECFF] text-vyva-purple" : "border-[#E9D5FF] text-vyva-purple"}`}
+              className={`${homeIconButtonClass} ${isDark ? isReadableTextLarge ? "!bg-white/[0.16] !text-white" : "" : isReadableTextLarge ? "!bg-[#F1E7FF] !text-vyva-purple" : ""}`}
               style={darkIconStyle}
               data-testid="button-readable-text-size"
               aria-pressed={isReadableTextLarge}
@@ -72,13 +140,34 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
             <button
               type="button"
               onClick={toggleTheme}
-              className={`${homeIconButtonClass} ${isDark ? "" : "border-[#FDE68A] text-[#B7791F]"}`}
+              className={`${homeIconButtonClass} ${isDark ? "" : "!text-[#8A5A12]"}`}
               style={darkIconStyle}
               data-testid="button-home-master-theme"
               aria-label={isDark ? t("home.master.header.lightMode", "Use light mode") : t("home.master.header.darkMode", "Use dark mode")}
             >
               {isDark ? <Sun size={13} strokeWidth={2.25} /> : <Moon size={13} strokeWidth={2.25} />}
             </button>
+            {homeModeControl ? (
+              <button
+                type="button"
+                onClick={handleHomeModeControlClick}
+                className={[
+                  "vyva-tap ml-0.5 flex h-9 !min-h-9 w-9 items-center justify-center rounded-full border transition-transform hover:scale-[1.03] focus-visible:scale-[1.03]",
+                  isDark
+                    ? homeModeControl.mode === "voice"
+                      ? "border-white/[0.16] bg-[#8B5CF6] text-white shadow-[0_8px_18px_rgba(139,92,246,0.26)]"
+                      : "border-white/[0.16] bg-[#0F766E] text-white shadow-[0_8px_18px_rgba(15,118,110,0.26)]"
+                    : homeModeControl.mode === "voice"
+                      ? "border-[#DDD6FE] bg-vyva-purple text-white shadow-[0_8px_18px_rgba(107,33,168,0.18)]"
+                      : "border-[#99F6E4] bg-[#0F766E] text-white shadow-[0_8px_18px_rgba(15,118,110,0.16)]",
+                ].join(" ")}
+                data-testid={homeModeControl.testId}
+                aria-label={homeModeControl.label}
+                title={homeModeControl.label}
+              >
+                <ModeControlIcon size={16} strokeWidth={2.45} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

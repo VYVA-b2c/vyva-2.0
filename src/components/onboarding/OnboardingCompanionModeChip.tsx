@@ -180,7 +180,7 @@ export function OnboardingCompanionModeChip({
         <div
           role="radiogroup"
           aria-label={accessibleLabel}
-          className="grid min-h-[46px] grid-cols-2 rounded-full border border-vyva-purple/15 bg-[#FFFCF8] p-1"
+          className="inline-flex h-11 items-center gap-1 rounded-full border border-[#E7DDF3] bg-[#FBF8FF]/95 p-0.5 shadow-[0_10px_22px_rgba(18,10,31,0.10)]"
         >
           {options.map(({ id, label, description, Icon }) => {
             const selected = mode === id;
@@ -193,14 +193,14 @@ export function OnboardingCompanionModeChip({
               aria-label={`${label}. ${description}`}
               data-testid={`button-section-companion-mode-${id}`}
               onClick={() => selectMode(id)}
-              className={`flex min-h-[38px] min-w-0 items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-black transition-all focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FACC15] motion-reduce:transition-none ${
+              className={`inline-flex h-10 !min-h-10 min-w-[72px] items-center justify-center gap-1.5 rounded-full px-3 font-body text-[12px] font-black transition-colors duration-200 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FACC15] motion-reduce:transition-none min-[390px]:min-w-[80px] ${
                 selected
-                  ? "bg-vyva-purple text-white shadow-[0_8px_16px_rgba(107,33,168,0.20)]"
-                  : "text-vyva-text-2 hover:bg-[#F8F1FF] hover:text-vyva-purple"
+                  ? "bg-vyva-purple text-white shadow-[0_7px_15px_rgba(107,33,168,0.24)]"
+                  : "text-[#6E5A76] hover:bg-[#F7F0FF] hover:text-[#24113D]"
               }`}
             >
-              <Icon size={15} aria-hidden="true" />
-              <span className="min-w-0 truncate">{label}</span>
+              <Icon size={16} strokeWidth={2.4} aria-hidden="true" />
+              <span>{label}</span>
             </button>
             );
           })}

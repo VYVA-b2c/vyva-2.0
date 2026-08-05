@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowRight,
   Bell,
   Brain,
   Car,
@@ -20,16 +21,23 @@ import {
   Pill,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Stethoscope,
   StickyNote,
   TimerReset,
   UserCheck,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { CaregiverBrainCoachPanel } from "@/components/CaregiverBrainCoachPanel";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
+import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  recordWelcomeModuleSelectionEvent,
+  type WelcomeModuleHomeResponse,
+} from "@/lib/welcomeModuleHome";
 
 type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
 type WorkflowStatus = "new" | "acknowledged" | "contacted" | "watching" | "resolved";
@@ -454,13 +462,26 @@ function statusSupport(status: SafetyStatus) {
 export default function CaregiverDashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { language } = useLanguage();
   const [workflow, setWorkflow] = useState<AlertWorkflowState>(() => loadWorkflowState());
   const [copiedAlertId, setCopiedAlertId] = useState<string | null>(null);
   const [digestCopied, setDigestCopied] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [showMedsDetails, setShowMedsDetails] = useState(false);
   const [showVitalsDetails, setShowVitalsDetails] = useState(false);
+  const [dismissedWelcomeIds, setDismissedWelcomeIds] = useState<string[]>([]);
 
+  const welcomeModuleUrl = `/api/welcome-module/home?surface=caregiver_dashboard&language=${encodeURIComponent(language)}`;
+  const { data: caregiverWelcome } = useQuery<WelcomeModuleHomeResponse>({
+    queryKey: [welcomeModuleUrl],
+    queryFn: async () => {
+      const response = await apiFetch(welcomeModuleUrl);
+      if (!response.ok) throw new Error("Could not load caregiver Welcome message");
+      return response.json();
+    },
+    retry: false,
+    staleTime: 60 * 1000,
+  });
   const { data, isLoading, isError } = useQuery<CaregiverSafetyResponse>({
     queryKey: ["/api/vitals-engine/caregiver/latest-alerts"],
     queryFn: async () => {
@@ -578,6 +599,15 @@ export default function CaregiverDashboardPage() {
         ? "Due now"
         : "Waiting";
   const attentionAlerts = openAlerts.slice(0, 2);
+  const caregiverWelcomeMessage = caregiverWelcome?.message ?? null;
+  const visibleCaregiverWelcome = caregiverWelcomeMessage && !dismissedWelcomeIds.includes(caregiverWelcomeMessage.templateId)
+    ? caregiverWelcomeMessage
+    : null;
+
+  useEffect(() => {
+    if (!visibleCaregiverWelcome) return;
+    recordWelcomeModuleSelectionEvent(visibleCaregiverWelcome, "shown", language, "/caregiver");
+  }, [language, visibleCaregiverWelcome?.templateId]);
 
   function persistWorkflow(next: AlertWorkflowState) {
     setWorkflow(next);
@@ -616,6 +646,32 @@ export default function CaregiverDashboardPage() {
     const note = noteDraft.trim();
     if (!note || saveNoteMutation.isPending) return;
     saveNoteMutation.mutate(note);
+  }
+
+  function dismissCaregiverWelcome() {
+    if (!visibleCaregiverWelcome) return;
+    recordWelcomeModuleSelectionEvent(visibleCaregiverWelcome, "dismissed", language, "/caregiver");
+    setDismissedWelcomeIds((ids) => (
+      ids.includes(visibleCaregiverWelcome.templateId)
+        ? ids
+        : [...ids, visibleCaregiverWelcome.templateId]
+    ));
+  }
+
+  function openCaregiverWelcome() {
+    if (!visibleCaregiverWelcome) return;
+    const route = visibleCaregiverWelcome.actionRoute ?? "/caregiver";
+    recordWelcomeModuleSelectionEvent(visibleCaregiverWelcome, "opened", language, route);
+    if (!visibleCaregiverWelcome.actionRoute) return;
+    navigate(visibleCaregiverWelcome.actionRoute, {
+      state: {
+        source: "caregiver_welcome",
+        welcomeTemplateId: visibleCaregiverWelcome.templateId,
+        welcomeAudience: visibleCaregiverWelcome.audience,
+        welcomeMomentType: visibleCaregiverWelcome.momentType,
+        welcomeProfileAction: visibleCaregiverWelcome.profileAction ?? null,
+      },
+    });
   }
 
   function openCaregiverAlertServiceAction(alert: CaregiverAlert, action: CaregiverAlertNavigationActionKind) {
@@ -702,6 +758,56 @@ export default function CaregiverDashboardPage() {
               )}
             </div>
           </header>
+
+          {visibleCaregiverWelcome ? (
+            <section
+              className="mt-6 rounded-[22px] border border-vyva-purple/20 bg-[linear-gradient(135deg,#5B0FA3_0%,#7C2CCB_52%,#8B5CF6_100%)] p-5 text-white shadow-[0_18px_44px_rgba(107,33,168,0.20)] sm:p-6"
+              data-testid="caregiver-welcome-card"
+              aria-label="Caregiver Welcome message"
+            >
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-white/16 text-white ring-1 ring-white/20">
+                    <Sparkles className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-white/72">
+                      Welcome
+                    </p>
+                    <h2 className="mt-2 max-w-3xl font-display text-[28px] font-bold leading-[1.08] text-white sm:text-[36px]">
+                      {visibleCaregiverWelcome.headline}
+                    </h2>
+                    <p className="mt-3 max-w-3xl font-body text-[16px] font-semibold leading-relaxed text-white/86 sm:text-[17px]">
+                      {visibleCaregiverWelcome.subtitle}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2 self-start md:self-center">
+                  {visibleCaregiverWelcome.ctaLabel && visibleCaregiverWelcome.actionRoute ? (
+                    <button
+                      type="button"
+                      onClick={openCaregiverWelcome}
+                      className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[15px] bg-white px-4 font-body text-[14px] font-black text-vyva-purple shadow-[0_10px_24px_rgba(47,33,53,0.13)] transition hover:bg-vyva-purple-pale"
+                      data-testid="button-caregiver-welcome-open"
+                    >
+                      {visibleCaregiverWelcome.ctaLabel}
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={dismissCaregiverWelcome}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-[15px] bg-white/14 text-white ring-1 ring-white/20 transition hover:bg-white/22"
+                    aria-label="Dismiss Welcome message"
+                    data-testid="button-caregiver-welcome-dismiss"
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           {isLoading || isDashboardLoading ? (
             <div className="mt-7 flex min-h-[220px] items-center justify-center rounded-[16px] bg-[#F8FAF8]">

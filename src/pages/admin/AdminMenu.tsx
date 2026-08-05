@@ -42,6 +42,7 @@ const adminItems: AdminItem[] = [
   { label: "Admins", path: "/admin/users", description: "Manage admin access", icon: UserRoundCog },
   { label: "Phone onboarding", path: "/admin/phone-onboarding", description: "Inbound caller intake", icon: PhoneCall },
   { label: "Home cards", path: "/admin/home-cards", description: "Personalized Today cards", icon: Home },
+  { label: "Welcome module", path: "/admin/welcome-module", description: "First-session copy and nudges", icon: Sparkles },
   { label: "Hero messages", path: "/admin/hero-messages", description: "Banner copy and rules", icon: MessageSquare },
   { label: "Marketing", path: "/admin/marketing", description: "Campaigns, contacts and sync", icon: Megaphone },
   { label: "Workflows", path: "/admin/workflows", description: "Coverage and next steps", icon: GitBranch },
