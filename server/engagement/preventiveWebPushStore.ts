@@ -329,7 +329,13 @@ export class PostgresPreventiveWebPushStore implements PreventiveWebPushStore {
       await client.query("begin");
       try {
         const result = await client.query<ConsentRow>(
-          `insert into user_channel_preferences (
+          `with consent_input as (
+              select
+                $1::text as user_id,
+                $2::boolean as enabled,
+                $3::timestamptz as effective_at
+            )
+            insert into user_channel_preferences (
               user_id,
               preventive_web_push_enabled,
               preventive_web_push_consent_revision,
@@ -337,7 +343,16 @@ export class PostgresPreventiveWebPushStore implements PreventiveWebPushStore {
               preventive_web_push_consent_granted_at,
               preventive_web_push_consent_revoked_at,
               updated_at
-            ) values ($1, $2, 1, $3, case when $2 then $3 else null end, case when $2 then null else $3 end, $3)
+            )
+            select
+              user_id,
+              enabled,
+              1,
+              effective_at,
+              case when enabled then effective_at else null::timestamptz end,
+              case when enabled then null::timestamptz else effective_at end,
+              effective_at
+            from consent_input
             on conflict (user_id) do update set
               preventive_web_push_enabled = excluded.preventive_web_push_enabled,
               preventive_web_push_consent_revision = user_channel_preferences.preventive_web_push_consent_revision + 1,

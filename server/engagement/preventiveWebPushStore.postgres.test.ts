@@ -42,6 +42,41 @@ function storeForUrl() {
 
 describe("Task 10 real PostgreSQL preventive web push store", () => {
   it.runIf(task10PostgresUrl)(
+    "persists consent timestamp transitions through typed PostgreSQL inputs",
+    async () => {
+      await withClient(async (client) => {
+        await client.query("create table if not exists public.user_channel_preferences (id uuid primary key default gen_random_uuid(), user_id text not null unique, updated_at timestamptz not null default now())");
+        await client.query(migrationSql);
+      });
+
+      const store = storeForUrl();
+      const userId = `user.${randomUUID()}`;
+      const grantedAt = new Date("2026-08-03T12:00:00.000Z");
+      const revokedAt = new Date("2026-08-03T12:05:00.000Z");
+      const regrantedAt = new Date("2026-08-03T12:10:00.000Z");
+
+      const granted = await store.setConsent({ userId, enabled: true, now: grantedAt });
+      expect(granted).toMatchObject({ enabled: true, revision: 1 });
+      expect(granted.updatedAt?.toISOString()).toBe(grantedAt.toISOString());
+      expect(granted.grantedAt?.toISOString()).toBe(grantedAt.toISOString());
+      expect(granted.revokedAt).toBeNull();
+
+      const revoked = await store.setConsent({ userId, enabled: false, now: revokedAt });
+      expect(revoked).toMatchObject({ enabled: false, revision: 2 });
+      expect(revoked.updatedAt?.toISOString()).toBe(revokedAt.toISOString());
+      expect(revoked.grantedAt?.toISOString()).toBe(grantedAt.toISOString());
+      expect(revoked.revokedAt?.toISOString()).toBe(revokedAt.toISOString());
+
+      const regranted = await store.setConsent({ userId, enabled: true, now: regrantedAt });
+      expect(regranted).toMatchObject({ enabled: true, revision: 3 });
+      expect(regranted.updatedAt?.toISOString()).toBe(regrantedAt.toISOString());
+      expect(regranted.grantedAt?.toISOString()).toBe(regrantedAt.toISOString());
+      expect(regranted.revokedAt).toBeNull();
+    },
+    180_000,
+  );
+
+  it.runIf(task10PostgresUrl)(
     "proves consent defaults, ownership, delivery idempotency and token redemption on PostgreSQL",
     async () => {
       await withClient(async (client) => {
