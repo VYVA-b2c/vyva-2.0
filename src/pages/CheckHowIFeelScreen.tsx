@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { recordPreventivePushFlowStarted, redeemPreventivePushEntry } from "@/lib/preventiveWebPush";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { ListenButton } from "@/components/ListenButton";
 import {
@@ -1960,6 +1961,7 @@ function sendReportToTarget(target: ShareTarget, subject: string, text: string) 
 
 const CheckHowIFeelScreen = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { firstName, profile } = useProfile();
   const { language } = useLanguage();
@@ -1970,6 +1972,7 @@ const CheckHowIFeelScreen = () => {
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareUrlLoading, setShareUrlLoading] = useState(false);
+  const [preventivePushEntryId, setPreventivePushEntryId] = useState<string | null>(null);
   const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
     queryKey: ["/api/onboarding/careteam"],
     enabled: step === "result",
@@ -2028,6 +2031,32 @@ const CheckHowIFeelScreen = () => {
   const resultVisual = result ? resultVisualFor(result.overall_state) : null;
   const energyOptions = localizedEnergyOptionsFor(gender, copy);
   const moodOptionsLocalized = localizedMoodOptionsFor(copy);
+
+  useEffect(() => {
+    const token = searchParams.get("pushEntry");
+    if (!token) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("pushEntry");
+    setSearchParams(nextParams, { replace: true });
+
+    let cancelled = false;
+    void redeemPreventivePushEntry(token)
+      .then((entry) => {
+        if (!cancelled) setPreventivePushEntryId(entry.entryId);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast({
+            title: copy.shareFailed,
+            description: "This check-in link could not be restored.",
+            variant: "destructive",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [copy.shareFailed, searchParams, setSearchParams, toast]);
   const bodyOptionsLocalized = localizedBodyOptionsFor(copy);
   const sleepOptionsLocalized = localizedSleepOptionsFor(copy);
   const symptomOptions = localizedSymptomOptionsFor(gender, copy);
@@ -2109,6 +2138,17 @@ const CheckHowIFeelScreen = () => {
 
   const continueAfterDetails = () => {
     setStep(needsSafetyFollowup(answers) ? "safety" : "social");
+  };
+
+  const startCheckin = () => {
+    const entryId = preventivePushEntryId;
+    if (entryId) {
+      setPreventivePushEntryId(null);
+      void recordPreventivePushFlowStarted(entryId).catch(() => {
+        // The check-in itself remains the user's primary action.
+      });
+    }
+    setStep("energy");
   };
 
   const analyze = async () => {
@@ -2259,7 +2299,7 @@ const CheckHowIFeelScreen = () => {
           </div>
           <div className="px-6 pb-6">
             <button
-              onClick={() => setStep("energy")}
+              onClick={startCheckin}
               className="vyva-primary-action min-h-[74px] w-full text-[21px]"
               data-testid="button-checkin-start"
             >

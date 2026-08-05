@@ -190,6 +190,7 @@ export const proactiveChannelSchema = z.enum([
   "in_app",
   "sms",
   "voice_call",
+  "web_push",
   "whatsapp",
 ]);
 export type ProactiveChannel = z.infer<typeof proactiveChannelSchema>;

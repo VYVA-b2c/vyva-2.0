@@ -83,6 +83,7 @@ describe("Profile channel preferences", () => {
       max_outbound_calls_per_day: 1,
       max_whatsapp_messages_per_day: 5,
       concierge_task_notifications_enabled: true,
+      preventive_web_push_enabled: false,
     });
   });
 
@@ -100,6 +101,7 @@ describe("Profile channel preferences", () => {
       max_outbound_calls_per_day: null,
       max_whatsapp_messages_per_day: 10,
       concierge_task_notifications_enabled: false,
+      preventive_web_push_enabled: true,
     };
 
     const saveRes = await request(app)
@@ -108,14 +110,20 @@ describe("Profile channel preferences", () => {
       .send(payload)
       .expect(200);
 
-    expect(saveRes.body).toMatchObject(payload);
+    expect(saveRes.body).toMatchObject({
+      ...payload,
+      preventive_web_push_enabled: false,
+    });
 
     const getRes = await request(app)
       .get("/api/profile/channel-preferences")
       .set("x-user-id", userId)
       .expect(200);
 
-    expect(getRes.body).toMatchObject(payload);
+    expect(getRes.body).toMatchObject({
+      ...payload,
+      preventive_web_push_enabled: false,
+    });
 
     const [row] = await db
       .select()
@@ -126,6 +134,7 @@ describe("Profile channel preferences", () => {
     expect(row?.preferred_reminder_channel).toBe("voice_app");
     expect(row?.max_outbound_calls_per_day).toBeNull();
     expect(row?.concierge_task_notifications_enabled).toBe(false);
+    expect(row?.preventive_web_push_enabled).toBe(false);
 
     const [profile] = await db
       .select({ data_sharing_consent: profiles.data_sharing_consent })

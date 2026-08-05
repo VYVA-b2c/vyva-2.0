@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import NotificationsSettings from "./NotificationsSettings";
 import { apiFetch } from "@/lib/queryClient";
+import { enablePreventiveWebPush } from "@/lib/preventiveWebPush";
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
@@ -22,7 +23,13 @@ vi.mock("@/lib/queryClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
+vi.mock("@/lib/preventiveWebPush", () => ({
+  enablePreventiveWebPush: vi.fn(),
+  disablePreventiveWebPush: vi.fn(),
+}));
+
 const apiFetchMock = vi.mocked(apiFetch);
+const enablePreventiveWebPushMock = vi.mocked(enablePreventiveWebPush);
 
 const preferences = {
   preferred_checkin_channel: "voice_outbound",
@@ -35,6 +42,7 @@ const preferences = {
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
   concierge_task_notifications_enabled: true,
+  preventive_web_push_enabled: false,
 };
 
 function renderPage() {
@@ -59,6 +67,18 @@ function renderPage() {
 describe("NotificationsSettings", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
+    enablePreventiveWebPushMock.mockReset();
+    enablePreventiveWebPushMock.mockResolvedValue({
+      consentEnabled: true,
+      consentRevision: 1,
+      subscribed: true,
+      config: {
+        supported: true,
+        enabled: true,
+        reason: "preventive_web_push_allowed_user",
+        publicKey: "B".repeat(87),
+      },
+    });
     apiFetchMock.mockResolvedValue({ ok: true, json: async () => ({
       ...preferences,
       concierge_task_notifications_enabled: false,
@@ -77,5 +97,14 @@ describe("NotificationsSettings", () => {
     expect(JSON.parse(String(request?.body))).toMatchObject({
       concierge_task_notifications_enabled: false,
     });
+  });
+
+  it("enables preventive web push through the dedicated explicit-gesture helper", async () => {
+    renderPage();
+    const toggle = await screen.findByTestId("switch-preventive-web-push");
+    expect(toggle).toHaveAttribute("data-state", "unchecked");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(enablePreventiveWebPushMock).toHaveBeenCalledTimes(1));
+    expect(apiFetchMock).toHaveBeenCalledTimes(0);
   });
 });

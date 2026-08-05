@@ -1338,14 +1338,20 @@ This decision does not prevent the future hierarchy. The initial Health Speciali
 ### Stage 5 — PWA push entry
 
 - **Objective:** consented push opens/restores preventive flow.
-- **Reuse:** service-worker registration, routes, schedules.
-- **Files likely affected:** `public/service-worker.js`, `src/registerServiceWorker.ts`, notification settings/profile APIs, new push adapter/subscription route and migration.
-- **New files:** subscription persistence, push adapter, service-worker handlers, and deep-link token support.
+- **Reuse:** existing service-worker registration, authenticated profile routing, Task 8 policy evaluation/audit, and the frozen Stage 4 `health.preventive_check@1.0.0` flow.
+- **Files likely affected:** `public/service-worker.js`, notification settings/profile APIs, new push adapter/subscription route and migration. Do not prompt for notification permission from service-worker registration or app startup.
+- **New files:** subscription persistence, dedicated `web-push` adapter, Stage 5 feature flag, Stage 5 push-entry runtime, service-worker handlers, deep-link token support and focused tests.
 - **Dependencies:** Stage 4 and policy.
-- **Flag:** small opt-in pilot.
-- **Acceptance:** install, permission, subscription, send, click, restore; no auto-voice.
-- **Tests:** service-worker unit/browser tests and revoked-consent checks.
-- **Observability:** requested/sent/opened/failed/flow-started.
+- **Flag:** `flag.engagement.preventive_web_push`, default disabled, strict parsing, denylist precedence, explicit production opt-in and valid decoded VAPID provider configuration required. Empty CSV items, repeated separators, whitespace, Unicode whitespace, duplicates, malformed identities and excessive list sizes fail closed with minimized reason codes.
+- **Consent:** browser permission is insufficient. The server stores a dedicated preventive web-push consent bit/revision separate from Concierge task notifications, defaulting to false. Subscription and revocation use a dedicated authenticated API boundary. Entry redemption and `flow_started` re-check current server consent, active subscription status and matching consent revision inside the same store operation that marks `opened` or `flow_started`; revocation idempotently invalidates outstanding unexpired owned entry tokens.
+- **Runtime sequence:** run Task 8 policy evaluation and write the audit first, then apply the Stage 5 flag, re-check server consent and an active subscription, create/load a durable `requested` delivery, acquire an idempotent `sending` claim, persist provider-attempt identity before the network call, persist an opaque deep-link token digest, send through the dedicated Web Push adapter, record provider acceptance as `delivery_uncertain`, and only then commit `sent`. Task 8 remains audit-only/shadow-only and is not a dispatcher.
+- **Delivery guarantee:** Stage 5 does not claim exactly-once remote Web Push delivery. After a provider attempt is locally recorded, VYVA makes at most one automatic provider call for that delivery occurrence. Provider-accepted outcomes that lose the final `sent` commit or observability record become `delivery_uncertain` and are not blindly resent.
+- **Database:** migration 0079 and `shared/schema.ts` carry matching Task 10 columns, defaults, indexes and CHECK constraints for status vocabulary, fixed channel/purpose/Flow/route identity, digest shapes, token expiry ordering, consent revision and provider-attempt invariants.
+- **Deep link:** notification clicks may only open `/health/check-in` with an opaque token. The token is high entropy, stored only by digest server-side, same-user authenticated, expiry-bound, removed from the URL after redemption, and marks `flow_started` only after the user taps Start.
+- **Acceptance:** explicit-gesture permission, descriptor-safe subscription validation, decoded Web Push key validation, provider-gated send, click restore, idempotency, revoked-consent blocks, no arbitrary redirect, newly-created browser subscription cleanup after server persistence failure, no auto-voice, no SMS/voice/WhatsApp/email/in-app fallback from Stage 5.
+- **Tests:** service-worker tests, Playwright/Chromium browser-boundary tests, client helper/settings tests, route tests, subscription validation tests, strict flag tests, runtime idempotency/provider-attempt tests, migration tests and gated real PostgreSQL tests.
+- **Real proof:** PostgreSQL freeze proof uses the Task 9 scratch-database pattern with `TASK10_POSTGRES_URL` pointing at a disposable database named with `task10` plus `test`, `tmp`, `ci` or `scratch`; Playwright/Chromium proof imports the actual Vite-served client module and instruments browser Notification, Service Worker and PushManager boundaries. Browser tests do not claim remote push-service delivery.
+- **Observability:** requested/sending/provider-attempt-started/delivery-uncertain/sent/opened/failed/flow-started with minimized metadata only.
 - **Rollback:** stop sends and unregister subscriptions; caching remains.
 - **Risk:** high.
 - **Do not change:** offline caching/update logic.
