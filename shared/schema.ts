@@ -3243,6 +3243,58 @@ export const insertHeroMessageEventSchema = createInsertSchema(heroMessageEvents
 export type InsertHeroMessageEvent = z.infer<typeof insertHeroMessageEventSchema>;
 export type HeroMessageEventRow = typeof heroMessageEvents.$inferSelect;
 
+export const welcomeModuleTemplates = pgTable("welcome_module_templates", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  template_id:    text("template_id").notNull().unique(),
+  audience:       text("audience").notNull().default("elder"),
+  moment_type:    text("moment_type").notNull().default("daily_profile_nudge"),
+  profile_action: text("profile_action"),
+  priority:       integer("priority").notNull().default(10),
+  cooldown_hours: integer("cooldown_hours").notNull().default(24),
+  periods:        text("periods").array().notNull().default([]),
+  copy:           jsonb("copy").notNull().default({}),
+  action_route:   text("action_route"),
+  is_enabled:     boolean("is_enabled").notNull().default(true),
+  admin_notes:    text("admin_notes"),
+  created_at:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("welcome_module_templates_audience_idx").on(t.audience),
+  index("welcome_module_templates_moment_idx").on(t.moment_type),
+  index("welcome_module_templates_action_idx").on(t.profile_action),
+  index("welcome_module_templates_enabled_idx").on(t.is_enabled),
+]);
+
+export const insertWelcomeModuleTemplateSchema = createInsertSchema(welcomeModuleTemplates).omit({ id: true, created_at: true, updated_at: true });
+export type InsertWelcomeModuleTemplate = z.infer<typeof insertWelcomeModuleTemplateSchema>;
+export type WelcomeModuleTemplateRow = typeof welcomeModuleTemplates.$inferSelect;
+
+export const welcomeModuleEvents = pgTable("welcome_module_events", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  user_id:        text("user_id").notNull(),
+  profile_id:     text("profile_id"),
+  template_id:    text("template_id").notNull(),
+  audience:       text("audience").notNull(),
+  moment_type:    text("moment_type").notNull(),
+  profile_action: text("profile_action"),
+  event_type:     text("event_type").notNull(),
+  language:       text("language").notNull().default("es"),
+  route:          text("route").notNull().default(""),
+  event_date:     date("event_date").notNull().default(sql`CURRENT_DATE`),
+  source:         text("source").notNull().default("built_in"),
+  created_at:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("welcome_module_events_user_idx").on(t.user_id, t.created_at),
+  index("welcome_module_events_profile_idx").on(t.profile_id, t.created_at),
+  index("welcome_module_events_template_idx").on(t.template_id),
+  index("welcome_module_events_moment_idx").on(t.moment_type, t.event_date),
+  index("welcome_module_events_action_idx").on(t.profile_action, t.event_date),
+]);
+
+export const insertWelcomeModuleEventSchema = createInsertSchema(welcomeModuleEvents).omit({ id: true, created_at: true });
+export type InsertWelcomeModuleEvent = z.infer<typeof insertWelcomeModuleEventSchema>;
+export type WelcomeModuleEventRow = typeof welcomeModuleEvents.$inferSelect;
+
 export const marketingContentAssets = pgTable("marketing_content_assets", {
   id:                   uuid("id").primaryKey().defaultRandom(),
   title:                text("title").notNull(),
@@ -3862,6 +3914,8 @@ export const schema = {
   homeFastHelpJourneyEvents,
   heroMessages,
   heroMessageEvents,
+  welcomeModuleTemplates,
+  welcomeModuleEvents,
   marketingAudiences,
   marketingAudienceMembers,
   marketingContentAssets,

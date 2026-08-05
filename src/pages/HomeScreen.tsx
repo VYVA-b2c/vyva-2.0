@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, MicOff, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
+import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -38,11 +38,23 @@ import {
 } from "@/lib/homeContextMessages";
 import { adaptHeroMessageForHome } from "@/lib/homeAdminMessages";
 import {
+  adaptWelcomeModuleForHome,
+  recordWelcomeModuleEvent,
+  type WelcomeModuleHomeResponse,
+} from "@/lib/welcomeModuleHome";
+import {
   normalizeHeroLanguage,
   recordHeroEvent,
   recordHeroImpression,
   type HeroReason,
 } from "@/lib/heroMessages";
+import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  publishHomeModeControl,
+  type HomeInteractionMode,
+  type HomeModeControlActionDetail,
+  type HomeModeControlDetail,
+} from "@/lib/homeModeControl";
 import {
   VYVA_VOICE_APP_ACTION_RESULT_EVENT,
   VYVA_VOICE_HOME_INTENT_EVENT,
@@ -735,6 +747,16 @@ const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const welcomeModuleUrl = `/api/welcome-module/home?language=${encodeURIComponent(language)}`;
+  const { data: welcomeModuleHome } = useQuery<WelcomeModuleHomeResponse>({
+    queryKey: [welcomeModuleUrl],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+  const welcomeHomeContextMessage = useMemo(
+    () => adaptWelcomeModuleForHome(welcomeModuleHome?.message),
+    [welcomeModuleHome?.message],
+  );
   const managedHomeHeroMessage = useHeroMessage("home_voice", {
     language,
     trackImpression: false,
@@ -770,6 +792,7 @@ const HomeScreen = () => {
       return "voice";
     }
   });
+  const [homeModeSwitcherVisible, setHomeModeSwitcherVisible] = useState(true);
   const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
     () => !hasSeenVoiceOrbHint(),
   );
@@ -827,6 +850,45 @@ const HomeScreen = () => {
       return;
     }
   }, [homeInteractionMode]);
+
+  useEffect(() => {
+    const handleHomeModeControlAction = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as HomeModeControlActionDetail | undefined
+        : undefined;
+      if (detail?.mode !== "voice" && detail?.mode !== "touch") return;
+      setHomeModeSwitcherVisible(true);
+      setHomeInteractionMode(detail.mode);
+    };
+
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+  }, []);
+
+  useEffect(() => {
+    setHomeModeSwitcherVisible(true);
+    if (import.meta.env.MODE === "test") return;
+    const timer = window.setTimeout(() => setHomeModeSwitcherVisible(false), 4800);
+    return () => window.clearTimeout(timer);
+  }, [homeInteractionMode, homeIntentLayer]);
+
+  useEffect(() => {
+    const nextHomeInteractionMode: HomeInteractionMode = homeInteractionMode === "voice" ? "touch" : "voice";
+    const detail: HomeModeControlDetail = {
+      mode: homeInteractionMode,
+      visible: homeModeSwitcherVisible,
+      label: nextHomeInteractionMode === "touch"
+        ? t("home.mode.switchToTouch", "Switch to touch")
+        : t("home.mode.switchToVoice", "Switch to voice"),
+      testId: nextHomeInteractionMode === "touch" ? "button-home-mode-touch" : "button-home-mode-voice",
+    };
+
+    publishHomeModeControl(detail);
+    return () => {
+      if (import.meta.env.MODE === "test") return;
+      publishHomeModeControl({ ...detail, visible: false });
+    };
+  }, [homeInteractionMode, homeModeSwitcherVisible, t]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
@@ -1754,6 +1816,9 @@ const HomeScreen = () => {
         nonUrgent: true,
       });
     }
+    if (welcomeHomeContextMessage) {
+      messages.push(welcomeHomeContextMessage);
+    }
     if (adminHomeContextMessage) {
       messages.push(adminHomeContextMessage);
     }
@@ -1772,6 +1837,7 @@ const HomeScreen = () => {
     brainCoachHomeSignal,
     conciergeClockMs,
     adminHomeContextMessage,
+    welcomeHomeContextMessage,
     nextConciergeTask,
     nextScheduledEvent,
     preventionHomeSignal,
@@ -1868,6 +1934,7 @@ const HomeScreen = () => {
       source,
       kind: selectedHomeContextMessage.kind,
     });
+    if (recordWelcomeModuleEvent(selectedHomeContextMessage, outcome, language)) return;
     const reason: HeroReason = selectedHomeContextDecision?.reason === "urgent_safety"
       ? "safety"
       : selectedHomeContextDecision?.reason === "due_personal"
@@ -2767,77 +2834,17 @@ const HomeScreen = () => {
       intentLayer={homeIntentLayer !== "home"}
       showHero={homeInteractionMode === "voice"}
       showCards={homeInteractionMode === "touch" || homeIntentLayer !== "home"}
-      modeSwitcher={(
-        <>
-          <div
-            className={[
-              "mb-2 flex justify-end px-3 min-[390px]:px-5 sm:mb-3 sm:px-8",
-            ].join(" ")}
-            data-testid="home-mode-switcher"
-          >
-            <div
-              className={[
-                "inline-flex rounded-full border p-1 shadow-[0_8px_22px_rgba(80,45,120,0.08)]",
-                isHomeMasterDark
-                  ? "border-white/15 bg-white/10"
-                  : "border-[#E6DDF1] bg-white/85",
-              ].join(" ")}
-              aria-label={t("home.mode.label", "Home mode")}
-              role="group"
-            >
-              <button
-                type="button"
-                aria-pressed={homeInteractionMode === "voice"}
-                aria-label={t("home.mode.voiceAria", "Voice mode: VYVA can speak and listen")}
-                title={t("home.mode.voice", "Voice")}
-                data-testid="button-home-mode-voice"
-                onClick={() => setHomeInteractionMode("voice")}
-                className={[
-                  "vyva-tap flex h-9 w-9 items-center justify-center rounded-full transition-colors",
-                  homeInteractionMode === "voice"
-                    ? "bg-vyva-purple text-white shadow-[0_7px_18px_rgba(107,33,168,0.22)]"
-                    : isHomeMasterDark
-                      ? "text-[#E8DDF3]"
-                      : "text-[#5D4865]",
-                ].join(" ")}
-              >
-                <Mic size={16} aria-hidden="true" />
-                <span className="sr-only">{t("home.mode.voice", "Voice")}</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={homeInteractionMode === "touch"}
-                aria-label={t("home.mode.touchAria", "Touch mode: VYVA stays quiet and follows taps")}
-                title={t("home.mode.touch", "Touch")}
-                data-testid="button-home-mode-touch"
-                onClick={() => setHomeInteractionMode("touch")}
-                className={[
-                  "vyva-tap flex h-9 w-9 items-center justify-center rounded-full transition-colors",
-                  homeInteractionMode === "touch"
-                    ? "bg-[#0F8B82] text-white shadow-[0_7px_18px_rgba(15,139,130,0.20)]"
-                    : isHomeMasterDark
-                      ? "text-[#E8DDF3]"
-                      : "text-[#5D4865]",
-                ].join(" ")}
-              >
-                {homeInteractionMode === "touch" ? <MicOff size={16} aria-hidden="true" /> : <Hand size={16} aria-hidden="true" />}
-                <span className="sr-only">{t("home.mode.touch", "Touch")}</span>
-              </button>
-            </div>
-          </div>
-          {homeInteractionMode === "touch" ? (
-            <h1
-              data-testid="home-touch-heading"
-              className={[
-                "mb-5 text-center font-body text-[25px] font-bold leading-tight min-[390px]:text-[28px] sm:mb-7 sm:text-[32px]",
-                isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
-              ].join(" ")}
-            >
-              {activeIntentTitle}
-            </h1>
-          ) : null}
-        </>
-      )}
+      modeSwitcher={homeInteractionMode === "touch" ? (
+        <h1
+          data-testid="home-touch-heading"
+          className={[
+            "mb-3 mt-1 text-center font-body text-[26px] font-extrabold leading-tight min-[390px]:mb-4 min-[390px]:text-[29px] sm:mb-5 sm:text-[33px]",
+            isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
+          ].join(" ")}
+        >
+          {activeIntentTitle}
+        </h1>
+      ) : null}
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}

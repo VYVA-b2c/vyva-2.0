@@ -67,6 +67,7 @@ const modules: AdminModule[] = [
     tools: [
       { label: "Marketing", path: "/admin/marketing", icon: Megaphone },
       { label: "Email replies", path: "/admin/concierge-email-replies", icon: Mail },
+      { label: "Welcome module", path: "/admin/welcome-module", icon: Sparkles },
       { label: "Hero messages", path: "/admin/hero-messages", icon: MessageSquare },
     ],
   },

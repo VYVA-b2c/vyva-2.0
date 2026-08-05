@@ -1,8 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import StatusBar from "./StatusBar";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { READABLE_TEXT_SIZE_STORAGE_KEY } from "@/hooks/useReadableTextSize";
+import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  VYVA_HOME_MODE_CONTROL_EVENT,
+} from "@/lib/homeModeControl";
 
 const navigateMock = vi.fn();
 
@@ -58,5 +62,35 @@ describe("StatusBar home master variant", () => {
 
     expect(window.localStorage.getItem(READABLE_TEXT_SIZE_STORAGE_KEY)).toBe("normal");
     expect(textSizeButton).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("keeps the home mode control inside the utility dock", () => {
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
+
+    render(<StatusBar variant="homeMaster" />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_EVENT, {
+        detail: {
+          mode: "voice",
+          visible: true,
+          label: "Switch to touch",
+          testId: "button-home-mode-touch",
+        },
+      }));
+    });
+
+    const dock = screen.getByTestId("home-master-utility-dock");
+    const modeButton = screen.getByTestId("button-home-mode-touch");
+
+    expect(dock).toContainElement(modeButton);
+    expect(modeButton).toHaveAccessibleName("Switch to touch");
+
+    fireEvent.click(modeButton);
+    expect(actionHandler).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { mode: "touch" },
+    }));
+
+    window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
   });
 });

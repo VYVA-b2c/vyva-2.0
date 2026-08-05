@@ -375,6 +375,10 @@
       "action": "Chiedi a VYVA",
       "aria": "Chiedi a VYVA da dove iniziare"
     },
+    "mode": {
+      "switchToTouch": "Passa al touch",
+      "switchToVoice": "Passa alla voce"
+    },
     "conciergeResume": {
       "kicker": "Adesso",
       "kickerConfirm": "Serve il tuo OK",

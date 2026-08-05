@@ -387,6 +387,10 @@
       "action": "Ask VYVA",
       "aria": "Ask VYVA where to start"
     },
+    "mode": {
+      "switchToTouch": "Switch to touch",
+      "switchToVoice": "Switch to voice"
+    },
     "conciergeResume": {
       "kicker": "Right now",
       "kickerConfirm": "Needs your OK",

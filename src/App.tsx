@@ -136,6 +136,7 @@ const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const PhoneOnboardingPage = lazy(() => import("./pages/admin/PhoneOnboardingPage"));
 const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage"));
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
+const WelcomeModuleAdminPage = lazy(() => import("./pages/admin/WelcomeModuleAdminPage"));
 const MarketingAdminPage = lazy(() => import("./pages/admin/MarketingAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCoverageAdminPage"));
@@ -706,6 +707,7 @@ const App = () => (
                 <Route path="/admin/phone-onboarding" element={<AdminRoute><PhoneOnboardingPage /></AdminRoute>} />
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
+                <Route path="/admin/welcome-module" element={<AdminRoute><WelcomeModuleAdminPage /></AdminRoute>} />
                 <Route path="/admin/marketing" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
                 <Route path="/admin/marketing/:marketingTab" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
                 <Route path="/admin/workflows" element={<AdminRoute><WorkflowCoverageAdminPage /></AdminRoute>} />

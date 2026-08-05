@@ -255,6 +255,10 @@
       "action": "VYVA fragen",
       "aria": "VYVA fragen, wo man anfangen soll"
     },
+    "mode": {
+      "switchToTouch": "Zu Touch wechseln",
+      "switchToVoice": "Zu Stimme wechseln"
+    },
     "conciergeResume": {
       "kicker": "Jetzt",
       "kickerConfirm": "Braucht dein OK",

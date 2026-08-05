@@ -106,6 +106,28 @@ const dashboardPayload = {
   },
 };
 
+const caregiverWelcomePayload = {
+  message: {
+    templateId: "caregiver-first-morning",
+    audience: "caregiver",
+    momentType: "first_login_welcome",
+    profileAction: "emergency_contact",
+    headline: "Good morning, Karim",
+    subtitle: "Set up contacts, medicines, and reminders so help is ready.",
+    ctaLabel: "Add contacts",
+    actionRoute: "/onboarding/profile/emergency",
+    priority: 120,
+    source: "built_in",
+  },
+  state: {
+    audience: "caregiver",
+    surface: "caregiver_dashboard",
+    firstWelcomeShown: false,
+    dailyNudgeShownToday: false,
+    date: "2026-05-29",
+  },
+};
+
 const medsPayload = {
   today: {
     medications: [{
@@ -323,6 +345,12 @@ function mockApi(options: {
 
   vi.mocked(apiFetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
+    if (path.includes("/api/welcome-module/events")) {
+      return new Response(null, { status: 204 });
+    }
+    if (path.includes("/api/welcome-module/home")) {
+      return new Response(JSON.stringify(caregiverWelcomePayload), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
     if (path.includes("/api/caregiver/brain-coach/me/summary")) {
       return new Response(JSON.stringify({ summary: brainCoachSummary, permissions: brainCoachPermissions }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
@@ -407,6 +435,7 @@ function renderPage() {
           <Route path="/" element={<CaregiverDashboardPage />} />
           <Route path="/health/doctor" element={<LocationProbe />} />
           <Route path="/concierge" element={<LocationProbe />} />
+          <Route path="/onboarding/profile/emergency" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -419,6 +448,62 @@ afterEach(() => {
 });
 
 describe("CaregiverDashboardPage", () => {
+  it("shows the caregiver Welcome card and records the shown event", async () => {
+    mockApi();
+
+    renderPage();
+
+    const welcomeCard = await screen.findByTestId("caregiver-welcome-card");
+    expect(welcomeCard).toHaveTextContent("Good morning, Karim");
+    expect(welcomeCard).toHaveTextContent("Set up contacts, medicines, and reminders so help is ready.");
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/welcome-module/home?surface=caregiver_dashboard"),
+      );
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/welcome-module/events",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"eventType":"shown"'),
+        }),
+      );
+    });
+  });
+
+  it("lets caregivers dismiss the Welcome card", async () => {
+    mockApi();
+
+    renderPage();
+
+    expect(await screen.findByTestId("caregiver-welcome-card")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-caregiver-welcome-dismiss"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("caregiver-welcome-card")).not.toBeInTheDocument();
+      expect(apiFetch).toHaveBeenCalledWith(
+        "/api/welcome-module/events",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"eventType":"dismissed"'),
+        }),
+      );
+    });
+  });
+
+  it("opens the Welcome task with caregiver Welcome state", async () => {
+    mockApi();
+
+    renderPage();
+
+    fireEvent.click(await screen.findByTestId("button-caregiver-welcome-open"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/emergency");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("caregiver_welcome");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("caregiver-first-morning");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("emergency_contact");
+  });
+
   it("shows the caregiver action center with the existing safety status and alert timeline", async () => {
     mockApi();
 
