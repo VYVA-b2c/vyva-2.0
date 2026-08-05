@@ -1669,7 +1669,7 @@ const HomeScreen = () => {
       messages.push({
         id: `dose:${nextMedicineName}`,
         kind: "reminder",
-        title: t("home.master.nextMedicationNudge", "In {{minutes}} min: {{name}}.", {
+        title: t("home.master.nextMedicationNudge", "Don't forget {{name}} in {{minutes}} min.", {
           minutes: nextMedicineMinutes,
           name: nextMedicineName,
         }),
@@ -2175,7 +2175,7 @@ const HomeScreen = () => {
     trackHomeContextOutcome,
     voice?.status,
   ]);
-  const homeMasterGreetingText = selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, "");
+  const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
   const activeIntentKey = homeIntentLayer === "home" ? null : `${homeIntentLayer}Intent`;
   const activeIntentTitle = activeIntentKey
     ? t(`home.master.${activeIntentKey}.title`)
@@ -2185,10 +2185,22 @@ const HomeScreen = () => {
       ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
       : t(`home.master.${activeIntentKey}.dormantSubtitle`)
     : null;
-  const homeMasterNormalHeroSubtitle = selectedHomeContextMessage?.supportingText
-    ?? (activeIntentSubtitle
-      ? activeIntentSubtitle
-      : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const selectedHomeContextTitle = selectedHomeContextMessage?.title?.trim() ?? "";
+  const selectedHomeContextSupport = selectedHomeContextMessage?.supportingText?.trim()
+    || selectedHomeContextMessage?.spokenText?.trim()
+    || "";
+  const selectedHomeContextLooksLikeGreeting = Boolean(selectedHomeContextTitle)
+    && selectedHomeContextTitle.replace(/[.]$/, "").toLowerCase() === homeMasterGreetingText.toLowerCase();
+  const homeMasterContextNudgeText = !activeIntentKey
+    && selectedHomeContextMessage
+    && selectedHomeContextMessage.kind !== "default"
+    ? selectedHomeContextLooksLikeGreeting
+      ? selectedHomeContextSupport
+      : selectedHomeContextTitle || selectedHomeContextSupport
+    : null;
+  const homeMasterNormalHeroSubtitle = activeIntentSubtitle
+    ?? homeMasterContextNudgeText
+    ?? t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?");
   const showHomeVoiceFirstUseHint = homeInteractionMode === "voice"
     && homeIntentLayer === "home"
     && showVoiceOrbFirstUseHint
@@ -2835,15 +2847,28 @@ const HomeScreen = () => {
       showHero={homeInteractionMode === "voice"}
       showCards={homeInteractionMode === "touch" || homeIntentLayer !== "home"}
       modeSwitcher={homeInteractionMode === "touch" ? (
-        <h1
-          data-testid="home-touch-heading"
-          className={[
-            "mb-3 mt-1 text-center font-body text-[26px] font-extrabold leading-tight min-[390px]:mb-4 min-[390px]:text-[29px] sm:mb-5 sm:text-[33px]",
-            isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
-          ].join(" ")}
-        >
-          {activeIntentTitle}
-        </h1>
+        <div className="mb-7 mt-1 px-3 text-center min-[390px]:mb-8 sm:mb-10">
+          <h1
+            data-testid="home-touch-heading"
+            className={[
+              "font-body text-[27px] font-extrabold leading-tight min-[390px]:text-[30px] sm:text-[34px]",
+              isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
+            ].join(" ")}
+          >
+            {activeIntentTitle}
+          </h1>
+          {homeMasterHeroSubtitle ? (
+            <p
+              data-testid="home-touch-subheading"
+              className={[
+                "mx-auto mt-1.5 max-w-[19rem] font-body text-[15px] font-bold leading-snug min-[390px]:text-[16px] sm:max-w-[28rem] sm:text-[18px]",
+                isHomeMasterDark ? "text-[#E8DDF3]" : "text-[#6C5369]",
+              ].join(" ")}
+            >
+              {homeMasterHeroSubtitle}
+            </p>
+          ) : null}
+        </div>
       ) : null}
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}

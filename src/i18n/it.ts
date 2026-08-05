@@ -1456,7 +1456,7 @@ const it = {
         afternoon: "Come ti senti?",
         evening: "Come ti senti?",
       },
-      nextMedicationNudge: "Tra {{minutes}} min: {{name}}.",
+      nextMedicationNudge: "Non dimenticare {{name}} tra {{minutes}} min.",
       medicationNudge: "{{count}} dosi rimaste oggi.",
       voiceSupport: "Tocca l'orbe per iniziare.",
       chooseCategory: "Vassoio di oggi",
