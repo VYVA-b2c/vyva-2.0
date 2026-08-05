@@ -255,6 +255,10 @@
       "action": "Demander a VYVA",
       "aria": "Demander a VYVA par ou commencer"
     },
+    "mode": {
+      "switchToTouch": "Passer au tactile",
+      "switchToVoice": "Passer a la voix"
+    },
     "conciergeResume": {
       "kicker": "Maintenant",
       "kickerConfirm": "Votre accord",

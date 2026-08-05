@@ -255,6 +255,10 @@
       "action": "Perguntar a VYVA",
       "aria": "Perguntar a VYVA por onde comecar"
     },
+    "mode": {
+      "switchToTouch": "Mudar para toque",
+      "switchToVoice": "Mudar para voz"
+    },
     "conciergeResume": {
       "kicker": "Agora",
       "kickerConfirm": "Precisa do seu OK",
