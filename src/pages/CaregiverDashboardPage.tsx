@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -463,6 +463,7 @@ export default function CaregiverDashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { language } = useLanguage();
+  const shownWelcomeEventKeyRef = useRef<string | null>(null);
   const [workflow, setWorkflow] = useState<AlertWorkflowState>(() => loadWorkflowState());
   const [copiedAlertId, setCopiedAlertId] = useState<string | null>(null);
   const [digestCopied, setDigestCopied] = useState(false);
@@ -606,8 +607,11 @@ export default function CaregiverDashboardPage() {
 
   useEffect(() => {
     if (!visibleCaregiverWelcome) return;
+    const eventKey = `${language}:${visibleCaregiverWelcome.templateId}`;
+    if (shownWelcomeEventKeyRef.current === eventKey) return;
+    shownWelcomeEventKeyRef.current = eventKey;
     recordWelcomeModuleSelectionEvent(visibleCaregiverWelcome, "shown", language, "/caregiver");
-  }, [language, visibleCaregiverWelcome?.templateId]);
+  }, [language, visibleCaregiverWelcome]);
 
   function persistWorkflow(next: AlertWorkflowState) {
     setWorkflow(next);
