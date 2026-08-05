@@ -1676,7 +1676,7 @@ const es = {
         afternoon: "¿Cómo te encuentras?",
         evening: "¿Cómo te encuentras?",
       },
-      nextMedicationNudge: "En {{minutes}} min te toca {{name}}.",
+      nextMedicationNudge: "No olvides {{name}} en {{minutes}} min.",
       medicationNudge: "{{count}} dosis pendientes hoy.",
       voiceSupport: "Toca el orbe para empezar.",
       chooseCategory: "Bandeja de hoy",
