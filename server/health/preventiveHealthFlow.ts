@@ -257,6 +257,14 @@ export type PreventiveHealthFlowRunResult = {
   answerDigest: string;
 };
 
+export type PreventiveHealthFlowEntryResult = {
+  transitions: FlowTransition[];
+  finalState: FlowState;
+  expectedInput: ExpectedFlowInput;
+  entryReference: string;
+  entryDigest: string;
+};
+
 export type PreventiveHealthFlowFailureReason =
   | "contract_invalid"
   | "answers_invalid"
@@ -270,6 +278,10 @@ export type PreventiveHealthFlowFailureReason =
 export type PreventiveHealthFlowRunOutcome =
   | { ok: true; result: PreventiveHealthFlowRunResult }
   | { ok: false; reasonCode: PreventiveHealthFlowFailureReason };
+
+export type PreventiveHealthFlowEntryOutcome =
+  | { ok: true; result: PreventiveHealthFlowEntryResult }
+  | { ok: false; reasonCode: "contract_invalid" | "flow_state_invalid" };
 
 function expectedInput(
   question: PreventiveHealthQuestionDefinition,
@@ -583,6 +595,104 @@ function buildRunResult(input: {
     completionReference,
     answerDigest,
   };
+}
+
+function buildEntryResult(input: {
+  userId: string;
+  profileId?: string;
+  sessionId: string;
+  occurredAt: string;
+  triggerReference: string;
+  contract: PreventiveHealthRuntimeContract;
+}): PreventiveHealthFlowEntryResult {
+  const firstQuestion = input.contract.questions[0];
+  if (!firstQuestion) throw new Error("preventive health entry question missing");
+  const entryDigest = eventStateCanonicalDigest({
+    flowId: input.contract.flowId,
+    flowVersion: input.contract.flowVersion,
+    userId: input.userId,
+    profileId: input.profileId ?? null,
+    sessionId: input.sessionId,
+    triggerReference: input.triggerReference,
+  });
+  const entryReference = deterministicId("entry.health.preventive_check", {
+    entryDigest,
+    triggerReference: input.triggerReference,
+    sessionId: input.sessionId,
+  });
+  const baseEventFacts = {
+    entryReference,
+    sessionId: input.sessionId,
+    entryDigest,
+  };
+  const transitions = [
+    transition("idle", "initializing", input.occurredAt, deterministicId("event.health.preventive_check.entry.initializing", baseEventFacts), "health.preventive_check.entry.start", input.contract),
+    transition("initializing", "active", input.occurredAt, deterministicId("event.health.preventive_check.entry.active", baseEventFacts), "health.preventive_check.entry.initialized", input.contract),
+    transition("active", "waiting_for_user", input.occurredAt, deterministicId("event.health.preventive_check.entry.waiting", baseEventFacts), "health.preventive_check.entry.awaiting_first_answer", input.contract),
+  ];
+  const expected = expectedInput(firstQuestion, input.contract);
+  const finalState = parseFlowState({
+    flowId: input.contract.flowId,
+    flowVersion: input.contract.flowVersion,
+    state: "waiting_for_user",
+    sessionId: input.sessionId,
+    userId: input.userId,
+    expectedInput: expected,
+    context: {
+      entryOutcome: {
+        entryReference,
+        entryDigest,
+        result: "preventive_health_flow_waiting_for_first_answer",
+      },
+      metadata: {
+        flowRuntimeVersion: input.contract.flowVersion,
+        canonicalCatalogueFlowId: input.contract.flowId,
+        canonicalCatalogueVersion: input.contract.catalogueVersion,
+        canonicalPresentationRegistryVersion: input.contract.presentationRegistryVersion,
+        canonicalSceneId: input.contract.sceneId,
+        triggerReference: input.triggerReference,
+      },
+    },
+    updatedAt: input.occurredAt,
+  });
+  return {
+    transitions,
+    finalState,
+    expectedInput: expected,
+    entryReference,
+    entryDigest,
+  };
+}
+
+export function startPreventiveHealthFlowEntry(input: {
+  userId: string;
+  profileId?: string;
+  sessionId: string;
+  occurredAt: string;
+  triggerReference: string;
+  catalogue?: FlowCatalogue;
+  presentationRegistry?: PresentationRegistry;
+}): PreventiveHealthFlowEntryOutcome {
+  const contract = resolvePreventiveHealthRuntimeContract({
+    catalogue: input.catalogue,
+    presentationRegistry: input.presentationRegistry,
+  });
+  if (!contract) return { ok: false, reasonCode: "contract_invalid" };
+  try {
+    return {
+      ok: true,
+      result: buildEntryResult({
+        userId: input.userId,
+        ...(input.profileId !== undefined ? { profileId: input.profileId } : {}),
+        sessionId: input.sessionId,
+        occurredAt: input.occurredAt,
+        triggerReference: input.triggerReference,
+        contract,
+      }),
+    };
+  } catch {
+    return { ok: false, reasonCode: "flow_state_invalid" };
+  }
 }
 
 export function runPreventiveHealthFlowFromAnswers(input: {
