@@ -18,9 +18,11 @@ import {
   PREVENTIVE_HEALTH_FLOW_ID,
   PREVENTIVE_HEALTH_FLOW_VERSION,
   type PreventiveHealthAnswers,
+  type PreventiveHealthFlowEntryResult,
   type PreventiveHealthFlowRunResult,
   PREVENTIVE_HEALTH_SPECIALIST_ID,
   runPreventiveHealthFlowFromAnswers,
+  startPreventiveHealthFlowEntry,
 } from "./preventiveHealthFlow.js";
 import { evaluatePreventiveCheckinSafety } from "./preventiveHealthSafety.js";
 
@@ -127,6 +129,26 @@ export type PreventiveHealthAttemptOutcome<TResult extends PreventiveHealthResul
       retryAfterSeconds: number;
       meta: PreventiveHealthNonCompletionMeta;
       flagResolution: PreventiveHealthFlowModeResolution;
+    };
+
+export type PreventiveHealthFlowEntryStartOutcome =
+  | {
+      outcome: "started" | "restored";
+      flowId: typeof PREVENTIVE_HEALTH_FLOW_ID;
+      flowVersion: typeof PREVENTIVE_HEALTH_FLOW_VERSION;
+      sessionId: string;
+      evidenceReference: string;
+      result: PreventiveHealthFlowEntryResult;
+      flagResolution: PreventiveHealthFlowModeResolution;
+    }
+  | {
+      outcome: "rejected";
+      reasonCode:
+        | "preventive_health_flow_disabled"
+        | "preventive_health_flow_contract_invalid"
+        | "preventive_health_flow_persistence_failed"
+        | "preventive_health_flow_runtime_failed";
+      flagResolution?: PreventiveHealthFlowModeResolution;
     };
 
 export type PreventiveHealthPersistenceIdentity = {
@@ -425,6 +447,78 @@ function channelFor(modality: AnswerSubmissionModality): string {
   if (modality === "voice") return "voice";
   if (modality === "text") return "text";
   return "pwa";
+}
+
+export async function startPreventiveHealthFlowForEntry(input: {
+  userId: string;
+  profileId?: string;
+  sessionId: string;
+  triggerReference: string;
+  env: OrchestratorEnvironmentMap;
+  now: Date;
+  eventStore?: EventStateCompatibilityStore;
+}): Promise<PreventiveHealthFlowEntryStartOutcome> {
+  let flagResolution: PreventiveHealthFlowModeResolution;
+  try {
+    flagResolution = resolvePreventiveHealthFlowMode({
+      env: input.env,
+      now: input.now,
+      userId: input.userId,
+      cohortKey: input.userId,
+    });
+  } catch {
+    return { outcome: "rejected", reasonCode: "preventive_health_flow_disabled" };
+  }
+  if (flagResolution.effectiveMode !== "authoritative") {
+    return {
+      outcome: "rejected",
+      reasonCode: "preventive_health_flow_disabled",
+      flagResolution,
+    };
+  }
+
+  const flow = startPreventiveHealthFlowEntry({
+    userId: input.userId,
+    ...(input.profileId !== undefined ? { profileId: input.profileId } : {}),
+    sessionId: input.sessionId,
+    occurredAt: input.now.toISOString(),
+    triggerReference: input.triggerReference,
+  });
+  if (!flow.ok) {
+    return {
+      outcome: "rejected",
+      reasonCode: flow.reasonCode === "contract_invalid"
+        ? "preventive_health_flow_contract_invalid"
+        : "preventive_health_flow_runtime_failed",
+      flagResolution,
+    };
+  }
+
+  const store = input.eventStore ?? defaultEventStateCompatibilityStore;
+  const projection = await store.writeFlowProjection(flow.result.finalState, {
+    eventId: flow.result.transitions[flow.result.transitions.length - 1]?.eventId
+      ?? flow.result.entryReference,
+    reason: "health.preventive_check.entry.awaiting_first_answer",
+  }).catch(() => ({
+    outcome: "rejected" as const,
+    reason: "persistence_unavailable" as const,
+  }));
+  if (projection.outcome !== "stored" && projection.outcome !== "duplicate") {
+    return {
+      outcome: "rejected",
+      reasonCode: "preventive_health_flow_persistence_failed",
+      flagResolution,
+    };
+  }
+  return {
+    outcome: projection.outcome === "stored" ? "started" : "restored",
+    flowId: PREVENTIVE_HEALTH_FLOW_ID,
+    flowVersion: PREVENTIVE_HEALTH_FLOW_VERSION,
+    sessionId: input.sessionId,
+    evidenceReference: flow.result.entryReference,
+    result: flow.result,
+    flagResolution,
+  };
 }
 
 export async function attemptPreventiveHealthCheckin<
