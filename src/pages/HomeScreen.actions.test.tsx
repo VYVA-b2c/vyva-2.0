@@ -169,19 +169,27 @@ const labels: Record<string, string> = {
   "home.mode.voiceCta": "Talk to VYVA",
   "home.master.chooseCategory": "Today tray",
   "home.master.heroSubtitle": "VYVA is ready when you are.",
-  "home.master.touchOrbToBegin": "Touch the orb to begin.",
+  "home.master.touchOrbToBegin": "Touch the voice button to begin.",
   "home.master.proactiveGreeting.morning": "How are you feeling?",
   "home.master.proactiveGreeting.afternoon": "How are you feeling?",
   "home.master.proactiveGreeting.evening": "How are you feeling?",
-  "home.master.voiceSupport": "Tap the orb to begin.",
+  "home.master.voiceSupport": "Tap the voice button to begin.",
   "home.master.healthIntent.title": "Are you OK?",
   "home.master.healthIntent.more": "More health options",
+  "home.master.healthIntent.dormantSubtitle": "Choose a health option, or touch the voice button.",
+  "home.master.healthIntent.voiceSubtitle": "Tell VYVA what you need, or touch the voice button.",
   "home.master.mindIntent.title": "What would you like to exercise?",
   "home.master.mindIntent.more": "More mind activities",
+  "home.master.mindIntent.dormantSubtitle": "Choose an activity, or touch the voice button.",
+  "home.master.mindIntent.voiceSubtitle": "Tell VYVA what you want to exercise, or touch the voice button.",
   "home.master.communityIntent.title": "How would you like to connect?",
   "home.master.communityIntent.more": "More community options",
+  "home.master.communityIntent.dormantSubtitle": "Choose a way to connect, or touch the voice button.",
+  "home.master.communityIntent.voiceSubtitle": "Tell VYVA how you want to connect, or touch the voice button.",
   "home.master.conciergeIntent.title": "What can VYVA help arrange?",
   "home.master.conciergeIntent.more": "More concierge services",
+  "home.master.conciergeIntent.dormantSubtitle": "Choose a service, or touch the voice button.",
+  "home.master.conciergeIntent.voiceSubtitle": "Tell VYVA what you need arranged, or touch the voice button.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -414,13 +422,45 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
   });
 
+  it("locks voice mode to the greeting, orb, and compact mode switch until touch is selected", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+    profileMock.firstName = "karim";
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+
+    renderHomeScreen();
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
+    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
+    expect(screen.queryByText("VYVA understood")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAccessibleName("Switch to voice");
+    expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-cognitive")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-social")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-concierge")).toBeInTheDocument();
+  });
+
   it("shows first-use orb guidance once and restores the normal greeting after activation", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T10:00:00"));
 
     renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the voice button to begin.");
     expect(screen.getByTestId("home-master-hero-subtitle")).toHaveClass("!text-[#9A5B00]");
 
     fireEvent.click(screen.getByTestId("button-home-hero-talk"));
@@ -1702,7 +1742,7 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
   });
 
-  it("opens the Health choices without leaving voice mode when voice detects the broad Health intent", () => {
+  it("keeps broad Health choices hidden in voice mode until touch mode", () => {
     renderHomeScreen();
 
     act(() => {
@@ -1710,18 +1750,27 @@ describe("Home fast service actions", () => {
     });
 
     expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Tell VYVA what you need, or touch the voice button.");
     expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
     expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-health-more")).not.toBeInTheDocument();
+    expect(guardPathMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
     expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
-    expect(guardPathMock).not.toHaveBeenCalled();
   });
 
   it.each([
     ["mind", ["memory", "reflexes", "focus", "senses"]],
     ["community", ["friends", "experts", "share", "activities"]],
     ["concierge", ["home", "care", "order", "book"]],
-  ] as const)("opens the broad %s voice intent choices without leaving Home", (intent, cardIds) => {
+  ] as const)("keeps broad %s voice intent choices hidden until touch mode", (intent, cardIds) => {
     renderHomeScreen();
 
     act(() => {
@@ -1729,21 +1778,34 @@ describe("Home fast service actions", () => {
     });
 
     expect(guardPathMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    for (const cardId of cardIds) {
+      expect(screen.queryByTestId(`card-home-${intent}-${cardId}`)).not.toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
     for (const cardId of cardIds) {
       expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
     }
   });
 
-  it("restores the active pillar choices after leaving and returning Home", () => {
+  it("restores the active pillar context without showing cards until touch mode", () => {
     const firstRender = renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "mind" }));
     });
-    expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-mind-memory")).not.toBeInTheDocument();
 
     firstRender.unmount();
     renderHomeScreen();
+
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-mind-memory")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
     expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-mind-senses")).toBeInTheDocument();
@@ -1759,21 +1821,29 @@ describe("Home fast service actions", () => {
       }));
     });
 
+    expect(screen.queryByTestId("card-home-health-vitals")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
+    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
     const selectedCard = screen.getByTestId("card-home-health-vitals");
     expect(selectedCard).toHaveAttribute("aria-current", "true");
     expect(selectedCard).toHaveTextContent("VYVA understood");
     expect(screen.getByTestId("card-home-health-symptoms")).not.toHaveAttribute("aria-current");
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
-    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
 
     firstRender.unmount();
     renderHomeScreen();
+
+    expect(screen.queryByTestId("card-home-health-vitals")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
 
     expect(screen.getByTestId("card-home-health-vitals")).toHaveAttribute("aria-current", "true");
     expect(guardPathMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the selected action while switching between voice and touch modes", () => {
+  it("keeps the selected action while hiding it in voice mode and showing it in touch mode", () => {
     renderHomeScreen();
 
     act(() => {
@@ -1782,9 +1852,12 @@ describe("Home fast service actions", () => {
       }));
     });
 
-    expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByTestId("card-home-community-activities")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
     fireEvent.click(screen.getByTestId("button-home-mode-voice"));
+    expect(screen.queryByTestId("card-home-community-activities")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
     expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
   });
 
@@ -1822,6 +1895,8 @@ describe("Home fast service actions", () => {
     });
 
     expect(guardPathMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("card-home-community-friends")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
     expect(screen.getByTestId("card-home-community-friends")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-community-activities")).toBeInTheDocument();
   });

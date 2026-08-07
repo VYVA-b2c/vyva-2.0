@@ -137,21 +137,23 @@ describe("HeroMessagesAdminPage", () => {
   it("searches the message catalog without losing the selected editor", async () => {
     renderPage();
 
-    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    expect(await screen.findByTestId("hero-catalog-message-health-admin")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Message, surface, reason, or copy"), {
+    fireEvent.change(screen.getByPlaceholderText("Search messages"), {
       target: { value: "health-admin" },
     });
 
-    expect(screen.getByText(/1 of \d+ messages/)).toBeInTheDocument();
-    expect(screen.getByText("health-admin / priority 120")).toBeInTheDocument();
+    expect(screen.getByText("1 shown")).toBeInTheDocument();
+    expect(screen.getByText("My Health · General message")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("hero-catalog-message-health-admin"));
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
   });
 
   it("previews the selected language and blocks invalid copy", async () => {
     renderPage();
 
-    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    fireEvent.click(await screen.findByTestId("hero-catalog-message-health-admin"));
+    expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
 
     fireEvent.change(screen.getByLabelText("Headline (ES)"), {
       target: { value: "This headline is intentionally far too long" },
@@ -159,16 +161,17 @@ describe("HeroMessagesAdminPage", () => {
 
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("This headline is intentionally far too long");
     expect(screen.getAllByText("Headline too long").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /save hero message/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /save message/i })).toBeDisabled();
   });
 
   it("direct saves edits and refreshes the overview", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("hero-catalog-message-health-admin"));
     fireEvent.change(await screen.findByLabelText("Headline (ES)"), {
       target: { value: "Care now" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /save hero message/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
 
     await waitFor(() => {
       const postCall = apiFetchMock.mock.calls.find(([, init]) => init?.method === "POST");
@@ -205,6 +208,7 @@ describe("HeroMessagesAdminPage", () => {
       },
     }]);
 
+    fireEvent.click(await screen.findByTestId("hero-catalog-message-home-voice-health-check"));
     expect(await screen.findByTestId("select-home-hero-action")).toHaveValue("health");
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("Tu control esta listo");
     expect(screen.getByText("Empezar")).toBeInTheDocument();
@@ -212,7 +216,7 @@ describe("HeroMessagesAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-home-hero-action"), {
       target: { value: "prevention" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /save hero message/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
 
     await waitFor(() => {
       const postCall = apiFetchMock.mock.calls.find(([, init]) => init?.method === "POST");

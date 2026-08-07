@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Eye, Plus, RefreshCw, Save, Search, SlidersHorizontal } from "lucide-react";
-import AdminMenu from "./AdminMenu";
+import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Plus, RefreshCw, Save, Search, SlidersHorizontal } from "lucide-react";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
 import {
@@ -86,20 +85,53 @@ const OVERVIEW_FILTERS: Array<{ id: OverviewFilter; label: string; description: 
   { id: "managed", label: "Managed", description: "Admin overrides" },
   { id: "fallback", label: "Fallback", description: "No usable managed copy" },
 ];
+const SURFACE_LABELS: Record<HeroSurface, string> = {
+  home: "Home",
+  home_voice: "Voice home",
+  health: "My Health",
+  doctor: "Doctor",
+  vitals: "Vital signs",
+  meds: "Medication",
+  concierge: "Concierge",
+  brain: "My Mind",
+  activity: "Activities",
+  companions: "Companions",
+  social: "Community",
+};
+const REASON_LABELS: Record<HeroReason, string> = {
+  safety: "When safety needs attention",
+  scheduled_event: "Before a scheduled event",
+  continuation: "To continue an unfinished task",
+  time_of_day: "At a specific time of day",
+  evergreen: "General message",
+};
+const PERIOD_LABELS: Record<HeroPeriod, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  night: "Night",
+};
+const SAFETY_LABELS: Record<HeroSafetyLevel, string> = {
+  normal: "Normal",
+  medical: "Medical attention",
+  urgent: "Urgent",
+};
+const EVENT_LABELS: Record<Exclude<(typeof EVENT_TYPES)[number], "">, string> = {
+  appointment: "Appointment",
+  medication: "Medication",
+  social: "Social activity",
+  concierge: "Concierge request",
+};
+const ACTIVITY_LABELS: Record<Exclude<(typeof ACTIVITY_TYPES)[number], "">, string> = {
+  health_check: "Health check",
+  meds: "Medication",
+  social: "Social activity",
+  concierge: "Concierge",
+};
+const CONTROL_CLASS = "min-h-12 w-full rounded-lg border-2 border-[#d8c9bc] bg-white px-3 py-2.5 text-base font-semibold text-[#2f2135] shadow-sm outline-none transition placeholder:text-[#9b8c85] focus:border-purple-600 focus:ring-4 focus:ring-purple-100";
 
 function words(value?: string) {
   return (value ?? "").trim().split(/\s+/).filter(Boolean).length;
-}
-
-function textToList(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function listToText(values?: string[]) {
-  return (values ?? []).join(", ");
 }
 
 function formatDate(value?: string) {
@@ -182,6 +214,50 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
       </span>
       {children}
     </label>
+  );
+}
+
+function MultiChoice<T extends string>({
+  label,
+  options,
+  selected,
+  labels,
+  onChange,
+}: {
+  label: string;
+  options: readonly T[];
+  selected?: T[];
+  labels: Record<T, string>;
+  onChange: (values: T[]) => void;
+}) {
+  const values = selected ?? [];
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-bold text-[#4d4351]">{label}</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const active = values.includes(option);
+          return (
+            <label
+              key={option}
+              className={`inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                active
+                  ? "border-purple-600 bg-purple-50 text-purple-800"
+                  : "border-[#d8c9bc] bg-white text-[#5f5058] hover:border-purple-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-purple-700"
+                checked={active}
+                onChange={() => onChange(active ? values.filter((value) => value !== option) : [...values, option])}
+              />
+              {labels[option]}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
@@ -293,6 +369,7 @@ export default function HeroMessagesAdminPage() {
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [metricsDays, setMetricsDays] = useState(7);
   const [selectedMessageId, setSelectedMessageId] = useState<string>("");
+  const [editorView, setEditorView] = useState<"catalog" | "editor">("catalog");
   const [diagnosticSurface, setDiagnosticSurface] = useState<HeroSurface>("health");
   const [diagnosticLanguage, setDiagnosticLanguage] = useState<HeroLanguage>("es");
   const [diagnosticPeriod, setDiagnosticPeriod] = useState<HeroPeriod>(getHeroPeriod());
@@ -536,6 +613,7 @@ export default function HeroMessagesAdminPage() {
     };
     setDrafts((existing) => ({ ...existing, [id]: draft }));
     setSelectedMessageId(id);
+    setEditorView("editor");
   }
 
   async function saveMessage(item: HeroMessageAdmin) {
@@ -592,7 +670,7 @@ export default function HeroMessagesAdminPage() {
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Hero messages"
-          subtitle="Monitor live banner copy, aggregate performance, and managed overrides across every app surface."
+          subtitle="Choose where a message appears, edit its copy, and preview it before saving."
         >
           <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((err) => setMessage(err.message))}>
             <RefreshCw size={16} /> Refresh
@@ -600,17 +678,32 @@ export default function HeroMessagesAdminPage() {
           {message && <span className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
-        <AdminMenu />
+        <nav className="mt-5 flex gap-2 rounded-lg border border-[#eadfd5] bg-white p-2 shadow-sm" aria-label="Hero message workspace">
+          <button
+            type="button"
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${editorView === "catalog" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setEditorView("catalog")}
+          >
+            Messages
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${editorView === "editor" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setEditorView("editor")}
+            disabled={!selectedMessage}
+          >
+            Edit message
+          </button>
+        </nav>
 
-        <section className="mt-5 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:self-start">
+        <section className="mt-4">
+          {editorView === "catalog" && <aside className="rounded-lg border border-[#eadfd5] bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><SlidersHorizontal size={16} /> Message catalog</p>
-                <h2 className="mt-1 text-xl font-black">Find and edit</h2>
-                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{filteredMessages.length} of {allMessages.length} messages</p>
+                <h2 className="text-xl font-black">Messages</h2>
+                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{filteredMessages.length} shown</p>
               </div>
-              <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-purple-200 px-3 py-2 text-sm font-black text-purple-700" onClick={createManagedDraft}>
+              <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-purple-300 px-3 py-2 text-sm font-black text-purple-700" onClick={createManagedDraft}>
                 <Plus size={16} /> New
               </button>
             </div>
@@ -621,29 +714,29 @@ export default function HeroMessagesAdminPage() {
                 <span className="relative block">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]" aria-hidden="true" />
                   <input
-                    className="w-full rounded-xl border border-[#eadfd5] px-9 py-2.5"
+                    className={`${CONTROL_CLASS} pl-9`}
                     value={messageSearch}
                     onChange={(event) => setMessageSearch(event.target.value)}
-                    placeholder="Message, surface, reason, or copy"
+                    placeholder="Search messages"
                   />
                 </span>
               </label>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <Field label="Surface">
-                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
-                    <option value="all">All surfaces</option>
-                    {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                <Field label="App area">
+                  <select className={CONTROL_CLASS} value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
+                    <option value="all">All app areas</option>
+                    {SURFACES.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
                   </select>
                 </Field>
                 <Field label="Language">
-                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
+                  <select className={CONTROL_CLASS} value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
                     {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
                   </select>
                 </Field>
               </div>
             </div>
 
-            <div className="mt-4 max-h-[calc(100vh-22rem)] min-h-[280px] space-y-2 overflow-auto pr-1">
+            <div className="mt-5 grid min-h-[280px] gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredMessages.length === 0 ? (
                 <p className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-bold text-[#7d6b65]">No messages match this filter.</p>
               ) : filteredMessages.map((item) => {
@@ -653,8 +746,12 @@ export default function HeroMessagesAdminPage() {
                   <button
                     key={item.message_id}
                     type="button"
-                    onClick={() => setSelectedMessageId(item.message_id)}
-                    className={`w-full rounded-xl border p-3 text-left transition ${
+                    data-testid={`hero-catalog-message-${item.message_id}`}
+                    onClick={() => {
+                      setSelectedMessageId(item.message_id);
+                      setEditorView("editor");
+                    }}
+                    className={`w-full rounded-lg border p-3 text-left transition ${
                       active
                         ? "border-purple-400 bg-purple-50 shadow-sm"
                         : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200"
@@ -663,114 +760,117 @@ export default function HeroMessagesAdminPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-black">{item.copy[language]?.headline ?? item.copy.es?.headline ?? item.message_id}</p>
-                        <p className="mt-1 truncate text-xs font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{item.surface} / {item.reason}</p>
+                        <p className="mt-1 truncate text-sm font-semibold text-[#7d6b65]">{SURFACE_LABELS[item.surface]} · {REASON_LABELS[item.reason]}</p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${sourceClass(item.source)}`}>{sourceLabel(item.source)}</span>
                     </div>
-                    <p className="mt-2 truncate text-sm text-[#7d6b65]">{item.message_id} / priority {item.priority}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">{warningPills(warnings)}</div>
+                    {warnings.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{warningPills(warnings)}</div>}
                   </button>
                 );
               })}
             </div>
-          </aside>
+          </aside>}
 
-          <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+          {editorView === "editor" && <section className="rounded-lg border border-[#eadfd5] bg-white p-5 shadow-sm">
             {selectedMessage ? (
               <div className="grid gap-5">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0e7df] pb-4">
                   <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">{selectedMessage.surface}</p>
-                    <h2 className="mt-1 break-words text-2xl font-black">{selectedMessage.message_id}</h2>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ${sourceClass(selectedMessage.source)}`}>{sourceLabel(selectedMessage.source)}</span>
-                      {warningPills(selectedWarnings)}
-                    </div>
+                    <button type="button" className="mb-3 inline-flex items-center gap-2 text-sm font-black text-purple-700 hover:underline" onClick={() => setEditorView("catalog")}>
+                      <ArrowLeft size={16} /> Back to messages
+                    </button>
+                    <p className="text-sm font-bold text-purple-700">{SURFACE_LABELS[selectedMessage.surface]}</p>
+                    <h2 className="mt-1 break-words text-2xl font-black">{selectedCopy.headline || "Untitled message"}</h2>
+                    {selectedWarnings.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#f7f2eb] px-3 text-sm font-black text-[#4d4351]">
-                      <input type="checkbox" checked={selectedMessage.is_enabled} onChange={(event) => updateMessage(selectedMessage.message_id, { is_enabled: event.target.checked })} />
-                      Enabled
+                    <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-[#f7f2eb] px-3 text-sm font-black text-[#4d4351]">
+                      <input className="h-4 w-4 accent-purple-700" type="checkbox" checked={selectedMessage.is_enabled} onChange={(event) => updateMessage(selectedMessage.message_id, { is_enabled: event.target.checked })} />
+                      Active
                     </label>
                     <button
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                       disabled={!canSaveSelected}
                       onClick={() => saveMessage(selectedMessage).catch((err) => setMessage(err.message))}
                     >
-                      <Save size={18} /> Save hero message
+                      <Save size={18} /> Save message
                     </button>
                   </div>
                 </div>
 
-                <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
                   <div className="lg:sticky lg:top-4 lg:self-start">
                     <HeroPreview copy={selectedCopy} source={selectedMessage.source} surface={selectedMessage.surface} />
-                    <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                      <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
-                      <div className="mt-3 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>
-                    </div>
                   </div>
 
                   <div className="grid gap-4">
-                    <section className="rounded-xl border border-[#eadfd5] p-3">
-                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Routing rules</h3>
-                      <div className="mt-3 grid gap-3 md:grid-cols-4">
-                        <Field label="Surface">
-                          <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
-                            {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                    <section className="rounded-lg border border-[#eadfd5] p-4">
+                      <h3 className="text-lg font-black">Where this message appears</h3>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <Field label="App area">
+                          <select className={CONTROL_CLASS} value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
+                            {SURFACES.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
                           </select>
                         </Field>
-                        <Field label="Reason">
-                          <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.reason} onChange={(event) => updateMessage(selectedMessage.message_id, { reason: event.target.value as HeroReason })}>
-                            {REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                        <Field label="When to show it">
+                          <select className={CONTROL_CLASS} value={selectedMessage.reason} onChange={(event) => updateMessage(selectedMessage.message_id, { reason: event.target.value as HeroReason })}>
+                            {REASONS.map((reason) => <option key={reason} value={reason}>{REASON_LABELS[reason]}</option>)}
                           </select>
-                        </Field>
-                        <Field label="Priority">
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.priority} onChange={(event) => updateMessage(selectedMessage.message_id, { priority: Number(event.target.value) })} />
-                        </Field>
-                        <Field label="Cooldown">
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.cooldownHours} onChange={(event) => updateMessage(selectedMessage.message_id, { cooldownHours: Number(event.target.value) })} />
                         </Field>
                       </div>
 
-                      <div className="mt-3 grid gap-3 md:grid-cols-4">
-                        <Field label="Periods" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.periods)} onChange={(event) => updateMessage(selectedMessage.message_id, { periods: textToList(event.target.value) as HeroMessageAdmin["periods"] })} placeholder="morning, evening" />
-                        </Field>
-                        <Field label="Safety" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.safetyLevels)} onChange={(event) => updateMessage(selectedMessage.message_id, { safetyLevels: textToList(event.target.value) as HeroMessageAdmin["safetyLevels"] })} placeholder="urgent" />
-                        </Field>
-                        <Field label="Events" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.eventTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { eventTypes: textToList(event.target.value) as HeroMessageAdmin["eventTypes"] })} placeholder="appointment" />
-                        </Field>
-                        <Field label="Activity" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.activityTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { activityTypes: textToList(event.target.value) as HeroMessageAdmin["activityTypes"] })} placeholder="health_check" />
-                        </Field>
-                      </div>
+                      <details className="mt-4 rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <summary className="flex cursor-pointer list-none items-center gap-2 font-black text-purple-700">
+                          <SlidersHorizontal size={16} /> Advanced targeting
+                        </summary>
+                        <div className="mt-4 grid gap-5">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="Display priority">
+                              <input className={CONTROL_CLASS} type="number" value={selectedMessage.priority} onChange={(event) => updateMessage(selectedMessage.message_id, { priority: Number(event.target.value) })} />
+                            </Field>
+                            <Field label="Hours before showing again">
+                              <input className={CONTROL_CLASS} type="number" min="0" value={selectedMessage.cooldownHours} onChange={(event) => updateMessage(selectedMessage.message_id, { cooldownHours: Number(event.target.value) })} />
+                            </Field>
+                          </div>
+                          <MultiChoice label="Time of day" options={PERIODS} selected={selectedMessage.periods} labels={PERIOD_LABELS} onChange={(periods) => updateMessage(selectedMessage.message_id, { periods })} />
+                          <MultiChoice label="Safety state" options={SAFETY_LEVELS} selected={selectedMessage.safetyLevels} labels={SAFETY_LABELS} onChange={(safetyLevels) => updateMessage(selectedMessage.message_id, { safetyLevels })} />
+                          <MultiChoice label="Upcoming event" options={EVENT_TYPES.filter((value) => value !== "")} selected={(selectedMessage.eventTypes ?? []).filter(Boolean) as Exclude<(typeof EVENT_TYPES)[number], "">[]} labels={EVENT_LABELS} onChange={(eventTypes) => updateMessage(selectedMessage.message_id, { eventTypes })} />
+                          <MultiChoice label="Recent activity" options={ACTIVITY_TYPES.filter((value) => value !== "")} selected={(selectedMessage.activityTypes ?? []).filter(Boolean) as Exclude<(typeof ACTIVITY_TYPES)[number], "">[]} labels={ACTIVITY_LABELS} onChange={(activityTypes) => updateMessage(selectedMessage.message_id, { activityTypes })} />
+                        </div>
+                      </details>
                     </section>
 
-                    <section className="rounded-xl border border-[#eadfd5] p-3">
-                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Copy in {language.toUpperCase()}</h3>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <section className="rounded-lg border border-[#eadfd5] p-4">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black">Message copy</h3>
+                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">This is what the user will see.</p>
+                        </div>
+                        <Field label="Language">
+                          <select className={`${CONTROL_CLASS} min-w-28`} value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
+                            {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
                         <Field label={`Headline (${language.toUpperCase()})`}>
-                          <input aria-label={`Headline (${language.toUpperCase()})`} className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
+                          <input aria-label={`Headline (${language.toUpperCase()})`} className={CONTROL_CLASS} value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
                           <LimitNote label="Headline" value={selectedCopy.headline} wordsLimit={HERO_LIMITS.headlineWords} charsLimit={HERO_LIMITS.headlineChars} />
                         </Field>
-                        <Field label="Headline with name" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headlineWithName ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headlineWithName: event.target.value })} placeholder="Good morning, {name}" />
+                        <Field label="Personalised headline" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.headlineWithName ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headlineWithName: event.target.value })} placeholder="Good morning, {name}" />
                         </Field>
-                        <Field label="Source text" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.sourceText ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { sourceText: event.target.value })} />
+                        <Field label="Short label" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.sourceText ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { sourceText: event.target.value })} placeholder="Example: Health" />
                           <LimitNote label="Source" value={selectedCopy.sourceText} wordsLimit={HERO_LIMITS.sourceWords} charsLimit={HERO_LIMITS.sourceChars} />
                         </Field>
-                        <Field label="CTA label" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} />
+                        <Field label="Button label" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} placeholder="Example: Talk" />
                           <LimitNote label="CTA" value={selectedCopy.ctaLabel} wordsLimit={HERO_LIMITS.ctaWords} charsLimit={HERO_LIMITS.ctaChars} />
                         </Field>
                         {selectedMessage.surface === "home_voice" && (
-                          <Field label="Approved Home action" optional>
+                          <Field label="Button destination" optional>
                             <select
-                              className="w-full rounded-xl border border-[#eadfd5] px-3 py-2"
+                              className={CONTROL_CLASS}
                               value={selectedCopy.actionId ?? "none"}
                               onChange={(event) => updateCopy(selectedMessage.message_id, { actionId: event.target.value as HeroApprovedActionId })}
                               data-testid="select-home-hero-action"
@@ -779,26 +879,31 @@ export default function HeroMessagesAdminPage() {
                             </select>
                           </Field>
                         )}
-                        <Field label="Subtitle" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
+                        <Field label="Supporting text" optional>
+                          <textarea className={`${CONTROL_CLASS} min-h-24 resize-y`} value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
                           <LimitNote label="Subtitle" value={selectedCopy.subtitle} wordsLimit={HERO_LIMITS.subtitleWords} charsLimit={HERO_LIMITS.subtitleChars} />
-                        </Field>
-                        <Field label="Context hint" optional>
-                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.contextHint ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { contextHint: event.target.value })} />
                         </Field>
                       </div>
                     </section>
 
-                    <Field label="Admin notes" optional>
-                      <textarea className="min-h-20 w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.admin_notes ?? ""} onChange={(event) => updateMessage(selectedMessage.message_id, { admin_notes: event.target.value })} />
-                    </Field>
+                    <details className="rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-3">
+                      <summary className="cursor-pointer font-black text-purple-700">Internal notes</summary>
+                      <div className="mt-4 grid gap-4">
+                        <Field label="Context hint" optional>
+                          <input className={CONTROL_CLASS} value={selectedCopy.contextHint ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { contextHint: event.target.value })} />
+                        </Field>
+                        <Field label="Admin notes" optional>
+                          <textarea className={`${CONTROL_CLASS} min-h-24 resize-y`} value={selectedMessage.admin_notes ?? ""} onChange={(event) => updateMessage(selectedMessage.message_id, { admin_notes: event.target.value })} />
+                        </Field>
+                      </div>
+                    </details>
                   </div>
                 </div>
               </div>
             ) : (
               <p className="rounded-xl bg-[#fffaf4] p-4 font-bold text-[#7d6b65]">No messages match this filter.</p>
             )}
-          </section>
+          </section>}
         </section>
 
         <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">

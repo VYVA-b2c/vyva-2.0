@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 export type ZamoraOrbState = "idle" | "listening" | "speaking";
 
@@ -33,7 +34,21 @@ type ZamoraVoiceOrbProps = {
   state: ZamoraOrbState;
   size?: number;
   isDark?: boolean;
+  audioLevel?: number;
   testId?: string;
+};
+
+type VoiceOrbAudioLevelOptions = {
+  enabled: boolean;
+  phase?: VoiceSessionPhase;
+  isSpeaking?: boolean;
+  isMicMuted?: boolean;
+  isConnecting?: boolean;
+  preferLiveMic?: boolean;
+};
+
+type AudioWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
 };
 
 const BASE_CANVAS_SIZE = 112;
@@ -125,10 +140,162 @@ const LIGHT_BG: Record<ZamoraOrbState, Pick<OrbConfig, "bgi" | "bgo">> = {
   speaking: { bgi: [255, 229, 183], bgo: [224, 164, 62] },
 };
 
-function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, width: number, height: number) {
+function clampLevel(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function useLiveMicrophoneLevel(enabled: boolean) {
+  const [level, setLevel] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      setLevel(0);
+      return;
+    }
+
+    if (
+      typeof window === "undefined" ||
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setLevel(0);
+      return;
+    }
+
+    let didCancel = false;
+    let frameId = 0;
+    let stream: MediaStream | null = null;
+    let audioContext: AudioContext | null = null;
+    const samples = new Uint8Array(128);
+
+    const stop = () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      stream?.getTracks().forEach((track) => track.stop());
+      void audioContext?.close().catch(() => {});
+      stream = null;
+      audioContext = null;
+    };
+
+    const start = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (didCancel) {
+          stop();
+          return;
+        }
+
+        const AudioContextCtor = window.AudioContext ?? (window as AudioWindow).webkitAudioContext;
+        if (!AudioContextCtor) {
+          setLevel(0);
+          return;
+        }
+
+        audioContext = new AudioContextCtor();
+        await audioContext.resume().catch(() => {});
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.78;
+        source.connect(analyser);
+
+        const tick = () => {
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (let index = 0; index < samples.length; index += 1) {
+            const centered = (samples[index] - 128) / 128;
+            sum += centered * centered;
+          }
+
+          const rms = Math.sqrt(sum / samples.length);
+          const normalized = clampLevel((rms - 0.012) * 8.5);
+          setLevel((current) => current * 0.7 + normalized * 0.3);
+          frameId = window.requestAnimationFrame(tick);
+        };
+
+        tick();
+      } catch {
+        setLevel(0);
+      }
+    };
+
+    void start();
+
+    return () => {
+      didCancel = true;
+      stop();
+    };
+  }, [enabled]);
+
+  return level;
+}
+
+function useSyntheticSpeechLevel(enabled: boolean, phase: VoiceSessionPhase | undefined) {
+  const [level, setLevel] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      setLevel(0);
+      return;
+    }
+
+    let frameId = 0;
+    const startTime = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+    const tick = (time: number) => {
+      const elapsed = time - startTime;
+      const syllable =
+        Math.max(0, Math.sin(elapsed * 0.012)) * 0.5 +
+        Math.max(0, Math.sin(elapsed * 0.021 + 1.8)) * 0.32 +
+        Math.max(0, Math.sin(elapsed * 0.034 + 0.6)) * 0.18;
+      const breath = (Math.sin(elapsed * 0.0034) + 1) * 0.5;
+      const isConnecting = phase === "connecting" || phase === "transferring";
+      const base = isConnecting ? 0.08 : 0.14;
+      const intensity = isConnecting ? 0.2 : 0.48;
+      setLevel(clampLevel(base + syllable * intensity + breath * 0.12));
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
+  }, [enabled, phase]);
+
+  return level;
+}
+
+export function useVoiceOrbAudioLevel({
+  enabled,
+  phase,
+  isSpeaking = false,
+  isMicMuted = false,
+  isConnecting = false,
+  preferLiveMic = true,
+}: VoiceOrbAudioLevelOptions) {
+  const shouldUseLiveMic = enabled && preferLiveMic && phase === "listening" && !isSpeaking && !isMicMuted;
+  const shouldUseSynthetic = enabled && (
+    isSpeaking ||
+    isConnecting ||
+    phase === "speaking" ||
+    phase === "connecting" ||
+    phase === "transferring"
+  );
+  const liveLevel = useLiveMicrophoneLevel(shouldUseLiveMic);
+  const syntheticLevel = useSyntheticSpeechLevel(shouldUseSynthetic, phase);
+
+  if (!enabled || isMicMuted || phase === "idle" || phase === "ended" || phase === "error") return 0;
+  if (shouldUseLiveMic) return liveLevel;
+  if (shouldUseSynthetic) return syntheticLevel;
+  return 0.08;
+}
+
+function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, width: number, height: number, audioLevel = 0) {
   const cx = width / 2;
   const cy = height / 2;
   const radius = width / 2;
+  const level = clampLevel(audioLevel);
   const rgba = (c: number[], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
   const mix = (a: number[], c: number[], t: number) => [
     a[0] * (1 - t) + c[0] * t,
@@ -144,13 +311,13 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
 
   const bg = ctx.createRadialGradient(cx - radius * 0.12, cy - radius * 0.18, 4, cx, cy, radius);
   bg.addColorStop(0, rgba(b.bgi, 1));
-  bg.addColorStop(0.48, rgba(b.bgi.map((v, i) => (v * 1.35 + b.bgo[i]) / 2.35), 1));
+  bg.addColorStop(0.48, rgba(b.bgi.map((v, i) => (v * (1.35 + level * 0.28) + b.bgo[i]) / (2.35 + level * 0.28)), 1));
   bg.addColorStop(1, rgba(b.bgo, 1));
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
   const body = ctx.createRadialGradient(cx - radius * 0.16, cy - radius * 0.2, 3, cx, cy, radius);
-  body.addColorStop(0, rgba([255, 255, 255], Math.max(0.26, b.shA * 0.85)));
+  body.addColorStop(0, rgba([255, 255, 255], Math.min(0.72, Math.max(0.26, b.shA * 0.85 + level * 0.16))));
   body.addColorStop(0.28, rgba(b.bgi, 0.96));
   body.addColorStop(0.72, rgba(mix(b.bgi, b.rim, 0.2), 0.96));
   body.addColorStop(1, rgba(mix(b.bgo, b.rim2, 0.1), 0.98));
@@ -160,8 +327,8 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
   ctx.fill();
 
   const anchor = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.78);
-  anchor.addColorStop(0, rgba(mix(b.bgi, b.rim, 0.45), 0.18));
-  anchor.addColorStop(0.42, rgba(mix(b.bgi, b.rim, 0.28), 0.12));
+  anchor.addColorStop(0, rgba(mix(b.bgi, b.rim, 0.45), 0.18 + level * 0.1));
+  anchor.addColorStop(0.42, rgba(mix(b.bgi, b.rim, 0.28), 0.12 + level * 0.08));
   anchor.addColorStop(1, rgba(b.bgo, 0));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -171,8 +338,9 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
   b.blobs.forEach((blob) => {
     const angle = ts * blob.spd + blob.ph;
     const angle2 = ts * blob.spd * 0.61 + blob.ph * 1.3;
-    const pulse = 1 + b.pAmt * Math.sin(ts * b.pSpd + blob.po);
-    const blobRadius = blob.r * pulse;
+    const speechBeat = Math.sin(ts * (b.pSpd * 3.2 + 0.006) + blob.po * 1.7);
+    const pulse = 1 + (b.pAmt + level * 0.12) * Math.sin(ts * b.pSpd + blob.po) + Math.max(0, speechBeat) * level * 0.045;
+    const blobRadius = blob.r * pulse * (1 + level * (blob.po % 2 > 1 ? 0.045 : 0.075));
     const rawBx = cx + (Math.cos(angle) * blob.ox + Math.cos(angle2) * blob.ox * 0.3) * 0.42;
     const rawBy = cy + (Math.sin(angle * 0.71) * blob.oy + Math.sin(angle2 * 0.5) * blob.oy * 0.3) * 0.42;
     const dx = rawBx - cx;
@@ -183,9 +351,10 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
     const bx = cx + dx * safeScale;
     const by = cy + dy * safeScale;
     const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, blobRadius);
-    gradient.addColorStop(0, rgba(blob.c, blob.a * 0.82));
-    gradient.addColorStop(0.35, rgba(blob.c, blob.a * 0.45));
-    gradient.addColorStop(0.72, rgba(blob.c, blob.a * 0.14));
+    const activeAlpha = Math.min(0.92, blob.a * (1 + level * 0.28));
+    gradient.addColorStop(0, rgba(blob.c, activeAlpha * 0.82));
+    gradient.addColorStop(0.35, rgba(blob.c, activeAlpha * 0.45));
+    gradient.addColorStop(0.72, rgba(blob.c, activeAlpha * 0.14));
     gradient.addColorStop(1, rgba(blob.c, 0));
     ctx.beginPath();
     ctx.arc(bx, by, blobRadius, 0, Math.PI * 2);
@@ -196,18 +365,30 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
   const shineX = cx - radius * 0.22 + Math.cos(ts * 0.00028) * 6;
   const shineY = cy - radius * 0.24 + Math.sin(ts * 0.00022) * 5;
   const shine = ctx.createRadialGradient(shineX, shineY, 0, shineX, shineY, radius * 0.4);
-  shine.addColorStop(0, rgba([255, 255, 255], b.shA * 0.75));
+  shine.addColorStop(0, rgba([255, 255, 255], Math.min(0.72, b.shA * 0.75 + level * 0.16)));
   shine.addColorStop(1, rgba([255, 255, 255], 0));
   ctx.beginPath();
   ctx.arc(shineX, shineY, radius * 0.4, 0, Math.PI * 2);
   ctx.fillStyle = shine;
   ctx.fill();
 
+  if (level > 0.02) {
+    const liveAura = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius);
+    liveAura.addColorStop(0, rgba(mix(b.rim, b.rim2, 0.36), 0));
+    liveAura.addColorStop(0.42, rgba(mix(b.rim, b.rim2, 0.48), level * 0.08));
+    liveAura.addColorStop(0.82, rgba(mix(b.rim2, [125, 211, 252], 0.35), level * 0.18));
+    liveAura.addColorStop(1, rgba(mix(b.rim2, [125, 211, 252], 0.45), level * 0.1));
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = liveAura;
+    ctx.fill();
+  }
+
   const rim = ctx.createRadialGradient(cx, cy, radius * 0.52, cx, cy, radius);
   rim.addColorStop(0, rgba(b.rim, 0));
-  rim.addColorStop(0.72, rgba(b.rim, b.rimA * 0.08));
-  rim.addColorStop(0.9, rgba(b.rim, b.rimA * 0.18));
-  rim.addColorStop(1, rgba(b.rim2, b.rimA * 0.28));
+  rim.addColorStop(0.72, rgba(b.rim, b.rimA * (0.08 + level * 0.04)));
+  rim.addColorStop(0.9, rgba(b.rim, b.rimA * (0.18 + level * 0.06)));
+  rim.addColorStop(1, rgba(b.rim2, b.rimA * (0.28 + level * 0.08)));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fillStyle = rim;
@@ -298,19 +479,29 @@ export default function ZamoraVoiceOrb({
   state,
   size = BASE_CONTAINER_SIZE,
   isDark = true,
+  audioLevel = 0,
   testId = "zamora-voice-orb",
 }: ZamoraVoiceOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<number | null>(null);
   const canvasSizeRef = useRef<number>(BASE_CANVAS_SIZE);
+  const audioLevelRef = useRef(clampLevel(audioLevel));
   const currentRef = useRef<OrbConfig>(resolveConfig(state, isDark));
   const fromRef = useRef<OrbConfig>(resolveConfig(state, isDark));
   const toRef = useRef<OrbConfig>(resolveConfig(state, isDark));
   const transitionStartRef = useRef<number>(0);
   const visualConfig = useMemo(() => resolveConfig(state, isDark), [isDark, state]);
+  const safeAudioLevel = clampLevel(audioLevel);
+  const liveScale = visualConfig.scale + safeAudioLevel * (state === "idle" ? 0.025 : state === "listening" ? 0.075 : 0.095);
+  const ringDuration = Math.max(0.92, visualConfig.ringDur - safeAudioLevel * 0.46);
 
   const canvasDisplaySize = Math.round(size * (BASE_CANVAS_SIZE / BASE_CONTAINER_SIZE));
   const ringSizes = BASE_RING_SIZES.map((ringSize) => Math.round(size * (ringSize / BASE_CONTAINER_SIZE)));
+  const ringOpacities = visualConfig.ringOp.map((opacity, index) => Math.min(0.58, opacity + safeAudioLevel * (0.06 + index * 0.045)));
+
+  useEffect(() => {
+    audioLevelRef.current = safeAudioLevel;
+  }, [safeAudioLevel]);
 
   useEffect(() => {
     fromRef.current = cloneConfig(currentRef.current);
@@ -345,13 +536,17 @@ export default function ZamoraVoiceOrb({
       window.addEventListener("resize", resizeCanvas);
     }
 
+    const prefersReducedMotion = typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const render = (ts: number) => {
-      const progress = Math.min((ts - transitionStartRef.current) / 700, 1);
+      const frameTime = prefersReducedMotion ? 1200 : ts;
+      const progress = prefersReducedMotion ? 1 : Math.min((ts - transitionStartRef.current) / 700, 1);
       const eased = easeInOut(Math.max(progress, 0));
       const blended = blendConfig(fromRef.current, toRef.current, eased);
       currentRef.current = blended;
       const currentSize = canvasSizeRef.current || BASE_CANVAS_SIZE;
-      drawFrame(ts, blended, ctx, currentSize, currentSize);
+      drawFrame(frameTime, blended, ctx, currentSize, currentSize, audioLevelRef.current);
       frameRef.current = window.requestAnimationFrame(render);
     };
 
@@ -367,6 +562,8 @@ export default function ZamoraVoiceOrb({
   return (
     <div
       data-testid={testId}
+      data-orb-state={state}
+      data-audio-reactive={safeAudioLevel > 0.02 ? "true" : "false"}
       aria-hidden="true"
       style={
         {
@@ -376,11 +573,13 @@ export default function ZamoraVoiceOrb({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          "--orb-scale": visualConfig.scale,
+          "--orb-scale": liveScale,
         } as CSSProperties
       }
     >
-      {ringSizes.map((ringSize, index) => (
+      {ringSizes.map((ringSize, index) => {
+        const ringOpacity = ringOpacities[index];
+        return (
         <span
           key={`${ringSize}-${index}`}
           style={
@@ -390,15 +589,19 @@ export default function ZamoraVoiceOrb({
               height: ringSize,
               borderRadius: 999,
               border: `1px solid ${visualConfig.ringCol}`,
-              opacity: visualConfig.ringOp[index],
-              animation: `zamoraRingPulse ${visualConfig.ringDur}s ease-in-out infinite`,
+              opacity: ringOpacity,
+              animationName: "zamoraRingPulse",
+              animationDuration: `${ringDuration}s`,
+              animationTimingFunction: "ease-in-out",
+              animationIterationCount: "infinite",
               animationDelay: `${index * 0.35}s`,
-              "--base-opacity": visualConfig.ringOp[index],
+              "--base-opacity": ringOpacity,
               pointerEvents: "none",
             } as CSSProperties
           }
         />
-      ))}
+        );
+      })}
       <canvas
         ref={canvasRef}
         data-testid={`${testId}-canvas`}
@@ -408,7 +611,7 @@ export default function ZamoraVoiceOrb({
           width: canvasDisplaySize,
           height: canvasDisplaySize,
           borderRadius: 999,
-          boxShadow: "0 18px 48px -18px rgba(221,214,254,0.76), 0 0 30px rgba(244,114,182,0.14)",
+          boxShadow: `0 18px 48px -18px rgba(221,214,254,0.76), 0 0 ${30 + safeAudioLevel * 26}px rgba(244,114,182,${0.14 + safeAudioLevel * 0.12}), 0 0 ${18 + safeAudioLevel * 28}px rgba(20,184,166,${safeAudioLevel * 0.14})`,
           animation: "zamoraOrbFloat 5.6s ease-in-out infinite",
           transformOrigin: "center",
         }}

@@ -5,6 +5,7 @@ import {
   WELCOME_MODULE_TEMPLATES,
   isWelcomeProfileActionComplete,
   renderWelcomeCopy,
+  type WelcomeProfileActionId,
 } from "../../shared/welcomeModule";
 
 describe("Welcome module helpers", () => {
@@ -55,6 +56,114 @@ describe("Welcome module helpers", () => {
       channelPreferences: null,
       medications: [],
     })).toBe(true);
+  });
+
+  it("detects completed profile actions across saved profile sources", () => {
+    const completeCases: Array<[
+      WelcomeProfileActionId,
+      Parameters<typeof isWelcomeProfileActionComplete>[1],
+    ]> = [
+      ["medications", {
+        profile: {},
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [{ medication_name: "Metformin" }],
+      }],
+      ["gp_details", {
+        profile: { gp_name: "Dr Garcia" },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["address", {
+        profile: { address_line_1: "Calle Mayor 1", postcode: "28013" },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["care_team", {
+        profile: { caregiver_name: "Layla", caregiver_contact: "+34 600 000 000" },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["preferences", {
+        profile: { preferred_name: "Karim", language_preference: "en" },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["notifications", {
+        profile: {},
+        onboardingState: {},
+        channelPreferences: { preferred_alert_channel: "whatsapp_outbound" },
+        medications: [],
+      }],
+      ["cognitive", {
+        profile: { data_sharing_consent: { cognitive: { session_length_mins: 10 } } },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["health_conditions", {
+        profile: {},
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+        healthConditions: [{ condition: "diabetes" }],
+      }],
+      ["allergies", {
+        profile: { known_allergies: ["penicillin"] },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["providers", {
+        profile: {},
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+        providers: [{ category: "pharmacy", name: "Farmacia Central" }],
+      }],
+      ["devices", {
+        profile: { data_sharing_consent: { health_devices: { devices: [{ id: "bp_cuff", status: "ready" }] } } },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["diet", {
+        profile: { data_sharing_consent: { diet: { dietary_preferences: ["low salt"] } } },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+      ["hobbies", {
+        profile: { data_sharing_consent: { hobbies: { hobbies: ["music"] } } },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      }],
+    ];
+
+    for (const [action, snapshot] of completeCases) {
+      expect(isWelcomeProfileActionComplete(action, snapshot), action).toBe(true);
+    }
+  });
+
+  it("does not treat default-only profile values as completed nudges", () => {
+    expect(isWelcomeProfileActionComplete("address", {
+      profile: { country_code: "ES", timezone: "Europe/Madrid" },
+      onboardingState: {},
+      channelPreferences: null,
+      medications: [],
+    })).toBe(false);
+
+    expect(isWelcomeProfileActionComplete("notifications", {
+      profile: { channel_notifications: "whatsapp", channel_chats: "in-app", channel_reports: "email" },
+      onboardingState: {},
+      channelPreferences: null,
+      medications: [],
+    })).toBe(false);
   });
 
   it("adapts Welcome selections into Home context messages", () => {
