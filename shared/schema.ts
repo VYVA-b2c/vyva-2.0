@@ -3402,7 +3402,7 @@ export const homeFastHelpImpressions = pgTable("home_fast_help_impressions", {
   shown_at:        timestamp("shown_at", { withTimezone: true }).notNull(),
   created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("home_fast_help_impressions_id_user_unique").on(t.id, t.user_id),
+  unique("home_fast_help_impressions_id_user_unique").on(t.id, t.user_id),
   index("home_fast_help_impressions_user_shown_idx").on(t.user_id, t.shown_at),
   index("home_fast_help_impressions_version_shown_idx").on(t.ranking_version, t.shown_at),
 ]);
