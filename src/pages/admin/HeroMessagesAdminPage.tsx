@@ -63,8 +63,26 @@ type HeroMetricRow = {
 };
 
 type OverviewFilter = "all" | "needs_attention" | "managed" | "fallback";
+type MessageTypeFilter = "all" | "standard" | "welcome";
 
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
+const LANGUAGE_LABELS: Record<HeroLanguage, string> = {
+  es: "Spanish",
+  en: "English",
+  de: "German",
+  fr: "French",
+  it: "Italian",
+  pt: "Portuguese",
+};
+const EMPTY_NEW_MESSAGE_COPY: HeroCopy = {
+  sourceText: "VYVA",
+  headline: "",
+  headlineWithName: "",
+  subtitle: "",
+  ctaLabel: "",
+  contextHint: "",
+};
+const CONTROL_CLASS = "min-h-12 w-full rounded-lg border-2 border-[#d8c9bc] bg-white px-3 py-2.5 text-base font-semibold text-[#2f2135] shadow-sm outline-none transition placeholder:text-[#9b8c85] focus:border-purple-600 focus:ring-4 focus:ring-purple-100";
 const SURFACES: HeroSurface[] = ["home", "home_voice", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
 const HOME_ACTIONS: Array<{ id: HeroApprovedActionId; label: string }> = [
   { id: "none", label: "No action" },
@@ -139,7 +157,9 @@ function builtInToAdmin(message: HeroMessageDefinition): HeroMessageAdmin {
 }
 
 function rowToAdmin(row: HeroMessageRow): HeroMessageAdmin {
+  const builtIn = HERO_MESSAGES.find((message) => message.id === row.message_id);
   return {
+    ...builtIn,
     id: row.message_id,
     message_id: row.message_id,
     surface: row.surface,
@@ -163,6 +183,11 @@ function adminToDefinition(message: HeroMessageAdmin): HeroMessageDefinition {
     id: message.message_id,
     surface: message.surface,
     reason: message.reason,
+    messageType: message.messageType,
+    welcomeAudience: message.welcomeAudience,
+    welcomeMomentType: message.welcomeMomentType,
+    welcomeProfileAction: message.welcomeProfileAction,
+    actionRoute: message.actionRoute,
     priority: Number(message.priority),
     cooldownHours: Number(message.cooldownHours),
     periods: message.periods,
@@ -288,11 +313,19 @@ export default function HeroMessagesAdminPage() {
   const [drafts, setDrafts] = useState<Record<string, HeroMessageAdmin>>({});
   const [metrics, setMetrics] = useState<HeroMetricRow[]>([]);
   const [surfaceFilter, setSurfaceFilter] = useState<HeroSurface | "all">("all");
+  const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
   const [messageSearch, setMessageSearch] = useState("");
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [metricsDays, setMetricsDays] = useState(7);
   const [selectedMessageId, setSelectedMessageId] = useState<string>("");
+  const [editorView, setEditorView] = useState<"catalog" | "editor">("catalog");
+  const [showNewMessageSetup, setShowNewMessageSetup] = useState(false);
+  const [newMessageLanguages, setNewMessageLanguages] = useState<HeroLanguage[]>(["es"]);
+  const [newMessageBaseLanguage, setNewMessageBaseLanguage] = useState<HeroLanguage>("es");
+  const [newMessageCopy, setNewMessageCopy] = useState<HeroCopy>({ ...EMPTY_NEW_MESSAGE_COPY });
+  const [newMessageTranslating, setNewMessageTranslating] = useState(false);
+  const [newMessageError, setNewMessageError] = useState("");
   const [diagnosticSurface, setDiagnosticSurface] = useState<HeroSurface>("health");
   const [diagnosticLanguage, setDiagnosticLanguage] = useState<HeroLanguage>("es");
   const [diagnosticPeriod, setDiagnosticPeriod] = useState<HeroPeriod>(getHeroPeriod());
@@ -314,6 +347,10 @@ export default function HeroMessagesAdminPage() {
     return allMessages.filter((item) => {
       const surfaceMatches = surfaceFilter === "all" || item.surface === surfaceFilter;
       if (!surfaceMatches) return false;
+      const isWelcome = item.messageType === "welcome_first_login" || item.messageType === "welcome_profile_nudge";
+      const typeMatches = messageTypeFilter === "all"
+        || (messageTypeFilter === "welcome" ? isWelcome : !isWelcome);
+      if (!typeMatches) return false;
       if (!query) return true;
       const copy = item.copy[language] ?? item.copy.es;
       return [
@@ -326,7 +363,7 @@ export default function HeroMessagesAdminPage() {
         copy?.sourceText,
       ].some((value) => String(value ?? "").toLowerCase().includes(query));
     });
-  }, [allMessages, language, messageSearch, surfaceFilter]);
+  }, [allMessages, language, messageSearch, messageTypeFilter, surfaceFilter]);
 
   const selectionCatalog = useMemo(() => {
     const managed = allMessages.filter((item) => item.is_enabled && (item.source === "database" || Boolean(drafts[item.message_id])));
@@ -513,9 +550,44 @@ export default function HeroMessagesAdminPage() {
     });
   }
 
-  function createManagedDraft() {
+  async function createManagedDraft() {
+    if (!newMessageCopy.headline.trim()) {
+      setNewMessageError("Write the headline before creating translations.");
+      return;
+    }
     const surface = surfaceFilter === "all" ? "home" : surfaceFilter;
     const id = `${surface}-managed-${Date.now()}`;
+    const selectedLanguages = newMessageLanguages.length > 0 ? newMessageLanguages : [language];
+    const primaryLanguage = selectedLanguages.includes(newMessageBaseLanguage)
+      ? newMessageBaseLanguage
+      : selectedLanguages[0];
+    const targets = selectedLanguages.filter((item) => item !== newMessageBaseLanguage);
+    setNewMessageTranslating(true);
+    setNewMessageError("");
+
+    let translations: Partial<Record<HeroLanguage, HeroCopy>> = {};
+    try {
+      if (targets.length) {
+        const result = await api("/hero-messages/translate", {
+          method: "POST",
+          body: JSON.stringify({
+            sourceLanguage: newMessageBaseLanguage,
+            targetLanguages: targets,
+            copy: newMessageCopy,
+          }),
+        });
+        translations = result.translations ?? {};
+      }
+    } catch (error) {
+      setNewMessageError(error instanceof Error ? error.message : "The message could not be translated.");
+      setNewMessageTranslating(false);
+      return;
+    }
+
+    const copy = {
+      [newMessageBaseLanguage]: { ...newMessageCopy },
+      ...translations,
+    } as Record<HeroLanguage, HeroCopy>;
     const draft: HeroMessageAdmin = {
       id,
       message_id: id,
@@ -527,15 +599,33 @@ export default function HeroMessagesAdminPage() {
       safetyLevels: [],
       eventTypes: [],
       activityTypes: [],
-      copy: {
-        [language]: { sourceText: "VYVA", headline: "New message", ctaLabel: "Talk" },
-      } as Record<HeroLanguage, HeroCopy>,
+      copy,
       is_enabled: true,
       admin_notes: "",
       source: "database",
     };
     setDrafts((existing) => ({ ...existing, [id]: draft }));
     setSelectedMessageId(id);
+    setLanguage(primaryLanguage);
+    setShowNewMessageSetup(false);
+    setEditorView("editor");
+    setNewMessageTranslating(false);
+  }
+
+  function openNewMessageSetup() {
+    setNewMessageLanguages([language]);
+    setNewMessageBaseLanguage(language);
+    setNewMessageCopy({ ...EMPTY_NEW_MESSAGE_COPY });
+    setNewMessageError("");
+    setShowNewMessageSetup(true);
+  }
+
+  function toggleNewMessageLanguage(item: HeroLanguage) {
+    setNewMessageLanguages((current) => (
+      current.includes(item)
+        ? current.filter((value) => value !== item)
+        : [...current, item]
+    ));
   }
 
   async function saveMessage(item: HeroMessageAdmin) {
@@ -610,10 +700,126 @@ export default function HeroMessagesAdminPage() {
                 <h2 className="mt-1 text-xl font-black">Find and edit</h2>
                 <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{filteredMessages.length} of {allMessages.length} messages</p>
               </div>
-              <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-purple-200 px-3 py-2 text-sm font-black text-purple-700" onClick={createManagedDraft}>
+              <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-purple-300 px-3 py-2 text-sm font-black text-purple-700" onClick={openNewMessageSetup}>
                 <Plus size={16} /> New
               </button>
             </div>
+
+            {showNewMessageSetup && (
+              <section className="mt-4 rounded-lg border border-purple-200 bg-purple-50/60 p-4" aria-labelledby="new-hero-message-title">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 id="new-hero-message-title" className="text-lg font-black">Create a message</h3>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Write one version, then choose the draft translations you need.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-sm font-black text-[#695b62] hover:text-purple-700"
+                    onClick={() => setShowNewMessageSetup(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 rounded-lg border border-[#dfd2c8] bg-white p-4">
+                  <div className="grid gap-3 md:grid-cols-[180px_1fr]">
+                    <Field label="Base language">
+                      <select
+                        className={CONTROL_CLASS}
+                        value={newMessageBaseLanguage}
+                        onChange={(event) => {
+                          const nextLanguage = event.target.value as HeroLanguage;
+                          setNewMessageBaseLanguage(nextLanguage);
+                          setNewMessageLanguages((current) => current.includes(nextLanguage) ? current : [nextLanguage, ...current]);
+                        }}
+                        aria-label="Base language"
+                      >
+                        {LANGUAGES.map((item) => <option key={item} value={item}>{LANGUAGE_LABELS[item]}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Headline">
+                      <input
+                        className={CONTROL_CLASS}
+                        value={newMessageCopy.headline}
+                        onChange={(event) => setNewMessageCopy((current) => ({ ...current, headline: event.target.value }))}
+                        placeholder="What should the user see?"
+                        aria-label="New message headline"
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Supporting text (optional)">
+                      <input
+                        className={CONTROL_CLASS}
+                        value={newMessageCopy.subtitle ?? ""}
+                        onChange={(event) => setNewMessageCopy((current) => ({ ...current, subtitle: event.target.value }))}
+                        placeholder="A short helpful explanation"
+                        aria-label="New message supporting text"
+                      />
+                    </Field>
+                    <Field label="Button label (optional)">
+                      <input
+                        className={CONTROL_CLASS}
+                        value={newMessageCopy.ctaLabel ?? ""}
+                        onChange={(event) => setNewMessageCopy((current) => ({ ...current, ctaLabel: event.target.value }))}
+                        placeholder="For example: Talk"
+                        aria-label="New message button label"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                <fieldset className="mt-4">
+                  <legend className="text-sm font-black text-[#4d4351]">Create draft translations</legend>
+                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">The base language is included automatically. Other versions are generated for review.</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {LANGUAGES.map((item) => {
+                      const checked = newMessageLanguages.includes(item);
+                      return (
+                        <label
+                          key={item}
+                          className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm font-black transition ${
+                            checked
+                              ? "border-purple-500 bg-white text-purple-800 shadow-sm"
+                              : "border-[#dfd2c8] bg-white/70 text-[#5f5058] hover:border-purple-300"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 accent-purple-700"
+                            checked={checked}
+                            disabled={item === newMessageBaseLanguage || newMessageTranslating}
+                            onChange={() => toggleNewMessageLanguage(item)}
+                            aria-label={LANGUAGE_LABELS[item]}
+                          />
+                          <span>{LANGUAGE_LABELS[item]}</span>
+                          <span className="ml-auto text-xs uppercase text-[#8b7a73]">{item}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#7d6b65]">
+                      {newMessageLanguages.length === 1
+                        ? "Base language only"
+                        : `${newMessageLanguages.length - 1} translation drafts selected`}
+                    </p>
+                    {newMessageError ? <p className="mt-1 text-sm font-bold text-red-700" role="alert">{newMessageError}</p> : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                    disabled={newMessageLanguages.length === 0 || !newMessageCopy.headline.trim() || newMessageTranslating}
+                    onClick={() => void createManagedDraft()}
+                  >
+                    <Plus size={17} /> {newMessageTranslating ? "Translating..." : newMessageLanguages.length > 1 ? "Create translations" : "Create message"}
+                  </button>
+                </div>
+              </section>
+            )}
 
             <div className="mt-4 grid gap-3">
               <label className="block">
@@ -633,6 +839,13 @@ export default function HeroMessagesAdminPage() {
                   <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
                     <option value="all">All surfaces</option>
                     {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                  </select>
+                </Field>
+                <Field label="Type">
+                  <select className={CONTROL_CLASS} value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilter)}>
+                    <option value="all">All types</option>
+                    <option value="welcome">Welcome</option>
+                    <option value="standard">Standard</option>
                   </select>
                 </Field>
                 <Field label="Language">
@@ -749,9 +962,23 @@ export default function HeroMessagesAdminPage() {
                       </div>
                     </section>
 
-                    <section className="rounded-xl border border-[#eadfd5] p-3">
-                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Copy in {language.toUpperCase()}</h3>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <section className="rounded-lg border border-[#eadfd5] p-4">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black">Message copy</h3>
+                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">This is what the user will see.</p>
+                        </div>
+                        <Field label="Language">
+                          <select className={`${CONTROL_CLASS} min-w-28`} value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
+                            {LANGUAGES.map((item) => (
+                              <option key={item} value={item}>
+                                {LANGUAGE_LABELS[item]}{selectedMessage.copy[item] ? "" : " (add)"}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
                         <Field label={`Headline (${language.toUpperCase()})`}>
                           <input aria-label={`Headline (${language.toUpperCase()})`} className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
                           <LimitNote label="Headline" value={selectedCopy.headline} wordsLimit={HERO_LIMITS.headlineWords} charsLimit={HERO_LIMITS.headlineChars} />
