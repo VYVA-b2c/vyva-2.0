@@ -2076,7 +2076,7 @@ const HomeScreen = () => {
       reason: managedHomeHeroMessage.reason,
       source: managedHomeHeroMessage.source,
     });
-  }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
+  }, [language, managedHomeHeroMessage, selectedHomeContextMessage]);
   const dismissSelectedHomeContextMessage = useCallback(() => {
     if (!selectedHomeContextMessage?.dismissible) return;
     if (
