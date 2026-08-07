@@ -94,7 +94,6 @@ import homePlanRouter from "./routes/homePlan.js";
 import homeFastHelpSyncRouter from "./routes/homeFastHelpSync.js";
 import adminHomeFastHelpOutcomesRouter from "./routes/adminHomeFastHelpOutcomes.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
-import { welcomeModuleRouter } from "./routes/welcomeModule.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
 import breathingRouter from "./routes/breathing.js";
@@ -261,7 +260,6 @@ app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVo
 app.get("/api/health/db", authMiddleware, requireAdminUser, dbHealthHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
-app.use("/api/welcome-module", authMiddleware, welcomeModuleRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
 app.use("/api/profile", authMiddleware, profileRouter);
 app.use("/api/preventive-web-push", authMiddleware, requireUser, preventiveWebPushRouter);

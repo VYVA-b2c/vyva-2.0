@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { adaptWelcomeModuleForHome } from "./welcomeModuleHome";
 import {
   WELCOME_LANGUAGES,
   WELCOME_MODULE_TEMPLATES,
   isWelcomeProfileActionComplete,
   renderWelcomeCopy,
   type WelcomeProfileActionId,
-} from "../../shared/welcomeModule";
+} from "./welcomeModule";
 
-describe("Welcome module helpers", () => {
+describe("Welcome hero rules", () => {
   it("renders the first-session evening welcome with the user's name", () => {
     const template = WELCOME_MODULE_TEMPLATES.find((item) => item.id === "elder-first-evening");
 
@@ -164,29 +163,5 @@ describe("Welcome module helpers", () => {
       channelPreferences: null,
       medications: [],
     })).toBe(false);
-  });
-
-  it("adapts Welcome selections into Home context messages", () => {
-    const adapted = adaptWelcomeModuleForHome({
-      templateId: "elder-nudge-medications",
-      audience: "elder",
-      momentType: "daily_profile_nudge",
-      profileAction: "medications",
-      headline: "Add your medicines",
-      subtitle: "VYVA can help remember routines.",
-      ctaLabel: "Add medicines",
-      actionRoute: "/onboarding/profile/medications",
-      priority: 94,
-      source: "built_in",
-    });
-
-    expect(adapted).toMatchObject({
-      id: "welcome:elder-nudge-medications",
-      kind: "feature",
-      title: "Add your medicines",
-      actionLabel: "Add medicines",
-      actionRoute: "/onboarding/profile/medications",
-      category: "medication",
-    });
   });
 });

@@ -33,7 +33,9 @@ describe("AdminModulesPage", () => {
 
     expect(screen.getByRole("link", { name: "Marketing" })).toHaveAttribute("href", "/admin/marketing");
     expect(screen.getByRole("link", { name: "Email replies" })).toHaveAttribute("href", "/admin/concierge-email-replies");
+    expect(screen.getByRole("link", { name: "Hero messages" })).toHaveAttribute("href", "/admin/hero-messages");
     expect(screen.getByRole("link", { name: "Task queue" })).toHaveAttribute("href", "/admin/concierge-queue");
+    expect(screen.queryByRole("link", { name: /welcome module/i })).not.toBeInTheDocument();
   });
 
   it("keeps admin-user management restricted to the super admin", () => {
