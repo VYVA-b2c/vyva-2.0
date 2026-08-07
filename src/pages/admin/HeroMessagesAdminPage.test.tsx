@@ -62,6 +62,14 @@ function renderPage(initialRows = [rowWithHeadline("VYVA")]) {
         ],
       });
     }
+    if (url.endsWith("/hero-messages/translate") && init?.method === "POST") {
+      return jsonResponse({
+        translations: {
+          en: { sourceText: "VYVA", headline: "A gentle check-in", subtitle: "How are you today?", ctaLabel: "Talk" },
+          de: { sourceText: "VYVA", headline: "Eine sanfte Nachfrage", subtitle: "Wie geht es Ihnen heute?", ctaLabel: "Sprechen" },
+        },
+      });
+    }
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body));
       rows = [{
@@ -162,6 +170,56 @@ describe("HeroMessagesAdminPage", () => {
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("This headline is intentionally far too long");
     expect(screen.getAllByText("Headline too long").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /save message/i })).toBeDisabled();
+  });
+
+  it("translates one base message into selected draft languages for review", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^new$/i }));
+
+    expect(screen.getByRole("heading", { name: "Create a message" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Spanish" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "English" })).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("New message headline"), {
+      target: { value: "Un control amable" },
+    });
+    fireEvent.change(screen.getByLabelText("New message supporting text"), {
+      target: { value: "Como estas hoy?" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "English" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "German" }));
+    fireEvent.click(screen.getByRole("button", { name: /create translations/i }));
+
+    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("Un control amable");
+    const translateCall = apiFetchMock.mock.calls.find(([input]) => String(input).endsWith("/hero-messages/translate"));
+    expect(translateCall).toBeTruthy();
+    expect(JSON.parse(String(translateCall?.[1]?.body))).toEqual({
+      sourceLanguage: "es",
+      targetLanguages: ["en", "de"],
+      copy: expect.objectContaining({
+        headline: "Un control amable",
+        subtitle: "Como estas hoy?",
+      }),
+    });
+    const languageSelect = screen.getAllByRole("combobox", { name: "Language" })
+      .find((element) => element.textContent?.includes("French (add)"));
+    expect(languageSelect).toBeDefined();
+    expect(languageSelect).toHaveTextContent("Spanish");
+    expect(languageSelect).toHaveTextContent("English");
+    expect(languageSelect).toHaveTextContent("German");
+    expect(languageSelect).toHaveTextContent("French (add)");
+
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
+
+    await waitFor(() => {
+      const postCalls = apiFetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(postCalls.at(-1)?.[1]?.body));
+      expect(body.copy.es.headline).toBe("Un control amable");
+      expect(body.copy.en.headline).toBe("A gentle check-in");
+      expect(body.copy.de.headline).toBe("Eine sanfte Nachfrage");
+      expect(body.copy.fr).toBeUndefined();
+    });
   });
 
   it("direct saves edits and refreshes the overview", async () => {

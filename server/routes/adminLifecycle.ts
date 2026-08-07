@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
+import OpenAI from "openai";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
@@ -325,6 +326,11 @@ const heroMessageCreateSchema = z.object({
 });
 
 const heroMessageUpdateSchema = heroMessageCreateSchema.omit({ message_id: true }).partial();
+const heroMessageTranslationSchema = z.object({
+  sourceLanguage: supportedHeroLanguageSchema,
+  targetLanguages: z.array(supportedHeroLanguageSchema).min(1).max(5),
+  copy: heroCopySchema,
+});
 const adminRoleUpdateSchema = z.object({
   role: z.enum(["user", "admin"]),
 });
@@ -2315,6 +2321,83 @@ adminLifecycleRouter.get("/hero-messages", async (req: Request, res: Response) =
     return res.status(503).json({
       error: "Hero messages are not migrated yet. Run schema/hero_messages.sql.",
     });
+  }
+});
+
+adminLifecycleRouter.post("/hero-messages/translate", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  const parsed = heroMessageTranslationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return res.status(503).json({ error: "Automatic translation is not configured." });
+  }
+
+  const targetLanguages = Array.from(new Set(parsed.data.targetLanguages))
+    .filter((item) => item !== parsed.data.sourceLanguage);
+  if (!targetLanguages.length) {
+    return res.json({ translations: {} });
+  }
+
+  const languageLabels: Record<z.infer<typeof supportedHeroLanguageSchema>, string> = {
+    es: "Spanish",
+    en: "English",
+    de: "German",
+    fr: "French",
+    it: "Italian",
+    pt: "Portuguese",
+  };
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_HERO_TRANSLATION_MODEL || process.env.OPENAI_MARKETING_TRANSLATION_MODEL || "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: 1800,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: [
+            "Translate concise VYVA app hero-message copy.",
+            "Return only valid JSON keyed by the requested two-letter language codes.",
+            "Each language value must contain sourceText, headline, headlineWithName, subtitle, ctaLabel, and contextHint.",
+            "Keep absent optional fields as empty strings.",
+            "Preserve the brand name VYVA and placeholders such as {name} exactly.",
+            "Do not add explanations, promises, medical claims, or new meaning.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            sourceLanguage: languageLabels[parsed.data.sourceLanguage],
+            targetLanguages: Object.fromEntries(targetLanguages.map((item) => [item, languageLabels[item]])),
+            copy: parsed.data.copy,
+          }),
+        },
+      ],
+    });
+
+    const raw = completion.choices[0]?.message?.content;
+    const decoded = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    const translations: Partial<Record<z.infer<typeof supportedHeroLanguageSchema>, z.infer<typeof heroCopySchema>>> = {};
+
+    for (const targetLanguage of targetLanguages) {
+      const translated = heroCopySchema.safeParse(decoded[targetLanguage]);
+      if (!translated.success) {
+        throw new Error(`Translation response did not include valid ${languageLabels[targetLanguage]} copy.`);
+      }
+      translations[targetLanguage] = translated.data;
+    }
+
+    return res.json({ translations });
+  } catch (error) {
+    console.error("[admin/lifecycle] hero message translation failed", error);
+    return res.status(502).json({ error: "The message could not be translated. Please try again." });
   }
 });
 
