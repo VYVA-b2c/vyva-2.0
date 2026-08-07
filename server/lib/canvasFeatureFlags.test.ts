@@ -60,6 +60,21 @@ describe("Canvas feature flag runtime payloads", () => {
     ).toEqual({ enabled: false, rolloutPercent: 100 });
   });
 
+  it("exposes Health preventive voice-screen sync as an independently kill-switchable flow", () => {
+    expect(
+      resolveCanvasFeatureFlag("healthPreventiveVoiceScreenSync", {
+        VYVA_ENABLE_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC: "true",
+        VYVA_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_ROLLOUT_PERCENT: "100",
+      }),
+    ).toEqual({ enabled: true, rolloutPercent: 100 });
+    expect(
+      resolveCanvasFeatureFlag("healthPreventiveVoiceScreenSync", {
+        VYVA_ENABLE_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC: "false",
+        VYVA_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_ROLLOUT_PERCENT: "100",
+      }),
+    ).toEqual({ enabled: false, rolloutPercent: 100 });
+  });
+
   it.each(CANVAS_FEATURE_FLAG_ENDPOINTS)(
     "$endpoint fails closed and disables caching at the HTTP boundary",
     async ({ endpoint }) => {
