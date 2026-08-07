@@ -1447,6 +1447,39 @@ store and real-route persistence tests sequentially against disposable
 - **Risk:** high.
 - **Do not change:** unrelated canvases.
 
+**Task 12 implementation slice:** Stage 7 starts with the preventive Health
+check-in only. A Health-specific client adapter normalizes touch and voice-canvas
+answers into one canonical answer event before updating the existing Health
+answer state and before the existing `/api/checkins/analyze` authoritative
+backend path is called. The adapter carries the preventive Flow ID, scene ID,
+question ID, answer ID/value, modality, event ID and scene revision. It performs
+no Health business logic, does not advance the Flow by itself, and does not make
+the client authoritative over backend Flow state.
+
+Stale-scene protection uses the active Health question's scene ID, question ID,
+Health-session scene instance ID and monotonically incremented scene revision.
+For Health-owned voice answers, the ElevenLabs tentative user-transcript
+provider event is the earliest reliable browser lifecycle point. Stage 7 stores
+an immutable scene-provenance snapshot keyed by the provider event ID at that
+point; the final transcript callback consumes that prior snapshot and does not
+look up the currently active Health scene. If a final Health transcript has no
+reliable prior provenance correlation, it fails closed instead of being stamped
+with the active scene. Delayed voice events, old touch callbacks, duplicate
+callbacks and responses from a previous scene fail closed instead of being
+rebound to the current question. Voice idempotency uses the stable provider
+event ID when available, not the final callback timestamp. Observability is
+emitted as a privacy-safe browser event containing stable Flow/question/answer
+IDs, scene instance, modality, accepted/rejected status and stale/duplicate
+rejection reason. Raw health answer free text is not logged by the normalized
+path.
+
+The rollout is controlled by
+`VYVA_ENABLE_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC` and
+`VYVA_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_ROLLOUT_PERCENT` through
+`/api/config/features/health-preventive-voice-screen-sync`. When disabled, the
+legacy Health touch handlers remain the active path and no Health voice-canvas
+scene is published.
+
 ### Stage 8 — Memory policy integration
 
 - **Objective:** policy-controlled category reads and proposed writes.

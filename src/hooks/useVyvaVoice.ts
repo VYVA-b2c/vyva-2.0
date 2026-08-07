@@ -20,6 +20,10 @@ import {
   toolResultForVoiceHomeSubflow,
 } from "@/lib/voiceNavigation";
 import {
+  readActiveVoiceCanvasSceneProvenance,
+  type VoiceCanvasSceneProvenance,
+} from "@/lib/voiceCanvasBridge";
+import {
   ensureVoiceSessionId,
   readVoiceSessionId,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
@@ -731,6 +735,101 @@ function isUserVoiceMessage(payload: unknown) {
     Boolean(record.tentative_user_transcription_event);
 }
 
+type UserVoiceTranscriptPhase = "tentative" | "final" | "generic";
+
+type UserVoiceUtteranceCorrelation = {
+  voiceUtteranceId: string;
+  canvasProvenance: VoiceCanvasSceneProvenance | null;
+  createdAt: number;
+};
+
+const MAX_USER_VOICE_UTTERANCE_CORRELATIONS = 40;
+
+function userVoiceTranscriptPhase(payload: unknown): UserVoiceTranscriptPhase {
+  const record = asRecord(payload);
+  if (!record) return "generic";
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+
+  if (
+    type.includes("tentative_user_transcript") ||
+    Boolean(record.tentative_user_transcription_event)
+  ) {
+    return "tentative";
+  }
+  if (
+    type.includes("user_transcript") ||
+    Boolean(record.user_transcription_event)
+  ) {
+    return "final";
+  }
+  return "generic";
+}
+
+function normalizeProviderEventIdentifier(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 128) return null;
+  return /^[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+}
+
+function userVoiceProviderEventId(payload: unknown): string | null {
+  const record = asRecord(payload);
+  if (!record) return null;
+  const nestedRecords = [
+    record,
+    asRecord(record.user_transcription_event),
+    asRecord(record.tentative_user_transcription_event),
+  ].filter(Boolean) as Record<string, unknown>[];
+  const keys = [
+    "event_id",
+    "eventId",
+    "message_id",
+    "messageId",
+    "id",
+  ];
+
+  for (const candidateRecord of nestedRecords) {
+    for (const key of keys) {
+      const eventId = normalizeProviderEventIdentifier(candidateRecord[key]);
+      if (eventId) return eventId;
+    }
+  }
+  return null;
+}
+
+function safeVoiceUtteranceIdSegment(value: string) {
+  return value.replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 128) || "unknown";
+}
+
+function providerVoiceUtteranceId(voiceSessionId: string, providerEventId: string) {
+  return [
+    "elevenlabs-user",
+    safeVoiceUtteranceIdSegment(voiceSessionId),
+    safeVoiceUtteranceIdSegment(providerEventId),
+  ].join(":");
+}
+
+function localVoiceUtteranceId(voiceSessionId: string, sequence: number) {
+  return [
+    "elevenlabs-user-local",
+    safeVoiceUtteranceIdSegment(voiceSessionId),
+    String(sequence),
+  ].join(":");
+}
+
+function rememberUserVoiceUtteranceCorrelation(
+  correlations: Map<string, UserVoiceUtteranceCorrelation>,
+  providerEventId: string,
+  correlation: UserVoiceUtteranceCorrelation,
+) {
+  if (!correlations.has(providerEventId) && correlations.size >= MAX_USER_VOICE_UTTERANCE_CORRELATIONS) {
+    const oldestKey = correlations.keys().next().value;
+    if (oldestKey) correlations.delete(oldestKey);
+  }
+  if (!correlations.has(providerEventId)) correlations.set(providerEventId, correlation);
+}
+
 function isAgentVoiceDebugEvent(payload: unknown) {
   const record = asRecord(payload);
   if (!record) return false;
@@ -911,6 +1010,8 @@ function useVyvaVoiceController() {
   const voiceInstanceIdRef = useRef(createVoiceInstanceId());
   const activeRecommendationRef = useRef<ActiveVoiceRecommendation | null>(null);
   const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
+  const userVoiceUtteranceSequenceRef = useRef(0);
+  const userVoiceUtteranceCorrelationsRef = useRef<Map<string, UserVoiceUtteranceCorrelation>>(new Map());
 
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
@@ -1044,6 +1145,7 @@ function useVyvaVoiceController() {
     hiddenOutgoingMessagesRef.current = [];
     streamingVyvaTranscriptRef.current = "";
     streamingVyvaTranscriptShouldAppendRef.current = false;
+    userVoiceUtteranceCorrelationsRef.current.clear();
     activeRecommendationRef.current = null;
     recordedRecommendationActionsRef.current.clear();
     setIsConnecting(false);
@@ -1352,6 +1454,7 @@ function useVyvaVoiceController() {
       replaceTranscript([]);
       streamingVyvaTranscriptRef.current = "";
       streamingVyvaTranscriptShouldAppendRef.current = false;
+      userVoiceUtteranceCorrelationsRef.current.clear();
       setLastError(null);
       setLastErrorCode(null);
       if (isOnboardingVoiceStart(options)) {
@@ -1924,12 +2027,36 @@ function useVyvaVoiceController() {
             const message = textFromUnknown(payload);
             if (!message?.trim()) return;
             if (isUserVoiceMessage(payload)) {
+              const transcriptPhase = userVoiceTranscriptPhase(payload);
+              const providerEventId = userVoiceProviderEventId(payload);
               const normalized = normalizeTranscriptText(message);
               const hiddenIndex = hiddenOutgoingMessagesRef.current.findIndex((entry) => entry === normalized);
               if (hiddenIndex !== -1) {
                 hiddenOutgoingMessagesRef.current.splice(hiddenIndex, 1);
                 return;
               }
+              if (transcriptPhase === "tentative") {
+                if (providerEventId) {
+                  rememberUserVoiceUtteranceCorrelation(
+                    userVoiceUtteranceCorrelationsRef.current,
+                    providerEventId,
+                    {
+                      voiceUtteranceId: providerVoiceUtteranceId(voiceSessionId, providerEventId),
+                      canvasProvenance: readActiveVoiceCanvasSceneProvenance(),
+                      createdAt: Date.now(),
+                    },
+                  );
+                }
+                return;
+              }
+              const correlation = providerEventId
+                ? userVoiceUtteranceCorrelationsRef.current.get(providerEventId) ?? null
+                : null;
+              userVoiceUtteranceSequenceRef.current += 1;
+              const voiceUtteranceId = correlation?.voiceUtteranceId
+                ?? (providerEventId
+                  ? providerVoiceUtteranceId(voiceSessionId, providerEventId)
+                  : localVoiceUtteranceId(voiceSessionId, userVoiceUtteranceSequenceRef.current));
               const transcriptEntry = { from: "user" as const, text: message, timestamp: Date.now() };
               appendTranscript(transcriptEntry);
               const inferredAction = inferRecommendationFeedbackAction(message);
@@ -1939,7 +2066,14 @@ function useVyvaVoiceController() {
                   user_message_preview: message.slice(0, 160),
                 });
               }
-              emitVoiceUserMessage({ text: message, transcriptEntry });
+              emitVoiceUserMessage({
+                text: message,
+                transcriptEntry,
+                at: new Date(transcriptEntry.timestamp).toISOString(),
+                voiceUtteranceId,
+                canvasProvenance: correlation?.canvasProvenance ?? null,
+                allowCanvasProvenanceFallback: false,
+              });
               return;
             }
             streamingVyvaTranscriptRef.current = "";

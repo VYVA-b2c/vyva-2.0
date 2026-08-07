@@ -15,6 +15,8 @@ type UseVoiceCanvasControllerInput = {
   actionId?: string;
   flowReference?: string;
   pendingId?: string;
+  questionId?: string;
+  sceneInstanceId?: string;
 };
 
 export function useVoiceCanvasController({
@@ -25,6 +27,8 @@ export function useVoiceCanvasController({
   actionId,
   flowReference,
   pendingId,
+  questionId,
+  sceneInstanceId,
 }: UseVoiceCanvasControllerInput): MutableRefObject<VoiceCanvasSceneEnvelope | null> {
   const activeSceneRef = useRef<VoiceCanvasSceneEnvelope | null>(null);
 
@@ -41,11 +45,13 @@ export function useVoiceCanvasController({
       actionId,
       flowReference,
       pendingId,
+      questionId,
+      sceneInstanceId,
       viewModel,
     };
     activeSceneRef.current = scene;
     emitVoiceCanvasScene(scene);
-  }, [actionId, enabled, flowReference, owner, pendingId, revision, viewModel]);
+  }, [actionId, enabled, flowReference, owner, pendingId, questionId, revision, sceneInstanceId, viewModel]);
 
   useEffect(() => () => {
     activeSceneRef.current = null;

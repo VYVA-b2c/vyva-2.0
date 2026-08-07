@@ -5,7 +5,16 @@ import {
   VYVA_VOICE_SESSION_STORAGE_KEY,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
 } from "@/lib/voiceSessionBridge";
-import { VYVA_VOICE_HOME_INTENT_EVENT } from "@/lib/voiceNavigation";
+import {
+  VYVA_VOICE_HOME_INTENT_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceUserMessageDetail,
+} from "@/lib/voiceNavigation";
+import {
+  clearVoiceCanvasScene,
+  emitVoiceCanvasScene,
+  type VoiceCanvasSceneEnvelope,
+} from "@/lib/voiceCanvasBridge";
 import { VYVA_ONBOARDING_ELEVENLABS_OUTPUT_EVENT } from "@/lib/onboardingElevenLabsRuntimeAdapter";
 
 const voiceMocks = vi.hoisted(() => ({
@@ -117,6 +126,58 @@ function VoiceHarness({ onController }: { onController: (controller: VoiceContro
   );
 }
 
+function healthCanvasScene(sceneInstanceId: string, revision = 1): VoiceCanvasSceneEnvelope {
+  return {
+    owner: "health_preventive_check",
+    flowReference: "health.preventive_check",
+    questionId: "health.preventive_check.energy",
+    sceneInstanceId,
+    revision,
+    viewModel: {
+      sceneId: "health.preventive_check.energy",
+      kind: "choice",
+      title: "How much energy do you have today?",
+      choices: [{ id: "3", label: "Normal" }],
+    },
+  };
+}
+
+async function renderStartedVoice() {
+  let controller: VoiceController | null = null;
+
+  render(
+    <VyvaVoiceProvider>
+      <VoiceHarness onController={(nextController) => {
+        controller = nextController;
+      }} />
+    </VyvaVoiceProvider>,
+  );
+
+  await waitFor(() => expect(controller).not.toBeNull());
+
+  await act(async () => {
+    await controller?.startVoice("app_open", undefined, {
+      agentId: "agent_test",
+      autoStartListening: true,
+      skipMicrophone: true,
+    });
+  });
+
+  return voiceMocks.startSession.mock.calls.at(-1)?.[0] as MockStartSessionOptions | undefined;
+}
+
+function collectVoiceUserMessages() {
+  const messages: VoiceUserMessageDetail[] = [];
+  const handleMessage = (event: Event) => {
+    messages.push((event as CustomEvent<VoiceUserMessageDetail>).detail);
+  };
+  window.addEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleMessage);
+  return {
+    messages,
+    stop: () => window.removeEventListener(VYVA_VOICE_USER_MESSAGE_EVENT, handleMessage),
+  };
+}
+
 describe("useVyvaVoice", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -172,6 +233,8 @@ describe("useVyvaVoice", () => {
 
   afterEach(() => {
     cleanup();
+    clearVoiceCanvasScene();
+    vi.useRealTimers();
     sessionStorage.clear();
     localStorage.clear();
   });
@@ -217,6 +280,199 @@ describe("useVyvaVoice", () => {
 
     expect(voiceMocks.startSession).toHaveBeenCalledTimes(2);
     expect(createdConversations).toHaveLength(2);
+  });
+
+  it("captures Health scene provenance on tentative provider user transcript and emits it with the final transcript", async () => {
+    const emitted = collectVoiceUserMessages();
+    try {
+      const sessionOptions = await renderStartedVoice();
+      act(() => emitVoiceCanvasScene(healthCanvasScene("health-session-a")));
+
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "tentative_user_transcript",
+          tentative_user_transcription_event: {
+            user_transcript: "Nor",
+            event_id: 101,
+          },
+        });
+        sessionOptions?.onMessage?.({
+          type: "user_transcript",
+          user_transcription_event: {
+            user_transcript: "Normal",
+            event_id: 101,
+          },
+        });
+      });
+
+      expect(emitted.messages).toHaveLength(1);
+      expect(emitted.messages[0]).toMatchObject({
+        text: "Normal",
+        voiceUtteranceId: expect.stringContaining(":101"),
+        canvasProvenance: {
+          owner: "health_preventive_check",
+          sceneId: "health.preventive_check.energy",
+          questionId: "health.preventive_check.energy",
+          sceneInstanceId: "health-session-a",
+          revision: 1,
+        },
+      });
+    } finally {
+      emitted.stop();
+    }
+  });
+
+  it("keeps delayed final provider transcripts bound to the original Health scene snapshot", async () => {
+    const emitted = collectVoiceUserMessages();
+    try {
+      const sessionOptions = await renderStartedVoice();
+      act(() => emitVoiceCanvasScene(healthCanvasScene("health-session-a", 1)));
+
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "tentative_user_transcript",
+          tentative_user_transcription_event: {
+            user_transcript: "Nor",
+            event_id: 102,
+          },
+        });
+        emitVoiceCanvasScene({
+          ...healthCanvasScene("health-session-a", 2),
+          questionId: "health.preventive_check.mood",
+          viewModel: {
+            sceneId: "health.preventive_check.mood",
+            kind: "choice",
+            title: "How is your mood?",
+            choices: [{ id: "well", label: "Quite well" }],
+          },
+        });
+        sessionOptions?.onMessage?.({
+          type: "user_transcript",
+          user_transcription_event: {
+            user_transcript: "Normal",
+            event_id: 102,
+          },
+        });
+      });
+
+      expect(emitted.messages).toHaveLength(1);
+      expect(emitted.messages[0].canvasProvenance).toMatchObject({
+        sceneId: "health.preventive_check.energy",
+        questionId: "health.preventive_check.energy",
+        sceneInstanceId: "health-session-a",
+        revision: 1,
+      });
+    } finally {
+      emitted.stop();
+    }
+  });
+
+  it("fails closed for final Health transcripts that have no prior provider provenance correlation", async () => {
+    const emitted = collectVoiceUserMessages();
+    try {
+      const sessionOptions = await renderStartedVoice();
+      act(() => emitVoiceCanvasScene(healthCanvasScene("health-session-a")));
+
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "user_transcript",
+          user_transcription_event: {
+            user_transcript: "Normal",
+            event_id: 103,
+          },
+        });
+      });
+
+      expect(emitted.messages).toHaveLength(1);
+      expect(emitted.messages[0]).toMatchObject({
+        text: "Normal",
+        voiceUtteranceId: expect.stringContaining(":103"),
+      });
+      expect(emitted.messages[0].canvasProvenance).toBeUndefined();
+    } finally {
+      emitted.stop();
+    }
+  });
+
+  it("does not rebind an utterance across a Health scene remount", async () => {
+    const emitted = collectVoiceUserMessages();
+    try {
+      const sessionOptions = await renderStartedVoice();
+      act(() => emitVoiceCanvasScene(healthCanvasScene("health-session-a")));
+
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "tentative_user_transcript",
+          tentative_user_transcription_event: {
+            user_transcript: "Nor",
+            event_id: 104,
+          },
+        });
+        clearVoiceCanvasScene({ owner: "health_preventive_check" });
+        emitVoiceCanvasScene(healthCanvasScene("health-session-b"));
+        sessionOptions?.onMessage?.({
+          type: "user_transcript",
+          user_transcription_event: {
+            user_transcript: "Normal",
+            event_id: 104,
+          },
+        });
+      });
+
+      expect(emitted.messages).toHaveLength(1);
+      expect(emitted.messages[0].canvasProvenance).toMatchObject({
+        sceneInstanceId: "health-session-a",
+      });
+    } finally {
+      emitted.stop();
+    }
+  });
+
+  it("reuses stable voice event identity for duplicate final provider callbacks with different callback times", async () => {
+    const emitted = collectVoiceUserMessages();
+    try {
+      const sessionOptions = await renderStartedVoice();
+      act(() => emitVoiceCanvasScene(healthCanvasScene("health-session-a")));
+
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "tentative_user_transcript",
+          tentative_user_transcription_event: {
+            user_transcript: "Nor",
+            event_id: 105,
+          },
+        });
+      });
+
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-07T10:00:00.000Z"));
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "user_transcript",
+          user_transcription_event: {
+            user_transcript: "Normal",
+            event_id: 105,
+          },
+        });
+      });
+      vi.setSystemTime(new Date("2026-08-07T10:00:05.000Z"));
+      act(() => {
+        sessionOptions?.onMessage?.({
+          type: "user_transcript",
+          user_transcription_event: {
+            user_transcript: "Normal",
+            event_id: 105,
+          },
+        });
+      });
+
+      expect(emitted.messages).toHaveLength(2);
+      expect(emitted.messages[0].at).not.toBe(emitted.messages[1].at);
+      expect(emitted.messages[0].voiceUtteranceId).toBe(emitted.messages[1].voiceUtteranceId);
+      expect(emitted.messages[0].canvasProvenance).toEqual(emitted.messages[1].canvasProvenance);
+    } finally {
+      emitted.stop();
+    }
   });
 
   it("force-restarts a stale onboarding voice session and sends a fresh starter prompt", async () => {

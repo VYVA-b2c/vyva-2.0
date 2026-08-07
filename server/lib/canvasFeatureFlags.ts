@@ -27,6 +27,10 @@ export const CANVAS_FEATURE_FLAGS = {
     enableEnv: "VYVA_ENABLE_PROVIDER_REPLY_VOICE_CANVAS",
     rolloutEnv: "VYVA_PROVIDER_REPLY_VOICE_CANVAS_ROLLOUT_PERCENT",
   },
+  healthPreventiveVoiceScreenSync: {
+    enableEnv: "VYVA_ENABLE_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC",
+    rolloutEnv: "VYVA_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_ROLLOUT_PERCENT",
+  },
 } as const;
 
 export type CanvasFeatureFlagKey = keyof typeof CANVAS_FEATURE_FLAGS;
@@ -56,6 +60,10 @@ export const CANVAS_FEATURE_FLAG_ENDPOINTS = [
   {
     endpoint: "/api/config/features/provider-reply-voice-canvas",
     feature: "providerReply",
+  },
+  {
+    endpoint: "/api/config/features/health-preventive-voice-screen-sync",
+    feature: "healthPreventiveVoiceScreenSync",
   },
 ] as const satisfies readonly {
   endpoint: string;
