@@ -522,7 +522,7 @@ export default function MasterDashboardLayout({
         ) : null}
       </section> : null}
 
-      {showCards && beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
+      {beforeFastHelp ? <div className="mt-4">{beforeFastHelp}</div> : null}
 
       {showLauncher && !isHomeMaster ? <section
         className="mt-4 rounded-[24px] border border-[#E6E0F4] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] min-[390px]:rounded-[26px] min-[390px]:p-4"

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, MessageCircle, Mic } from "lucide-react";
+import { Loader2, MessageCircle, Mic, type LucideIcon } from "lucide-react";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
-import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
+import ZamoraVoiceOrb, { type ZamoraOrbState, useVoiceOrbAudioLevel } from "@/components/ZamoraVoiceOrb";
 import {
   type VoiceConnectionErrorCode,
   type VoiceDiagnosticStep,
@@ -96,6 +96,66 @@ function buttonLabel({
   if (isActive) return activeLabel ?? voiceSessionPhaseLabel(voiceSessionPhase);
   if (voiceSessionPhase === "error") return errorLabel ?? "Needs attention";
   return label ?? "Talk to VYVA";
+}
+
+function HomeVoiceActivationOrb({
+  Icon,
+  audioLevel,
+  iconClassName,
+  isDark,
+  isPreparing,
+  state,
+  size,
+}: {
+  Icon: LucideIcon;
+  audioLevel: number;
+  iconClassName?: string;
+  isDark: boolean;
+  isPreparing: boolean;
+  state: ZamoraOrbState;
+  size: number;
+}) {
+  const outerSize = Math.max(104, Math.min(190, size));
+  const iconSize = Math.max(22, Math.min(32, Math.round(outerSize * 0.16)));
+  const showIcon = state === "idle" || isPreparing;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="relative isolate grid shrink-0 place-items-center"
+      data-testid="home-dormant-zamora-orb"
+      style={{ height: outerSize, width: outerSize }}
+    >
+      <ZamoraVoiceOrb
+        audioLevel={audioLevel}
+        isDark={isDark}
+        size={outerSize}
+        state={state}
+        testId="home-dormant-zamora-orb-visual"
+      />
+      {showIcon && (
+        <span
+          className="absolute z-[2] grid place-items-center rounded-full text-white"
+          style={{
+            background: isPreparing
+              ? "linear-gradient(145deg, #0F8274 0%, #7C3AED 100%)"
+              : "linear-gradient(145deg, rgba(124,45,218,0.96) 0%, rgba(91,22,168,0.98) 100%)",
+            boxShadow: isDark
+              ? "0 18px 44px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.18)"
+              : "0 18px 40px rgba(107,33,168,0.24), inset 0 1px 0 rgba(255,255,255,0.32)",
+            height: Math.round(outerSize * 0.34),
+            width: Math.round(outerSize * 0.34),
+          }}
+        >
+          <Icon
+            size={iconSize}
+            className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
+            aria-hidden="true"
+          />
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function VyvaSessionCta({
@@ -247,6 +307,20 @@ export function VyvaSessionCta({
         ? errorLabel ?? "Tap for help"
         : supportingLabel ?? "Speak anytime";
   const accessibleLabel = isVoiceRail ? railSupportingLabel : statusLabel;
+  const voiceOrbState = isPreparing || isConnecting
+    ? "listening"
+    : isActive
+      ? isSpeaking
+        ? "speaking"
+        : "listening"
+      : "idle";
+  const voiceOrbAudioLevel = useVoiceOrbAudioLevel({
+    enabled: isVoiceOrb && !showOverlay && voiceOrbState !== "idle",
+    phase: voiceSessionPhase,
+    isSpeaking,
+    isMicMuted,
+    isConnecting: isPreparing || isConnecting,
+  });
 
   return (
     <>
@@ -278,14 +352,15 @@ export function VyvaSessionCta({
           className={className}
         >
           {isVoiceOrb ? (
-            <>
-              <ZamoraVoiceOrb
-                state={isPreparing || isConnecting ? "listening" : isActive ? (isSpeaking ? "speaking" : "listening") : "idle"}
-                size={voiceOrbSize}
-                isDark={voiceOrbDark}
-                testId="home-dormant-zamora-orb"
-              />
-            </>
+            <HomeVoiceActivationOrb
+              Icon={Icon}
+              audioLevel={voiceOrbAudioLevel}
+              iconClassName={iconClassName}
+              isDark={voiceOrbDark}
+              isPreparing={isPreparing}
+              state={voiceOrbState}
+              size={voiceOrbSize}
+            />
           ) : isVoiceRail ? (
             <>
               <span className="absolute inset-[-7px] rounded-full bg-[#F3E8FF] opacity-50" aria-hidden="true" />

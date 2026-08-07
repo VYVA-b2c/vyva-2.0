@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
@@ -8,7 +8,9 @@ import { selectProfileByDatabaseColumns } from "../lib/profileReadCompatibility.
 import {
   onboardingState,
   userChannelPreferences,
+  userHealthConditions,
   userMedications,
+  userProviders,
   welcomeModuleEvents,
   welcomeModuleTemplates,
 } from "../../shared/schema.js";
@@ -142,10 +144,12 @@ async function loadWelcomeSnapshot(profileId: string | null) {
       onboardingState: null,
       channelPreferences: null,
       medications: [],
+      providers: [],
+      healthConditions: [],
     };
   }
 
-  const [profile, stateRows, preferenceRows, medicationRows] = await Promise.all([
+  const [profile, stateRows, preferenceRows, medicationRows, providerRows, healthConditionRows] = await Promise.all([
     selectProfileByDatabaseColumns(profileId).catch(() => null),
     db.select().from(onboardingState).where(eq(onboardingState.user_id, profileId)).limit(1).catch((err) => {
       if (isRelationSchemaUnavailableError(err, "onboarding_state")) return [];
@@ -159,6 +163,24 @@ async function loadWelcomeSnapshot(profileId: string | null) {
       if (isRelationSchemaUnavailableError(err, "user_medications")) return [];
       throw err;
     }),
+    db
+      .select()
+      .from(userProviders)
+      .where(and(eq(userProviders.user_id, profileId), eq(userProviders.is_active, true)))
+      .limit(25)
+      .catch((err) => {
+        if (isRelationSchemaUnavailableError(err, "user_providers")) return [];
+        throw err;
+      }),
+    db
+      .select()
+      .from(userHealthConditions)
+      .where(and(eq(userHealthConditions.user_id, profileId), eq(userHealthConditions.is_active, true)))
+      .limit(25)
+      .catch((err) => {
+        if (isRelationSchemaUnavailableError(err, "user_health_conditions")) return [];
+        throw err;
+      }),
   ]);
 
   return {
@@ -166,6 +188,8 @@ async function loadWelcomeSnapshot(profileId: string | null) {
     onboardingState: (stateRows[0] ?? null) as Record<string, unknown> | null,
     channelPreferences: (preferenceRows[0] ?? null) as Record<string, unknown> | null,
     medications: medicationRows,
+    providers: providerRows,
+    healthConditions: healthConditionRows,
   };
 }
 

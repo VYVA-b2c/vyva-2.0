@@ -5,7 +5,7 @@ import { ChevronDown, ChevronLeft, Hand, Keyboard, Mic, MicOff, MoreHorizontal, 
 import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
-import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
+import ZamoraVoiceOrb, { type ZamoraOrbState, useVoiceOrbAudioLevel } from "@/components/ZamoraVoiceOrb";
 import { emitSosSheetOpen } from "@/lib/sosEvents";
 import { VoiceCanvasScene, useVoiceCanvasAgentPresence, type VoiceCanvasViewModel } from "@/components/voice-canvas";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
@@ -268,6 +268,17 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.speakingStatus", "Speaking")
     : t("voiceHero.listening", "Listening");
   const hasConnectionError = Boolean(connectionError);
+  const resolvedVoiceSessionPhase: VoiceSessionPhase = hasConnectionError
+    ? "error"
+    : voiceSessionPhase
+    ? voiceSessionPhase
+    : isConnecting
+    ? "connecting"
+    : isSpeaking
+    ? "speaking"
+    : isMicMuted
+    ? "muted"
+    : "listening";
   const isNeutralListeningShell = !canvasViewModel && !connectionError;
   const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
   const hasMicrophoneError = isMicrophoneError(resolvedConnectionErrorCode);
@@ -395,6 +406,13 @@ const VoiceCallOverlay = ({
       }
     : null;
   const visibleCanvasViewModel = useVoiceCanvasAgentPresence(baseVisibleCanvasViewModel);
+  const voiceOrbAudioLevel = useVoiceOrbAudioLevel({
+    enabled: !hasConnectionError && !visibleCanvasViewModel,
+    phase: resolvedVoiceSessionPhase,
+    isSpeaking,
+    isMicMuted,
+    isConnecting,
+  });
 
   const handleSos = () => {
     emitSosSheetOpen();
@@ -609,7 +627,12 @@ const VoiceCallOverlay = ({
                 : "inset 0 0 0 58px rgba(124,58,237,0.04), inset 0 0 0 112px rgba(124,58,237,0.035)",
             }}
           />
-          <ZamoraVoiceOrb state={currentOrbState} size={neutralOrbSize} testId="voice-mode-zamora-orb" />
+          <ZamoraVoiceOrb
+            audioLevel={voiceOrbAudioLevel}
+            state={currentOrbState}
+            size={neutralOrbSize}
+            testId="voice-mode-zamora-orb"
+          />
         </div>
 
         <h1

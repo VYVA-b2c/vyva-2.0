@@ -608,6 +608,7 @@ function recordValue(value: unknown): Record<string, unknown> {
 }
 
 function textValue(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return typeof value === "string" ? value.trim() : "";
 }
 
@@ -621,6 +622,83 @@ function hasArrayItems(value: unknown): boolean {
 
 function boolValue(value: unknown): boolean {
   return value === true || value === "true";
+}
+
+function mergeRecords(...values: unknown[]): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  for (const value of values) {
+    Object.assign(merged, recordValue(value));
+  }
+  return merged;
+}
+
+function hasRecordText(record: Record<string, unknown>, keys: string[]): boolean {
+  return hasText(...keys.map((key) => record[key]));
+}
+
+function hasAnyArrayItems(...values: unknown[]): boolean {
+  return values.some(hasArrayItems);
+}
+
+function hasMeaningfulArrayItems(value: unknown, keys: string[]): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((item) => {
+    if (textValue(item).length > 0) return true;
+    const record = recordValue(item);
+    return hasRecordText(record, keys);
+  });
+}
+
+function hasMedicationItems(...values: unknown[]): boolean {
+  return values.some((value) => hasMeaningfulArrayItems(value, [
+    "medication_name",
+    "name",
+    "drug_name",
+    "dosage",
+    "frequency",
+  ]));
+}
+
+function hasProviderItems(...values: unknown[]): boolean {
+  return values.some((value) => hasMeaningfulArrayItems(value, [
+    "name",
+    "category",
+    "role",
+    "phone",
+    "address",
+    "place_id",
+    "google_place_id",
+    "maps_url",
+    "google_maps_url",
+    "email",
+    "whatsapp",
+  ]));
+}
+
+function hasProviderForGp(...values: unknown[]): boolean {
+  const gpTokens = ["gp", "doctor", "clinic", "hospital", "medico", "medecin", "arzt"];
+  return values.some((value) => Array.isArray(value) && value.some((item) => {
+    const record = recordValue(item);
+    if (!hasRecordText(record, ["name", "phone", "address", "place_id", "google_place_id", "maps_url", "google_maps_url", "email"])) {
+      return false;
+    }
+    const haystack = [
+      record.category,
+      record.role,
+      record.type,
+      record.name,
+      record.contact_role,
+    ].map(textValue).join(" ").toLowerCase();
+    return gpTokens.some((token) => haystack.includes(token));
+  }));
+}
+
+function hasConditionItems(...values: unknown[]): boolean {
+  return values.some((value) => hasMeaningfulArrayItems(value, [
+    "condition",
+    "name",
+    "label",
+  ]));
 }
 
 export function applyWelcomeName(template: string, name?: string | null): string {
@@ -650,82 +728,203 @@ export function isWelcomeProfileActionComplete(
   const profile = recordValue(snapshot.profile);
   const state = recordValue(snapshot.onboardingState);
   const consent = recordValue(profile.data_sharing_consent);
-  const emergency = recordValue(consent.emergency ?? profile.emergency_contact);
+  const emergency = mergeRecords(consent.emergency, profile.emergency_contact);
   const conditions = recordValue(consent.conditions);
-  const medications = recordValue(consent.medications);
+  const medicationConsent = recordValue(consent.medications);
   const allergies = recordValue(consent.allergies);
-  const providers = recordValue(consent.providers);
-  const devices = recordValue(consent.devices);
-  const diet = recordValue(consent.diet);
-  const hobbies = recordValue(consent.hobbies);
-  const cognitive = recordValue(consent.cognitive ?? consent.brain ?? profile.cognitive_preferences);
+  const providerConsent = recordValue(consent.providers);
+  const deviceConsent = mergeRecords(consent.devices, consent.health_devices);
+  const diet = mergeRecords(consent.diet, consent.dietary, profile.diet);
+  const hobbies = mergeRecords(consent.hobbies, consent.interests);
+  const cognitive = mergeRecords(consent.cognitive, consent.brain, profile.cognitive_preferences, profile.cognitive_settings);
+  const gp = mergeRecords(consent.gp, consent.gp_details, consent.doctor, consent.primary_doctor, profile.primary_doctor);
+  const address = mergeRecords(consent.address, consent.location, consent.home_address, profile.address, profile.home_address);
+  const careTeam = mergeRecords(consent.careteam, consent.care_team, consent.caregiver, profile.careteam, profile.care_team);
+  const preferences = mergeRecords(consent.preferences, consent.basics, consent.identity);
+  const notifications = mergeRecords(consent.notifications, consent.contact_preferences);
   const channelPreferences = recordValue(snapshot.channelPreferences);
 
   switch (action) {
     case "emergency_contact":
       return boolValue(state.has_emergency_address)
-        || hasText(emergency.emergency_name, emergency.emergency_phone, emergency.address, profile.emergency_contact_name);
+        || (
+          hasText(emergency.emergency_name, emergency.name, emergency.contact_name, profile.emergency_contact_name)
+          && hasText(emergency.emergency_phone, emergency.primary_phone, emergency.phone, emergency.mobile, profile.emergency_contact_phone)
+        );
     case "medications":
       return boolValue(state.has_medications)
         || boolValue(profile.no_known_medications)
-        || boolValue(medications.no_known_medications)
-        || hasArrayItems(snapshot.medications)
-        || hasArrayItems(profile.medications)
-        || hasArrayItems(medications.medications);
+        || boolValue(medicationConsent.no_known_medications)
+        || hasMedicationItems(
+          snapshot.medications,
+          profile.medications,
+          profile.current_medications,
+          profile.medication_list,
+          medicationConsent.medications,
+          medicationConsent.current_medications,
+          medicationConsent.medication_list,
+        );
     case "gp_details":
       return boolValue(state.has_gp_details)
-        || hasText(profile.gp_name, profile.gp_phone, profile.gp_email)
-        || hasText(recordValue(consent.gp).gp_name, recordValue(consent.gp).gp_phone);
+        || hasText(
+          profile.gp_name,
+          profile.gp_phone,
+          profile.gp_email,
+          profile.gp_address,
+          profile.gp_maps_url,
+          profile.gp_place_id,
+          profile.doctor_name,
+          profile.doctor_phone,
+          profile.doctor_email,
+        )
+        || hasRecordText(gp, [
+          "gp_name",
+          "gp_phone",
+          "gp_email",
+          "gp_address",
+          "gp_maps_url",
+          "gp_place_id",
+          "doctor_name",
+          "doctor_phone",
+          "doctor_email",
+          "name",
+          "phone",
+          "email",
+          "address",
+        ])
+        || hasProviderForGp(snapshot.providers, providerConsent.providers, profile.savedProviders, profile.providers);
     case "address":
       return boolValue(state.has_emergency_address)
         || boolValue(state.has_location)
-        || hasText(profile.street, profile.city, profile.cityState, profile.postalCode, emergency.address);
+        || hasText(
+          profile.address_line_1,
+          profile.address_line_2,
+          profile.street,
+          profile.city,
+          profile.region,
+          profile.postcode,
+          profile.cityState,
+          profile.postalCode,
+          emergency.address,
+        )
+        || hasRecordText(address, [
+          "address_line_1",
+          "address_line_2",
+          "street",
+          "city",
+          "region",
+          "postcode",
+          "postalCode",
+          "address",
+        ]);
     case "care_team":
       return boolValue(state.has_caregiver)
         || boolValue(state.has_family_member)
         || boolValue(state.has_doctor)
-        || hasText(profile.caregiver_name, profile.caregiverName)
-        || hasArrayItems(profile.care_team);
+        || hasText(
+          profile.caregiver_name,
+          profile.caregiver_contact,
+          profile.caregiver_phone,
+          profile.caregiver_email,
+          profile.caregiverName,
+          profile.caregiverPhone,
+        )
+        || hasRecordText(careTeam, ["name", "phone", "email", "relationship", "role"])
+        || hasAnyArrayItems(careTeam.members, careTeam.people, profile.care_team, profile.careTeam, profile.team_members);
     case "preferences":
-      return boolValue(state.has_language)
-        && (boolValue(state.has_checkin_preference) || hasText(profile.channel_notifications, profile.language, profile.language_preference));
+      return (
+        boolValue(state.has_language)
+        || hasText(profile.language_preference, preferences.language, preferences.preferred_language)
+      ) && (
+        boolValue(state.has_checkin_preference)
+        || boolValue(state.has_preferred_name)
+        || hasText(
+          profile.preferred_name,
+          profile.contact_method,
+          profile.language_preference,
+          preferences.preferred_name,
+          preferences.contact_method,
+          preferences.checkin_preference,
+          preferences.communication_style,
+        )
+      );
     case "notifications":
       return hasText(
         channelPreferences.preferred_checkin_channel,
+        channelPreferences.preferred_conversation_channel,
         channelPreferences.preferred_reminder_channel,
-        profile.channel_notifications,
-      );
+        channelPreferences.preferred_alert_channel,
+        profile.contact_method,
+        notifications.preferred_checkin_channel,
+        notifications.preferred_conversation_channel,
+        notifications.preferred_reminder_channel,
+        notifications.preferred_alert_channel,
+        notifications.channel_notifications,
+        notifications.contact_method,
+      )
+        || hasAnyArrayItems(channelPreferences.fallback_chain, notifications.fallback_chain);
     case "cognitive":
-      return hasText(cognitive.pace, cognitive.language, cognitive.memory_support, cognitive.preferred_pace)
-        || hasText(profile.cognitive_pace, profile.memory_support_preference);
+      return hasText(
+        cognitive.pace,
+        cognitive.language,
+        cognitive.memory_support,
+        cognitive.memorySupport,
+        cognitive.preferred_pace,
+        cognitive.cognitive_notes,
+        cognitive.memory_difficulties,
+        cognitive.cognitive_diagnosis,
+        cognitive.session_length_mins,
+        cognitive.training_time,
+        cognitive.variety,
+        cognitive.communication_style,
+        profile.cognitive_pace,
+        profile.preferred_cognitive_pace,
+        profile.memory_support_preference,
+      );
     case "health_conditions":
       return boolValue(state.has_health_conditions)
         || boolValue(profile.no_known_conditions)
         || boolValue(conditions.no_known_conditions)
-        || hasArrayItems(profile.conditions)
-        || hasArrayItems(conditions.health_conditions);
+        || hasConditionItems(snapshot.healthConditions, profile.conditions, profile.health_conditions, profile.known_conditions, profile.medical_conditions)
+        || hasAnyArrayItems(conditions.health_conditions, conditions.conditions, conditions.known_conditions)
+        || hasText(conditions.mobility_level, conditions.living_situation);
     case "allergies":
       return boolValue(state.has_allergies)
         || boolValue(profile.no_known_allergies)
         || boolValue(allergies.no_known_allergies)
-        || hasArrayItems(profile.allergies)
-        || hasArrayItems(allergies.allergies);
+        || hasAnyArrayItems(profile.known_allergies, profile.allergies, allergies.allergies, allergies.known_allergies)
+        || hasText(profile.allergy_notes, allergies.allergy_notes);
     case "providers":
-      return hasArrayItems(profile.savedProviders)
-        || hasArrayItems(providers.providers)
-        || hasArrayItems(profile.providers);
+      return hasProviderItems(snapshot.providers, profile.savedProviders, profile.saved_providers, profile.trusted_providers, providerConsent.providers, profile.providers);
     case "devices":
-      return hasArrayItems(devices.devices)
-        || hasArrayItems(profile.health_devices)
-        || hasArrayItems(profile.devices);
+      return hasAnyArrayItems(
+        deviceConsent.devices,
+        profile.health_devices,
+        profile.devices,
+        profile.connected_devices,
+      );
     case "diet":
-      return hasText(diet.dietary_notes, diet.dietary_preferences)
-        || hasArrayItems(diet.dietary_preferences)
-        || hasText(profile.dietary_preferences);
+      return hasText(
+        diet.dietary_notes,
+        diet.dietary_preferences,
+        diet.dietary_restrictions,
+        diet.food_preferences,
+        diet.nutrition_preferences,
+        profile.dietary_preferences,
+        profile.dietary_notes,
+        profile.diet,
+      )
+        || hasAnyArrayItems(diet.dietary_preferences, diet.dietary_restrictions, diet.food_preferences, profile.dietary_preferences);
     case "hobbies":
-      return hasArrayItems(hobbies.hobbies)
-        || hasArrayItems(profile.hobbies)
-        || hasText(profile.hobbies);
+      return hasAnyArrayItems(
+        hobbies.hobbies,
+        hobbies.interests,
+        hobbies.preferred_activities,
+        profile.hobbies,
+        profile.interests,
+        profile.preferred_activities,
+      )
+        || hasText(profile.hobbies, profile.interests, profile.preferred_activities);
     default:
       return false;
   }

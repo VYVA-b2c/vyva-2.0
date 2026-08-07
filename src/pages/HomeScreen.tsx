@@ -1613,7 +1613,7 @@ const HomeScreen = () => {
         id: `active-flow:${homeIntentLayer}`,
         kind: "flow",
         title: t(`home.master.${intentKey}.title`),
-        supportingText: isHomeMasterVoiceAlive
+        supportingText: isHomeMasterVoiceMode
           ? t(`home.master.${intentKey}.voiceSubtitle`)
           : t(`home.master.${intentKey}.dormantSubtitle`),
         priority: 100,
@@ -1873,7 +1873,7 @@ const HomeScreen = () => {
     reusableConciergeReceipt,
     greetingText,
     homeIntentLayer,
-    isHomeMasterVoiceAlive,
+    isHomeMasterVoiceMode,
     latestVitalsHomeSignal,
     nextMedicineMinutes,
     nextMedicineName,
@@ -2215,7 +2215,7 @@ const HomeScreen = () => {
     ? t(`home.master.${activeIntentKey}.title`)
     : homeMasterGreetingText;
   const activeIntentSubtitle = activeIntentKey
-    ? isHomeMasterVoiceAlive
+    ? isHomeMasterVoiceMode
       ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
       : t(`home.master.${activeIntentKey}.dormantSubtitle`)
     : null;
@@ -2240,7 +2240,7 @@ const HomeScreen = () => {
     && showVoiceOrbFirstUseHint
     && (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default");
   const homeMasterHeroSubtitle = showHomeVoiceFirstUseHint
-    ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
+    ? t("home.master.touchOrbToBegin", "Touch the voice button to begin.")
     : homeMasterNormalHeroSubtitle;
   const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
     home: homeMasterCards,
@@ -2869,7 +2869,7 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  // Home master design: latest VYVA wordmark header, greeting, dormant voice orb, four app-mode
+  // Home master design: latest VYVA wordmark header, greeting, dormant voice button, four app-mode
   // shortcuts, and no extra Fast Help/nudge blocks on the landing screen.
   return (
     <MasterDashboardLayout
@@ -2879,7 +2879,7 @@ const HomeScreen = () => {
       launcherVariant="homeMaster"
       intentLayer={homeIntentLayer !== "home"}
       showHero={homeInteractionMode === "voice"}
-      showCards={homeInteractionMode === "touch" || homeIntentLayer !== "home"}
+      showCards={homeInteractionMode === "touch"}
       modeSwitcher={homeInteractionMode === "touch" ? (
         <div className="mb-7 mt-1 px-3 text-center min-[390px]:mb-8 sm:mb-10">
           <h1
@@ -2920,7 +2920,7 @@ const HomeScreen = () => {
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
-          supportingLabel: t("home.master.voiceSupport", "Tell VYVA what you need."),
+          supportingLabel: t("home.master.voiceSupport", "Tap the voice button to begin."),
           contextHint: `${t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step.")} Current home context: ${selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? ""}`,
           voiceAgentSlug: "main-vyva",
           voiceDynamicVariables: {

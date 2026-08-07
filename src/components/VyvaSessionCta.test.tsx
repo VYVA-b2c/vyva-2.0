@@ -42,6 +42,22 @@ vi.mock("@/components/VoiceCallOverlay", () => ({
 }));
 
 describe("VyvaSessionCta", () => {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+  beforeAll(() => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: vi.fn(() => null),
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: originalGetContext,
+    });
+  });
+
   beforeEach(() => {
     voiceState.startVoice.mockClear();
     voiceState.stopVoice.mockClear();
@@ -141,6 +157,24 @@ describe("VyvaSessionCta", () => {
     expect(screen.getByTestId("button-session")).toHaveAccessibleName("Speak anytime");
     expect(screen.getByTestId("button-session")).not.toHaveTextContent("Talk to VYVA");
     expect(screen.getByTestId("button-session")).not.toHaveTextContent("Speak anytime");
+  });
+
+  it("keeps active voice mode on the shared animated orb visual", () => {
+    voiceState.status = "connected";
+    voiceState.voiceSessionPhase = "speaking";
+    voiceState.isSpeaking = true;
+
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        visual="voiceOrb"
+        testId="button-session"
+      />,
+    );
+
+    expect(screen.getByTestId("button-session")).toHaveAccessibleName("Speaking");
+    expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "speaking");
+    expect(screen.getByTestId("home-dormant-zamora-orb-visual-canvas")).toBeInTheDocument();
   });
 
   it("remembers the first successful orb activation", () => {

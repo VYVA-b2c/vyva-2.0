@@ -83,6 +83,9 @@ describe("StatusBar home master variant", () => {
     const dock = screen.getByTestId("home-master-utility-dock");
     const modeButton = screen.getByTestId("button-home-mode-touch");
 
+    expect(dock).toContainElement(screen.getByTestId("button-my-profile"));
+    expect(dock).toContainElement(screen.getByTestId("button-readable-text-size"));
+    expect(dock).toContainElement(screen.getByTestId("button-home-master-theme"));
     expect(dock).toContainElement(modeButton);
     expect(modeButton).toHaveAccessibleName("Switch to touch");
 
