@@ -54,6 +54,15 @@ export type WelcomeHomeSelection = {
   source: "built_in" | "managed";
 };
 
+export type WelcomeProfileCompletionSnapshot = {
+  profile?: Record<string, unknown> | null;
+  onboardingState?: Record<string, unknown> | null;
+  channelPreferences?: Record<string, unknown> | null;
+  medications?: unknown[] | null;
+  providers?: unknown[] | null;
+  healthConditions?: unknown[] | null;
+};
+
 export const WELCOME_LANGUAGES: WelcomeLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
 export const WELCOME_PERIODS: WelcomePeriod[] = ["morning", "afternoon", "evening", "night"];
 export const WELCOME_AUDIENCES: WelcomeAudience[] = ["elder", "caregiver"];
@@ -714,14 +723,7 @@ export function renderWelcomeCopy(
 
 export function isWelcomeProfileActionComplete(
   action: WelcomeProfileActionId,
-  snapshot: {
-    profile?: Record<string, unknown> | null;
-    onboardingState?: Record<string, unknown> | null;
-    channelPreferences?: Record<string, unknown> | null;
-    medications?: unknown[] | null;
-    providers?: unknown[] | null;
-    healthConditions?: unknown[] | null;
-  },
+  snapshot: WelcomeProfileCompletionSnapshot,
 ): boolean {
   const profile = recordValue(snapshot.profile);
   const state = recordValue(snapshot.onboardingState);

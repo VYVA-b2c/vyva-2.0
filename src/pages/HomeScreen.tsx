@@ -38,16 +38,12 @@ import {
 } from "@/lib/homeContextMessages";
 import { adaptHeroMessageForHome } from "@/lib/homeAdminMessages";
 import {
-  adaptWelcomeModuleForHome,
-  recordWelcomeModuleEvent,
-  type WelcomeModuleHomeResponse,
-} from "@/lib/welcomeModuleHome";
-import {
   normalizeHeroLanguage,
   recordHeroEvent,
   recordHeroImpression,
   type HeroReason,
 } from "@/lib/heroMessages";
+import type { WelcomeProfileCompletionSnapshot } from "../../shared/welcomeModule";
 import {
   VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
   publishHomeModeControl,
@@ -747,24 +743,14 @@ const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const welcomeModuleUrl = `/api/welcome-module/home?language=${encodeURIComponent(language)}`;
-  const { data: welcomeModuleHome } = useQuery<WelcomeModuleHomeResponse>({
-    queryKey: [welcomeModuleUrl],
+  const { data: heroHomeState } = useQuery<{
+    audience: "elder";
+    snapshot: WelcomeProfileCompletionSnapshot;
+  }>({
+    queryKey: ["/api/hero-messages/home-state"],
     staleTime: 60 * 1000,
     retry: false,
   });
-  const welcomeHomeContextMessage = useMemo(
-    () => adaptWelcomeModuleForHome(welcomeModuleHome?.message),
-    [welcomeModuleHome?.message],
-  );
-  const managedHomeHeroMessage = useHeroMessage("home_voice", {
-    language,
-    trackImpression: false,
-  });
-  const adminHomeContextMessage = useMemo(
-    () => adaptHeroMessageForHome(managedHomeHeroMessage),
-    [managedHomeHeroMessage],
-  );
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const voice = useOptionalVyvaVoice();
   const { firstName: profileFirstName, profile } = useProfile();
@@ -1574,6 +1560,51 @@ const HomeScreen = () => {
   const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
   const isHomeMasterVoiceAlive = Boolean(voice && (voice.status === "connected" || voice.isConnecting));
   const isHomeMasterVoiceMode = homeInteractionMode === "voice";
+  const homeContextHistorySnapshot = useMemo(() => ({
+    actions: readHomeContextMessageActionHistory(),
+    outcomes: readHomeContextMessageOutcomeHistory(),
+    revision: homeContextHistoryRevision,
+    seen: readHomeContextMessageHistory(),
+  }), [homeContextHistoryRevision]);
+  const homeContextDayStart = useMemo(() => {
+    const day = new Date(conciergeClockMs);
+    day.setHours(0, 0, 0, 0);
+    return day.getTime();
+  }, [conciergeClockMs]);
+  const elderFirstWelcomeSeen = useMemo(() => (
+    Object.keys(homeContextHistorySnapshot.seen).some((id) => id.startsWith("hero:elder-first-"))
+    || homeContextHistorySnapshot.outcomes.some((record) => (
+      record.messageId.startsWith("hero:elder-first-")
+      && ["shown", "opened", "dismissed", "completed"].includes(record.outcome)
+    ))
+  ), [homeContextHistorySnapshot]);
+  const elderDailyWelcomeNudgeShownToday = useMemo(() => (
+    homeContextHistorySnapshot.outcomes.some((record) => (
+      record.messageId.startsWith("hero:elder-nudge-")
+      && record.recordedAt >= homeContextDayStart
+      && record.recordedAt <= conciergeClockMs
+      && ["shown", "opened", "dismissed", "completed"].includes(record.outcome)
+    ))
+  ), [conciergeClockMs, homeContextDayStart, homeContextHistorySnapshot.outcomes]);
+  const welcomeFirstLoginDue = heroHomeState?.audience === "elder" && !elderFirstWelcomeSeen;
+  const welcomeDailyProfileNudgeDue = Boolean(
+    heroHomeState?.audience === "elder"
+    && heroHomeState.snapshot
+    && !welcomeFirstLoginDue
+    && !elderDailyWelcomeNudgeShownToday,
+  );
+  const managedHomeHeroMessage = useHeroMessage("home_voice", {
+    language,
+    trackImpression: false,
+    welcomeAudience: "elder",
+    welcomeFirstLoginDue,
+    welcomeDailyProfileNudgeDue,
+    profileCompletionSnapshot: heroHomeState?.snapshot ?? null,
+  });
+  const adminHomeContextMessage = useMemo(
+    () => adaptHeroMessageForHome(managedHomeHeroMessage),
+    [managedHomeHeroMessage],
+  );
   const homeContextMessages = useMemo<HomeContextMessage[]>(() => {
     const messages: HomeContextMessage[] = [];
     if (homeIntentLayer !== "home") {
@@ -1817,9 +1848,6 @@ const HomeScreen = () => {
         nonUrgent: true,
       });
     }
-    if (welcomeHomeContextMessage) {
-      messages.push(welcomeHomeContextMessage);
-    }
     if (adminHomeContextMessage) {
       messages.push(adminHomeContextMessage);
     }
@@ -1838,7 +1866,6 @@ const HomeScreen = () => {
     brainCoachHomeSignal,
     conciergeClockMs,
     adminHomeContextMessage,
-    welcomeHomeContextMessage,
     nextConciergeTask,
     nextScheduledEvent,
     preventionHomeSignal,
@@ -1855,13 +1882,6 @@ const HomeScreen = () => {
     t,
     timeGreetingKey,
   ]);
-  const homeContextHistorySnapshot = useMemo(() => ({
-    actions: readHomeContextMessageActionHistory(),
-    outcomes: readHomeContextMessageOutcomeHistory(),
-    revision: homeContextHistoryRevision,
-    seen: readHomeContextMessageHistory(),
-  }), [homeContextHistoryRevision]);
-
   const selectedHomeContextDecision = useMemo(
     () => {
       return decideHomeContextMessage(
@@ -1935,7 +1955,6 @@ const HomeScreen = () => {
       source,
       kind: selectedHomeContextMessage.kind,
     });
-    if (recordWelcomeModuleEvent(selectedHomeContextMessage, outcome, language)) return;
     const reason: HeroReason = selectedHomeContextDecision?.reason === "urgent_safety"
       ? "safety"
       : selectedHomeContextDecision?.reason === "due_personal"
@@ -1943,8 +1962,12 @@ const HomeScreen = () => {
         : selectedHomeContextDecision?.reason === "active_flow"
           ? "continuation"
           : "evergreen";
+    const state = selectedHomeContextMessage.actionState ?? {};
+    const heroMessageId = typeof state.heroMessageId === "string"
+      ? state.heroMessageId
+      : selectedHomeContextMessage.id.replace(/^(admin|hero):/, "");
     recordHeroEvent({
-      messageId: selectedHomeContextMessage.id,
+      messageId: heroMessageId,
       surface: "home_voice",
       language: normalizeHeroLanguage(language),
       eventType: outcome,
@@ -2039,7 +2062,11 @@ const HomeScreen = () => {
     voice?.status,
   ]);
   useEffect(() => {
-    if (!selectedHomeContextMessage?.id.startsWith("admin:") || !managedHomeHeroMessage) return;
+    if (
+      !selectedHomeContextMessage
+      || (!selectedHomeContextMessage.id.startsWith("admin:") && !selectedHomeContextMessage.id.startsWith("hero:"))
+      || !managedHomeHeroMessage
+    ) return;
     recordHeroImpression(managedHomeHeroMessage.messageId);
     recordHeroEvent({
       messageId: managedHomeHeroMessage.messageId,
@@ -2052,7 +2079,10 @@ const HomeScreen = () => {
   }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
   const dismissSelectedHomeContextMessage = useCallback(() => {
     if (!selectedHomeContextMessage?.dismissible) return;
-    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+    if (
+      (selectedHomeContextMessage.id.startsWith("admin:") || selectedHomeContextMessage.id.startsWith("hero:"))
+      && managedHomeHeroMessage
+    ) {
       recordHeroEvent({
         messageId: managedHomeHeroMessage.messageId,
         surface: managedHomeHeroMessage.surface,
@@ -2076,7 +2106,10 @@ const HomeScreen = () => {
     source: "touch" | "voice" | "voice_tool" = "touch",
   ) => {
     if (!selectedHomeContextMessage?.actionRoute) return;
-    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+    if (
+      (selectedHomeContextMessage.id.startsWith("admin:") || selectedHomeContextMessage.id.startsWith("hero:"))
+      && managedHomeHeroMessage
+    ) {
       recordHeroEvent({
         messageId: managedHomeHeroMessage.messageId,
         surface: managedHomeHeroMessage.surface,

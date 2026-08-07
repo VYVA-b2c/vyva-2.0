@@ -1,4 +1,12 @@
 import { displayFirstName } from "@/lib/displayIdentity";
+import {
+  WELCOME_MODULE_TEMPLATES,
+  isWelcomeProfileActionComplete,
+  type WelcomeAudience,
+  type WelcomeMomentType,
+  type WelcomeProfileActionId,
+  type WelcomeProfileCompletionSnapshot,
+} from "../../shared/welcomeModule";
 
 export type HeroLanguage = "es" | "en" | "de" | "fr" | "it" | "pt";
 
@@ -47,6 +55,7 @@ export interface HeroMessageResult {
   ctaLabel?: string;
   contextHint?: string;
   actionId?: HeroApprovedActionId;
+  actionRoute?: string;
   messageId: string;
   reason: HeroReason;
   surface: HeroSurface;
@@ -54,6 +63,10 @@ export interface HeroMessageResult {
   source: HeroMessageSource;
   priority?: number;
   fallbackReason?: HeroFallbackReason;
+  messageType?: HeroMessageType;
+  welcomeAudience?: WelcomeAudience;
+  welcomeMomentType?: WelcomeMomentType;
+  welcomeProfileAction?: WelcomeProfileActionId;
 }
 
 export interface HeroMessageContext {
@@ -68,6 +81,10 @@ export interface HeroMessageContext {
   fallbackContextHint?: string;
   upcomingEventType?: "appointment" | "medication" | "social" | "concierge" | null;
   recentActivity?: "health_check" | "meds" | "social" | "concierge" | null;
+  welcomeAudience?: WelcomeAudience;
+  welcomeFirstLoginDue?: boolean;
+  welcomeDailyProfileNudgeDue?: boolean;
+  profileCompletionSnapshot?: WelcomeProfileCompletionSnapshot | null;
 }
 
 export type HeroCopy = {
@@ -79,6 +96,8 @@ export type HeroCopy = {
   contextHint?: string;
   actionId?: HeroApprovedActionId;
 };
+
+export type HeroMessageType = "standard" | "welcome_first_login" | "welcome_profile_nudge";
 
 export type HeroApprovedActionId =
   | "none"
@@ -93,6 +112,11 @@ export type HeroMessageDefinition = {
   id: string;
   surface: HeroSurface;
   reason: HeroReason;
+  messageType?: HeroMessageType;
+  welcomeAudience?: WelcomeAudience;
+  welcomeMomentType?: WelcomeMomentType;
+  welcomeProfileAction?: WelcomeProfileActionId;
+  actionRoute?: string;
   priority: number;
   cooldownHours: number;
   periods?: HeroPeriod[];
@@ -161,6 +185,15 @@ function matchesContext(message: HeroMessageDefinition, context: HeroMessageCont
   if (message.safetyLevels?.length && !message.safetyLevels.includes(context.safetyLevel ?? "normal")) return false;
   if (message.eventTypes?.length && (!context.upcomingEventType || !message.eventTypes.includes(context.upcomingEventType))) return false;
   if (message.activityTypes?.length && (!context.recentActivity || !message.activityTypes.includes(context.recentActivity))) return false;
+  if (message.welcomeAudience && context.welcomeAudience !== message.welcomeAudience) return false;
+  if (message.messageType === "welcome_first_login") return context.welcomeFirstLoginDue === true;
+  if (message.messageType === "welcome_profile_nudge") {
+    if (context.welcomeDailyProfileNudgeDue !== true || !message.welcomeProfileAction) return false;
+    return !isWelcomeProfileActionComplete(
+      message.welcomeProfileAction,
+      context.profileCompletionSnapshot ?? {},
+    );
+  }
   return true;
 }
 
@@ -178,7 +211,183 @@ export function getHeroPeriod(date = new Date()): HeroPeriod {
   return "night";
 }
 
+function welcomeHeadline(raw: string) {
+  return raw
+    .replace(/\s*,?\s*\{name\}/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function welcomeHeroCopy(raw: { headline: string; subtitle: string; ctaLabel?: string }): HeroCopy {
+  const hasNameToken = raw.headline.includes("{name}");
+  return {
+    sourceText: "VYVA",
+    headline: hasNameToken ? welcomeHeadline(raw.headline) : raw.headline,
+    ...(hasNameToken ? { headlineWithName: raw.headline } : {}),
+    subtitle: raw.subtitle,
+    ctaLabel: raw.ctaLabel,
+  };
+}
+
+const ELDER_WELCOME_PROFILE_HERO_COPY: Record<WelcomeProfileActionId, Record<HeroLanguage, HeroCopy>> = {
+  emergency_contact: {
+    en: { sourceText: "VYVA", headline: "Make VYVA safer", subtitle: "Add who to contact in urgent moments.", ctaLabel: "Add contact" },
+    es: { sourceText: "VYVA", headline: "Haga VYVA seguro", subtitle: "Anada a quien llamar en urgencias.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "VYVA sicherer machen", subtitle: "Kontakt fuer Notfaelle hinzufuegen.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Rendre VYVA sur", subtitle: "Ajoutez le contact a appeler vite.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Rendi VYVA sicuro", subtitle: "Aggiunga chi chiamare in urgenza.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Torne VYVA seguro", subtitle: "Adicione quem chamar numa urgencia.", ctaLabel: "Adicionar" },
+  },
+  medications: {
+    en: { sourceText: "VYVA", headline: "Add medicines", subtitle: "Help VYVA remember doses and routines.", ctaLabel: "Add medicines" },
+    es: { sourceText: "VYVA", headline: "Anada medicinas", subtitle: "VYVA recuerda dosis y rutinas.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Medikamente hinzufuegen", subtitle: "VYVA merkt Dosen und Routinen.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter medicaments", subtitle: "VYVA aide avec doses et routines.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga medicinali", subtitle: "VYVA ricorda dosi e routine.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione medicamentos", subtitle: "VYVA lembra doses e rotinas.", ctaLabel: "Adicionar" },
+  },
+  gp_details: {
+    en: { sourceText: "VYVA", headline: "Add your doctor", subtitle: "Prepare safer health conversations.", ctaLabel: "Add doctor" },
+    es: { sourceText: "VYVA", headline: "Anada su medico", subtitle: "Prepare conversaciones de salud mejores.", ctaLabel: "Anadir medico" },
+    de: { sourceText: "VYVA", headline: "Arzt hinzufuegen", subtitle: "Gesundheitsgespraeche besser vorbereiten.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter medecin", subtitle: "Preparez mieux les echanges sante.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga medico", subtitle: "Prepari meglio le conversazioni salute.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione medico", subtitle: "Prepare melhor conversas de saude.", ctaLabel: "Adicionar" },
+  },
+  address: {
+    en: { sourceText: "VYVA", headline: "Add home address", subtitle: "Help urgent support find you.", ctaLabel: "Add address" },
+    es: { sourceText: "VYVA", headline: "Anada direccion", subtitle: "Ayude a localizar apoyo urgente.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Adresse hinzufuegen", subtitle: "Hilfe findet Sie im Notfall.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter adresse", subtitle: "Aidez les secours a vous trouver.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga indirizzo", subtitle: "Aiuti il supporto a trovarla.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione morada", subtitle: "Ajude apoio urgente a encontra-lo.", ctaLabel: "Adicionar" },
+  },
+  care_team: {
+    en: { sourceText: "VYVA", headline: "Add care team", subtitle: "Keep trusted people ready to help.", ctaLabel: "Add team" },
+    es: { sourceText: "VYVA", headline: "Anada equipo", subtitle: "Tenga gente de confianza lista.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Betreuung hinzufuegen", subtitle: "Vertraute Personen bleiben bereit.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter equipe", subtitle: "Gardez les proches prets a aider.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga team", subtitle: "Tenga persone fidate pronte.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione equipa", subtitle: "Mantenha pessoas prontas a ajudar.", ctaLabel: "Adicionar" },
+  },
+  preferences: {
+    en: { sourceText: "VYVA", headline: "Set preferences", subtitle: "Tell VYVA how to support you.", ctaLabel: "Set up" },
+    es: { sourceText: "VYVA", headline: "Defina preferencias", subtitle: "Diga como debe apoyarle VYVA.", ctaLabel: "Configurar" },
+    de: { sourceText: "VYVA", headline: "Vorlieben festlegen", subtitle: "Sagen Sie VYVA, wie Hilfe passt.", ctaLabel: "Einrichten" },
+    fr: { sourceText: "VYVA", headline: "Regler preferences", subtitle: "Dites a VYVA comment aider.", ctaLabel: "Regler" },
+    it: { sourceText: "VYVA", headline: "Imposti preferenze", subtitle: "Dica a VYVA come aiutare.", ctaLabel: "Imposta" },
+    pt: { sourceText: "VYVA", headline: "Defina preferencias", subtitle: "Diga como a VYVA deve ajudar.", ctaLabel: "Configurar" },
+  },
+  notifications: {
+    en: { sourceText: "VYVA", headline: "Set notifications", subtitle: "Choose how reminders should arrive.", ctaLabel: "Set alerts" },
+    es: { sourceText: "VYVA", headline: "Defina avisos", subtitle: "Elija como llegan recordatorios.", ctaLabel: "Configurar" },
+    de: { sourceText: "VYVA", headline: "Hinweise festlegen", subtitle: "Waehlen Sie Erinnerungswege.", ctaLabel: "Einrichten" },
+    fr: { sourceText: "VYVA", headline: "Regler alertes", subtitle: "Choisissez comment rappeler.", ctaLabel: "Regler" },
+    it: { sourceText: "VYVA", headline: "Imposti avvisi", subtitle: "Scelga come arrivano promemoria.", ctaLabel: "Imposta" },
+    pt: { sourceText: "VYVA", headline: "Defina avisos", subtitle: "Escolha como chegam lembretes.", ctaLabel: "Configurar" },
+  },
+  cognitive: {
+    en: { sourceText: "VYVA", headline: "Set mind support", subtitle: "Tune pace and memory support.", ctaLabel: "Set up" },
+    es: { sourceText: "VYVA", headline: "Configure mente", subtitle: "Ajuste ritmo y memoria.", ctaLabel: "Configurar" },
+    de: { sourceText: "VYVA", headline: "Geist Hilfe setzen", subtitle: "Tempo und Gedaechtnis anpassen.", ctaLabel: "Einrichten" },
+    fr: { sourceText: "VYVA", headline: "Regler memoire", subtitle: "Ajustez rythme et soutien.", ctaLabel: "Regler" },
+    it: { sourceText: "VYVA", headline: "Imposti mente", subtitle: "Regoli ritmo e memoria.", ctaLabel: "Imposta" },
+    pt: { sourceText: "VYVA", headline: "Configure mente", subtitle: "Ajuste ritmo e memoria.", ctaLabel: "Configurar" },
+  },
+  health_conditions: {
+    en: { sourceText: "VYVA", headline: "Add health context", subtitle: "Help VYVA understand your risks.", ctaLabel: "Add context" },
+    es: { sourceText: "VYVA", headline: "Anada salud", subtitle: "Ayude a VYVA a entender riesgos.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Gesundheit ergaenzen", subtitle: "VYVA versteht Risiken besser.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter sante", subtitle: "Aidez VYVA a comprendre risques.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga salute", subtitle: "Aiuti VYVA a capire rischi.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione saude", subtitle: "Ajude a VYVA a entender riscos.", ctaLabel: "Adicionar" },
+  },
+  allergies: {
+    en: { sourceText: "VYVA", headline: "Add allergies", subtitle: "Help avoid unsafe suggestions.", ctaLabel: "Add allergies" },
+    es: { sourceText: "VYVA", headline: "Anada alergias", subtitle: "Ayude a evitar sugerencias inseguras.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Allergien hinzufuegen", subtitle: "Unsichere Vorschlaege vermeiden.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter allergies", subtitle: "Evitez les conseils non surs.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga allergie", subtitle: "Eviti suggerimenti non sicuri.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione alergias", subtitle: "Evite sugestoes pouco seguras.", ctaLabel: "Adicionar" },
+  },
+  providers: {
+    en: { sourceText: "VYVA", headline: "Add providers", subtitle: "Save trusted places and contacts.", ctaLabel: "Add providers" },
+    es: { sourceText: "VYVA", headline: "Anada proveedores", subtitle: "Guarde lugares y contactos fiables.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Anbieter hinzufuegen", subtitle: "Vertraute Orte und Kontakte speichern.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter contacts", subtitle: "Gardez lieux et contacts fiables.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga fornitori", subtitle: "Salvi luoghi e contatti fidati.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione contactos", subtitle: "Guarde locais e contactos fiaveis.", ctaLabel: "Adicionar" },
+  },
+  devices: {
+    en: { sourceText: "VYVA", headline: "Add devices", subtitle: "Connect tools for health readings.", ctaLabel: "Add devices" },
+    es: { sourceText: "VYVA", headline: "Anada dispositivos", subtitle: "Conecte lecturas de salud.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Geraete hinzufuegen", subtitle: "Geraete fuer Werte verbinden.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter appareils", subtitle: "Connectez les mesures de sante.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga dispositivi", subtitle: "Colleghi letture di salute.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione dispositivos", subtitle: "Ligue leituras de saude.", ctaLabel: "Adicionar" },
+  },
+  diet: {
+    en: { sourceText: "VYVA", headline: "Add diet notes", subtitle: "Help VYVA respect food needs.", ctaLabel: "Add notes" },
+    es: { sourceText: "VYVA", headline: "Anada dieta", subtitle: "Ayude a respetar necesidades.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Ernaehrung ergaenzen", subtitle: "Beduerfnisse beim Essen beachten.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter regime", subtitle: "Respectez les besoins alimentaires.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga dieta", subtitle: "Rispetti esigenze alimentari.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione dieta", subtitle: "Respeite necessidades alimentares.", ctaLabel: "Adicionar" },
+  },
+  hobbies: {
+    en: { sourceText: "VYVA", headline: "Add interests", subtitle: "Help VYVA suggest better activities.", ctaLabel: "Add interests" },
+    es: { sourceText: "VYVA", headline: "Anada intereses", subtitle: "Mejore sugerencias de actividades.", ctaLabel: "Anadir" },
+    de: { sourceText: "VYVA", headline: "Interessen hinzufuegen", subtitle: "Passendere Aktivitaeten vorschlagen.", ctaLabel: "Hinzufuegen" },
+    fr: { sourceText: "VYVA", headline: "Ajouter interets", subtitle: "Proposez de meilleures activites.", ctaLabel: "Ajouter" },
+    it: { sourceText: "VYVA", headline: "Aggiunga interessi", subtitle: "Suggerisca attivita migliori.", ctaLabel: "Aggiungi" },
+    pt: { sourceText: "VYVA", headline: "Adicione interesses", subtitle: "Sugira atividades melhores.", ctaLabel: "Adicionar" },
+  },
+};
+
+function elderWelcomeHeroCopy(
+  action: WelcomeProfileActionId | undefined,
+  language: HeroLanguage,
+  raw: { headline: string; subtitle: string; ctaLabel?: string },
+): HeroCopy {
+  return action ? ELDER_WELCOME_PROFILE_HERO_COPY[action][language] : welcomeHeroCopy(raw);
+}
+
+function elderWelcomeHeroMessages(): HeroMessageDefinition[] {
+  return WELCOME_MODULE_TEMPLATES
+    .filter((template) => template.audience === "elder")
+    .map((template) => {
+      const messageType: HeroMessageType = template.momentType === "first_login_welcome"
+        ? "welcome_first_login"
+        : "welcome_profile_nudge";
+      const copy = Object.fromEntries(
+        (Object.keys(template.copy) as HeroLanguage[])
+          .map((language) => {
+            const raw = template.copy[language];
+            return raw ? [language, elderWelcomeHeroCopy(template.profileAction, language, raw)] : null;
+          })
+          .filter((entry): entry is [HeroLanguage, HeroCopy] => Boolean(entry)),
+      ) as Record<HeroLanguage, HeroCopy>;
+
+      return {
+        id: template.id,
+        surface: "home_voice",
+        reason: template.momentType === "first_login_welcome" ? "time_of_day" : "evergreen",
+        messageType,
+        welcomeAudience: "elder",
+        welcomeMomentType: template.momentType,
+        welcomeProfileAction: template.profileAction,
+        actionRoute: template.actionRoute,
+        priority: template.priority,
+        cooldownHours: template.cooldownHours,
+        periods: template.periods,
+        copy,
+        source: "built_in",
+      };
+    });
+}
+
 export const HERO_MESSAGES: HeroMessageDefinition[] = [
+  ...elderWelcomeHeroMessages(),
   {
     id: "home-morning",
     surface: "home",
@@ -431,12 +640,17 @@ function buildResult(message: HeroMessageDefinition, language: HeroLanguage, con
     ctaLabel: copy.ctaLabel ?? context.fallbackCtaLabel,
     contextHint: copy.contextHint ?? context.fallbackContextHint,
     actionId: copy.actionId,
+    actionRoute: message.actionRoute,
     messageId: message.id,
     reason: message.reason,
     surface: message.surface,
     language,
     source: message.source ?? "built_in",
     priority: message.priority,
+    messageType: message.messageType ?? "standard",
+    welcomeAudience: message.welcomeAudience,
+    welcomeMomentType: message.welcomeMomentType,
+    welcomeProfileAction: message.welcomeProfileAction,
   };
 }
 

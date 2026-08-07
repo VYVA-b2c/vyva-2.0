@@ -3,6 +3,7 @@ import {
   recordHeroImpression,
   selectHeroMessage,
   setRuntimeHeroMessages,
+  validateHeroMessageCatalog,
   type HeroMessageDefinition,
 } from "./heroMessages";
 
@@ -183,5 +184,82 @@ describe("hero message selection", () => {
       source: "managed",
       actionId: "community",
     });
+  });
+
+  it("selects elder first-login Welcome through the Hero catalog", () => {
+    const result = selectHeroMessage("home_voice", {
+      language: "en",
+      firstName: "Karim",
+      date: new Date("2026-07-03T09:00:00"),
+      welcomeAudience: "elder",
+      welcomeFirstLoginDue: true,
+      welcomeDailyProfileNudgeDue: false,
+      profileCompletionSnapshot: {},
+    });
+
+    expect(result).toMatchObject({
+      messageId: "elder-first-morning",
+      headline: "Good morning, Karim",
+      messageType: "welcome_first_login",
+      welcomeAudience: "elder",
+    });
+  });
+
+  it("selects elder profile nudges only when the profile action is incomplete", () => {
+    const incomplete = selectHeroMessage("home_voice", {
+      language: "en",
+      welcomeAudience: "elder",
+      welcomeFirstLoginDue: false,
+      welcomeDailyProfileNudgeDue: true,
+      profileCompletionSnapshot: {
+        profile: {},
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      },
+    });
+
+    expect(incomplete.messageId).toBe("elder-nudge-emergency_contact");
+    expect(incomplete.messageType).toBe("welcome_profile_nudge");
+    expect(incomplete.welcomeProfileAction).toBe("emergency_contact");
+
+    const emergencyComplete = selectHeroMessage("home_voice", {
+      language: "en",
+      welcomeAudience: "elder",
+      welcomeFirstLoginDue: false,
+      welcomeDailyProfileNudgeDue: true,
+      profileCompletionSnapshot: {
+        profile: {
+          emergency_contact: {
+            emergency_name: "Layla",
+            emergency_phone: "+34 600 000 000",
+          },
+        },
+        onboardingState: {},
+        channelPreferences: null,
+        medications: [],
+      },
+    });
+
+    expect(emergencyComplete.messageId).toBe("elder-nudge-medications");
+    expect(emergencyComplete.welcomeProfileAction).toBe("medications");
+  });
+
+  it("keeps caregiver Welcome messages out of Hero selection for now", () => {
+    const result = selectHeroMessage("home_voice", {
+      language: "en",
+      welcomeAudience: "caregiver",
+      welcomeFirstLoginDue: true,
+      welcomeDailyProfileNudgeDue: true,
+      profileCompletionSnapshot: {},
+    });
+
+    expect(result.messageId).not.toMatch(/^caregiver-/);
+    expect(result.messageType).not.toBe("welcome_first_login");
+    expect(result.messageType).not.toBe("welcome_profile_nudge");
+  });
+
+  it("keeps the built-in Hero catalog valid after adding elder Welcome", () => {
+    expect(validateHeroMessageCatalog()).toEqual([]);
   });
 });
