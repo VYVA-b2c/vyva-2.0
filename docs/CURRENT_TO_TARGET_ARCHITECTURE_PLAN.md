@@ -1371,6 +1371,67 @@ This decision does not prevent the future hierarchy. The initial Health Speciali
 - **Risk:** critical.
 - **Do not change:** onboarding/concierge call behavior.
 
+**Implemented Stage 6 slice:** Task 11 adds a dedicated preventive outbound
+call entry adapter and durable state model without changing callback onboarding,
+Concierge calls, browser voice, Task 8 shadow policy or Task 10 push. ElevenLabs
+ConvAI starts the call through the existing Twilio outbound-call provider shape,
+while Twilio signed lifecycle callbacks provide transport status. A signed
+Twilio `CallStatus=in-progress` callback records only transport-level
+`answered`; it does not start the Flow. Flow entry requires a separate
+ElevenLabs confirmation-tool callback using a short-lived one-time opaque token
+from the approved `secret__preventive_call_confirmation_token` variable bound
+only to the `X-VYVA-Preventive-Call-Token` header, the mandatory ElevenLabs
+conversation ID, the mandatory Twilio CallSid and a final consent recheck.
+
+**Consent model:** Task 11 uses dedicated
+`preventive_outbound_call_consents` records. Allowlist membership, push consent
+and general voice preferences do not grant call consent. A user/profile remains
+ineligible until a controlled provisioning path records enabled consent,
+verified E.164 phone evidence, phone digest, verification timestamp, source and
+reference. Revocation is idempotent, invalidates unconsumed confirmation
+tokens, claims active correlated attempts for cancellation in the database
+transaction, then performs best-effort provider cancellation outside that
+transaction. Cancellation failure never restores consent.
+
+**Flag:** `flag.engagement.preventive_outbound_call`, default disabled,
+explicit-user allowlist only, denylist precedence, strict UTC expiry, owner and
+audit references, production opt-in and dedicated provider configuration
+required. Malformed mode, CSV, expiry, owner/audit references or provider config
+fail closed.
+
+**Database:** migration 0080 and `shared/schema.ts` carry matching Task 11
+consent, call-attempt and webhook-event tables with fixed channel/purpose/Flow
+identity, digest checks, token-expiry ordering, unique schedule/purpose call
+identity, mandatory non-null provider conversation ID and Twilio CallSid for
+provider-started/answered/Flow-entry states, unique provider conversation IDs
+and Twilio call SIDs where present, Stage 4 evidence before `flow_started`,
+cancellation evidence, and durable webhook idempotency.
+
+**Privacy:** Provider metadata is limited to call-attempt ID, confirmation URL
+and the confirmation token only in the approved secret variable, which the
+dedicated tool may use only as a request header and never as a body parameter,
+prompt, first message or spoken value. The provider
+request explicitly sets `call_recording_enabled: false`, and the dedicated
+preventive agent must have recording disabled at provider configuration level.
+Task 11 does not persist recordings, recording URLs, transcripts, raw provider
+request/response bodies, raw confirmation tokens, health answers, symptoms,
+medications or diagnoses. Pre-confirmation speech must remain generic and
+privacy-safe. The versioned dedicated agent/tool contract is documented in
+`docs/PREVENTIVE_OUTBOUND_CALL_AGENT_CONTRACT.md`.
+
+**Stage 4 boundary:** The confirmation callback creates an idempotent
+`flow_entry_started` claim, invokes the Stage 4 preventive Health Flow entry
+seam, and marks Task 11 `flow_started` only after Stage 4 returns authoritative
+started/restored evidence. The callback does not submit answers, generate
+Health results or complete the Flow. Answer collection and completion remain
+under the Stage 4 Health Flow authority.
+
+**Current limitation:** the first slice performs no automatic retry. Browser
+and external provider delivery behavior remain mocked in local unit tests; the
+freeze proof includes a PostgreSQL 16 GitHub Actions job that runs migration,
+store and real-route persistence tests sequentially against disposable
+`vyva_task11_test`.
+
 ### Stage 7 — Voice and screen synchronization
 
 - **Objective:** canonical normalized answer path.

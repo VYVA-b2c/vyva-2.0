@@ -222,6 +222,56 @@ describe("HeroMessagesAdminPage", () => {
     });
   });
 
+  it("translates one base message into selected draft languages for review", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^new$/i }));
+
+    expect(screen.getByRole("heading", { name: "Create a message" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Spanish" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "English" })).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("New message headline"), {
+      target: { value: "Un control amable" },
+    });
+    fireEvent.change(screen.getByLabelText("New message supporting text"), {
+      target: { value: "Como estas hoy?" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "English" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "German" }));
+    fireEvent.click(screen.getByRole("button", { name: /create translations/i }));
+
+    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("Un control amable");
+    const translateCall = apiFetchMock.mock.calls.find(([input]) => String(input).endsWith("/hero-messages/translate"));
+    expect(translateCall).toBeTruthy();
+    expect(JSON.parse(String(translateCall?.[1]?.body))).toEqual({
+      sourceLanguage: "es",
+      targetLanguages: ["en", "de"],
+      copy: expect.objectContaining({
+        headline: "Un control amable",
+        subtitle: "Como estas hoy?",
+      }),
+    });
+    const languageSelect = screen.getAllByRole("combobox", { name: "Language" })
+      .find((element) => element.textContent?.includes("French (add)"));
+    expect(languageSelect).toBeDefined();
+    expect(languageSelect).toHaveTextContent("Spanish");
+    expect(languageSelect).toHaveTextContent("English");
+    expect(languageSelect).toHaveTextContent("German");
+    expect(languageSelect).toHaveTextContent("French (add)");
+
+    fireEvent.click(screen.getByRole("button", { name: /save hero message/i }));
+
+    await waitFor(() => {
+      const postCalls = apiFetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(postCalls.at(-1)?.[1]?.body));
+      expect(body.copy.es.headline).toBe("Un control amable");
+      expect(body.copy.en.headline).toBe("A gentle check-in");
+      expect(body.copy.de.headline).toBe("Eine sanfte Nachfrage");
+      expect(body.copy.fr).toBeUndefined();
+    });
+  });
+
   it("direct saves edits and refreshes the overview", async () => {
     renderPage();
 

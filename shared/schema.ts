@@ -3130,6 +3130,135 @@ export const insertPreventiveWebPushEntryTokenSchema = createInsertSchema(preven
 export type InsertPreventiveWebPushEntryToken = z.infer<typeof insertPreventiveWebPushEntryTokenSchema>;
 export type PreventiveWebPushEntryTokenRow = typeof preventiveWebPushEntryTokens.$inferSelect;
 
+export const preventiveOutboundCallConsents = pgTable("preventive_outbound_call_consents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  consent_revision: integer("consent_revision").notNull().default(0),
+  phone_e164: text("phone_e164"),
+  phone_digest: text("phone_digest"),
+  phone_last4: text("phone_last4"),
+  phone_verified_at: timestamp("phone_verified_at", { withTimezone: true }),
+  verification_source: text("verification_source"),
+  verification_reference: text("verification_reference"),
+  granted_at: timestamp("granted_at", { withTimezone: true }),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("preventive_outbound_call_consents_user_profile_uidx").on(t.user_id, t.profile_id),
+  index("preventive_outbound_call_consents_phone_digest_idx").on(t.phone_digest),
+  check("preventive_outbound_call_consents_revision_chk", sql`${t.consent_revision} >= 0`),
+  check("preventive_outbound_call_consents_phone_chk", sql`${t.phone_e164} is null or ${t.phone_e164} ~ '^\\+[1-9][0-9]{7,14}$'`),
+  check("preventive_outbound_call_consents_phone_digest_chk", sql`${t.phone_digest} is null or ${t.phone_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_consents_last4_chk", sql`${t.phone_last4} is null or ${t.phone_last4} ~ '^[0-9]{4}$'`),
+  check("preventive_outbound_call_consents_enabled_requires_phone_chk", sql`${t.enabled} = false or (${t.phone_e164} is not null and ${t.phone_digest} is not null and ${t.phone_verified_at} is not null)`),
+]);
+
+export const preventiveOutboundCallAttempts = pgTable("preventive_outbound_call_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  call_key: text("call_key").notNull().unique(),
+  user_id: text("user_id").notNull(),
+  profile_id: text("profile_id").notNull(),
+  schedule_occurrence_id: text("schedule_occurrence_id").notNull(),
+  schedule_id: text("schedule_id").notNull(),
+  purpose_id: text("purpose_id").notNull(),
+  channel: text("channel").notNull().default("voice_call"),
+  flow_id: text("flow_id").notNull(),
+  flow_version: text("flow_version").notNull(),
+  status: text("status").notNull().default("requested"),
+  consent_id: uuid("consent_id").notNull(),
+  consent_revision: integer("consent_revision").notNull(),
+  phone_digest: text("phone_digest").notNull(),
+  policy_audit_id: text("policy_audit_id"),
+  policy_decision_digest: text("policy_decision_digest"),
+  claim_token: text("claim_token"),
+  claim_expires_at: timestamp("claim_expires_at", { withTimezone: true }),
+  provider_attempt_id: text("provider_attempt_id"),
+  provider_attempt_number: integer("provider_attempt_number").notNull().default(0),
+  provider_conversation_id: text("provider_conversation_id"),
+  twilio_call_sid: text("twilio_call_sid"),
+  confirmation_token_digest: text("confirmation_token_digest"),
+  confirmation_token_expires_at: timestamp("confirmation_token_expires_at", { withTimezone: true }),
+  confirmation_token_consumed_at: timestamp("confirmation_token_consumed_at", { withTimezone: true }),
+  confirmation_token_revoked_at: timestamp("confirmation_token_revoked_at", { withTimezone: true }),
+  flow_entry_claim_token: text("flow_entry_claim_token"),
+  flow_entry_claim_expires_at: timestamp("flow_entry_claim_expires_at", { withTimezone: true }),
+  flow_entry_evidence_reference: text("flow_entry_evidence_reference"),
+  flow_entry_failure_reason: text("flow_entry_failure_reason"),
+  cancellation_requested_at: timestamp("cancellation_requested_at", { withTimezone: true }),
+  cancellation_completed_at: timestamp("cancellation_completed_at", { withTimezone: true }),
+  cancellation_status: text("cancellation_status"),
+  cancellation_reason: text("cancellation_reason"),
+  failure_reason: text("failure_reason"),
+  requested_at: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  provider_attempt_started_at: timestamp("provider_attempt_started_at", { withTimezone: true }),
+  provider_started_at: timestamp("provider_started_at", { withTimezone: true }),
+  ringing_at: timestamp("ringing_at", { withTimezone: true }),
+  answered_at: timestamp("answered_at", { withTimezone: true }),
+  identity_confirmed_at: timestamp("identity_confirmed_at", { withTimezone: true }),
+  flow_entry_started_at: timestamp("flow_entry_started_at", { withTimezone: true }),
+  flow_started_at: timestamp("flow_started_at", { withTimezone: true }),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  failed_at: timestamp("failed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_outbound_call_attempts_user_status_idx").on(t.user_id, t.status),
+  index("preventive_outbound_call_attempts_occurrence_idx").on(t.schedule_occurrence_id, t.purpose_id),
+  uniqueIndex("preventive_outbound_call_attempts_conversation_uidx").on(t.provider_conversation_id).where(sql`${t.provider_conversation_id} is not null`),
+  uniqueIndex("preventive_outbound_call_attempts_sid_uidx").on(t.twilio_call_sid).where(sql`${t.twilio_call_sid} is not null`),
+  uniqueIndex("preventive_outbound_call_attempts_token_uidx").on(t.confirmation_token_digest).where(sql`${t.confirmation_token_digest} is not null`),
+  check("preventive_outbound_call_attempts_status_chk", sql`${t.status} in ('requested', 'claimed', 'provider_attempt_started', 'provider_started', 'ringing', 'answered', 'identity_confirmed', 'flow_entry_started', 'flow_started', 'no_answer', 'busy', 'declined', 'cancelled', 'failed_retryable', 'failed_permanent', 'delivery_uncertain')`),
+  check("preventive_outbound_call_attempts_channel_chk", sql`${t.channel} = 'voice_call'`),
+  check("preventive_outbound_call_attempts_purpose_chk", sql`${t.purpose_id} = 'daily_wellbeing_check'`),
+  check("preventive_outbound_call_attempts_flow_chk", sql`${t.flow_id} = 'health.preventive_check' and ${t.flow_version} = '1.0.0'`),
+  check("preventive_outbound_call_attempts_phone_digest_chk", sql`${t.phone_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_attempts_policy_digest_chk", sql`${t.policy_decision_digest} is null or ${t.policy_decision_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_attempts_token_digest_chk", sql`${t.confirmation_token_digest} is null or ${t.confirmation_token_digest} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_attempts_claim_chk", sql`(${t.claim_token} is null and ${t.claim_expires_at} is null) or (length(${t.claim_token}) between 1 and 160 and ${t.claim_expires_at} is not null)`),
+  check("preventive_outbound_call_attempts_flow_entry_claim_chk", sql`(${t.flow_entry_claim_token} is null and ${t.flow_entry_claim_expires_at} is null) or (length(${t.flow_entry_claim_token}) between 1 and 160 and ${t.flow_entry_claim_expires_at} is not null)`),
+  check("preventive_outbound_call_attempts_cancellation_status_chk", sql`${t.cancellation_status} is null or ${t.cancellation_status} in ('requested', 'accepted', 'failed', 'uncertain')`),
+  check("preventive_outbound_call_attempts_provider_conversation_chk", sql`${t.provider_conversation_id} is null or ${t.provider_conversation_id} ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'`),
+  check("preventive_outbound_call_attempts_twilio_sid_chk", sql`${t.twilio_call_sid} is null or ${t.twilio_call_sid} ~ '^CA[a-fA-F0-9]{32}$'`),
+  check("preventive_outbound_call_attempts_provider_attempt_count_chk", sql`${t.provider_attempt_number} >= 0`),
+  check("preventive_outbound_call_attempts_provider_attempt_required_chk", sql`${t.status} not in ('provider_attempt_started', 'provider_started', 'ringing', 'answered', 'identity_confirmed', 'flow_entry_started', 'flow_started', 'delivery_uncertain') or ${t.provider_attempt_id} is not null`),
+  check("preventive_outbound_call_attempts_provider_correlation_required_chk", sql`${t.status} not in ('provider_started', 'ringing', 'answered', 'identity_confirmed', 'flow_entry_started', 'flow_started') or (${t.provider_conversation_id} is not null and ${t.twilio_call_sid} is not null)`),
+  check("preventive_outbound_call_attempts_flow_entry_evidence_chk", sql`${t.status} <> 'flow_started' or (${t.flow_entry_evidence_reference} is not null and ${t.confirmation_token_consumed_at} is not null)`),
+  check("preventive_outbound_call_attempts_token_expiry_chk", sql`${t.confirmation_token_expires_at} is null or ${t.confirmation_token_expires_at} > ${t.requested_at}`),
+]);
+
+export const preventiveOutboundCallWebhookEvents = pgTable("preventive_outbound_call_webhook_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  event_key: text("event_key").notNull().unique(),
+  attempt_id: uuid("attempt_id"),
+  provider: text("provider").notNull(),
+  provider_call_sid: text("provider_call_sid").notNull(),
+  provider_status: text("provider_status").notNull(),
+  transition_result: text("transition_result"),
+  received_at: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("preventive_outbound_call_webhook_events_attempt_idx").on(t.attempt_id),
+  index("preventive_outbound_call_webhook_events_sid_idx").on(t.provider_call_sid),
+  check("preventive_outbound_call_webhook_events_provider_chk", sql`${t.provider} = 'twilio'`),
+  check("preventive_outbound_call_webhook_events_key_chk", sql`${t.event_key} ~ '^sha256:[a-f0-9]{64}$'`),
+  check("preventive_outbound_call_webhook_events_status_chk", sql`${t.provider_status} in ('queued', 'initiated', 'ringing', 'in-progress', 'completed', 'no-answer', 'busy', 'failed', 'canceled')`),
+]);
+
+export const insertPreventiveOutboundCallConsentSchema = createInsertSchema(preventiveOutboundCallConsents).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveOutboundCallConsent = z.infer<typeof insertPreventiveOutboundCallConsentSchema>;
+export type PreventiveOutboundCallConsentRow = typeof preventiveOutboundCallConsents.$inferSelect;
+
+export const insertPreventiveOutboundCallAttemptSchema = createInsertSchema(preventiveOutboundCallAttempts).omit({ id: true, created_at: true, updated_at: true });
+export type InsertPreventiveOutboundCallAttempt = z.infer<typeof insertPreventiveOutboundCallAttemptSchema>;
+export type PreventiveOutboundCallAttemptRow = typeof preventiveOutboundCallAttempts.$inferSelect;
+
+export const insertPreventiveOutboundCallWebhookEventSchema = createInsertSchema(preventiveOutboundCallWebhookEvents).omit({ id: true, created_at: true });
+export type InsertPreventiveOutboundCallWebhookEvent = z.infer<typeof insertPreventiveOutboundCallWebhookEventSchema>;
+export type PreventiveOutboundCallWebhookEventRow = typeof preventiveOutboundCallWebhookEvents.$inferSelect;
+
 export const orchestrationEventStateEvents = pgTable("orchestration_event_state_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   event_id: text("event_id").notNull().unique(),
@@ -4029,6 +4158,9 @@ export const schema = {
   preventiveWebPushSubscriptions,
   preventiveWebPushDeliveries,
   preventiveWebPushEntryTokens,
+  preventiveOutboundCallConsents,
+  preventiveOutboundCallAttempts,
+  preventiveOutboundCallWebhookEvents,
   orchestrationEventStateEvents,
   orchestrationFlowStateProjections,
   voiceTriageSessions,

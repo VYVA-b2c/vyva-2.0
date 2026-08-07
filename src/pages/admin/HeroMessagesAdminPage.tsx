@@ -81,6 +81,7 @@ const EMPTY_NEW_MESSAGE_COPY: HeroCopy = {
   ctaLabel: "",
   contextHint: "",
 };
+const CONTROL_CLASS = "min-h-12 w-full rounded-lg border-2 border-[#d8c9bc] bg-white px-3 py-2.5 text-base font-semibold text-[#2f2135] shadow-sm outline-none transition placeholder:text-[#9b8c85] focus:border-purple-600 focus:ring-4 focus:ring-purple-100";
 const SURFACES: HeroSurface[] = ["home", "home_voice", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
 const HOME_ACTIONS: Array<{ id: HeroApprovedActionId; label: string }> = [
   { id: "none", label: "No action" },
