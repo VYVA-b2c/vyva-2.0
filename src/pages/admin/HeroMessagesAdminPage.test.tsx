@@ -260,7 +260,7 @@ describe("HeroMessagesAdminPage", () => {
     expect(languageSelect).toHaveTextContent("German");
     expect(languageSelect).toHaveTextContent("French (add)");
 
-    fireEvent.click(screen.getByRole("button", { name: /save hero message/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
 
     await waitFor(() => {
       const postCalls = apiFetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
