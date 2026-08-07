@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
 import profileRouter from "../routes/profile.js";
 import { db } from "../db.js";
-import { profiles, userChannelPreferences } from "../../shared/schema.js";
+import { profiles, userChannelPreferences, users } from "../../shared/schema.js";
 
 function buildApp() {
   const app = express();
@@ -22,11 +22,18 @@ const createdUserIds = new Set<string>();
 async function cleanupUser(userId: string) {
   await db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId));
   await db.delete(profiles).where(eq(profiles.id, userId));
+  await db.delete(users).where(eq(users.id, userId));
 }
 
 async function createProfile(values: Partial<typeof profiles.$inferInsert> = {}) {
   const userId = randomUUID();
   createdUserIds.add(userId);
+  await db.insert(users).values({
+    id: userId,
+    email: `profile-channel-${userId}@example.test`,
+    password_hash: "test-password-hash",
+    active_profile_id: userId,
+  });
   await db.insert(profiles).values({
     id: userId,
     language: "en",

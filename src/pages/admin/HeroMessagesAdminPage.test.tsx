@@ -145,7 +145,9 @@ describe("HeroMessagesAdminPage", () => {
   it("searches the message catalog without losing the selected editor", async () => {
     renderPage();
 
-    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    await waitFor(() => {
+      expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    });
 
     fireEvent.change(screen.getByPlaceholderText("Message, surface, reason, or copy"), {
       target: { value: "health-admin" },
@@ -159,7 +161,9 @@ describe("HeroMessagesAdminPage", () => {
   it("previews the selected language and blocks invalid copy", async () => {
     renderPage();
 
-    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    await waitFor(() => {
+      expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    });
 
     fireEvent.change(screen.getByLabelText("Headline (ES)"), {
       target: { value: "This headline is intentionally far too long" },

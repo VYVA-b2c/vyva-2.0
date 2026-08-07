@@ -94,7 +94,7 @@ import homePlanRouter from "./routes/homePlan.js";
 import homeFastHelpSyncRouter from "./routes/homeFastHelpSync.js";
 import adminHomeFastHelpOutcomesRouter from "./routes/adminHomeFastHelpOutcomes.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
-import { adminWelcomeModuleRouter, welcomeModuleRouter } from "./routes/welcomeModule.js";
+import { welcomeModuleRouter } from "./routes/welcomeModule.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
 import breathingRouter from "./routes/breathing.js";
@@ -254,7 +254,6 @@ app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adm
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
 app.use("/api/admin/content-index", authMiddleware, requireAdminUser, adminContentIndexRouter);
 app.use("/api/admin/marketing", authMiddleware, requireAdminUser, adminMarketingRouter);
-app.use("/api/admin/welcome-module", authMiddleware, requireAdminUser, adminWelcomeModuleRouter);
 app.use("/api/admin/home/fast-help-outcomes", authMiddleware, requireAdminUser, adminHomeFastHelpOutcomesRouter);
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);

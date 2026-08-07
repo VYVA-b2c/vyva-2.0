@@ -370,9 +370,13 @@ export default function HeroMessagesAdminPage() {
     return mergeHeroMessages(managed.map(adminToDefinition));
   }, [allMessages, drafts]);
 
+  const defaultSelectedMessage = useMemo(
+    () => filteredMessages.find((item) => item.source === "database" || Boolean(drafts[item.message_id])) ?? filteredMessages[0],
+    [drafts, filteredMessages],
+  );
   const selectedMessage = useMemo(
-    () => allMessages.find((item) => item.message_id === selectedMessageId) ?? filteredMessages[0],
-    [allMessages, filteredMessages, selectedMessageId],
+    () => allMessages.find((item) => item.message_id === selectedMessageId) ?? defaultSelectedMessage,
+    [allMessages, defaultSelectedMessage, selectedMessageId],
   );
 
   const selectedCopy = selectedMessage?.copy[language] ?? selectedMessage?.copy.es ?? { headline: "" };
@@ -667,10 +671,10 @@ export default function HeroMessagesAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedMessage || !filteredMessages.some((item) => item.message_id === selectedMessage.message_id)) {
+    if (selectedMessageId && !filteredMessages.some((item) => item.message_id === selectedMessageId)) {
       setSelectedMessageId(filteredMessages[0]?.message_id ?? "");
     }
-  }, [filteredMessages, selectedMessage]);
+  }, [filteredMessages, selectedMessageId]);
 
   useEffect(() => {
     refreshMetrics(metricsDays).catch((err) => setMessage(err.message));
@@ -725,7 +729,7 @@ export default function HeroMessagesAdminPage() {
                   <div className="grid gap-3 md:grid-cols-[180px_1fr]">
                     <Field label="Base language">
                       <select
-                        className={CONTROL_CLASS}
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
                         value={newMessageBaseLanguage}
                         onChange={(event) => {
                           const nextLanguage = event.target.value as HeroLanguage;
@@ -739,7 +743,7 @@ export default function HeroMessagesAdminPage() {
                     </Field>
                     <Field label="Headline">
                       <input
-                        className={CONTROL_CLASS}
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
                         value={newMessageCopy.headline}
                         onChange={(event) => setNewMessageCopy((current) => ({ ...current, headline: event.target.value }))}
                         placeholder="What should the user see?"
@@ -750,7 +754,7 @@ export default function HeroMessagesAdminPage() {
                   <div className="grid gap-3 md:grid-cols-2">
                     <Field label="Supporting text (optional)">
                       <input
-                        className={CONTROL_CLASS}
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
                         value={newMessageCopy.subtitle ?? ""}
                         onChange={(event) => setNewMessageCopy((current) => ({ ...current, subtitle: event.target.value }))}
                         placeholder="A short helpful explanation"
@@ -759,7 +763,7 @@ export default function HeroMessagesAdminPage() {
                     </Field>
                     <Field label="Button label (optional)">
                       <input
-                        className={CONTROL_CLASS}
+                        className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5"
                         value={newMessageCopy.ctaLabel ?? ""}
                         onChange={(event) => setNewMessageCopy((current) => ({ ...current, ctaLabel: event.target.value }))}
                         placeholder="For example: Talk"
@@ -842,7 +846,7 @@ export default function HeroMessagesAdminPage() {
                   </select>
                 </Field>
                 <Field label="Type">
-                  <select className={CONTROL_CLASS} value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilter)}>
+                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilter)}>
                     <option value="all">All types</option>
                     <option value="welcome">Welcome</option>
                     <option value="standard">Standard</option>
