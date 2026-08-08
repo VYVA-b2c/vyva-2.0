@@ -8501,24 +8501,38 @@ export default function MarketingAdminPage() {
           {activeTab === "journeys" && (
             <div className="grid gap-4" data-testid="marketing-journeys-tab">
               <SectionCard
-                title="Journeys"
-                subtitle={`${visibleJourneys.length} of ${journeys.length} journeys.`}
+                title={editingJourneyId ? "Journey builder" : "Journeys"}
+                subtitle={
+                  editingJourneyId
+                    ? "Build the sequence, then save it as a planning draft."
+                    : `${visibleJourneys.length} of ${journeys.length} journeys.`
+                }
                 action={
-                  <button
-                    type="button"
-                    onClick={startNewJourney}
-                    disabled={journeySaving}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                    data-testid="button-marketing-new-journey"
-                  >
-                    <Plus size={15} /> New journey
-                  </button>
+                  editingJourneyId ? (
+                    <button
+                      type="button"
+                      onClick={cancelJourneyEdit}
+                      disabled={journeySaving}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#241133] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <ArrowLeft size={15} /> Back to journeys
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startNewJourney}
+                      disabled={journeySaving}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      data-testid="button-marketing-new-journey"
+                    >
+                      <Plus size={15} /> New journey
+                    </button>
+                  )
                 }
               >
-                <div
-                  className={`grid gap-4 ${editingJourneyId ? "xl:grid-cols-[minmax(360px,0.72fr)_minmax(620px,1.28fr)]" : ""}`}
-                >
-                  <div className="grid content-start gap-3">
+                <div className="grid gap-4">
+                  {!editingJourneyId ? (
+                    <div className="grid content-start gap-3 lg:grid-cols-2">
                     {visibleJourneys.length === 0 ? (
                       <EmptyState text="No journeys match the filters." />
                     ) : (
@@ -8572,6 +8586,9 @@ export default function MarketingAdminPage() {
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Pill className="bg-amber-50 text-amber-800">
+                                  Planning only
+                                </Pill>
                                 <Pill className={statusClass(journey.status)}>
                                   {journey.status}
                                 </Pill>
@@ -8617,7 +8634,7 @@ export default function MarketingAdminPage() {
                                 </span>
                               ) : (
                                 <ol className="grid gap-2">
-                                  {journey.steps.map((step) => {
+                                  {journey.steps.slice(0, 6).map((step) => {
                                     const stepContent =
                                       contentAssetByReference(
                                         content,
@@ -8682,6 +8699,12 @@ export default function MarketingAdminPage() {
                                       </li>
                                     );
                                   })}
+                                  {journey.steps.length > 6 ? (
+                                    <li className="rounded-lg border border-dashed border-[#eadfd5] bg-white px-3 py-2 text-sm font-black text-[#7d6b65]">
+                                      +{journey.steps.length - 6} more
+                                      follow-ups
+                                    </li>
+                                  ) : null}
                                 </ol>
                               )}
                             </div>
@@ -8689,7 +8712,8 @@ export default function MarketingAdminPage() {
                         );
                       })
                     )}
-                  </div>
+                    </div>
+                  ) : null}
 
                   {editingJourneyId ? (
                     <form
@@ -9418,28 +9442,14 @@ export default function MarketingAdminPage() {
                         </div>
                       </div>
                     </form>
-                  ) : (
-                    <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-6 text-center">
-                      <div>
-                        <Waypoints
-                          className="mx-auto text-purple-700"
-                          size={28}
-                        />
-                        <p className="mt-3 text-sm font-black text-[#241133]">
-                          Select a journey or create a new one.
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-[#8b7a73]">
-                          The guided builder will take you through it.
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               </SectionCard>
-              <SectionCard
-                title="Journey progress"
-                subtitle={`${visibleJourneyEnrollments.length} visible of ${journeyEnrollments.length} imported enrollment records and event history rows.`}
-              >
+              {!editingJourneyId ? (
+                <SectionCard
+                  title="Journey progress"
+                  subtitle={`${visibleJourneyEnrollments.length} visible of ${journeyEnrollments.length} imported enrollment records and event history rows.`}
+                >
                 {visibleJourneyEnrollments.length === 0 ? (
                   <EmptyState
                     text={
@@ -9583,7 +9593,8 @@ export default function MarketingAdminPage() {
                     })}
                   </div>
                 )}
-              </SectionCard>
+                </SectionCard>
+              ) : null}
             </div>
           )}
 
