@@ -35,11 +35,17 @@ import {
   type TrustedHelpProviderSource,
   type TrustedHelpServiceId,
 } from "@/design/conciergeTrustedHelpPresentationMap";
+import {
+  getTrustedHelpSetupTabs,
+  getTrustedHelpStepDataAttributes,
+  getTrustedHelpStepViewModel,
+  type TrustedHelpSetupTab,
+} from "@/design/trustedHelpFlowPresentation";
 import { useLanguage } from "@/i18n";
 
 type ServiceId = TrustedHelpServiceId;
 type ProviderSource = TrustedHelpProviderSource;
-type SetupTab = "dashboard" | "service" | "provider" | "controls" | "review";
+type SetupTab = TrustedHelpSetupTab;
 type HelpMode = "ask-first" | "prepare-only" | "family-approval" | "auto-repeat";
 type PaymentMode = "provider-direct" | "saved-card" | "caregiver-approval";
 type CaregiverPermission = "prepare" | "approve" | "order-essentials" | "manage-providers" | "payment-limits";
@@ -147,13 +153,7 @@ const servicesWithRequiredType = new Set<ServiceId>(
     .map((service) => service.serviceId),
 );
 
-const setupTabs: Array<{ id: SetupTab; label: string }> = [
-  { id: "dashboard", label: "Overview" },
-  { id: "service", label: "Service" },
-  { id: "provider", label: "Provider" },
-  { id: "controls", label: "Controls" },
-  { id: "review", label: "Review" },
-];
+const setupTabs = getTrustedHelpSetupTabs();
 
 const TEST_RUN_SEEN_KEY = "vyva.trustedHelp.testRunSeen";
 
@@ -509,16 +509,18 @@ function SectionHeader({
   kicker,
   title,
   detail,
+  showDetail = false,
 }: {
   kicker: string;
   title: string;
   detail?: string;
+  showDetail?: boolean;
 }) {
   return (
     <div className="mb-4">
       <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">{kicker}</p>
       <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1">{title}</h2>
-      {detail ? <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2">{detail}</p> : null}
+      {showDetail && detail ? <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-2">{detail}</p> : null}
     </div>
   );
 }
@@ -650,6 +652,8 @@ export default function TrustedHelpSettings() {
   const [pendingScrollTarget, setPendingScrollTarget] = useState<StepScrollTarget | null>(null);
   const subservicesRef = useRef<HTMLDivElement | null>(null);
   const providerStepRef = useRef<HTMLDivElement | null>(null);
+  const activeStepView = useMemo(() => getTrustedHelpStepViewModel(activeTab), [activeTab]);
+  const activeStepDataAttributes = useMemo(() => getTrustedHelpStepDataAttributes(activeTab), [activeTab]);
 
   const service = serviceFor(selectedService);
   const ServiceIcon = service.icon;
@@ -847,7 +851,12 @@ export default function TrustedHelpSettings() {
       subtitle={t("settings.trustedHelp.navTitle", "Trusted Help")}
       className="max-w-[980px]"
     >
-      <div className="grid gap-5 pb-6" data-testid="trusted-help-settings">
+      <div
+        className="grid gap-5 pb-6"
+        data-testid="trusted-help-settings"
+        data-step-label={activeStepView.label}
+        {...activeStepDataAttributes}
+      >
         <ProfileSectionHero
           icon={ShieldCheck}
           kicker={t("settings.trustedHelp.kicker", "Concierge setup")}
@@ -862,17 +871,20 @@ export default function TrustedHelpSettings() {
         <div className="rounded-[24px] border border-[#EFE4D5] bg-white p-2 shadow-[0_12px_26px_rgba(53,28,87,0.05)]" data-testid="trusted-help-tabs">
           <div className="grid grid-cols-2 gap-1 sm:grid-cols-5">
             {setupTabs.map((tab) => {
-              const active = activeTab === tab.id;
+              const active = activeTab === tab.stepId;
               return (
                 <button
-                  key={tab.id}
+                  key={tab.stepId}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setActiveTab(tab.stepId)}
                   className={`vyva-tap min-h-[48px] rounded-[18px] px-2 font-body text-[13px] font-black transition sm:text-[15px] ${
                     active ? "bg-[#0F766E] text-white shadow-[0_10px_22px_rgba(15,118,110,0.16)]" : "bg-[#FFFCF8] text-vyva-text-2"
                   }`}
-                  data-testid={`button-trusted-help-tab-${tab.id}`}
+                  data-testid={`button-trusted-help-tab-${tab.stepId}`}
+                  data-template={tab.template}
+                  data-presentation-step={tab.stepId}
+                  data-primary-surface={tab.primarySurface}
                 >
                   {tab.label}
                 </button>
@@ -892,9 +904,11 @@ export default function TrustedHelpSettings() {
                   <h2 className="mt-1 font-body text-[26px] font-black leading-tight text-vyva-text-1">
                     {t("settings.trustedHelp.dashboard.title", "Your trusted help")}
                   </h2>
-                  <p className="mt-1 max-w-[520px] font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-                    {t("settings.trustedHelp.dashboard.detail", "Providers, repeat orders, approvals, and limits in one place.")}
-                  </p>
+                  {activeStepView.showHeadingDetail ? (
+                    <p className="mt-1 max-w-[520px] font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                      {t("settings.trustedHelp.dashboard.detail", "Providers, repeat orders, approvals, and limits in one place.")}
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -1086,9 +1100,11 @@ export default function TrustedHelpSettings() {
                     <h3 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
                       {t("settings.trustedHelp.subservice.title", `${service.label} type`)}
                     </h3>
-                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                      {t("settings.trustedHelp.subservice.detail", "VYVA will use this to find the right provider.")}
-                    </p>
+                    {activeStepView.showHeadingDetail ? (
+                      <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                        {t("settings.trustedHelp.subservice.detail", "VYVA will use this to find the right provider.")}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1526,11 +1542,13 @@ export default function TrustedHelpSettings() {
               <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
                 {setupSaved ? t("settings.trustedHelp.save.savedTitle", "Setup saved") : t("settings.trustedHelp.save.title", "Ready to save?")}
               </h2>
-              <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                {setupSaved
-                  ? t("settings.trustedHelp.save.savedDetail", "You can add another service, or open Concierge.")
-                  : t("settings.trustedHelp.save.detail", "VYVA will stay inside these providers, approvals, and limits.")}
-              </p>
+              {activeStepView.showHeadingDetail ? (
+                <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  {setupSaved
+                    ? t("settings.trustedHelp.save.savedDetail", "You can add another service, or open Concierge.")
+                    : t("settings.trustedHelp.save.detail", "VYVA will stay inside these providers, approvals, and limits.")}
+                </p>
+              ) : null}
             </div>
             <div className="grid gap-3 sm:min-w-[220px]">
               <button

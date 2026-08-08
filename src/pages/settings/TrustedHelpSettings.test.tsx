@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TRUSTED_HELP_PARTNERS_STORAGE_KEY, type TrustedHelpPartner } from "@/data/trustedHelpPartners";
 import { TRUSTED_HELP_SERVICE_PRESENTATION_MAP } from "@/design/conciergeTrustedHelpPresentationMap";
+import { getTrustedHelpStepDataAttributes } from "@/design/trustedHelpFlowPresentation";
 import TrustedHelpSettings from "./TrustedHelpSettings";
 
 vi.mock("@/components/onboarding/PhoneFrame", () => ({
@@ -58,6 +59,8 @@ describe("TrustedHelpSettings", () => {
     renderTrustedHelp();
 
     expect(screen.getByTestId("trusted-help-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-template", "setupDashboard");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-presentation-step", "dashboard");
     expect(screen.getByTestId("trusted-help-hero")).toHaveTextContent("My Trusted Help");
     expect(screen.getByTestId("trusted-help-tabs")).toHaveTextContent("Overview");
     expect(screen.getByTestId("trusted-help-tabs")).toHaveTextContent("Service");
@@ -75,6 +78,22 @@ describe("TrustedHelpSettings", () => {
     expect(screen.getByTestId("section-trusted-help-dashboard-providers")).toHaveTextContent("AquaHome Water");
     expect(screen.getByTestId("coverage-trusted-help-dashboard-provider-provider-water")).toHaveTextContent("Water");
     expect(screen.queryByTestId("section-trusted-help-guide")).not.toBeInTheDocument();
+  });
+
+  it("exposes the active presentation contract for each setup step", () => {
+    renderTrustedHelp();
+
+    for (const tab of ["dashboard", "service", "provider", "controls", "review"] as const) {
+      openTrustedHelpTab(tab);
+      const expectedAttributes = getTrustedHelpStepDataAttributes(tab);
+      const settings = screen.getByTestId("trusted-help-settings");
+
+      for (const [attribute, value] of Object.entries(expectedAttributes)) {
+        expect(settings).toHaveAttribute(attribute, value);
+      }
+
+      expect(screen.getByTestId(`button-trusted-help-tab-${tab}`)).toHaveAttribute("data-presentation-step", tab);
+    }
   });
 
   it("shows the setup flow and advances from service choice to provider", () => {
