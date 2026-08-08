@@ -27,6 +27,7 @@ import {
 } from "../health/preventiveHealthOrchestrator.js";
 import { evaluatePreventiveCheckinSafety } from "../health/preventiveHealthSafety.js";
 import type { EventStateCompatibilityStore } from "../orchestrator/eventStatePersistence.js";
+import { recordPreventiveHealthMemoryProposal } from "../memory/healthSemanticMemory.js";
 
 const router = Router();
 
@@ -240,6 +241,8 @@ type ProfileContext = {
   grammatical_gender: GrammaticalGender;
   age: number | null;
   language: string;
+  mem0_user_id?: string | null;
+  data_sharing_consent?: unknown;
   location: {
     city: string | null;
     region: string | null;
@@ -474,6 +477,8 @@ function minimalProfileContext(language = "es"): ProfileContext {
       taken_14d: 0,
       missed_14d: 0,
     },
+    mem0_user_id: null,
+    data_sharing_consent: {},
   };
 }
 
@@ -627,6 +632,8 @@ async function fetchProfileContext(userId: string): Promise<ProfileContext> {
 
   return {
     name,
+    mem0_user_id: getProfileString(profile, "mem0_user_id"),
+    data_sharing_consent: consent ?? {},
     grammatical_gender: inferProfileGender(consent, name),
     age: ageFromDate(getProfileString(profile, "date_of_birth", "dob", "birth_date")),
     language: normalizeAppLanguage(getProfileString(profile, "language_preference", "language", "preferred_language"), "es"),
@@ -1549,6 +1556,20 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
         updateTrend,
         markDailyCheckinCompleted,
         eventStore: resolveTrustedPreventiveHealthEventStore(res),
+        proposeMemoryWrite: async (memoryInput) => {
+          await recordPreventiveHealthMemoryProposal({
+            userId: memoryInput.userId,
+            profileId: memoryInput.profileId,
+            mem0UserId: profile.mem0_user_id,
+            flowInstanceId: memoryInput.flowInstanceId,
+            completionReference: memoryInput.completionReference,
+            answerDigest: memoryInput.answerDigest,
+            result: memoryInput.result,
+            completedAt: memoryInput.completedAt,
+            profileConsent: profile.data_sharing_consent,
+            env: process.env,
+          });
+        },
       },
     });
     if (orchestration.outcome === "completed") {
