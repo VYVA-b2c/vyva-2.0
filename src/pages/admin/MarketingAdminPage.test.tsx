@@ -1307,15 +1307,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.queryByText("First channel")).not.toBeInTheDocument();
     expect(
       screen.getByTestId("marketing-journey-logic-journey-1"),
-    ).toHaveTextContent("Trigger: signup");
+    ).toHaveTextContent("When a contact creates an account");
     expect(
       screen.getByTestId("marketing-journey-logic-journey-1"),
-    ).toHaveTextContent("List: Partners");
-    expect(
-      screen.getByTestId("marketing-journey-logic-journey-1"),
-    ).toHaveTextContent("Goal: activation");
+    ).toHaveTextContent("When the contact completes the objective");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent(
-      "message / Email / day 3 / Welcome email",
+      "Welcome email",
     );
     expect(
       screen.getByTestId("marketing-journey-enrollments"),
