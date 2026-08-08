@@ -1507,7 +1507,7 @@ describe("MarketingAdminPage", () => {
     ).toHaveTextContent("Partner outreach");
     expect(
       screen.getByTestId("marketing-calendar-scheduler"),
-    ).toHaveTextContent("List: Partners");
+    ).toHaveTextContent("Partners");
     expect(
       screen.getByTestId("marketing-calendar-unscheduled"),
     ).toHaveTextContent("Partner outreach");
@@ -2205,17 +2205,11 @@ describe("MarketingAdminPage", () => {
       screen.getByTestId("marketing-calendar-scheduler"),
     ).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent(
-      "1 scheduled",
+      "1 campaign",
     );
     expect(
       screen.getByTestId("marketing-calendar-channel-link-channel-1"),
-    ).toHaveTextContent("Welcome email");
-    expect(
-      screen.getByTestId("marketing-calendar-performance-campaign-1"),
-    ).toHaveTextContent("66 sent");
-    expect(
-      screen.getByTestId("marketing-calendar-performance-campaign-1"),
-    ).toHaveTextContent("44 opened");
+    ).toHaveTextContent("Email");
     expect(
       screen.getByTestId("marketing-calendar-unscheduled"),
     ).toHaveTextContent("Partner outreach");
@@ -2223,12 +2217,19 @@ describe("MarketingAdminPage", () => {
       screen.getByTestId(
         "marketing-calendar-unscheduled-channel-link-channel-2",
       ),
-    ).toHaveTextContent("No content linked");
-    expect(
-      screen.getByTestId(
-        "marketing-calendar-unscheduled-performance-campaign-2",
-      ),
-    ).toHaveTextContent("No imported metrics");
+    ).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("marketing-calendar-tab")).not.toHaveTextContent(
+      "lovable",
+    );
+    expect(screen.getByTestId("marketing-calendar-tab")).not.toHaveTextContent(
+      "No content linked",
+    );
+    expect(screen.getByTestId("marketing-calendar-tab")).not.toHaveTextContent(
+      "No imported metrics",
+    );
+    expect(screen.getByTestId("marketing-calendar-tab")).not.toHaveTextContent(
+      "recipients",
+    );
 
     fireEvent.click(
       screen.getByTestId("button-marketing-calendar-edit-campaign-1"),
@@ -2325,7 +2326,7 @@ describe("MarketingAdminPage", () => {
     ).toHaveValue("Welcome email");
   });
 
-  it("opens Lovable content from campaign, calendar, and journey overview references", async () => {
+  it("opens linked content from campaign and journey references", async () => {
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -2342,18 +2343,6 @@ describe("MarketingAdminPage", () => {
     expect(
       screen.getByTestId("marketing-content-preview-panel"),
     ).toHaveTextContent("Partner post");
-
-    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
-    fireEvent.click(
-      screen.getByTestId("button-marketing-edit-calendar-content-channel-1"),
-    );
-
-    expect(
-      screen.getByTestId("marketing-content-action-feedback"),
-    ).toHaveTextContent('Editing "Welcome email".');
-    expect(
-      screen.getByTestId("marketing-content-editor-panel"),
-    ).toHaveTextContent("Welcome email");
 
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
     fireEvent.click(

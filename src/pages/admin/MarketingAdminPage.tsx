@@ -6798,7 +6798,11 @@ export default function MarketingAdminPage() {
               to={activeTab === "dashboard" ? "/admin" : "/admin/marketing"}
               className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 py-3 font-bold text-[#2f2135] shadow-sm transition hover:border-purple-200 hover:text-purple-700"
             >
-              {activeTab === "dashboard" ? <LayoutGrid size={16} /> : <ArrowLeft size={16} />}
+              {activeTab === "dashboard" ? (
+                <LayoutGrid size={16} />
+              ) : (
+                <ArrowLeft size={16} />
+              )}
               {activeTab === "dashboard" ? "Admin home" : "Back to Marketing"}
             </Link>
             <button
@@ -6973,12 +6977,7 @@ export default function MarketingAdminPage() {
                   </button>
                 </div>
               ) : (
-                <p
-                  className="rounded-xl bg-[#fbf8f5] px-3 py-2 text-sm font-bold text-[#7d6b65]"
-                  data-testid="marketing-active-filters"
-                >
-                  Filters apply instantly across this page.
-                </p>
+                <span data-testid="marketing-active-filters" />
               )}
             </div>
           </div>
@@ -11045,7 +11044,7 @@ export default function MarketingAdminPage() {
             <div className="grid gap-4" data-testid="marketing-calendar-tab">
               <SectionCard
                 title="Calendar"
-                subtitle="Scheduled campaign timeline and unscheduled planning queue."
+                subtitle="Review scheduled campaigns and drafts."
                 action={
                   <button
                     type="button"
@@ -11073,36 +11072,9 @@ export default function MarketingAdminPage() {
                 ) : null}
                 <MarketingCalendarView
                   campaigns={visibleCampaigns}
-                  contentById={contentById}
-                  contentTitleById={contentTitleById}
-                  metricsByCampaignId={campaignMetricSummaryByCampaignId}
                   audiences={audiences}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
-                  onPreviewContent={previewContent}
-                  onEditContent={startContentEdit}
-                  confirmingDeleteId={confirmingCampaignDeleteId}
-                />
-              </SectionCard>
-              <SectionCard
-                title="Scheduled campaign details"
-                subtitle="Table view for scheduled records."
-              >
-                <CampaignTable
-                  campaigns={visibleCampaigns.filter(
-                    (campaign) =>
-                      campaign.scheduleStartsAt ||
-                      campaign.status === "scheduled",
-                  )}
-                  contentById={contentById}
-                  contentTitleById={contentTitleById}
-                  metricsByCampaignId={campaignMetricSummaryByCampaignId}
-                  audiences={audiences}
-                  activeCampaignId={editingCampaignId}
-                  onEdit={openCampaignFromCalendar}
-                  onDelete={(campaign) => void deleteCampaign(campaign)}
-                  onPreviewContent={previewContent}
-                  onEditContent={startContentEdit}
                   confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
@@ -13729,25 +13701,15 @@ function CampaignTable({
 
 function MarketingCalendarView({
   campaigns,
-  contentById = new Map<string, ContentAsset>(),
-  contentTitleById = new Map<string, string>(),
-  metricsByCampaignId = new Map<string, CampaignMetricSummary>(),
   audiences = [],
   onEdit,
   onDelete,
-  onPreviewContent,
-  onEditContent,
   confirmingDeleteId = null,
 }: {
   campaigns: Campaign[];
-  contentById?: ReadonlyMap<string, ContentAsset>;
-  contentTitleById?: ReadonlyMap<string, string>;
-  metricsByCampaignId?: ReadonlyMap<string, CampaignMetricSummary>;
   audiences?: MarketingAudience[];
   onEdit: (campaign: Campaign) => void;
   onDelete: (campaign: Campaign) => void;
-  onPreviewContent?: (contentAsset: ContentAsset) => void;
-  onEditContent?: (contentAsset: ContentAsset) => void;
   confirmingDeleteId?: string | null;
 }) {
   const scheduledCampaigns = [...campaigns]
@@ -13775,11 +13737,11 @@ function MarketingCalendarView({
 
   return (
     <div
-      className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
+      className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"
       data-testid="marketing-calendar-scheduler"
     >
       <div
-        className="grid content-start gap-3"
+        className="grid content-start gap-4"
         data-testid="marketing-calendar-timeline"
       >
         {days.length === 0 ? (
@@ -13788,47 +13750,37 @@ function MarketingCalendarView({
           days.map((day) => (
             <section
               key={day.key}
-              className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"
+              className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white"
             >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-3">
                 <h3 className="font-black text-[#241133]">
                   {formatCalendarDay(day.key)}
                 </h3>
-                <Pill className="bg-sky-50 text-sky-700">
-                  {day.campaigns.length} scheduled
-                </Pill>
+                <span className="text-xs font-bold text-[#7d6b65]">
+                  {day.campaigns.length} campaign
+                  {day.campaigns.length === 1 ? "" : "s"}
+                </span>
               </div>
-              <div className="grid gap-2">
+              <div className="divide-y divide-[#eadfd5]">
                 {day.campaigns.map((campaign) => {
                   const targetAudience = campaignTargetAudience(
                     campaign,
                     audiences,
                   );
-                  const metricSummary = metricsByCampaignId.get(campaign.id);
                   return (
                     <article
                       key={campaign.id}
-                      className="rounded-xl border border-[#eadfd5] bg-white p-3"
+                      className="grid gap-3 px-4 py-3 lg:grid-cols-[72px_minmax(0,1fr)_auto] lg:items-center"
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
-                            <Clock size={13} aria-hidden="true" />{" "}
-                            {formatCalendarTime(campaign.scheduleStartsAt)}
-                          </p>
-                          {campaign.scheduleEndsAt ? (
-                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">
-                              Ends {formatCalendarTime(campaign.scheduleEndsAt)}
-                            </p>
-                          ) : null}
-                          <h4 className="mt-1 font-black text-[#241133]">
-                            {campaign.name}
-                          </h4>
-                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
-                            {campaign.source}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-1.5">
+                      <p className="flex items-center gap-2 text-sm font-black text-[#5b4a46]">
+                        <Clock size={14} aria-hidden="true" />
+                        {formatCalendarTime(campaign.scheduleStartsAt)}
+                      </p>
+                      <div className="min-w-0">
+                        <h4 className="truncate font-black text-[#241133]">
+                          {campaign.name}
+                        </h4>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <Pill className={statusClass(campaign.status)}>
                             {campaign.status}
                           </Pill>
@@ -13837,114 +13789,50 @@ function MarketingCalendarView({
                           </Pill>
                           {targetAudience ? (
                             <Pill className="bg-violet-50 text-violet-800">
-                              List: {targetAudience.name}
+                              {targetAudience.name}
                             </Pill>
                           ) : null}
-                          <Pill className="bg-[#f5eee8] text-[#7d6b65]">
-                            {campaign.recipientCount} recipients
-                          </Pill>
-                        </div>
-                      </div>
-                      <div className="mt-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <CampaignPerformanceSummary
-                          summary={metricSummary}
-                          testId={`marketing-calendar-performance-${campaign.id}`}
-                        />
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                        <div className="grid gap-1.5">
-                          {campaign.channels.length === 0 ? (
-                            <span className="text-xs font-bold text-[#8b7a73]">
-                              No channels
-                            </span>
-                          ) : (
-                            campaign.channels.map((item) => {
-                              const contentAsset = item.contentAssetId
-                                ? contentById.get(item.contentAssetId)
-                                : null;
-                              const contentTitle =
-                                contentAsset?.title ||
-                                (item.contentAssetId
-                                  ? contentTitleById.get(item.contentAssetId)
-                                  : "");
-                              const contentLabel =
-                                contentTitle ||
-                                (item.contentAssetId
-                                  ? `Missing content: ${item.contentAssetId}`
-                                  : "No content linked");
-                              return (
-                                <div
-                                  key={item.id}
-                                  className="flex flex-wrap items-center gap-1.5"
-                                  data-testid={`marketing-calendar-channel-link-${item.id}`}
-                                >
-                                  <Pill className={channelClass(item.channel)}>
-                                    {channelLabel[item.channel]}
-                                  </Pill>
-                                  <span
-                                    className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}
-                                  >
-                                    {contentLabel}
-                                  </span>
-                                  {contentAsset && onPreviewContent ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onPreviewContent(contentAsset)
-                                      }
-                                      className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
-                                      data-testid={`button-marketing-preview-calendar-content-${item.id}`}
-                                    >
-                                      <Eye size={11} /> Preview
-                                    </button>
-                                  ) : null}
-                                  {contentAsset && onEditContent ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onEditContent(contentAsset)
-                                      }
-                                      className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
-                                      data-testid={`button-marketing-edit-calendar-content-${item.id}`}
-                                    >
-                                      <Pencil size={11} /> Edit
-                                    </button>
-                                  ) : null}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onEdit(campaign)}
-                            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700"
-                            data-testid={`button-marketing-calendar-edit-${campaign.id}`}
-                          >
-                            <Pencil size={14} /> Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDelete(campaign)}
-                            className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${confirmingDeleteId === campaign.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`}
-                            data-testid={`button-marketing-calendar-delete-${campaign.id}`}
-                          >
-                            <Trash2 size={14} />{" "}
-                            {confirmingDeleteId === campaign.id
-                              ? "Confirm delete"
-                              : "Delete"}
-                          </button>
-                          {confirmingDeleteId === campaign.id ? (
-                            <p
-                              className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800"
-                              data-testid={`marketing-calendar-delete-confirmation-${campaign.id}`}
+                          {campaign.channels.map((item) => (
+                            <span
+                              key={item.id}
+                              data-testid={`marketing-calendar-channel-link-${item.id}`}
                             >
-                              Click Confirm delete to remove this scheduled
-                              campaign.
-                            </p>
-                          ) : null}
+                              <Pill className={channelClass(item.channel)}>
+                                {channelLabel[item.channel]}
+                              </Pill>
+                            </span>
+                          ))}
                         </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(campaign)}
+                          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700"
+                          data-testid={`button-marketing-calendar-edit-${campaign.id}`}
+                        >
+                          <Pencil size={14} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(campaign)}
+                          className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${confirmingDeleteId === campaign.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`}
+                          data-testid={`button-marketing-calendar-delete-${campaign.id}`}
+                        >
+                          <Trash2 size={14} />{" "}
+                          {confirmingDeleteId === campaign.id
+                            ? "Confirm delete"
+                            : "Delete"}
+                        </button>
+                        {confirmingDeleteId === campaign.id ? (
+                          <p
+                            className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800"
+                            data-testid={`marketing-calendar-delete-confirmation-${campaign.id}`}
+                          >
+                            Click Confirm delete to remove this scheduled
+                            campaign.
+                          </p>
+                        ) : null}
                       </div>
                     </article>
                   );
@@ -13956,34 +13844,30 @@ function MarketingCalendarView({
       </div>
 
       <aside
-        className="grid content-start gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"
+        className="grid content-start gap-2 rounded-xl border border-[#eadfd5] bg-white p-3"
         data-testid="marketing-calendar-unscheduled"
       >
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-black text-[#241133]">Unscheduled drafts</h3>
-          <Pill className="bg-amber-50 text-amber-800">
+          <h3 className="font-black text-[#241133]">Drafts</h3>
+          <span className="text-xs font-bold text-[#7d6b65]">
             {unscheduledCampaigns.length}
-          </Pill>
+          </span>
         </div>
         {unscheduledCampaigns.length === 0 ? (
           <EmptyState text="No unscheduled campaigns." />
         ) : (
           unscheduledCampaigns.map((campaign) => {
             const targetAudience = campaignTargetAudience(campaign, audiences);
-            const metricSummary = metricsByCampaignId.get(campaign.id);
             return (
               <button
                 key={campaign.id}
                 type="button"
                 onClick={() => onEdit(campaign)}
-                className="rounded-xl border border-[#eadfd5] bg-white p-3 text-left transition hover:border-purple-200 hover:bg-purple-50"
+                className="rounded-lg border border-transparent bg-[#fbf8f5] p-3 text-left transition hover:border-purple-200 hover:bg-purple-50"
                 data-testid={`button-marketing-calendar-unscheduled-${campaign.id}`}
               >
                 <span className="block font-black text-[#241133]">
                   {campaign.name}
-                </span>
-                <span className="mt-1 block text-xs font-bold text-[#7d6b65]">
-                  {campaign.source}
                 </span>
                 <span className="mt-2 flex flex-wrap gap-1.5">
                   <Pill className={statusClass(campaign.status)}>
@@ -13994,45 +13878,19 @@ function MarketingCalendarView({
                   </Pill>
                   {targetAudience ? (
                     <Pill className="bg-violet-50 text-violet-800">
-                      List: {targetAudience.name}
+                      {targetAudience.name}
                     </Pill>
                   ) : null}
-                </span>
-                {campaign.channels.length ? (
-                  <span className="mt-2 grid gap-1">
-                    {campaign.channels.map((item) => {
-                      const contentTitle = item.contentAssetId
-                        ? contentTitleById.get(item.contentAssetId)
-                        : "";
-                      const contentLabel =
-                        contentTitle ||
-                        (item.contentAssetId
-                          ? `Missing content: ${item.contentAssetId}`
-                          : "No content linked");
-                      return (
-                        <span
-                          key={item.id}
-                          className="flex flex-wrap items-center gap-1.5"
-                          data-testid={`marketing-calendar-unscheduled-channel-link-${item.id}`}
-                        >
-                          <Pill className={channelClass(item.channel)}>
-                            {channelLabel[item.channel]}
-                          </Pill>
-                          <span
-                            className={`truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}
-                          >
-                            {contentLabel}
-                          </span>
-                        </span>
-                      );
-                    })}
-                  </span>
-                ) : null}
-                <span className="mt-3 block rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-2">
-                  <CampaignPerformanceInlineSummary
-                    summary={metricSummary}
-                    testId={`marketing-calendar-unscheduled-performance-${campaign.id}`}
-                  />
+                  {campaign.channels.map((item) => (
+                    <span
+                      key={item.id}
+                      data-testid={`marketing-calendar-unscheduled-channel-link-${item.id}`}
+                    >
+                      <Pill className={channelClass(item.channel)}>
+                        {channelLabel[item.channel]}
+                      </Pill>
+                    </span>
+                  ))}
                 </span>
               </button>
             );
