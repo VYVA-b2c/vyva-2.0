@@ -2235,12 +2235,10 @@ const HomeScreen = () => {
   const homeMasterNormalHeroSubtitle = activeIntentSubtitle
     ?? homeMasterContextNudgeText
     ?? t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?");
-  const showHomeVoiceFirstUseHint = homeInteractionMode === "voice"
-    && homeIntentLayer === "home"
-    && showVoiceOrbFirstUseHint
-    && (!selectedHomeContextMessage || selectedHomeContextMessage.kind === "default");
-  const homeMasterHeroSubtitle = showHomeVoiceFirstUseHint
-    ? t("home.master.touchOrbToBegin", "Touch the voice button to begin.")
+  const showHomeVoiceOrbCue = homeInteractionMode === "voice" && homeIntentLayer === "home";
+  const showHomeVoiceFirstUseHint = showHomeVoiceOrbCue && showVoiceOrbFirstUseHint;
+  const homeMasterHeroSubtitle = showHomeVoiceOrbCue
+    ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
     : homeMasterNormalHeroSubtitle;
   const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
     home: homeMasterCards,
@@ -2869,7 +2867,7 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
-  // Home master design: latest VYVA wordmark header, greeting, dormant voice button, four app-mode
+  // Home master design: latest VYVA wordmark header, greeting, dormant voice orb, four app-mode
   // shortcuts, and no extra Fast Help/nudge blocks on the landing screen.
   return (
     <MasterDashboardLayout
@@ -2920,7 +2918,7 @@ const HomeScreen = () => {
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
-          supportingLabel: t("home.master.voiceSupport", "Tap the voice button to begin."),
+          supportingLabel: t("home.master.voiceSupport", "Touch the orb to begin."),
           contextHint: `${t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step.")} Current home context: ${selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? ""}`,
           voiceAgentSlug: "main-vyva",
           voiceDynamicVariables: {
@@ -2935,14 +2933,10 @@ const HomeScreen = () => {
           onFirstVoiceOrbActivation: () => setShowVoiceOrbFirstUseHint(false),
         },
         testId: "home-master-hero",
-        messageActionLabel: selectedHomeContextMessage?.actionLabel,
-        onMessageAction: selectedHomeContextMessage?.actionRoute
-          ? openSelectedHomeContextMessage
-          : undefined,
-        onMessageDismiss: selectedHomeContextMessage?.dismissible
-          ? dismissSelectedHomeContextMessage
-          : undefined,
-        messageDismissLabel: t("home.context.actions.dismiss", "Dismiss this message"),
+        messageActionLabel: undefined,
+        onMessageAction: undefined,
+        onMessageDismiss: undefined,
+        messageDismissLabel: undefined,
         tone: {
           iconBg: "#F5F3FF",
           iconColor: "#6B21A8",

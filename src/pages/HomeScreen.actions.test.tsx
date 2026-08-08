@@ -169,27 +169,27 @@ const labels: Record<string, string> = {
   "home.mode.voiceCta": "Talk to VYVA",
   "home.master.chooseCategory": "Today tray",
   "home.master.heroSubtitle": "VYVA is ready when you are.",
-  "home.master.touchOrbToBegin": "Touch the voice button to begin.",
+  "home.master.touchOrbToBegin": "Touch the orb to begin.",
   "home.master.proactiveGreeting.morning": "How are you feeling?",
   "home.master.proactiveGreeting.afternoon": "How are you feeling?",
   "home.master.proactiveGreeting.evening": "How are you feeling?",
-  "home.master.voiceSupport": "Tap the voice button to begin.",
+  "home.master.voiceSupport": "Touch the orb to begin.",
   "home.master.healthIntent.title": "Are you OK?",
   "home.master.healthIntent.more": "More health options",
-  "home.master.healthIntent.dormantSubtitle": "Choose a health option, or touch the voice button.",
-  "home.master.healthIntent.voiceSubtitle": "Tell VYVA what you need, or touch the voice button.",
+  "home.master.healthIntent.dormantSubtitle": "Choose a health option, or touch the orb.",
+  "home.master.healthIntent.voiceSubtitle": "Tell VYVA what you need, or touch the orb.",
   "home.master.mindIntent.title": "What would you like to exercise?",
   "home.master.mindIntent.more": "More mind activities",
-  "home.master.mindIntent.dormantSubtitle": "Choose an activity, or touch the voice button.",
-  "home.master.mindIntent.voiceSubtitle": "Tell VYVA what you want to exercise, or touch the voice button.",
+  "home.master.mindIntent.dormantSubtitle": "Choose an activity, or touch the orb.",
+  "home.master.mindIntent.voiceSubtitle": "Tell VYVA what you want to exercise, or touch the orb.",
   "home.master.communityIntent.title": "How would you like to connect?",
   "home.master.communityIntent.more": "More community options",
-  "home.master.communityIntent.dormantSubtitle": "Choose a way to connect, or touch the voice button.",
-  "home.master.communityIntent.voiceSubtitle": "Tell VYVA how you want to connect, or touch the voice button.",
+  "home.master.communityIntent.dormantSubtitle": "Choose a way to connect, or touch the orb.",
+  "home.master.communityIntent.voiceSubtitle": "Tell VYVA how you want to connect, or touch the orb.",
   "home.master.conciergeIntent.title": "What can VYVA help arrange?",
   "home.master.conciergeIntent.more": "More concierge services",
-  "home.master.conciergeIntent.dormantSubtitle": "Choose a service, or touch the voice button.",
-  "home.master.conciergeIntent.voiceSubtitle": "Tell VYVA what you need arranged, or touch the voice button.",
+  "home.master.conciergeIntent.dormantSubtitle": "Choose a service, or touch the orb.",
+  "home.master.conciergeIntent.voiceSubtitle": "Tell VYVA what you need arranged, or touch the orb.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -381,7 +381,7 @@ describe("Home fast service actions", () => {
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
@@ -454,18 +454,18 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toBeInTheDocument();
   });
 
-  it("shows first-use orb guidance once and restores the normal greeting after activation", () => {
+  it("keeps voice mode on the orb cue after activation", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T10:00:00"));
 
     renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the voice button to begin.");
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("home-master-hero-subtitle")).toHaveClass("!text-[#9A5B00]");
 
     fireEvent.click(screen.getByTestId("button-home-hero-talk"));
 
-    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("How are you feeling?");
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
   });
 
   it("uses live signals for concise pillar card nudges", () => {
@@ -508,7 +508,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
   });
 
-  it("shows timely schedule nudges before voice starts so the user can act on them", () => {
+  it("keeps timely schedule nudges out of the voice surface until touch mode", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -526,7 +526,14 @@ describe("Home fast service actions", () => {
 
     renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Don't forget Monoprost in 25 min.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+    expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    expect(screen.getByTestId("home-touch-subheading")).toHaveTextContent("Don't forget Monoprost in 25 min.");
   });
 
   it("quietly updates an active voice session when the selected Home message changes", () => {
@@ -566,7 +573,7 @@ describe("Home fast service actions", () => {
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("opens the visible Home message when the user gives a short voice reply", () => {
+  it("opens the hidden Home context when the user gives a short voice reply", () => {
     voiceMock.status = "connected";
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
@@ -584,7 +591,9 @@ describe("Home fast service actions", () => {
     });
 
     renderHomeScreen();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Don't forget Monoprost in 25 min.");
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+    expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
@@ -1750,7 +1759,7 @@ describe("Home fast service actions", () => {
     });
 
     expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Tell VYVA what you need, or touch the voice button.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Tell VYVA what you need, or touch the orb.");
     expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
     expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();

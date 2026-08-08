@@ -142,7 +142,10 @@ export default function MasterDashboardLayout({
   const isHomeMasterDark = isHomeMaster && isDarkMode;
   const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
   const isHomeMasterTopLevelCards = isHomeMaster && !isHomeMasterIntentLayer;
-  const isHomeMasterContextMessage = isHomeMaster && Boolean(hero.messageActionLabel || hero.onMessageDismiss);
+  const allowMessageControls = !(isHomeMaster && isVoiceAction);
+  const hasMessageAction = allowMessageControls && Boolean(hero.messageActionLabel && hero.onMessageAction);
+  const hasMessageDismiss = allowMessageControls && Boolean(hero.onMessageDismiss);
+  const isHomeMasterContextMessage = isHomeMaster && Boolean(hasMessageAction || hasMessageDismiss);
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -213,7 +216,7 @@ export default function MasterDashboardLayout({
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
-            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-0" : ""}`
+            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-4 min-[390px]:pt-5 sm:pt-7" : "pt-6 min-[390px]:pt-8 sm:pt-10 md:pt-12"}`
             : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
         style={isHomeMaster ? undefined : {
@@ -258,7 +261,7 @@ export default function MasterDashboardLayout({
                       : "",
                 ].join(" ")}
               >
-                {hero.messageActionLabel && hero.onMessageAction ? (
+                {hasMessageAction ? (
                   <button
                     type="button"
                     onClick={hero.onMessageAction}
@@ -271,7 +274,7 @@ export default function MasterDashboardLayout({
                 ) : (
                   <span>{hero.subtitle}</span>
                 )}
-                {hero.onMessageDismiss ? (
+                {hasMessageDismiss ? (
                   <button
                     type="button"
                     onClick={hero.onMessageDismiss}

@@ -128,6 +128,7 @@ const AdvisorHub = lazy(() => import("./social/AdvisorHub"));
 const AdvisorChat = lazy(() => import("./social/AdvisorChat"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
+const ScreenContactSheet = lazy(() => import("./pages/dev/ScreenContactSheet"));
 const AdminModulesPage = lazy(() => import("./pages/admin/AdminModulesPage"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
 const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
@@ -670,6 +671,9 @@ const App = () => (
                 <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/profile-conditions" element={<ConditionsSection />} />

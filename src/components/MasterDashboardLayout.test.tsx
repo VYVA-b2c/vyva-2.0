@@ -3,6 +3,14 @@ import { Brain, Heart, Mic, ShieldCheck, Users } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import MasterDashboardLayout, { type MasterFastHelpAction } from "./MasterDashboardLayout";
 
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ testId }: { testId?: string }) => (
+    <button type="button" data-testid={testId ?? "mock-vyva-session-cta"}>
+      Voice orb
+    </button>
+  ),
+}));
+
 function makeAction(id: string, label: string, pinned = false): MasterFastHelpAction {
   return {
     id,
@@ -99,6 +107,54 @@ describe("MasterDashboardLayout Fast help rotation", () => {
     expect(screen.getByTestId("fast-one")).toHaveTextContent("First");
     expect(screen.getByTestId("fast-two")).toHaveTextContent("Second");
     expect(screen.queryByTestId("fast-three")).not.toBeInTheDocument();
+  });
+
+  it("suppresses contextual controls on the home master voice surface", () => {
+    const onMessageAction = vi.fn();
+    const onMessageDismiss = vi.fn();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockImplementation(() => ({
+        matches: false,
+        media: "(prefers-reduced-motion: reduce)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+
+    render(
+      <MasterDashboardLayout
+        launcherVariant="homeMaster"
+        showCards={false}
+        hero={{
+          icon: Mic,
+          eyebrow: "Today",
+          title: "Good morning, Karim",
+          subtitle: "Your medicine is due soon.",
+          action: { kind: "voice", label: "Talk", testId: "button-home-hero-talk" },
+          testId: "home-master-hero",
+          messageActionLabel: "View",
+          onMessageAction,
+          onMessageDismiss,
+          messageDismissLabel: "Not now",
+        }}
+        cards={[]}
+        fastHelpTitle="Fast help"
+        fastHelpActions={[]}
+      />,
+    );
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Your medicine is due soon.");
+    expect(screen.getByTestId("button-home-hero-talk")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();
+    expect(onMessageAction).not.toHaveBeenCalled();
+    expect(onMessageDismiss).not.toHaveBeenCalled();
   });
 });
 

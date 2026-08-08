@@ -117,7 +117,7 @@ function HomeVoiceActivationOrb({
 }) {
   const outerSize = Math.max(104, Math.min(190, size));
   const iconSize = Math.max(22, Math.min(32, Math.round(outerSize * 0.16)));
-  const showIcon = state === "idle" || isPreparing;
+  const showIcon = isPreparing;
 
   return (
     <span
