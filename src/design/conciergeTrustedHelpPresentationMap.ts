@@ -101,6 +101,77 @@ export interface TrustedHelpServicePresentation {
   safetyModel: "prepareThenConfirm";
 }
 
+export type TrustedHelpMissionStatus =
+  | "collecting_details"
+  | "selecting_provider"
+  | "awaiting_confirmation"
+  | "awaiting_user_confirmation"
+  | "contacting_provider"
+  | "form_in_progress"
+  | "awaiting_provider_reply"
+  | "awaiting_user_save"
+  | "booked"
+  | "stopped"
+  | "ready"
+  | "needs_info"
+  | "being_prepared"
+  | "sent_or_called"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "needs_human_help";
+
+export type TrustedHelpMissionVisualState =
+  | "collecting"
+  | "review"
+  | "preparing"
+  | "live-contact"
+  | "waiting"
+  | "ready-to-save"
+  | "done"
+  | "blocked"
+  | "stopped";
+
+export type TrustedHelpMissionControl =
+  | "ask_status"
+  | "edit_details"
+  | "change_provider"
+  | "change_contact_method"
+  | "listen"
+  | "mute"
+  | "unmute"
+  | "stop"
+  | "confirm"
+  | "save_result"
+  | "retry";
+
+export type TrustedHelpExternalActionBoundary =
+  | "preparingOnly"
+  | "waitingForUserConfirmation"
+  | "externalContactInProgress"
+  | "waitingForExternalReply"
+  | "readyToSaveVerifiedResult"
+  | "completedWithProof"
+  | "stoppedOrCancelled"
+  | "blockedNeedsHuman";
+
+export interface TrustedHelpMissionPresentation {
+  status: TrustedHelpMissionStatus;
+  label: { en: string; es: string };
+  helper: { en: string; es: string };
+  stepId: Extract<TrustedHelpStepId, "active-mission">;
+  visualState: TrustedHelpMissionVisualState;
+  presentationFamilyId: string;
+  uiInstruction: TrustedHelpUiInstruction;
+  template: Extract<TrustedHelpAllowedTemplate, "outputReview">;
+  cards: "contextual";
+  chips: "hidden";
+  confirmationBoundary: "finalConfirmationBeforeExternalAction";
+  externalActionBoundary: TrustedHelpExternalActionBoundary;
+  allowedControls: readonly TrustedHelpMissionControl[];
+}
+
 export const TRUSTED_HELP_SCREEN_CONTRACT_ID = "concierge" as const;
 
 export const TRUSTED_HELP_PROVIDER_SCOPE_EXCLUSIONS = [
@@ -413,6 +484,389 @@ export const TRUSTED_HELP_SERVICE_PRESENTATION_MAP = [
   },
 ] as const satisfies readonly TrustedHelpServicePresentation[];
 
+export const TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS = [
+  {
+    status: "collecting_details",
+    label: { en: "Details needed", es: "Faltan detalles" },
+    helper: {
+      en: "VYVA collects one missing detail before moving on.",
+      es: "VYVA recoge un dato pendiente antes de seguir.",
+    },
+    stepId: "active-mission",
+    visualState: "collecting",
+    presentationFamilyId: "presentation.family.choice.single",
+    uiInstruction: "show_choice_question",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "preparingOnly",
+    allowedControls: ["ask_status", "edit_details", "change_provider"],
+  },
+  {
+    status: "selecting_provider",
+    label: { en: "Choosing provider", es: "Eligiendo proveedor" },
+    helper: {
+      en: "VYVA compares saved providers, partners, and trusted search.",
+      es: "VYVA compara proveedores guardados, partners y busqueda fiable.",
+    },
+    stepId: "active-mission",
+    visualState: "preparing",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "preparingOnly",
+    allowedControls: ["ask_status", "edit_details", "change_provider"],
+  },
+  {
+    status: "awaiting_confirmation",
+    label: { en: "Ready for your OK", es: "Listo para tu OK" },
+    helper: {
+      en: "Nothing is sent, called, booked, or paid until the user confirms.",
+      es: "Nada se envia, llama, reserva ni paga hasta que la persona confirme.",
+    },
+    stepId: "active-mission",
+    visualState: "review",
+    presentationFamilyId: "presentation.family.confirmation",
+    uiInstruction: "show_confirmation",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "waitingForUserConfirmation",
+    allowedControls: ["ask_status", "edit_details", "change_provider", "change_contact_method", "confirm"],
+  },
+  {
+    status: "awaiting_user_confirmation",
+    label: { en: "Ready for your OK", es: "Listo para tu OK" },
+    helper: {
+      en: "Nothing is sent, called, booked, or paid until the user confirms.",
+      es: "Nada se envia, llama, reserva ni paga hasta que la persona confirme.",
+    },
+    stepId: "active-mission",
+    visualState: "review",
+    presentationFamilyId: "presentation.family.confirmation",
+    uiInstruction: "show_confirmation",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "waitingForUserConfirmation",
+    allowedControls: ["ask_status", "edit_details", "change_provider", "change_contact_method", "confirm"],
+  },
+  {
+    status: "contacting_provider",
+    label: { en: "Contacting provider", es: "Contactando proveedor" },
+    helper: {
+      en: "The user can listen, mute, edit, or stop the contact step.",
+      es: "La persona puede escuchar, silenciar, editar o detener el contacto.",
+    },
+    stepId: "active-mission",
+    visualState: "live-contact",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "externalContactInProgress",
+    allowedControls: ["ask_status", "edit_details", "listen", "mute", "unmute", "stop"],
+  },
+  {
+    status: "form_in_progress",
+    label: { en: "Form in progress", es: "Formulario en curso" },
+    helper: {
+      en: "VYVA prepares the form and stops before final submission.",
+      es: "VYVA prepara el formulario y se detiene antes del envio final.",
+    },
+    stepId: "active-mission",
+    visualState: "preparing",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "waitingForUserConfirmation",
+    allowedControls: ["ask_status", "edit_details", "confirm", "stop"],
+  },
+  {
+    status: "awaiting_provider_reply",
+    label: { en: "Waiting for reply", es: "Esperando respuesta" },
+    helper: {
+      en: "VYVA waits for a provider reply or final detail.",
+      es: "VYVA espera respuesta del proveedor o el ultimo dato.",
+    },
+    stepId: "active-mission",
+    visualState: "waiting",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "waitingForExternalReply",
+    allowedControls: ["ask_status", "edit_details", "change_provider", "stop"],
+  },
+  {
+    status: "awaiting_user_save",
+    label: { en: "Waiting to save", es: "Pendiente de guardar" },
+    helper: {
+      en: "Save the confirmed date, reference, price, or provider reply.",
+      es: "Guarda fecha, referencia, precio o respuesta confirmada.",
+    },
+    stepId: "active-mission",
+    visualState: "ready-to-save",
+    presentationFamilyId: "presentation.family.confirmation",
+    uiInstruction: "show_confirmation",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "readyToSaveVerifiedResult",
+    allowedControls: ["ask_status", "edit_details", "save_result"],
+  },
+  {
+    status: "booked",
+    label: { en: "Booked", es: "Reservada" },
+    helper: {
+      en: "A real confirmation is available and can be saved.",
+      es: "Hay una confirmacion real disponible para guardar.",
+    },
+    stepId: "active-mission",
+    visualState: "done",
+    presentationFamilyId: "presentation.family.summary",
+    uiInstruction: "show_summary",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "completedWithProof",
+    allowedControls: ["ask_status", "save_result"],
+  },
+  {
+    status: "stopped",
+    label: { en: "Stopped", es: "Detenida" },
+    helper: {
+      en: "The mission will not continue unless the user starts it again.",
+      es: "La mision no seguira salvo que la persona la reinicie.",
+    },
+    stepId: "active-mission",
+    visualState: "stopped",
+    presentationFamilyId: "presentation.family.summary",
+    uiInstruction: "show_summary",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "stoppedOrCancelled",
+    allowedControls: ["ask_status", "retry"],
+  },
+  {
+    status: "ready",
+    label: { en: "Ready for your OK", es: "Listo para tu OK" },
+    helper: {
+      en: "Everything stays paused until the user confirms.",
+      es: "Todo queda pausado hasta que la persona confirme.",
+    },
+    stepId: "active-mission",
+    visualState: "review",
+    presentationFamilyId: "presentation.family.confirmation",
+    uiInstruction: "show_confirmation",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "waitingForUserConfirmation",
+    allowedControls: ["ask_status", "edit_details", "confirm"],
+  },
+  {
+    status: "needs_info",
+    label: { en: "Needs details", es: "Faltan datos" },
+    helper: {
+      en: "One detail is needed before VYVA can continue.",
+      es: "Hace falta un dato antes de que VYVA pueda seguir.",
+    },
+    stepId: "active-mission",
+    visualState: "collecting",
+    presentationFamilyId: "presentation.family.choice.single",
+    uiInstruction: "show_choice_question",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "preparingOnly",
+    allowedControls: ["ask_status", "edit_details"],
+  },
+  {
+    status: "being_prepared",
+    label: { en: "VYVA is preparing it", es: "VYVA lo prepara" },
+    helper: {
+      en: "VYVA gathers what is needed before asking for an OK.",
+      es: "VYVA reune lo necesario antes de pedir el OK.",
+    },
+    stepId: "active-mission",
+    visualState: "preparing",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "preparingOnly",
+    allowedControls: ["ask_status", "edit_details", "stop"],
+  },
+  {
+    status: "sent_or_called",
+    label: { en: "Sent or called", es: "Enviado o llamado" },
+    helper: {
+      en: "The contact step happened. Save the result next.",
+      es: "El contacto ya se hizo. Guarda el resultado despues.",
+    },
+    stepId: "active-mission",
+    visualState: "live-contact",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "externalContactInProgress",
+    allowedControls: ["ask_status", "edit_details", "stop", "save_result"],
+  },
+  {
+    status: "waiting",
+    label: { en: "Waiting for reply", es: "Esperando respuesta" },
+    helper: {
+      en: "When a reply arrives, save it here to close the task.",
+      es: "Cuando llegue respuesta, guardala aqui para cerrar la gestion.",
+    },
+    stepId: "active-mission",
+    visualState: "waiting",
+    presentationFamilyId: "presentation.family.progress",
+    uiInstruction: "show_progress",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "waitingForExternalReply",
+    allowedControls: ["ask_status", "edit_details", "stop"],
+  },
+  {
+    status: "completed",
+    label: { en: "Saved", es: "Guardado" },
+    helper: {
+      en: "The result is saved in Concierge history.",
+      es: "El resultado esta guardado en el historial.",
+    },
+    stepId: "active-mission",
+    visualState: "done",
+    presentationFamilyId: "presentation.family.summary",
+    uiInstruction: "show_summary",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "completedWithProof",
+    allowedControls: ["ask_status"],
+  },
+  {
+    status: "failed",
+    label: { en: "Needs review", es: "Necesita revision" },
+    helper: {
+      en: "Review the issue before trying again.",
+      es: "Revisa el problema antes de intentarlo otra vez.",
+    },
+    stepId: "active-mission",
+    visualState: "blocked",
+    presentationFamilyId: "presentation.family.error.safe_fallback",
+    uiInstruction: "show_summary",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "blockedNeedsHuman",
+    allowedControls: ["ask_status", "edit_details", "retry"],
+  },
+  {
+    status: "cancelled",
+    label: { en: "Cancelled", es: "Cancelado" },
+    helper: {
+      en: "This task will not continue.",
+      es: "Esta gestion no seguira adelante.",
+    },
+    stepId: "active-mission",
+    visualState: "stopped",
+    presentationFamilyId: "presentation.family.summary",
+    uiInstruction: "show_summary",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "stoppedOrCancelled",
+    allowedControls: ["ask_status", "retry"],
+  },
+  {
+    status: "needs_human_help",
+    label: { en: "Needs human help", es: "Necesita ayuda humana" },
+    helper: {
+      en: "A person should review the task before it moves on.",
+      es: "Una persona debe revisar antes de seguir.",
+    },
+    stepId: "active-mission",
+    visualState: "blocked",
+    presentationFamilyId: "presentation.family.error.safe_fallback",
+    uiInstruction: "show_summary",
+    template: "outputReview",
+    cards: "contextual",
+    chips: "hidden",
+    confirmationBoundary: "finalConfirmationBeforeExternalAction",
+    externalActionBoundary: "blockedNeedsHuman",
+    allowedControls: ["ask_status", "edit_details", "retry"],
+  },
+] as const satisfies readonly TrustedHelpMissionPresentation[];
+
+const TRUSTED_HELP_MISSION_STATUS_ALIASES: Record<string, TrustedHelpMissionStatus> = {
+  awaiting_user_confirmation: "awaiting_confirmation",
+  calling: "contacting_provider",
+  contacted: "sent_or_called",
+  done: "completed",
+  in_progress: "being_prepared",
+  pending: "ready",
+  ready_to_save: "awaiting_user_save",
+};
+
+export function normalizeTrustedHelpMissionStatus(value: unknown): TrustedHelpMissionStatus {
+  const status = typeof value === "string"
+    ? value.trim().toLowerCase().replace(/[\s-]+/g, "_")
+    : "";
+  const knownStatuses = new Set<TrustedHelpMissionStatus>(
+    TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS.map((item) => item.status),
+  );
+  const aliasedStatus = TRUSTED_HELP_MISSION_STATUS_ALIASES[status] ?? status;
+  return knownStatuses.has(aliasedStatus as TrustedHelpMissionStatus)
+    ? aliasedStatus as TrustedHelpMissionStatus
+    : "ready";
+}
+
+export function getTrustedHelpMissionPresentation(status: unknown) {
+  const normalizedStatus = normalizeTrustedHelpMissionStatus(status);
+  return TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS.find(
+    (presentation) => presentation.status === normalizedStatus,
+  ) ?? TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS.find(
+    (presentation) => presentation.status === "ready",
+  );
+}
+
+export function getTrustedHelpMissionStatusLabel(status: unknown, isSpanish: boolean) {
+  const presentation = getTrustedHelpMissionPresentation(status);
+  if (!presentation) return isSpanish ? "Listo para tu OK" : "Ready for your OK";
+  return isSpanish ? presentation.label.es : presentation.label.en;
+}
+
 export function getTrustedHelpPresentationStep(stepId: TrustedHelpStepId) {
   return TRUSTED_HELP_PRESENTATION_STEPS.find((step) => step.stepId === stepId);
 }
@@ -436,6 +890,11 @@ export function validateTrustedHelpPresentationMap(): string[] {
   const flowReferences = new Set(
     CONCIERGE_FLOW_REGISTRY.map((flow) => flow.reference),
   );
+  const stepIds = new Set(TRUSTED_HELP_PRESENTATION_STEPS.map((step) => step.stepId));
+  const missionStatuses = TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS.map(
+    (presentation) => presentation.status,
+  );
+  const missionStatusSet = new Set(missionStatuses);
   const serviceIds = TRUSTED_HELP_SERVICE_PRESENTATION_MAP.map(
     (service) => service.serviceId,
   );
@@ -474,6 +933,42 @@ export function validateTrustedHelpPresentationMap(): string[] {
 
     if (service.safetyModel !== "prepareThenConfirm") {
       errors.push(`${service.serviceId} must be confirmation-first.`);
+    }
+  }
+
+  if (missionStatusSet.size !== missionStatuses.length) {
+    errors.push("Trusted Help mission statuses must be unique.");
+  }
+
+  for (const presentation of TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS) {
+    if (!stepIds.has(presentation.stepId)) {
+      errors.push(`${presentation.status} uses an unknown Trusted Help step.`);
+    }
+
+    if (!presentationFamilyIds.has(presentation.presentationFamilyId)) {
+      errors.push(`${presentation.status} uses an unknown presentation family.`);
+    }
+
+    if (presentation.cards !== "contextual" || presentation.chips !== "hidden") {
+      errors.push(`${presentation.status} must keep mission UI contextual and chip-free.`);
+    }
+
+    if (presentation.confirmationBoundary !== "finalConfirmationBeforeExternalAction") {
+      errors.push(`${presentation.status} must preserve the final confirmation boundary.`);
+    }
+
+    if (
+      presentation.externalActionBoundary === "externalContactInProgress" &&
+      !presentation.allowedControls.includes("stop")
+    ) {
+      errors.push(`${presentation.status} must let the user stop live contact.`);
+    }
+
+    if (
+      ["booked", "completed"].includes(presentation.status) &&
+      presentation.externalActionBoundary !== "completedWithProof"
+    ) {
+      errors.push(`${presentation.status} must only complete with proof.`);
     }
   }
 

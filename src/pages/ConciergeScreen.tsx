@@ -105,6 +105,11 @@ import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
+  getTrustedHelpMissionPresentation,
+  getTrustedHelpMissionStatusLabel,
+  type TrustedHelpMissionPresentation,
+} from "@/design/conciergeTrustedHelpPresentationMap";
+import {
   coerceConciergeTaskEntry,
   conciergeTaskEntrySummary,
   conciergeTaskEntryTitle,
@@ -3994,18 +3999,7 @@ function otcPharmacyConfirmationItems(params: {
 }
 
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
-  const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
-    collecting_details: { en: "Details needed", es: "Faltan detalles" },
-    selecting_provider: { en: "Choosing provider", es: "Eligiendo proveedor" },
-    awaiting_confirmation: { en: "Ready for your OK", es: "Listo para tu OK" },
-    contacting_provider: { en: "Calling now", es: "Llamando ahora" },
-    form_in_progress: { en: "Form in progress", es: "Formulario en curso" },
-    awaiting_provider_reply: { en: "Waiting for reply", es: "Esperando respuesta" },
-    awaiting_user_save: { en: "Waiting to save", es: "Pendiente de guardar" },
-    booked: { en: "Booked", es: "Reservada" },
-    stopped: { en: "Stopped", es: "Detenida" },
-  };
-  return isSpanish ? labels[status].es : labels[status].en;
+  return getTrustedHelpMissionStatusLabel(status, isSpanish);
 }
 
 function isAppointmentMissionStatus(value: unknown): value is AppointmentMissionState["status"] {
@@ -9399,9 +9393,11 @@ function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughSta
 function ConciergeExecutionStatusPanel({
   summary,
   update,
+  missionPresentation,
 }: {
   summary: ConciergeExecutionStatusSummary;
   update?: ConciergeUserUpdateSummary | null;
+  missionPresentation?: TrustedHelpMissionPresentation | null;
 }) {
   const display = update ?? {
     ...summary,
@@ -9425,6 +9421,10 @@ function ConciergeExecutionStatusPanel({
     <div
       className={`mt-4 rounded-[18px] border px-3 py-2.5 ${toneClasses[display.tone]}`}
       data-phase={display.phase}
+      data-presentation-step={missionPresentation?.stepId}
+      data-presentation-status={missionPresentation?.status}
+      data-presentation-family={missionPresentation?.presentationFamilyId}
+      data-external-action-boundary={missionPresentation?.externalActionBoundary}
       data-testid="panel-concierge-execution-status"
     >
       <div className="flex items-start gap-3" data-testid="panel-concierge-user-update">
@@ -15700,6 +15700,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
     : null;
+  const activeActionPresentationStatus = activeAction
+    ? (
+      payloadString(activeAction.action_payload, ["mission_status", "status"]) ||
+      activeActionLiveHandoff?.state ||
+      activeActionExecutionStatus?.phase ||
+      activeAction.status
+    )
+    : "";
+  const activeActionMissionPresentation = activeAction
+    ? getTrustedHelpMissionPresentation(activeActionPresentationStatus)
+    : null;
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
@@ -19035,6 +19046,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               <ConciergeExecutionStatusPanel
                 summary={activeActionExecutionStatus}
                 update={activeActionUserUpdate}
+                missionPresentation={activeActionMissionPresentation}
               />
             ) : null}
 
@@ -19326,6 +19338,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               <div
                 className="mt-3 rounded-[18px] border border-[#D8B4FE] bg-[#F5F3FF] px-3 py-2"
                 data-testid="panel-concierge-appointment-mission"
+                data-presentation-step={activeActionMissionPresentation?.stepId}
+                data-presentation-status={activeActionMissionPresentation?.status}
+                data-presentation-family={activeActionMissionPresentation?.presentationFamilyId}
+                data-external-action-boundary={activeActionMissionPresentation?.externalActionBoundary}
               >
                 <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
                   {activeActionCanOpenForm

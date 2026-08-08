@@ -8698,8 +8698,12 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
-    expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA is handling this");
+    const missionPanel = await screen.findByTestId("panel-concierge-appointment-mission");
+    expect(missionPanel).toHaveTextContent("Form in progress");
+    expect(missionPanel).toHaveTextContent("VYVA is handling this");
+    expect(missionPanel).toHaveAttribute("data-presentation-step", "active-mission");
+    expect(missionPanel).toHaveAttribute("data-presentation-status", "form_in_progress");
+    expect(missionPanel).toHaveAttribute("data-external-action-boundary", "waitingForUserConfirmation");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Request started");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Add missing details");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");

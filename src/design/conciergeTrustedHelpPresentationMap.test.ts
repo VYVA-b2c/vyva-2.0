@@ -6,11 +6,15 @@ import {
 import { VYVA_PRESENTATION_REGISTRY } from "../../shared/orchestration/presentationRegistry";
 import { getScreenContract } from "./screenContracts";
 import {
+  TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS,
   TRUSTED_HELP_PRESENTATION_STEPS,
   TRUSTED_HELP_PROVIDER_SCOPE_EXCLUSIONS,
   TRUSTED_HELP_SERVICE_PRESENTATION_MAP,
+  getTrustedHelpMissionPresentation,
+  getTrustedHelpMissionStatusLabel,
   getTrustedHelpEntryStep,
   getTrustedHelpServicePresentation,
+  normalizeTrustedHelpMissionStatus,
   validateTrustedHelpPresentationMap,
 } from "./conciergeTrustedHelpPresentationMap";
 
@@ -93,5 +97,37 @@ describe("Concierge Trusted Help presentation map", () => {
     for (const step of boundedSteps) {
       expect(step.confirmationBoundary).toBe("finalConfirmationBeforeExternalAction");
     }
+  });
+
+  it("defines active mission states for confirmation, contact, waiting, and proof", () => {
+    const byStatus = new Map(
+      TRUSTED_HELP_ACTIVE_MISSION_PRESENTATIONS.map((item) => [item.status, item]),
+    );
+
+    expect(byStatus.get("awaiting_confirmation")?.presentationFamilyId).toBe("presentation.family.confirmation");
+    expect(byStatus.get("contacting_provider")?.externalActionBoundary).toBe("externalContactInProgress");
+    expect(byStatus.get("contacting_provider")?.allowedControls).toEqual(
+      expect.arrayContaining(["listen", "mute", "unmute", "stop"]),
+    );
+    expect(byStatus.get("awaiting_provider_reply")?.externalActionBoundary).toBe("waitingForExternalReply");
+    expect(byStatus.get("booked")?.externalActionBoundary).toBe("completedWithProof");
+    expect(byStatus.get("completed")?.externalActionBoundary).toBe("completedWithProof");
+  });
+
+  it("normalizes active mission aliases used by Concierge pending actions", () => {
+    expect(normalizeTrustedHelpMissionStatus("calling")).toBe("contacting_provider");
+    expect(normalizeTrustedHelpMissionStatus("awaiting_user_confirmation")).toBe("awaiting_confirmation");
+    expect(normalizeTrustedHelpMissionStatus("ready-to-save")).toBe("awaiting_user_save");
+    expect(normalizeTrustedHelpMissionStatus("unknown")).toBe("ready");
+  });
+
+  it("exposes localized mission labels for UI panels", () => {
+    expect(getTrustedHelpMissionStatusLabel("form_in_progress", false)).toBe("Form in progress");
+    expect(getTrustedHelpMissionStatusLabel("form_in_progress", true)).toBe("Formulario en curso");
+
+    const presentation = getTrustedHelpMissionPresentation("awaiting_provider_reply");
+    expect(presentation?.stepId).toBe("active-mission");
+    expect(presentation?.cards).toBe("contextual");
+    expect(presentation?.chips).toBe("hidden");
   });
 });
