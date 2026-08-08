@@ -7,8 +7,16 @@ import { getTrustedHelpStepDataAttributes } from "@/design/trustedHelpFlowPresen
 import TrustedHelpSettings from "./TrustedHelpSettings";
 
 vi.mock("@/components/onboarding/PhoneFrame", () => ({
-  PhoneFrame: ({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) => (
-    <div data-testid="phone-frame">
+  PhoneFrame: ({
+    children,
+    onBack,
+    showCompanionMode,
+  }: {
+    children: React.ReactNode;
+    onBack?: () => void;
+    showCompanionMode?: boolean;
+  }) => (
+    <div data-testid="phone-frame" data-show-companion-mode={String(showCompanionMode)}>
       <button type="button" onClick={onBack} data-testid="phone-frame-back">Back</button>
       {children}
     </div>
@@ -61,7 +69,14 @@ describe("TrustedHelpSettings", () => {
     expect(screen.getByTestId("trusted-help-settings")).toBeInTheDocument();
     expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-template", "setupDashboard");
     expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-presentation-step", "dashboard");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-primary-surface", "dashboard");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-cards", "visible");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-chips", "hidden");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-heading-detail", "hidden");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-bottom-nav-clearance", "112");
+    expect(screen.getByTestId("phone-frame")).toHaveAttribute("data-show-companion-mode", "false");
     expect(screen.getByTestId("trusted-help-hero")).toHaveTextContent("My Trusted Help");
+    expect(screen.getByTestId("trusted-help-hero")).not.toHaveTextContent("Tell VYVA who to use");
     expect(screen.getByTestId("trusted-help-tabs")).toHaveTextContent("Overview");
     expect(screen.getByTestId("trusted-help-tabs")).toHaveTextContent("Service");
     expect(screen.getByTestId("trusted-help-tabs")).toHaveTextContent("Provider");
@@ -100,6 +115,11 @@ describe("TrustedHelpSettings", () => {
     renderTrustedHelp();
 
     fireEvent.click(screen.getByTestId("button-trusted-help-dashboard-add-service"));
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-template", "guidedFlow");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-presentation-step", "service");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-primary-surface", "singleStep");
+    expect(screen.getByTestId("trusted-help-settings")).toHaveAttribute("data-heading-detail", "hidden");
+    expect(screen.queryByText("Choose one service. VYVA keeps the safest setup for each one.")).not.toBeInTheDocument();
     for (const service of TRUSTED_HELP_SERVICE_PRESENTATION_MAP) {
       expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent(service.label);
       expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent(service.description);

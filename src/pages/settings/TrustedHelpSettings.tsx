@@ -850,9 +850,10 @@ export default function TrustedHelpSettings() {
       onBack={() => navigate("/settings")}
       subtitle={t("settings.trustedHelp.navTitle", "Trusted Help")}
       className="max-w-[980px]"
+      showCompanionMode={false}
     >
       <div
-        className="grid gap-5 pb-6"
+        className={`grid gap-5 ${activeStepView.bottomNavClearanceClassName}`}
         data-testid="trusted-help-settings"
         data-step-label={activeStepView.label}
         {...activeStepDataAttributes}
@@ -861,10 +862,14 @@ export default function TrustedHelpSettings() {
           icon={ShieldCheck}
           kicker={t("settings.trustedHelp.kicker", "Concierge setup")}
           title={t("settings.trustedHelp.title", "My Trusted Help")}
-          description={t(
-            "settings.trustedHelp.subtitle",
-            "Tell VYVA who to use, how to pay, and who in the family can approve practical help.",
-          )}
+          description={
+            activeStepView.showHeadingDetail
+              ? t(
+                  "settings.trustedHelp.subtitle",
+                  "Tell VYVA who to use, how to pay, and who in the family can approve practical help.",
+                )
+              : undefined
+          }
           iconBgClassName="bg-[#0F766E]"
         />
 
@@ -881,10 +886,8 @@ export default function TrustedHelpSettings() {
                   className={`vyva-tap min-h-[48px] rounded-[18px] px-2 font-body text-[13px] font-black transition sm:text-[15px] ${
                     active ? "bg-[#0F766E] text-white shadow-[0_10px_22px_rgba(15,118,110,0.16)]" : "bg-[#FFFCF8] text-vyva-text-2"
                   }`}
+                  {...tab.dataAttributes}
                   data-testid={`button-trusted-help-tab-${tab.stepId}`}
-                  data-template={tab.template}
-                  data-presentation-step={tab.stepId}
-                  data-primary-surface={tab.primarySurface}
                 >
                   {tab.label}
                 </button>
@@ -1040,7 +1043,11 @@ export default function TrustedHelpSettings() {
               <SectionHeader
                 kicker={t("settings.trustedHelp.guide.kicker", "Guided setup")}
                 title={t("settings.trustedHelp.guide.title", "What should VYVA help with?")}
-                detail={t("settings.trustedHelp.guide.detail", "Choose one service. VYVA keeps the safest setup for each one.")}
+                detail={
+                  activeStepView.showHeadingDetail
+                    ? t("settings.trustedHelp.guide.detail", "Choose one service. VYVA keeps the safest setup for each one.")
+                    : undefined
+                }
               />
               <div className="grid gap-3 sm:grid-cols-2">
                 {serviceOptions.map((option) => {
@@ -1320,7 +1327,11 @@ export default function TrustedHelpSettings() {
               <SectionHeader
                 kicker={t("settings.trustedHelp.mode.kicker", "Mode")}
                 title={t("settings.trustedHelp.mode.title", "How much can VYVA do?")}
-                detail={t("settings.trustedHelp.mode.detail", "The safest mode is always available. Auto-repeat is only for approved essentials.")}
+                detail={
+                  activeStepView.showHeadingDetail
+                    ? t("settings.trustedHelp.mode.detail", "The safest mode is always available. Auto-repeat is only for approved essentials.")
+                    : undefined
+                }
               />
               <div className="grid gap-3 sm:grid-cols-2">
                 {modeOptions.map((mode) => {
@@ -1453,7 +1464,11 @@ export default function TrustedHelpSettings() {
           <SectionHeader
             kicker={t("settings.trustedHelp.caregiver.kicker", "Family access")}
             title={t("settings.trustedHelp.caregiver.title", "Who can help manage this?")}
-            detail={t("settings.trustedHelp.caregiver.detail", "Give caregivers clear task permissions, not vague admin access.")}
+            detail={
+              activeStepView.showHeadingDetail
+                ? t("settings.trustedHelp.caregiver.detail", "Give caregivers clear task permissions, not vague admin access.")
+                : undefined
+            }
           />
           <div className="grid gap-4 lg:grid-cols-2">
             {caregivers.map((caregiver) => (
