@@ -6,6 +6,7 @@ import {
   signVoiceRecommendationFeedbackToolToken,
 } from "../lib/jwt.js";
 import { recordShownVoiceRecommendation } from "../lib/voiceRecommendationFeedback.js";
+import { resolveHealthMemoryPolicyFlag } from "../memory/healthMemoryPolicy.js";
 
 const KNOWN_DOMAINS = new Set<VoiceContextDomain>([
   "safety",
@@ -69,7 +70,25 @@ export async function voiceContextHandler(req: Request, res: Response) {
       (typeof body.conversation_id === "string" && body.conversation_id.trim()) ||
       (typeof body.session_id === "string" && body.session_id.trim()) ||
       createConversationId();
-    const dynamicVariables = await buildVoiceContext(userId, domain, memoryQuery, { appEntrypoint });
+    const healthMemoryFlag = domain === "health"
+      ? resolveHealthMemoryPolicyFlag({
+          env: process.env,
+          userRef: userId,
+          cohortKey: userId,
+        })
+      : null;
+    const dynamicVariables = await buildVoiceContext(userId, domain, memoryQuery, {
+      appEntrypoint,
+      ...(healthMemoryFlag?.effectiveMode === "pilot"
+        ? {
+            healthMemoryPolicy: {
+              enabled: true,
+              flowInstanceId: conversationId,
+              env: process.env,
+            },
+          }
+        : {}),
+    });
     const feedbackToken = await signVoiceRecommendationFeedbackToolToken(userId, conversationId);
     dynamicVariables.conversation_id = conversationId;
     dynamicVariables.voice_recommendation_feedback_token = feedbackToken;

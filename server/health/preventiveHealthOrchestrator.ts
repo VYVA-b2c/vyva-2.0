@@ -165,6 +165,23 @@ export type PreventiveHealthPersistedCompletion<TResult extends PreventiveHealth
   inserted: boolean;
 };
 
+export type PreventiveHealthMemoryProposalInput<
+  TProfile,
+  TResult extends PreventiveHealthResult,
+> = {
+  accountUserId: string;
+  userId: string;
+  profileId?: string;
+  sessionId: string;
+  profile: TProfile;
+  result: TResult;
+  completionReference: string;
+  answerDigest: string;
+  flowInstanceId: string;
+  completedAt: Date;
+  env: OrchestratorEnvironmentMap;
+};
+
 export type PreventiveHealthCompletionClaim<TResult extends PreventiveHealthResult> =
   | {
       state: "claimed";
@@ -229,6 +246,9 @@ export type PreventiveHealthDependencies<TProfile, TResult extends PreventiveHea
   ) => Promise<void>;
   eventStore?: EventStateCompatibilityStore;
   proposeSpecialistCompletion?: typeof proposePreventiveHealthCompletion;
+  proposeMemoryWrite?: (
+    input: PreventiveHealthMemoryProposalInput<TProfile, TResult>,
+  ) => Promise<void>;
 };
 
 function legacy<TResult extends PreventiveHealthResult>(
@@ -802,6 +822,20 @@ export async function attemptPreventiveHealthCheckin<
     flow: flow.result,
     specialistRequestId,
     specialistValidationOutcome: "accepted",
+  }).catch(() => {});
+
+  await input.dependencies.proposeMemoryWrite?.({
+    accountUserId: input.accountUserId,
+    userId: input.userId,
+    profileId: input.profileId,
+    sessionId: input.sessionId,
+    profile: input.profile,
+    result: savedCompletion.result,
+    completionReference: flow.result.completionReference,
+    answerDigest: flow.result.answerDigest,
+    flowInstanceId: input.sessionId,
+    completedAt: input.now,
+    env: input.env,
   }).catch(() => {});
 
   return {

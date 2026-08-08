@@ -24,6 +24,10 @@ import {
 } from "../../shared/schema.js";
 import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
+import {
+  buildHealthPolicyFilteredMemoryBlock,
+  type HealthSemanticMemoryOutboxStore,
+} from "../memory/healthSemanticMemory.js";
 import { extractBrainCoachPreferences } from "./brainCoachPlan.js";
 import { buildBrainCoachVoiceContext, type BrainCoachVoiceContext } from "./brainCoachVoiceContext.js";
 import { buildPersistedBrainCoachPlan } from "./brainCoachPlanLifecycle.js";
@@ -71,6 +75,13 @@ export type ConversationTurn = { role: "user" | "assistant"; content: string };
 type BuildVoiceContextOptions = {
   appEntrypoint?: string;
   priorVoiceExchangeCount?: number;
+  healthMemoryPolicy?: {
+    enabled: boolean;
+    flowInstanceId?: string;
+    env?: Readonly<Record<string, string | undefined>>;
+    store?: HealthSemanticMemoryOutboxStore;
+    now?: Date;
+  };
 };
 
 type SignalReadingRow = {
@@ -1335,10 +1346,28 @@ export async function buildVoiceContext(
   const contactSupportMode = asString(communicationPreferencesSection.contact_support_mode);
   const contactSupportModeLabel = contactSupportMode === "human_supported" ? "Human-supported" : "AI-powered";
   const mem0UserId = profile?.mem0_user_id?.trim() || userId;
-  const memories = memoryQuery
+  const policyMemoryEnabled = domain === "health" && options.healthMemoryPolicy?.enabled === true;
+  const policyMemory = policyMemoryEnabled
+    ? await buildHealthPolicyFilteredMemoryBlock({
+        userId,
+        flowInstanceId: options.healthMemoryPolicy?.flowInstanceId,
+        profileConsent: consent,
+        env: options.healthMemoryPolicy?.env,
+        store: options.healthMemoryPolicy?.store,
+        now: options.healthMemoryPolicy?.now,
+      }).catch(() => ({
+        memoryBlock: "",
+        reasonCodes: ["health_memory_policy_read_failed"],
+        allowedCategories: [],
+        flagReasonCode: "health_memory_policy_resolution_failed",
+      }))
+    : null;
+  const memories = !policyMemoryEnabled && memoryQuery
     ? await searchMemories(memoryQuery, mem0UserId).catch(() => [])
     : [];
-  const memoryBlock = formatMemoryBlock(memories);
+  const memoryBlock = policyMemoryEnabled
+    ? policyMemory?.memoryBlock ?? ""
+    : formatMemoryBlock(memories);
   const recentHealthEvents = [
     ...latestReports.map(formatTriageReport),
     ...latestSignalReadings.slice(0, 8).map(formatSignalReading),
@@ -1548,6 +1577,10 @@ export async function buildVoiceContext(
       profile?.city || profile?.country_code ? `Location: ${valueList([profile.city, profile.country_code])}` : "",
     ], 900),
     memory_block: memoryBlock || "(no memory retrieved)",
+    health_memory_policy_mode: policyMemoryEnabled ? "policy_filtered" : "legacy",
+    health_memory_policy_reason_codes: policyMemory?.reasonCodes.join(",") ?? "",
+    health_memory_policy_allowed_categories: policyMemory?.allowedCategories.join(",") ?? "",
+    health_memory_policy_flag_reason: policyMemory?.flagReasonCode ?? "",
     last_app_visit_at: formatDateTime(appLastSeenAt),
     time_since_last_app_visit: formatRelativeTime(appLastSeenAt, now),
     last_voice_session_at: formatDateTime(lastVoiceSessionAt),
