@@ -33,6 +33,7 @@ import {
   UsersRound,
   Waypoints,
   X,
+  ArrowLeft,
   ArrowDown,
   ArrowUp,
   Copy,
@@ -6794,10 +6795,11 @@ export default function MarketingAdminPage() {
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to="/admin"
+              to={activeTab === "dashboard" ? "/admin" : "/admin/marketing"}
               className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 py-3 font-bold text-[#2f2135] shadow-sm transition hover:border-purple-200 hover:text-purple-700"
             >
-              <LayoutGrid size={16} /> Admin home
+              {activeTab === "dashboard" ? <LayoutGrid size={16} /> : <ArrowLeft size={16} />}
+              {activeTab === "dashboard" ? "Admin home" : "Back to Marketing"}
             </Link>
             <button
               className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white"
