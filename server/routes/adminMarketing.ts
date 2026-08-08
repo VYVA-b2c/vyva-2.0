@@ -1905,6 +1905,143 @@ function marketingContentPlainBody(content: MarketingContentAssetRow, campaignOb
     || content.title;
 }
 
+const JOURNEY_EXECUTION_PREFIX = "vyva-journey-execution";
+
+function journeyExecutionKey(enrollmentId: string, stepId: string) {
+  return `${JOURNEY_EXECUTION_PREFIX}:${enrollmentId}:${stepId}`;
+}
+
+function journeyContactIsEligible(journey: MarketingJourneyRow, contact: MarketingContactRow) {
+  const audienceMatches = journey.audience_type === "both"
+    || contact.audience_type === "both"
+    || contact.audience_type === journey.audience_type;
+  return audienceMatches
+    && contact.consent_status !== "opted_out"
+    && Boolean(contact.email?.trim());
+}
+
+async function completeJourneyEnrollment(enrollment: MarketingJourneyEnrollmentRow, now: Date) {
+  await db.update(marketingJourneyEnrollments).set({
+    status: "completed",
+    exited_at: now,
+    last_activity_at: now,
+    updated_at: now,
+  }).where(eq(marketingJourneyEnrollments.id, enrollment.id));
+}
+
+export async function runDueMarketingJourneyEmails(actorEmail = "marketing-journey-scheduler", now = new Date()) {
+  const enrollments = await db.select().from(marketingJourneyEnrollments).orderBy(asc(marketingJourneyEnrollments.entered_at)).limit(5000);
+  const due = enrollments.filter((enrollment) => {
+    if (!['active', 'waiting'].includes(enrollment.status)) return false;
+    const nextStepAt = String(asRecord(enrollment.metadata).nextStepAt ?? "");
+    return !nextStepAt || new Date(nextStepAt).getTime() <= now.getTime();
+  });
+  let sentCount = 0;
+  let completedCount = 0;
+  let failedCount = 0;
+
+  for (const enrollment of due) {
+    const [journey, contact] = await Promise.all([
+      db.select().from(marketingJourneys).where(eq(marketingJourneys.id, enrollment.journey_id)).limit(1).then((rows) => rows[0]),
+      enrollment.contact_id
+        ? db.select().from(marketingContacts).where(eq(marketingContacts.id, enrollment.contact_id)).limit(1).then((rows) => rows[0])
+        : Promise.resolve(undefined),
+    ]);
+    if (!journey || journey.status !== "active" || !contact) continue;
+    const steps = await db.select().from(marketingJourneySteps)
+      .where(eq(marketingJourneySteps.journey_id, journey.id))
+      .orderBy(asc(marketingJourneySteps.step_order));
+    const step = steps.find((candidate) => candidate.step_order >= enrollment.current_step_order);
+    if (!step) {
+      await completeJourneyEnrollment(enrollment, now);
+      completedCount += 1;
+      continue;
+    }
+    const nextStep = steps.find((candidate) => candidate.step_order > step.step_order);
+    const eventKey = journeyExecutionKey(enrollment.id, step.id);
+    const [existingEvent] = await db.select().from(marketingJourneyStepEvents)
+      .where(eq(marketingJourneyStepEvents.lovable_external_id, eventKey)).limit(1);
+    if (existingEvent) {
+      if (!nextStep) {
+        if (existingEvent.event_type === "sent" || existingEvent.event_type === "waited") {
+          await completeJourneyEnrollment(enrollment, now);
+          completedCount += 1;
+        }
+      } else {
+        if (existingEvent.event_type === "sent" || existingEvent.event_type === "waited") {
+          await db.update(marketingJourneyEnrollments).set({ current_step_order: nextStep.step_order, status: "active", last_activity_at: now, updated_at: now }).where(eq(marketingJourneyEnrollments.id, enrollment.id));
+        }
+      }
+      continue;
+    }
+    if (step.kind !== "wait" && (step.channel !== "email" || !step.content_asset_id || !contact.email)) {
+      continue;
+    }
+    const [claimedEvent] = await db.insert(marketingJourneyStepEvents).values({
+      enrollment_id: enrollment.id, journey_id: journey.id, step_id: step.id, step_order: step.step_order,
+      event_type: "processing", event_at: now, channel: step.channel, source: "vyva", lovable_external_id: eventKey,
+      metadata: { claimedAt: now.toISOString(), claimedBy: actorEmail }, updated_at: now,
+    }).onConflictDoNothing().returning();
+    if (!claimedEvent) continue;
+    if (step.kind === "wait") {
+      const nextStepAt = new Date(now.getTime() + Math.max(0, step.delay_hours) * 60 * 60 * 1000);
+      await db.update(marketingJourneyStepEvents).set({
+        event_type: "waited", event_at: now, channel: null,
+        metadata: { delayHours: step.delay_hours, nextStepAt: nextStepAt.toISOString() }, updated_at: now,
+      }).where(eq(marketingJourneyStepEvents.id, claimedEvent.id));
+      await db.update(marketingJourneyEnrollments).set({
+        current_step_order: nextStep?.step_order ?? step.step_order + 1,
+        status: nextStep ? "waiting" : "completed",
+        exited_at: nextStep ? null : now,
+        last_activity_at: now,
+        metadata: { ...asRecord(enrollment.metadata), nextStepAt: nextStepAt.toISOString() },
+        updated_at: now,
+      }).where(eq(marketingJourneyEnrollments.id, enrollment.id));
+      continue;
+    }
+    const [content] = await db.select().from(marketingContentAssets).where(eq(marketingContentAssets.id, step.content_asset_id)).limit(1);
+    if (!content) continue;
+    const [communication] = await db.insert(communicationsLog).values({
+      user_id: contact.profile_id ?? null,
+      channel: "email",
+      recipient: contact.email,
+      purpose: "marketing_journey_email",
+      status: "queued",
+      body: marketingContentPlainBody(content, journey.objective ?? ""),
+      metadata: {
+        subject: content.subject?.trim() || content.title,
+        htmlBody: content.html_body,
+        ctaLabel: content.cta_label,
+        ctaUrl: content.cta_url,
+        journeyId: journey.id,
+        journeyStepId: step.id,
+        journeyEnrollmentId: enrollment.id,
+        initiatedBy: actorEmail,
+      },
+    }).returning();
+    const dispatch = await dispatchCommunicationsByIds([communication.id]);
+    const result = dispatch.results[0];
+    const sent = result?.status === "sent";
+    await db.update(marketingJourneyStepEvents).set({
+      event_type: sent ? "sent" : "failed", event_at: now, channel: "email",
+      metadata: { communicationId: communication.id, error: result?.error ?? null }, updated_at: now,
+    }).where(eq(marketingJourneyStepEvents.id, claimedEvent.id));
+    if (sent) {
+      sentCount += 1;
+      if (nextStep) {
+        await db.update(marketingJourneyEnrollments).set({ current_step_order: nextStep.step_order, status: "active", last_activity_at: now, metadata: { ...asRecord(enrollment.metadata), nextStepAt: now.toISOString() }, updated_at: now }).where(eq(marketingJourneyEnrollments.id, enrollment.id));
+      } else {
+        await completeJourneyEnrollment(enrollment, now);
+        completedCount += 1;
+      }
+    } else {
+      failedCount += 1;
+      await db.update(marketingJourneyEnrollments).set({ status: "failed", last_activity_at: now, updated_at: now }).where(eq(marketingJourneyEnrollments.id, enrollment.id));
+    }
+  }
+  return { dueCount: due.length, sentCount, completedCount, failedCount };
+}
+
 function iso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
@@ -3330,6 +3467,55 @@ adminMarketingRouter.patch("/journeys/:journeyId", async (req, res) => {
   } catch (error) {
     console.error("[admin/marketing] journey update failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journey could not be updated.") });
+  }
+});
+
+adminMarketingRouter.post("/journeys/:journeyId/activate", requireSuperAdmin, async (req, res) => {
+  if (req.body?.confirm !== true) return res.status(400).json({ error: "Confirm starting this journey before contacts are enrolled." });
+  try {
+    const now = new Date();
+    const [journey] = await db.select().from(marketingJourneys).where(eq(marketingJourneys.id, req.params.journeyId)).limit(1);
+    if (!journey) return res.status(404).json({ error: "Marketing journey not found." });
+    const steps = await db.select().from(marketingJourneySteps).where(eq(marketingJourneySteps.journey_id, journey.id)).orderBy(asc(marketingJourneySteps.step_order));
+    if (!steps.length) return res.status(400).json({ error: "Add at least one journey step before starting." });
+    const unsupported = steps.find((step) => step.kind !== "wait" && step.channel !== "email");
+    if (unsupported) return res.status(400).json({ error: `${unsupported.channel} journey messages are planning-only. Live journeys currently support email steps only.` });
+    const messageSteps = steps.filter((step) => step.kind !== "wait");
+    if (messageSteps.some((step) => !step.content_asset_id)) return res.status(400).json({ error: "Choose content for every email step before starting." });
+
+    let contacts = (await db.select().from(marketingContacts).limit(10000)).filter((contact) => journeyContactIsEligible(journey, contact));
+    const targetAudienceId = String(asRecord(journey.trigger_config).targetAudienceId ?? "");
+    if (targetAudienceId) {
+      const members = await db.select().from(marketingAudienceMembers).where(eq(marketingAudienceMembers.audience_id, targetAudienceId)).limit(100000);
+      const contactIds = new Set(members.map((member) => member.contact_id).filter(Boolean));
+      const externalIds = new Set(members.map((member) => member.contact_external_id));
+      contacts = contacts.filter((contact) => contactIds.has(contact.id) || Boolean(contact.lovable_external_id && externalIds.has(contact.lovable_external_id)));
+    }
+    if (!contacts.length) return res.status(400).json({ error: "No eligible opted-in contacts with an email address match this journey." });
+    const existing = await db.select().from(marketingJourneyEnrollments).where(eq(marketingJourneyEnrollments.journey_id, journey.id)).limit(100000);
+    const existingContactIds = new Set(existing.map((enrollment) => enrollment.contact_id).filter(Boolean));
+    const newContacts = contacts.filter((contact) => !existingContactIds.has(contact.id));
+    if (newContacts.length) {
+      await db.insert(marketingJourneyEnrollments).values(newContacts.map((contact) => ({
+        journey_id: journey.id,
+        contact_id: contact.id,
+        contact_external_id: contact.lovable_external_id ?? contact.id,
+        status: "active",
+        current_step_order: steps[0].step_order,
+        entered_at: now,
+        last_activity_at: now,
+        source: "vyva",
+        lovable_external_id: `${JOURNEY_EXECUTION_PREFIX}:${journey.id}:${contact.id}`,
+        metadata: { executionMode: "live_email", nextStepAt: now.toISOString(), activatedBy: actor(req), activatedAt: now.toISOString() },
+        updated_at: now,
+      }))).onConflictDoNothing();
+    }
+    await db.update(marketingJourneys).set({ status: "active", metadata: { ...asRecord(journey.metadata), executionMode: "live_email", activatedAt: now.toISOString(), activatedBy: actor(req) }, updated_by: actor(req), updated_at: now }).where(eq(marketingJourneys.id, journey.id));
+    const execution = await runDueMarketingJourneyEmails(actor(req), now);
+    return res.json({ ok: true, enrolledCount: newContacts.length, eligibleCount: contacts.length, execution });
+  } catch (error) {
+    console.error("[admin/marketing] journey activation failed", error);
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journey could not be started.") });
   }
 });
 
