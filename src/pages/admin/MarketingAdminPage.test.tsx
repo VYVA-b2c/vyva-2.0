@@ -1514,7 +1514,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-table")).toHaveClass(
-      "overflow-x-auto",
+      "overflow-hidden",
     );
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent(
       "Hassan Partner",
@@ -1562,7 +1562,7 @@ describe("MarketingAdminPage", () => {
       "madrid",
     );
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent(
-      "List: Partners",
+      "Partners",
     );
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent(
       "Lovable ID: lovable-contact-2",
@@ -1618,9 +1618,9 @@ describe("MarketingAdminPage", () => {
         "button-marketing-open-audience-member-contact-audience-1-contact-2",
       ),
     );
-    expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass(
-      "bg-purple-700",
-    );
+    expect(
+      screen.getByTestId("button-marketing-create-contact-view"),
+    ).toHaveClass("bg-purple-700");
     expect(
       screen.getByTestId("marketing-contact-editor-form"),
     ).toBeInTheDocument();
@@ -1953,11 +1953,11 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent(
-      "tag-10",
+      "+12",
     );
-    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent(
-      "List: Care homes",
-    );
+    expect(
+      screen.getByTestId("marketing-contacts-table"),
+    ).not.toHaveTextContent("care-homes");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(
@@ -2058,8 +2058,11 @@ describe("MarketingAdminPage", () => {
       screen.getByTestId("select-marketing-contact-list-filter"),
       { target: { value: "partners" } },
     );
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent(
+      "1 visible of 2 contacts",
+    );
     expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent(
-      "List: Partners",
+      "Hassan Partner",
     );
 
     fireEvent.change(
@@ -2906,6 +2909,7 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-create-contact-view"));
 
     fireEvent.click(screen.getByTestId("button-marketing-add-contact"));
     expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent(
@@ -3061,31 +3065,11 @@ describe("MarketingAdminPage", () => {
       "Hassan Partner",
     );
     expect(
-      screen.getByTestId("input-marketing-edit-contact-source"),
-    ).toHaveValue("lovable");
+      screen.queryByTestId("input-marketing-edit-contact-lovable-id"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("input-marketing-edit-contact-lovable-id"),
-    ).toHaveValue("lovable-contact-2");
-    expect(
-      screen.getByTestId("input-marketing-edit-contact-profile-id"),
-    ).toHaveValue("profile-2");
-    expect(
-      screen.getByTestId("input-marketing-edit-contact-organization-id"),
-    ).toHaveValue("11111111-1111-4111-8111-111111111111");
-    expect(
-      screen.getByTestId(
-        "textarea-marketing-edit-contact-channel-availability",
-      ),
-    ).toHaveValue(
-      JSON.stringify(
-        { email: true, linkedin: true, whatsapp: false, source: "lovable" },
-        null,
-        2,
-      ),
-    );
-    expect(
-      screen.getByTestId("textarea-marketing-edit-contact-metadata"),
-    ).toHaveValue(JSON.stringify(contacts[1].metadata, null, 2));
+      screen.queryByTestId("textarea-marketing-edit-contact-metadata"),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), {
       target: { value: "Updated Partner" },
@@ -3134,36 +3118,6 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-tags"), {
       target: { value: "partner, priority" },
     });
-    fireEvent.change(
-      screen.getByTestId(
-        "textarea-marketing-edit-contact-channel-availability",
-      ),
-      {
-        target: {
-          value: JSON.stringify(
-            { email: true, linkedin: true, whatsapp: false, source: "lovable" },
-            null,
-            2,
-          ),
-        },
-      },
-    );
-    fireEvent.change(
-      screen.getByTestId("textarea-marketing-edit-contact-metadata"),
-      {
-        target: {
-          value: JSON.stringify(
-            {
-              lovable: { persona: "partner-lead" },
-              segmentation: { lifecycle: "lead" },
-              notes: "edited",
-            },
-            null,
-            2,
-          ),
-        },
-      },
-    );
     fireEvent.click(screen.getByTestId("button-marketing-save-contact"));
 
     await waitFor(() => {
@@ -3211,7 +3165,6 @@ describe("MarketingAdminPage", () => {
           vertical: "care",
           market: "Madrid",
         },
-        notes: "edited",
       },
     });
     await waitFor(() => {
@@ -3721,18 +3674,21 @@ describe("MarketingAdminPage", () => {
       screen.getByTestId("button-marketing-open-recipient-contact-recipient-1"),
     );
 
-    expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass(
-      "bg-purple-700",
-    );
+    expect(
+      screen.getByTestId("button-marketing-create-contact-view"),
+    ).toHaveClass("bg-purple-700");
     expect(
       screen.getByTestId("marketing-contact-editor-form"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("marketing-contact-editor-feedback"),
     ).toHaveTextContent('Editing "Hassan Partner".');
+    expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue(
+      "Hassan Partner",
+    );
     expect(
-      screen.getByTestId("input-marketing-edit-contact-lovable-id"),
-    ).toHaveValue("lovable-contact-2");
+      screen.queryByTestId("input-marketing-edit-contact-lovable-id"),
+    ).not.toBeInTheDocument();
   });
 
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
