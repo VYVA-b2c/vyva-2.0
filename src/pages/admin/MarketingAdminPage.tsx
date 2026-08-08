@@ -8466,7 +8466,7 @@ export default function MarketingAdminPage() {
             <div className="grid gap-4" data-testid="marketing-journeys-tab">
               <SectionCard
                 title="Journeys"
-                subtitle={`${visibleJourneys.length} visible of ${journeys.length} journeys in the planning foundation.`}
+                subtitle={`${visibleJourneys.length} of ${journeys.length} journeys.`}
                 action={
                   <button
                     type="button"
@@ -8479,7 +8479,9 @@ export default function MarketingAdminPage() {
                   </button>
                 }
               >
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(560px,1.35fr)]">
+                <div
+                  className={`grid gap-4 ${editingJourneyId ? "xl:grid-cols-[minmax(360px,0.72fr)_minmax(620px,1.28fr)]" : ""}`}
+                >
                   <div className="grid content-start gap-3">
                     {visibleJourneys.length === 0 ? (
                       <EmptyState text="No journeys match the filters." />
@@ -8490,73 +8492,48 @@ export default function MarketingAdminPage() {
                           journey,
                           audiences,
                         );
-                        const journeyAudienceReference =
-                          journeyAudienceReferenceFromConfig(
-                            journey.triggerConfig,
-                          );
+                        const summaryDraft = journeyEditDraftFromJourney(
+                          journey,
+                          audiences,
+                          content,
+                        );
                         return (
                           <article
                             key={journey.id}
-                            className={`rounded-xl border p-4 ${isActive ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}
+                            className={`rounded-xl border p-4 ${isActive ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-white"}`}
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <h3 className="font-black">{journey.name}</h3>
-                                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
-                                  {journey.objective || "No objective yet."}
-                                </p>
-                                {journey.source === "lovable" ? (
-                                  <p className="mt-1 text-xs font-bold text-[#8b7a73]">
-                                    Lovable source can reimport this after sync.
+                                {journey.objective ? (
+                                  <p className="mt-1 line-clamp-2 text-sm font-semibold text-[#7d6b65]">
+                                    {journey.objective}
                                   </p>
                                 ) : null}
-                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">
-                                  {activeEnrollmentsByJourneyId.get(
-                                    journey.id,
-                                  ) ?? 0}{" "}
-                                  active /{" "}
-                                  {enrollmentsByJourneyId.get(journey.id) ?? 0}{" "}
-                                  total enrollments
-                                </p>
-                                {journey.triggerType ||
-                                journey.goalType ||
-                                journeyAudience ||
-                                journeyAudienceReference ? (
-                                  <div
-                                    className="mt-2 flex flex-wrap gap-1.5 text-xs font-black"
-                                    data-testid={`marketing-journey-logic-${journey.id}`}
-                                  >
-                                    {journey.triggerType ? (
-                                      <Pill className="bg-blue-50 text-blue-800">
-                                        Trigger: {journey.triggerType}
-                                      </Pill>
-                                    ) : null}
-                                    {journeyAudience ||
-                                    journeyAudienceReference ? (
-                                      <Pill className="bg-violet-50 text-violet-800">
-                                        List:{" "}
-                                        {journeyAudience?.name ??
-                                          journeyAudienceReference}
-                                      </Pill>
-                                    ) : null}
-                                    {journey.goalType ? (
-                                      <Pill className="bg-emerald-50 text-emerald-800">
-                                        Goal: {journey.goalType}
-                                      </Pill>
-                                    ) : null}
-                                    <Pill
-                                      className={
-                                        journey.exitOnGoal
-                                          ? "bg-purple-50 text-purple-800"
-                                          : "bg-amber-50 text-amber-800"
-                                      }
-                                    >
-                                      {journey.exitOnGoal
-                                        ? "Exit on goal"
-                                        : "Continue after goal"}
-                                    </Pill>
+                                <div
+                                  className="mt-3 grid gap-2 text-sm sm:grid-cols-2"
+                                  data-testid={`marketing-journey-logic-${journey.id}`}
+                                >
+                                  <div className="rounded-lg bg-[#faf7f3] px-3 py-2">
+                                    <span className="block text-[11px] font-black uppercase text-[#8b7a73]">
+                                      Starts
+                                    </span>
+                                    <span className="font-bold text-[#241133]">
+                                      {journeyEntryLabel(
+                                        summaryDraft,
+                                        journeyAudience,
+                                      )}
+                                    </span>
                                   </div>
-                                ) : null}
+                                  <div className="rounded-lg bg-[#faf7f3] px-3 py-2">
+                                    <span className="block text-[11px] font-black uppercase text-[#8b7a73]">
+                                      Stops
+                                    </span>
+                                    <span className="font-bold text-[#241133]">
+                                      {journeyStopLabel(summaryDraft)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Pill className={statusClass(journey.status)}>
@@ -8597,66 +8574,79 @@ export default function MarketingAdminPage() {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-4 border-t border-[#eee4dc] pt-3">
                               {journey.steps.length === 0 ? (
                                 <span className="text-sm font-bold text-[#8b7a73]">
-                                  No steps yet.
+                                  No actions added yet.
                                 </span>
                               ) : (
-                                journey.steps.map((step) => {
-                                  const stepContent =
-                                    contentAssetByReference(
-                                      content,
-                                      step.contentAssetId,
-                                    ) ??
-                                    contentAssetByReference(
-                                      content,
-                                      step.templateRef,
+                                <ol className="grid gap-2">
+                                  {journey.steps.map((step) => {
+                                    const stepContent =
+                                      contentAssetByReference(
+                                        content,
+                                        step.contentAssetId,
+                                      ) ??
+                                      contentAssetByReference(
+                                        content,
+                                        step.templateRef,
+                                      );
+                                    return (
+                                      <li
+                                        key={step.id}
+                                        className="flex min-w-0 items-center gap-3 rounded-lg border border-[#eadfd5] bg-[#fffaf4] px-3 py-2"
+                                      >
+                                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-purple-100 text-xs font-black text-purple-800">
+                                          {step.stepOrder + 1}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-sm font-black text-[#241133]">
+                                            {stepContent?.title ??
+                                              (step.kind === "wait"
+                                                ? "Wait"
+                                                : `${channelLabel[step.channel]} message`)}
+                                          </p>
+                                          <p className="text-xs font-bold text-[#7d6b65]">
+                                            Day{" "}
+                                            {step.dayOffset ??
+                                              Math.floor(step.delayHours / 24)}
+                                            {step.kind !== "wait"
+                                              ? ` · ${channelLabel[step.channel]}`
+                                              : ""}
+                                          </p>
+                                        </div>
+                                        {stepContent ? (
+                                          <div className="flex shrink-0 items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                previewContent(stepContent)
+                                              }
+                                              className="inline-flex size-8 items-center justify-center rounded-lg border border-purple-200 bg-white text-purple-700"
+                                              title="Preview message"
+                                              aria-label="Preview message"
+                                              data-testid={`button-marketing-preview-journey-step-content-${step.id}`}
+                                            >
+                                              <Eye size={14} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                startContentEdit(stepContent)
+                                              }
+                                              className="inline-flex size-8 items-center justify-center rounded-lg border border-purple-200 bg-white text-purple-700"
+                                              title="Edit message"
+                                              aria-label="Edit message"
+                                              data-testid={`button-marketing-edit-journey-step-content-${step.id}`}
+                                            >
+                                              <Pencil size={14} />
+                                            </button>
+                                          </div>
+                                        ) : null}
+                                      </li>
                                     );
-                                  return (
-                                    <span
-                                      key={step.id}
-                                      className={`inline-flex flex-wrap items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}
-                                    >
-                                      <span>
-                                        {step.stepOrder + 1}.{" "}
-                                        {step.kind || "message"} /{" "}
-                                        {channelLabel[step.channel]} / day{" "}
-                                        {step.dayOffset ??
-                                          Math.floor(step.delayHours / 24)}
-                                        {stepContent
-                                          ? ` / ${stepContent.title}`
-                                          : step.templateRef
-                                            ? ` / ${step.templateRef}`
-                                            : ""}
-                                      </span>
-                                      {stepContent ? (
-                                        <>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              previewContent(stepContent)
-                                            }
-                                            className="inline-flex min-h-6 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
-                                            data-testid={`button-marketing-preview-journey-step-content-${step.id}`}
-                                          >
-                                            <Eye size={11} /> Preview
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              startContentEdit(stepContent)
-                                            }
-                                            className="inline-flex min-h-6 items-center gap-1 rounded-lg border border-purple-200 bg-white px-2 text-[11px] font-black text-purple-700"
-                                            data-testid={`button-marketing-edit-journey-step-content-${step.id}`}
-                                          >
-                                            <Pencil size={11} /> Edit
-                                          </button>
-                                        </>
-                                      ) : null}
-                                    </span>
-                                  );
-                                })
+                                  })}
+                                </ol>
                               )}
                             </div>
                           </article>
