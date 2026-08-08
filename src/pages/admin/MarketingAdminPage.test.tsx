@@ -3529,6 +3529,8 @@ describe("MarketingAdminPage", () => {
       ).toHaveTextContent("Updated.");
     });
 
+    fireEvent.click(screen.getByRole("button", { name: /back to journeys/i }));
+
     fireEvent.click(
       screen.getByTestId("button-marketing-delete-journey-journey-1"),
     );
