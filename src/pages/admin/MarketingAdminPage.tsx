@@ -97,7 +97,7 @@ const BULK_TRANSLATE_LANGUAGES = [
 type Channel = (typeof CHANNELS)[number];
 type Audience = (typeof AUDIENCES)[number];
 type Tab = (typeof TABS)[number];
-type ContactView = "contacts" | "lists";
+type ContactView = "contacts" | "create" | "lists";
 type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
 type JourneyStatus = (typeof JOURNEY_STATUSES)[number];
 type JourneyBuilderStage = 1 | 2 | 3 | 4 | 5;
@@ -4071,6 +4071,7 @@ export default function MarketingAdminPage() {
     marketingTabFromPath(location.pathname),
   );
   const [contactView, setContactView] = useState<ContactView>("contacts");
+  const [contactPage, setContactPage] = useState(1);
   const [summary, setSummary] = useState<MarketingSummary>(emptySummary);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -4718,6 +4719,30 @@ export default function MarketingAdminPage() {
       contactListFilter,
     ],
   );
+  const contactsPerPage = 8;
+  const contactPageCount = Math.max(
+    1,
+    Math.ceil(visibleContacts.length / contactsPerPage),
+  );
+  const safeContactPage = Math.min(contactPage, contactPageCount);
+  const paginatedContacts = visibleContacts.slice(
+    (safeContactPage - 1) * contactsPerPage,
+    safeContactPage * contactsPerPage,
+  );
+
+  useEffect(() => {
+    setContactPage(1);
+  }, [
+    search,
+    audienceFilter,
+    contactConsentFilter,
+    contactSourceFilter,
+    contactLanguageFilter,
+    contactCategoryFilter,
+    contactVerticalFilter,
+    contactMarketFilter,
+    contactListFilter,
+  ]);
 
   const visibleAudiences = useMemo(
     () =>
@@ -6342,6 +6367,7 @@ export default function MarketingAdminPage() {
       setContactFeedback("Marketing contact created.");
       setMessage("Marketing contact created.");
       await refreshAll();
+      setContactView("contacts");
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -6356,7 +6382,7 @@ export default function MarketingAdminPage() {
 
   function startContactEdit(contact: MarketingContact) {
     openMarketingTab("contacts");
-    setContactView("contacts");
+    setContactView("create");
     setEditingContactId(contact.id);
     setContactEditDraft(contactEditDraftFromContact(contact));
     setConfirmingContactDeleteId(null);
@@ -6371,6 +6397,7 @@ export default function MarketingAdminPage() {
     setContactEditDraft(null);
     setConfirmingContactDeleteId(null);
     setContactFeedback("");
+    setContactView("contacts");
   }
 
   async function saveContactEdit(event: FormEvent) {
@@ -11089,11 +11116,22 @@ export default function MarketingAdminPage() {
               >
                 <button
                   type="button"
-                  onClick={() => setContactView("contacts")}
+                  onClick={cancelContactEdit}
                   className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-black ${contactView === "contacts" ? "bg-purple-700 text-white" : "text-[#4b394f] hover:bg-purple-50"}`}
                   data-testid="button-marketing-contacts-view"
                 >
                   <UsersRound size={15} /> Contacts ({contacts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    cancelContactEdit();
+                    setContactView("create");
+                  }}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-black ${contactView === "create" ? "bg-purple-700 text-white" : "text-[#4b394f] hover:bg-purple-50"}`}
+                  data-testid="button-marketing-create-contact-view"
+                >
+                  <Plus size={15} /> Add contact
                 </button>
                 <button
                   type="button"
@@ -11105,230 +11143,238 @@ export default function MarketingAdminPage() {
                 </button>
               </div>
 
-              {contactView === "contacts" ? (
+              {contactFeedback && !contactEditDraft ? (
+                <p
+                  className={`rounded-xl px-4 py-3 text-sm font-bold ${/created|updated|deleted/i.test(contactFeedback) ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}
+                  data-testid="marketing-contact-feedback"
+                >
+                  {contactFeedback}
+                </p>
+              ) : null}
+
+              {contactView !== "lists" ? (
                 <>
-                  <SectionCard
-                    title="Contact draft"
-                    subtitle="Create B2B contacts or planning records before sync/cutover."
-                  >
-                    <form
-                      className="grid gap-3"
-                      onSubmit={(event) =>
-                        createContact(event).catch((error) => {
-                          setContactFeedback(error.message);
-                          setMessage(error.message);
-                        })
-                      }
+                  {contactView === "create" && !contactEditDraft ? (
+                    <SectionCard
+                      title="Add contact"
+                      subtitle="Add the details you use to identify and contact this person."
                     >
-                      <div className="grid gap-3 xl:grid-cols-[1.3fr_160px_1fr_1fr]">
-                        <Field label="Name">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.fullName}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                fullName: event.target.value,
-                              }))
-                            }
-                            placeholder="Contact name"
+                      <form
+                        className="grid gap-3"
+                        onSubmit={(event) =>
+                          createContact(event).catch((error) => {
+                            setContactFeedback(error.message);
+                            setMessage(error.message);
+                          })
+                        }
+                      >
+                        <div className="grid gap-3 xl:grid-cols-[1.3fr_160px_1fr_1fr]">
+                          <Field label="Name">
+                            <input
+                              className={inputClass}
+                              value={contactDraft.fullName}
+                              onChange={(event) =>
+                                setContactDraft((draft) => ({
+                                  ...draft,
+                                  fullName: event.target.value,
+                                }))
+                              }
+                              placeholder="Contact name"
+                              disabled={contactSaving}
+                              data-testid="input-marketing-contact-name"
+                            />
+                          </Field>
+                          <Field label="Audience">
+                            <select
+                              className={inputClass}
+                              value={contactDraft.audienceType}
+                              onChange={(event) =>
+                                setContactDraft((draft) => ({
+                                  ...draft,
+                                  audienceType: event.target.value as Audience,
+                                }))
+                              }
+                              disabled={contactSaving}
+                            >
+                              {AUDIENCES.map((audience) => (
+                                <option key={audience} value={audience}>
+                                  {audience.toUpperCase()}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="Email">
+                            <input
+                              className={inputClass}
+                              value={contactDraft.email}
+                              onChange={(event) =>
+                                setContactDraft((draft) => ({
+                                  ...draft,
+                                  email: event.target.value,
+                                }))
+                              }
+                              placeholder="name@example.com"
+                              disabled={contactSaving}
+                              data-testid="input-marketing-contact-email"
+                            />
+                          </Field>
+                          <Field label="Phone">
+                            <input
+                              className={inputClass}
+                              value={contactDraft.phoneNumber}
+                              onChange={(event) =>
+                                setContactDraft((draft) => ({
+                                  ...draft,
+                                  phoneNumber: event.target.value,
+                                }))
+                              }
+                              placeholder="+34 ..."
+                              disabled={contactSaving}
+                              data-testid="input-marketing-contact-phone"
+                            />
+                          </Field>
+                        </div>
+                        <details className="rounded-xl border border-[#eadfd5] bg-[#fffdfa] p-3">
+                          <summary className="cursor-pointer list-none text-sm font-black text-purple-700">
+                            Add optional details
+                          </summary>
+                          <div className="mt-3 grid gap-3 xl:grid-cols-4">
+                            <Field label="WhatsApp">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.whatsappNumber}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    whatsappNumber: event.target.value,
+                                  }))
+                                }
+                                placeholder="Leave blank if same"
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-whatsapp"
+                              />
+                            </Field>
+                            <Field label="Role">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.roleLabel}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    roleLabel: event.target.value,
+                                  }))
+                                }
+                                placeholder="Founder, lead, caregiver..."
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-role"
+                              />
+                            </Field>
+                            <Field label="Company">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.companyName}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    companyName: event.target.value,
+                                  }))
+                                }
+                                placeholder="Organization"
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-company"
+                              />
+                            </Field>
+                            <Field label="Tags">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.tags}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    tags: event.target.value,
+                                  }))
+                                }
+                                placeholder="lead, partner, madrid"
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-tags"
+                              />
+                            </Field>
+                            <Field label="Language">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.language}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    language: event.target.value,
+                                  }))
+                                }
+                                placeholder="en, es..."
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-language"
+                              />
+                            </Field>
+                            <Field label="Category">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.category}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    category: event.target.value,
+                                  }))
+                                }
+                                placeholder="Lead category"
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-category"
+                              />
+                            </Field>
+                            <Field label="Vertical">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.vertical}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    vertical: event.target.value,
+                                  }))
+                                }
+                                placeholder="Healthcare, public..."
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-vertical"
+                              />
+                            </Field>
+                            <Field label="Market">
+                              <input
+                                className={inputClass}
+                                value={contactDraft.market}
+                                onChange={(event) =>
+                                  setContactDraft((draft) => ({
+                                    ...draft,
+                                    market: event.target.value,
+                                  }))
+                                }
+                                placeholder="Spain, UK..."
+                                disabled={contactSaving}
+                                data-testid="input-marketing-contact-market"
+                              />
+                            </Field>
+                          </div>
+                        </details>
+                        <div className="flex justify-end">
+                          <button
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            type="submit"
                             disabled={contactSaving}
-                            data-testid="input-marketing-contact-name"
-                          />
-                        </Field>
-                        <Field label="Audience">
-                          <select
-                            className={inputClass}
-                            value={contactDraft.audienceType}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                audienceType: event.target.value as Audience,
-                              }))
-                            }
-                            disabled={contactSaving}
+                            data-testid="button-marketing-add-contact"
                           >
-                            {AUDIENCES.map((audience) => (
-                              <option key={audience} value={audience}>
-                                {audience.toUpperCase()}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Email">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.email}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                email: event.target.value,
-                              }))
-                            }
-                            placeholder="name@example.com"
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-email"
-                          />
-                        </Field>
-                        <Field label="Phone">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.phoneNumber}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                phoneNumber: event.target.value,
-                              }))
-                            }
-                            placeholder="+34 ..."
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-phone"
-                          />
-                        </Field>
-                      </div>
-                      <div className="grid gap-3 xl:grid-cols-4">
-                        <Field label="WhatsApp">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.whatsappNumber}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                whatsappNumber: event.target.value,
-                              }))
-                            }
-                            placeholder="Leave blank if same"
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-whatsapp"
-                          />
-                        </Field>
-                        <Field label="Role">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.roleLabel}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                roleLabel: event.target.value,
-                              }))
-                            }
-                            placeholder="Founder, lead, caregiver..."
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-role"
-                          />
-                        </Field>
-                        <Field label="Company">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.companyName}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                companyName: event.target.value,
-                              }))
-                            }
-                            placeholder="Organization"
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-company"
-                          />
-                        </Field>
-                        <Field label="Tags">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.tags}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                tags: event.target.value,
-                              }))
-                            }
-                            placeholder="lead, partner, madrid"
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-tags"
-                          />
-                        </Field>
-                      </div>
-                      <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
-                        <Field label="Language">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.language}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                language: event.target.value,
-                              }))
-                            }
-                            placeholder="en, es..."
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-language"
-                          />
-                        </Field>
-                        <Field label="Category">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.category}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                category: event.target.value,
-                              }))
-                            }
-                            placeholder="Lead category"
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-category"
-                          />
-                        </Field>
-                        <Field label="Vertical">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.vertical}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                vertical: event.target.value,
-                              }))
-                            }
-                            placeholder="Healthcare, public..."
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-vertical"
-                          />
-                        </Field>
-                        <Field label="Market">
-                          <input
-                            className={inputClass}
-                            value={contactDraft.market}
-                            onChange={(event) =>
-                              setContactDraft((draft) => ({
-                                ...draft,
-                                market: event.target.value,
-                              }))
-                            }
-                            placeholder="Spain, UK..."
-                            disabled={contactSaving}
-                            data-testid="input-marketing-contact-market"
-                          />
-                        </Field>
-                        <button
-                          className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                          type="submit"
-                          disabled={contactSaving}
-                          data-testid="button-marketing-add-contact"
-                        >
-                          <UsersRound size={16} />{" "}
-                          {contactSaving ? "Saving..." : "Add contact"}
-                        </button>
-                      </div>
-                      {contactFeedback && !contactEditDraft ? (
-                        <p
-                          className={`rounded-xl px-4 py-3 text-sm font-bold ${contactFeedback.includes("created") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}
-                          data-testid="marketing-contact-feedback"
-                        >
-                          {contactFeedback}
-                        </p>
-                      ) : null}
-                    </form>
-                  </SectionCard>
+                            <UsersRound size={16} />{" "}
+                            {contactSaving ? "Saving..." : "Add contact"}
+                          </button>
+                        </div>
+                      </form>
+                    </SectionCard>
+                  ) : null}
                   {contactEditDraft ? (
                     <div ref={contactEditorPanelRef} tabIndex={-1}>
                       <SectionCard
@@ -11600,116 +11646,6 @@ export default function MarketingAdminPage() {
                               />
                             </Field>
                           </div>
-                          <div className="grid gap-3 xl:grid-cols-4">
-                            <Field label="Source">
-                              <input
-                                className={inputClass}
-                                value={contactEditDraft.source}
-                                onChange={(event) =>
-                                  setContactEditDraft((draft) =>
-                                    draft
-                                      ? { ...draft, source: event.target.value }
-                                      : draft,
-                                  )
-                                }
-                                disabled={contactSaving}
-                                data-testid="input-marketing-edit-contact-source"
-                              />
-                            </Field>
-                            <Field label="Lovable ID">
-                              <input
-                                className={inputClass}
-                                value={contactEditDraft.lovableExternalId}
-                                onChange={(event) =>
-                                  setContactEditDraft((draft) =>
-                                    draft
-                                      ? {
-                                          ...draft,
-                                          lovableExternalId: event.target.value,
-                                        }
-                                      : draft,
-                                  )
-                                }
-                                disabled={contactSaving}
-                                data-testid="input-marketing-edit-contact-lovable-id"
-                              />
-                            </Field>
-                            <Field label="Profile ID">
-                              <input
-                                className={inputClass}
-                                value={contactEditDraft.profileId}
-                                onChange={(event) =>
-                                  setContactEditDraft((draft) =>
-                                    draft
-                                      ? {
-                                          ...draft,
-                                          profileId: event.target.value,
-                                        }
-                                      : draft,
-                                  )
-                                }
-                                disabled={contactSaving}
-                                data-testid="input-marketing-edit-contact-profile-id"
-                              />
-                            </Field>
-                            <Field label="Organization ID">
-                              <input
-                                className={inputClass}
-                                value={contactEditDraft.organizationId}
-                                onChange={(event) =>
-                                  setContactEditDraft((draft) =>
-                                    draft
-                                      ? {
-                                          ...draft,
-                                          organizationId: event.target.value,
-                                        }
-                                      : draft,
-                                  )
-                                }
-                                disabled={contactSaving}
-                                data-testid="input-marketing-edit-contact-organization-id"
-                              />
-                            </Field>
-                          </div>
-                          <div className="grid gap-3 xl:grid-cols-2">
-                            <Field label="Channel availability JSON">
-                              <textarea
-                                className={textareaClass}
-                                value={contactEditDraft.channelAvailabilityText}
-                                onChange={(event) =>
-                                  setContactEditDraft((draft) =>
-                                    draft
-                                      ? {
-                                          ...draft,
-                                          channelAvailabilityText:
-                                            event.target.value,
-                                        }
-                                      : draft,
-                                  )
-                                }
-                                disabled={contactSaving}
-                                data-testid="textarea-marketing-edit-contact-channel-availability"
-                              />
-                            </Field>
-                            <Field label="Metadata JSON">
-                              <textarea
-                                className={textareaClass}
-                                value={contactEditDraft.metadataText}
-                                onChange={(event) =>
-                                  setContactEditDraft((draft) =>
-                                    draft
-                                      ? {
-                                          ...draft,
-                                          metadataText: event.target.value,
-                                        }
-                                      : draft,
-                                  )
-                                }
-                                disabled={contactSaving}
-                                data-testid="textarea-marketing-edit-contact-metadata"
-                              />
-                            </Field>
-                          </div>
                           <div className="flex flex-wrap items-center gap-3">
                             <button
                               type="submit"
@@ -11758,427 +11694,500 @@ export default function MarketingAdminPage() {
                       </SectionCard>
                     </div>
                   ) : null}
-                  <SectionCard
-                    title="Contacts"
-                    subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}
-                  >
-                    <div
-                      className="mb-3 grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"
-                      data-testid="marketing-contact-segmentation-filters"
+                  {contactView === "contacts" ? (
+                    <SectionCard
+                      title="Contacts"
+                      subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-black text-[#241133]">
-                            Contact segmentation
-                          </p>
-                          <p className="text-xs font-bold text-[#7d6b65]">
-                            Filter imported Lovable contacts by list, consent,
-                            market, language, category, vertical, and source.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSearch("");
-                            setAudienceFilter("all");
-                            setContactSourceFilter("all");
-                            setContactConsentFilter("all");
-                            setContactLanguageFilter("all");
-                            setContactCategoryFilter("all");
-                            setContactVerticalFilter("all");
-                            setContactMarketFilter("all");
-                            setContactListFilter("all");
-                          }}
-                          disabled={
-                            !search &&
-                            audienceFilter === "all" &&
-                            !contactFiltersActive
-                          }
-                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                          data-testid="button-marketing-clear-contact-filters"
-                        >
-                          Clear filters
-                        </button>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <Field label="Source">
-                          <select
-                            className={inputClass}
-                            value={contactSourceFilter}
-                            onChange={(event) =>
-                              setContactSourceFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-source-filter"
-                          >
-                            <option value="all">
-                              All sources ({contacts.length})
-                            </option>
-                            {contactSourceOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Consent">
-                          <select
-                            className={inputClass}
-                            value={contactConsentFilter}
-                            onChange={(event) =>
-                              setContactConsentFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-consent-filter"
-                          >
-                            <option value="all">
-                              All consent ({contacts.length})
-                            </option>
-                            {contactConsentOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Language">
-                          <select
-                            className={inputClass}
-                            value={contactLanguageFilter}
-                            onChange={(event) =>
-                              setContactLanguageFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-language-filter"
-                          >
-                            <option value="all">
-                              All languages ({contacts.length})
-                            </option>
-                            {contactLanguageOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="List">
-                          <select
-                            className={inputClass}
-                            value={contactListFilter}
-                            onChange={(event) =>
-                              setContactListFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-list-filter"
-                          >
-                            <option value="all">
-                              All lists ({contacts.length})
-                            </option>
-                            {contactListOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <Field label="Category">
-                          <select
-                            className={inputClass}
-                            value={contactCategoryFilter}
-                            onChange={(event) =>
-                              setContactCategoryFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-category-filter"
-                          >
-                            <option value="all">
-                              All categories ({contacts.length})
-                            </option>
-                            {contactCategoryOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Vertical">
-                          <select
-                            className={inputClass}
-                            value={contactVerticalFilter}
-                            onChange={(event) =>
-                              setContactVerticalFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-vertical-filter"
-                          >
-                            <option value="all">
-                              All verticals ({contacts.length})
-                            </option>
-                            {contactVerticalOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Market">
-                          <select
-                            className={inputClass}
-                            value={contactMarketFilter}
-                            onChange={(event) =>
-                              setContactMarketFilter(event.target.value)
-                            }
-                            data-testid="select-marketing-contact-market-filter"
-                          >
-                            <option value="all">
-                              All markets ({contacts.length})
-                            </option>
-                            {contactMarketOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label} ({option.count})
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      </div>
-                    </div>
-                    <div
-                      className="overflow-x-auto rounded-xl border border-[#eadfd5]"
-                      data-testid="marketing-contacts-table"
-                    >
-                      <table className="min-w-[1650px] border-collapse text-left text-sm">
-                        <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
-                          <tr>
-                            <th className="px-4 py-3">Contact</th>
-                            <th className="px-4 py-3">Email</th>
-                            <th className="px-4 py-3">Phone</th>
-                            <th className="px-4 py-3">WhatsApp</th>
-                            <th className="px-4 py-3">Audience</th>
-                            <th className="px-4 py-3">Company</th>
-                            <th className="px-4 py-3">Role</th>
-                            <th className="px-4 py-3">Lang</th>
-                            <th className="px-4 py-3">Category</th>
-                            <th className="px-4 py-3">Vertical</th>
-                            <th className="px-4 py-3">Market</th>
-                            <th className="px-4 py-3">Lovable profile</th>
-                            <th className="px-4 py-3">Tags / lists</th>
-                            <th className="px-4 py-3">Consent</th>
-                            <th className="px-4 py-3">Source</th>
-                            <th className="sticky right-0 z-20 border-l border-[#eadfd5] bg-[#fbf8f5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.06)]">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visibleContacts.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={16}
-                                className="px-4 py-6 text-center font-bold text-[#8b7a73]"
-                                data-testid="marketing-contact-empty-diagnostic"
+                      <details
+                        className="group mb-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"
+                        data-testid="marketing-contact-segmentation-filters"
+                      >
+                        <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-black text-[#241133]">
+                          More filters
+                          <span className="text-xs text-purple-700 group-open:hidden">
+                            Show
+                          </span>
+                          <span className="hidden text-xs text-purple-700 group-open:inline">
+                            Hide
+                          </span>
+                        </summary>
+                        <div className="mt-3 grid gap-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-black text-[#241133]">
+                                Contact segmentation
+                              </p>
+                              <p className="text-xs font-bold text-[#7d6b65]">
+                                Filter imported Lovable contacts by list,
+                                consent, market, language, category, vertical,
+                                and source.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearch("");
+                                setAudienceFilter("all");
+                                setContactSourceFilter("all");
+                                setContactConsentFilter("all");
+                                setContactLanguageFilter("all");
+                                setContactCategoryFilter("all");
+                                setContactVerticalFilter("all");
+                                setContactMarketFilter("all");
+                                setContactListFilter("all");
+                              }}
+                              disabled={
+                                !search &&
+                                audienceFilter === "all" &&
+                                !contactFiltersActive
+                              }
+                              className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                              data-testid="button-marketing-clear-contact-filters"
+                            >
+                              Clear filters
+                            </button>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <Field label="Source">
+                              <select
+                                className={inputClass}
+                                value={contactSourceFilter}
+                                onChange={(event) =>
+                                  setContactSourceFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-source-filter"
                               >
-                                {contacts.length
-                                  ? "Contacts are loaded, but hidden by the current search or segmentation filters."
-                                  : "No contacts imported yet."}
-                              </td>
+                                <option value="all">
+                                  All sources ({contacts.length})
+                                </option>
+                                {contactSourceOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                            <Field label="Consent">
+                              <select
+                                className={inputClass}
+                                value={contactConsentFilter}
+                                onChange={(event) =>
+                                  setContactConsentFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-consent-filter"
+                              >
+                                <option value="all">
+                                  All consent ({contacts.length})
+                                </option>
+                                {contactConsentOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                            <Field label="Language">
+                              <select
+                                className={inputClass}
+                                value={contactLanguageFilter}
+                                onChange={(event) =>
+                                  setContactLanguageFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-language-filter"
+                              >
+                                <option value="all">
+                                  All languages ({contacts.length})
+                                </option>
+                                {contactLanguageOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                            <Field label="List">
+                              <select
+                                className={inputClass}
+                                value={contactListFilter}
+                                onChange={(event) =>
+                                  setContactListFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-list-filter"
+                              >
+                                <option value="all">
+                                  All lists ({contacts.length})
+                                </option>
+                                {contactListOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <Field label="Category">
+                              <select
+                                className={inputClass}
+                                value={contactCategoryFilter}
+                                onChange={(event) =>
+                                  setContactCategoryFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-category-filter"
+                              >
+                                <option value="all">
+                                  All categories ({contacts.length})
+                                </option>
+                                {contactCategoryOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                            <Field label="Vertical">
+                              <select
+                                className={inputClass}
+                                value={contactVerticalFilter}
+                                onChange={(event) =>
+                                  setContactVerticalFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-vertical-filter"
+                              >
+                                <option value="all">
+                                  All verticals ({contacts.length})
+                                </option>
+                                {contactVerticalOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                            <Field label="Market">
+                              <select
+                                className={inputClass}
+                                value={contactMarketFilter}
+                                onChange={(event) =>
+                                  setContactMarketFilter(event.target.value)
+                                }
+                                data-testid="select-marketing-contact-market-filter"
+                              >
+                                <option value="all">
+                                  All markets ({contacts.length})
+                                </option>
+                                {contactMarketOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label} ({option.count})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                          </div>
+                        </div>
+                      </details>
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-[#6d5b66]">
+                        <span>
+                          {visibleContacts.length === 0
+                            ? "No contacts"
+                            : `${(safeContactPage - 1) * contactsPerPage + 1}-${Math.min(safeContactPage * contactsPerPage, visibleContacts.length)} of ${visibleContacts.length}`}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setContactPage((page) => Math.max(1, page - 1))
+                            }
+                            disabled={safeContactPage === 1}
+                            className="min-h-9 rounded-xl border border-[#eadfd5] bg-white px-3 font-black disabled:text-[#b8abb8]"
+                          >
+                            Previous
+                          </button>
+                          <span>
+                            Page {safeContactPage} of {contactPageCount}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setContactPage((page) =>
+                                Math.min(contactPageCount, page + 1),
+                              )
+                            }
+                            disabled={safeContactPage === contactPageCount}
+                            className="min-h-9 rounded-xl border border-[#eadfd5] bg-white px-3 font-black disabled:text-[#b8abb8]"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className="overflow-hidden rounded-xl border border-[#eadfd5]"
+                        data-testid="marketing-contacts-table"
+                      >
+                        <table className="w-full table-fixed border-collapse text-left text-sm [&_td:nth-child(4)]:hidden [&_td:nth-child(6)]:hidden [&_td:nth-child(7)]:hidden [&_td:nth-child(8)]:hidden [&_td:nth-child(9)]:hidden [&_td:nth-child(10)]:hidden [&_td:nth-child(11)]:hidden [&_td:nth-child(12)]:hidden [&_td:nth-child(15)]:hidden [&_th:nth-child(4)]:hidden [&_th:nth-child(6)]:hidden [&_th:nth-child(7)]:hidden [&_th:nth-child(8)]:hidden [&_th:nth-child(9)]:hidden [&_th:nth-child(10)]:hidden [&_th:nth-child(11)]:hidden [&_th:nth-child(12)]:hidden [&_th:nth-child(15)]:hidden">
+                          <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                            <tr>
+                              <th className="w-[20%] px-4 py-3">Contact</th>
+                              <th className="w-[22%] px-4 py-3">Email</th>
+                              <th className="w-[14%] px-4 py-3">Phone</th>
+                              <th className="px-4 py-3">WhatsApp</th>
+                              <th className="w-[10%] px-4 py-3">Audience</th>
+                              <th className="px-4 py-3">Company</th>
+                              <th className="px-4 py-3">Role</th>
+                              <th className="px-4 py-3">Lang</th>
+                              <th className="px-4 py-3">Category</th>
+                              <th className="px-4 py-3">Vertical</th>
+                              <th className="px-4 py-3">Market</th>
+                              <th className="px-4 py-3">Lovable profile</th>
+                              <th className="w-[16%] px-4 py-3">
+                                Lists & tags
+                              </th>
+                              <th className="w-[10%] px-4 py-3">Consent</th>
+                              <th className="px-4 py-3">Source</th>
+                              <th className="w-[11%] border-l border-[#eadfd5] px-4 py-3">
+                                Actions
+                              </th>
                             </tr>
-                          ) : (
-                            visibleContacts.map((contact) => {
-                              const tagsAndLists = [
-                                ...(contact.tags ?? []),
-                                ...(contact.lists ?? []).map(
-                                  (list) => `List: ${list}`,
-                                ),
-                              ];
-                              const profileSignals =
-                                contactProfileSignals(contact);
-                              const timelineParts =
-                                recordTimelineParts(contact);
-                              return (
-                                <tr
-                                  key={contact.id}
-                                  className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}
+                          </thead>
+                          <tbody>
+                            {visibleContacts.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={16}
+                                  className="px-4 py-6 text-center font-bold text-[#8b7a73]"
+                                  data-testid="marketing-contact-empty-diagnostic"
                                 >
-                                  <td className="px-4 py-3">
-                                    <p className="font-black">
-                                      {contact.fullName ||
-                                        contact.email ||
-                                        contact.phoneNumber ||
-                                        "Unnamed contact"}
-                                    </p>
-                                    {contact.profileId ? (
-                                      <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">
-                                        Profile: {contact.profileId}
+                                  {contacts.length
+                                    ? "Contacts are loaded, but hidden by the current search or segmentation filters."
+                                    : "No contacts imported yet."}
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedContacts.map((contact) => {
+                                const tagsAndLists = [
+                                  ...(contact.tags ?? []),
+                                  ...(contact.lists ?? []).map(
+                                    (list) => `List: ${list}`,
+                                  ),
+                                ];
+                                const profileSignals =
+                                  contactProfileSignals(contact);
+                                const timelineParts =
+                                  recordTimelineParts(contact);
+                                return (
+                                  <tr
+                                    key={contact.id}
+                                    className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}
+                                  >
+                                    <td className="px-4 py-3">
+                                      <p className="font-black">
+                                        {contact.fullName ||
+                                          contact.email ||
+                                          contact.phoneNumber ||
+                                          "Unnamed contact"}
                                       </p>
-                                    ) : null}
-                                  </td>
-                                  <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.email || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.phoneNumber || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.whatsappNumber || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 font-black">
-                                    {contact.audienceType.toUpperCase()}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.companyName || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.roleLabel || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.language || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.category || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.vertical || "-"}
-                                  </td>
-                                  <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
-                                    {contact.market || "-"}
-                                  </td>
-                                  <td className="max-w-[260px] px-4 py-3">
-                                    {profileSignals.length ? (
-                                      <div
-                                        className="flex flex-wrap gap-1.5"
-                                        data-testid={`marketing-contact-profile-signals-${contact.id}`}
-                                      >
-                                        {profileSignals.map((entry) => (
-                                          <Pill
-                                            key={entry.key}
-                                            className={entry.className}
-                                          >
-                                            {entry.label}: {entry.value}
-                                          </Pill>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs font-bold text-[#8b7a73]">
-                                        No profile signals
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="max-w-[320px] px-4 py-3">
-                                    {tagsAndLists.length ? (
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {tagsAndLists.map((segment, index) => (
-                                          <Pill
-                                            key={`${segment}-${index}`}
-                                            className="bg-purple-50 text-purple-800"
-                                          >
-                                            {segment}
-                                          </Pill>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs font-bold text-[#8b7a73]">
-                                        No tags or lists
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <Pill
-                                      className={statusClass(
-                                        contact.consentStatus,
-                                      )}
-                                    >
-                                      {contact.consentStatus}
-                                    </Pill>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="grid gap-2">
-                                      <p className="font-bold">
-                                        {contact.source}
-                                      </p>
-                                      {contact.lovableExternalId ? (
-                                        <p className="break-all text-xs font-semibold text-[#7d6b65]">
-                                          Lovable ID:{" "}
-                                          {contact.lovableExternalId}
-                                        </p>
-                                      ) : null}
-                                      {contact.profileId ? (
-                                        <p className="break-all text-xs font-semibold text-[#7d6b65]">
-                                          Profile: {contact.profileId}
-                                        </p>
-                                      ) : null}
-                                      {contact.organizationId ? (
-                                        <p className="break-all text-xs font-semibold text-[#7d6b65]">
-                                          Org: {contact.organizationId}
-                                        </p>
-                                      ) : null}
-                                      {timelineParts.length ? (
+                                    </td>
+                                    <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.email || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.phoneNumber || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.whatsappNumber || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 font-black">
+                                      {contact.audienceType.toUpperCase()}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.companyName || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.roleLabel || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.language || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.category || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.vertical || "-"}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                      {contact.market || "-"}
+                                    </td>
+                                    <td className="max-w-[260px] px-4 py-3">
+                                      {profileSignals.length ? (
                                         <div
-                                          className="grid gap-1"
-                                          data-testid={`marketing-contact-timeline-${contact.id}`}
+                                          className="flex flex-wrap gap-1.5"
+                                          data-testid={`marketing-contact-profile-signals-${contact.id}`}
                                         >
-                                          {timelineParts.map((part) => (
-                                            <p
-                                              key={part}
-                                              className="text-xs font-semibold text-[#8b7a73]"
+                                          {profileSignals.map((entry) => (
+                                            <Pill
+                                              key={entry.key}
+                                              className={entry.className}
                                             >
-                                              {part}
-                                            </p>
+                                              {entry.label}: {entry.value}
+                                            </Pill>
                                           ))}
                                         </div>
-                                      ) : null}
-                                      <MetadataPanel
-                                        title="Imported contact data"
-                                        value={contact.metadata}
-                                        testId={`marketing-contact-metadata-${contact.id}`}
-                                      />
-                                    </div>
-                                  </td>
-                                  <td
-                                    className={`sticky right-0 z-10 w-[210px] border-l border-[#eadfd5] px-4 py-3 shadow-[-10px_0_18px_rgba(36,17,51,0.05)] ${editingContactId === contact.id || confirmingContactDeleteId === contact.id ? "bg-purple-50" : "bg-white"}`}
-                                  >
-                                    <div className="flex w-[170px] flex-wrap gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          startContactEdit(contact)
-                                        }
-                                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                                        disabled={contactSaving}
-                                        data-testid={`button-marketing-edit-contact-${contact.id}`}
+                                      ) : (
+                                        <span className="text-xs font-bold text-[#8b7a73]">
+                                          No profile signals
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="max-w-[320px] px-4 py-3">
+                                      {tagsAndLists.length ? (
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {tagsAndLists
+                                            .slice(0, 2)
+                                            .map((segment, index) => (
+                                              <Pill
+                                                key={`${segment}-${index}`}
+                                                className="bg-purple-50 text-purple-800"
+                                              >
+                                                {segment}
+                                              </Pill>
+                                            ))}
+                                          {tagsAndLists.length > 2 ? (
+                                            <Pill className="bg-[#f5eee8] text-[#5b4a46]">
+                                              +{tagsAndLists.length - 2}
+                                            </Pill>
+                                          ) : null}
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs font-bold text-[#8b7a73]">
+                                          No tags or lists
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <Pill
+                                        className={statusClass(
+                                          contact.consentStatus,
+                                        )}
                                       >
-                                        <Pencil size={13} /> Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          void deleteContact(contact)
-                                        }
-                                        className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === contact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`}
-                                        disabled={contactSaving}
-                                        data-testid={`button-marketing-delete-contact-${contact.id}`}
-                                      >
-                                        <Trash2 size={13} />{" "}
-                                        {confirmingContactDeleteId ===
-                                        contact.id
-                                          ? "Confirm delete"
-                                          : "Delete"}
-                                      </button>
-                                      {confirmingContactDeleteId ===
-                                      contact.id ? (
-                                        <p
-                                          className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800"
-                                          data-testid={`marketing-contact-delete-confirmation-${contact.id}`}
-                                        >
-                                          Click Confirm delete to remove this
-                                          marketing contact.
+                                        {contact.consentStatus}
+                                      </Pill>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="grid gap-2">
+                                        <p className="font-bold">
+                                          {contact.source}
                                         </p>
-                                      ) : null}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </SectionCard>
+                                        {contact.lovableExternalId ? (
+                                          <p className="break-all text-xs font-semibold text-[#7d6b65]">
+                                            Lovable ID:{" "}
+                                            {contact.lovableExternalId}
+                                          </p>
+                                        ) : null}
+                                        {contact.profileId ? (
+                                          <p className="break-all text-xs font-semibold text-[#7d6b65]">
+                                            Profile: {contact.profileId}
+                                          </p>
+                                        ) : null}
+                                        {contact.organizationId ? (
+                                          <p className="break-all text-xs font-semibold text-[#7d6b65]">
+                                            Org: {contact.organizationId}
+                                          </p>
+                                        ) : null}
+                                        {timelineParts.length ? (
+                                          <div
+                                            className="grid gap-1"
+                                            data-testid={`marketing-contact-timeline-${contact.id}`}
+                                          >
+                                            {timelineParts.map((part) => (
+                                              <p
+                                                key={part}
+                                                className="text-xs font-semibold text-[#8b7a73]"
+                                              >
+                                                {part}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                        <MetadataPanel
+                                          title="Imported contact data"
+                                          value={contact.metadata}
+                                          testId={`marketing-contact-metadata-${contact.id}`}
+                                        />
+                                      </div>
+                                    </td>
+                                    <td
+                                      className={`w-[120px] border-l border-[#eadfd5] px-3 py-3 ${editingContactId === contact.id || confirmingContactDeleteId === contact.id ? "bg-purple-50" : "bg-white"}`}
+                                    >
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            startContactEdit(contact)
+                                          }
+                                          className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                                          disabled={contactSaving}
+                                          data-testid={`button-marketing-edit-contact-${contact.id}`}
+                                        >
+                                          <Pencil size={13} /> Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            void deleteContact(contact)
+                                          }
+                                          className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === contact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`}
+                                          disabled={contactSaving}
+                                          data-testid={`button-marketing-delete-contact-${contact.id}`}
+                                        >
+                                          <Trash2 size={13} />{" "}
+                                          {confirmingContactDeleteId ===
+                                          contact.id
+                                            ? "Confirm delete"
+                                            : "Delete"}
+                                        </button>
+                                        {confirmingContactDeleteId ===
+                                        contact.id ? (
+                                          <p
+                                            className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800"
+                                            data-testid={`marketing-contact-delete-confirmation-${contact.id}`}
+                                          >
+                                            Click Confirm delete to remove this
+                                            marketing contact.
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </SectionCard>
+                  ) : null}
                 </>
               ) : (
                 <>
