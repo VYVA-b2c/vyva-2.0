@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TRUSTED_HELP_PARTNERS_STORAGE_KEY, type TrustedHelpPartner } from "@/data/trustedHelpPartners";
+import { TRUSTED_HELP_SERVICE_PRESENTATION_MAP } from "@/design/conciergeTrustedHelpPresentationMap";
 import TrustedHelpSettings from "./TrustedHelpSettings";
 
 vi.mock("@/components/onboarding/PhoneFrame", () => ({
@@ -80,6 +81,10 @@ describe("TrustedHelpSettings", () => {
     renderTrustedHelp();
 
     fireEvent.click(screen.getByTestId("button-trusted-help-dashboard-add-service"));
+    for (const service of TRUSTED_HELP_SERVICE_PRESENTATION_MAP) {
+      expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent(service.label);
+      expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent(service.description);
+    }
     expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent("Groceries");
     expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent("Food, water, household");
     expect(screen.getByTestId("section-trusted-help-guide")).toHaveTextContent("Wellness");
@@ -170,7 +175,7 @@ describe("TrustedHelpSettings", () => {
     fireEvent.click(screen.getByTestId("button-trusted-help-subservice-home-care-plumbing"));
 
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-    expect(screen.getByTestId("section-trusted-help-provider-source")).toHaveTextContent("Who should VYVA use for plumbing?");
+    expect(screen.getByTestId("section-trusted-help-provider-source")).toHaveTextContent("Who should VYVA use for plumber?");
   });
 
   it("adapts VYVA Find rules to the selected service", () => {
@@ -179,19 +184,19 @@ describe("TrustedHelpSettings", () => {
     openTrustedHelpTab("service");
     fireEvent.click(screen.getByTestId("button-trusted-help-service-wellness"));
     expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Massage");
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Hair Care");
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Nail Care");
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Foot Care");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Hair care");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Nail care");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Foot care");
     expect(screen.getByTestId("section-trusted-help-subservices")).not.toHaveTextContent("Beauty");
     expect(screen.getByTestId("section-trusted-help-subservices")).not.toHaveTextContent("Spa");
     fireEvent.click(screen.getByTestId("button-trusted-help-subservice-wellness-massage"));
     fireEvent.click(screen.getByTestId("button-trusted-help-source-vyva-find"));
 
     expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Service");
-    expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Hair Care");
-    expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Nail Care");
+    expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Hair care");
+    expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Nail care");
     expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Massage");
-    expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Foot Care");
+    expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Foot care");
     expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Place");
     expect(screen.getByTestId("panel-trusted-help-vyva-find")).not.toHaveTextContent("Residence");
     expect(screen.getByTestId("panel-trusted-help-vyva-find")).toHaveTextContent("Budget");
@@ -250,17 +255,17 @@ describe("TrustedHelpSettings", () => {
 
     openTrustedHelpTab("service");
     fireEvent.click(screen.getByTestId("button-trusted-help-service-home-care"));
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Plumbing");
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Electrical");
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Safety Fixes");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Plumber");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Electrician");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Safety fixes");
     fireEvent.click(screen.getByTestId("button-trusted-help-subservice-home-care-plumbing"));
     expect(screen.getByTestId("panel-trusted-help-provider-details")).toHaveTextContent("What needs fixing");
     expect(screen.getByTestId("panel-trusted-help-provider-details")).toHaveTextContent("Quote first");
 
     openTrustedHelpTab("service");
     fireEvent.click(screen.getByTestId("button-trusted-help-service-transport"));
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Accessible Ride");
-    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Assisted Ride");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Accessible ride");
+    expect(screen.getByTestId("section-trusted-help-subservices")).toHaveTextContent("Assisted ride");
     expect(screen.getByTestId("section-trusted-help-subservices")).not.toHaveTextContent("Scheduled ride");
 
     openTrustedHelpTab("service");

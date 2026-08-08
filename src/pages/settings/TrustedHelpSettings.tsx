@@ -30,10 +30,15 @@ import {
   type TrustedHelpPartner,
   useTrustedHelpPartners,
 } from "@/data/trustedHelpPartners";
+import {
+  TRUSTED_HELP_SERVICE_PRESENTATION_MAP,
+  type TrustedHelpProviderSource,
+  type TrustedHelpServiceId,
+} from "@/design/conciergeTrustedHelpPresentationMap";
 import { useLanguage } from "@/i18n";
 
-type ServiceId = "groceries" | "home-care" | "transport" | "wellness" | "other";
-type ProviderSource = "own" | "partner" | "vyva-find";
+type ServiceId = TrustedHelpServiceId;
+type ProviderSource = TrustedHelpProviderSource;
 type SetupTab = "dashboard" | "service" | "provider" | "controls" | "review";
 type HelpMode = "ask-first" | "prepare-only" | "family-approval" | "auto-repeat";
 type PaymentMode = "provider-direct" | "saved-card" | "caregiver-approval";
@@ -94,75 +99,53 @@ type SubServiceOption = {
 type SearchRuleSelections = Record<ServiceId, Record<string, string>>;
 type SubServiceSelections = Record<ServiceId, string>;
 
-const serviceOptions: ServiceConfig[] = [
-  {
-    id: "groceries",
-    label: "Groceries",
-    description: "Food, water, household",
+const serviceVisuals: Record<ServiceId, Pick<ServiceConfig, "icon" | "tone">> = {
+  groceries: {
     icon: ShoppingBasket,
     tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
   },
-  {
-    id: "home-care",
-    label: "Home Care",
-    description: "Repairs, cleaning, safety",
+  "home-care": {
     icon: Wrench,
     tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
   },
-  {
-    id: "transport",
-    label: "Transport",
-    description: "Taxi and assisted rides",
+  transport: {
     icon: Car,
     tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
   },
-  {
-    id: "wellness",
-    label: "Wellness",
-    description: "Hair, nails and massage",
+  wellness: {
     icon: UserRound,
     tone: { iconBg: "#FDF2F8", iconColor: "#BE185D", border: "#FBCFE8" },
   },
-  {
-    id: "other",
-    label: "Other",
-    description: "Tell VYVA what you need",
+  other: {
     icon: Shapes,
     tone: { iconBg: "#F8FAFC", iconColor: "#475569", border: "#CBD5E1" },
   },
-];
-
-const subServiceOptionsByService: Record<ServiceId, SubServiceOption[]> = {
-  groceries: [
-    { id: "supermarket", label: "Supermarket", detail: "Food and household" },
-    { id: "fresh-food", label: "Fresh food", detail: "Produce, bakery, meat" },
-    { id: "household", label: "Household", detail: "Cleaning and toiletries" },
-  ],
-  "home-care": [
-    { id: "plumbing", label: "Plumbing", detail: "Leaks, taps, toilets" },
-    { id: "electrical", label: "Electrical", detail: "Lights and sockets" },
-    { id: "cleaning", label: "Cleaning", detail: "Regular home help" },
-    { id: "safety-fixes", label: "Safety Fixes", detail: "Rails and trip risks" },
-  ],
-  transport: [
-    { id: "taxi", label: "Taxi", detail: "Everyday rides" },
-    { id: "accessible", label: "Accessible Ride", detail: "Wheelchair or walker" },
-    { id: "assisted", label: "Assisted Ride", detail: "Help to door" },
-  ],
-  wellness: [
-    { id: "hair-care", label: "Hair Care", detail: "Cut or styling" },
-    { id: "nail-care", label: "Nail Care", detail: "Hands and nails" },
-    { id: "massage", label: "Massage", detail: "Gentle body care" },
-    { id: "foot-care", label: "Foot Care", detail: "Comfort and nails" },
-  ],
-  other: [
-    { id: "errand", label: "Errand", detail: "Practical task" },
-    { id: "local-help", label: "Local help", detail: "Nearby support" },
-    { id: "describe", label: "Describe it", detail: "Tell VYVA" },
-  ],
 };
 
-const servicesWithRequiredType = new Set<ServiceId>(["home-care", "transport", "wellness"]);
+const serviceOptions: ServiceConfig[] = TRUSTED_HELP_SERVICE_PRESENTATION_MAP.map((service) => ({
+  id: service.serviceId,
+  label: service.label,
+  description: service.description,
+  ...serviceVisuals[service.serviceId],
+}));
+
+const subServiceOptionsByService = TRUSTED_HELP_SERVICE_PRESENTATION_MAP.reduce(
+  (optionsByService, service) => {
+    optionsByService[service.serviceId] = service.subservices.map((subservice) => ({
+      id: subservice.id,
+      label: subservice.label,
+      detail: subservice.userMeaning,
+    }));
+    return optionsByService;
+  },
+  {} as Record<ServiceId, SubServiceOption[]>,
+);
+
+const servicesWithRequiredType = new Set<ServiceId>(
+  TRUSTED_HELP_SERVICE_PRESENTATION_MAP
+    .filter((service) => service.requiresSubservice)
+    .map((service) => service.serviceId),
+);
 
 const setupTabs: Array<{ id: SetupTab; label: string }> = [
   { id: "dashboard", label: "Overview" },
@@ -327,12 +310,7 @@ const searchRuleGroupsByService: Record<ServiceId, SearchRuleGroup[]> = {
     {
       id: "service-type",
       title: "Service",
-      options: [
-        { id: "hair-care", label: "Hair Care", detail: "Cut or styling" },
-        { id: "nail-care", label: "Nail Care", detail: "Hands and nails" },
-        { id: "massage", label: "Massage", detail: "Gentle body care" },
-        { id: "foot-care", label: "Foot Care", detail: "Comfort and nails" },
-      ],
+      options: subServiceOptionsByService.wellness,
     },
     {
       id: "location",
