@@ -1447,20 +1447,56 @@ store and real-route persistence tests sequentially against disposable
 - **Risk:** high.
 - **Do not change:** unrelated canvases.
 
+**Task 12 implementation slice:** Stage 7 starts with the preventive Health
+check-in only. A Health-specific client adapter normalizes touch and voice-canvas
+answers into one canonical answer event before updating the existing Health
+answer state and before the existing `/api/checkins/analyze` authoritative
+backend path is called. The adapter carries the preventive Flow ID, scene ID,
+question ID, answer ID/value, modality, event ID and scene revision. It performs
+no Health business logic, does not advance the Flow by itself, and does not make
+the client authoritative over backend Flow state.
+
+Stale-scene protection uses the active Health question's scene ID, question ID,
+Health-session scene instance ID and monotonically incremented scene revision.
+For Health-owned voice answers, the ElevenLabs tentative user-transcript
+provider event is the earliest reliable browser lifecycle point. Stage 7 stores
+an immutable scene-provenance snapshot keyed by the provider event ID at that
+point; the final transcript callback consumes that prior snapshot and does not
+look up the currently active Health scene. If a final Health transcript has no
+reliable prior provenance correlation, it fails closed instead of being stamped
+with the active scene. Delayed voice events, old touch callbacks, duplicate
+callbacks and responses from a previous scene fail closed instead of being
+rebound to the current question. Voice idempotency uses the stable provider
+event ID when available, not the final callback timestamp. Observability is
+emitted as a privacy-safe browser event containing stable Flow/question/answer
+IDs, scene instance, modality, accepted/rejected status and stale/duplicate
+rejection reason. Raw health answer free text is not logged by the normalized
+path.
+
+The rollout is controlled by
+`VYVA_ENABLE_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC` and
+`VYVA_HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_ROLLOUT_PERCENT` through
+`/api/config/features/health-preventive-voice-screen-sync`. When disabled, the
+legacy Health touch handlers remain the active path and no Health voice-canvas
+scene is published.
+
 ### Stage 8 — Memory policy integration
 
 - **Objective:** policy-controlled category reads and proposed writes.
 - **Reuse:** `voiceContext.ts`, Mem0 adapter, PostgreSQL.
-- **Files likely affected:** new memory-policy/outbox modules and additive migration; optional policy input to voice context; Health orchestrator adapter.
-- **New files:** memory-policy evaluator, proposed-write outbox, and policy fixtures.
+- **Files affected:** `server/lib/voiceContext.ts` accepts an optional Health memory-policy input and otherwise preserves the existing Mem0 path; `server/routes/voiceContext.ts` resolves the server-side Health-only flag; `server/routes/router.ts` disables direct legacy Mem0 reads/writes for Health only when the Stage 8 policy flag is active; `server/routes/checkins.ts` passes Stage 4 completion evidence to the memory proposal adapter; `server/health/preventiveHealthOrchestrator.ts` exposes a narrow post-completion proposal hook; `shared/schema.ts` and migration `0081` add the Health semantic-memory outbox only.
+- **New files:** `server/memory/healthMemoryPolicy.ts`, `server/memory/healthSemanticMemory.ts`, focused fixtures/tests, PostgreSQL store/migration tests and `docs/HEALTH_MEMORY_POLICY_INTEGRATION.md`.
 - **Dependencies:** flow/specialist contract.
-- **Flag:** Health only.
-- **Acceptance:** restricted data never auto-writes; provenance and correction tests.
-- **Tests:** category access, consent, restricted-write, provenance, correction, deletion, and provider-failure cases.
-- **Observability:** read/write decision reasons, never raw sensitive data.
-- **Rollback:** disable semantic writes for flagged flow.
+- **Flag:** Health only, default-disabled through `flag.health.preventive_semantic_memory_policy` and `VYVA_HEALTH_PREVENTIVE_MEMORY_POLICY_*`; rollout is correlated to stable server-side user identity, not request-supplied conversation or Flow instance IDs.
+- **Acceptance:** low-risk category reads and proposed writes are policy/consent controlled; restricted, mental-health, safety and care-instruction data never auto-write; confirmed Mem0 delivery requires a provider memory ID and a fresh authoritative semantic-memory consent lookup; provenance-bound local correction/deletion suppression, idempotency, delivery-time consent revalidation and provider-failure behavior are test-covered.
+- **Tests:** category access, semantic-memory consent extraction, restricted/mental-health write denial, descriptor-safe policy parsing, router Health policy gating, provenance/minimization, correction/deletion local suppression, cross-user and mismatched-provenance lifecycle rejection, provider failure/delivery, duplicate/concurrent proposals, concurrent delivery claim, Health completion hook ordering and PostgreSQL migration/store proofs.
+- **Observability:** policy decisions carry stable reason codes and digests; proposed memory content is minimized and never includes raw Health answer text or model reasoning.
+- **Rollback:** disabling the Health memory-policy flag preserves existing Health voice-context and router Mem0 behavior and prevents new semantic-memory proposal writes.
 - **Risk:** critical.
 - **Do not change:** existing unflagged Mem0 behavior initially.
+- **Real proof:** PostgreSQL freeze proof follows the Task 10/11 disposable-database CI pattern with PostgreSQL 16 database `vyva_task13_test`, runs migration 0081, resets schema, applies the authoritative baseline via `npm run db:push:manual`, and then runs the real store proof covering idempotency, concurrent delivery claim, duplicate-delivery protection, correction/deletion lifecycle, cross-user and mismatched-provenance lifecycle rejection, provider-failure persistence, read visibility, delivery-time consent revocation and missing current-consent-loader failure. Local PostgreSQL tests require `TASK13_POSTGRES_URL` to point to a scratch database whose name contains `task13` and `test`, `tmp`, `ci` or `scratch`.
+- **Known operational caveat:** Task 13 prevents ordinary concurrent duplicate provider calls, but it does not yet implement a lease/expiry recovery queue for records stranded in `delivery_in_progress` or `delete_in_progress` after process crash or ambiguous provider timeout. Do not claim exactly-once provider delivery until that recovery story is designed.
+- **Deferred:** no public memory approval UX/API, no automatic restricted/mental-health Mem0 writes, no provider delivery from the Health route, no global memory policy for other domains and no Mem0/source-of-truth migration.
 
 ### Stage 9 — Caregiver and operator integration
 

@@ -130,6 +130,7 @@ export default function AdminModulesPage() {
         <AdminPageHeader
           title="Admin modules"
           subtitle="Choose the area you want to manage."
+          showAdminHome={false}
         />
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

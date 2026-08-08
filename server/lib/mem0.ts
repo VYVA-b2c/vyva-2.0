@@ -2,6 +2,10 @@ import type { ConversationTurn } from "./voiceContext.js";
 
 export type Mem0Memory = { memory?: string; content?: string; text?: string };
 
+export type Mem0AddResult = {
+  providerMemoryId: string;
+};
+
 export function getMem0ApiKey(): string {
   return process.env.MEM0_API_KEY?.trim() || process.env.MEMO_API_KEY?.trim() || "";
 }
@@ -60,6 +64,67 @@ export function formatMemoryBlock(memories: Mem0Memory[]): string {
   if (!top.length) return "";
   const labels = ["Memory", "Preference", "Useful context"];
   return top.map((text, index) => `${labels[index] ?? "Memory"}: ${text}.`).join(" ");
+}
+
+export function extractMem0ProviderMemoryId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const root = data as Record<string, unknown>;
+  const candidates = [
+    root.id,
+    root.memory_id,
+    root.memoryId,
+    root.provider_memory_id,
+    root.providerMemoryId,
+    Array.isArray(root.results) && root.results[0] && typeof root.results[0] === "object"
+      ? (root.results[0] as Record<string, unknown>).id
+      : null,
+    Array.isArray(root.memories) && root.memories[0] && typeof root.memories[0] === "object"
+      ? (root.memories[0] as Record<string, unknown>).id
+      : null,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return null;
+}
+
+export async function addMem0MemoryConfirmed(input: {
+  mem0UserId: string;
+  messages: ConversationTurn[];
+  apiKey?: string;
+  idempotencyKey?: string;
+}): Promise<Mem0AddResult> {
+  const apiKey = input.apiKey ?? getMem0ApiKey();
+  const mem0UserId = input.mem0UserId.trim();
+  if (!apiKey || !mem0UserId || input.messages.length === 0) {
+    throw new Error("mem0_write_not_configured");
+  }
+
+  const response = await fetch("https://api.mem0.ai/v1/memories/", {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      user_id: mem0UserId,
+      messages: input.messages,
+      ...(input.idempotencyKey
+        ? { metadata: { vyva_idempotency_key: input.idempotencyKey } }
+        : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`mem0_write_failed_${response.status}`);
+  }
+  const data = await response.json().catch(() => null);
+  const providerMemoryId = extractMem0ProviderMemoryId(data);
+  if (!providerMemoryId) {
+    throw new Error("mem0_provider_memory_id_missing");
+  }
+  return { providerMemoryId };
 }
 
 export function scheduleMem0Add(mem0UserId: string, messages: ConversationTurn[], apiKey = getMem0ApiKey()): void {

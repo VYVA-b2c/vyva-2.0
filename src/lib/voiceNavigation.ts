@@ -1,5 +1,9 @@
 import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
 import {
+  readActiveVoiceCanvasSceneProvenance,
+  type VoiceCanvasSceneProvenance,
+} from "@/lib/voiceCanvasBridge";
+import {
   buildVoiceAppAction,
   isVoiceAppActionDomain,
   isVoiceSpecialistTransferDomain,
@@ -27,7 +31,11 @@ export const VYVA_VOICE_HOME_SUBFLOW_EVENT = "vyva:voice-home-subflow";
 
 export type VoiceUserMessageDetail = {
   text: string;
-  transcriptEntry: TranscriptEntry;
+  transcriptEntry?: TranscriptEntry;
+  at?: string;
+  voiceUtteranceId?: string;
+  canvasProvenance?: VoiceCanvasSceneProvenance | null;
+  allowCanvasProvenanceFallback?: boolean;
 };
 
 export type VoiceHomeIntent = "health" | "mind" | "community" | "concierge";
@@ -335,7 +343,25 @@ export type VoiceSpecialistTransferRequest = {
 };
 
 export function emitVoiceUserMessage(detail: VoiceUserMessageDetail) {
-  window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT, { detail }));
+  const {
+    allowCanvasProvenanceFallback = true,
+    canvasProvenance: explicitCanvasProvenance,
+    ...eventDetail
+  } = detail;
+  const fallbackCanvasProvenance = allowCanvasProvenanceFallback
+    ? readActiveVoiceCanvasSceneProvenance()
+    : null;
+  const canvasProvenance = explicitCanvasProvenance !== undefined
+    ? explicitCanvasProvenance
+    : fallbackCanvasProvenance?.owner === "health_preventive_check"
+      ? null
+      : fallbackCanvasProvenance;
+  window.dispatchEvent(new CustomEvent<VoiceUserMessageDetail>(VYVA_VOICE_USER_MESSAGE_EVENT, {
+    detail: {
+      ...eventDetail,
+      ...(canvasProvenance ? { canvasProvenance } : {}),
+    },
+  }));
 }
 
 export function emitVoiceHomeIntent(intent: VoiceHomeIntent) {

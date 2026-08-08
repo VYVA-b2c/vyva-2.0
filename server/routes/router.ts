@@ -29,14 +29,39 @@ import {
   recordShownVoiceRecommendation,
   recordVoiceRecommendationFeedback,
 } from "../lib/voiceRecommendationFeedback.js";
+import {
+  resolveHealthMemoryPolicyFlag,
+  type HealthMemoryPolicyFlagResolution,
+} from "../memory/healthMemoryPolicy.js";
 
-type RoutingDomain =
+export type RoutingDomain =
   | "safety"
   | "meds"
   | "health"
   | "concierge"
   | "brain_coach"
   | "companion";
+
+export function resolveRouterHealthMemoryPolicyFlag(input: {
+  domain: RoutingDomain;
+  userId: string;
+  env?: Readonly<Record<string, string | undefined>>;
+}): HealthMemoryPolicyFlagResolution | null {
+  return input.domain === "health"
+    ? resolveHealthMemoryPolicyFlag({
+        env: input.env ?? process.env,
+        userRef: input.userId,
+        cohortKey: input.userId,
+      })
+    : null;
+}
+
+export function shouldUseLegacyRouterMem0(
+  domain: RoutingDomain,
+  healthMemoryFlag: HealthMemoryPolicyFlagResolution | null,
+): boolean {
+  return !(domain === "health" && healthMemoryFlag?.effectiveMode === "pilot");
+}
 
 type ConversationTurn = { role: "user" | "assistant"; content: string };
 
@@ -698,8 +723,14 @@ export async function routerHandler(req: Request, res: Response) {
 
   const mem0Key = getMem0ApiKey();
   const mem0UserId = profile?.mem0_user_id?.trim() || user_id;
+  const healthMemoryFlag = resolveRouterHealthMemoryPolicyFlag({
+    domain,
+    userId: user_id,
+    env: process.env,
+  });
+  const useLegacyRouterMem0 = shouldUseLegacyRouterMem0(domain, healthMemoryFlag);
   let memories: Mem0Memory[] = [];
-  if (mem0Key) {
+  if (mem0Key && useLegacyRouterMem0) {
     memories = await searchMemories(utterance, mem0UserId, mem0Key).catch(() => []);
   }
 
@@ -712,7 +743,6 @@ export async function routerHandler(req: Request, res: Response) {
   const first = firstName(profile?.full_name ?? null);
   const gender = profileGender(profile);
   const now = new Date();
-  const memoryBlock = formatMemoryBlock(memories);
 
   const lastTopic = sessionRow?.last_intent ?? sessionRow?.last_agent ?? "general chat";
   const sessionBlockLines = [
@@ -738,10 +768,23 @@ export async function routerHandler(req: Request, res: Response) {
   const voiceContext = await buildVoiceContext(user_id, domain, utterance, {
     appEntrypoint,
     priorVoiceExchangeCount,
+    ...(healthMemoryFlag?.effectiveMode === "pilot"
+      ? {
+          healthMemoryPolicy: {
+            enabled: true,
+            flowInstanceId: session_id,
+            env: process.env,
+          },
+        }
+      : {}),
   }).catch((err) => {
     console.warn("[router] voice context unavailable:", err);
     return {};
   });
+  const policyMemoryBlock = contextValue(voiceContext.memory_block);
+  const memoryBlock = healthMemoryFlag?.effectiveMode === "pilot"
+    ? (policyMemoryBlock === "(no memory retrieved)" ? "" : policyMemoryBlock)
+    : formatMemoryBlock(memories);
   await recordRecommendationResponseFromUtterance({
     userId: user_id,
     sessionId: session_id,
@@ -787,7 +830,7 @@ export async function routerHandler(req: Request, res: Response) {
     }),
   ]);
 
-  if (mem0Key) scheduleMem0Add(mem0UserId, buildMem0Messages(history, utterance), mem0Key);
+  if (mem0Key && useLegacyRouterMem0) scheduleMem0Add(mem0UserId, buildMem0Messages(history, utterance), mem0Key);
 
   const agent_id = agentIdForDomain(domain);
   if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain]}`);
