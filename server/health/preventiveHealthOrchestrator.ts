@@ -182,6 +182,14 @@ export type PreventiveHealthMemoryProposalInput<
   env: OrchestratorEnvironmentMap;
 };
 
+export type PreventiveHealthCaregiverOperatorEscalationInput<
+  TProfile,
+  TResult extends PreventiveHealthResult,
+> = PreventiveHealthMemoryProposalInput<TProfile, TResult> & {
+  sourceEventId: string;
+  sourceAlertId?: string | null;
+};
+
 export type PreventiveHealthCompletionClaim<TResult extends PreventiveHealthResult> =
   | {
       state: "claimed";
@@ -248,6 +256,9 @@ export type PreventiveHealthDependencies<TProfile, TResult extends PreventiveHea
   proposeSpecialistCompletion?: typeof proposePreventiveHealthCompletion;
   proposeMemoryWrite?: (
     input: PreventiveHealthMemoryProposalInput<TProfile, TResult>,
+  ) => Promise<void>;
+  proposeCaregiverOperatorEscalation?: (
+    input: PreventiveHealthCaregiverOperatorEscalationInput<TProfile, TResult>,
   ) => Promise<void>;
 };
 
@@ -837,6 +848,23 @@ export async function attemptPreventiveHealthCheckin<
     completedAt: input.now,
     env: input.env,
   }).catch(() => {});
+
+  if (savedCompletion.result.flag_caregiver === true) {
+    await input.dependencies.proposeCaregiverOperatorEscalation?.({
+      accountUserId: input.accountUserId,
+      userId: input.userId,
+      profileId: input.profileId,
+      sessionId: input.sessionId,
+      profile: input.profile,
+      result: savedCompletion.result,
+      completionReference: flow.result.completionReference,
+      answerDigest: flow.result.answerDigest,
+      flowInstanceId: input.sessionId,
+      sourceEventId: eventId("event.health.preventive_check.completed", flow.result),
+      completedAt: input.now,
+      env: input.env,
+    }).catch(() => {});
+  }
 
   return {
     ...completed(savedCompletion, flow.result, flagResolution, "created"),

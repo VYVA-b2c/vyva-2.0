@@ -28,6 +28,7 @@ import {
 import { evaluatePreventiveCheckinSafety } from "../health/preventiveHealthSafety.js";
 import type { EventStateCompatibilityStore } from "../orchestrator/eventStatePersistence.js";
 import { recordPreventiveHealthMemoryProposal } from "../memory/healthSemanticMemory.js";
+import { recordPreventiveHealthEscalationProjections } from "../caregiverOperator/healthEscalationProjection.js";
 
 const router = Router();
 
@@ -1569,6 +1570,9 @@ export async function analyzeCheckinHandler(req: Request, res: Response) {
             profileConsent: profile.data_sharing_consent,
             env: process.env,
           });
+        },
+        proposeCaregiverOperatorEscalation: async (escalationInput) => {
+          await recordPreventiveHealthEscalationProjections(escalationInput);
         },
       },
     });
