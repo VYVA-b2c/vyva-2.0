@@ -4159,6 +4159,7 @@ export default function MarketingAdminPage() {
   const [journeyBuilderStage, setJourneyBuilderStage] =
     useState<JourneyBuilderStage>(1);
   const [journeySaving, setJourneySaving] = useState(false);
+  const [journeyActivating, setJourneyActivating] = useState(false);
   const [journeyFeedback, setJourneyFeedback] = useState("");
   const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<
     string | null
@@ -5883,6 +5884,41 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setJourneySaving(false);
+    }
+  }
+
+  async function activateJourney() {
+    if (!editingJourneyId || editingJourneyId === "new") {
+      setJourneyFeedback("Save the journey as a draft before starting it.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Start this journey for all currently eligible contacts? The first email may send immediately, and follow-up emails will send automatically after each wait.",
+    );
+    if (!confirmed) return;
+    setJourneyActivating(true);
+    setJourneyFeedback("Starting journey...");
+    try {
+      const result = await api<{
+        eligibleCount: number;
+        enrolledCount: number;
+        execution: { sentCount: number; failedCount: number };
+      }>(`/api/admin/marketing/journeys/${editingJourneyId}/activate`, {
+        method: "POST",
+        body: JSON.stringify({ confirm: true }),
+      });
+      await refreshAll();
+      setJourneyFeedback(
+        `Journey started for ${result.enrolledCount} new contact${result.enrolledCount === 1 ? "" : "s"}. ${result.execution.sentCount} first email${result.execution.sentCount === 1 ? "" : "s"} sent. Follow-ups will run automatically after waits.`,
+      );
+      setMessage("Journey started.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Journey could not be started.";
+      setJourneyFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setJourneyActivating(false);
     }
   }
 
@@ -8669,12 +8705,13 @@ export default function MarketingAdminPage() {
                               : journeyEditDraft.name || "Journey"}
                           </h3>
                           <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
-                            Plan the route step by step. Nothing is sent
-                            automatically.
+                            {journeyEditDraft.status === "active"
+                              ? "Follow-up emails run automatically after each wait."
+                              : "Build and review the sequence. Saving keeps it as a draft."}
                           </p>
                         </div>
                         <Pill className="bg-amber-50 text-amber-800">
-                          Planning only
+                          {journeyEditDraft.status === "active" ? "Running" : "Draft"}
                         </Pill>
                       </div>
 
@@ -9284,10 +9321,15 @@ export default function MarketingAdminPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
-                            Planning only. Contacts are not enrolled and
-                            messages are not sent automatically.
-                          </div>
+                          {editingJourney?.status === "active" ? (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
+                              Running. Enrolled contacts receive email steps automatically after each wait.
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                              Planning only while this is a draft. Nothing sends until you explicitly start the journey.
+                            </div>
+                          )}
                           {editingJourney?.lovableExternalId ? (
                             <details className="rounded-xl border border-[#eadfd5] bg-white px-4 py-3 text-sm">
                               <summary className="cursor-pointer font-black text-purple-700">
@@ -9317,7 +9359,7 @@ export default function MarketingAdminPage() {
                         <button
                           type="button"
                           onClick={cancelJourneyEdit}
-                          disabled={journeySaving}
+                          disabled={journeySaving || journeyActivating}
                           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black"
                           data-testid="button-marketing-cancel-journey"
                         >
@@ -9350,15 +9392,28 @@ export default function MarketingAdminPage() {
                               Continue
                             </button>
                           ) : (
-                            <button
-                              type="submit"
-                              disabled={journeySaving}
-                              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:bg-[#b8abb8]"
-                              data-testid="button-marketing-save-journey"
-                            >
-                              <Save size={15} />{" "}
-                              {journeySaving ? "Saving..." : "Save draft"}
-                            </button>
+                            <>
+                              <button
+                                type="submit"
+                                disabled={journeySaving || journeyActivating}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 disabled:text-[#b8abb8]"
+                                data-testid="button-marketing-save-journey"
+                              >
+                                <Save size={15} />{" "}
+                                {journeySaving ? "Saving..." : "Save draft"}
+                              </button>
+                              {editingJourneyId !== "new" && editingJourney?.status !== "active" ? (
+                                <button
+                                  type="button"
+                                  onClick={activateJourney}
+                                  disabled={journeySaving || journeyActivating}
+                                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:bg-[#b8abb8]"
+                                  data-testid="button-marketing-start-journey"
+                                >
+                                  <Send size={15} /> {journeyActivating ? "Starting..." : "Start journey"}
+                                </button>
+                              ) : null}
+                            </>
                           )}
                         </div>
                       </div>
