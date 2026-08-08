@@ -93,6 +93,12 @@ afterEach(() => {
 });
 
 describe("HeroMessagesAdminPage", () => {
+  it("links the module back to admin home", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Admin home" })).toHaveAttribute("href", "/admin");
+  });
+
   it("shows the live overview with source, warnings, and aggregate metrics", async () => {
     renderPage();
 

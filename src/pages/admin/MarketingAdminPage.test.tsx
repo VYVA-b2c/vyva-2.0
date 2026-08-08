@@ -738,6 +738,8 @@ describe("MarketingAdminPage", () => {
 
     expect(await screen.findByTestId("marketing-content-tab")).toBeInTheDocument();
     expect(screen.getByTestId("tab-marketing-content")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("link", { name: "Back to Marketing" })).toHaveAttribute("href", "/admin/marketing");
+    expect(screen.queryByRole("link", { name: "Admin home" })).not.toBeInTheDocument();
   });
 
   it("shows audience cards with eligible contact counts", async () => {
