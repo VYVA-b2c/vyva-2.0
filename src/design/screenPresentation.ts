@@ -119,20 +119,47 @@ export function getScreenPresentation(input: ScreenPresentationInput): ScreenPre
 }
 
 export function useScreenPresentation(input: ScreenPresentationInput) {
+  const {
+    cards,
+    chips,
+    confirmationBoundary,
+    mode,
+    presentationFamilyId,
+    primarySurface,
+    screenId,
+    stepId,
+    template,
+    uiInstruction,
+    voicePolicy,
+  } = input;
+
   return useMemo(
-    () => getScreenPresentation(input),
+    () =>
+      getScreenPresentation({
+        cards,
+        chips,
+        confirmationBoundary,
+        mode,
+        presentationFamilyId,
+        primarySurface,
+        screenId,
+        stepId,
+        template,
+        uiInstruction,
+        voicePolicy,
+      }),
     [
-      input.cards,
-      input.chips,
-      input.confirmationBoundary,
-      input.mode,
-      input.presentationFamilyId,
-      input.primarySurface,
-      input.screenId,
-      input.stepId,
-      input.template,
-      input.uiInstruction,
-      input.voicePolicy,
+      cards,
+      chips,
+      confirmationBoundary,
+      mode,
+      presentationFamilyId,
+      primarySurface,
+      screenId,
+      stepId,
+      template,
+      uiInstruction,
+      voicePolicy,
     ],
   );
 }
