@@ -62,7 +62,6 @@ type HeroMetricRow = {
 };
 
 type OverviewFilter = "all" | "needs_attention" | "managed" | "fallback";
-type MessageTypeFilter = "all" | "standard" | "welcome";
 
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
 const LANGUAGE_LABELS: Record<HeroLanguage, string> = {
@@ -116,6 +115,14 @@ const SURFACE_LABELS: Record<HeroSurface, string> = {
   companions: "Companions",
   social: "Community",
 };
+const PILLAR_SURFACE_GROUPS: Array<{ label: string; surfaces: HeroSurface[] }> = [
+  { label: "General", surfaces: ["home", "home_voice"] },
+  { label: "Health", surfaces: ["health", "doctor", "vitals"] },
+  { label: "Medication", surfaces: ["meds"] },
+  { label: "Mind & activities", surfaces: ["brain", "activity"] },
+  { label: "Companionship", surfaces: ["companions", "social"] },
+  { label: "Support", surfaces: ["concierge"] },
+];
 const REASON_LABELS: Record<HeroReason, string> = {
   safety: "When safety needs attention",
   scheduled_event: "Before a scheduled event",
@@ -388,13 +395,13 @@ export default function HeroMessagesAdminPage() {
   const [drafts, setDrafts] = useState<Record<string, HeroMessageAdmin>>({});
   const [metrics, setMetrics] = useState<HeroMetricRow[]>([]);
   const [surfaceFilter, setSurfaceFilter] = useState<HeroSurface | "all">("all");
-  const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
   const [messageSearch, setMessageSearch] = useState("");
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [metricsDays, setMetricsDays] = useState(7);
   const [selectedMessageId, setSelectedMessageId] = useState<string>("");
   const [editorView, setEditorView] = useState<"catalog" | "editor">("catalog");
+  const [workspaceView, setWorkspaceView] = useState<"messages" | "routing" | "simulation">("messages");
   const [showNewMessageSetup, setShowNewMessageSetup] = useState(false);
   const [newMessageLanguages, setNewMessageLanguages] = useState<HeroLanguage[]>(["es"]);
   const [newMessageBaseLanguage, setNewMessageBaseLanguage] = useState<HeroLanguage>("es");
@@ -422,10 +429,6 @@ export default function HeroMessagesAdminPage() {
     return allMessages.filter((item) => {
       const surfaceMatches = surfaceFilter === "all" || item.surface === surfaceFilter;
       if (!surfaceMatches) return false;
-      const isWelcome = item.messageType === "welcome_first_login" || item.messageType === "welcome_profile_nudge";
-      const typeMatches = messageTypeFilter === "all"
-        || (messageTypeFilter === "welcome" ? isWelcome : !isWelcome);
-      if (!typeMatches) return false;
       if (!query) return true;
       const copy = item.copy[language] ?? item.copy.es;
       return [
@@ -438,7 +441,7 @@ export default function HeroMessagesAdminPage() {
         copy?.sourceText,
       ].some((value) => String(value ?? "").toLowerCase().includes(query));
     });
-  }, [allMessages, language, messageSearch, messageTypeFilter, surfaceFilter]);
+  }, [allMessages, language, messageSearch, surfaceFilter]);
 
   const selectionCatalog = useMemo(() => {
     const managed = allMessages.filter((item) => item.is_enabled && (item.source === "database" || Boolean(drafts[item.message_id])));
@@ -772,22 +775,31 @@ export default function HeroMessagesAdminPage() {
         <nav className="mt-5 flex gap-2 rounded-lg border border-[#eadfd5] bg-white p-2 shadow-sm" aria-label="Hero message workspace">
           <button
             type="button"
-            className={`rounded-lg px-4 py-2.5 text-sm font-black ${editorView === "catalog" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
-            onClick={() => setEditorView("catalog")}
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "messages" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setWorkspaceView("messages")}
+            data-testid="tab-hero-messages"
           >
             Messages
           </button>
           <button
             type="button"
-            className={`rounded-lg px-4 py-2.5 text-sm font-black ${editorView === "editor" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
-            onClick={() => setEditorView("editor")}
-            disabled={!selectedMessage}
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "routing" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setWorkspaceView("routing")}
+            data-testid="tab-hero-routing"
           >
-            Edit message
+            Routing overview
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-4 py-2.5 text-sm font-black ${workspaceView === "simulation" ? "bg-purple-700 text-white" : "text-[#5f5058] hover:bg-purple-50"}`}
+            onClick={() => setWorkspaceView("simulation")}
+            data-testid="tab-hero-simulation"
+          >
+            Simulated winner
           </button>
         </nav>
 
-        <section className="mt-4">
+        {workspaceView === "messages" && <section className="mt-4" data-testid="panel-hero-messages">
           {editorView === "catalog" && <aside className="rounded-lg border border-[#eadfd5] bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -929,17 +941,14 @@ export default function HeroMessagesAdminPage() {
                 </span>
               </label>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <Field label="App area">
+                <Field label="Pillar / app area">
                   <select className={CONTROL_CLASS} value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
-                    <option value="all">All app areas</option>
-                    {SURFACES.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
-                  </select>
-                </Field>
-                <Field label="Type">
-                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilter)}>
-                    <option value="all">All types</option>
-                    <option value="welcome">Welcome</option>
-                    <option value="standard">Standard</option>
+                    <option value="all">All pillars and app areas</option>
+                    {PILLAR_SURFACE_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.surfaces.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
+                      </optgroup>
+                    ))}
                   </select>
                 </Field>
                 <Field label="Language">
@@ -1020,9 +1029,13 @@ export default function HeroMessagesAdminPage() {
                     <section className="rounded-lg border border-[#eadfd5] p-4">
                       <h3 className="text-lg font-black">Where this message appears</h3>
                       <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <Field label="App area">
+                        <Field label="Pillar / app area">
                           <select className={CONTROL_CLASS} value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
-                            {SURFACES.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
+                            {PILLAR_SURFACE_GROUPS.map((group) => (
+                              <optgroup key={group.label} label={group.label}>
+                                {group.surfaces.map((surface) => <option key={surface} value={surface}>{SURFACE_LABELS[surface]}</option>)}
+                              </optgroup>
+                            ))}
                           </select>
                         </Field>
                         <Field label="When to show it">
@@ -1122,9 +1135,9 @@ export default function HeroMessagesAdminPage() {
               <p className="rounded-xl bg-[#fffaf4] p-4 font-bold text-[#7d6b65]">No messages match this filter.</p>
             )}
           </section>}
-        </section>
+        </section>}
 
-        <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+        {workspaceView === "routing" && <section className="mt-5" data-testid="panel-hero-routing">
           <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -1214,7 +1227,9 @@ export default function HeroMessagesAdminPage() {
               </div>
             </div>
           </section>
+        </section>}
 
+        {workspaceView === "simulation" && <section className="mt-5" data-testid="panel-hero-simulation">
           <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -1290,7 +1305,7 @@ export default function HeroMessagesAdminPage() {
               </div>
             ) : null}
           </section>
-        </section>
+        </section>}
       </section>
     </main>
   );

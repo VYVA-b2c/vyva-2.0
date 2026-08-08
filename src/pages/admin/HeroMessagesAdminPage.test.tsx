@@ -96,6 +96,7 @@ describe("HeroMessagesAdminPage", () => {
   it("shows the live overview with source, warnings, and aggregate metrics", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("tab-hero-routing"));
     const healthCard = await screen.findByTestId("card-hero-overview-health");
 
     expect(within(healthCard).getByTestId("hero-active-health")).toHaveTextContent("VYVA");
@@ -116,6 +117,7 @@ describe("HeroMessagesAdminPage", () => {
   it("explains why the simulated user sees the selected Home message", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("tab-hero-simulation"));
     const explanation = await screen.findByTestId("home-message-decision-preview");
 
     expect(within(explanation).getByText("Why this user sees this message now")).toBeInTheDocument();
@@ -126,6 +128,7 @@ describe("HeroMessagesAdminPage", () => {
   it("filters the live overview by operational attention state", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("tab-hero-routing"));
     expect(await screen.findByTestId("card-hero-overview-health")).toBeInTheDocument();
     expect(screen.getByTestId("card-hero-overview-home")).toBeInTheDocument();
     expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 11 of 11 surfaces.");
@@ -142,6 +145,24 @@ describe("HeroMessagesAdminPage", () => {
     expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
   });
 
+  it("keeps messages, routing, and simulation in separate tabs", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("panel-hero-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-routing")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-simulation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-hero-routing"));
+    expect(screen.getByTestId("panel-hero-routing")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-messages")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-simulation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-hero-simulation"));
+    expect(screen.getByTestId("panel-hero-simulation")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-messages")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-routing")).not.toBeInTheDocument();
+  });
+
   it("searches the message catalog without losing the selected editor", async () => {
     renderPage();
 
@@ -155,6 +176,23 @@ describe("HeroMessagesAdminPage", () => {
     expect(screen.getByText("My Health · General message")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("hero-catalog-message-health-admin"));
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+  });
+
+  it("uses the existing app-area filter grouped by VYVA pillar", async () => {
+    renderPage();
+
+    await screen.findByTestId("hero-catalog-message-health-admin");
+
+    const areaFilter = screen.getByLabelText("Pillar / app area");
+    expect(within(areaFilter).getByRole("group", { name: "Health" })).toBeInTheDocument();
+    expect(within(areaFilter).getByRole("group", { name: "Medication" })).toBeInTheDocument();
+    expect(within(areaFilter).getByRole("group", { name: "Companionship" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument();
+
+    fireEvent.change(areaFilter, { target: { value: "meds" } });
+
+    expect(screen.getByText(/shown/)).toBeInTheDocument();
+    expect(screen.queryByTestId("hero-catalog-message-health-admin")).not.toBeInTheDocument();
   });
 
   it("previews the selected language and blocks invalid copy", async () => {
@@ -288,6 +326,7 @@ describe("HeroMessagesAdminPage", () => {
       expect(body.copy.es.headline).toBe("Care now");
     });
 
+    fireEvent.click(screen.getByTestId("tab-hero-routing"));
     await waitFor(() => {
       expect(within(screen.getByTestId("card-hero-overview-health")).getByTestId("hero-active-health")).toHaveTextContent("Care now");
     });
