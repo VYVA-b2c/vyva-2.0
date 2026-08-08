@@ -564,7 +564,7 @@ class PostgresHealthSemanticMemoryTransaction implements HealthSemanticMemoryTra
           $23::jsonb, $24, $25, $26,
           $27, $28, $29, $30,
           $31::jsonb, $32, $33, $34
-        ) on conflict (idempotency_key) do nothing`,
+        ) on conflict do nothing`,
       [
         proposal.proposalId,
         proposal.schemaVersion,
@@ -761,6 +761,10 @@ export class InMemoryHealthSemanticMemoryOutboxStore implements HealthSemanticMe
       return existing.semanticDigest === semanticDigest
         ? { outcome: "duplicate", proposal: existing.proposal }
         : { outcome: "rejected", reason: "semantic_conflict" };
+    }
+    const proposalIdCollision = this.byProposalId.get(proposal.proposalId);
+    if (proposalIdCollision) {
+      return { outcome: "rejected", reason: "semantic_conflict" };
     }
     const record = { proposal, semanticDigest };
     this.byIdempotencyKey.set(proposal.idempotencyKey, record);

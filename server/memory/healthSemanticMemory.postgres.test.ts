@@ -6,6 +6,8 @@ import {
   buildCorrectionProposal,
   buildDeletionProposal,
   buildHealthPolicyFilteredMemoryBlock,
+  type HealthSemanticMemoryProposal,
+  healthSemanticMemoryProposalDigest,
   PostgresHealthSemanticMemoryOutboxStore,
   recordPreventiveHealthMemoryProposal,
 } from "./healthSemanticMemory.js";
@@ -48,6 +50,14 @@ async function withClient<T>(operation: (client: pg.Client) => Promise<T>): Prom
   }
 }
 
+function recomputeSemanticDigest(proposal: HealthSemanticMemoryProposal): HealthSemanticMemoryProposal {
+  const { semanticDigest: _semanticDigest, ...withoutDigest } = proposal;
+  return {
+    ...withoutDigest,
+    semanticDigest: healthSemanticMemoryProposalDigest(withoutDigest),
+  };
+}
+
 describe("Task 13 real PostgreSQL Health semantic memory outbox", () => {
   it.runIf(task13PostgresUrl)(
     "persists idempotent proposals, delivery status and policy-filtered reads on PostgreSQL",
@@ -82,16 +92,62 @@ describe("Task 13 real PostgreSQL Health semantic memory outbox", () => {
         ));
         expect(outcomes.filter((item) => item.outcome === "stored")).toHaveLength(1);
         expect(outcomes.filter((item) => item.outcome === "duplicate")).toHaveLength(9);
+        expect(outcomes.filter((item) => item.outcome === "rejected")).toHaveLength(0);
         const stored = outcomes.find((item) => item.outcome === "stored");
         expect(stored?.outcome).toBe("stored");
         if (!stored || stored.outcome !== "stored") return;
 
         await withClient(async (client) => {
-          const rows = await client.query<{ count: string }>(
+          const byIdempotency = await client.query<{ count: string }>(
             "select count(*)::text as count from health_semantic_memory_outbox where idempotency_key = $1",
             [stored.proposal.idempotencyKey],
           );
-          expect(rows.rows[0]?.count).toBe("1");
+          expect(byIdempotency.rows[0]?.count).toBe("1");
+          const byProposalId = await client.query<{ count: string }>(
+            "select count(*)::text as count from health_semantic_memory_outbox where proposal_id = $1",
+            [stored.proposal.proposalId],
+          );
+          expect(byProposalId.rows[0]?.count).toBe("1");
+        });
+
+        const idempotencyConflict = recomputeSemanticDigest({
+          ...stored.proposal,
+          content: "Preventive health check-in completed with conflicting PostgreSQL context.",
+          contentDigest: `sha256:${"c".repeat(64)}`,
+        });
+        await expect(store.recordProposal(idempotencyConflict)).resolves.toMatchObject({
+          outcome: "rejected",
+          reason: "semantic_conflict",
+        });
+
+        const proposalIdCollision = recomputeSemanticDigest({
+          ...stored.proposal,
+          idempotencyKey: `${stored.proposal.idempotencyKey}:proposal-id-collision`,
+          flowInstanceId: `${runFlowInstanceId}.proposal-id-collision`,
+          completionReference: `${runCompletionReference}.proposal-id-collision`,
+          provenance: {
+            ...stored.proposal.provenance,
+            sourceRecordId: `${runCompletionReference}.proposal-id-collision`,
+            flowInstanceId: `${runFlowInstanceId}.proposal-id-collision`,
+          },
+        });
+        await expect(store.recordProposal(proposalIdCollision)).resolves.toMatchObject({
+          outcome: "rejected",
+          reason: "semantic_conflict",
+        });
+
+        await withClient(async (client) => {
+          const rows = await client.query<{ normalized_proposal: HealthSemanticMemoryProposal }>(
+            `select normalized_proposal
+               from health_semantic_memory_outbox
+              where proposal_id = $1`,
+            [stored.proposal.proposalId],
+          );
+          expect(rows.rows).toHaveLength(1);
+          expect(rows.rows[0]?.normalized_proposal).toMatchObject({
+            idempotencyKey: stored.proposal.idempotencyKey,
+            semanticDigest: stored.proposal.semanticDigest,
+          });
         });
 
         const claims = await Promise.all(Array.from({ length: 10 }, () =>

@@ -3,6 +3,7 @@ import {
   buildCorrectionProposal,
   buildDeletionProposal,
   buildHealthPolicyFilteredMemoryBlock,
+  type HealthSemanticMemoryProposal,
   healthSemanticMemoryProposalDigest,
   InMemoryHealthSemanticMemoryOutboxStore,
   recordPreventiveHealthMemoryProposal,
@@ -41,6 +42,14 @@ function proposalInput(store: InMemoryHealthSemanticMemoryOutboxStore, overrides
     env: task13PilotEnv,
     store,
     ...overrides,
+  };
+}
+
+function recomputeSemanticDigest(proposal: HealthSemanticMemoryProposal): HealthSemanticMemoryProposal {
+  const { semanticDigest: _semanticDigest, ...withoutDigest } = proposal;
+  return {
+    ...withoutDigest,
+    semanticDigest: healthSemanticMemoryProposalDigest(withoutDigest),
   };
 }
 
@@ -148,6 +157,42 @@ describe("Task 13 Health semantic memory outbox", () => {
     expect(outcomes.filter((item) => item.outcome === "stored")).toHaveLength(1);
     expect(outcomes.filter((item) => item.outcome === "duplicate")).toHaveLength(9);
     expect(store.snapshot()).toHaveLength(1);
+  });
+
+  it("rejects semantic conflicts and proposal ID collisions without altering the stored proposal", async () => {
+    const store = new InMemoryHealthSemanticMemoryOutboxStore();
+    const outcome = await recordPreventiveHealthMemoryProposal(proposalInput(store));
+    expect(outcome.outcome).toBe("stored");
+    if (outcome.outcome !== "stored") return;
+
+    const idempotencyConflict = recomputeSemanticDigest({
+      ...outcome.proposal,
+      content: "Preventive health check-in completed with conflicting routine context.",
+      contentDigest: `sha256:${"b".repeat(64)}`,
+    });
+    await expect(store.recordProposal(idempotencyConflict)).resolves.toMatchObject({
+      outcome: "rejected",
+      reason: "semantic_conflict",
+    });
+
+    const proposalIdCollision = recomputeSemanticDigest({
+      ...outcome.proposal,
+      idempotencyKey: `${outcome.proposal.idempotencyKey}:collision`,
+      flowInstanceId: `${TASK13_FLOW_INSTANCE_ID}.proposal-id-collision`,
+      completionReference: `${TASK13_COMPLETION_REFERENCE}.proposal-id-collision`,
+      provenance: {
+        ...outcome.proposal.provenance,
+        sourceRecordId: `${TASK13_COMPLETION_REFERENCE}.proposal-id-collision`,
+        flowInstanceId: `${TASK13_FLOW_INSTANCE_ID}.proposal-id-collision`,
+      },
+    });
+    await expect(store.recordProposal(proposalIdCollision)).resolves.toMatchObject({
+      outcome: "rejected",
+      reason: "semantic_conflict",
+    });
+
+    expect(store.snapshot()).toHaveLength(1);
+    expect(store.snapshot()[0]).toEqual(outcome.proposal);
   });
 
   it("uses stable user identity rather than caller-controlled Flow identity for rollout", async () => {
