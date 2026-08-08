@@ -35,18 +35,24 @@ describe("StatusBar home master variant", () => {
     window.localStorage.clear();
   });
 
-  it("keeps the header minimal and sends settings to the existing settings module", () => {
+  it("keeps the header minimal and opens display controls from the gear", () => {
     render(<StatusBar variant="homeMaster" />);
 
     expect(screen.queryByLabelText("Health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-readable-text-size")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-master-theme")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-my-profile"));
-    expect(navigateMock).toHaveBeenCalledWith("/settings");
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("home-master-utility-menu")).toBeInTheDocument();
+    expect(screen.getByTestId("button-readable-text-size")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-master-theme")).toBeInTheDocument();
   });
 
   it("toggles and remembers the home master theme", () => {
     render(<StatusBar variant="homeMaster" />);
 
+    fireEvent.click(screen.getByTestId("button-my-profile"));
     fireEvent.click(screen.getByTestId("button-home-master-theme"));
 
     expect(window.localStorage.getItem(HOME_MASTER_THEME_STORAGE_KEY)).toBe("dark");
@@ -55,6 +61,7 @@ describe("StatusBar home master variant", () => {
   it("defaults to large text and remembers an explicit normal choice", () => {
     render(<StatusBar variant="homeMaster" />);
 
+    fireEvent.click(screen.getByTestId("button-my-profile"));
     const textSizeButton = screen.getByTestId("button-readable-text-size");
     expect(textSizeButton).toHaveAttribute("aria-pressed", "true");
 
@@ -84,10 +91,16 @@ describe("StatusBar home master variant", () => {
     const modeButton = screen.getByTestId("button-home-mode-touch");
 
     expect(dock).toContainElement(screen.getByTestId("button-my-profile"));
-    expect(dock).toContainElement(screen.getByTestId("button-readable-text-size"));
-    expect(dock).toContainElement(screen.getByTestId("button-home-master-theme"));
+    expect(screen.queryByTestId("button-readable-text-size")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-master-theme")).not.toBeInTheDocument();
     expect(dock).toContainElement(modeButton);
     expect(modeButton).toHaveAccessibleName("Switch to touch");
+
+    fireEvent.click(screen.getByTestId("button-my-profile"));
+    const menu = screen.getByTestId("home-master-utility-menu");
+    expect(menu).toContainElement(screen.getByTestId("button-readable-text-size"));
+    expect(menu).toContainElement(screen.getByTestId("button-home-master-theme"));
+    expect(menu).toContainElement(screen.getByTestId("button-home-mode-menu"));
 
     fireEvent.click(modeButton);
     expect(actionHandler).toHaveBeenCalledWith(expect.objectContaining({
