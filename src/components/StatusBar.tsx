@@ -17,9 +17,10 @@ import { VyvaMark } from "./VyvaMark";
 type StatusBarProps = {
   wide?: boolean;
   variant?: "default" | "homeMaster";
+  autoHideHomeControls?: boolean;
 };
 
-const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
+const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: StatusBarProps) => {
   const navigate = useNavigate();
   const { language, t } = useLanguage();
   const { isDark, toggleTheme } = useHomeMasterTheme();
@@ -29,6 +30,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
   const [homeModeControl, setHomeModeControl] = useState<HomeModeControlDetail | null>(() => readLatestHomeModeControl());
   const homeControlsHideTimerRef = useRef<number | null>(null);
   const homeSettingsHideTimerRef = useRef<number | null>(null);
+  const shouldAutoHideHomeControls = autoHideHomeControls ?? import.meta.env.MODE !== "test";
   const now = new Date();
   const localeByLanguage: Record<string, string> = {
     es: "es-ES",
@@ -45,7 +47,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
 
   useEffect(() => {
     if (variant !== "homeMaster") return;
-    if (import.meta.env.MODE === "test") return;
+    if (!shouldAutoHideHomeControls) return;
     if (homeControlsHideTimerRef.current) {
       window.clearTimeout(homeControlsHideTimerRef.current);
     }
@@ -60,7 +62,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
         homeSettingsHideTimerRef.current = null;
       }
     };
-  }, [variant]);
+  }, [shouldAutoHideHomeControls, variant]);
 
   useEffect(() => {
     if (variant !== "homeMaster") return;
@@ -86,7 +88,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
       : "grid h-8 w-8 place-items-center rounded-full bg-[#F5EEFF] text-vyva-purple";
     const darkIconStyle = isDark ? { color: "#F6F0FF" } : undefined;
     const scheduleHomeSettingsClose = () => {
-      if (import.meta.env.MODE === "test") return;
+      if (!shouldAutoHideHomeControls) return;
       if (homeSettingsHideTimerRef.current) {
         window.clearTimeout(homeSettingsHideTimerRef.current);
       }
@@ -94,7 +96,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
     };
     const revealHomeControls = () => {
       setHomeControlsVisible(true);
-      if (import.meta.env.MODE === "test") return;
+      if (!shouldAutoHideHomeControls) return;
       if (homeControlsHideTimerRef.current) {
         window.clearTimeout(homeControlsHideTimerRef.current);
       }
@@ -111,6 +113,7 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
     const modeControlNextMode: HomeInteractionMode = homeModeControl?.mode === "voice" ? "touch" : "voice";
     const ModeControlIcon = homeModeControl?.mode === "voice" ? Hand : Mic;
     const modeControlVisible = homeControlsVisible || homeSettingsMenuOpen || Boolean(homeModeControl?.visible);
+    const homeControlsRevealLabel = t("home.master.header.showControls", "Show controls");
     const handleHomeModeControlClick = () => {
       revealHomeControls();
       window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
@@ -178,6 +181,23 @@ const StatusBar = ({ wide = false, variant = "default" }: StatusBarProps) => {
                 </button>
               ) : null}
             </div>
+            {!modeControlVisible ? (
+              <button
+                type="button"
+                onClick={revealHomeControls}
+                className={[
+                  "vyva-tap absolute right-0 top-0 flex h-10 !min-h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl transition-all duration-300 hover:scale-[1.03] focus-visible:scale-[1.03]",
+                  isDark
+                    ? "border-white/[0.14] bg-[#170C2A]/[0.68] text-[#F6F0FF] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
+                    : "border-[#EDE4F4] bg-white/[0.92] text-vyva-purple shadow-[0_12px_28px_rgba(60,33,82,0.14)]",
+                ].join(" ")}
+                data-testid="button-home-controls-reveal"
+                aria-label={homeControlsRevealLabel}
+                title={homeControlsRevealLabel}
+              >
+                <Settings size={15} strokeWidth={2.35} aria-hidden="true" />
+              </button>
+            ) : null}
             {homeSettingsMenuOpen ? (
               <div
                 className={`absolute right-0 top-[calc(100%+10px)] w-[178px] rounded-[22px] border p-2 backdrop-blur-xl ${
