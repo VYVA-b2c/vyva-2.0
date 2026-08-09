@@ -148,6 +148,7 @@ type VoiceSessionDockProps = {
   onMicToggle: (muted: boolean) => void;
   onOpen: () => void;
   compact?: boolean;
+  compactDark?: boolean;
 };
 
 function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
@@ -279,7 +280,9 @@ const VoiceSessionDock = ({
   onMicToggle,
   onOpen,
   compact = false,
+  compactDark = false,
 }: VoiceSessionDockProps) => {
+  const { t } = useTranslation();
   const latestEntry = transcript[transcript.length - 1];
   const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
   const previewText = latestEntry?.text || "Voice is active";
@@ -292,48 +295,42 @@ const VoiceSessionDock = ({
         : "Listening";
 
   if (compact) {
+    const compactLabel = t("home.voiceDock.active", "Voice on");
+    const compactStopLabel = t("home.voiceDock.stop", "Stop voice");
     return (
-      <div className="pointer-events-none fixed inset-x-0 bottom-[104px] z-[64] flex justify-center px-5">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[112px] z-[64] flex justify-center px-5">
         <section
           data-testid="voice-session-dock"
-          data-variant="home-compact"
-          className="pointer-events-auto flex w-full max-w-[336px] items-center gap-3 rounded-full border border-[#E9D5FF] bg-white/92 py-2 pl-2 pr-2 shadow-[0_16px_42px_rgba(47,33,53,0.16)] backdrop-blur-xl"
-          aria-label="Voice session controls"
+          data-variant="home-stop"
+          className={[
+            "pointer-events-auto inline-flex min-h-[52px] max-w-[calc(100vw-40px)] items-center gap-2 rounded-full border py-2 pl-4 pr-2 shadow-[0_14px_34px_rgba(24,18,34,0.18)] backdrop-blur-xl",
+            compactDark
+              ? "border-white/[0.16] bg-[#100A1F]/85 text-[#F8F4FF]"
+              : "border-[#E9D5FF] bg-white/92 text-vyva-text-1",
+          ].join(" ")}
+          aria-label={compactStopLabel}
         >
-          <div
-            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+          <span
+            className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6] shadow-[0_0_0_6px_rgba(139,92,246,0.16)]"
             aria-hidden="true"
-            style={{
-              background: "radial-gradient(circle at 42% 36%, #F3E8FF 0%, #A855F7 45%, #5B12A0 100%)",
-              boxShadow: "0 0 0 7px rgba(124,58,237,0.08), 0 8px 20px rgba(91,18,160,0.14)",
-            }}
+          />
+          <span
+            className={[
+              "whitespace-nowrap font-body text-[13px] font-black leading-none",
+              compactDark ? "text-[#F8F4FF]" : "text-vyva-purple",
+            ].join(" ")}
           >
-            <span
-              className="h-4 w-4 rounded-full"
-              style={{
-                background: "radial-gradient(circle, rgba(255,255,255,0.92), rgba(255,255,255,0.08))",
-                opacity: 0.78,
-              }}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="flex min-w-0 items-center gap-2 truncate font-body text-[13px] font-black leading-tight text-vyva-purple">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#8B5CF6] shadow-[0_0_0_5px_rgba(139,92,246,0.12)]" />
-              {label}
-            </p>
-            <p className="mt-0.5 truncate font-body text-[12px] font-semibold leading-tight text-vyva-text-2">
-              {previewText}
-            </p>
-          </div>
+            {compactLabel}
+          </span>
           <button
             type="button"
             onClick={onEnd}
             data-testid="button-dock-end-call"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_12px_26px_rgba(17,17,17,0.2)] transition active:scale-95"
-            aria-label="Stop voice"
-            title="Stop voice"
+            className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_12px_26px_rgba(17,17,17,0.2)] transition active:scale-95"
+            aria-label={compactStopLabel}
+            title={compactStopLabel}
           >
-            <X size={19} strokeWidth={2.8} />
+            <X size={18} strokeWidth={2.8} />
           </button>
         </section>
       </div>
@@ -927,6 +924,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               setDockVoiceOverlayOpen(true);
             }}
             compact={isHomeRoute}
+            compactDark={isHomeRoute && isHomeMasterDark}
           />
         )}
         <CrossPillarHandoffRecovery />

@@ -79,6 +79,24 @@ describe("StatusBar home master variant", () => {
     expect(screen.getByTestId("button-readable-text-size")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("collapses the utility dock soon after a setting is chosen", () => {
+    vi.useFakeTimers();
+
+    render(<StatusBar variant="homeMaster" autoHideHomeControls />);
+
+    fireEvent.click(screen.getByTestId("button-my-profile"));
+    fireEvent.click(screen.getByTestId("button-home-master-theme"));
+
+    expect(screen.queryByTestId("home-master-utility-menu")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-controls-reveal")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(screen.getByTestId("button-home-controls-reveal")).toHaveAccessibleName("Show controls");
+  });
+
   it("keeps the home mode control inside the utility dock", () => {
     const actionHandler = vi.fn();
     window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
@@ -128,7 +146,7 @@ describe("StatusBar home master variant", () => {
       window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_EVENT, {
         detail: {
           mode: "voice",
-          visible: false,
+          visible: true,
           label: "Switch to touch",
           testId: "button-home-mode-touch",
         },
