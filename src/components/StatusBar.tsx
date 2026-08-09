@@ -109,6 +109,13 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       }
       homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 4200);
     };
+    const collapseHomeControlsSoon = () => {
+      if (!shouldAutoHideHomeControls) return;
+      if (homeControlsHideTimerRef.current) {
+        window.clearTimeout(homeControlsHideTimerRef.current);
+      }
+      homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 650);
+    };
     const toggleHomeSettingsMenu = () => {
       revealHomeControls();
       setHomeSettingsMenuOpen((open) => {
@@ -123,7 +130,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
     };
     const modeControlNextMode: HomeInteractionMode = homeModeControl?.mode === "voice" ? "touch" : "voice";
     const ModeControlIcon = homeModeControl?.mode === "voice" ? Hand : Mic;
-    const modeControlVisible = homeControlsVisible || homeSettingsMenuOpen || Boolean(homeModeControl?.visible);
+    const modeControlVisible = homeControlsVisible || homeSettingsMenuOpen;
     const homeControlsRevealLabel = t("home.master.header.showControls", "Show controls");
     const handleHomeModeControlClick = () => {
       revealHomeControls();
@@ -131,6 +138,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
         detail: { mode: modeControlNextMode },
       }));
+      collapseHomeControlsSoon();
     };
     return (
       <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-3 min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] lg:max-w-[920px]">
@@ -227,6 +235,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                     revealHomeControls();
                     closeHomeSettingsMenu();
                     toggleReadableTextSize();
+                    collapseHomeControlsSoon();
                   }}
                   className={homeMenuButtonClass}
                   data-testid="button-readable-text-size"
@@ -242,6 +251,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                     revealHomeControls();
                     closeHomeSettingsMenu();
                     toggleTheme();
+                    collapseHomeControlsSoon();
                   }}
                   className={homeMenuButtonClass}
                   data-testid="button-home-master-theme"

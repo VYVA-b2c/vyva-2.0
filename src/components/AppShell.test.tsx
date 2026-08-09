@@ -283,9 +283,10 @@ describe("app shell voice dock", () => {
     renderShell("/");
 
     const dock = screen.getByTestId("voice-session-dock");
-    expect(dock).toHaveAttribute("data-variant", "home-compact");
-    expect(dock).toHaveTextContent("Listening");
-    expect(dock).toHaveTextContent("Hello Karim");
+    expect(dock).toHaveAttribute("data-variant", "home-stop");
+    expect(dock).toHaveTextContent("Voice on");
+    expect(dock).not.toHaveTextContent("Listening");
+    expect(dock).not.toHaveTextContent("Hello Karim");
     expect(screen.queryByTestId("button-open-voice-overlay")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-dock-toggle-mic")).not.toBeInTheDocument();
 
