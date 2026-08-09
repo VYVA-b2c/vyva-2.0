@@ -906,6 +906,88 @@ replaceFlow(canonicalFlows, "health.preventive_check", {
   },
   metadata: { intendedFirstImplementation: true, healthSupervisorRequired: false },
 });
+replaceFlow(canonicalFlows, "wellbeing.support", {
+  status: "pilot",
+  displayName: "Mental Wellbeing Support",
+  description:
+    "Stage 10B user-initiated ordinary Mental Wellbeing support flow. The flow adapts existing companion/social support semantics and does not diagnose, prescribe, write memory, trigger caregivers, schedule proactive outreach, or execute tools.",
+  supportedTriggers: ["user"],
+  supportedChannels: ["voice", "pwa", "touch", "text"],
+  expectedInputKinds: ["free_text", "option"],
+  requiredTools: [],
+  optionalTools: [],
+  deterministicSafetyChecks: ["safety_check.emergency_general"],
+  memoryPolicy: {
+    allowedReadCategories: [],
+    proposedWriteCategories: [],
+    prohibitedCategories: [
+      "hidden_reasoning",
+      "caregiver_private_data",
+      "mental_health",
+      "safety_emergency",
+    ],
+    permittedTargets: ["working_memory"],
+    writeConfirmation: "always",
+    retentionClassification: "none",
+  },
+  uiScenes: [{
+    sceneId: "wellbeing.support.main",
+    purpose:
+      "Primary non-clinical wellbeing-support scene for acknowledgement, safe fallback, and optional reflection prompts.",
+    supportedInstructionTypes: ["show_summary", "show_text_prompt", "clear_scene"],
+  }],
+  outcomes: [{
+    outcomeId: "wellbeing.support.support_ready",
+    category: "completed",
+    description:
+      "A supported ordinary wellbeing-support request was mapped to existing companion/social semantics and canonical presentation instructions.",
+    terminal: true,
+    allowedNextFlowIds: [],
+    escalationRequirement: "none",
+    followUpEligible: false,
+    memorySummaryPolicy: "none",
+  }, {
+    outcomeId: "wellbeing.support.fallback_to_legacy",
+    category: "blocked",
+    description:
+      "The request is unsupported, clinical, safety-sensitive, or outside the migrated Mental Wellbeing slice and should preserve legacy fallback or safety preemption.",
+    terminal: true,
+    allowedNextFlowIds: [],
+    escalationRequirement: "none",
+    followUpEligible: false,
+    memorySummaryPolicy: "none",
+  }],
+  followUpPolicy: {
+    mode: "none",
+    allowedChannels: [],
+    fallbackAllowed: false,
+    consentRequired: false,
+    noResponsePolicy: "record_only",
+  },
+  interruptionPolicy: {
+    mayInterrupt: false,
+    mayBeInterrupted: true,
+    preemptionScope: "none",
+  },
+  resumptionPolicy: {
+    mayResume: true,
+    expiresAfterSeconds: 3_600,
+    revalidateOnResume: true,
+    freshSafetyCheckOnResume: true,
+    channelSwitchAllowed: true,
+  },
+  metadata: {
+    task16Stage: "stage_10b_mental_wellbeing_specialist",
+    migrationBoundary: "ordinary_non_clinical_support_only",
+    noPostgresMigrationRequired: true,
+    legacyFallbackAvailable: true,
+    noGlobalRegistryAdded: true,
+    clinicalBoundary: "not_diagnosis_or_treatment",
+    memoryBoundaryUnchanged: true,
+    caregiverBoundaryUnchanged: true,
+    proactiveBoundaryUnchanged: true,
+  },
+});
 replaceFlow(canonicalFlows, "brain_coach.activity_session", {
   status: "pilot",
   displayName: "Brain Coach Activity Session",

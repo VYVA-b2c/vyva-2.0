@@ -34,6 +34,7 @@ import {
   type HealthMemoryPolicyFlagResolution,
 } from "../memory/healthMemoryPolicy.js";
 import { buildBrainCoachSpecialistRouteAugmentation } from "../brainCoach/brainCoachRouterAdapter.js";
+import { buildMentalWellbeingSpecialistRouteAugmentation } from "../mentalWellbeing/mentalWellbeingRouterAdapter.js";
 
 export type RoutingDomain =
   | "safety"
@@ -98,15 +99,44 @@ const SAFETY_PHRASES = [
   "cant breathe",
   "call ambulance",
   "hurt myself",
+  "harm myself",
+  "self harm",
+  "self-harm",
+  "suicide",
+  "suicidal",
+  "kill myself",
+  "end my life",
+  "want to die",
+  "wish i was dead",
   "not responding",
-  "vyva help",
   "i've had a fall",
   "i think i fell",
   "they asked for my bank",
   "someone is trying to trick me",
 ];
 const SAFETY_TOKENS = ["emergency", "unconscious", "ambulance", "scam", "sos"];
-const SAFETY_WORDS_BOUNDARY = /\b(help|fallen|fall)\b/i;
+const SAFETY_WORDS_BOUNDARY = /\b(fallen|fall)\b/i;
+const SAFETY_DISTRESS_HELP = /^\s*(?:help|help me|please help|help please|vyva help|i need help(?:\s+now)?|i really need help(?:\s+now)?)\s*[.!?]*\s*$/i;
+const SAFETY_BREATHING_DISTRESS_PATTERNS = [
+  /\b(?:i|we|he|she|they|someone)\s+(?:can't|cant|cannot|can not)\s+breathe\b/i,
+  /\b(?:i|we|he|she|they|someone)\s+(?:can\s+)?(?:barely|hardly)\s+breathe\b/i,
+  /\b(?:i(?:'m| am)?|we(?:'re| are)?|he(?:'s| is)?|she(?:'s| is)?|they(?:'re| are)?|someone(?: is)?)\s+(?:unable|struggling)\s+to\s+breathe\b/i,
+];
+const SAFETY_OVERDOSE_PATTERNS = [
+  /\bi\s+(?:think\s+i\s+)?overdosed\b/i,
+  /\bi(?:'ve| have)\s+overdosed\b/i,
+  /\bi\s+(?:may|might)\s+have\s+overdosed\b/i,
+  /\bi\s+(?:think\s+i\s+)?took\s+an\s+overdose\b/i,
+];
+const SAFETY_DANGER_PATTERNS = [
+  /\b(?:i(?:'m| am)?|we(?:'re| are)?|someone(?: is)?|they(?:'re| are)?|he(?:'s| is)?|she(?:'s| is)?)\s+in\s+(?:immediate\s+)?danger\b/i,
+];
+const SAFETY_DEATH_INTENT_PATTERNS = [
+  /\bi(?:'m| am)\s+(?:depressed|sad|down|low|upset|scared|worried|anxious|overwhelmed)\s+and\s+thinking\s+(?:about|of)\s+dying\b/i,
+  /\bi(?:'ve| have)\s+been\s+thinking\s+(?:about|of)\s+dying\b/i,
+  /\bi\s+keep\s+thinking\s+(?:about|of)\s+dying\b/i,
+  /\bi(?:'m| am)\s+thinking\s+(?:about|of)\s+dying\b/i,
+];
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -117,10 +147,14 @@ function isSafetyUtterance(utterance: string): boolean {
   for (const p of SAFETY_PHRASES) {
     if (t.includes(p)) return true;
   }
+  if (SAFETY_BREATHING_DISTRESS_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_OVERDOSE_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_DANGER_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_DEATH_INTENT_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
   for (const w of SAFETY_TOKENS) {
     if (new RegExp(`\\b${escapeRegExp(w)}\\b`, "i").test(utterance)) return true;
   }
-  return SAFETY_WORDS_BOUNDARY.test(utterance);
+  return SAFETY_DISTRESS_HELP.test(utterance) || SAFETY_WORDS_BOUNDARY.test(utterance);
 }
 
 const MEDS_KEYWORDS = [
@@ -811,6 +845,17 @@ export async function routerHandler(req: Request, res: Response) {
     env: process.env,
     currentRoute: appEntrypoint,
   });
+  const mentalWellbeingSpecialist = buildMentalWellbeingSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
 
   const system_prompt_override = [
     buildAgentOperatingRules(domain),
@@ -825,6 +870,7 @@ export async function routerHandler(req: Request, res: Response) {
     "",
     `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain)}`,
     brainCoachSpecialist ? ["", brainCoachSpecialist.promptBlock].join("\n") : "",
+    mentalWellbeingSpecialist ? ["", mentalWellbeingSpecialist.promptBlock].join("\n") : "",
   ].join("\n");
 
   const lastAgentBefore = sessionRow?.current_agent ?? null;
@@ -889,6 +935,7 @@ export async function routerHandler(req: Request, res: Response) {
         : { conversation_id: session_id }),
       ...(feedbackToken ? { voice_recommendation_feedback_token: feedbackToken } : {}),
       ...(brainCoachSpecialist ? brainCoachSpecialist.dynamicVariables : {}),
+      ...(mentalWellbeingSpecialist ? mentalWellbeingSpecialist.dynamicVariables : {}),
     },
     session_data: {
       domain,
@@ -898,6 +945,9 @@ export async function routerHandler(req: Request, res: Response) {
       last_agent: lastAgentBefore,
       ...(brainCoachSpecialist
         ? { brain_coach_specialist: brainCoachSpecialist.sessionData }
+        : {}),
+      ...(mentalWellbeingSpecialist
+        ? { mental_wellbeing_specialist: mentalWellbeingSpecialist.sessionData }
         : {}),
     },
   });

@@ -248,6 +248,10 @@ describe("Task 6 real router parity", () => {
     vi.setSystemTime(FIXED_NOW);
     process.env.ELEVENLABS_SAFETY_AGENT_ID = "agent-safety-review";
     process.env.ELEVENLABS_HEALTH_AGENT_ID = "agent-health-review";
+    process.env.ELEVENLABS_MEDS_AGENT_ID = "agent-meds-review";
+    process.env.ELEVENLABS_CONCIERGE_AGENT_ID = "agent-concierge-review";
+    process.env.ELEVENLABS_BRAIN_COACH_AGENT_ID = "agent-brain-coach-review";
+    process.env.ELEVENLABS_COMPANION_AGENT_ID = "agent-companion-review";
 
     dependencies.dbSelect.mockImplementation(
       (selectedFields: unknown) => queryResult(selectedFields),
@@ -305,6 +309,12 @@ describe("Task 6 real router parity", () => {
     vi.useRealTimers();
     delete process.env.ELEVENLABS_SAFETY_AGENT_ID;
     delete process.env.ELEVENLABS_HEALTH_AGENT_ID;
+    delete process.env.ELEVENLABS_MEDS_AGENT_ID;
+    delete process.env.ELEVENLABS_CONCIERGE_AGENT_ID;
+    delete process.env.ELEVENLABS_BRAIN_COACH_AGENT_ID;
+    delete process.env.ELEVENLABS_COMPANION_AGENT_ID;
+    delete process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE;
+    delete process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS;
     vi.clearAllMocks();
   });
 
@@ -338,6 +348,296 @@ describe("Task 6 real router parity", () => {
       memorySchedule: 1,
       medicalToken: 0,
       feedbackToken: 1,
+    });
+  });
+
+  it("preempts Mental Wellbeing for explicit self-harm or suicide language", async () => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-safety-review",
+      session_id: "session-mental-wellbeing-safety-review",
+      utterance: "I want to die and I might kill myself",
+      conversation_history: [{ role: "user", content: "I feel very low" }],
+    };
+
+    const direct = await execute(directApp(), fixture);
+    resetSpies();
+    const shellLegacyHandler = vi.fn(routerHandler);
+    const throughShell = await execute(shellApp(shellLegacyHandler), fixture);
+
+    expect(throughShell).toEqual(direct);
+    expect(shellLegacyHandler).toHaveBeenCalledTimes(1);
+    expect(throughShell.body.agent_id).toBe("agent-safety-review");
+    expect(throughShell.body.session_data.domain).toBe("safety");
+    expect(throughShell.body.session_data.mental_wellbeing_specialist)
+      .toBeUndefined();
+    expect(throughShell.body.system_prompt_override).toContain(
+      "potential safety or crisis situation",
+    );
+  });
+
+  it.each([
+    "help",
+    "help me",
+    "please help",
+    "help please",
+    "I need help",
+    "I need help now",
+    "I really need help",
+    "Vyva help",
+  ])("routes bounded distress-help through safety before Mental Wellbeing: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-help-safety-review",
+      session_id: "session-mental-wellbeing-help-safety-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "I'm here with you." }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-safety-review");
+    expect(direct.body.session_data.domain).toBe("safety");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("mental_wellbeing");
+  });
+
+  it.each([
+    ["help me book a ride", "companion", "agent-companion-review", null],
+    ["can you help me with my medication schedule", "meds", "agent-meds-review", null],
+    ["help me find a Brain Coach activity", "brain_coach", "agent-brain-coach-review", null],
+    ["can you help me relax", "companion", "agent-companion-review", "grounding_or_breathing"],
+    ["can you help me with a breathing exercise", "companion", "agent-companion-review", "grounding_or_breathing"],
+  ] as const)("does not treat ordinary help requests as generic safety: %s", async (
+    utterance,
+    expectedDomain,
+    expectedAgent,
+    expectedMentalWellbeingIntent,
+  ) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-help-ordinary-review",
+      session_id: "session-mental-wellbeing-help-ordinary-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "What would you like to do?" }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe(expectedAgent);
+    expect(direct.body.session_data.domain).toBe(expectedDomain);
+    if (expectedMentalWellbeingIntent) {
+      expect(direct.body.session_data.mental_wellbeing_specialist).toMatchObject({
+        outcome: "support_ready",
+        support_intent: expectedMentalWellbeingIntent,
+      });
+    } else {
+      expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+    }
+  });
+
+  it.each([
+    "I overdosed.",
+    "I've overdosed.",
+    "I have overdosed.",
+    "I think I overdosed.",
+    "I took an overdose.",
+    "I think I took an overdose.",
+    "I may have overdosed.",
+  ])("routes first-person current overdose language through safety: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-overdose-safety-review",
+      session_id: "session-mental-wellbeing-overdose-safety-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "Tell me what happened." }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-safety-review");
+    expect(direct.body.session_data.domain).toBe("safety");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it.each([
+    "I'm in danger.",
+    "I am in immediate danger.",
+  ])("routes first-person current danger language through safety: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-danger-safety-review",
+      session_id: "session-mental-wellbeing-danger-safety-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "I'm listening." }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-safety-review");
+    expect(direct.body.session_data.domain).toBe("safety");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it.each([
+    "Tell me about danger signs.",
+    "I watched a movie called Danger.",
+  ])("does not route benign danger references to safety: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-danger-reference-review",
+      session_id: "session-mental-wellbeing-danger-reference-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "What are you curious about?" }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-companion-review");
+    expect(direct.body.session_data.domain).toBe("companion");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it.each([
+    "I cannot breathe.",
+    "I can barely breathe.",
+    "I can't breathe.",
+    "I cant breathe.",
+    "I am unable to breathe.",
+    "I'm unable to breathe.",
+    "I can hardly breathe.",
+    "I am struggling to breathe.",
+    "I'm struggling to breathe.",
+  ])("routes emergency-style breathing through safety before Mental Wellbeing: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-breathing-review",
+      session_id: "session-mental-wellbeing-breathing-review",
+      utterance,
+      conversation_history: [{ role: "user", content: "I feel anxious" }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-safety-review");
+    expect(direct.body.session_data.domain).toBe("safety");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("mental_wellbeing");
+  });
+
+  it.each([
+    "I'm depressed and thinking about dying.",
+    "I've been thinking about dying.",
+    "I keep thinking of dying.",
+  ])("keeps direct death-intent wording on the existing safety route: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-dying-review",
+      session_id: "session-mental-wellbeing-dying-review",
+      utterance,
+      conversation_history: [{ role: "user", content: "I feel very low" }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-safety-review");
+    expect(direct.body.session_data.domain).toBe("safety");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it.each([
+    "I'm reading a book about a character thinking about dying.",
+    "We were discussing a movie about dying.",
+  ])("does not route third-person or reference death wording to safety: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-dying-reference-review",
+      session_id: "session-mental-wellbeing-dying-reference-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "Tell me more." }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-companion-review");
+    expect(direct.body.session_data.domain).toBe("companion");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it.each([
+    "Can you help me with a breathing exercise?",
+    "Teach me a breathing exercise.",
+    "I want to calm down and breathe.",
+    "Can we do a grounding exercise?",
+    "I feel stressed and want to practice breathing.",
+  ])("does not route voluntary calming and breathing requests to safety: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-ordinary-breathing-review",
+      session_id: "session-mental-wellbeing-ordinary-breathing-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "I'm here with you." }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-companion-review");
+    expect(direct.body.session_data.domain).toBe("companion");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toMatchObject({
+      outcome: "support_ready",
+      support_intent: "grounding_or_breathing",
+    });
+  });
+
+  it.each([
+    ["I'm anxious about my medication.", "meds", "agent-meds-review"],
+    ["I feel low after taking my medicine.", "meds", "agent-meds-review"],
+    ["I'm stressed because I need a ride to my doctor.", "health", "agent-health-review"],
+    ["Can you help me book transportation?", "companion", "agent-companion-review"],
+    ["Can you help me find a Brain Coach activity?", "brain_coach", "agent-brain-coach-review"],
+    ["Help me breathe, I have crushing chest pain.", "safety", "agent-safety-review"],
+  ] as const)("preserves existing cross-domain routing for %s", async (utterance, expectedDomain, expectedAgent) => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-cross-domain-review",
+      session_id: "session-mental-wellbeing-cross-domain-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "How can I help?" }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe(expectedAgent);
+    expect(direct.body.session_data.domain).toBe(expectedDomain);
+    expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it("preserves ordinary Mental Wellbeing support for companion/social support requests", async () => {
+    const fixture: RouterFixture = {
+      user_id: "user-mental-wellbeing-social-support-review",
+      session_id: "session-mental-wellbeing-social-support-review",
+      utterance: "I feel stressed and want someone to talk to.",
+      conversation_history: [{ role: "assistant", content: "I'm here with you." }],
+    };
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-companion-review");
+    expect(direct.body.session_data.domain).toBe("companion");
+    expect(direct.body.session_data.mental_wellbeing_specialist).toMatchObject({
+      outcome: "support_ready",
+      support_intent: "loneliness_support",
     });
   });
 
