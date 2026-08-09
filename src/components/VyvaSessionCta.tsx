@@ -202,8 +202,10 @@ export function VyvaSessionCta({
   const voiceStartOptions = useVoiceStartOptions(voiceAgentSlug, voiceDynamicVariables, autoStartListening);
 
   const isActive = status === "connected";
+  const isVoiceRail = visual === "voiceRail";
+  const isVoiceOrb = visual === "voiceOrb";
   const hasConnectionError = Boolean(lastError && !isActive && !isConnecting);
-  const showOverlay = focusedOverlayRequested && (isActive || isConnecting || (hasConnectionError && focusedOverlayHasStarted));
+  const showOverlay = !isVoiceOrb && focusedOverlayRequested && (isActive || isConnecting || (hasConnectionError && focusedOverlayHasStarted));
   const isButtonDisabled = Boolean(disabled || isPreparing);
   const shouldHideButton = hideWhenSessionActive && (isActive || isConnecting);
 
@@ -249,6 +251,7 @@ export function VyvaSessionCta({
     if (isButtonDisabled) return;
 
     if (isActive || isConnecting) {
+      if (isVoiceOrb) return;
       openFocusedOverlay();
       return;
     }
@@ -297,8 +300,6 @@ export function VyvaSessionCta({
   });
 
   const Icon = isPreparing ? Loader2 : isActive || isConnecting ? MessageCircle : Mic;
-  const isVoiceRail = visual === "voiceRail";
-  const isVoiceOrb = visual === "voiceOrb";
   const railSupportingLabel = isPreparing
     ? preparingLabel ?? "Checking voice"
     : isConnecting

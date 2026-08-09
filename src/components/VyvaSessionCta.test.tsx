@@ -175,6 +175,11 @@ describe("VyvaSessionCta", () => {
     expect(screen.getByTestId("button-session")).toHaveAccessibleName("Speaking");
     expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "speaking");
     expect(screen.getByTestId("home-dormant-zamora-orb-visual-canvas")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-session"));
+
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+    expect(voiceState.startVoice).not.toHaveBeenCalled();
   });
 
   it("remembers the first successful orb activation", () => {
@@ -194,6 +199,7 @@ describe("VyvaSessionCta", () => {
     expect(window.localStorage.getItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY)).toBe("true");
     expect(onFirstVoiceOrbActivation).toHaveBeenCalledTimes(1);
     expect(voiceState.startVoice).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
   });
 
   it("does not repeat first-use guidance after it has been remembered", () => {

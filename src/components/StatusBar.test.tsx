@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StatusBar from "./StatusBar";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { READABLE_TEXT_SIZE_STORAGE_KEY } from "@/hooks/useReadableTextSize";
@@ -33,6 +33,10 @@ describe("StatusBar home master variant", () => {
   beforeEach(() => {
     navigateMock.mockClear();
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("keeps the header minimal and opens display controls from the gear", () => {
@@ -108,5 +112,34 @@ describe("StatusBar home master variant", () => {
     }));
 
     window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
+  });
+
+  it("leaves a compact reveal control after the home utility dock fades", () => {
+    vi.useFakeTimers();
+
+    render(<StatusBar variant="homeMaster" autoHideHomeControls />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_EVENT, {
+        detail: {
+          mode: "voice",
+          visible: false,
+          label: "Switch to touch",
+          testId: "button-home-mode-touch",
+        },
+      }));
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(4300);
+    });
+
+    const revealButton = screen.getByTestId("button-home-controls-reveal");
+    expect(revealButton).toHaveAccessibleName("Show controls");
+
+    fireEvent.click(revealButton);
+
+    expect(screen.queryByTestId("button-home-controls-reveal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
   });
 });
