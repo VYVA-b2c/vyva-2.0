@@ -60,6 +60,7 @@ describe("StatusBar home master variant", () => {
     fireEvent.click(screen.getByTestId("button-home-master-theme"));
 
     expect(window.localStorage.getItem(HOME_MASTER_THEME_STORAGE_KEY)).toBe("dark");
+    expect(screen.queryByTestId("home-master-utility-menu")).not.toBeInTheDocument();
   });
 
   it("defaults to large text and remembers an explicit normal choice", () => {
@@ -72,7 +73,10 @@ describe("StatusBar home master variant", () => {
     fireEvent.click(textSizeButton);
 
     expect(window.localStorage.getItem(READABLE_TEXT_SIZE_STORAGE_KEY)).toBe("normal");
-    expect(textSizeButton).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("home-master-utility-menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-my-profile"));
+    expect(screen.getByTestId("button-readable-text-size")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("keeps the home mode control inside the utility dock", () => {
@@ -106,10 +110,11 @@ describe("StatusBar home master variant", () => {
     expect(menu).toContainElement(screen.getByTestId("button-home-master-theme"));
     expect(menu).toContainElement(screen.getByTestId("button-home-mode-menu"));
 
-    fireEvent.click(modeButton);
+    fireEvent.click(screen.getByTestId("button-home-mode-menu"));
     expect(actionHandler).toHaveBeenCalledWith(expect.objectContaining({
       detail: { mode: "touch" },
     }));
+    expect(screen.queryByTestId("home-master-utility-menu")).not.toBeInTheDocument();
 
     window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
   });

@@ -94,6 +94,13 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       }
       homeSettingsHideTimerRef.current = window.setTimeout(() => setHomeSettingsMenuOpen(false), 4200);
     };
+    const closeHomeSettingsMenu = () => {
+      if (homeSettingsHideTimerRef.current) {
+        window.clearTimeout(homeSettingsHideTimerRef.current);
+        homeSettingsHideTimerRef.current = null;
+      }
+      setHomeSettingsMenuOpen(false);
+    };
     const revealHomeControls = () => {
       setHomeControlsVisible(true);
       if (!shouldAutoHideHomeControls) return;
@@ -107,6 +114,10 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       setHomeSettingsMenuOpen((open) => {
         const nextOpen = !open;
         if (nextOpen) scheduleHomeSettingsClose();
+        if (!nextOpen && homeSettingsHideTimerRef.current) {
+          window.clearTimeout(homeSettingsHideTimerRef.current);
+          homeSettingsHideTimerRef.current = null;
+        }
         return nextOpen;
       });
     };
@@ -116,6 +127,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
     const homeControlsRevealLabel = t("home.master.header.showControls", "Show controls");
     const handleHomeModeControlClick = () => {
       revealHomeControls();
+      closeHomeSettingsMenu();
       window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
         detail: { mode: modeControlNextMode },
       }));
@@ -213,7 +225,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                   type="button"
                   onClick={() => {
                     revealHomeControls();
-                    scheduleHomeSettingsClose();
+                    closeHomeSettingsMenu();
                     toggleReadableTextSize();
                   }}
                   className={homeMenuButtonClass}
@@ -228,7 +240,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                   type="button"
                   onClick={() => {
                     revealHomeControls();
-                    scheduleHomeSettingsClose();
+                    closeHomeSettingsMenu();
                     toggleTheme();
                   }}
                   className={homeMenuButtonClass}
