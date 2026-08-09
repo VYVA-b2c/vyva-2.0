@@ -259,7 +259,7 @@ describe("app shell voice dock", () => {
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
-    renderShell();
+    renderShell("/health");
 
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
@@ -277,6 +277,22 @@ describe("app shell voice dock", () => {
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
+  });
+
+  it("keeps Home voice sessions compact with stop-only controls", () => {
+    renderShell("/");
+
+    const dock = screen.getByTestId("voice-session-dock");
+    expect(dock).toHaveAttribute("data-variant", "home-compact");
+    expect(dock).toHaveTextContent("Listening");
+    expect(dock).toHaveTextContent("Hello Karim");
+    expect(screen.queryByTestId("button-open-voice-overlay")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-dock-toggle-mic")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-dock-end-call"));
+
+    expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
   });
 
   it("opens a new Canvas scene and keeps the underlying page available after minimize", async () => {
@@ -307,7 +323,7 @@ describe("app shell voice dock", () => {
     voiceState.voiceSessionPhase = "speaking";
     voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
 
-    renderShell();
+    renderShell("/health");
 
     const dock = screen.getByTestId("voice-session-dock");
     expect(dock).toHaveTextContent("Speaking");
