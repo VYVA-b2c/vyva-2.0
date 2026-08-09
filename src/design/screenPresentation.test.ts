@@ -22,6 +22,23 @@ describe("screen presentation", () => {
     });
   });
 
+  it("makes Home touch mode the card surface without loose heading detail", () => {
+    const presentation = getScreenPresentation({ screenId: "home", mode: "touch" });
+
+    expect(presentation.primarySurface).toBe("cards");
+    expect(presentation.cards).toBe("visible");
+    expect(presentation.chips).toBe("hidden");
+    expect(presentation.showHeadingDetail).toBe(false);
+    expect(presentation.dataAttributes).toMatchObject({
+      "data-screen-contract": "home",
+      "data-screen-mode": "touch",
+      "data-primary-surface": "cards",
+      "data-cards": "visible",
+      "data-chips": "hidden",
+      "data-heading-detail": "hidden",
+    });
+  });
+
   it("hides heading detail when a screen has cards or structured output", () => {
     expect(shouldShowHeadingDetail("cards", "visible")).toBe(false);
     expect(shouldShowHeadingDetail("dashboard", "visible")).toBe(false);

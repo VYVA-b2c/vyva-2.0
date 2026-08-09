@@ -13,6 +13,7 @@ import CrossPillarSubflowCanvas, {
   isCrossPillarCompletionAction,
   type CrossPillarSubflowResult,
 } from "@/components/voice-canvas/CrossPillarSubflowCanvas";
+import { useScreenPresentation } from "@/design/screenPresentation";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
@@ -778,6 +779,12 @@ const HomeScreen = () => {
       return "voice";
     }
   });
+  const homePresentation = useScreenPresentation({
+    screenId: "home",
+    mode: homeInteractionMode,
+  });
+  const showHomeMasterHero = homePresentation.primarySurface === "orb";
+  const showHomeMasterCards = homePresentation.cards === "visible";
   const [homeModeSwitcherVisible, setHomeModeSwitcherVisible] = useState(true);
   const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
     () => !hasSeenVoiceOrbHint(),
@@ -852,8 +859,8 @@ const HomeScreen = () => {
   }, []);
 
   useEffect(() => {
-    setHomeModeSwitcherVisible(true);
     if (import.meta.env.MODE === "test") return;
+    setHomeModeSwitcherVisible(true);
     const timer = window.setTimeout(() => setHomeModeSwitcherVisible(false), 4800);
     return () => window.clearTimeout(timer);
   }, [homeInteractionMode, homeIntentLayer]);
@@ -2876,9 +2883,10 @@ const HomeScreen = () => {
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
       intentLayer={homeIntentLayer !== "home"}
-      showHero={homeInteractionMode === "voice"}
-      showCards={homeInteractionMode === "touch"}
-      modeSwitcher={homeInteractionMode === "touch" ? (
+      presentationAttributes={homePresentation.dataAttributes}
+      showHero={showHomeMasterHero}
+      showCards={showHomeMasterCards}
+      modeSwitcher={showHomeMasterCards ? (
         <div className="mb-7 mt-1 px-3 text-center min-[390px]:mb-8 sm:mb-10">
           <h1
             data-testid="home-touch-heading"
@@ -2889,7 +2897,7 @@ const HomeScreen = () => {
           >
             {activeIntentTitle}
           </h1>
-          {homeMasterHeroSubtitle ? (
+          {homePresentation.showHeadingDetail && homeMasterHeroSubtitle ? (
             <p
               data-testid="home-touch-subheading"
               className={[
