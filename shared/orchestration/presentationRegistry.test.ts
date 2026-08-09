@@ -63,7 +63,32 @@ const mutatePresentation = (
 describe("Presentation identity and versioning", () => {
   it("accepts the canonical Presentation Registry", () => {
     expect(parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY).presentations)
-      .toHaveLength(55);
+      .toHaveLength(58);
+  });
+  it("registers Mental Wellbeing support presentations through existing families", () => {
+    const registry = parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY);
+    const presentations = new Map(
+      registry.presentations.map((presentation) => [presentation.presentationId, presentation]),
+    );
+
+    expect(presentations.get("presentation.wellbeing.support.summary")).toMatchObject({
+      familyId: "presentation.family.summary",
+      supportedFlowIds: ["wellbeing.support"],
+      sceneId: "wellbeing.support.main",
+      supportedUIInstructionTypes: ["show_summary"],
+    });
+    expect(presentations.get("presentation.wellbeing.support.checkin")).toMatchObject({
+      familyId: "presentation.family.input.free_text",
+      supportedFlowIds: ["wellbeing.support"],
+      sceneId: "wellbeing.support.main",
+      supportedUIInstructionTypes: ["show_text_prompt"],
+    });
+    expect(presentations.get("presentation.wellbeing.support.safe_fallback")).toMatchObject({
+      familyId: "presentation.family.error.safe_fallback",
+      supportedFlowIds: ["wellbeing.support"],
+      sceneId: "wellbeing.support.main",
+      supportedUIInstructionTypes: ["show_summary", "show_choice_question"],
+    });
   });
   it("accepts stable namespaced Presentation IDs", () => {
     expect(preventiveIntroductionPresentationFixture.presentationId)
@@ -130,7 +155,7 @@ describe("Presentation identity and versioning", () => {
       registry.presentations[1].presentationId;
     registry.presentations[0].compatibility.replacementVersion =
       registry.presentations[1].version;
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(55);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(58);
   });
   it("rejects an unresolved deprecated replacement", () => {
     const registry = clone(VYVA_PRESENTATION_REGISTRY);
@@ -906,7 +931,7 @@ describe("bounded metadata and implementation isolation", () => {
     registry.presentations[0].metadata = {
       futurePolicy: { enabled: true, labels: ["one"], note: null },
     };
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(55);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(58);
   });
   it.each(["apiKey", "providerClient", "callback"])(
     "rejects reserved metadata key %s",
@@ -960,7 +985,7 @@ describe("bounded metadata and implementation isolation", () => {
   });
   it("accepts future Family and Presentation fixtures", () => {
     expect(parsePresentationRegistry(futurePresentationRegistryFixture).presentations)
-      .toHaveLength(56);
+      .toHaveLength(59);
   });
 });
 

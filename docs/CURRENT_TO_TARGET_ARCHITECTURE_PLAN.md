@@ -1548,6 +1548,21 @@ scene is published.
 - **PostgreSQL:** no migration required; Task 15 introduces no durable Brain Coach state.
 - **Documentation:** see `docs/BRAIN_COACH_SPECIALIST_MIGRATION.md`.
 
+#### Task 16 / Stage 10B — Mental Wellbeing Specialist
+
+- **Scope:** second Stage 10 specialist slice only: ordinary, user-initiated Mental Wellbeing support currently handled by the legacy `companion` route and companion/social support semantics.
+- **Specialist:** `mental_wellbeing`, version `1.0.0`.
+- **Flow:** `wellbeing.support`, version `1.0.0`, pilot-only, non-clinical and no-tool.
+- **Reuse:** existing `/api/router` legacy companion route, current companion/social support semantics, existing deterministic safety preemption, frozen Specialist contract, existing Flow Catalogue and existing shared Presentation Registry.
+- **Presentation:** reuses canonical shared families `presentation.family.summary`, `presentation.family.input.free_text` and `presentation.family.error.safe_fallback` through `presentation.wellbeing.support.summary`, `presentation.wellbeing.support.checkin` and `presentation.wellbeing.support.safe_fallback`.
+- **Flag:** `VYVA_MENTAL_WELLBEING_SPECIALIST_MODE`; default, disabled, malformed, whitespace-polluted, production-unapproved or denylisted configuration resolves to legacy-only. `specialist_preview` selects the Specialist path only for allowlisted/rolled-out server-side user identity.
+- **Boundary:** the Specialist emits structured non-clinical wellbeing support guidance and canonical `uiInstructions` only. It does not execute tools, diagnose, prescribe treatment, write memory, start proactive engagement, mutate schedules, change caregiver permissions, call providers or create a new source of truth.
+- **Global registry decision:** no new global Specialist registry in Task 16. Mental Wellbeing follows the existing frozen Specialist/Flow/Presentation contracts. A broader registry remains deferred until repeated Stage 10 shapes prove extraction value.
+- **Safety:** explicit self-harm, direct death-intent wording and emergency-style breathing distress are preempted through the existing deterministic safety route before Mental Wellbeing augmentation. Ordinary voluntary calming or breathing-exercise support remains non-emergency when the legacy companion semantics support it. Mental Wellbeing cannot downgrade or replace Safety output.
+- **Rollback:** flag off preserves the exact legacy companion route and ElevenLabs response path.
+- **PostgreSQL:** no migration required; Task 16 introduces no durable Mental Wellbeing state.
+- **Documentation:** see `docs/MENTAL_WELLBEING_SPECIALIST_MIGRATION.md`.
+
 ### Stage 11 — Durable scheduling and legacy cleanup
 
 - **Objective:** leases/queue/outbox, multi-instance safety, then remove proven legacy duplication.

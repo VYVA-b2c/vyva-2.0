@@ -103,6 +103,33 @@ describe("catalogue identity and versioning", () => {
     expect(parseFlowCatalogue(VYVA_FLOW_CATALOGUE).flows)
       .toHaveLength(requiredFlowIds.length);
   });
+  it("keeps Mental Wellbeing support as a pilot non-clinical no-tool flow", () => {
+    const flow = parseFlowCatalogue(VYVA_FLOW_CATALOGUE).flows.find(
+      (item) => item.flowId === "wellbeing.support",
+    );
+
+    expect(flow).toMatchObject({
+      ownerSpecialistId: "mental_wellbeing",
+      status: "pilot",
+      supportedTriggers: ["user"],
+      requiredTools: [],
+      optionalTools: [],
+      deterministicSafetyChecks: ["safety_check.emergency_general"],
+    });
+    expect(flow?.uiScenes).toEqual([{
+      sceneId: "wellbeing.support.main",
+      purpose:
+        "Primary non-clinical wellbeing-support scene for acknowledgement, safe fallback, and optional reflection prompts.",
+      supportedInstructionTypes: ["show_summary", "show_text_prompt", "clear_scene"],
+    }]);
+    expect(flow?.memoryPolicy.proposedWriteCategories).toEqual([]);
+    expect(flow?.metadata).toMatchObject({
+      task16Stage: "stage_10b_mental_wellbeing_specialist",
+      noPostgresMigrationRequired: true,
+      noGlobalRegistryAdded: true,
+      clinicalBoundary: "not_diagnosis_or_treatment",
+    });
+  });
   it("accepts stable lowercase namespaced Flow IDs", () => {
     expect(futureFlowFixture.flowId).toBe("future.example_assessment");
   });
