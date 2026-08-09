@@ -1665,10 +1665,10 @@ describe("MarketingAdminPage", () => {
       "Sync API build: marketing-sync-status-2026-07-12-no-cache",
     );
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent(
-      "Email is enabled through VYVA",
+      "Publishing channels",
     );
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent(
-      "Enabled",
+      "Ready to send",
     );
     expect(
       screen.getByTestId("marketing-email-scheduler-status"),

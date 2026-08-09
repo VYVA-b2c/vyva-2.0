@@ -2367,6 +2367,46 @@ function channelSendCapabilities() {
   }));
 }
 
+function hasMarketingEnvValue(name: string) {
+  return Boolean(process.env[name]?.trim());
+}
+
+function socialPublishingStatus() {
+  return {
+    manualPublishingEnabled: true,
+    directPublishingEnabled: false,
+    providers: [
+      {
+        id: "meta",
+        name: "Meta",
+        channels: ["facebook", "instagram"],
+        manualPublishingEnabled: true,
+        directPublishingEnabled: false,
+        connectionReady:
+          hasMarketingEnvValue("META_MARKETING_ACCESS_TOKEN") ||
+          hasMarketingEnvValue("FACEBOOK_MARKETING_ACCESS_TOKEN") ||
+          hasMarketingEnvValue("INSTAGRAM_MARKETING_ACCESS_TOKEN"),
+      },
+      {
+        id: "linkedin",
+        name: "LinkedIn",
+        channels: ["linkedin"],
+        manualPublishingEnabled: true,
+        directPublishingEnabled: false,
+        connectionReady: hasMarketingEnvValue("LINKEDIN_MARKETING_ACCESS_TOKEN"),
+      },
+      {
+        id: "tiktok",
+        name: "TikTok",
+        channels: ["tiktok"],
+        manualPublishingEnabled: true,
+        directPublishingEnabled: false,
+        connectionReady: hasMarketingEnvValue("TIKTOK_MARKETING_ACCESS_TOKEN"),
+      },
+    ],
+  };
+}
+
 function sendCapabilityForChannel(channel: string) {
   if (channel === "email") return "enabled";
   if (channel === "whatsapp") return "future_send_capable";
@@ -2489,6 +2529,7 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
         contacts: contactRows.filter((row) => audienceMatchesTarget(row.audience_type, audienceType)).length,
       })),
       lockedSendCapabilities: channelSendCapabilities(),
+      socialPublishing: socialPublishingStatus(),
       emailScheduler: marketingEmailSchedulerStatus(),
       latestSyncRun: latestRuns[0] ? serializeSyncRun(latestRuns[0]) : null,
     });
@@ -3823,6 +3864,7 @@ adminMarketingRouter.get("/sync/source", async (req, res) => {
     mode: "one_way_into_vyva",
     realSendingLocked: false,
     lockedSendCapabilities: channelSendCapabilities(),
+    socialPublishing: socialPublishingStatus(),
     emailScheduler: marketingEmailSchedulerStatus(),
     diagnostics: lovableMarketingSyncDiagnostics(apiUrl, apiKey),
     runs: runs.map(serializeSyncRun),

@@ -148,6 +148,7 @@ type MarketingSummary = {
     campaigns: number;
     contacts: number;
   }>;
+  socialPublishing?: SocialPublishingStatus;
   lockedSendCapabilities: SendCapability[];
   emailScheduler?: EmailSchedulerStatus;
   latestSyncRun: SyncRun | null;
@@ -169,6 +170,21 @@ type SendCapability = {
   sendCapability: string;
   locked: boolean;
   note: string;
+};
+
+type SocialPublishingProvider = {
+  id: string;
+  name: string;
+  channels: Channel[];
+  manualPublishingEnabled: boolean;
+  directPublishingEnabled: boolean;
+  connectionReady: boolean;
+};
+
+type SocialPublishingStatus = {
+  manualPublishingEnabled: boolean;
+  directPublishingEnabled: boolean;
+  providers: SocialPublishingProvider[];
 };
 
 type EmailSchedulerStatus = {
@@ -504,6 +520,7 @@ type SyncState = {
   mode: string;
   realSendingLocked: boolean;
   lockedSendCapabilities: SendCapability[];
+  socialPublishing?: SocialPublishingStatus;
   emailScheduler?: EmailSchedulerStatus;
   diagnostics?: {
     apiUrlSource?: string;
@@ -528,6 +545,7 @@ const normalizeSyncState = (
   lockedSendCapabilities: Array.isArray(state?.lockedSendCapabilities)
     ? state.lockedSendCapabilities
     : emptySync.lockedSendCapabilities,
+  socialPublishing: normalizeSocialPublishingStatus(state?.socialPublishing),
   runs: Array.isArray(state?.runs) ? state.runs : [],
 });
 
@@ -694,6 +712,63 @@ type AudienceEditDraft = AudienceDraft & {
   metadataText: string;
 };
 
+const emptySocialPublishing: SocialPublishingStatus = {
+  manualPublishingEnabled: true,
+  directPublishingEnabled: false,
+  providers: [
+    {
+      id: "meta",
+      name: "Meta",
+      channels: ["facebook", "instagram"],
+      manualPublishingEnabled: true,
+      directPublishingEnabled: false,
+      connectionReady: false,
+    },
+    {
+      id: "linkedin",
+      name: "LinkedIn",
+      channels: ["linkedin"],
+      manualPublishingEnabled: true,
+      directPublishingEnabled: false,
+      connectionReady: false,
+    },
+    {
+      id: "tiktok",
+      name: "TikTok",
+      channels: ["tiktok"],
+      manualPublishingEnabled: true,
+      directPublishingEnabled: false,
+      connectionReady: false,
+    },
+  ],
+};
+
+function normalizeSocialPublishingStatus(
+  value?: SocialPublishingStatus | null,
+): SocialPublishingStatus {
+  const providers =
+    Array.isArray(value?.providers) && value.providers.length
+      ? value.providers.map((provider) => ({
+          id: provider.id,
+          name: provider.name,
+          channels: Array.isArray(provider.channels)
+            ? provider.channels.filter((channel): channel is Channel =>
+                CHANNELS.includes(channel as Channel),
+              )
+            : [],
+          manualPublishingEnabled: Boolean(provider.manualPublishingEnabled),
+          directPublishingEnabled: Boolean(provider.directPublishingEnabled),
+          connectionReady: Boolean(provider.connectionReady),
+        }))
+      : emptySocialPublishing.providers;
+
+  return {
+    manualPublishingEnabled: value?.manualPublishingEnabled ?? true,
+    directPublishingEnabled: value?.directPublishingEnabled ?? false,
+    providers,
+  };
+}
+
 const emptySummary: MarketingSummary = {
   totals: {
     campaigns: 0,
@@ -723,6 +798,7 @@ const emptySummary: MarketingSummary = {
     campaigns: 0,
     contacts: 0,
   })),
+  socialPublishing: emptySocialPublishing,
   lockedSendCapabilities: CHANNELS.map((channel) => ({
     channel,
     sendCapability:
@@ -755,6 +831,7 @@ const emptySync: SyncState = {
   mode: "one_way_into_vyva",
   realSendingLocked: false,
   lockedSendCapabilities: emptySummary.lockedSendCapabilities,
+  socialPublishing: emptySocialPublishing,
   emailScheduler: emptySummary.emailScheduler,
   runs: [],
 };
@@ -6774,6 +6851,9 @@ export default function MarketingAdminPage() {
       actor: "marketing-email-scheduler",
     };
   const syncDiagnostics = syncState.diagnostics;
+  const socialPublishing = normalizeSocialPublishingStatus(
+    syncState.socialPublishing ?? summary.socialPublishing,
+  );
   const tokenAliasPresent = syncDiagnostics?.tokenAliasPresent ?? {};
   const urlAliasPresent = syncDiagnostics?.urlAliasPresent ?? {};
   const yesNo = (value: boolean | undefined) => (value ? "yes" : "no");
@@ -7056,7 +7136,7 @@ export default function MarketingAdminPage() {
                       (item) => !isMissingLovableContentAsset(item),
                     ).length
                   }{" "}
-                  content assets, {visibleContacts.length} of {contacts.length}{" "}
+                  templates, {visibleContacts.length} of {contacts.length}{" "}
                   contacts.
                 </p>
               ) : null}
@@ -7123,7 +7203,8 @@ export default function MarketingAdminPage() {
                             {item.campaigns}
                           </span>
                           <span className="block text-xs font-bold opacity-80">
-                            {item.content} content assets
+                            {item.content} template
+                            {item.content === 1 ? "" : "s"}
                           </span>
                         </button>
                       );
@@ -13202,35 +13283,87 @@ export default function MarketingAdminPage() {
               </SectionCard>
 
               <SectionCard
-                title="Channel send readiness"
-                subtitle="Email is enabled through VYVA. Other channels remain locked for now."
+                title="Publishing channels"
+                subtitle="Email can send now. Social channels are manual planning until provider apps are connected."
               >
                 <div className="grid gap-3">
-                  {syncState.lockedSendCapabilities.map((item) => (
-                    <div
-                      key={item.channel}
-                      className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <Pill className={channelClass(item.channel)}>
-                          {channelLabel[item.channel]}
-                        </Pill>
-                        <Pill
-                          className={
-                            item.locked
-                              ? "bg-amber-50 text-amber-800"
-                              : "bg-emerald-50 text-emerald-800"
-                          }
-                        >
-                          {item.locked ? "Locked" : "Enabled"}
-                        </Pill>
-                      </div>
-                      <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
-                        {item.note}
-                      </p>
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Pill className={channelClass("email")}>Email</Pill>
+                      <Pill className="bg-emerald-100 text-emerald-800">
+                        Ready to send
+                      </Pill>
                     </div>
-                  ))}
+                    <p className="mt-2 text-sm font-semibold text-emerald-900">
+                      Sends through the existing VYVA communications dispatcher
+                      and Resend.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Pill className={channelClass("whatsapp")}>WhatsApp</Pill>
+                      <Pill className="bg-amber-50 text-amber-800">
+                        Planning only
+                      </Pill>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                      Plan WhatsApp routes here. Direct sends still need approved
+                      templates and consent controls.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Pill className="bg-sky-50 text-sky-700">Social</Pill>
+                      <Pill className="bg-blue-50 text-blue-800">
+                        Manual posting
+                      </Pill>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                      Plan Facebook, Instagram, LinkedIn, and TikTok here.
+                      Direct posting is off until each provider is approved and
+                      connected.
+                    </p>
+                  </div>
                 </div>
+                <details className="mt-4 rounded-xl border border-[#eadfd5] bg-white p-3">
+                  <summary className="cursor-pointer text-sm font-bold text-[#6d28d9]">
+                    Future direct posting setup
+                  </summary>
+                  <div className="mt-3 grid gap-2">
+                    {socialPublishing.providers.map((provider) => {
+                      const providerChannels = provider.channels
+                        .map((channel) => channelLabel[channel])
+                        .filter(Boolean)
+                        .join(", ");
+                      return (
+                        <div
+                          key={provider.id}
+                          className="flex items-center justify-between gap-3 rounded-lg bg-[#fffaf4] px-3 py-2 text-sm"
+                        >
+                          <div>
+                            <p className="font-bold text-[#24112f]">
+                              {provider.name}
+                            </p>
+                            <p className="text-xs font-semibold text-[#7d6b65]">
+                              {providerChannels || "No channels"}
+                            </p>
+                          </div>
+                          <Pill
+                            className={
+                              provider.connectionReady
+                                ? "bg-emerald-50 text-emerald-800"
+                                : "bg-stone-100 text-stone-700"
+                            }
+                          >
+                            {provider.connectionReady
+                              ? "Credential saved"
+                              : "Not connected"}
+                          </Pill>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
               </SectionCard>
             </div>
           )}
