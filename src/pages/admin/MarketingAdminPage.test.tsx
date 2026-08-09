@@ -2375,6 +2375,28 @@ describe("MarketingAdminPage", () => {
     );
   });
 
+  it("shows the social publishing setup path without enabling automatic social sends", async () => {
+    renderPage({
+      configured: true,
+      canRunSync: true,
+      apiUrl: "https://lovable.example.test",
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-settings"));
+
+    expect(screen.getByText("Social publishing")).toBeInTheDocument();
+    expect(screen.getByText("Meta Business")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Facebook Page and Instagram Business publishing/i),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("LinkedIn").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("TikTok").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText("What is needed to enable publishing?"),
+    ).toBeInTheDocument();
+  });
+
   it("shows inline Lovable sync progress and completion after clicking", async () => {
     renderPage({
       configured: true,
@@ -4029,5 +4051,76 @@ describe("MarketingAdminPage", () => {
         contentAssetId: "content-2",
       }),
     ]);
+  });
+
+  it("supports manual publishing actions for social campaign channels", async () => {
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWrite },
+    });
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    fireEvent.change(
+      screen.getByTestId("select-marketing-edit-campaign-content"),
+      { target: { value: "content-2" } },
+    );
+
+    expect(screen.getByText("Manual publish")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByTestId("button-marketing-copy-social-post-0"),
+    );
+    await waitFor(() => {
+      expect(clipboardWrite).toHaveBeenCalledWith(
+        expect.stringContaining("Partner post"),
+      );
+    });
+    expect(screen.getByText("Post copied.")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByTestId("button-marketing-open-social-platform-0"),
+    );
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://www.linkedin.com/feed/",
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    fireEvent.click(
+      screen.getByTestId("button-marketing-mark-social-published-0"),
+    );
+    expect(
+      screen.getByText("Marked as published. Save campaign to keep it."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/admin/marketing/campaigns/campaign-2",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
+    const patchCall = apiFetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/api/admin/marketing/campaigns/campaign-2" &&
+        init?.method === "PATCH",
+    );
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-2",
+        status: "published",
+      }),
+    ]);
+
+    openSpy.mockRestore();
   });
 });

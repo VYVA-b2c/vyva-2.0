@@ -299,6 +299,43 @@ type ContentAsset = {
   updatedAt?: string | null;
 };
 
+const SOCIAL_CHANNELS = ["facebook", "instagram", "linkedin", "tiktok"] as const;
+
+const SOCIAL_PLATFORM_URLS: Partial<Record<Channel, string>> = {
+  facebook: "https://www.facebook.com/pages",
+  instagram: "https://www.instagram.com/",
+  linkedin: "https://www.linkedin.com/feed/",
+  tiktok: "https://www.tiktok.com/upload",
+};
+
+function isSocialChannel(channel: Channel) {
+  return (SOCIAL_CHANNELS as readonly Channel[]).includes(channel);
+}
+
+function socialPlainTextFromHtml(value?: string | null) {
+  return (value ?? "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function socialPostText(asset: ContentAsset | null | undefined) {
+  if (!asset) return "";
+  const body = socialPlainTextFromHtml(asset.body || asset.htmlBody || "");
+  const cta = asset.ctaUrl
+    ? `${asset.ctaLabel || "Link"}: ${asset.ctaUrl}`
+    : "";
+  return [asset.subject || asset.title, body, cta].filter(Boolean).join("\n\n").trim();
+}
+
 type BulkTranslatePreviewItem = {
   sourceContentId: string;
   sourceTitle: string;
@@ -4187,6 +4224,9 @@ export default function MarketingAdminPage() {
   const [testEmailFeedback, setTestEmailFeedback] = useState("");
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
+  const [socialPublishFeedback, setSocialPublishFeedback] = useState<
+    Record<string, string>
+  >({});
   const [dueEmailSending, setDueEmailSending] = useState(false);
   const [dueEmailFeedback, setDueEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
@@ -5084,15 +5124,24 @@ export default function MarketingAdminPage() {
     [visibleCampaigns, visibleContacts],
   );
   const dashboardChannelsToShow = useMemo(() => {
-    const usefulChannels = dashboardByChannel.filter(
-      (item) => item.campaigns > 0 || item.content > 0,
-    );
-    if (channelFilter === "all")
+    if (channelFilter === "all") {
+      const campaignChannels = dashboardByChannel.filter(
+        (item) => item.campaigns > 0,
+      );
+      if (campaignChannels.length) return campaignChannels;
+      const usefulChannels = dashboardByChannel.filter((item) => item.content > 0);
       return usefulChannels.length ? usefulChannels : dashboardByChannel;
+    }
     const selectedChannel = dashboardByChannel.find(
       (item) => item.channel === channelFilter,
     );
     return selectedChannel ? [selectedChannel] : [];
+  }, [channelFilter, dashboardByChannel]);
+  const dashboardContentOnlyChannelsToShow = useMemo(() => {
+    if (channelFilter !== "all") return [];
+    return dashboardByChannel.filter(
+      (item) => item.campaigns === 0 && item.content > 0,
+    );
   }, [channelFilter, dashboardByChannel]);
   const dashboardAudiencesToShow = useMemo(() => {
     if (audienceFilter !== "all") {
@@ -5620,6 +5669,58 @@ export default function MarketingAdminPage() {
     });
     setCampaignEmailFeedback("");
     setTestEmailFeedback("");
+    setSocialPublishFeedback((current) => {
+      if (!current[channelId]) return current;
+      const next = { ...current };
+      delete next[channelId];
+      return next;
+    });
+  }
+
+  function setSocialChannelFeedback(channelId: string, feedback: string) {
+    setSocialPublishFeedback((current) => ({
+      ...current,
+      [channelId]: feedback,
+    }));
+  }
+
+  async function copySocialPost(
+    channelId: string,
+    asset: ContentAsset | null | undefined,
+  ) {
+    const text = socialPostText(asset);
+    if (!text) {
+      setSocialChannelFeedback(channelId, "Choose content with copy first.");
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      setSocialChannelFeedback(
+        channelId,
+        "Clipboard is unavailable. Open preview and copy manually.",
+      );
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setSocialChannelFeedback(channelId, "Post copied.");
+    } catch {
+      setSocialChannelFeedback(
+        channelId,
+        "Copy failed. Open preview and copy manually.",
+      );
+    }
+  }
+
+  function openSocialPlatform(channel: Channel) {
+    const url = SOCIAL_PLATFORM_URLS[channel];
+    if (url && typeof window !== "undefined") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  function markSocialChannelPublished(channelId: string) {
+    updateCampaignChannel(channelId, { status: "published" });
+    setSocialChannelFeedback(channelId, "Marked as published. Save campaign to keep it.");
   }
 
   function addCampaignChannel() {
@@ -7210,6 +7311,28 @@ export default function MarketingAdminPage() {
                       );
                     })}
                   </div>
+                  {dashboardContentOnlyChannelsToShow.length ? (
+                    <details className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3">
+                      <summary className="cursor-pointer text-sm font-black text-[#6f23d1]">
+                        Content-only channels (
+                        {dashboardContentOnlyChannelsToShow.length})
+                      </summary>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {dashboardContentOnlyChannelsToShow.map((item) => (
+                          <button
+                            key={item.channel}
+                            type="button"
+                            onClick={() => setChannelFilter(item.channel)}
+                            className="rounded-full border border-purple-100 bg-white px-3 py-2 text-xs font-black text-purple-700 transition hover:border-purple-300 hover:bg-purple-50"
+                            data-testid={`button-marketing-content-only-channel-${item.channel}`}
+                          >
+                            {channelLabel[item.channel]} · {item.content}{" "}
+                            {item.content === 1 ? "asset" : "assets"}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
                 </SectionCard>
 
                 <SectionCard
@@ -7994,9 +8117,8 @@ export default function MarketingAdminPage() {
                               Campaign channels
                             </p>
                             <p className="text-xs font-bold text-[#8b7a73]">
-                              Imported Lovable channels stay here. Email can
-                              send; social channels remain planning/tracking
-                              rows.
+                              Email can send through VYVA. Social channels are
+                              manual publishing steps for now.
                             </p>
                           </div>
                           <button
@@ -8167,6 +8289,72 @@ export default function MarketingAdminPage() {
                                     onPreview={previewContent}
                                     onEdit={startContentEdit}
                                   />
+                                  {isSocialChannel(channelDraft.channel) ? (
+                                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ead9f9] bg-[#fbf7ff] p-3">
+                                      <div className="min-w-[240px]">
+                                        <p className="text-xs font-black uppercase tracking-[0.08em] text-[#7c1fd1]">
+                                          Manual publish
+                                        </p>
+                                        <p className="text-xs font-bold text-[#6f625d]">
+                                          Copy the post, publish it in{" "}
+                                          {channelLabel[channelDraft.channel]},
+                                          then mark it here.
+                                        </p>
+                                        {socialPublishFeedback[
+                                          channelDraft.id
+                                        ] ? (
+                                          <p className="mt-1 text-xs font-black text-[#0b7a4b]">
+                                            {
+                                              socialPublishFeedback[
+                                                channelDraft.id
+                                              ]
+                                            }
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={!selectedChannelContent}
+                                          onClick={() =>
+                                            void copySocialPost(
+                                              channelDraft.id,
+                                              selectedChannelContent,
+                                            )
+                                          }
+                                          className="rounded-xl border border-[#e8d7c9] bg-white px-3 py-2 text-xs font-black text-[#241133] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                                          data-testid={`button-marketing-copy-social-post-${index}`}
+                                        >
+                                          Copy post
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            openSocialPlatform(
+                                              channelDraft.channel,
+                                            )
+                                          }
+                                          className="rounded-xl border border-[#e8d7c9] bg-white px-3 py-2 text-xs font-black text-[#241133] shadow-sm"
+                                          data-testid={`button-marketing-open-social-platform-${index}`}
+                                        >
+                                          Open{" "}
+                                          {channelLabel[channelDraft.channel]}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            markSocialChannelPublished(
+                                              channelDraft.id,
+                                            )
+                                          }
+                                          className="rounded-xl bg-[#8727d8] px-3 py-2 text-xs font-black text-white shadow-sm"
+                                          data-testid={`button-marketing-mark-social-published-${index}`}
+                                        >
+                                          Mark published
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : null}
                                 </div>
                               );
                             },
@@ -13364,6 +13552,62 @@ export default function MarketingAdminPage() {
                     })}
                   </div>
                 </details>
+              </SectionCard>
+
+              <SectionCard
+                title="Social publishing"
+                subtitle="Plan posts now. Publishing starts only after provider accounts are connected."
+              >
+                <div className="grid gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#eadfd5] bg-[#fffaf4] p-4">
+                    <div>
+                      <h3 className="text-base font-black text-[#2f173d]">
+                        Meta Business
+                      </h3>
+                      <p className="mt-1 text-sm font-semibold text-[#6f5b55]">
+                        Facebook Page and Instagram Business publishing.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Pill className="bg-amber-50 text-amber-800">
+                        Setup needed
+                      </Pill>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(["linkedin", "tiktok"] as const).map((channel) => (
+                      <div
+                        key={`social-setup-${channel}`}
+                        className="rounded-xl border border-[#eadfd5] bg-white p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="font-black text-[#2f173d]">
+                            {channelLabel[channel]}
+                          </h3>
+                          <Pill className="bg-blue-50 text-blue-800">
+                            Planning only
+                          </Pill>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-[#6f5b55]">
+                          Keep posts as planning records until this provider is
+                          connected.
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <details className="rounded-lg border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#6f5b55]">
+                    <summary className="cursor-pointer text-[#2f173d]">
+                      What is needed to enable publishing?
+                    </summary>
+                    <div className="mt-3 grid gap-2">
+                      <p>1. Connect the brand's provider account.</p>
+                      <p>2. Choose which pages/profiles VYVA can publish to.</p>
+                      <p>3. Add a review step before posts are sent.</p>
+                    </div>
+                  </details>
+                </div>
               </SectionCard>
             </div>
           )}
