@@ -35,6 +35,7 @@ import {
 } from "../memory/healthMemoryPolicy.js";
 import { buildBrainCoachSpecialistRouteAugmentation } from "../brainCoach/brainCoachRouterAdapter.js";
 import { buildMentalWellbeingSpecialistRouteAugmentation } from "../mentalWellbeing/mentalWellbeingRouterAdapter.js";
+import { buildMedicationSpecialistRouteAugmentation } from "../medication/medicationRouterAdapter.js";
 
 export type RoutingDomain =
   | "safety"
@@ -128,6 +129,19 @@ const SAFETY_OVERDOSE_PATTERNS = [
   /\bi\s+(?:may|might)\s+have\s+overdosed\b/i,
   /\bi\s+(?:think\s+i\s+)?took\s+an\s+overdose\b/i,
 ];
+const SAFETY_MEDICATION_RISK_PATTERNS = [
+  /\bi\s+(?:think\s+i\s+)?(?:took|taken|had|swallowed)\s+(?:too\s+much|too\s+many)\b/i,
+  /\b(?:too\s+much|too\s+many)\s+(?:medicine|medication|pills?|tablets?|doses?)\b/i,
+  /\b(?:double|extra)\s+dose\b/i,
+  /\b(?:accidentally\s+)?(?:took|taken|had|swallowed)\s+(?:two|double|extra)\s+(?:doses?|pills?|tablets?)\b/i,
+  /\b(?:allergic|adverse)\s+reaction\b/i,
+  /\b(?:severe\s+)?dizz(?:y|iness)\s+(?:after|from|because\s+of)\s+(?:my\s+)?(?:medicine|medication|pills?|tablets?|dose)\b/i,
+  /\b(?:fainted|fainting|passed\s+out)\s+(?:after|from|because\s+of)\s+(?:my\s+)?(?:medicine|medication|pills?|tablets?|dose)\b/i,
+  /\bdangerous\s+(?:drug\s+)?interaction\b/i,
+  /\b(?:mixed|mixing|combine|combined|taking)\s+(?:my\s+)?(?:medicine|medication|pills?)\s+with\s+alcohol\b/i,
+  /\balcohol\s+with\s+(?:my\s+)?(?:medicine|medication|pills?)\b/i,
+  /\b(?:suicide|suicidal|kill myself|end my life).*(?:overdose|medicine|medication|pills?)\b/i,
+];
 const SAFETY_DANGER_PATTERNS = [
   /\b(?:i(?:'m| am)?|we(?:'re| are)?|someone(?: is)?|they(?:'re| are)?|he(?:'s| is)?|she(?:'s| is)?)\s+in\s+(?:immediate\s+)?danger\b/i,
 ];
@@ -149,6 +163,7 @@ function isSafetyUtterance(utterance: string): boolean {
   }
   if (SAFETY_BREATHING_DISTRESS_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
   if (SAFETY_OVERDOSE_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_MEDICATION_RISK_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
   if (SAFETY_DANGER_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
   if (SAFETY_DEATH_INTENT_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
   for (const w of SAFETY_TOKENS) {
@@ -161,6 +176,7 @@ const MEDS_KEYWORDS = [
   "reorder prescription", "drug interaction", "side effect", "time for my",
   "missed my", "prescription", "medication", "medicine", "metformin",
   "lisinopril", "aspirin", "remind", "tablet", "pill", "dose", "taken", "forgot",
+  "medication schedule", "medication inventory", "medication refill", "adherence report",
 ];
 const HEALTH_KEYWORDS = [
   "worried about my health", "i think i might have", "not feeling well",
@@ -199,7 +215,7 @@ const THRESHOLD = 0.55;
 
 const ROUTING_HINTS: Array<{ domain: RoutingDomain; patterns: string[] }> = [
   { domain: "safety", patterns: ["urgent health", "emergency help", "safety", "scam guard"] },
-  { domain: "meds", patterns: ["medication", "medicine", "meds", "prescription", "pill", "tablet"] },
+  { domain: "meds", patterns: ["medication", "medicine", "meds", "prescription", "pill", "tablet", "adherence report"] },
   { domain: "health", patterns: ["health", "doctor", "medical", "vitals", "vital signs", "signos", "symptom", "allergy", "allergies"] },
   { domain: "concierge", patterns: ["concierge", "appointment", "schedule", "taxi", "shopping"] },
   { domain: "brain_coach", patterns: ["brain", "cognitive", "cognition", "memory", "activity", "activities"] },
@@ -845,6 +861,17 @@ export async function routerHandler(req: Request, res: Response) {
     env: process.env,
     currentRoute: appEntrypoint,
   });
+  const medicationSpecialist = buildMedicationSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
   const mentalWellbeingSpecialist = buildMentalWellbeingSpecialistRouteAugmentation({
     domain,
     userId: user_id,
@@ -870,6 +897,7 @@ export async function routerHandler(req: Request, res: Response) {
     "",
     `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain)}`,
     brainCoachSpecialist ? ["", brainCoachSpecialist.promptBlock].join("\n") : "",
+    medicationSpecialist ? ["", medicationSpecialist.promptBlock].join("\n") : "",
     mentalWellbeingSpecialist ? ["", mentalWellbeingSpecialist.promptBlock].join("\n") : "",
   ].join("\n");
 
@@ -935,6 +963,7 @@ export async function routerHandler(req: Request, res: Response) {
         : { conversation_id: session_id }),
       ...(feedbackToken ? { voice_recommendation_feedback_token: feedbackToken } : {}),
       ...(brainCoachSpecialist ? brainCoachSpecialist.dynamicVariables : {}),
+      ...(medicationSpecialist ? medicationSpecialist.dynamicVariables : {}),
       ...(mentalWellbeingSpecialist ? mentalWellbeingSpecialist.dynamicVariables : {}),
     },
     session_data: {
@@ -945,6 +974,9 @@ export async function routerHandler(req: Request, res: Response) {
       last_agent: lastAgentBefore,
       ...(brainCoachSpecialist
         ? { brain_coach_specialist: brainCoachSpecialist.sessionData }
+        : {}),
+      ...(medicationSpecialist
+        ? { medication_specialist: medicationSpecialist.sessionData }
         : {}),
       ...(mentalWellbeingSpecialist
         ? { mental_wellbeing_specialist: mentalWellbeingSpecialist.sessionData }

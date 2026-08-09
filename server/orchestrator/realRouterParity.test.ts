@@ -85,6 +85,13 @@ vi.mock("../lib/userPersonalization.js", () => ({
 import { routerHandler } from "../routes/router.js";
 import { createOrchestratorRouterHandler } from "./orchestrator.js";
 import type { OrchestratorShellModeResolution } from "./orchestratorTypes.js";
+import {
+  task17ClinicalDosingExclusionFixtures,
+  task17CrossDomainFixtures,
+  task17InteractionExclusionFixtures,
+  task17SafetyPrecedenceFixtures,
+  task17ValidNavigationFixtures,
+} from "../medication/medicationFixtures.js";
 
 const FIXED_NOW = new Date("2026-08-02T12:00:00.000Z");
 const TABLE_NAME = Symbol.for("drizzle:Name");
@@ -313,6 +320,10 @@ describe("Task 6 real router parity", () => {
     delete process.env.ELEVENLABS_CONCIERGE_AGENT_ID;
     delete process.env.ELEVENLABS_BRAIN_COACH_AGENT_ID;
     delete process.env.ELEVENLABS_COMPANION_AGENT_ID;
+    delete process.env.VYVA_MEDICATION_SPECIALIST_MODE;
+    delete process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS;
+    delete process.env.VYVA_BRAIN_COACH_SPECIALIST_MODE;
+    delete process.env.VYVA_BRAIN_COACH_SPECIALIST_ALLOW_USERS;
     delete process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE;
     delete process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS;
     vi.clearAllMocks();
@@ -460,6 +471,31 @@ describe("Task 6 real router parity", () => {
     expect(direct.body.agent_id).toBe("agent-safety-review");
     expect(direct.body.session_data.domain).toBe("safety");
     expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
+  });
+
+  it.each([
+    ...task17SafetyPrecedenceFixtures,
+    "I think I took too much medication.",
+    "I took a double dose of my pill.",
+    "I accidentally mixed my medication with alcohol.",
+    "I have severe dizziness after my medicine.",
+    "I am suicidal and may overdose on pills.",
+  ])("routes medication risk language through safety before Medication Specialist: %s", async (utterance) => {
+    const fixture: RouterFixture = {
+      user_id: "user-medication-risk-safety-review",
+      session_id: "session-medication-risk-safety-review",
+      utterance,
+      conversation_history: [{ role: "assistant", content: "Tell me what happened." }],
+    };
+    process.env.VYVA_MEDICATION_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-safety-review");
+    expect(direct.body.session_data.domain).toBe("safety");
+    expect(direct.body.session_data.medication_specialist).toBeUndefined();
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("medication_specialist");
   });
 
   it.each([
@@ -620,6 +656,135 @@ describe("Task 6 real router parity", () => {
     expect(direct.body.session_data.domain).toBe(expectedDomain);
     expect(direct.body.session_data.mental_wellbeing_specialist).toBeUndefined();
   });
+
+  it("preserves legacy Medication routing when the Medication Specialist flag is off", async () => {
+    const fixture: RouterFixture = {
+      user_id: "user-medication-flag-off-review",
+      session_id: "session-medication-flag-off-review",
+      utterance: "Can you help me with my medication schedule?",
+      conversation_history: [{ role: "assistant", content: "How can I help?" }],
+    };
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-meds-review");
+    expect(direct.body.session_data.domain).toBe("meds");
+    expect(direct.body.session_data.medication_specialist).toBeUndefined();
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("medication_specialist");
+  });
+
+  it("adds Medication Specialist metadata only for flag-enabled supported medication requests", async () => {
+    const fixture: RouterFixture = {
+      user_id: "user-medication-specialist-review",
+      session_id: "session-medication-specialist-review",
+      utterance: "Can you help me with my metformin medication schedule?",
+      conversation_history: [{ role: "assistant", content: "How can I help?" }],
+    };
+    process.env.VYVA_MEDICATION_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-meds-review");
+    expect(direct.body.session_data.domain).toBe("meds");
+    expect(direct.body.session_data.medication_specialist).toMatchObject({
+      selected_specialist_id: "medication",
+      selected_flow_id: "medication.reminder",
+      outcome: "tool_proposed",
+      action_type: "meds.management",
+      tool_proposal_decision: "proposal_allowed",
+    });
+    expect(direct.body.system_prompt_override).toContain("MEDICATION SPECIALIST MIGRATION BLOCK");
+    expect(JSON.stringify(direct.body.session_data.medication_specialist)).not.toContain("metformin");
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("metformin");
+  });
+
+  it.each(task17ValidNavigationFixtures)(
+    "adds Medication Specialist metadata for valid medication navigation/context: %s",
+    async (utterance) => {
+      const fixture: RouterFixture = {
+        user_id: "user-medication-valid-navigation-review",
+        session_id: "session-medication-valid-navigation-review",
+        utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_MEDICATION_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.agent_id).toBe("agent-meds-review");
+      expect(direct.body.session_data.domain).toBe("meds");
+      expect(direct.body.session_data.medication_specialist).toMatchObject({
+        selected_specialist_id: "medication",
+        selected_flow_id: "medication.reminder",
+        outcome: "tool_proposed",
+        tool_proposal_decision: "proposal_allowed",
+      });
+    },
+  );
+
+  it("keeps dose-confirmation mutation on exact legacy path when the flag is enabled", async () => {
+    const fixture: RouterFixture = {
+      user_id: "user-medication-dose-mutation-review",
+      session_id: "session-medication-dose-mutation-review",
+      utterance: "I took my medication",
+      conversation_history: [{ role: "assistant", content: "How can I help?" }],
+    };
+    process.env.VYVA_MEDICATION_SPECIALIST_MODE = "specialist_preview";
+    process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-meds-review");
+    expect(direct.body.session_data.domain).toBe("meds");
+    expect(direct.body.session_data.medication_specialist).toBeUndefined();
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("medication_specialist");
+  });
+
+  it.each([...task17ClinicalDosingExclusionFixtures, ...task17InteractionExclusionFixtures])(
+    "does not attach Medication Specialist metadata for migration-ineligible clinical/interaction request: $utterance",
+    async (caseFixture) => {
+      const fixture: RouterFixture = {
+        user_id: "user-medication-ineligible-review",
+        session_id: "session-medication-ineligible-review",
+        utterance: caseFixture.utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_MEDICATION_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.session_data.medication_specialist).toBeUndefined();
+      expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("medication_specialist");
+      expect(JSON.stringify(direct.body.session_data)).not.toContain("tool_proposed");
+    },
+  );
+
+  it.each(task17CrossDomainFixtures)(
+    "does not let Task 17 steal cross-domain request: $utterance",
+    async (caseFixture) => {
+      const fixture: RouterFixture = {
+        user_id: "user-medication-cross-domain-review",
+        session_id: "session-medication-cross-domain-review",
+        utterance: caseFixture.utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_MEDICATION_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_MEDICATION_SPECIALIST_ALLOW_USERS = fixture.user_id;
+      process.env.VYVA_BRAIN_COACH_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_BRAIN_COACH_SPECIALIST_ALLOW_USERS = fixture.user_id;
+      process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.agent_id).toBe(caseFixture.expectedAgent);
+      expect(direct.body.session_data.domain).toBe(caseFixture.expectedDomain);
+      expect(direct.body.session_data.medication_specialist).toBeUndefined();
+    },
+  );
 
   it("preserves ordinary Mental Wellbeing support for companion/social support requests", async () => {
     const fixture: RouterFixture = {
