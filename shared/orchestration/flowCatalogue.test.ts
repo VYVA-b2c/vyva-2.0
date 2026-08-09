@@ -35,6 +35,7 @@ const requiredFlowIds = [
   "social.daily_checkin", "social.general_conversation", "social.reminiscence",
   "social.activity", "social.community_connection", "social.family_contact_suggestion",
   "social.loneliness_followup",
+  "brain_coach.activity_session",
   "concierge.appointment_support", "concierge.transportation_support",
   "concierge.local_service_request", "concierge.shopping_support",
   "concierge.meal_support", "concierge.administrative_support",
@@ -99,7 +100,8 @@ const mutateFlow = (
 
 describe("catalogue identity and versioning", () => {
   it("accepts the canonical catalogue", () => {
-    expect(parseFlowCatalogue(VYVA_FLOW_CATALOGUE).flows).toHaveLength(90);
+    expect(parseFlowCatalogue(VYVA_FLOW_CATALOGUE).flows)
+      .toHaveLength(requiredFlowIds.length);
   });
   it("accepts stable lowercase namespaced Flow IDs", () => {
     expect(futureFlowFixture.flowId).toBe("future.example_assessment");
@@ -135,7 +137,7 @@ describe("catalogue identity and versioning", () => {
       flow.compatibility.replacementFlowId = "social.community_connection";
       flow.compatibility.replacementVersion = "1.0.0";
     });
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(90);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length);
   });
   it("rejects a retired current definition", () => {
     const catalogue = clone(VYVA_FLOW_CATALOGUE);
@@ -178,7 +180,7 @@ describe("catalogue references", () => {
     const catalogue = clone(VYVA_FLOW_CATALOGUE);
     catalogue.flows[0].outcomes[0].allowedNextFlowIds = ["safety.safety_followup"];
     catalogue.flows[0].outcomes[0].terminal = false;
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(90);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length);
   });
   it("rejects an unknown next Flow", () => {
     const catalogue = clone(VYVA_FLOW_CATALOGUE);
@@ -306,7 +308,7 @@ describe("channels and Task 1 triggers", () => {
         revocable: true, reusable: true, purposeSpecific: true,
       }];
     });
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(91);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length + 1);
   });
   it.each([
     ["capability", (flow: FlowCatalogue["flows"][number]) => {
@@ -340,7 +342,7 @@ describe("channels and Task 1 triggers", () => {
         revocable: true, reusable: true, purposeSpecific: true,
       }];
     });
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(91);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length + 1);
   });
   it.each([
     ["capability", (flow: FlowCatalogue["flows"][number]) => {
@@ -519,7 +521,7 @@ describe("Trust outcomes and local collection invariants", () => {
         (outcome) => outcome.category === classification,
       );
     });
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(90);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length);
   });
   it.each(["safe", "verified_safe", "cleared"])(
     "rejects Trust safe alias %s",
@@ -557,13 +559,13 @@ describe("Trust outcomes and local collection invariants", () => {
     const catalogue = clone(VYVA_FLOW_CATALOGUE);
     catalogue.flows[0].outcomes[0].terminal = false;
     catalogue.flows[0].outcomes[0].allowedNextFlowIds = ["safety.safety_followup"];
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(90);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length);
   });
   it("accepts disjoint required and optional Tool sets", () => {
     const catalogue = clone(VYVA_FLOW_CATALOGUE);
     catalogue.flows[0].requiredTools = ["tool.required"];
     catalogue.flows[0].optionalTools = ["tool.optional"];
-    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(90);
+    expect(parseFlowCatalogue(catalogue).flows).toHaveLength(requiredFlowIds.length);
   });
   it.each(["required", "optional"] as const)(
     "rejects duplicate %s Tools",

@@ -1534,6 +1534,20 @@ scene is published.
 - **Risk:** high.
 - **Do not change:** all domains simultaneously.
 
+#### Task 15 / Stage 10A — Brain Coach Specialist
+
+- **Scope:** first Stage 10 specialist slice only: Brain Coach activity selection/session entry.
+- **Specialist:** `brain_coach`, version `1.0.0`.
+- **Flow:** `brain_coach.activity_session`, version `1.0.0`, pilot-only and activity-navigation-only.
+- **Reuse:** existing `brain_coach` router domain, Brain Coach voice context, `voiceActionRegistry` semantics, and the activity catalogue in `server/lib/brainCoachPlan.ts`.
+- **Flag:** `VYVA_BRAIN_COACH_SPECIALIST_MODE`; default, disabled, malformed, whitespace-polluted, production-unapproved or denylisted configuration resolves to legacy-only. `specialist_preview` selects the Specialist path only for allowlisted/rolled-out server-side user identity.
+- **Boundary:** the Specialist may propose only the existing `tool.voice.open_app_action` navigation bridge. It does not execute tools directly, execute games, mutate recurring tasks, change caregiver permissions, write memory, call providers, or create a new source of truth.
+- **Global registry decision:** no new global Specialist registry in Task 15. Brain Coach uses the existing frozen Specialist/Flow catalogue contracts. A broader registry may be extracted later after multiple Stage 10 specialists prove common runtime shape.
+- **Safety:** deterministic safety remains before Brain Coach selection; emergency input is not routed into Brain Coach Specialist output.
+- **Rollback:** flag off preserves the legacy Brain Coach router/ElevenLabs/client action path.
+- **PostgreSQL:** no migration required; Task 15 introduces no durable Brain Coach state.
+- **Documentation:** see `docs/BRAIN_COACH_SPECIALIST_MIGRATION.md`.
+
 ### Stage 11 — Durable scheduling and legacy cleanup
 
 - **Objective:** leases/queue/outbox, multi-instance safety, then remove proven legacy duplication.

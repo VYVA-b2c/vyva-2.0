@@ -33,6 +33,7 @@ import {
   resolveHealthMemoryPolicyFlag,
   type HealthMemoryPolicyFlagResolution,
 } from "../memory/healthMemoryPolicy.js";
+import { buildBrainCoachSpecialistRouteAugmentation } from "../brainCoach/brainCoachRouterAdapter.js";
 
 export type RoutingDomain =
   | "safety"
@@ -798,6 +799,19 @@ export async function routerHandler(req: Request, res: Response) {
     source: "router",
   });
 
+  const newTurn = (sessionRow?.turn_count ?? 0) + 1;
+  const brainCoachSpecialist = buildBrainCoachSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
+
   const system_prompt_override = [
     buildAgentOperatingRules(domain),
     "",
@@ -810,9 +824,9 @@ export async function routerHandler(req: Request, res: Response) {
     `SESSION BLOCK:\n${sessionBlockLines.join("\n")}`,
     "",
     `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain)}`,
+    brainCoachSpecialist ? ["", brainCoachSpecialist.promptBlock].join("\n") : "",
   ].join("\n");
 
-  const newTurn = (sessionRow?.turn_count ?? 0) + 1;
   const lastAgentBefore = sessionRow?.current_agent ?? null;
   const persistNext = resolveEscalationDomain(body.store_next_turn_override);
   const nextOverrideAfter =
@@ -874,7 +888,17 @@ export async function routerHandler(req: Request, res: Response) {
           }
         : { conversation_id: session_id }),
       ...(feedbackToken ? { voice_recommendation_feedback_token: feedbackToken } : {}),
+      ...(brainCoachSpecialist ? brainCoachSpecialist.dynamicVariables : {}),
     },
-    session_data: { domain, intent_confidence: confidence, session_id, turn_count: newTurn, last_agent: lastAgentBefore },
+    session_data: {
+      domain,
+      intent_confidence: confidence,
+      session_id,
+      turn_count: newTurn,
+      last_agent: lastAgentBefore,
+      ...(brainCoachSpecialist
+        ? { brain_coach_specialist: brainCoachSpecialist.sessionData }
+        : {}),
+    },
   });
 }

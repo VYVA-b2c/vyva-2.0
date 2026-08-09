@@ -35,7 +35,7 @@ export const FLOW_CHANNELS = [
 export const OWNER_SPECIALIST_IDS = [
   "safety", "preventive_health", "symptom_assessment", "visual_health",
   "medication", "mental_wellbeing", "social", "concierge", "scam_fraud",
-  "caregiver", "operator", "engagement", "orchestration",
+  "brain_coach", "caregiver", "operator", "engagement", "orchestration",
 ] as const;
 export const CONSENT_SCOPE_IDS = [
   "health_data", "sensitive_health_evidence", "image_capture", "image_retention",
@@ -721,6 +721,9 @@ const FLOW_GROUPS = {
     "daily_checkin", "general_conversation", "reminiscence", "activity",
     "community_connection", "family_contact_suggestion", "loneliness_followup",
   ],
+  brain_coach: [
+    "activity_session",
+  ],
   concierge: [
     "appointment_support", "transportation_support", "local_service_request",
     "shopping_support", "meal_support", "administrative_support",
@@ -757,6 +760,7 @@ const OWNER_BY_DOMAIN: Record<keyof typeof FLOW_GROUPS, FlowDefinition["ownerSpe
   medication: "medication",
   wellbeing: "mental_wellbeing",
   social: "social",
+  brain_coach: "brain_coach",
   concierge: "concierge",
   trust: "scam_fraud",
   caregiver: "caregiver",
@@ -901,6 +905,82 @@ replaceFlow(canonicalFlows, "health.preventive_check", {
     noResponsePolicy: "record_only",
   },
   metadata: { intendedFirstImplementation: true, healthSupervisorRequired: false },
+});
+replaceFlow(canonicalFlows, "brain_coach.activity_session", {
+  status: "pilot",
+  displayName: "Brain Coach Activity Session",
+  description:
+    "Stage 10A Brain Coach activity-selection and session-entry flow. The flow adapts existing Brain Coach navigation behavior and does not execute games, schedules, memory writes, or caregiver mutations.",
+  supportedTriggers: ["user"],
+  supportedChannels: ["voice", "pwa", "touch", "text"],
+  expectedInputKinds: ["free_text", "option"],
+  requiredTools: [],
+  optionalTools: ["tool.voice.open_app_action"],
+  deterministicSafetyChecks: ["safety_check.emergency_general"],
+  memoryPolicy: {
+    allowedReadCategories: [],
+    proposedWriteCategories: [],
+    prohibitedCategories: ["hidden_reasoning", "caregiver_private_data"],
+    permittedTargets: ["working_memory"],
+    writeConfirmation: "always",
+    retentionClassification: "none",
+  },
+  uiScenes: [{
+    sceneId: "brain_coach.activity_session.main",
+    purpose:
+      "Primary Brain Coach activity-selection scene for opening existing supported activity surfaces.",
+    supportedInstructionTypes: ["show_summary", "show_confirmation", "clear_scene"],
+  }],
+  outcomes: [{
+    outcomeId: "brain_coach.activity_session.action_proposed",
+    category: "action_proposed",
+    description:
+      "A supported existing Brain Coach activity/navigation action was proposed for Orchestrator tool authorization.",
+    terminal: false,
+    allowedNextFlowIds: [],
+    escalationRequirement: "none",
+    followUpEligible: false,
+    memorySummaryPolicy: "none",
+  }, {
+    outcomeId: "brain_coach.activity_session.fallback_to_legacy",
+    category: "blocked",
+    description:
+      "The request is unsupported, coming-soon, or outside the migrated Brain Coach slice and should preserve legacy fallback.",
+    terminal: true,
+    allowedNextFlowIds: [],
+    escalationRequirement: "none",
+    followUpEligible: false,
+    memorySummaryPolicy: "none",
+  }],
+  followUpPolicy: {
+    mode: "none",
+    allowedChannels: [],
+    fallbackAllowed: false,
+    consentRequired: false,
+    noResponsePolicy: "record_only",
+  },
+  interruptionPolicy: {
+    mayInterrupt: false,
+    mayBeInterrupted: true,
+    preemptionScope: "none",
+  },
+  resumptionPolicy: {
+    mayResume: true,
+    expiresAfterSeconds: 3_600,
+    revalidateOnResume: true,
+    freshSafetyCheckOnResume: true,
+    channelSwitchAllowed: true,
+  },
+  metadata: {
+    task15Stage: "stage_10a_brain_coach_specialist",
+    migrationBoundary: "activity_navigation_only",
+    noPostgresMigrationRequired: true,
+    legacyFallbackAvailable: true,
+    caregiverBoundaryUnchanged: true,
+    scheduleBoundaryUnchanged: true,
+    gamePersistenceUnchanged: true,
+    domainSupervisorRequired: false,
+  },
 });
 replaceFlow(canonicalFlows, "safety.emergency_check", {
   status: "active",
