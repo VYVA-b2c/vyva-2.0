@@ -96,6 +96,7 @@ type MasterDashboardLayoutProps = {
   showCards?: boolean;
   modeSwitcher?: ReactNode;
   isDarkMode?: boolean;
+  presentationAttributes?: Record<string, string>;
   children?: ReactNode;
 };
 
@@ -134,6 +135,7 @@ export default function MasterDashboardLayout({
   showCards = showLauncher,
   modeSwitcher,
   isDarkMode = false,
+  presentationAttributes,
   children,
 }: MasterDashboardLayoutProps) {
   const heroTone = hero.tone ?? defaultHeroTone;
@@ -206,6 +208,7 @@ export default function MasterDashboardLayout({
           ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] md:pb-[132px] lg:max-w-[920px]"
           : "",
       ].join(" ")}
+      {...(presentationAttributes ?? {})}
       data-testid={testId}
       data-home-master-theme={isHomeMasterDark ? "dark" : "light"}
       data-home-master-intent-layer={isHomeMasterIntentLayer ? "true" : "false"}

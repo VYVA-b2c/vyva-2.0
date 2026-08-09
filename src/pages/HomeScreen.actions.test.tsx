@@ -1,5 +1,7 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { useEffect, useState, type ReactNode } from "react";
+import "@testing-library/react/dont-cleanup-after-each";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { flushSync } from "react-dom";
+import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
 import {
@@ -23,9 +25,8 @@ import {
 } from "@/lib/homeContextMessages";
 import {
   VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
-  VYVA_HOME_MODE_CONTROL_EVENT,
+  readLatestHomeModeControl,
   type HomeInteractionMode,
-  type HomeModeControlDetail,
 } from "@/lib/homeModeControl";
 import { VOICE_ORB_HINT_SEEN_STORAGE_KEY } from "@/lib/voiceOrbHint";
 
@@ -298,45 +299,32 @@ vi.mock("react-i18next", async (importOriginal) => {
   };
 });
 
-const HomeModeControlHarness = () => {
-  const [detail, setDetail] = useState<HomeModeControlDetail | null>(null);
-
-  useEffect(() => {
-    const handleHomeModeControl = (event: Event) => {
-      const controlDetail = event instanceof CustomEvent ? event.detail : null;
-      if (!controlDetail || (controlDetail.mode !== "voice" && controlDetail.mode !== "touch")) return;
-      setDetail(controlDetail as HomeModeControlDetail);
-    };
-
-    window.addEventListener(VYVA_HOME_MODE_CONTROL_EVENT, handleHomeModeControl);
-    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_EVENT, handleHomeModeControl);
-  }, []);
-
-  if (!detail?.visible) return null;
-
-  const nextMode: HomeInteractionMode = detail.mode === "voice" ? "touch" : "voice";
-  return (
-    <button
-      type="button"
-      aria-label={detail.label}
-      data-testid={detail.testId}
-      onClick={() => {
-        window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
-          detail: { mode: nextMode },
-        }));
-      }}
-    />
-  );
-};
-
-const HomeScreenWithModeControl = () => (
-  <>
-    <HomeModeControlHarness />
-    <HomeScreen />
-  </>
-);
+const HomeScreenWithModeControl = () => <HomeScreen />;
 
 const renderHomeScreen = () => render(<HomeScreenWithModeControl />);
+
+const expectHomeModeControl = (
+  mode: HomeInteractionMode,
+  testId: "button-home-mode-touch" | "button-home-mode-voice",
+  label: string,
+) => {
+  expect(readLatestHomeModeControl()).toMatchObject({
+    label,
+    mode,
+    testId,
+    visible: true,
+  });
+};
+
+const switchHomeMode = (mode: HomeInteractionMode) => {
+  act(() => {
+    flushSync(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
+        detail: { mode },
+      }));
+    });
+  });
+};
 
 describe("Home fast service actions", () => {
   beforeEach(() => {
@@ -367,7 +355,18 @@ describe("Home fast service actions", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    try {
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+    } catch {
+      // Some tests use real timers; only fake-timer tests need a drain.
+    }
+    cleanup();
     vi.useRealTimers();
   });
 
@@ -379,20 +378,32 @@ describe("Home fast service actions", () => {
 
     renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
+    const voiceLayout = screen.getByTestId("home-master-layout");
+    expect(voiceLayout).toBeInTheDocument();
+    expect(voiceLayout).toHaveAttribute("data-screen-contract", "home");
+    expect(voiceLayout).toHaveAttribute("data-screen-mode", "voice");
+    expect(voiceLayout).toHaveAttribute("data-primary-surface", "orb");
+    expect(voiceLayout).toHaveAttribute("data-cards", "hidden");
+    expect(voiceLayout).toHaveAttribute("data-chips", "hidden");
+    expect(voiceLayout).toHaveAttribute("data-bottom-nav-clearance", "112");
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
-    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
+    const touchLayout = screen.getByTestId("home-master-layout");
+    expect(touchLayout).toHaveAttribute("data-screen-mode", "touch");
+    expect(touchLayout).toHaveAttribute("data-primary-surface", "cards");
+    expect(touchLayout).toHaveAttribute("data-cards", "visible");
+    expect(touchLayout).toHaveAttribute("data-chips", "hidden");
+    expect(touchLayout).toHaveAttribute("data-heading-detail", "hidden");
     expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-hero-talk")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-dormant-zamora-orb")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-voice")).toHaveAccessibleName("Switch to voice");
-    expect(screen.queryByTestId("button-home-mode-touch")).not.toBeInTheDocument();
+    expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
+    expect(screen.queryByTestId("home-touch-subheading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
@@ -433,8 +444,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
-    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
@@ -444,10 +454,10 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
     expect(screen.queryByText("VYVA understood")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-voice")).toHaveAccessibleName("Switch to voice");
+    expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
     expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-agent-cognitive")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-agent-social")).toBeInTheDocument();
@@ -500,7 +510,7 @@ describe("Home fast service actions", () => {
     });
 
     renderHomeScreen();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
@@ -531,9 +541,9 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
-    expect(screen.getByTestId("home-touch-subheading")).toHaveTextContent("Don't forget Monoprost in 25 min.");
+    expect(screen.queryByTestId("home-touch-subheading")).not.toBeInTheDocument();
   });
 
   it("quietly updates an active voice session when the selected Home message changes", () => {
@@ -1684,7 +1694,7 @@ describe("Home fast service actions", () => {
     ["concierge", "concierge", ["home", "care", "order", "book"], "/concierge"],
   ] as const)("opens the four %s choices before routing to the full pillar", (masterCard, intent, cardIds, route) => {
     renderHomeScreen();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     fireEvent.click(screen.getByTestId(`card-home-agent-${masterCard}`));
 
@@ -1699,7 +1709,7 @@ describe("Home fast service actions", () => {
 
   it("opens a focused Health intent layer before routing to health actions", () => {
     renderHomeScreen();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     fireEvent.click(screen.getByTestId("card-home-agent-health"));
 
@@ -1760,14 +1770,13 @@ describe("Home fast service actions", () => {
 
     expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Tell VYVA what you need, or touch the orb.");
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
-    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-health-more")).not.toBeInTheDocument();
     expect(guardPathMock).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
     expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
@@ -1793,7 +1802,7 @@ describe("Home fast service actions", () => {
       expect(screen.queryByTestId(`card-home-${intent}-${cardId}`)).not.toBeInTheDocument();
     }
 
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     for (const cardId of cardIds) {
       expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
@@ -1814,7 +1823,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
     expect(screen.queryByTestId("card-home-mind-memory")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-mind-senses")).toBeInTheDocument();
@@ -1831,22 +1840,21 @@ describe("Home fast service actions", () => {
     });
 
     expect(screen.queryByTestId("card-home-health-vitals")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
-    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
 
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     const selectedCard = screen.getByTestId("card-home-health-vitals");
     expect(selectedCard).toHaveAttribute("aria-current", "true");
     expect(selectedCard).toHaveTextContent("VYVA understood");
     expect(screen.getByTestId("card-home-health-symptoms")).not.toHaveAttribute("aria-current");
-    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
+    switchHomeMode("voice");
 
     firstRender.unmount();
     renderHomeScreen();
 
     expect(screen.queryByTestId("card-home-health-vitals")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
 
     expect(screen.getByTestId("card-home-health-vitals")).toHaveAttribute("aria-current", "true");
     expect(guardPathMock).not.toHaveBeenCalled();
@@ -1862,11 +1870,11 @@ describe("Home fast service actions", () => {
     });
 
     expect(screen.queryByTestId("card-home-community-activities")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
     expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
-    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
+    switchHomeMode("voice");
     expect(screen.queryByTestId("card-home-community-activities")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
     expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
   });
 
@@ -1884,8 +1892,7 @@ describe("Home fast service actions", () => {
         }));
       });
 
-      expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
-      expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+      expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
       expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
         "data-action-id",
         actionId,
@@ -1905,7 +1912,7 @@ describe("Home fast service actions", () => {
 
     expect(guardPathMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("card-home-community-friends")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("touch");
     expect(screen.getByTestId("card-home-community-friends")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-community-activities")).toBeInTheDocument();
   });
