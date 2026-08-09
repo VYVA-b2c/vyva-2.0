@@ -1064,6 +1064,93 @@ replaceFlow(canonicalFlows, "brain_coach.activity_session", {
     domainSupervisorRequired: false,
   },
 });
+replaceFlow(canonicalFlows, "medication.reminder", {
+  status: "pilot",
+  displayName: "Medication Routine Support",
+  description:
+    "Stage 10C Medication Specialist slice for user-initiated medication management, adherence-report and refill-context navigation only. The flow reuses existing medication surfaces and does not confirm doses, alter medication records, contact pharmacies, write memory, or execute clinical decisions.",
+  supportedTriggers: ["user"],
+  supportedChannels: ["voice", "pwa", "touch", "text"],
+  expectedInputKinds: ["free_text", "option"],
+  requiredTools: [],
+  optionalTools: ["tool.voice.open_app_action"],
+  deterministicSafetyChecks: [
+    "safety_check.emergency_general",
+    "safety_check.medication_risk",
+  ],
+  memoryPolicy: {
+    allowedReadCategories: [],
+    proposedWriteCategories: [],
+    prohibitedCategories: [
+      "hidden_reasoning",
+      "caregiver_private_data",
+      "raw_medication_speech",
+    ],
+    permittedTargets: ["working_memory"],
+    writeConfirmation: "always",
+    retentionClassification: "none",
+  },
+  uiScenes: [{
+    sceneId: "medication.reminder.main",
+    purpose:
+      "Primary medication routine scene for opening existing medication management and report surfaces without recording a dose.",
+    supportedInstructionTypes: ["show_text_prompt", "show_confirmation", "show_choice_question", "clear_scene"],
+  }],
+  outcomes: [{
+    outcomeId: "medication.reminder.action_proposed",
+    category: "action_proposed",
+    description:
+      "A supported existing medication navigation/context action was proposed for Orchestrator tool authorization.",
+    terminal: false,
+    allowedNextFlowIds: [],
+    escalationRequirement: "none",
+    followUpEligible: false,
+    memorySummaryPolicy: "none",
+  }, {
+    outcomeId: "medication.reminder.fallback_to_legacy",
+    category: "blocked",
+    description:
+      "The request is safety-sensitive, mutating, unsupported, or outside the migrated Medication slice and should preserve legacy or Safety routing.",
+    terminal: true,
+    allowedNextFlowIds: [],
+    escalationRequirement: "none",
+    followUpEligible: false,
+    memorySummaryPolicy: "none",
+  }],
+  followUpPolicy: {
+    mode: "none",
+    allowedChannels: [],
+    fallbackAllowed: false,
+    consentRequired: false,
+    noResponsePolicy: "record_only",
+  },
+  interruptionPolicy: {
+    mayInterrupt: false,
+    mayBeInterrupted: true,
+    preemptionScope: "none",
+  },
+  resumptionPolicy: {
+    mayResume: true,
+    expiresAfterSeconds: 3_600,
+    revalidateOnResume: true,
+    freshSafetyCheckOnResume: true,
+    channelSwitchAllowed: true,
+  },
+  metadata: {
+    task17Stage: "stage_10c_medication_specialist",
+    migrationBoundary: "medication_navigation_and_context_only",
+    noPostgresMigrationRequired: true,
+    legacyFallbackAvailable: true,
+    noGlobalRegistryAdded: true,
+    doseMutationBoundaryUnchanged: true,
+    medicationRecordBoundaryUnchanged: true,
+    caregiverBoundaryUnchanged: true,
+    scheduleBoundaryUnchanged: true,
+    pharmacyContactBoundaryUnchanged: true,
+    medicationSafetyPrecedenceRequired: true,
+    domainSupervisorRequired: false,
+  },
+});
 replaceFlow(canonicalFlows, "safety.emergency_check", {
   status: "active",
   supportedTriggers: ["user", "caregiver", "operator", "system"],

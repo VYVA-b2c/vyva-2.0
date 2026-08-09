@@ -1563,6 +1563,22 @@ scene is published.
 - **PostgreSQL:** no migration required; Task 16 introduces no durable Mental Wellbeing state.
 - **Documentation:** see `docs/MENTAL_WELLBEING_SPECIALIST_MIGRATION.md`.
 
+#### Task 17 / Stage 10C — Medication Specialist
+
+- **Scope:** third Stage 10 specialist slice only: user-initiated medication management, adherence-report and refill-context navigation that already exists in the legacy medication voice/action surface.
+- **Specialist:** `medication`, version `1.0.0`.
+- **Flow:** `medication.reminder`, version `1.0.0`, pilot-only and medication-navigation/context-only. The existing Flow ID is kept for compatibility with frozen catalogue/presentation references and is not expanded into dose confirmation or reminder execution.
+- **Reuse:** existing `meds` router domain, existing medication routes and UI surfaces, existing medication voice/action semantics, frozen Specialist contract, existing Flow Catalogue and existing shared Presentation Registry.
+- **Presentation:** reuses canonical medication IDs `presentation.medication.reminder`, `presentation.medication.followup` and `presentation.medication.human_help_confirmation`. Task 17 does not duplicate reminder, confirmation, defer, missed-dose or summary presentation semantics.
+- **Flag:** `VYVA_MEDICATION_SPECIALIST_MODE`; default, disabled, malformed, whitespace-polluted, production-unapproved or denylisted configuration resolves to legacy-only. `specialist_preview` selects the Specialist path only for allowlisted/rolled-out server-side user identity.
+- **Boundary:** the Specialist may propose only the existing `tool.voice.open_app_action` navigation bridge for explicit medication navigation/context requests. Generic medication mentions, dosing decisions, start/stop/reduce requests, skip or missed-dose decisions, interaction concerns, contraindications and side-effect questions are migration-ineligible in Task 17 and receive no Medication Specialist metadata or tool proposal. The Specialist does not execute tools, confirm/defer/skip doses, create/edit/delete medication records, prescribe, dose-adjust, check interactions as a clinical authority, contact pharmacies/providers/caregivers/operators, mutate schedules, change caregiver permissions, write memory, call providers or create a new source of truth.
+- **Global registry decision:** no new global Specialist registry in Task 17. Medication follows the existing frozen Specialist/Flow/Presentation contracts. A broader registry remains deferred until more Stage 10 domains prove extraction value.
+- **Safety:** deterministic safety remains before Medication selection. Emergency or acute-harm medication language such as overdose, taking too much, allergic/adverse reaction, medication-linked severe dizziness/fainting, dangerous medication-plus-alcohol risk and suicidal overdose is preempted through the existing Safety route. Non-emergency clinical advice language remains legacy fallback, not migrated Specialist behavior.
+- **Observability:** Task 17 records Specialist selection, validation, outcome, fallback reason and `tool_proposal_decision` values (`proposal_allowed`, `proposal_rejected`, `not_requested`). These values describe local Specialist proposal validation only; they do not assert Central Orchestrator tool authorization or execution.
+- **Rollback:** flag off preserves the exact legacy `meds` route, ElevenLabs medication agent and client medication action behavior.
+- **PostgreSQL:** no migration required; Task 17 introduces no durable Medication state.
+- **Documentation:** see `docs/MEDICATION_SPECIALIST_MIGRATION.md`.
+
 ### Stage 11 — Durable scheduling and legacy cleanup
 
 - **Objective:** leases/queue/outbox, multi-instance safety, then remove proven legacy duplication.
