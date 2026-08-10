@@ -39,6 +39,25 @@ describe("screen presentation", () => {
     });
   });
 
+  it("keeps Health as a clean card hub with no loose heading detail", () => {
+    const presentation = getScreenPresentation({ screenId: "health" });
+
+    expect(presentation.template).toBe("cardHub");
+    expect(presentation.primarySurface).toBe("cards");
+    expect(presentation.cards).toBe("visible");
+    expect(presentation.chips).toBe("hidden");
+    expect(presentation.showHeadingDetail).toBe(false);
+    expect(presentation.dataAttributes).toMatchObject({
+      "data-screen-contract": "health",
+      "data-template": "cardHub",
+      "data-primary-surface": "cards",
+      "data-cards": "visible",
+      "data-chips": "hidden",
+      "data-heading-detail": "hidden",
+      "data-bottom-nav-clearance": "112",
+    });
+  });
+
   it("hides heading detail when a screen has cards or structured output", () => {
     expect(shouldShowHeadingDetail("cards", "visible")).toBe(false);
     expect(shouldShowHeadingDetail("dashboard", "visible")).toBe(false);

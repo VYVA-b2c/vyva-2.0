@@ -97,6 +97,7 @@ type MasterDashboardLayoutProps = {
   modeSwitcher?: ReactNode;
   isDarkMode?: boolean;
   presentationAttributes?: Record<string, string>;
+  presentationClassName?: string;
   children?: ReactNode;
 };
 
@@ -136,6 +137,7 @@ export default function MasterDashboardLayout({
   modeSwitcher,
   isDarkMode = false,
   presentationAttributes,
+  presentationClassName,
   children,
 }: MasterDashboardLayoutProps) {
   const heroTone = hero.tone ?? defaultHeroTone;
@@ -207,6 +209,7 @@ export default function MasterDashboardLayout({
         isHomeMaster
           ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] md:pb-[132px] lg:max-w-[920px]"
           : "",
+        presentationClassName ?? "",
       ].join(" ")}
       {...(presentationAttributes ?? {})}
       data-testid={testId}
