@@ -1,103 +1,147 @@
-# VYVA Flow Runtime Contract
+# Flow Runtime Contract
 
-## Purpose
+Task 20 defines the frozen architecture contract for future Flow runtime work.
+It is documentation and contract code only. It does not activate a runtime
+engine, route traffic, alter the Flow Catalogue, change the Presentation
+Registry, or approve broader rollout.
 
-The Flow runtime contract is the handoff layer between the Flow Catalogue,
-Presentation Registry, and live UI screens. It does not replace any of them.
-It tells implementers what must be joined before a Flow becomes a real user
-journey:
+## Canonical invariant
 
-- the canonical Flow ID and version;
-- the owning Specialist;
-- persisted and transient state;
-- presentation IDs and mode behavior;
-- interruption and resume behavior;
-- confirmation gates before tools, payments, bookings, calls, or handoffs.
+```text
+User intent
+→ Central Orchestrator
+→ one authoritative Active Flow
+→ optional Specialist proposal
+→ Presentation Registry projection
+→ Voice / Touch / Text Channel Adapter
+```
 
-This is the alignment baseline for parallel Flow work. A Flow is not ready for
-runtime just because it has a catalogue row or a screen mockup.
+The Central Orchestrator is the only global authority over route selection,
+active Flow identity, lifecycle transitions, interruption/resume, safety
+precedence, tool authorization, final user-facing response, and UI
+synchronization.
 
-## Authority
+Voice, touch and text are modalities of the same authoritative Flow state. They
+must not create independent Flow IDs, independent lifecycle state, or
+modality-specific answer semantics.
 
-| Layer | Decides |
+## Reused frozen contracts
+
+This contract sits on top of the already-frozen building blocks:
+
+- Task 1 interaction events and Flow state;
+- Task 2 Specialist proposal contracts;
+- Task 3 Flow Catalogue;
+- Task 3.5 Presentation Registry;
+- Task 4 Central Orchestrator policy contracts;
+- Task 5 compatibility boundary;
+- Task 6 Orchestrator shell;
+- Task 7 shared event/state runtime;
+- Task 8 proactive engagement policy;
+- Task 9 through Task 19 migrated domain slices.
+
+Task 20 adds alignment rules. It does not replace those contracts.
+
+## Runtime lifecycle vocabulary
+
+Task 20 uses a compact runtime vocabulary for planning and handoff. It maps
+conservatively onto the Task 1 Flow lifecycle.
+
+| Task 20 state | Meaning | Task 1 lifecycle states |
+| --- | --- | --- |
+| `idle` | No active user journey Flow. | `idle` |
+| `collecting` | Waiting for user input for the current authoritative question/scene. | `waiting_for_user` |
+| `confirming` | Waiting for confirmation before a sensitive/privileged step. | `active`, `waiting_for_user` |
+| `active` | Flow logic, Specialist validation, or authorized tool work is in progress. | `initializing`, `active`, `waiting_for_tool` |
+| `interrupted` | A higher-priority interruption has preempted ordinary progress. | `interrupted` |
+| `resumable` | Flow is paused and may resume after revalidation. | `paused`, `resuming` |
+| `complete` | Flow reached a successful terminal outcome. | `completed` |
+| `error` | Flow reached an exception or exit classification. | `failed`, `cancelled`, `expired`, `escalated` |
+
+Important nuance: Task 1 can allow recovery such as `failed -> resuming` when
+the frozen Flow-state transition contract permits it. Task 20 `error` is a
+planning/exit classification, not a universal claim that every failed state is
+permanently unrecoverable.
+
+## Authority boundaries
+
+| Concern | Authority |
 | --- | --- |
-| Flow Catalogue | Journey identity, owner, scenes, expected input, safety, consent, outcomes |
-| Presentation Registry | Approved visual and voice patterns for each semantic moment |
-| Runtime Contract | How a specific Flow binds state, presentations, tools, and interruptions |
-| Live screen | Viewport adaptation, current mode, temporary UI state, event emission |
+| Active Flow selection | Central Orchestrator |
+| Lifecycle transition | Central Orchestrator |
+| Safety precedence | Central Orchestrator deterministic safety policy |
+| Specialist reasoning | Proposal-only Specialist |
+| Tool execution | Tool Adapter after Orchestrator authorization |
+| Presentation selection | Presentation Registry projection |
+| Rendering | Channel Adapter / frontend |
+| Durable structured truth | PostgreSQL |
+| Semantic memory | Optional policy-controlled Mem0, never Flow authority |
 
-The runtime contract must reference existing catalogue and presentation IDs. It
-must not invent a new Flow, new action boundary, or new visual pattern without
-updating the source registry first.
+Frontend screens, voice canvases, channel adapters and presentation components
+may render or submit events. They must not become a second source of truth for
+Flow progression.
 
-## Required Runtime States
+## Persisted versus temporary state
 
-Use existing lifecycle states from `shared/orchestration/flowState.ts`.
+Persist only structured Flow/domain state that must survive refresh, retry,
+resume, idempotency checks, audit, or backend recovery.
 
-| State | Meaning |
+Do not persist ephemeral UI details merely because a Flow screen exists. Examples
+that normally remain temporary include animation state, local hover/focus,
+client loading spinners, visual card expansion, voice orb pulsing, and transient
+screen layout state.
+
+## Per-flow presentation binding layer
+
+PR #1043 added useful per-flow presentation binding vocabulary. Task 20 keeps
+that concept, but makes it explicitly subordinate to the canonical runtime
+contract above.
+
+A per-flow runtime presentation contract may bind:
+
+- Flow ID/version and owner Specialist;
+- Task 1 lifecycle start/terminal/resumable states;
+- persisted and transient state fields;
+- Presentation Registry IDs and scene IDs;
+- presentation pattern;
+- supported runtime modes;
+- mobile and larger-screen copy density;
+- allowed tool IDs;
+- approval gate;
+- interruption categories.
+
+This binding helps future screen tasks avoid guessing how a Flow should appear.
+It does not authorize runtime routing by itself.
+
+### Presentation patterns
+
+| Pattern | Intended use |
 | --- | --- |
-| `idle` | Flow is available but not started |
-| `initializing` | Runtime is preparing state, permissions, or provider context |
-| `active` | VYVA is guiding the Flow |
-| `waiting_for_user` | User input, approval, or correction is required |
-| `waiting_for_tool` | A tool or external provider step is pending |
-| `interrupted` | SOS, caregiver, safety, mode switch, or stop interrupted the Flow |
-| `paused` | Flow can resume later |
-| `resuming` | Runtime is restoring the last valid state |
-| `completed` | Flow ended with a valid outcome |
-| `escalated` | Human, caregiver, clinical, or operator path takes over |
-| `cancelled` | User or policy stopped the Flow |
-| `expired` | Stored runtime state is no longer valid |
-| `failed` | Runtime hit a recoverable or terminal error |
+| `voice_orb_idle`, `voice_orb_connecting`, `voice_orb_listening`, `voice_orb_speaking` | Voice-channel status, always tied to voice mode. |
+| `touch_card_menu` | Touch card choice entry. |
+| `guided_choice`, `guided_form`, `progress_status`, `review_confirm`, `result_summary` | Cross-channel Flow scenes. |
+| `safe_fallback`, `handoff_status` | Safety, fallback, escalation, or handoff scenes. |
 
-Voice-specific UI states such as connecting, listening, speaking, ending, and
-error are transient state fields inside the runtime contract, not separate Flow
-lifecycle states.
+Voice-orb patterns must include voice mode. Touch-card menu patterns must include
+touch mode. Duplicate runtime state fields are rejected.
 
-## Presentation Binding
+### Approval gates
 
-Every runtime Flow needs explicit bindings from semantic moments to presentation
-IDs. The binding chooses a pattern only from the approved runtime pattern list:
+Allowed gate labels are:
 
-| Pattern | Use |
-| --- | --- |
-| `voice_orb_idle` | Voice-first idle entry |
-| `voice_orb_connecting` | Voice session opening |
-| `voice_orb_listening` | User is speaking or VYVA is listening |
-| `voice_orb_speaking` | VYVA response is being delivered |
-| `touch_card_menu` | Touch mode card surface |
-| `guided_choice` | One decision at a time |
-| `guided_form` | Structured input |
-| `progress_status` | Provider/tool/status progress |
-| `review_confirm` | User confirms before action |
-| `result_summary` | Output or recommendation |
-| `safe_fallback` | Recoverable error or safe fallback |
-| `handoff_status` | Caregiver, operator, or external provider handoff |
+- `none`;
+- `user_confirmation`;
+- `caregiver_approval`;
+- `operator_handoff`;
+- `clinical_escalation`.
 
-Mobile copy density should default to `heading_only` when there are cards,
-results, stats, or actions on screen. Tablet and desktop may use a brief helper
-line where it improves comprehension.
+Any external action must require confirmation before execution and must have a
+non-`none` approval gate. A Specialist may propose an action; it may not execute
+the action directly.
 
-## Tool And Approval Boundary
+### Interruption kinds
 
-External actions always need an approval gate. Examples include booking,
-ordering, payment, provider contact, outbound calls, and any sensitive data
-handoff.
-
-The contract must state:
-
-- whether the Flow can execute external actions;
-- which tool IDs are allowed;
-- whether confirmation is required before the external action;
-- whether caregiver approval, operator handoff, or clinical escalation can be
-  required.
-
-If a Flow can contact a provider, book, order, pay, call, or submit a form, it
-cannot use approval gate `none`.
-
-## Interruption Policy
-
-Each Flow must declare which interruptions it supports:
+Allowed interruption labels are:
 
 - `sos`;
 - `caregiver`;
@@ -106,21 +150,81 @@ Each Flow must declare which interruptions it supports:
 - `timeout`;
 - `mode_switch`.
 
-The contract must state whether the Flow resumes after interruption and which
-interruptions are terminal. Mode switch is normally resumable. SOS and stop are
-normally terminal for the active voice session, even if the Flow can later be
-resumed from stored state.
+These are classification labels for presentation/runtime contracts. They do not
+create an arbitrary global interruption stack or new resume engine.
 
-## Implementation Checklist
+## Voice, touch and text handoff
 
-Before implementing or modifying a Flow screen:
+All answer channels must normalize into the same authoritative input shape before
+Flow progression:
 
-1. Confirm the Flow exists in `shared/orchestration/flowCatalogue.ts`.
-2. Confirm the semantic moment has a registered presentation in
-   `shared/orchestration/presentationRegistry.ts`.
-3. Add or update a runtime contract row for state, mode behavior, approval, and
-   interruption handling.
-4. Wire the screen to the presentation contract instead of hardcoding a new
-   layout rule.
-5. Add tests for mobile copy density, voice/touch mode behavior, confirmation
-   gates, and interruption/reset behavior.
+```text
+spoken answer / tapped answer / typed answer
+→ normalized answer event
+→ stale scene and question validation
+→ Central Orchestrator
+→ same Flow transition path
+```
+
+Stale scene/question submissions fail closed. A delayed voice answer or old touch
+callback must never be rebound to the newest question.
+
+## Tool and action policy
+
+Flow contracts may document proposed tools/actions, but tool execution remains
+outside the Specialist and presentation layers. The Orchestrator must authorize
+tool calls before any Tool Adapter executes external work.
+
+This contract does not approve SMS, email, WhatsApp, phone calls, bookings,
+payments, orders, contact outreach, clinical advice, medication dosing,
+caregiver permission mutation, proactive delivery, or provider execution unless
+the relevant frozen task already created and approved that narrow boundary.
+
+## Future and parallel Flow task contract
+
+Any future Flow task should return a row with these fields before implementation:
+
+| Field | Required answer |
+| --- | --- |
+| Flow name | User-facing or architecture name |
+| Flow ID/version | Existing canonical ID/version or proposed new ID/version |
+| Owner | Specialist/domain owner |
+| Voice behavior | Voice semantics, not raw copy |
+| Touch behavior | Touch semantics, not raw copy |
+| Presentation IDs | Existing/proposed registry IDs |
+| Persisted state | What survives retry/resume/audit |
+| Temporary state | UI/session-only state |
+| Tool permissions | None, proposal-only, authorized, or unresolved |
+| Confirmation gates | User/caregiver/operator/clinical gates |
+| Interruptions | SOS, caregiver, safety, stop, timeout, mode switch |
+| Terminal states | Complete/error/defer/fallback semantics |
+| Runtime activation | Must be `not_approved` until separately reviewed |
+
+If this row cannot be filled without inventing product behavior, the Flow is not
+ready for implementation.
+
+## Explicit deferrals
+
+Task 20 deliberately does not introduce:
+
+- a new global Flow engine;
+- a new Specialist registry;
+- runtime activation;
+- frontend-owned routing;
+- voice-specific or touch-specific Flow state machines;
+- multiple active primary Flows;
+- persisted ephemeral UI state;
+- Mem0 authority over Flow state;
+- caregiver-support authority changes;
+- external contact execution;
+- booking, payment, order or checkout execution;
+- clinical medication or mental-health authority;
+- proactive delivery execution;
+- Home-specific orb behavior outside Home;
+- broad dependency, schema, API or UI refactors.
+
+## Freeze status
+
+Task 20 is safe to freeze only as an architectural runtime contract and alignment
+map. It is not safe for runtime activation, rollout, routing changes, or
+production behavior changes without a later approved implementation task.
