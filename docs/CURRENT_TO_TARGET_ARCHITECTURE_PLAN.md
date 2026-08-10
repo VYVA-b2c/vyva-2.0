@@ -1595,6 +1595,23 @@ scene is published.
 - **PostgreSQL:** no migration required; Task 18 introduces no durable Concierge state.
 - **Documentation:** see `docs/CONCIERGE_SPECIALIST_MIGRATION.md`.
 
+#### Task 19 / Stage 10E — Social Support Specialist
+
+- **Scope:** fifth Stage 10 specialist slice only: user-initiated community and social-room navigation/context currently handled by the legacy `companion` route.
+- **Specialist:** `social`, version `1.0.0`.
+- **Flow:** `social.community_connection`, version `1.0.0`, pilot-only and community-navigation/context-only.
+- **Reuse:** existing `companion` router domain, existing social/community surfaces (`/social-rooms`, `/social-rooms/join-in`, `/social-rooms/activities`), current voice/action semantics, frozen Specialist contract, existing Flow Catalogue and existing shared Presentation Registry.
+- **Presentation:** adds canonical Social Support IDs `presentation.social.community_connection.summary`, `presentation.social.community_connection.rooms`, `presentation.social.community_connection.activities` and `presentation.social.community_connection.safe_fallback`.
+- **Flag:** `VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE`; default, disabled, malformed, whitespace-polluted, production-unapproved or denylisted configuration resolves to legacy-only. `specialist_preview` selects the Specialist path only for allowlisted/rolled-out server-side user identity.
+- **Boundary:** the Specialist may propose only the existing `tool.voice.open_app_action` navigation bridge for explicit community/social-room navigation or context requests. Human contact, calls, text/email/WhatsApp/notifications, invitations, caregiver permissions, caregiver/operator escalation, Trusted Help authorization, Concierge execution, Mental Wellbeing support, memory writes, schedules, proactive outreach, bookings, orders, payments and cross-domain requests are migration-ineligible in Task 19 and receive no Social Support Specialist metadata or tool proposal.
+- **Global registry decision:** no new global Specialist registry in Task 19. Social Support follows the existing frozen Specialist/Flow/Presentation contracts. A broader registry remains deferred until repeated Stage 10 shapes prove extraction value.
+- **Safety:** deterministic safety remains before Social Support selection. Emergency, self-harm, overdose, breathing distress, falls, danger and abuse-style wording is preempted through existing Safety/legacy safety handling. Social Support cannot replace or downgrade Safety output.
+- **Caregiver boundary:** Task 19 does not migrate caregiver support. Caregiver permissions/access, caregiver summaries, caregiver/operator escalation, alert delivery and operator tasks remain with Stage 9 caregiver/operator architecture or legacy caregiver routes.
+- **Observability:** Task 19 records Specialist selection, validation, outcome, fallback reason, request category and `tool_proposal_decision` values (`proposal_allowed`, `proposal_rejected`, `not_requested`). These values describe local Specialist proposal validation only; they do not assert Central Orchestrator tool authorization or execution.
+- **Rollback:** flag off preserves the exact legacy `companion` route, ElevenLabs Companion agent and client social/community action behavior.
+- **PostgreSQL:** no migration required; Task 19 introduces no durable Social Support state.
+- **Documentation:** see `docs/SOCIAL_SUPPORT_SPECIALIST_MIGRATION.md`.
+
 ### Stage 11 — Durable scheduling and legacy cleanup
 
 - **Objective:** leases/queue/outbox, multi-instance safety, then remove proven legacy duplication.

@@ -37,6 +37,7 @@ import { buildBrainCoachSpecialistRouteAugmentation } from "../brainCoach/brainC
 import { buildMentalWellbeingSpecialistRouteAugmentation } from "../mentalWellbeing/mentalWellbeingRouterAdapter.js";
 import { buildMedicationSpecialistRouteAugmentation } from "../medication/medicationRouterAdapter.js";
 import { buildConciergeSpecialistRouteAugmentation } from "../concierge/conciergeRouterAdapter.js";
+import { buildSocialSupportSpecialistRouteAugmentation } from "../socialSupport/socialSupportRouterAdapter.js";
 
 export type RoutingDomain =
   | "safety"
@@ -215,6 +216,9 @@ const STORY_FOR_COMPANION = ["tell me a story", "read me", "\\bstory\\b"];
 const TRUSTED_HELP_SETUP_NAVIGATION_PATTERN =
   /^(?:open|show|view|go to|take me to|set up|setup) (?:my )?trusted help(?: settings| setup)?[.!?]?$/i;
 
+const SOCIAL_SUPPORT_NAVIGATION_PATTERN =
+  /^(?:(?:open|show|view|go to|take me to|join) (?:my )?(?:community|community hub|social|social hub|social rooms|community room|community rooms|community activities|social activities)(?: page| hub)?|(?:i want to do|i'd like to do|let's do|lets do) (?:a )?social activit(?:y|ies))[.!?]?$/i;
+
 const THRESHOLD = 0.55;
 
 const ROUTING_HINTS: Array<{ domain: RoutingDomain; patterns: string[] }> = [
@@ -266,6 +270,9 @@ function classifyRoutingHint(utterance: string): RoutingDomain | null {
   if (!normalized) return null;
   if (TRUSTED_HELP_SETUP_NAVIGATION_PATTERN.test(normalized)) {
     return "concierge";
+  }
+  if (SOCIAL_SUPPORT_NAVIGATION_PATTERN.test(normalized)) {
+    return "companion";
   }
   for (const hint of ROUTING_HINTS) {
     if (hint.patterns.some((pattern) => normalized === pattern || normalized.includes(pattern))) {
@@ -901,6 +908,17 @@ export async function routerHandler(req: Request, res: Response) {
     env: process.env,
     currentRoute: appEntrypoint,
   });
+  const socialSupportSpecialist = buildSocialSupportSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
 
   const system_prompt_override = [
     buildAgentOperatingRules(domain),
@@ -918,6 +936,7 @@ export async function routerHandler(req: Request, res: Response) {
     medicationSpecialist ? ["", medicationSpecialist.promptBlock].join("\n") : "",
     mentalWellbeingSpecialist ? ["", mentalWellbeingSpecialist.promptBlock].join("\n") : "",
     conciergeSpecialist ? ["", conciergeSpecialist.promptBlock].join("\n") : "",
+    socialSupportSpecialist ? ["", socialSupportSpecialist.promptBlock].join("\n") : "",
   ].join("\n");
 
   const lastAgentBefore = sessionRow?.current_agent ?? null;
@@ -985,6 +1004,7 @@ export async function routerHandler(req: Request, res: Response) {
       ...(medicationSpecialist ? medicationSpecialist.dynamicVariables : {}),
       ...(mentalWellbeingSpecialist ? mentalWellbeingSpecialist.dynamicVariables : {}),
       ...(conciergeSpecialist ? conciergeSpecialist.dynamicVariables : {}),
+      ...(socialSupportSpecialist ? socialSupportSpecialist.dynamicVariables : {}),
     },
     session_data: {
       domain,
@@ -1003,6 +1023,9 @@ export async function routerHandler(req: Request, res: Response) {
         : {}),
       ...(conciergeSpecialist
         ? { concierge_specialist: conciergeSpecialist.sessionData }
+        : {}),
+      ...(socialSupportSpecialist
+        ? { social_support_specialist: socialSupportSpecialist.sessionData }
         : {}),
     },
   });
