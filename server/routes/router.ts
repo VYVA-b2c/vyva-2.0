@@ -36,6 +36,7 @@ import {
 import { buildBrainCoachSpecialistRouteAugmentation } from "../brainCoach/brainCoachRouterAdapter.js";
 import { buildMentalWellbeingSpecialistRouteAugmentation } from "../mentalWellbeing/mentalWellbeingRouterAdapter.js";
 import { buildMedicationSpecialistRouteAugmentation } from "../medication/medicationRouterAdapter.js";
+import { buildConciergeSpecialistRouteAugmentation } from "../concierge/conciergeRouterAdapter.js";
 
 export type RoutingDomain =
   | "safety"
@@ -211,6 +212,9 @@ const BRAIN_COACH_KEYWORDS = [
 ];
 const STORY_FOR_COMPANION = ["tell me a story", "read me", "\\bstory\\b"];
 
+const TRUSTED_HELP_SETUP_NAVIGATION_PATTERN =
+  /^(?:open|show|view|go to|take me to|set up|setup) (?:my )?trusted help(?: settings| setup)?[.!?]?$/i;
+
 const THRESHOLD = 0.55;
 
 const ROUTING_HINTS: Array<{ domain: RoutingDomain; patterns: string[] }> = [
@@ -260,6 +264,9 @@ function healthDisallowedTiredOnly(utterance: string): boolean {
 function classifyRoutingHint(utterance: string): RoutingDomain | null {
   const normalized = utterance.toLowerCase().replace(/\s+/g, " ").trim();
   if (!normalized) return null;
+  if (TRUSTED_HELP_SETUP_NAVIGATION_PATTERN.test(normalized)) {
+    return "concierge";
+  }
   for (const hint of ROUTING_HINTS) {
     if (hint.patterns.some((pattern) => normalized === pattern || normalized.includes(pattern))) {
       return hint.domain;
@@ -883,6 +890,17 @@ export async function routerHandler(req: Request, res: Response) {
     env: process.env,
     currentRoute: appEntrypoint,
   });
+  const conciergeSpecialist = buildConciergeSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
 
   const system_prompt_override = [
     buildAgentOperatingRules(domain),
@@ -899,6 +917,7 @@ export async function routerHandler(req: Request, res: Response) {
     brainCoachSpecialist ? ["", brainCoachSpecialist.promptBlock].join("\n") : "",
     medicationSpecialist ? ["", medicationSpecialist.promptBlock].join("\n") : "",
     mentalWellbeingSpecialist ? ["", mentalWellbeingSpecialist.promptBlock].join("\n") : "",
+    conciergeSpecialist ? ["", conciergeSpecialist.promptBlock].join("\n") : "",
   ].join("\n");
 
   const lastAgentBefore = sessionRow?.current_agent ?? null;
@@ -965,6 +984,7 @@ export async function routerHandler(req: Request, res: Response) {
       ...(brainCoachSpecialist ? brainCoachSpecialist.dynamicVariables : {}),
       ...(medicationSpecialist ? medicationSpecialist.dynamicVariables : {}),
       ...(mentalWellbeingSpecialist ? mentalWellbeingSpecialist.dynamicVariables : {}),
+      ...(conciergeSpecialist ? conciergeSpecialist.dynamicVariables : {}),
     },
     session_data: {
       domain,
@@ -980,6 +1000,9 @@ export async function routerHandler(req: Request, res: Response) {
         : {}),
       ...(mentalWellbeingSpecialist
         ? { mental_wellbeing_specialist: mentalWellbeingSpecialist.sessionData }
+        : {}),
+      ...(conciergeSpecialist
+        ? { concierge_specialist: conciergeSpecialist.sessionData }
         : {}),
     },
   });
