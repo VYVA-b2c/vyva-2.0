@@ -130,6 +130,38 @@ describe("catalogue identity and versioning", () => {
       clinicalBoundary: "not_diagnosis_or_treatment",
     });
   });
+  it("keeps Social Support as a pilot community-navigation-only flow", () => {
+    const flow = parseFlowCatalogue(VYVA_FLOW_CATALOGUE).flows.find(
+      (item) => item.flowId === "social.community_connection",
+    );
+
+    expect(flow).toMatchObject({
+      ownerSpecialistId: "social",
+      status: "pilot",
+      supportedTriggers: ["user"],
+      requiredTools: [],
+      optionalTools: ["tool.voice.open_app_action"],
+      deterministicSafetyChecks: [
+        "safety_check.emergency_general",
+        "safety_check.social_human_contact_boundary",
+      ],
+    });
+    expect(flow?.uiScenes).toEqual([{
+      sceneId: "social.community_connection.main",
+      purpose:
+        "Primary Social Support scene for opening existing community or social-room context without human contact, caregiver permission changes, or escalation.",
+      supportedInstructionTypes: ["show_summary", "show_text_prompt", "show_choice_question", "clear_scene"],
+    }]);
+    expect(flow?.memoryPolicy.proposedWriteCategories).toEqual([]);
+    expect(flow?.metadata).toMatchObject({
+      task19Stage: "stage_10e_social_support_specialist",
+      noPostgresMigrationRequired: true,
+      noGlobalRegistryAdded: true,
+      mentalWellbeingBoundaryUnchanged: true,
+      conciergeBoundaryUnchanged: true,
+      caregiverPermissionBoundaryUnchanged: true,
+    });
+  });
   it("accepts stable lowercase namespaced Flow IDs", () => {
     expect(futureFlowFixture.flowId).toBe("future.example_assessment");
   });

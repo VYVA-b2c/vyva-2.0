@@ -63,7 +63,7 @@ const mutatePresentation = (
 describe("Presentation identity and versioning", () => {
   it("accepts the canonical Presentation Registry", () => {
     expect(parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY).presentations)
-      .toHaveLength(62);
+      .toHaveLength(66);
   });
   it("registers Mental Wellbeing support presentations through existing families", () => {
     const registry = parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY);
@@ -87,6 +87,37 @@ describe("Presentation identity and versioning", () => {
       familyId: "presentation.family.error.safe_fallback",
       supportedFlowIds: ["wellbeing.support"],
       sceneId: "wellbeing.support.main",
+      supportedUIInstructionTypes: ["show_summary", "show_choice_question"],
+    });
+  });
+  it("registers Social Support community presentations through existing families", () => {
+    const registry = parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY);
+    const presentations = new Map(
+      registry.presentations.map((presentation) => [presentation.presentationId, presentation]),
+    );
+
+    expect(presentations.get("presentation.social.community_connection.summary")).toMatchObject({
+      familyId: "presentation.family.summary",
+      supportedFlowIds: ["social.community_connection"],
+      sceneId: "social.community_connection.main",
+      supportedUIInstructionTypes: ["show_summary"],
+    });
+    expect(presentations.get("presentation.social.community_connection.rooms")).toMatchObject({
+      familyId: "presentation.family.summary",
+      supportedFlowIds: ["social.community_connection"],
+      sceneId: "social.community_connection.main",
+      supportedUIInstructionTypes: ["show_summary"],
+    });
+    expect(presentations.get("presentation.social.community_connection.activities")).toMatchObject({
+      familyId: "presentation.family.summary",
+      supportedFlowIds: ["social.community_connection"],
+      sceneId: "social.community_connection.main",
+      supportedUIInstructionTypes: ["show_summary"],
+    });
+    expect(presentations.get("presentation.social.community_connection.safe_fallback")).toMatchObject({
+      familyId: "presentation.family.error.safe_fallback",
+      supportedFlowIds: ["social.community_connection"],
+      sceneId: "social.community_connection.main",
       supportedUIInstructionTypes: ["show_summary", "show_choice_question"],
     });
   });
@@ -155,7 +186,7 @@ describe("Presentation identity and versioning", () => {
       registry.presentations[1].presentationId;
     registry.presentations[0].compatibility.replacementVersion =
       registry.presentations[1].version;
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(62);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(66);
   });
   it("rejects an unresolved deprecated replacement", () => {
     const registry = clone(VYVA_PRESENTATION_REGISTRY);
@@ -931,7 +962,7 @@ describe("bounded metadata and implementation isolation", () => {
     registry.presentations[0].metadata = {
       futurePolicy: { enabled: true, labels: ["one"], note: null },
     };
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(62);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(66);
   });
   it.each(["apiKey", "providerClient", "callback"])(
     "rejects reserved metadata key %s",
@@ -985,7 +1016,7 @@ describe("bounded metadata and implementation isolation", () => {
   });
   it("accepts future Family and Presentation fixtures", () => {
     expect(parsePresentationRegistry(futurePresentationRegistryFixture).presentations)
-      .toHaveLength(63);
+      .toHaveLength(67);
   });
 });
 

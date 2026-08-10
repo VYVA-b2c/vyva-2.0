@@ -97,6 +97,13 @@ import {
   task18ExternalExecutionFixtures,
   task18SafetyPrecedenceFixtures,
 } from "../concierge/conciergeFixtures.js";
+import {
+  task19CaregiverBoundaryFixtures,
+  task19ConciergeOverlapFixtures,
+  task19MentalWellbeingOverlapFixtures,
+  task19SafetyPrecedenceFixtures,
+  task19SocialParityFixtures,
+} from "../socialSupport/socialSupportFixtures.js";
 
 const FIXED_NOW = new Date("2026-08-02T12:00:00.000Z");
 const TABLE_NAME = Symbol.for("drizzle:Name");
@@ -196,6 +203,8 @@ const task18ShoppingExecutionRejectionCases = [
   "Pay for it.",
   "Use my card.",
 ] as const;
+
+const task19RealRouterNavigationCases = task19SocialParityFixtures;
 
 function tableName(table: unknown): string {
   return String((table as Record<symbol, unknown>)?.[TABLE_NAME] ?? "");
@@ -414,6 +423,8 @@ describe("Task 6 real router parity", () => {
     delete process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS;
     delete process.env.VYVA_CONCIERGE_SPECIALIST_MODE;
     delete process.env.VYVA_CONCIERGE_SPECIALIST_ALLOW_USERS;
+    delete process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE;
+    delete process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_ALLOW_USERS;
     vi.clearAllMocks();
   });
 
@@ -1109,6 +1120,147 @@ describe("Task 6 real router parity", () => {
       support_intent: "loneliness_support",
     });
   });
+
+  it("preserves legacy Social/companion routing when the Social Support Specialist flag is off", async () => {
+    const fixture: RouterFixture = {
+      user_id: "user-social-support-flag-off-review",
+      session_id: "session-social-support-flag-off-review",
+      utterance: "Open social rooms.",
+      conversation_history: [{ role: "assistant", content: "How can I help?" }],
+    };
+
+    const direct = await execute(directApp(), fixture);
+
+    expect(direct.body.agent_id).toBe("agent-companion-review");
+    expect(direct.body.session_data.domain).toBe("companion");
+    expect(direct.body.session_data.social_support_specialist).toBeUndefined();
+    expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("social_support_specialist");
+  });
+
+  it.each(task19RealRouterNavigationCases)(
+    "adds Social Support Specialist metadata for valid routed community navigation/context: $utterance",
+    async (caseFixture) => {
+      const fixture: RouterFixture = {
+        user_id: "user-social-support-valid-navigation-review",
+        session_id: "session-social-support-valid-navigation-review",
+        utterance: caseFixture.utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.agent_id).toBe("agent-companion-review");
+      expect(direct.body.session_data.domain).toBe("companion");
+      expect(direct.body.session_data.social_support_specialist).toMatchObject({
+        selected_specialist_id: "social",
+        selected_flow_id: "social.community_connection",
+        outcome: "tool_proposed",
+        tool_proposal_decision: "proposal_allowed",
+        action_type: caseFixture.expectedActionType,
+        route: caseFixture.expectedRoute,
+        capability: caseFixture.expectedCapability,
+        request_category: caseFixture.expectedRequestCategory,
+        presentation_id: caseFixture.expectedPresentationId,
+        external_action: "false",
+        human_contact: "false",
+        caregiver_authority: "false",
+      });
+      expect(direct.body.system_prompt_override).toContain("SOCIAL SUPPORT SPECIALIST MIGRATION BLOCK");
+      expect(direct.body.system_prompt_override).toContain("Do not contact, call, text");
+    },
+  );
+
+  it.each(task19MentalWellbeingOverlapFixtures)(
+    "does not let Task 19 steal Mental Wellbeing overlap: %s",
+    async (utterance) => {
+      const fixture: RouterFixture = {
+        user_id: "user-social-support-mental-overlap-review",
+        session_id: "session-social-support-mental-overlap-review",
+        utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_ALLOW_USERS = fixture.user_id;
+      process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_MENTAL_WELLBEING_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.session_data.social_support_specialist).toBeUndefined();
+      expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("social_support_specialist");
+    },
+  );
+
+  it.each(task19ConciergeOverlapFixtures)(
+    "does not let Task 19 steal Concierge or Trusted Help overlap: %s",
+    async (utterance) => {
+      const fixture: RouterFixture = {
+        user_id: "user-social-support-concierge-overlap-review",
+        session_id: "session-social-support-concierge-overlap-review",
+        utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_ALLOW_USERS = fixture.user_id;
+      process.env.VYVA_CONCIERGE_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_CONCIERGE_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.session_data.social_support_specialist).toBeUndefined();
+      expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("social_support_specialist");
+    },
+  );
+
+  it.each(task19CaregiverBoundaryFixtures)(
+    "does not let Task 19 create caregiver permission or contact authority: %s",
+    async (utterance) => {
+      const fixture: RouterFixture = {
+        user_id: "user-social-support-caregiver-boundary-review",
+        session_id: "session-social-support-caregiver-boundary-review",
+        utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.session_data.social_support_specialist).toBeUndefined();
+      expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("social_support_specialist");
+      expect(JSON.stringify(direct.body.session_data)).not.toContain("caregiver_authority");
+    },
+  );
+
+  it.each(task19SafetyPrecedenceFixtures)(
+    "does not attach Social Support metadata to safety-sensitive support language: %s",
+    async (utterance) => {
+      const fixture: RouterFixture = {
+        user_id: "user-social-support-safety-review",
+        session_id: "session-social-support-safety-review",
+        utterance,
+        conversation_history: [{ role: "assistant", content: "How can I help?" }],
+      };
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_MODE = "specialist_preview";
+      process.env.VYVA_SOCIAL_SUPPORT_SPECIALIST_ALLOW_USERS = fixture.user_id;
+
+      const direct = await execute(directApp(), fixture);
+
+      expect(direct.body.session_data.social_support_specialist).toBeUndefined();
+      expect(JSON.stringify(direct.body.dynamic_variables)).not.toContain("social_support_specialist");
+      if ([
+        "I'm in danger, call my caregiver.",
+        "I can't breathe, call my daughter.",
+        "I want to die, tell my family.",
+        "I overdosed, call my caregiver.",
+      ].includes(utterance)) {
+        expect(direct.body.agent_id).toBe("agent-safety-review");
+        expect(direct.body.session_data.domain).toBe("safety");
+      }
+    },
+  );
 
   it("preserves the real normal response and exact side effects", async () => {
     const fixture: RouterFixture = {
