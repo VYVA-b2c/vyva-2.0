@@ -1579,22 +1579,6 @@ scene is published.
 - **PostgreSQL:** no migration required; Task 17 introduces no durable Medication state.
 - **Documentation:** see `docs/MEDICATION_SPECIALIST_MIGRATION.md`.
 
-#### Task 18 / Stage 10D — Concierge Specialist
-
-- **Scope:** fourth Stage 10 specialist slice only: user-initiated Concierge request-intake, Trusted Help setup context and shopping-context navigation. Execution-heavy Concierge work remains legacy.
-- **Specialist:** `concierge`, version `1.0.0`.
-- **Flow:** `concierge.administrative_support`, version `1.0.0`, pilot-only and request-intake/navigation/context-only. The existing generated Flow ID is kept for compatibility with the frozen catalogue and is not expanded into transport, booking, provider contact, payment, queue, task-creation or operator-handoff execution.
-- **Reuse:** existing `concierge` router domain, existing Concierge routes/UI surfaces, existing voice-action semantics, frozen Specialist contract, existing Flow Catalogue and existing shared Presentation Registry.
-- **Presentation:** adds canonical Concierge IDs `presentation.concierge.request_intake`, `presentation.concierge.trusted_help_setup`, `presentation.concierge.shopping_context` and `presentation.concierge.safe_fallback`. Trusted Help presentation metadata remains presentation-only and is not provider/contact/caregiver authorization.
-- **Flag:** `VYVA_CONCIERGE_SPECIALIST_MODE`; default, disabled, malformed, whitespace-polluted, production-unapproved or denylisted configuration resolves to legacy-only. `specialist_preview` selects the Specialist path only for allowlisted/rolled-out server-side user identity.
-- **Boundary:** the Specialist may propose only the existing `tool.voice.open_app_action` navigation bridge for explicit Concierge request-intake or context requests. Booking, transport dispatch, appointment creation/cancellation, provider/vendor contact, SMS/email/call/WhatsApp, order/checkout/payment, Concierge task creation, caregiver/operator escalation, scheduling, queues and memory are migration-ineligible in Task 18 and receive no Concierge Specialist metadata or tool proposal.
-- **Global registry decision:** no new global Specialist registry in Task 18. Concierge follows the existing frozen Specialist/Flow/Presentation contracts. A broader registry remains deferred until repeated Stage 10 shapes prove extraction value.
-- **Safety:** deterministic safety remains before Concierge selection. Emergency-room transport, inability to breathe, overdose, fall, danger and suicidal-intent wording is preempted through the existing Safety route. Concierge cannot replace or downgrade Safety output.
-- **Observability:** Task 18 records Specialist selection, validation, outcome, fallback reason, request category and `tool_proposal_decision` values (`proposal_allowed`, `proposal_rejected`, `not_requested`). These values describe local Specialist proposal validation only; they do not assert Central Orchestrator tool authorization or execution.
-- **Rollback:** flag off preserves the exact legacy `concierge` route, ElevenLabs Concierge agent and client Concierge action behavior.
-- **PostgreSQL:** no migration required; Task 18 introduces no durable Concierge state.
-- **Documentation:** see `docs/CONCIERGE_SPECIALIST_MIGRATION.md`.
-
 ### Stage 11 — Durable scheduling and legacy cleanup
 
 - **Objective:** leases/queue/outbox, multi-instance safety, then remove proven legacy duplication.
