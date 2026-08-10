@@ -271,7 +271,17 @@ describe("HealthScreen home-style layout", () => {
   it("renders the approved master dashboard with a VYVA voice invitation", async () => {
     renderHealthScreen();
 
-    expect(await screen.findByTestId("health-master-layout")).toBeInTheDocument();
+    const layout = await screen.findByTestId("health-master-layout");
+    expect(layout).toBeInTheDocument();
+    expect(layout).toHaveAttribute("data-screen-contract", "health");
+    expect(layout).toHaveAttribute("data-screen-mode", "default");
+    expect(layout).toHaveAttribute("data-template", "cardHub");
+    expect(layout).toHaveAttribute("data-primary-surface", "cards");
+    expect(layout).toHaveAttribute("data-cards", "visible");
+    expect(layout).toHaveAttribute("data-chips", "hidden");
+    expect(layout).toHaveAttribute("data-heading-detail", "hidden");
+    expect(layout).toHaveAttribute("data-bottom-nav-clearance", "112");
+    expect(layout).toHaveClass("pb-[112px]");
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(mocks.voiceHero).not.toHaveBeenCalled();
 

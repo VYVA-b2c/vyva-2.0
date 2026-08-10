@@ -56,6 +56,7 @@ import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel"
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useScreenPresentation } from "@/design/screenPresentation";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
@@ -1600,6 +1601,7 @@ const HealthScreen = () => {
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
   const { firstName, profile } = useProfile();
+  const healthPresentation = useScreenPresentation({ screenId: "health" });
   const navigate = useNavigate();
   const { guardPath, canUseService } = useServiceGate();
   const location = useLocation();
@@ -3212,6 +3214,8 @@ const HealthScreen = () => {
     <>
       <MasterDashboardLayout
         testId="health-master-layout"
+        presentationAttributes={healthPresentation.dataAttributes}
+        presentationClassName={healthPresentation.bottomNavClearanceClassName}
         cardGridTestId="health-master-cards"
         fastHelpTestId="health-fast-help"
         fastHelpTitle={t("health.fastHelp.kicker", "Fast help")}
