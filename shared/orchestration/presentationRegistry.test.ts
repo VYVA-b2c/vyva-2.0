@@ -63,7 +63,7 @@ const mutatePresentation = (
 describe("Presentation identity and versioning", () => {
   it("accepts the canonical Presentation Registry", () => {
     expect(parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY).presentations)
-      .toHaveLength(58);
+      .toHaveLength(62);
   });
   it("registers Mental Wellbeing support presentations through existing families", () => {
     const registry = parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY);
@@ -155,7 +155,7 @@ describe("Presentation identity and versioning", () => {
       registry.presentations[1].presentationId;
     registry.presentations[0].compatibility.replacementVersion =
       registry.presentations[1].version;
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(58);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(62);
   });
   it("rejects an unresolved deprecated replacement", () => {
     const registry = clone(VYVA_PRESENTATION_REGISTRY);
@@ -931,7 +931,7 @@ describe("bounded metadata and implementation isolation", () => {
     registry.presentations[0].metadata = {
       futurePolicy: { enabled: true, labels: ["one"], note: null },
     };
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(58);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(62);
   });
   it.each(["apiKey", "providerClient", "callback"])(
     "rejects reserved metadata key %s",
@@ -985,7 +985,7 @@ describe("bounded metadata and implementation isolation", () => {
   });
   it("accepts future Family and Presentation fixtures", () => {
     expect(parsePresentationRegistry(futurePresentationRegistryFixture).presentations)
-      .toHaveLength(59);
+      .toHaveLength(63);
   });
 });
 
