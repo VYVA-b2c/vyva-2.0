@@ -3,6 +3,13 @@ import {
   getScreenPresentation,
   shouldShowHeadingDetail,
 } from "./screenPresentation";
+import fr from "../i18n/fr";
+
+function collectStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (!value || typeof value !== "object") return [];
+  return Object.values(value as Record<string, unknown>).flatMap(collectStrings);
+}
 
 describe("screen presentation", () => {
   it("keeps Home voice mode orb-first with cards and chips hidden", () => {
@@ -51,5 +58,14 @@ describe("screen presentation", () => {
     expect(presentation.bottomNavClearancePx).toBeGreaterThanOrEqual(112);
     expect(presentation.bottomNavClearanceClassName).toBe("pb-[112px]");
     expect(presentation.dataAttributes["data-bottom-nav-clearance"]).toBe("112");
+  });
+
+  it("keeps French Home voice copy short and free of orb typos", () => {
+    const frenchCopy = collectStrings(fr).join("\n");
+
+    expect(frenchCopy).not.toContain("le l'orbe");
+    expect(fr.home.master.touchOrbToBegin).toBe("Touchez l'orbe pour commencer.");
+    expect(fr.home.master.conciergeIntent.voiceSubtitle).toBe("Touchez l'orbe pour commencer.");
+    expect(fr.home.master.conciergeIntent.moreCompact).toBe("Autres");
   });
 });

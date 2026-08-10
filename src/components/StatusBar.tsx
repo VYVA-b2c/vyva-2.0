@@ -30,6 +30,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
   const [homeModeControl, setHomeModeControl] = useState<HomeModeControlDetail | null>(() => readLatestHomeModeControl());
   const homeControlsHideTimerRef = useRef<number | null>(null);
   const homeSettingsHideTimerRef = useRef<number | null>(null);
+  const homeControlsRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoHideHomeControls = autoHideHomeControls ?? import.meta.env.MODE !== "test";
   const now = new Date();
   const localeByLanguage: Record<string, string> = {
@@ -75,6 +76,30 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
     window.addEventListener(VYVA_HOME_MODE_CONTROL_EVENT, handleHomeModeControl);
     return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_EVENT, handleHomeModeControl);
   }, [variant]);
+
+  useEffect(() => {
+    if (variant !== "homeMaster" || !homeSettingsMenuOpen) return undefined;
+
+    const closeFromOutsideTap = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && homeControlsRef.current?.contains(target)) return;
+
+      if (homeSettingsHideTimerRef.current) {
+        window.clearTimeout(homeSettingsHideTimerRef.current);
+        homeSettingsHideTimerRef.current = null;
+      }
+      setHomeSettingsMenuOpen(false);
+
+      if (!shouldAutoHideHomeControls) return;
+      if (homeControlsHideTimerRef.current) {
+        window.clearTimeout(homeControlsHideTimerRef.current);
+      }
+      homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 650);
+    };
+
+    document.addEventListener("pointerdown", closeFromOutsideTap);
+    return () => document.removeEventListener("pointerdown", closeFromOutsideTap);
+  }, [homeSettingsMenuOpen, shouldAutoHideHomeControls, variant]);
 
   if (variant === "homeMaster") {
     const homeIconButtonClass = isDark
@@ -153,7 +178,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
               <VyvaMark variant="white" className="h-[22px] w-[23px]" />
             </span>
           </button>
-          <div className="relative flex shrink-0 flex-col items-end">
+          <div className="relative flex shrink-0 flex-col items-end" ref={homeControlsRef}>
             <div
               className={`flex items-center gap-0.5 rounded-full border px-1 py-1 backdrop-blur-xl transition-all duration-700 focus-within:opacity-100 hover:opacity-100 motion-reduce:transition-none ${
                 isDark

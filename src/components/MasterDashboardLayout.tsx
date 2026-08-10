@@ -83,6 +83,7 @@ type MasterDashboardLayoutProps = {
   cardSectionTitle?: string;
   cardSectionDescription?: string;
   cardSectionMoreLabel?: string;
+  cardSectionMoreCompactLabel?: string;
   onCardSectionMore?: () => void;
   cardSectionMoreTestId?: string;
   testId?: string;
@@ -122,6 +123,7 @@ export default function MasterDashboardLayout({
   intentLayer = false,
   cardSectionTitle,
   cardSectionMoreLabel,
+  cardSectionMoreCompactLabel,
   onCardSectionMore,
   cardSectionMoreTestId,
   testId,
@@ -376,8 +378,8 @@ export default function MasterDashboardLayout({
             const cardLeftBorderColor = isHomeMaster && isHomeMasterIntentLayer ? card.tone.iconColor : cardBorderColor;
             const homeMasterTitleClass = isHomeMasterTopLevelCards
               ? isHomeMasterDark
-                ? "block max-w-[8rem] font-body text-[18px] font-extrabold leading-[1.05] !text-[#FFF8FF] min-[390px]:text-[19px] sm:text-[21px] md:max-w-[10rem] md:text-[22px]"
-                : "block max-w-[8rem] font-body text-[18px] font-extrabold leading-[1.05] text-vyva-text-1 min-[390px]:text-[19px] sm:text-[21px] md:max-w-[10rem] md:text-[22px]"
+                ? "block max-w-[7.25rem] font-body text-[17px] font-extrabold leading-[1.05] !text-[#FFF8FF] min-[390px]:text-[18px] sm:max-w-[8.75rem] sm:text-[21px] md:max-w-[10rem] md:text-[22px]"
+                : "block max-w-[7.25rem] font-body text-[17px] font-extrabold leading-[1.05] text-vyva-text-1 min-[390px]:text-[18px] sm:max-w-[8.75rem] sm:text-[21px] md:max-w-[10rem] md:text-[22px]"
               : isHomeMasterDark
                 ? "block font-body text-[16px] font-extrabold leading-[1.08] !text-[#FFF8FF] min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]"
                 : "block font-body text-[16px] font-extrabold leading-[1.08] text-vyva-text-1 min-[390px]:text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px]";
@@ -490,7 +492,7 @@ export default function MasterDashboardLayout({
                     <span
                       className={[
                         "mt-1 font-body text-[12px] font-semibold leading-tight min-[390px]:text-[13px] sm:text-[14px]",
-                        isHomeMasterIntentLayer ? "block" : "hidden md:block",
+                        isHomeMasterIntentLayer ? "hidden sm:block" : "hidden md:block",
                         isHomeMasterDark ? "text-[#D5CBE5]" : "text-vyva-text-2",
                       ].join(" ")}
                     >
@@ -520,9 +522,14 @@ export default function MasterDashboardLayout({
             type="button"
             onClick={onCardSectionMore}
             data-testid={cardSectionMoreTestId}
-            className={isHomeMasterDark ? "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.10] px-4 py-2.5 font-body text-[13px] font-black text-[#FFF8FF]" : "vyva-tap mx-auto mt-3 flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-2.5 font-body text-[13px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)]"}
+            className={isHomeMasterDark
+              ? "vyva-tap mt-3 flex min-h-[56px] w-full items-center justify-between gap-3 rounded-[18px] border border-white/[0.14] bg-white/[0.08] px-4 py-3 text-left font-body text-[16px] font-extrabold text-[#FFF8FF] shadow-[0_10px_24px_rgba(0,0,0,0.12)] sm:mx-auto sm:min-h-0 sm:w-auto sm:justify-center sm:rounded-full sm:px-4 sm:py-2.5 sm:text-[13px]"
+              : "vyva-tap mt-3 flex min-h-[56px] w-full items-center justify-between gap-3 rounded-[18px] border border-[#E8DDF3] bg-white px-4 py-3 text-left font-body text-[16px] font-extrabold text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] sm:mx-auto sm:min-h-0 sm:w-auto sm:justify-center sm:rounded-full sm:px-4 sm:py-2.5 sm:text-[13px]"}
           >
-            {cardSectionMoreLabel ?? "More"}
+            <span>
+              <span className="sm:hidden">{cardSectionMoreCompactLabel ?? cardSectionMoreLabel ?? "More"}</span>
+              <span className="hidden sm:inline">{cardSectionMoreLabel ?? "More"}</span>
+            </span>
             <ChevronRight size={14} strokeWidth={2.5} aria-hidden="true" />
           </button>
         ) : null}

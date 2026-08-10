@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 
-export type ZamoraOrbState = "idle" | "listening" | "speaking";
+type CoreZamoraOrbState = "idle" | "listening" | "speaking";
+export type ZamoraOrbState = CoreZamoraOrbState | "connecting" | "ending" | "error";
 
 type BlobConfig = {
   r: number;
@@ -59,7 +60,7 @@ const IDLE_RING_OPACITY = {
   light: [0.07, 0.11, 0.17],
 };
 
-const ORB_STATES: Record<ZamoraOrbState, OrbConfig> = {
+const ORB_STATES: Record<CoreZamoraOrbState, OrbConfig> = {
   idle: {
     blobs: [
       { r: 58, spd: 0.00045, ox: 18, oy: 14, ph: 0, c: [183, 148, 246], po: 0, a: 0.46 },
@@ -134,11 +135,24 @@ const ORB_STATES: Record<ZamoraOrbState, OrbConfig> = {
   },
 };
 
-const LIGHT_BG: Record<ZamoraOrbState, Pick<OrbConfig, "bgi" | "bgo">> = {
+const LIGHT_BG: Record<CoreZamoraOrbState, Pick<OrbConfig, "bgi" | "bgo">> = {
   idle: { bgi: [226, 205, 255], bgo: [184, 148, 238] },
   listening: { bgi: [232, 213, 255], bgo: [190, 151, 244] },
   speaking: { bgi: [255, 229, 183], bgo: [224, 164, 62] },
 };
+
+const ORB_STATE_BASE: Record<ZamoraOrbState, CoreZamoraOrbState> = {
+  idle: "idle",
+  connecting: "listening",
+  listening: "listening",
+  speaking: "speaking",
+  ending: "idle",
+  error: "idle",
+};
+
+function nowMs() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
 
 function clampLevel(value: number) {
   if (!Number.isFinite(value)) return 0;
@@ -240,7 +254,7 @@ function useSyntheticSpeechLevel(enabled: boolean, phase: VoiceSessionPhase | un
     }
 
     let frameId = 0;
-    const startTime = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const startTime = nowMs();
 
     const tick = (time: number) => {
       const elapsed = time - startTime;
@@ -461,14 +475,34 @@ function cloneConfig(config: OrbConfig): OrbConfig {
 }
 
 function resolveConfig(state: ZamoraOrbState, isDark: boolean) {
-  const base = cloneConfig(ORB_STATES[state]);
-  if (state === "idle") {
+  const baseState = ORB_STATE_BASE[state];
+  const base = cloneConfig(ORB_STATES[baseState]);
+  if (state === "idle" || state === "ending" || state === "error") {
     base.ringCol = isDark ? "#7C3AED" : "#9333EA";
     base.ringOp = [...IDLE_RING_OPACITY[isDark ? "dark" : "light"]];
   }
+  if (state === "connecting") {
+    base.scale = 0.995;
+    base.ringDur = 1.65;
+    base.ringOp = base.ringOp.map((opacity) => Math.min(0.28, opacity + 0.02));
+  }
+  if (state === "ending") {
+    base.scale = 0.99;
+    base.pAmt = 0.07;
+    base.pSpd = 0.001;
+    base.shA = Math.min(base.shA, 0.28);
+  }
+  if (state === "error") {
+    base.scale = 1;
+    base.ringCol = "#F87171";
+    base.ringOp = [0.08, 0.12, 0.18];
+    base.rim = [248, 113, 113];
+    base.rim2 = [253, 164, 175];
+    base.rimA = 0.26;
+  }
   if (!isDark) {
-    base.bgi = [...LIGHT_BG[state].bgi];
-    base.bgo = [...LIGHT_BG[state].bgo];
+    base.bgi = state === "error" ? [255, 228, 230] : [...LIGHT_BG[baseState].bgi];
+    base.bgo = state === "error" ? [248, 113, 113] : [...LIGHT_BG[baseState].bgo];
     base.rimA = Math.min(base.rimA + 0.1, 0.72);
     base.shA = Math.max(base.shA, 0.24);
   }
@@ -490,9 +524,11 @@ export default function ZamoraVoiceOrb({
   const fromRef = useRef<OrbConfig>(resolveConfig(state, isDark));
   const toRef = useRef<OrbConfig>(resolveConfig(state, isDark));
   const transitionStartRef = useRef<number>(0);
+  const stateRef = useRef<ZamoraOrbState>(state);
   const visualConfig = useMemo(() => resolveConfig(state, isDark), [isDark, state]);
   const safeAudioLevel = clampLevel(audioLevel);
-  const liveScale = visualConfig.scale + safeAudioLevel * (state === "idle" ? 0.025 : state === "listening" ? 0.075 : 0.095);
+  const isCalmState = state === "idle" || state === "ending" || state === "error";
+  const liveScale = visualConfig.scale + safeAudioLevel * (isCalmState ? 0.025 : state === "speaking" ? 0.095 : 0.075);
   const ringDuration = Math.max(0.92, visualConfig.ringDur - safeAudioLevel * 0.46);
 
   const canvasDisplaySize = Math.round(size * (BASE_CANVAS_SIZE / BASE_CONTAINER_SIZE));
@@ -504,10 +540,30 @@ export default function ZamoraVoiceOrb({
   }, [safeAudioLevel]);
 
   useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
     fromRef.current = cloneConfig(currentRef.current);
     toRef.current = visualConfig;
-    transitionStartRef.current = performance.now();
+    transitionStartRef.current = nowMs();
   }, [visualConfig]);
+
+  useEffect(() => {
+    if (state !== "idle") return;
+    const idleConfig = resolveConfig("idle", isDark);
+    currentRef.current = cloneConfig(idleConfig);
+    fromRef.current = cloneConfig(idleConfig);
+    toRef.current = cloneConfig(idleConfig);
+    transitionStartRef.current = nowMs();
+    audioLevelRef.current = 0;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const currentSize = canvasSizeRef.current || BASE_CANVAS_SIZE;
+    drawFrame(1200, idleConfig, ctx, currentSize, currentSize, 0);
+  }, [isDark, state]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -540,7 +596,10 @@ export default function ZamoraVoiceOrb({
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const render = (ts: number) => {
-      const frameTime = prefersReducedMotion ? 1200 : ts;
+      const currentState = stateRef.current;
+      const shouldHoldFullIdleFrame = (currentState === "idle" || currentState === "ending" || currentState === "error")
+        && audioLevelRef.current <= 0.01;
+      const frameTime = prefersReducedMotion || shouldHoldFullIdleFrame ? 1200 : ts;
       const progress = prefersReducedMotion ? 1 : Math.min((ts - transitionStartRef.current) / 700, 1);
       const eased = easeInOut(Math.max(progress, 0));
       const blended = blendConfig(fromRef.current, toRef.current, eased);
