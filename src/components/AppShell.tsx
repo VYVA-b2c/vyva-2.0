@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Mic, MicOff, PhoneCall, UserRound, X } from "lucide-react";
+import { AlertCircle, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
@@ -144,8 +144,6 @@ type VoiceSessionDockProps = {
   transcript: TranscriptEntry[];
   onEnd: () => void;
   voiceSessionPhase: VoiceSessionPhase;
-  isMicMuted: boolean;
-  onMicToggle: (muted: boolean) => void;
   onOpen: () => void;
   compact?: boolean;
   compactDark?: boolean;
@@ -276,15 +274,12 @@ const VoiceSessionDock = ({
   transcript,
   onEnd,
   voiceSessionPhase,
-  isMicMuted,
-  onMicToggle,
   onOpen,
   compact = false,
   compactDark = false,
 }: VoiceSessionDockProps) => {
   const { t } = useTranslation();
   const latestEntry = transcript[transcript.length - 1];
-  const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
   const previewText = latestEntry?.text || "Voice is active";
   const label = isConnecting
     ? "Connecting"
@@ -377,18 +372,6 @@ const VoiceSessionDock = ({
             </p>
           </div>
         </button>
-        {canToggleMic && (
-          <button
-            type="button"
-            onClick={() => onMicToggle(!isMicMuted)}
-            data-testid="button-dock-toggle-mic"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E9D5FF] bg-[#F7F0FF] font-body text-vyva-purple shadow-sm transition active:scale-95"
-            aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title={isMicMuted ? "Mic off" : "Mic on"}
-          >
-            {isMicMuted ? <MicOff size={19} /> : <Mic size={19} />}
-          </button>
-        )}
         <button
           type="button"
           onClick={onEnd}
@@ -917,8 +900,6 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             transcript={transcript}
             onEnd={stopVoice}
             voiceSessionPhase={voiceSessionPhase}
-            isMicMuted={isMicMuted}
-            onMicToggle={setMicrophoneMuted}
             onOpen={() => {
               setMinimizedCanvasKey(null);
               setDockVoiceOverlayOpen(true);

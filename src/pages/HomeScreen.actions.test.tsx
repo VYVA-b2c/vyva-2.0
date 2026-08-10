@@ -177,20 +177,24 @@ const labels: Record<string, string> = {
   "home.master.voiceSupport": "Touch the orb to begin.",
   "home.master.healthIntent.title": "Are you OK?",
   "home.master.healthIntent.more": "More health options",
+  "home.master.healthIntent.moreCompact": "More",
   "home.master.healthIntent.dormantSubtitle": "Choose a health option, or touch the orb.",
-  "home.master.healthIntent.voiceSubtitle": "Tell VYVA what you need, or touch the orb.",
+  "home.master.healthIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.master.mindIntent.title": "What would you like to exercise?",
   "home.master.mindIntent.more": "More mind activities",
+  "home.master.mindIntent.moreCompact": "More",
   "home.master.mindIntent.dormantSubtitle": "Choose an activity, or touch the orb.",
-  "home.master.mindIntent.voiceSubtitle": "Tell VYVA what you want to exercise, or touch the orb.",
+  "home.master.mindIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.master.communityIntent.title": "How would you like to connect?",
   "home.master.communityIntent.more": "More community options",
+  "home.master.communityIntent.moreCompact": "More",
   "home.master.communityIntent.dormantSubtitle": "Choose a way to connect, or touch the orb.",
-  "home.master.communityIntent.voiceSubtitle": "Tell VYVA how you want to connect, or touch the orb.",
+  "home.master.communityIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.master.conciergeIntent.title": "What can VYVA help arrange?",
   "home.master.conciergeIntent.more": "More concierge services",
+  "home.master.conciergeIntent.moreCompact": "Other",
   "home.master.conciergeIntent.dormantSubtitle": "Choose a service, or touch the orb.",
-  "home.master.conciergeIntent.voiceSubtitle": "Tell VYVA what you need arranged, or touch the orb.",
+  "home.master.conciergeIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -1769,7 +1773,7 @@ describe("Home fast service actions", () => {
     });
 
     expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Tell VYVA what you need, or touch the orb.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();

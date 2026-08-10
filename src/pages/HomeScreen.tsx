@@ -784,7 +784,7 @@ const HomeScreen = () => {
     mode: homeInteractionMode,
   });
   const showHomeMasterHero = homePresentation.primarySurface === "orb";
-  const showHomeMasterCards = homePresentation.cards === "visible";
+  const showHomeMasterCards = homeInteractionMode === "touch" && homePresentation.cards === "visible";
   const [homeModeSwitcherVisible, setHomeModeSwitcherVisible] = useState(true);
   const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
     () => !hasSeenVoiceOrbHint(),
@@ -2242,8 +2242,8 @@ const HomeScreen = () => {
   const homeMasterNormalHeroSubtitle = activeIntentSubtitle
     ?? homeMasterContextNudgeText
     ?? t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?");
-  const showHomeVoiceOrbCue = homeInteractionMode === "voice" && homeIntentLayer === "home";
-  const showHomeVoiceFirstUseHint = showHomeVoiceOrbCue && showVoiceOrbFirstUseHint;
+  const showHomeVoiceOrbCue = homeInteractionMode === "voice";
+  const showHomeVoiceFirstUseHint = showHomeVoiceOrbCue && homeIntentLayer === "home" && showVoiceOrbFirstUseHint;
   const homeMasterHeroSubtitle = showHomeVoiceOrbCue
     ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
     : homeMasterNormalHeroSubtitle;
@@ -2313,6 +2313,9 @@ const HomeScreen = () => {
   const homeMasterMoreRoute = moreRouteByIntent[homeIntentLayer];
   const homeMasterMoreLabel = activeIntentKey
     ? t(`home.master.${activeIntentKey}.more`)
+    : undefined;
+  const homeMasterMoreCompactLabel = activeIntentKey
+    ? t(`home.master.${activeIntentKey}.moreCompact`, "More")
     : undefined;
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
@@ -2901,7 +2904,7 @@ const HomeScreen = () => {
             <p
               data-testid="home-touch-subheading"
               className={[
-                "mx-auto mt-1.5 max-w-[19rem] font-body text-[15px] font-bold leading-snug min-[390px]:text-[16px] sm:max-w-[28rem] sm:text-[18px]",
+                "mx-auto mt-1.5 hidden max-w-[19rem] font-body text-[15px] font-bold leading-snug min-[390px]:text-[16px] sm:block sm:max-w-[28rem] sm:text-[18px]",
                 isHomeMasterDark ? "text-[#E8DDF3]" : "text-[#6C5369]",
               ].join(" ")}
             >
@@ -2914,6 +2917,7 @@ const HomeScreen = () => {
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}
       cardSectionMoreLabel={homeMasterMoreLabel}
+      cardSectionMoreCompactLabel={homeMasterMoreCompactLabel}
       onCardSectionMore={homeMasterMoreRoute ? () => handleNavigate(homeMasterMoreRoute) : undefined}
       cardSectionMoreTestId={homeIntentLayer !== "home" ? `button-home-${homeIntentLayer}-more` : undefined}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}

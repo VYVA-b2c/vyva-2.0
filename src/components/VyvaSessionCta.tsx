@@ -308,15 +308,22 @@ export function VyvaSessionCta({
         ? errorLabel ?? "Tap for help"
         : supportingLabel ?? "Speak anytime";
   const accessibleLabel = isVoiceRail ? railSupportingLabel : statusLabel;
-  const voiceOrbState = isPreparing || isConnecting
-    ? "listening"
-    : isActive
-      ? isSpeaking
-        ? "speaking"
-        : "listening"
-      : "idle";
+  const hasVoiceOrbError = voiceSessionPhase === "error" || Boolean(lastErrorCode || (lastError && !isActive && !isConnecting));
+  const voiceOrbState: ZamoraOrbState = hasVoiceOrbError
+    ? "error"
+    : isPreparing || isConnecting || voiceSessionPhase === "connecting" || voiceSessionPhase === "transferring"
+      ? "connecting"
+      : voiceSessionPhase === "ended"
+        ? "idle"
+        : isActive
+          ? isSpeaking || voiceSessionPhase === "speaking"
+            ? "speaking"
+            : "listening"
+          : "idle";
   const voiceOrbAudioLevel = useVoiceOrbAudioLevel({
-    enabled: isVoiceOrb && !showOverlay && voiceOrbState !== "idle",
+    enabled: isVoiceOrb
+      && !showOverlay
+      && (voiceOrbState === "connecting" || voiceOrbState === "listening" || voiceOrbState === "speaking"),
     phase: voiceSessionPhase,
     isSpeaking,
     isMicMuted,

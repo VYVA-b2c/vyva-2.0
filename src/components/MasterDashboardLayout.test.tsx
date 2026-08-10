@@ -206,3 +206,62 @@ describe("MasterDashboardLayout contextual message", () => {
     expect(onMessageDismiss).toHaveBeenCalledOnce();
   });
 });
+
+describe("MasterDashboardLayout Home card presentation", () => {
+  it("keeps mobile Home cards down to icon, label, and chevron", () => {
+    render(
+      <MasterDashboardLayout
+        launcherVariant="homeMaster"
+        intentLayer="concierge"
+        showCards
+        hero={{
+          icon: Mic,
+          eyebrow: "Today",
+          title: "Good morning, Karim",
+          action: { kind: "voice", label: "Talk" },
+        }}
+        cards={[
+          {
+            id: "home-care",
+            icon: Heart,
+            title: "Home Care",
+            detail: "Plumber, electrician, cleaning",
+            tone: { iconBg: "#FFFFFF", iconColor: "#111827", border: "#E5E7EB" },
+            onClick: vi.fn(),
+          },
+        ]}
+        fastHelpActions={[]}
+      />,
+    );
+
+    const detail = screen.getByText("Plumber, electrician, cleaning");
+    expect(detail).toHaveClass("hidden");
+    expect(detail).toHaveClass("sm:block");
+  });
+
+  it("uses compact more copy on mobile and full copy on larger screens", () => {
+    render(
+      <MasterDashboardLayout
+        launcherVariant="homeMaster"
+        intentLayer="concierge"
+        showCards
+        hero={{
+          icon: Mic,
+          eyebrow: "Today",
+          title: "Good morning, Karim",
+          action: { kind: "voice", label: "Talk" },
+        }}
+        cards={[]}
+        fastHelpActions={[]}
+        cardSectionMoreLabel="Plus de services concierge"
+        cardSectionMoreCompactLabel="Autres"
+        cardSectionMoreTestId="button-home-concierge-more"
+        onCardSectionMore={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Autres")).toHaveClass("sm:hidden");
+    expect(screen.getByText("Plus de services concierge")).toHaveClass("hidden");
+    expect(screen.getByText("Plus de services concierge")).toHaveClass("sm:inline");
+  });
+});
