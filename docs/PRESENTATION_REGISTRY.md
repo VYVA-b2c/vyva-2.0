@@ -68,6 +68,30 @@ Task 3.5 therefore binds several narrower presentation steps to the same
 canonical scene while retaining distinct presentation IDs. It does not rewrite
 or reinterpret the frozen Flow catalogue.
 
+## Runtime screen alignment
+
+Live screens that adopt registry-backed presentation must keep three layers
+separate:
+
+- The Flow Catalogue owns the journey: Flow ID, scene, step order, expected
+  input, safety rules, confirmation rules, outcomes and handoff points.
+- The Presentation Registry owns the approved surface for a semantic moment:
+  voice mode, touch mode, supported device classes, layout intent, content
+  slots, focus behavior, bottom navigation clearance and fallback behavior.
+- The runtime screen owns adaptation only: route context, current mode,
+  viewport class, temporary UI state and event emission back into Task 1.
+
+When a production screen is wired to a presentation contract, it should resolve
+the current `flowId`, `sceneId`, `presentationId`, `mode` and device class
+before deciding what to render. The screen may adapt spacing and visibility for
+the viewport, but it must not create a different Flow, add unapproved action
+states, show card surfaces in voice-first moments, or bypass confirmation and
+safety semantics declared by the Flow.
+
+This runtime alignment rule does not make any registry entry live by itself.
+It describes how an approved bridge should consume the existing architecture
+without creating a second, screen-local presentation system.
+
 ## Input and event mapping
 
 Interactive definitions reuse Task 1's discriminated expected-input contract.
