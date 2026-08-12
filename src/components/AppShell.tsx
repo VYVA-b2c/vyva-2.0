@@ -39,6 +39,13 @@ import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  publishHomeModeControl,
+  type HomeInteractionMode,
+  type HomeModeControlActionDetail,
+  type HomeModeControlDetail,
+} from "@/lib/homeModeControl";
+import {
   VYVA_VOICE_OVERLAY_PRESENCE_EVENT,
   type VoiceOverlayPresenceDetail,
 } from "@/lib/voiceOverlayFocus";
@@ -123,6 +130,18 @@ type OnboardingStateResponse = {
     } | null;
   } | null;
 } | null;
+
+const compactModeControlFor = (mode: HomeInteractionMode): HomeModeControlDetail => ({
+  label: mode === "voice" ? "Switch to touch" : "Switch to voice",
+  mode,
+  testId: mode === "voice" ? "button-home-mode-touch" : "button-home-mode-voice",
+  visible: true,
+});
+
+const HIDDEN_COMPACT_MODE_CONTROL: HomeModeControlDetail = {
+  ...compactModeControlFor("touch"),
+  visible: false,
+};
 
 export function emergencyProfileContactFromState(data?: OnboardingStateResponse): EmergencyProfileContact | null {
   const contact = data?.profile?.emergency_contact;
@@ -514,6 +533,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
+  const isConciergeExperienceRoute = location.pathname === "/concierge";
+  const usesCompactVoiceSurface = isHomeRoute || isConciergeExperienceRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
@@ -531,7 +552,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? "max-w-none"
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
-      : isHomeRoute
+      : usesCompactVoiceSurface
         ? "max-w-[430px] sm:max-w-[560px] md:max-w-[820px] lg:max-w-[980px]"
       : isWideRoute
         ? "max-w-[920px]"
@@ -544,17 +565,23 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? location.pathname === visibleVoiceAction.route || location.pathname.startsWith(`${visibleVoiceAction.route}/`)
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
+  const voiceSurfacePhaseActive =
+    voiceSessionPhase === "connecting" ||
+    voiceSessionPhase === "listening" ||
+    voiceSessionPhase === "speaking" ||
+    voiceSessionPhase === "transferring";
   const hasVoiceSessionSurface =
-    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
+    !isChatTypeMode && (status === "connected" || isConnecting || voiceSurfacePhaseActive || Boolean(lastError));
+  const compactVoiceSessionActive = status === "connected" || isConnecting || voiceSurfacePhaseActive;
   const activeCanvasKey = activeCanvasScene
     ? `${activeCanvasScene.viewModel.sceneId}:${activeCanvasScene.revision}`
     : null;
-  const showDockVoiceOverlay = !isHomeRoute && !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
+  const showDockVoiceOverlay = !usesCompactVoiceSurface && !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
   const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
     !isFullScreen &&
     !isChatTypeMode &&
-    (status === "connected" || isConnecting || voiceSessionPhase === "transferring") &&
+    compactVoiceSessionActive &&
     !isVoiceOverlayFocused;
   const suppressMilestonePopup = isFullScreen ||
     sosOpen ||
@@ -607,6 +634,42 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!hasVoiceSessionSurface && !activeCanvasScene) setDockVoiceOverlayOpen(false);
   }, [activeCanvasScene, hasVoiceSessionSurface]);
+
+  useEffect(() => {
+    if (!isConciergeExperienceRoute) return;
+    publishHomeModeControl(compactModeControlFor(compactVoiceSessionActive ? "voice" : "touch"));
+  }, [compactVoiceSessionActive, isConciergeExperienceRoute]);
+
+  useEffect(() => {
+    if (!isConciergeExperienceRoute) return undefined;
+    return () => publishHomeModeControl(HIDDEN_COMPACT_MODE_CONTROL);
+  }, [isConciergeExperienceRoute]);
+
+  useEffect(() => {
+    if (!isConciergeExperienceRoute) return undefined;
+
+    const handleHomeModeControlAction = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? (event.detail as HomeModeControlActionDetail | undefined)
+        : undefined;
+
+      if (!detail || (detail.mode !== "voice" && detail.mode !== "touch")) return;
+
+      setDockVoiceOverlayOpen(false);
+
+      if (detail.mode === "voice") {
+        if (!compactVoiceSessionActive) {
+          void Promise.resolve(startVoice()).catch(() => undefined);
+        }
+        return;
+      }
+
+      if (compactVoiceSessionActive) stopVoice();
+    };
+
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+  }, [compactVoiceSessionActive, isConciergeExperienceRoute, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!activeCanvasKey || activeCanvasKey === minimizedCanvasKey) return;
@@ -824,22 +887,22 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className={`flex min-h-screen justify-center ${isHomeRoute ? (isHomeMasterDark ? "bg-[#080715]" : "bg-white") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
+      <div className={`flex min-h-screen justify-center ${usesCompactVoiceSurface ? (isHomeMasterDark ? "bg-[#080715]" : "bg-white") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
-        data-home-master-theme={isHomeRoute && isHomeMasterDark ? "dark" : "light"}
+        data-home-master-theme={usesCompactVoiceSurface && isHomeMasterDark ? "dark" : "light"}
         data-vyva-text-size={readableTextSize}
-        className={`relative w-full ${shellMaxWidthClassName} ${isHomeRoute ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
+        className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
       >
         {!isFullScreen && (
           <StatusBar
-            wide={!isHomeRoute && (isWideRoute || isVitalsRoute)}
-            variant={isHomeRoute ? "homeMaster" : "default"}
+            wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
+            variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
           />
         )}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -853,7 +916,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         </main>
         {!isFullScreen && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
-            <BottomNav wide={!isHomeRoute && (isWideRoute || isVitalsRoute)} onSosClick={() => {
+            <BottomNav wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);
             }} />
           </div>
@@ -867,7 +930,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isHomeRoute && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {!isFullScreen && !usesCompactVoiceSurface && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}
@@ -904,8 +967,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               setMinimizedCanvasKey(null);
               setDockVoiceOverlayOpen(true);
             }}
-            compact={isHomeRoute}
-            compactDark={isHomeRoute && isHomeMasterDark}
+            compact={usesCompactVoiceSurface}
+            compactDark={usesCompactVoiceSurface && isHomeMasterDark}
           />
         )}
         <CrossPillarHandoffRecovery />

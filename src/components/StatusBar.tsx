@@ -52,7 +52,10 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
     if (homeControlsHideTimerRef.current) {
       window.clearTimeout(homeControlsHideTimerRef.current);
     }
-    homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 4200);
+    homeControlsHideTimerRef.current = window.setTimeout(() => {
+      setHomeControlsVisible(false);
+      homeControlsHideTimerRef.current = null;
+    }, 4200);
     return () => {
       if (homeControlsHideTimerRef.current) {
         window.clearTimeout(homeControlsHideTimerRef.current);
@@ -93,8 +96,12 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       if (!shouldAutoHideHomeControls) return;
       if (homeControlsHideTimerRef.current) {
         window.clearTimeout(homeControlsHideTimerRef.current);
+        homeControlsHideTimerRef.current = null;
       }
-      homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 650);
+      homeControlsHideTimerRef.current = window.setTimeout(() => {
+        setHomeControlsVisible(false);
+        homeControlsHideTimerRef.current = null;
+      }, 650);
     };
 
     document.addEventListener("pointerdown", closeFromOutsideTap);
@@ -116,8 +123,13 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       if (!shouldAutoHideHomeControls) return;
       if (homeSettingsHideTimerRef.current) {
         window.clearTimeout(homeSettingsHideTimerRef.current);
+        homeSettingsHideTimerRef.current = null;
       }
-      homeSettingsHideTimerRef.current = window.setTimeout(() => setHomeSettingsMenuOpen(false), 4200);
+      homeSettingsHideTimerRef.current = window.setTimeout(() => {
+        setHomeSettingsMenuOpen(false);
+        setHomeControlsVisible(false);
+        homeSettingsHideTimerRef.current = null;
+      }, 4200);
     };
     const closeHomeSettingsMenu = () => {
       if (homeSettingsHideTimerRef.current) {
@@ -131,21 +143,35 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       if (!shouldAutoHideHomeControls) return;
       if (homeControlsHideTimerRef.current) {
         window.clearTimeout(homeControlsHideTimerRef.current);
+        homeControlsHideTimerRef.current = null;
       }
-      homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 4200);
+      homeControlsHideTimerRef.current = window.setTimeout(() => {
+        setHomeControlsVisible(false);
+        homeControlsHideTimerRef.current = null;
+      }, 4200);
     };
     const collapseHomeControlsSoon = () => {
       if (!shouldAutoHideHomeControls) return;
       if (homeControlsHideTimerRef.current) {
         window.clearTimeout(homeControlsHideTimerRef.current);
+        homeControlsHideTimerRef.current = null;
       }
-      homeControlsHideTimerRef.current = window.setTimeout(() => setHomeControlsVisible(false), 650);
+      homeControlsHideTimerRef.current = window.setTimeout(() => {
+        setHomeControlsVisible(false);
+        homeControlsHideTimerRef.current = null;
+      }, 650);
     };
     const toggleHomeSettingsMenu = () => {
       revealHomeControls();
       setHomeSettingsMenuOpen((open) => {
         const nextOpen = !open;
-        if (nextOpen) scheduleHomeSettingsClose();
+        if (nextOpen) {
+          if (homeControlsHideTimerRef.current) {
+            window.clearTimeout(homeControlsHideTimerRef.current);
+            homeControlsHideTimerRef.current = null;
+          }
+          scheduleHomeSettingsClose();
+        }
         if (!nextOpen && homeSettingsHideTimerRef.current) {
           window.clearTimeout(homeSettingsHideTimerRef.current);
           homeSettingsHideTimerRef.current = null;
@@ -155,7 +181,8 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
     };
     const modeControlNextMode: HomeInteractionMode = homeModeControl?.mode === "voice" ? "touch" : "voice";
     const ModeControlIcon = homeModeControl?.mode === "voice" ? Hand : Mic;
-    const modeControlVisible = homeControlsVisible || homeSettingsMenuOpen;
+    const dockVisible = homeControlsVisible || homeSettingsMenuOpen;
+    const modeControlVisible = dockVisible && !homeSettingsMenuOpen;
     const homeControlsRevealLabel = t("home.master.header.showControls", "Show controls");
     const handleHomeModeControlClick = () => {
       revealHomeControls();
@@ -185,7 +212,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                   ? "border-white/[0.12] bg-[#170C2A]/[0.54] shadow-[0_16px_34px_rgba(0,0,0,0.22)]"
                   : "border-[#EDE4F4] bg-white/[0.9] shadow-[0_12px_26px_rgba(60,33,82,0.12)]"
               } ${
-                modeControlVisible
+                dockVisible
                   ? "translate-y-0 opacity-100"
                   : "pointer-events-none -translate-y-1 opacity-0"
               }`}
@@ -204,7 +231,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
               >
                 <Settings size={13} strokeWidth={2.25} />
               </button>
-              {homeModeControl ? (
+              {homeModeControl && modeControlVisible ? (
                 <button
                   type="button"
                   onClick={handleHomeModeControlClick}
@@ -226,7 +253,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                 </button>
               ) : null}
             </div>
-            {!modeControlVisible ? (
+            {!dockVisible ? (
               <button
                 type="button"
                 onClick={revealHomeControls}

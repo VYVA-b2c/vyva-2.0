@@ -296,7 +296,7 @@ describe("app shell voice dock", () => {
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
   });
 
-  it("opens a new Canvas scene and keeps the underlying page available after minimize", async () => {
+  it("keeps Concierge voice canvas work compact and non-blocking", async () => {
     voiceCanvasState.activeScene = {
       owner: "concierge_ride",
       revision: 1,
@@ -309,14 +309,15 @@ describe("app shell voice dock", () => {
 
     renderShell("/concierge");
 
-    await waitFor(() => expect(screen.getByTestId("voice-canvas-surface")).toHaveTextContent("Where are you going?"));
     expect(screen.getByText("Page content")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("button-minimize-call"));
-
+    expect(screen.queryByTestId("voice-canvas-surface")).not.toBeInTheDocument();
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(screen.getByText("Page content")).toBeVisible();
-    expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-session-dock")).toHaveAttribute("data-variant", "home-stop");
+
+    fireEvent.click(screen.getByTestId("button-dock-end-call"));
+
+    expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
   });
 
   it("uses compact copy when VYVA is speaking from the dock", () => {

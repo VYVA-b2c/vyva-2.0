@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, MessageCircle, Mic, type LucideIcon } from "lucide-react";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import ZamoraVoiceOrb, { type ZamoraOrbState, useVoiceOrbAudioLevel } from "@/components/ZamoraVoiceOrb";
@@ -104,6 +104,7 @@ function HomeVoiceActivationOrb({
   iconClassName,
   isDark,
   isPreparing,
+  resetKey,
   state,
   size,
 }: {
@@ -112,6 +113,7 @@ function HomeVoiceActivationOrb({
   iconClassName?: string;
   isDark: boolean;
   isPreparing: boolean;
+  resetKey?: string;
   state: ZamoraOrbState;
   size: number;
 }) {
@@ -127,6 +129,7 @@ function HomeVoiceActivationOrb({
       style={{ height: outerSize, width: outerSize }}
     >
       <ZamoraVoiceOrb
+        key={resetKey}
         audioLevel={audioLevel}
         isDark={isDark}
         size={outerSize}
@@ -329,6 +332,21 @@ export function VyvaSessionCta({
     isMicMuted,
     isConnecting: isPreparing || isConnecting,
   });
+  const [voiceOrbResetVersion, setVoiceOrbResetVersion] = useState(0);
+  const previousVoiceOrbStateRef = useRef<ZamoraOrbState>("idle");
+
+  useEffect(() => {
+    const previousVoiceOrbState = previousVoiceOrbStateRef.current;
+    if (voiceOrbState === "idle" && previousVoiceOrbState !== "idle") {
+      setVoiceOrbResetVersion((version) => version + 1);
+    }
+    previousVoiceOrbStateRef.current = voiceOrbState;
+  }, [voiceOrbState]);
+
+  const stableVoiceOrbAudioLevel =
+    voiceOrbState === "idle" || voiceOrbState === "ending" || voiceOrbState === "error"
+      ? 0
+      : voiceOrbAudioLevel;
 
   return (
     <>
@@ -362,10 +380,11 @@ export function VyvaSessionCta({
           {isVoiceOrb ? (
             <HomeVoiceActivationOrb
               Icon={Icon}
-              audioLevel={voiceOrbAudioLevel}
+              audioLevel={stableVoiceOrbAudioLevel}
               iconClassName={iconClassName}
               isDark={voiceOrbDark}
               isPreparing={isPreparing}
+              resetKey={`home-voice-orb-${voiceOrbResetVersion}`}
               state={voiceOrbState}
               size={voiceOrbSize}
             />
