@@ -309,6 +309,10 @@ describe("app shell voice dock", () => {
 
     renderShell("/concierge");
 
+    const shell = screen.getByTestId("app-shell");
+    expect(shell).toHaveAttribute("data-layout", "wide");
+    expect(shell.className).toContain("max-w-[920px]");
+    expect(shell.className).not.toContain("lg:max-w-[980px]");
     expect(screen.getByText("Page content")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-canvas-surface")).not.toBeInTheDocument();
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();

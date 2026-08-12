@@ -534,6 +534,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isWideRoute = appShellLayout === "wide";
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isConciergeExperienceRoute = location.pathname === "/concierge";
+  const usesHomeMasterShell = isHomeRoute;
   const usesCompactVoiceSurface = isHomeRoute || isConciergeExperienceRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
@@ -552,7 +553,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? "max-w-none"
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
-      : usesCompactVoiceSurface
+      : usesHomeMasterShell
         ? "max-w-[430px] sm:max-w-[560px] md:max-w-[820px] lg:max-w-[980px]"
       : isWideRoute
         ? "max-w-[920px]"
