@@ -35,6 +35,15 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
     },
   ];
 
+  const handleTabClick = (tab: BottomNavTab) => {
+    if (tab.id === "home") {
+      navigate("/", { state: { vyvaHomeResetAt: Date.now() } });
+      return;
+    }
+
+    navigate(tab.path);
+  };
+
   const renderTab = (tab: BottomNavTab) => {
     const active = tab.isActive(location.pathname);
     const Icon = tab.icon;
@@ -45,7 +54,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
       <button
         key={tab.id}
         data-testid={`nav-tab-${tab.id}`}
-        onClick={() => navigate(tab.path)}
+        onClick={() => handleTabClick(tab)}
         className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${isHomeRoute ? "min-h-[66px] sm:min-h-[70px] md:min-h-[74px]" : ""}`}
       >
         <div

@@ -600,12 +600,13 @@ export default function ZamoraVoiceOrb({
       const shouldHoldFullIdleFrame = (currentState === "idle" || currentState === "ending" || currentState === "error")
         && audioLevelRef.current <= 0.01;
       const frameTime = prefersReducedMotion || shouldHoldFullIdleFrame ? 1200 : ts;
+      const frameAudioLevel = shouldHoldFullIdleFrame ? 0 : audioLevelRef.current;
       const progress = prefersReducedMotion ? 1 : Math.min((ts - transitionStartRef.current) / 700, 1);
       const eased = easeInOut(Math.max(progress, 0));
       const blended = blendConfig(fromRef.current, toRef.current, eased);
       currentRef.current = blended;
       const currentSize = canvasSizeRef.current || BASE_CANVAS_SIZE;
-      drawFrame(frameTime, blended, ctx, currentSize, currentSize, audioLevelRef.current);
+      drawFrame(frameTime, blended, ctx, currentSize, currentSize, frameAudioLevel);
       frameRef.current = window.requestAnimationFrame(render);
     };
 
