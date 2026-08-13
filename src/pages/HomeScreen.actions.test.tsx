@@ -286,6 +286,12 @@ const labels: Record<string, string> = {
   "home.voiceCards.concierge.title": "My Concierge",
   "home.voiceCards.concierge.subtitle": "Bookings, errands and support",
   "home.voiceCards.concierge.micLabel": "Ask for help by voice",
+  "home.master.cards.healthShortTitle": "Health",
+  "home.master.cards.healthDetailShort": "Check-ins and care",
+  "home.master.cards.mindMemoryShortTitle": "My Brain",
+  "home.master.cards.mindMemoryDetailShort": "Memory and focus",
+  "home.master.cards.communityShortTitle": "Community",
+  "home.master.cards.conciergeShortTitle": "Concierge",
 };
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -374,7 +380,7 @@ describe("Home fast service actions", () => {
     vi.useRealTimers();
   });
 
-  it("renders the four pillar launcher without the old movement routine card", () => {
+  it("keeps top-level Home focused on the greeting orb and sends destinations to Menu", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
     profileMock.firstName = "karim";
@@ -393,43 +399,37 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("home-topbar")).toBeInTheDocument();
+    expect(screen.getByTestId("home-dayline")).toHaveTextContent("Jun 26");
+    fireEvent.click(screen.getByTestId("button-home-menu"));
+    expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+    expect(guardPathMock).toHaveBeenCalledWith("/settings/account", undefined);
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
     expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
     switchHomeMode("touch");
     const touchLayout = screen.getByTestId("home-master-layout");
     expect(touchLayout).toHaveAttribute("data-screen-mode", "touch");
-    expect(touchLayout).toHaveAttribute("data-primary-surface", "cards");
-    expect(touchLayout).toHaveAttribute("data-cards", "visible");
+    expect(touchLayout).toHaveAttribute("data-primary-surface", "orb");
+    expect(touchLayout).toHaveAttribute("data-cards", "hidden");
     expect(touchLayout).toHaveAttribute("data-chips", "hidden");
-    expect(touchLayout).toHaveAttribute("data-heading-detail", "hidden");
-    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-home-hero-talk")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-dormant-zamora-orb")).not.toBeInTheDocument();
+    expect(touchLayout).toHaveAttribute("data-heading-detail", "visible");
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-hero-talk")).toBeInTheDocument();
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
     expect(screen.queryByTestId("home-touch-subheading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Health assistance");
-    expect(within(screen.getByTestId("card-home-agent-health")).getByText("Health assistance")).toHaveClass(
-      "hidden",
-      "md:block",
-    );
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Cognitive exercises");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Connect with others");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Bookings and services");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-meds")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-doctor")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-master-orb-message")).not.toBeInTheDocument();
-    expect(screen.getByTestId("home-pillar-cards")).toHaveTextContent("Today tray");
-    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
-    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
@@ -437,7 +437,7 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
   });
 
-  it("locks voice mode to the greeting, orb, and compact mode switch until touch is selected", () => {
+  it("keeps top-level Home on the greeting orb after switching to touch mode", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
     profileMock.firstName = "karim";
@@ -460,12 +460,13 @@ describe("Home fast service actions", () => {
 
     switchHomeMode("touch");
 
-    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
     expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
-    expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
-    expect(screen.getByTestId("card-home-agent-cognitive")).toBeInTheDocument();
-    expect(screen.getByTestId("card-home-agent-social")).toBeInTheDocument();
-    expect(screen.getByTestId("card-home-agent-concierge")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
   });
 
   it("keeps voice mode on the orb cue after activation", () => {
@@ -482,7 +483,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
   });
 
-  it("uses live signals for concise pillar card nudges", () => {
+  it("keeps live-signal pillar cards out of top-level Home", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -516,10 +517,11 @@ describe("Home fast service actions", () => {
     renderHomeScreen();
     switchHomeMode("touch");
 
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
   });
 
   it("keeps timely schedule nudges out of the voice surface until touch mode", () => {
@@ -1696,11 +1698,13 @@ describe("Home fast service actions", () => {
     ["cognitive", "mind", ["memory", "reflexes", "focus", "senses"], "/mind-memory"],
     ["social", "community", ["friends", "experts", "share", "activities"], "/social-rooms"],
     ["concierge", "concierge", ["home", "care", "order", "book"], "/concierge"],
-  ] as const)("opens the four %s choices before routing to the full pillar", (masterCard, intent, cardIds, route) => {
+  ] as const)("opens the four %s choices before routing to the full pillar", (_masterCard, intent, cardIds, route) => {
     renderHomeScreen();
-    switchHomeMode("touch");
 
-    fireEvent.click(screen.getByTestId(`card-home-agent-${masterCard}`));
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
+    });
+    switchHomeMode("touch");
 
     expect(guardPathMock).not.toHaveBeenCalled();
     for (const cardId of cardIds) {
@@ -1713,9 +1717,11 @@ describe("Home fast service actions", () => {
 
   it("opens a focused Health intent layer before routing to health actions", () => {
     renderHomeScreen();
-    switchHomeMode("touch");
 
-    fireEvent.click(screen.getByTestId("card-home-agent-health"));
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
+    });
+    switchHomeMode("touch");
 
     expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
     expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();

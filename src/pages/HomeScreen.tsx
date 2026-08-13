@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
+import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, Menu as MenuIcon, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -348,10 +348,10 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 ];
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
-  health: { title: "My Health", subtitle: "Care today" },
-  cognitive: { title: "My Mind", subtitle: "Memory and focus" },
-  social: { title: "My Community", subtitle: "Rooms and chats" },
-  concierge: { title: "My Concierge", subtitle: "Help and errands" },
+  health: { title: "Health", subtitle: "Care today" },
+  cognitive: { title: "My Brain", subtitle: "Memory and focus" },
+  social: { title: "Community", subtitle: "Rooms and chats" },
+  concierge: { title: "Concierge", subtitle: "Help and errands" },
 };
 
 const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { label: string; sub: string }> = {
@@ -372,6 +372,14 @@ function baseLanguageCode(language?: string | null) {
   const code = language?.split("-")[0]?.toLowerCase();
   if (code === "es" || code === "de") return code;
   return "en";
+}
+
+function homeDayline(language: string | undefined | null, clockMs: number) {
+  return new Intl.DateTimeFormat(language || "en", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(clockMs));
 }
 
 function conciergeHomeItems(pending: ConciergePendingHomeSignal | null | undefined) {
@@ -779,12 +787,15 @@ const HomeScreen = () => {
       return "voice";
     }
   });
+  const isTopLevelHome = homeIntentLayer === "home";
   const homePresentation = useScreenPresentation({
     screenId: "home",
     mode: homeInteractionMode,
+    primarySurface: isTopLevelHome ? "orb" : undefined,
+    cards: isTopLevelHome ? "hidden" : undefined,
   });
   const showHomeMasterHero = homePresentation.primarySurface === "orb";
-  const showHomeMasterCards = homeInteractionMode === "touch" && homePresentation.cards === "visible";
+  const showHomeMasterCards = !isTopLevelHome && homeInteractionMode === "touch" && homePresentation.cards === "visible";
   const [homeModeSwitcherVisible, setHomeModeSwitcherVisible] = useState(true);
   const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
     () => !hasSeenVoiceOrbHint(),
@@ -1299,8 +1310,8 @@ const HomeScreen = () => {
     {
       id: "health",
       icon: Heart,
-      title: t("home.master.cards.healthShortTitle", "My Health"),
-      detail: t("home.master.cards.healthDetailShort", "Health assistance"),
+      title: t("home.master.cards.healthShortTitle", "Health"),
+      detail: t("home.master.cards.healthDetailShort", "Check-ins and care"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("health");
@@ -1311,8 +1322,8 @@ const HomeScreen = () => {
     {
       id: "mind-memory",
       icon: Brain,
-      title: t("home.master.cards.mindMemoryShortTitle", "My Mind"),
-      detail: t("home.master.cards.mindMemoryDetailShort", "Cognitive exercises"),
+      title: t("home.master.cards.mindMemoryShortTitle", "My Brain"),
+      detail: t("home.master.cards.mindMemoryDetailShort", "Memory and focus"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("mind");
@@ -1323,7 +1334,7 @@ const HomeScreen = () => {
     {
       id: "social",
       icon: Users,
-      title: t("home.master.cards.communityShortTitle", "My Community"),
+      title: t("home.master.cards.communityShortTitle", "Community"),
       detail: t("home.master.cards.communityDetailShort", "Connect with others"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => {
@@ -1335,7 +1346,7 @@ const HomeScreen = () => {
     {
       id: "concierge",
       icon: ConciergeBell,
-      title: t("home.master.cards.conciergeShortTitle", "My Concierge"),
+      title: t("home.master.cards.conciergeShortTitle", "Concierge"),
       detail: t("home.master.cards.conciergeDetailShort", "Bookings and services"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
       onClick: () => {
@@ -2217,6 +2228,10 @@ const HomeScreen = () => {
     voice?.status,
   ]);
   const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
+  const homeMasterDayline = useMemo(
+    () => homeDayline(language, conciergeClockMs),
+    [conciergeClockMs, language],
+  );
   const activeIntentKey = homeIntentLayer === "home" ? null : `${homeIntentLayer}Intent`;
   const activeIntentTitle = activeIntentKey
     ? t(`home.master.${activeIntentKey}.title`)
@@ -2889,30 +2904,75 @@ const HomeScreen = () => {
       presentationAttributes={homePresentation.dataAttributes}
       showHero={showHomeMasterHero}
       showCards={showHomeMasterCards}
-      modeSwitcher={showHomeMasterCards ? (
-        <div className="mb-7 mt-1 px-3 text-center min-[390px]:mb-8 sm:mb-10">
-          <h1
-            data-testid="home-touch-heading"
+      modeSwitcher={(
+        <div className="mb-7 mt-1 min-[390px]:mb-8 sm:mb-10">
+          <div
             className={[
-              "font-body text-[27px] font-extrabold leading-tight min-[390px]:text-[30px] sm:text-[34px]",
-              isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
+              "mb-7 grid grid-cols-[48px_1fr_48px] items-center gap-3 px-1 min-[390px]:mb-8 sm:px-3",
+              isHomeMasterDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]",
             ].join(" ")}
+            data-testid="home-topbar"
           >
-            {activeIntentTitle}
-          </h1>
-          {homePresentation.showHeadingDetail && homeMasterHeroSubtitle ? (
-            <p
-              data-testid="home-touch-subheading"
+            <button
+              type="button"
+              aria-label="Open profile"
+              data-testid="button-home-profile"
+              onClick={() => handleNavigate("/settings/account")}
               className={[
-                "mx-auto mt-1.5 hidden max-w-[19rem] font-body text-[15px] font-bold leading-snug min-[390px]:text-[16px] sm:block sm:max-w-[28rem] sm:text-[18px]",
-                isHomeMasterDark ? "text-[#E8DDF3]" : "text-[#6C5369]",
+                "vyva-tap flex h-12 w-12 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)]",
+                isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
               ].join(" ")}
             >
-              {homeMasterHeroSubtitle}
+              <UserRound size={22} strokeWidth={2.1} />
+            </button>
+            <p
+              className={[
+                "truncate text-center font-body text-[13px] font-extrabold capitalize tracking-[0.01em]",
+                isHomeMasterDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]",
+              ].join(" ")}
+              data-testid="home-dayline"
+            >
+              {homeMasterDayline}
             </p>
+            <button
+              type="button"
+              aria-label="Open menu"
+              data-testid="button-home-menu"
+              onClick={() => handleNavigate("/menu")}
+              className={[
+                "vyva-tap flex h-12 w-12 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)]",
+                isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
+              ].join(" ")}
+            >
+              <MenuIcon size={23} strokeWidth={2.3} />
+            </button>
+          </div>
+          {showHomeMasterCards ? (
+            <div className="px-3 text-center">
+              <h1
+                data-testid="home-touch-heading"
+                className={[
+                  "font-display text-[32px] font-semibold leading-[1.02] min-[390px]:text-[35px] sm:text-[42px]",
+                  isHomeMasterDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]",
+                ].join(" ")}
+              >
+                {activeIntentTitle}
+              </h1>
+              {homePresentation.showHeadingDetail && homeMasterHeroSubtitle ? (
+                <p
+                  data-testid="home-touch-subheading"
+                  className={[
+                    "mx-auto mt-2 hidden max-w-[19rem] font-body text-[15px] font-bold leading-snug min-[390px]:text-[16px] sm:block sm:max-w-[28rem] sm:text-[18px]",
+                    isHomeMasterDark ? "text-[#E8DDF3]" : "text-[#6C5369]",
+                  ].join(" ")}
+                >
+                  {homeMasterHeroSubtitle}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
-      ) : null}
+      )}
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}

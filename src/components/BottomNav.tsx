@@ -1,4 +1,4 @@
-import { AlertCircle, ClipboardList, House, type LucideIcon } from "lucide-react";
+import { AlertCircle, FileText, House, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -30,12 +30,13 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
       id: "reports",
       path: "/informes",
       label: t("nav.reports", "My Reports"),
-      icon: ClipboardList,
+      icon: FileText,
       isActive: (pathname) => pathname.startsWith("/informes"),
     },
   ];
 
   const handleTabClick = (tab: BottomNavTab) => {
+    if (tab.id === "home" && isHomeRoute) return;
     if (tab.id === "home") {
       navigate("/", { state: { vyvaHomeResetAt: Date.now() } });
       return;
@@ -46,8 +47,10 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
 
   const renderTab = (tab: BottomNavTab) => {
     const active = tab.isActive(location.pathname);
+    const inertHomeTab = tab.id === "home" && isHomeRoute;
+    const activeVisual = active && !inertHomeTab;
     const Icon = tab.icon;
-    const label = isHomeRoute && tab.id === "reports" ? t("nav.reportsShort", "Informes") : tab.label;
+    const label = tab.label;
     const inactiveDarkColor = "#CFC4E8";
 
     return (
@@ -55,25 +58,28 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         key={tab.id}
         data-testid={`nav-tab-${tab.id}`}
         onClick={() => handleTabClick(tab)}
-        className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${isHomeRoute ? "min-h-[66px] sm:min-h-[70px] md:min-h-[74px]" : ""}`}
+        disabled={inertHomeTab}
+        aria-disabled={inertHomeTab ? "true" : undefined}
+        aria-current={activeVisual ? "page" : undefined}
+        className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${isHomeRoute ? "min-h-[66px] sm:min-h-[70px] md:min-h-[74px]" : ""} ${inertHomeTab ? "cursor-default opacity-60" : ""}`}
       >
         <div
           className={`flex h-8 w-10 items-center justify-center rounded-full transition-all ${
-            active ? "bg-vyva-purple-light shadow-sm" : ""
+            activeVisual ? "bg-vyva-purple-light shadow-sm" : ""
           }`}
         >
           <Icon
             size={isHomeRoute ? 21 : 20}
-            className={active ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"}
-            strokeWidth={active ? 2.25 : 1.9}
-            style={!active && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
+            className={activeVisual ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"}
+            strokeWidth={activeVisual ? 2.25 : 1.9}
+            style={!activeVisual && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
           />
         </div>
         <span
           className={`max-w-[68px] text-center font-body text-[11px] font-bold leading-[1.05] transition-colors ${
-            active ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"
+            activeVisual ? "text-vyva-purple" : isHomeRoute && isHomeMasterDark ? "" : "text-vyva-text-3"
           }`}
-          style={!active && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
+          style={!activeVisual && isHomeRoute && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
         >
           {label}
         </span>
