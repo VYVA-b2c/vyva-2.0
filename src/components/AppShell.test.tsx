@@ -186,6 +186,7 @@ describe("SOS service actions", () => {
 describe("app shell route layout", () => {
   it.each([
     ["/", "wide"],
+    ["/menu", "wide"],
     ["/settings/account", "wide"],
     ["/health/symptom-check", "wide"],
     ["/health/vitals", "vitals"],

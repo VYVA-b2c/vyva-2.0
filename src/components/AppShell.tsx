@@ -79,6 +79,7 @@ const WIDE_ROUTE_PREFIXES = [
 
 const WIDE_ROUTES = [
   "/",
+  "/menu",
   "/companions",
   "/mind-memory",
   "/activities",

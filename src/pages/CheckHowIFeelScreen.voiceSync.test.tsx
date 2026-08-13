@@ -19,6 +19,7 @@ import {
   VYVA_HEALTH_VOICE_SCREEN_SYNC_OBSERVATION_EVENT,
   type HealthVoiceScreenSyncObservation,
 } from "@/lib/healthVoiceScreenSync";
+import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
 const invalidateQueriesMock = vi.hoisted(() => vi.fn());
@@ -192,6 +193,69 @@ describe("CheckHowIFeelScreen voice and screen synchronization", () => {
     expect(voiceObservation.modality).toBe("voice");
     expect(semanticObservation(touchObservation)).toEqual(semanticObservation(voiceObservation));
     voiceEvents.stop();
+  });
+
+  it("exposes the local CheckInFlowState adapter boundary for fixture-backed projection", async () => {
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: true, rolloutPercent: 100 }),
+    });
+    const events = collectHealthSyncEvents();
+    renderCheckin();
+
+    expect(screen.getByTestId("checkin-flow-adapter-boundary")).toHaveAttribute("data-status", "welcome");
+
+    await startCheckinAndWaitForEnergyScene(events.scenes);
+
+    const boundary = screen.getByTestId("checkin-flow-adapter-boundary");
+    expect(boundary).toHaveAttribute("data-flow-id", "health.preventive_check");
+    expect(boundary).toHaveAttribute("data-step", "energy");
+    expect(boundary).toHaveAttribute("data-status", "question");
+    expect(boundary).toHaveAttribute("data-scene-id", "health.preventive_check.energy");
+    expect(boundary).toHaveAttribute("data-question-id", "health.preventive_check.energy");
+    expect(boundary).toHaveAttribute("data-source", "local_fixture_adapter");
+    expect(boundary).toHaveAttribute("data-has-answer-action", "true");
+    events.stop();
+  });
+
+  it("keeps a persistent urgent escape on questions and resumes to the same active scene", async () => {
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: true, rolloutPercent: 100 }),
+    });
+    const sosEvents: Array<CustomEvent<{ source?: string }>> = [];
+    const handleSos = (event: Event) => sosEvents.push(event as CustomEvent<{ source?: string }>);
+    window.addEventListener(VYVA_OPEN_SOS_EVENT, handleSos);
+    const events = collectHealthSyncEvents();
+    renderCheckin();
+    await startCheckinAndWaitForEnergyScene(events.scenes);
+
+    expect(screen.getByTestId("button-checkin-urgent-escape")).toHaveTextContent("If this feels urgent");
+    fireEvent.click(screen.getByRole("button", { name: /Normal/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("How is your mood?");
+
+    const moodBoundary = screen.getByTestId("checkin-flow-adapter-boundary");
+    expect(moodBoundary).toHaveAttribute("data-step", "mood");
+    fireEvent.click(screen.getByTestId("button-checkin-urgent-escape"));
+
+    expect(await screen.findByText("I've paused the check-in.")).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-flow-adapter-boundary")).toHaveAttribute("data-status", "safety");
+    expect(screen.queryByText("One step at a time")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-checkin-safety-sos"));
+    expect(sosEvents).toHaveLength(1);
+    expect(sosEvents[0].detail).toEqual({ source: "health_checkin_safety" });
+
+    fireEvent.click(screen.getByTestId("button-checkin-safety-resume"));
+    await screen.findByText("How is your mood?");
+    const resumedBoundary = screen.getByTestId("checkin-flow-adapter-boundary");
+    expect(resumedBoundary).toHaveAttribute("data-step", "mood");
+    expect(resumedBoundary).toHaveAttribute("data-scene-id", "health.preventive_check.mood");
+
+    events.stop();
+    window.removeEventListener(VYVA_OPEN_SOS_EVENT, handleSos);
   });
 
   it("rejects delayed stale raw voice answers without rebinding them to the new scene", async () => {
@@ -491,5 +555,51 @@ describe("CheckHowIFeelScreen voice and screen synchronization", () => {
     expect(events.observations).toHaveLength(0);
     expect(apiFetchMock).toHaveBeenCalledWith(HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FEATURE_ENDPOINT);
     events.stop();
+  });
+
+  it("opens the existing SOS sheet event from the check-in safety state", async () => {
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: true, rolloutPercent: 100 }),
+    });
+    const sosEvents: Array<CustomEvent<{ source?: string }>> = [];
+    const handleSos = (event: Event) => sosEvents.push(event as CustomEvent<{ source?: string }>);
+    window.addEventListener(VYVA_OPEN_SOS_EVENT, handleSos);
+    const events = collectHealthSyncEvents();
+    renderCheckin();
+    await startCheckinAndWaitForEnergyScene(events.scenes);
+
+    fireEvent.click(screen.getByRole("button", { name: /Normal/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("How is your mood?");
+    fireEvent.click(screen.getByRole("button", { name: /Calm/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Do you notice anything in your body?");
+    fireEvent.click(screen.getByRole("button", { name: /Nothing special/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("How did you sleep?");
+    fireEvent.click(screen.getByRole("button", { name: /WellI slept enough/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Anything else you want to mention?");
+    fireEvent.click(screen.getByRole("button", { name: /Short of breath/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Let's narrow it down");
+    fireEvent.click(screen.getByRole("button", { name: /Only when moving/i }));
+    await waitForEnabledNext();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByTestId("button-checkin-safety-sos");
+
+    fireEvent.click(screen.getByTestId("button-checkin-safety-sos"));
+
+    expect(sosEvents).toHaveLength(1);
+    expect(sosEvents[0].detail).toEqual({ source: "health_checkin_safety" });
+    expect(screen.getByTestId("checkin-flow-adapter-boundary")).toHaveAttribute("data-status", "safety");
+    events.stop();
+    window.removeEventListener(VYVA_OPEN_SOS_EVENT, handleSos);
   });
 });

@@ -54,6 +54,7 @@ import {
   emitVoiceTriageTouchAnswer,
   ensureVoiceSessionId,
 } from "@/lib/voiceSessionBridge";
+import { emitSosSheetOpen } from "@/lib/sosEvents";
 import {
   applyCanonicalHealthVoiceScreenSyncAnswer,
   createHealthVoiceScreenSyncSessionInstanceId,
@@ -84,6 +85,11 @@ import {
   HealthWizardProgress,
   HealthWizardShell,
 } from "@/components/health/HealthWizard";
+import {
+  createCheckInFlowAdapter,
+  type CheckInFlowActions,
+  type CheckInFlowState,
+} from "@/lib/checkInFlowAdapter";
 
 type StepId = "welcome" | "energy" | "mood" | "body" | "sleep" | "symptoms" | "details" | "safety" | "social" | "analyzing" | "result";
 
@@ -2033,11 +2039,13 @@ const CheckHowIFeelScreen = () => {
   const healthVoiceTouchSequenceRef = useRef(0);
   const healthVoiceTouchEventIdsRef = useRef<WeakMap<Event, string>>(new WeakMap());
   const healthVoiceScreenSyncSessionInstanceIdRef = useRef(createHealthVoiceScreenSyncSessionInstanceId());
+  const safetyReturnStepRef = useRef<StepId | null>(null);
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareUrlLoading, setShareUrlLoading] = useState(false);
+  const [safetyInterruptActive, setSafetyInterruptActive] = useState(false);
   const [preventivePushEntryId, setPreventivePushEntryId] = useState<string | null>(null);
   const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
     queryKey: ["/api/onboarding/careteam"],
@@ -2072,6 +2080,22 @@ const CheckHowIFeelScreen = () => {
   const includeDetails = needsSymptomDetails(answers);
   const questionSteps = activeQuestionSteps(includeSafety, includeDetails);
   const safetyCopy = safetyCopyFor(copy);
+  const safetyInterruptCopy = copy === CHECKIN_TEXT.es
+    ? {
+        title: "He pausado el check-in.",
+        subtitle: "Toca abajo y te conecto enseguida.",
+        primary: "Pedir ayuda ahora",
+        secondary: "Estoy bien — volver",
+      }
+    : {
+        title: "I've paused the check-in.",
+        subtitle: "Tap below and I'll connect you right away.",
+        primary: "Get help now",
+        secondary: "I'm okay — go back",
+      };
+  const safetyEscapeLabel = copy === CHECKIN_TEXT.es
+    ? "Si esto parece urgente, toca aquí"
+    : "If this feels urgent, tap here";
   const detailCopy = symptomDetailCopyFor(copy);
   const canGoBack = stepIndex > 0 && step !== "analyzing" && step !== "result";
   const healthPriority = hasHealthPrioritySignal(answers);
@@ -2380,6 +2404,25 @@ const CheckHowIFeelScreen = () => {
     navigate("/health");
   };
 
+  const openSafetyInterrupt = () => {
+    if (questionSteps.includes(step)) {
+      safetyReturnStepRef.current = step;
+    }
+    setSafetyInterruptActive(true);
+    setStep("safety");
+  };
+
+  const resumeFromSafetyInterrupt = () => {
+    const returnStep = safetyReturnStepRef.current;
+    safetyReturnStepRef.current = null;
+    setSafetyInterruptActive(false);
+    if (returnStep && questionSteps.includes(returnStep)) {
+      setStep(returnStep);
+      return;
+    }
+    goBack();
+  };
+
   const abandonAndExit = async () => {
     try {
       await apiFetch("/api/checkins/abandon", {
@@ -2515,10 +2558,14 @@ const CheckHowIFeelScreen = () => {
       setStep("details");
       return;
     }
+    setSafetyInterruptActive(false);
+    safetyReturnStepRef.current = null;
     setStep(needsSafetyFollowup(answers) ? "safety" : "social");
   };
 
   const continueAfterDetails = () => {
+    setSafetyInterruptActive(false);
+    safetyReturnStepRef.current = null;
     setStep(needsSafetyFollowup(answers) ? "safety" : "social");
   };
 
@@ -2530,6 +2577,8 @@ const CheckHowIFeelScreen = () => {
         // The check-in itself remains the user's primary action.
       });
     }
+    setSafetyInterruptActive(false);
+    safetyReturnStepRef.current = null;
     setStep("energy");
   };
 
@@ -2572,10 +2621,12 @@ const CheckHowIFeelScreen = () => {
     acceptedHealthVoiceScreenSyncEventIdsRef.current.clear();
     healthVoiceTouchSequenceRef.current = 0;
     healthVoiceTouchEventIdsRef.current = new WeakMap();
+    safetyReturnStepRef.current = null;
     setAnswers(initialAnswers);
     setResult(null);
     setShareSheetOpen(false);
     setShareUrl(null);
+    setSafetyInterruptActive(false);
     setStep("welcome");
   };
 
@@ -2632,9 +2683,56 @@ const CheckHowIFeelScreen = () => {
     void prepareShareUrl();
   };
 
+  const checkInFlowAdapter = createCheckInFlowAdapter({
+    activeQuestion: activeHealthVoiceQuestion,
+    answers,
+    step,
+    actions: {
+      start: startCheckin,
+      goBack,
+      answer: (optionId, modality) => {
+        const activeQuestion = activeHealthVoiceQuestionRef.current;
+        if (!activeQuestion) return;
+        applyHealthVoiceScreenSyncInput({
+          flowId: HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID,
+          sceneId: activeQuestion.sceneId,
+          sceneInstanceId: activeQuestion.sceneInstanceId,
+          questionId: activeQuestion.questionId,
+          revision: activeQuestion.revision,
+          modality,
+          choiceId: optionId,
+          eventId: [
+            "checkin-flow-adapter",
+            activeQuestion.sceneId,
+            activeQuestion.sceneInstanceId,
+            activeQuestion.revision,
+            modality,
+            optionId,
+          ].join(":"),
+        });
+      },
+      next: () => {
+        if (step === "energy" && answers.energy_level) setStep("mood");
+        if (step === "mood" && answers.mood) setStep("body");
+        if (step === "body" && answers.body_areas.length > 0) setStep("sleep");
+        if (step === "sleep" && answers.sleep_quality) setStep("symptoms");
+        if (step === "symptoms" && answers.symptoms.length > 0) continueAfterSymptoms();
+        if (step === "details" && answers.symptom_details.length > 0) continueAfterDetails();
+        if (step === "safety" && answers.safety_flags.length > 0) {
+          setSafetyInterruptActive(false);
+          safetyReturnStepRef.current = null;
+          setStep("social");
+        }
+        if (step === "social" && answers.social_contact) void analyze();
+      },
+      openSafety: openSafetyInterrupt,
+    },
+  });
+
   return (
-    <HealthWizardShell>
-      {questionSteps.includes(step) && (
+    <HealthWizardShell testId="checkin-flow-screen">
+      <CheckInFlowAdapterBoundary actions={checkInFlowAdapter.actions} state={checkInFlowAdapter.flowState} />
+      {questionSteps.includes(step) && !safetyInterruptActive && (
         <HealthWizardCard className="mb-4 p-4">
           <div className="mb-3 flex items-center justify-between">
             <button
@@ -2702,7 +2800,7 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "energy" && (
-        <QuestionCard icon={<Battery />} title={copy.qEnergy[0]} subtitle={copy.qEnergy[1]}>
+        <QuestionCard icon={<Battery />} title={copy.qEnergy[0]} subtitle={copy.qEnergy[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={energyOptions}
             selected={answers.energy_level?.toString()}
@@ -2713,7 +2811,7 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "mood" && (
-        <QuestionCard icon={<Heart />} title={copy.qMood[0]} subtitle={copy.qMood[1]}>
+        <QuestionCard icon={<Heart />} title={copy.qMood[0]} subtitle={copy.qMood[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={moodOptionsLocalized}
             selected={answers.mood ?? undefined}
@@ -2724,7 +2822,7 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "body" && (
-        <QuestionCard icon={<UserRound />} title={copy.qBody[0]} subtitle={copy.qBody[1]}>
+        <QuestionCard icon={<UserRound />} title={copy.qBody[0]} subtitle={copy.qBody[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={bodyOptionsLocalized}
             selectedValues={answers.body_areas}
@@ -2736,7 +2834,7 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "sleep" && (
-        <QuestionCard icon={<BedDouble />} title={copy.qSleep[0]} subtitle={copy.qSleep[1]}>
+        <QuestionCard icon={<BedDouble />} title={copy.qSleep[0]} subtitle={copy.qSleep[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={sleepOptionsLocalized}
             selected={answers.sleep_quality ?? undefined}
@@ -2747,7 +2845,7 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "symptoms" && (
-        <QuestionCard icon={<Sparkles />} title={copy.qSymptoms[0]} subtitle={copy.qSymptoms[1]}>
+        <QuestionCard icon={<Sparkles />} title={copy.qSymptoms[0]} subtitle={copy.qSymptoms[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={symptomOptions}
             selectedValues={answers.symptoms}
@@ -2759,7 +2857,7 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "details" && (
-        <QuestionCard icon={<Stethoscope />} title={detailCopy.title} subtitle={detailCopy.subtitle}>
+        <QuestionCard icon={<Stethoscope />} title={detailCopy.title} subtitle={detailCopy.subtitle} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={symptomDetailOptions}
             selectedValues={answers.symptom_details}
@@ -2771,19 +2869,53 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "safety" && (
-        <QuestionCard icon={<ShieldCheck />} title={safetyCopy.title} subtitle={safetyCopy.subtitle}>
-          <OptionList
-            options={safetyCopy.options}
-            selectedValues={answers.safety_flags}
-            onSelect={(option, event) => toggleMulti("safety_flags", option.id, option, activeHealthVoiceQuestion, event)}
-            multi
-          />
-          <NextButton disabled={answers.safety_flags.length === 0} onClick={() => setStep("social")} label={copy.next} />
+        <QuestionCard
+          icon={<ShieldCheck />}
+          title={safetyInterruptActive ? safetyInterruptCopy.title : safetyCopy.title}
+          subtitle={safetyInterruptActive ? safetyInterruptCopy.subtitle : safetyCopy.subtitle}
+        >
+          <button
+            type="button"
+            className="vyva-tap mb-4 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#D92020] px-5 font-body text-[19px] font-extrabold text-white shadow-[0_12px_28px_rgba(185,28,28,0.22)]"
+            data-testid="button-checkin-safety-sos"
+            onClick={() => emitSosSheetOpen("health_checkin_safety")}
+          >
+            <PhoneCall size={21} />
+            {safetyInterruptCopy.primary}
+          </button>
+          {safetyInterruptActive ? (
+            <button
+              type="button"
+              className="vyva-tap min-h-[60px] w-full rounded-full border border-[#E8DDF3] bg-white px-5 font-body text-[18px] font-extrabold text-vyva-text-1"
+              data-testid="button-checkin-safety-resume"
+              onClick={resumeFromSafetyInterrupt}
+            >
+              {safetyInterruptCopy.secondary}
+            </button>
+          ) : (
+            <>
+              <OptionList
+                options={safetyCopy.options}
+                selectedValues={answers.safety_flags}
+                onSelect={(option, event) => toggleMulti("safety_flags", option.id, option, activeHealthVoiceQuestion, event)}
+                multi
+              />
+              <NextButton
+                disabled={answers.safety_flags.length === 0}
+                onClick={() => {
+                  setSafetyInterruptActive(false);
+                  safetyReturnStepRef.current = null;
+                  setStep("social");
+                }}
+                label={copy.next}
+              />
+            </>
+          )}
         </QuestionCard>
       )}
 
       {step === "social" && (
-        <QuestionCard icon={<MessageCircle />} title={copy.qSocial[0]} subtitle={copy.qSocial[1]}>
+        <QuestionCard icon={<MessageCircle />} title={copy.qSocial[0]} subtitle={copy.qSocial[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={socialOptions}
             selected={answers.social_contact ?? undefined}
@@ -3033,6 +3165,33 @@ const CheckHowIFeelScreen = () => {
   );
 };
 
+function CheckInFlowAdapterBoundary({
+  actions,
+  state,
+}: {
+  actions: CheckInFlowActions;
+  state: CheckInFlowState;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="hidden"
+      data-testid="checkin-flow-adapter-boundary"
+      data-flow-id={state.flowId}
+      data-step={state.step}
+      data-status={state.status}
+      data-scene-id={state.sceneId ?? ""}
+      data-scene-instance-id={state.sceneInstanceId ?? ""}
+      data-question-id={state.questionId ?? ""}
+      data-revision={state.revision ?? ""}
+      data-options={state.currentQuestion?.options.length ?? 0}
+      data-source={state.source}
+      data-has-answer-action={String(typeof actions.answer === "function")}
+      data-has-safety-action={String(typeof actions.openSafety === "function")}
+    />
+  );
+}
+
 function ReportShareSheet({
   title,
   text,
@@ -3233,17 +3392,21 @@ function DisabledShareTarget({
 
 function QuestionCard({
   icon,
+  onSafetyEscape,
+  safetyEscapeLabel = "If this feels urgent, tap here",
   title,
   subtitle,
   children,
 }: {
   icon: ReactNode;
+  onSafetyEscape?: () => void;
+  safetyEscapeLabel?: string;
   title: string;
   subtitle: string;
   children: ReactNode;
 }) {
   return (
-    <HealthWizardCard className="overflow-hidden p-0">
+    <HealthWizardCard className="mx-auto overflow-hidden p-0 md:max-w-[720px]">
       <HealthWizardHero
         className="rounded-none border-0 shadow-none"
         tone="light"
@@ -3251,7 +3414,19 @@ function QuestionCard({
         title={title}
         body={subtitle}
       />
-      <div className="p-5 pt-4">{children}</div>
+      <div className="p-5 pt-4 md:p-7">
+        {children}
+        {onSafetyEscape ? (
+          <button
+            type="button"
+            className="vyva-tap mt-4 min-h-[52px] w-full rounded-full border border-[#FECACA] bg-[#FFF7F7] px-4 font-body text-[16px] font-extrabold text-[#B91C1C]"
+            data-testid="button-checkin-urgent-escape"
+            onClick={onSafetyEscape}
+          >
+            {safetyEscapeLabel}
+          </button>
+        ) : null}
+      </div>
     </HealthWizardCard>
   );
 }
@@ -3270,7 +3445,7 @@ function OptionList({
   multi?: boolean;
 }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-3 md:grid-cols-2" data-testid="checkin-option-grid">
       {options.map((option) => {
         const isSelected = multi ? selectedValues?.includes(option.id) : selected === option.id;
         return (
@@ -3280,8 +3455,8 @@ function OptionList({
             selected={Boolean(isSelected)}
             icon={<span className="text-[27px] leading-none">{option.icon ?? "•"}</span>}
             title={option.label}
-            body={option.helper}
-            className="min-h-[88px]"
+            description={option.helper}
+            className="min-h-[88px] md:min-h-[112px]"
           />
         );
       })}

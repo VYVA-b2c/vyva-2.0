@@ -2,6 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/vyva/figtree-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/vyva/figtree-500.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/vyva/figtree-600.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/vyva/figtree-700.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/vyva/figtree-800.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/vyva/figtree-900.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/vyva/fraunces-400.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/vyva/fraunces-600.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/vyva/fraunces-700.ttf") format("truetype");
+}
+
 @layer base {
   :root {
     --background: 36 33% 97%;
@@ -56,6 +128,14 @@
     --vyva-text-2: 18 10% 45%;
     --vyva-text-3: 18 10% 67%;
     --vyva-border: 30 22% 90%;
+    --vyva-ink: #241C30;
+    --vyva-ink-soft: #9A90A5;
+    --vyva-orb-purple: #7C3AED;
+    --vyva-hero-a: #8B5CF6;
+    --vyva-hero-b: #5B21B6;
+    --vyva-sky-a: #F4EAFB;
+    --vyva-sky-b: #FCF8F2;
+    --vyva-green-deep: #0F7A50;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -74,12 +154,12 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "Figtree", sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Lora', serif;
+    font-family: "Fraunces", serif;
   }
   button,
   a,
@@ -457,11 +537,11 @@
 }
 
 .font-display {
-  font-family: 'Lora', serif;
+  font-family: "Fraunces", serif;
 }
 
 .font-body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: "Figtree", sans-serif;
 }
 
 /* === Voice Call Overlay Animations === */

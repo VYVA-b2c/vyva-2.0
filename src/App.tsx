@@ -43,6 +43,7 @@ const AccessLinkPage = lazy(() => import("@/pages/AccessLinkPage"));
 const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
 const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
+const MenuScreen = lazy(() => import("./pages/MenuScreen"));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
@@ -753,6 +754,7 @@ const App = () => (
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
                   <Route path="/settings/trusted-help" element={<AppShell><TrustedHelpSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/menu" element={<AppShell><MenuScreen /></AppShell>} />
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
                   <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />

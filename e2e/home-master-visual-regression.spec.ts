@@ -110,14 +110,16 @@ test.describe("home master visual contract", () => {
     });
   });
 
-  test("shows cards only after the user switches to touch mode", async ({ page }) => {
+  test("keeps top-level Home orb-first after touch mode and routes tiles through Menu", async ({ page }) => {
     await openHomeMasterVoiceMode(page);
 
     await page.getByTestId("button-home-mode-touch").click();
 
-    await expect(page.getByTestId("home-master-hero")).toHaveCount(0);
-    await expect(page.getByTestId("home-pillar-cards")).toBeVisible();
-    await expect(page.getByTestId("home-pillar-cards").getByRole("button")).toHaveCount(4);
+    await expect(page.getByTestId("home-master-hero")).toBeVisible();
+    await expect(page.getByTestId("home-pillar-cards")).toHaveCount(0);
     await expect(page.getByTestId("button-home-mode-voice")).toBeVisible();
+    await page.getByTestId("button-home-menu").click();
+    await expect(page).toHaveURL(/\/menu$/);
+    await expect(page.getByTestId("menu-tile-grid").getByRole("button")).toHaveCount(4);
   });
 });

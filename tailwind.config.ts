@@ -13,8 +13,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Lora", "serif"],
-        body: ["DM Sans", "sans-serif"],
+        display: ["Fraunces", "serif"],
+        body: ["Figtree", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
