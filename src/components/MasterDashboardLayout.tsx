@@ -210,7 +210,7 @@ export default function MasterDashboardLayout({
       className={[
         "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
         isHomeMaster
-          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] md:pb-[132px] lg:max-w-[920px]"
+          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] md:pb-[132px] lg:max-w-[390px]"
           : "",
         presentationClassName ?? "",
       ].join(" ")}
@@ -346,7 +346,7 @@ export default function MasterDashboardLayout({
               onFirstVoiceOrbActivation={hero.action.onFirstVoiceOrbActivation}
               visual="voiceOrb"
               voiceOrbDark={isHomeMasterDark}
-              voiceOrbSize={isHomeMasterIntentLayer ? 112 : 172}
+              voiceOrbSize={isHomeMasterIntentLayer ? 112 : 188}
               className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
             />
             {hero.subtitle && movesHomeMasterSubtitleBelowOrb ? (

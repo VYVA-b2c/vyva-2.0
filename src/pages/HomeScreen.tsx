@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, Menu as MenuIcon, type LucideIcon } from "lucide-react";
+import { Activity, ALargeSmall, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, Menu as MenuIcon, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -19,6 +19,7 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useLanguage } from "@/i18n";
@@ -760,7 +761,8 @@ const HomeScreen = () => {
     staleTime: 60 * 1000,
     retry: false,
   });
-  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const { isDark: isHomeMasterDark, toggleTheme } = useHomeMasterTheme();
+  const { isLarge: isReadableTextLarge, toggleSize: toggleReadableTextSize } = useReadableTextSize();
   const voice = useOptionalVyvaVoice();
   const { firstName: profileFirstName, profile } = useProfile();
   const activeFastHelpImpressionIdRef = useRef<string | null>(null);
@@ -780,6 +782,7 @@ const HomeScreen = () => {
   ));
   const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>(readHomeIntentLayer);
   const [homeSubflow, setHomeSubflow] = useState<VoiceHomeSubflow | null>(readHomeSubflow);
+  const [homeProfileMenuOpen, setHomeProfileMenuOpen] = useState(false);
   const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">(() => {
     try {
       return localStorage.getItem("vyva:home-interaction-mode:v1") === "touch" ? "touch" : "voice";
@@ -1116,6 +1119,16 @@ const HomeScreen = () => {
   const handleNavigate = useCallback((path: string, options?: NavigateOptions) => {
     guardPath(path, options);
   }, [guardPath]);
+
+  const handleProfileMenuNavigate = useCallback((path: string, options?: NavigateOptions) => {
+    setHomeProfileMenuOpen(false);
+    handleNavigate(path, options);
+  }, [handleNavigate]);
+
+  const switchHomeModeFromProfileMenu = useCallback(() => {
+    setHomeModeSwitcherVisible(true);
+    setHomeInteractionMode((mode) => mode === "voice" ? "touch" : "voice");
+  }, []);
 
   const launchHomeFastHelp = (
     actionId: ContextualHomeFastHelpActionId,
@@ -2892,6 +2905,187 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
+  const homeProfileMenuLinks: Array<{
+    label: string;
+    detail: string;
+    path: string;
+    icon: LucideIcon;
+    testId: string;
+    tone: string;
+  }> = [
+    {
+      label: t("home.profileMenu.account", "Account details"),
+      detail: t("home.profileMenu.accountDetail", "Name, phone, language"),
+      path: "/settings/account",
+      icon: UserRound,
+      testId: "button-home-profile-account",
+      tone: "bg-[#F5F3FF] text-vyva-purple",
+    },
+    {
+      label: t("home.profileMenu.health", "Health profile"),
+      detail: t("home.profileMenu.healthDetail", "Conditions and basics"),
+      path: "/onboarding/profile/health",
+      icon: Heart,
+      testId: "button-home-profile-health",
+      tone: "bg-[#FFF1F2] text-[#E74C43]",
+    },
+    {
+      label: t("home.profileMenu.medications", "Medicines"),
+      detail: t("home.profileMenu.medicationsDetail", "Current medications"),
+      path: "/onboarding/profile/medications",
+      icon: Pill,
+      testId: "button-home-profile-medications",
+      tone: "bg-[#FEF3C7] text-[#A16207]",
+    },
+    {
+      label: t("home.profileMenu.emergency", "Emergency contact"),
+      detail: t("home.profileMenu.emergencyDetail", "Who to call if needed"),
+      path: "/onboarding/profile/emergency",
+      icon: ShieldCheck,
+      testId: "button-home-profile-emergency",
+      tone: "bg-[#FFE4E6] text-[#E11D48]",
+    },
+    {
+      label: t("home.profileMenu.careTeam", "Care team"),
+      detail: t("home.profileMenu.careTeamDetail", "Family and contacts"),
+      path: "/onboarding/profile/care-team",
+      icon: Users,
+      testId: "button-home-profile-care-team",
+      tone: "bg-[#EFF6FF] text-[#2F66D0]",
+    },
+    {
+      label: t("home.profileMenu.providers", "Doctors & providers"),
+      detail: t("home.profileMenu.providersDetail", "Clinics and trusted help"),
+      path: "/onboarding/profile/providers",
+      icon: Stethoscope,
+      testId: "button-home-profile-providers",
+      tone: "bg-[#ECFDF5] text-[#149A63]",
+    },
+  ];
+  const homeProfileMenu = homeProfileMenuOpen ? (
+    <div className="fixed inset-0 z-[80]" data-testid="home-profile-menu-layer">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default bg-transparent"
+        aria-label={t("home.profileMenu.close", "Close profile menu")}
+        onClick={() => setHomeProfileMenuOpen(false)}
+      />
+      <section
+        id="home-profile-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("home.profileMenu.title", "Profile & settings")}
+        data-testid="home-profile-menu"
+        className={[
+          "absolute left-1/2 top-[88px] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-hidden rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px]",
+          isHomeMasterDark
+            ? "border-white/[0.12] bg-[#170C2A]/[0.92] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
+            : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",
+        ].join(" ")}
+      >
+        <div className="flex items-start justify-between gap-3 px-1 pb-1.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[18px] bg-[linear-gradient(145deg,#F8F4FF_0%,#EFE5FF_100%)] text-vyva-purple shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_24px_rgba(107,33,168,0.10)]">
+              <span className="font-display text-[22px] font-semibold leading-none" aria-hidden="true">
+                {firstName ? firstName.charAt(0).toLocaleUpperCase(language) : "Y"}
+              </span>
+            </span>
+            <span className="min-w-0">
+              <span className="block font-display text-[22px] font-semibold leading-none">
+                {t("home.profileMenu.title", "Profile & settings")}
+              </span>
+              <span className={["mt-1 block font-body text-[11.5px] font-extrabold leading-snug", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#8F8192]"].join(" ")}>
+                {t("home.profileMenu.subtitle", "Update health, contacts, and display.")}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            data-testid="button-home-profile-menu-close"
+            aria-label={t("home.profileMenu.close", "Close profile menu")}
+            onClick={() => setHomeProfileMenuOpen(false)}
+            className={["vyva-tap grid h-10 w-10 flex-shrink-0 place-items-center rounded-full", isHomeMasterDark ? "bg-white/10 text-[#F6F0FF]" : "bg-[#F8F5FF] text-[#6B5173]"].join(" ")}
+          >
+            <X size={18} strokeWidth={2.4} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="mt-2 grid gap-1.5">
+          {homeProfileMenuLinks.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.path}
+                type="button"
+                data-testid={item.testId}
+                onClick={() => handleProfileMenuNavigate(item.path)}
+                className={[
+                  "vyva-tap flex min-h-[60px] w-full items-center gap-2.5 rounded-[21px] border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5",
+                  isHomeMasterDark ? "border-white/[0.10] bg-white/[0.06]" : "border-[#F0E8F5] bg-white shadow-[0_8px_22px_rgba(67,36,95,0.05)]",
+                ].join(" ")}
+              >
+                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-[17px] ${item.tone}`}>
+                  <Icon size={19} strokeWidth={2.25} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-[19px] font-semibold leading-none">
+                    {item.label}
+                  </span>
+                  <span className={["mt-1 block truncate font-body text-[11.5px] font-extrabold", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"].join(" ")}>
+                    {item.detail}
+                  </span>
+                </span>
+                <ChevronRight size={20} strokeWidth={2.55} className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#B6AAB8]"} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className={["my-3 h-px", isHomeMasterDark ? "bg-white/[0.10]" : "bg-[#EFE4F6]"].join(" ")} />
+        <p className={["px-2 pb-2 font-body text-[11px] font-black uppercase tracking-[0.16em]", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"].join(" ")}>
+          {t("home.profileMenu.display", "Display preferences")}
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            data-testid="button-home-profile-text-size"
+            onClick={toggleReadableTextSize}
+            className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
+          >
+            <ALargeSmall size={19} strokeWidth={2.35} aria-hidden="true" />
+            <span className="mt-1">{t("home.profileMenu.textSize", "Text size")}</span>
+            <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
+              {isReadableTextLarge ? t("home.profileMenu.large", "Large") : t("home.profileMenu.normal", "Normal")}
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-home-profile-theme"
+            onClick={toggleTheme}
+            className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
+          >
+            {isHomeMasterDark ? <Sun size={18} strokeWidth={2.35} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.35} aria-hidden="true" />}
+            <span className="mt-1">{t("home.profileMenu.theme", "Theme")}</span>
+            <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
+              {isHomeMasterDark ? t("home.profileMenu.dark", "Dark") : t("home.profileMenu.light", "Light")}
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-home-profile-mode"
+            onClick={switchHomeModeFromProfileMenu}
+            className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
+          >
+            {homeInteractionMode === "voice" ? <Mic size={18} strokeWidth={2.35} aria-hidden="true" /> : <Hand size={18} strokeWidth={2.35} aria-hidden="true" />}
+            <span className="mt-1">{t("home.profileMenu.mode", "Mode")}</span>
+            <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
+              {homeInteractionMode === "voice" ? t("home.profileMenu.voice", "Voice") : t("home.profileMenu.touch", "Touch")}
+            </span>
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
   // Home master design: latest VYVA wordmark header, greeting, dormant voice orb, four app-mode
   // shortcuts, and no extra Fast Help/nudge blocks on the landing screen.
   return (
@@ -2917,7 +3111,9 @@ const HomeScreen = () => {
               type="button"
               aria-label="Open profile"
               data-testid="button-home-profile"
-              onClick={() => handleNavigate("/settings/account")}
+              onClick={() => setHomeProfileMenuOpen(true)}
+              aria-expanded={homeProfileMenuOpen}
+              aria-controls={homeProfileMenuOpen ? "home-profile-menu" : undefined}
               className={[
                 "vyva-tap flex h-11 w-11 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)] sm:h-12 sm:w-12",
                 isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
@@ -2947,6 +3143,7 @@ const HomeScreen = () => {
               <MenuIcon size={23} strokeWidth={2.3} />
             </button>
           </div>
+          {homeProfileMenu}
           {showHomeMasterCards ? (
             <div className="px-3 text-center">
               <h1
