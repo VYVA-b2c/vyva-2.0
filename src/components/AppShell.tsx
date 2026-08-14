@@ -541,7 +541,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isConciergeExperienceRoute = location.pathname === "/concierge";
   const usesHomeMasterShell = isHomeRoute;
-  const ownsPrototypeTopbar = isHomeNavPrototypeTopbarRoute(location.pathname);
+  const ownsPrototypeTopbar = location.pathname !== "/dev/home-master" && isHomeNavPrototypeTopbarRoute(location.pathname);
   const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
   const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
   const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
@@ -910,6 +910,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           <StatusBar
             wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
             variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
+            autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
         <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>

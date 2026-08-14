@@ -84,8 +84,13 @@ vi.mock("@/contexts/VoiceCanvasContext", () => ({
 }));
 
 vi.mock("./StatusBar", () => ({
-  default: ({ variant, wide }: { variant?: string; wide?: boolean }) => (
-    <div data-testid="status-bar" data-variant={variant} data-wide={wide ? "true" : "false"} />
+  default: ({ variant, wide, autoHideHomeControls }: { variant?: string; wide?: boolean; autoHideHomeControls?: boolean }) => (
+    <div
+      data-testid="status-bar"
+      data-variant={variant}
+      data-wide={wide ? "true" : "false"}
+      data-auto-hide-home-controls={autoHideHomeControls === undefined ? "unset" : String(autoHideHomeControls)}
+    />
   ),
 }));
 
@@ -310,6 +315,13 @@ describe("app shell voice dock", () => {
 
     expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("keeps the dev Home master utility dock stable for visual regression", () => {
+    renderShell("/dev/home-master");
+
+    expect(screen.getByTestId("status-bar")).toHaveAttribute("data-variant", "homeMaster");
+    expect(screen.getByTestId("status-bar")).toHaveAttribute("data-auto-hide-home-controls", "false");
   });
 
   it("keeps Concierge voice canvas work compact and non-blocking", async () => {
