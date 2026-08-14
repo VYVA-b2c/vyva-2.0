@@ -84,7 +84,9 @@ vi.mock("@/contexts/VoiceCanvasContext", () => ({
 }));
 
 vi.mock("./StatusBar", () => ({
-  default: () => <div data-testid="status-bar" />,
+  default: ({ variant, wide }: { variant?: string; wide?: boolean }) => (
+    <div data-testid="status-bar" data-variant={variant} data-wide={wide ? "true" : "false"} />
+  ),
 }));
 
 vi.mock("./BottomNav", () => ({
@@ -203,6 +205,19 @@ describe("app shell route layout", () => {
   ] as const)("classifies %s as %s", (pathname, layout) => {
     expect(getAppShellLayout(pathname)).toBe(layout);
   });
+
+  it("lets Menu own the prototype topbar instead of rendering the global status surface", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/menu"]}>
+        <AppShell>
+          <div>Menu page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("app-shell").className).toContain("bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]");
+  });
 });
 
 describe("app shell voice dock", () => {
@@ -260,7 +275,7 @@ describe("app shell voice dock", () => {
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
-    renderShell("/health");
+    renderShell("/meds");
 
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
@@ -330,7 +345,7 @@ describe("app shell voice dock", () => {
     voiceState.voiceSessionPhase = "speaking";
     voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
 
-    renderShell("/health");
+    renderShell("/meds");
 
     const dock = screen.getByTestId("voice-session-dock");
     expect(dock).toHaveTextContent("Speaking");

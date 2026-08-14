@@ -67,4 +67,19 @@ describe("BottomNav", () => {
 
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/informes");
   });
+
+  it("uses the floating home dock surface on Menu without making Home inert", () => {
+    renderBottomNav("/menu");
+
+    const dock = screen.getByRole("navigation");
+    const homeTab = screen.getByTestId("nav-tab-home");
+
+    expect(dock).toHaveClass("bottom-[18px]");
+    expect(dock).toHaveClass("rounded-[22px]");
+    expect(homeTab).not.toBeDisabled();
+
+    fireEvent.click(homeTab);
+
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/");
+  });
 });

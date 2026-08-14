@@ -50,6 +50,11 @@ import {
   type VoiceOverlayPresenceDetail,
 } from "@/lib/voiceOverlayFocus";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import {
+  hidesHomeNavPrototypeDock,
+  isHomeNavPrototypeDockRoute,
+  isHomeNavPrototypeTopbarRoute,
+} from "@/lib/homeNavPrototypeRoutes";
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 import { acknowledgeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
 import CrossPillarHandoffRecovery from "./CrossPillarHandoffRecovery";
@@ -536,7 +541,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isConciergeExperienceRoute = location.pathname === "/concierge";
   const usesHomeMasterShell = isHomeRoute;
-  const usesCompactVoiceSurface = isHomeRoute || isConciergeExperienceRoute;
+  const ownsPrototypeTopbar = isHomeNavPrototypeTopbarRoute(location.pathname);
+  const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
+  const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
+  const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
@@ -898,13 +906,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         data-vyva-text-size={readableTextSize}
         className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
       >
-        {!isFullScreen && (
+        {!isFullScreen && !ownsPrototypeTopbar && (
           <StatusBar
             wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
             variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
           />
         )}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -916,7 +924,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && (
+        {!isFullScreen && !hidePrototypeDock && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
             <BottomNav wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);

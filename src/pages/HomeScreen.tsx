@@ -2905,10 +2905,10 @@ const HomeScreen = () => {
       showHero={showHomeMasterHero}
       showCards={showHomeMasterCards}
       modeSwitcher={(
-        <div className="mb-7 mt-1 min-[390px]:mb-8 sm:mb-10">
+        <div className="mb-4 mt-0 min-[390px]:mb-5 sm:mb-8">
           <div
             className={[
-              "mb-7 grid grid-cols-[48px_1fr_48px] items-center gap-3 px-1 min-[390px]:mb-8 sm:px-3",
+              "mb-4 grid grid-cols-[44px_1fr_44px] items-center gap-3 px-1 min-[390px]:mb-5 sm:grid-cols-[48px_1fr_48px] sm:px-3",
               isHomeMasterDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]",
             ].join(" ")}
             data-testid="home-topbar"
@@ -2919,7 +2919,7 @@ const HomeScreen = () => {
               data-testid="button-home-profile"
               onClick={() => handleNavigate("/settings/account")}
               className={[
-                "vyva-tap flex h-12 w-12 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)]",
+                "vyva-tap flex h-11 w-11 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)] sm:h-12 sm:w-12",
                 isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
               ].join(" ")}
             >
@@ -2940,7 +2940,7 @@ const HomeScreen = () => {
               data-testid="button-home-menu"
               onClick={() => handleNavigate("/menu")}
               className={[
-                "vyva-tap flex h-12 w-12 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)]",
+                "vyva-tap flex h-11 w-11 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)] sm:h-12 sm:w-12",
                 isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
               ].join(" ")}
             >

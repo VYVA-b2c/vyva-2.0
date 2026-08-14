@@ -152,6 +152,7 @@ export default function MasterDashboardLayout({
   const hasMessageAction = allowMessageControls && Boolean(hero.messageActionLabel && hero.onMessageAction);
   const hasMessageDismiss = allowMessageControls && Boolean(hero.onMessageDismiss);
   const isHomeMasterContextMessage = isHomeMaster && Boolean(hasMessageAction || hasMessageDismiss);
+  const movesHomeMasterSubtitleBelowOrb = isHomeMaster && isVoiceAction && !isHomeMasterIntentLayer && !isHomeMasterContextMessage;
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -224,7 +225,7 @@ export default function MasterDashboardLayout({
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
-            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-4 min-[390px]:pt-5 sm:pt-7" : "pt-6 min-[390px]:pt-8 sm:pt-10 md:pt-12"}`
+            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-3 min-[390px]:pt-4 sm:pt-7" : "pt-1 min-[390px]:pt-2 sm:pt-8 md:pt-10"}`
             : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
         style={isHomeMaster ? undefined : {
@@ -244,7 +245,7 @@ export default function MasterDashboardLayout({
                 `text-balance leading-[0.98] text-vyva-text-1 ${isHomeMaster ? "vyva-home-master-readable" : ""} ${isHomeMasterContextMessage ? "vyva-home-master-context-title" : ""}`,
                 isHomeMaster
                   ? [
-                      `mx-auto font-body font-bold tracking-normal ${isHomeMasterContextMessage ? "max-w-[20rem] text-[26px] leading-[1.04] min-[390px]:text-[28px] sm:max-w-[34rem] sm:text-[32px] md:max-w-[40rem] md:text-[35px]" : isHomeMasterIntentLayer ? "max-w-[19rem] text-[27px] min-[390px]:text-[29px] sm:max-w-[30rem] sm:text-[33px] md:text-[36px]" : "max-w-[19rem] text-[25px] min-[390px]:text-[27px] sm:max-w-[28rem] sm:text-[31px] md:max-w-[36rem] md:text-[36px] lg:text-[38px]"}`,
+                      `mx-auto font-body font-bold tracking-normal ${isHomeMasterContextMessage ? "max-w-[20rem] text-[25px] leading-[1.04] min-[390px]:text-[27px] sm:max-w-[34rem] sm:text-[32px] md:max-w-[40rem] md:text-[35px]" : isHomeMasterIntentLayer ? "max-w-[19rem] text-[26px] min-[390px]:text-[28px] sm:max-w-[30rem] sm:text-[33px] md:text-[36px]" : "max-w-[19rem] text-[24px] min-[390px]:text-[26px] sm:max-w-[28rem] sm:text-[31px] md:max-w-[36rem] md:text-[36px] lg:text-[38px]"}`,
                       isHomeMasterDark ? "!text-[#FFF8FF] drop-shadow-[0_2px_12px_rgba(0,0,0,0.22)]" : "!text-[#24113D]",
                     ].join(" ")
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
@@ -252,13 +253,13 @@ export default function MasterDashboardLayout({
             >
               {hero.title}
             </h1>
-            {hero.subtitle ? (
+            {hero.subtitle && !movesHomeMasterSubtitleBelowOrb ? (
               <div
                 data-testid="home-master-hero-subtitle"
                 className={[
                   `relative mt-2 max-w-[16rem] font-body leading-snug text-vyva-text-2 ${isHomeMaster ? "vyva-home-master-readable" : ""}`,
                   isHomeMaster
-                    ? `mx-auto max-w-[21rem] font-bold text-[#6C5369] ${isHomeMasterIntentLayer ? "mt-2 text-[15px] min-[390px]:text-[16px] sm:max-w-[30rem] sm:text-[18px]" : "mt-3 text-[16px] min-[390px]:text-[17px] sm:max-w-[28rem] sm:text-[19px] md:max-w-[34rem] md:text-[20px]"}`
+                    ? `mx-auto max-w-[21rem] font-bold text-[#6C5369] ${isHomeMasterIntentLayer ? "mt-2 text-[15px] min-[390px]:text-[16px] sm:max-w-[30rem] sm:text-[18px]" : "mt-2 text-[15px] min-[390px]:text-[16px] sm:max-w-[28rem] sm:text-[19px] md:max-w-[34rem] md:text-[20px]"}`
                     : "line-clamp-1 text-[15px] font-bold text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]",
                   hero.subtitleTone === "gold"
                     ? isHomeMasterDark
@@ -326,7 +327,7 @@ export default function MasterDashboardLayout({
         </div>
 
         {isVoiceAction && isHomeMaster ? (
-          <div className={`relative mx-auto flex w-full flex-col items-center ${isHomeMasterIntentLayer ? "mt-1.5" : "mt-7 sm:mt-8"}`}>
+          <div className={`relative mx-auto flex w-full flex-col items-center ${isHomeMasterIntentLayer ? "mt-1.5" : "mt-5 sm:mt-8"}`}>
             <VyvaSessionCta
               label={hero.action.label}
               activeLabel={hero.action.activeLabel}
@@ -345,9 +346,20 @@ export default function MasterDashboardLayout({
               onFirstVoiceOrbActivation={hero.action.onFirstVoiceOrbActivation}
               visual="voiceOrb"
               voiceOrbDark={isHomeMasterDark}
-              voiceOrbSize={isHomeMasterIntentLayer ? 112 : 184}
+              voiceOrbSize={isHomeMasterIntentLayer ? 112 : 172}
               className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
             />
+            {hero.subtitle && movesHomeMasterSubtitleBelowOrb ? (
+              <div
+                data-testid="home-master-hero-subtitle"
+                className={[
+                  "vyva-home-master-readable mx-auto mt-4 max-w-[20rem] font-body text-[14px] font-bold leading-snug min-[390px]:text-[15px] sm:text-[17px]",
+                  isHomeMasterDark ? "!text-[#E8DDF3]" : hero.subtitleTone === "gold" ? "!text-[#9A5B00]" : "text-[#8A8095]",
+                ].join(" ")}
+              >
+                <span>{hero.subtitle}</span>
+              </div>
+            ) : null}
           </div>
         ) : !isVoiceAction ? (
           <button

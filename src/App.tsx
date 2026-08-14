@@ -44,6 +44,14 @@ const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
 const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
 const MenuScreen = lazy(() => import("./pages/MenuScreen"));
+const PrototypeHomeScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHomeScreen })));
+const PrototypeHealthScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthScreen })));
+const PrototypeBrainScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeBrainScreen })));
+const PrototypeCommunityScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCommunityScreen })));
+const PrototypeConciergeScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeConciergeScreen })));
+const PrototypeReportsScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeReportsScreen })));
+const PrototypeProfileScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileScreen })));
+const PrototypeCheckInScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCheckInScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
@@ -533,7 +541,7 @@ function RootRoute() {
 
   return (
     <AppShell>
-      <HomeScreen />
+      <PrototypeHomeScreen />
     </AppShell>
   );
 }
@@ -748,27 +756,27 @@ const App = () => (
                   <Route path="/settings/privacy" element={<PrivacySettings />} />
                   <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
                   <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
-                  <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
+                  <Route path="/settings/account" element={<AppShell><PrototypeProfileScreen /></AppShell>} />
                   <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
                   <Route path="/settings/trusted-help" element={<AppShell><TrustedHelpSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/menu" element={<AppShell><MenuScreen /></AppShell>} />
-                  <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
+                  <Route path="/health" element={<AppShell><PrototypeHealthScreen /></AppShell>} />
                   <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/check-in" element={<AppShell><CheckHowIFeelScreen /></AppShell>} />
+                  <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
-                  <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
+                  <Route path="/informes" element={<AppShell><PrototypeReportsScreen /></AppShell>} />
                   <Route path="/informes/brain-coach" element={<AppShell><BrainCoachReportScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/companions" element={<AppShell><CompanionsScreen /></AppShell>} />
                   <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
-                  <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
+                  <Route path="/social-rooms" element={<AppShell><PrototypeCommunityScreen /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
                   <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/experts" replace />} />
@@ -781,7 +789,7 @@ const App = () => (
                   <Route path="/meds/my-medicines" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/interactions" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
+                  <Route path="/mind-memory" element={<AppShell><PrototypeBrainScreen /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/start" element={<AppShell><CognitiveAssessmentRunnerPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/report" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
@@ -809,7 +817,7 @@ const App = () => (
                   <Route path="/memory-games/curious-minds" element={<AppShell><CuriousMindsRoute /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
-                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="home" /></ServiceGateRoute></AppShell>} />
+                  <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><PrototypeConciergeScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/tasks/:taskKey" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeTaskInboxPage /></ServiceGateRoute></AppShell>} />
                   <Route path="/concierge/task/:taskId" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen mode="task" /></ServiceGateRoute></AppShell>} />
