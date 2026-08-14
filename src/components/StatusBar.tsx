@@ -193,7 +193,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
       collapseHomeControlsSoon();
     };
     return (
-      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-3 min-[390px]:max-w-[366px] sm:max-w-[520px] md:max-w-[760px] lg:max-w-[920px]">
+      <div className="fixed left-1/2 top-0 z-50 w-full max-w-[calc(100vw-32px)] -translate-x-1/2 bg-transparent px-0 py-3 min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] lg:max-w-[390px]">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"

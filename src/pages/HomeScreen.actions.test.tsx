@@ -404,6 +404,15 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByTestId("button-home-menu"));
     expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
     fireEvent.click(screen.getByTestId("button-home-profile"));
+    expect(screen.getByTestId("home-profile-menu")).toBeInTheDocument();
+    expect(screen.getByTestId("home-profile-menu")).toHaveTextContent("Profile & settings");
+    expect(screen.getByTestId("button-home-profile-account")).toHaveTextContent("Account details");
+    expect(screen.getByTestId("button-home-profile-health")).toHaveTextContent("Health profile");
+    expect(screen.getByTestId("button-home-profile-medications")).toHaveTextContent("Medicines");
+    expect(screen.getByTestId("button-home-profile-emergency")).toHaveTextContent("Emergency contact");
+    expect(screen.getByTestId("button-home-profile-care-team")).toHaveTextContent("Care team");
+    expect(screen.getByTestId("button-home-profile-providers")).toHaveTextContent("Doctors & providers");
+    fireEvent.click(screen.getByTestId("button-home-profile-account"));
     expect(guardPathMock).toHaveBeenCalledWith("/settings/account", undefined);
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
@@ -435,6 +444,31 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
+  });
+
+  it("uses the existing profile editors from the Home profile menu", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen();
+
+    const openProfileMenu = () => fireEvent.click(screen.getByTestId("button-home-profile"));
+    const expectProfileRoute = (testId: string, path: string) => {
+      guardPathMock.mockClear();
+      openProfileMenu();
+      fireEvent.click(screen.getByTestId(testId));
+      expect(guardPathMock).toHaveBeenCalledWith(path, undefined);
+    };
+
+    expectProfileRoute("button-home-profile-account", "/settings/account");
+    expectProfileRoute("button-home-profile-health", "/onboarding/profile/health");
+    expectProfileRoute("button-home-profile-medications", "/onboarding/profile/medications");
+    expectProfileRoute("button-home-profile-emergency", "/onboarding/profile/emergency");
+    expectProfileRoute("button-home-profile-care-team", "/onboarding/profile/care-team");
+    expectProfileRoute("button-home-profile-providers", "/onboarding/profile/providers");
+
+    openProfileMenu();
+    expect(screen.getByTestId("button-home-profile-text-size")).toHaveTextContent("Text size");
+    expect(screen.getByTestId("button-home-profile-theme")).toHaveTextContent("Theme");
+    expect(screen.getByTestId("button-home-profile-mode")).toHaveTextContent("Mode");
   });
 
   it("keeps top-level Home on the greeting orb after switching to touch mode", () => {
