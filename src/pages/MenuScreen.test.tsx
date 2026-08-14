@@ -54,4 +54,15 @@ describe("MenuScreen", () => {
 
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/");
   });
+
+  it("uses compact mobile tile sizing so all four tiles fit above the dock", () => {
+    renderMenu();
+
+    const grid = screen.getByTestId("menu-tile-grid");
+    const firstTile = screen.getByTestId("menu-tile-health");
+
+    expect(grid).toHaveClass("gap-3");
+    expect(firstTile).toHaveClass("min-h-[88px]");
+    expect(firstTile).not.toHaveClass("min-h-[118px]");
+  });
 });

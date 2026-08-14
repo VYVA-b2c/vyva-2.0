@@ -1,4 +1,4 @@
-import { ArrowLeft, Brain, ConciergeBell, Heart, Users, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BellRing, Brain, Heart, Users, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 type MenuTile = {
@@ -44,7 +44,7 @@ const MENU_TILES: MenuTile[] = [
     title: "Concierge",
     detail: "Help with services, rides, and everyday tasks",
     path: "/concierge",
-    icon: ConciergeBell,
+    icon: BellRing,
     tone: { chip: "#EAFBF1", icon: "#0F7A50", border: "#BBF7D0" },
   },
 ];
@@ -56,49 +56,49 @@ export default function MenuScreen() {
 
   return (
     <main
-      className="min-h-full bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)] px-5 pb-32 pt-4 text-[var(--vyva-ink)]"
+      className="min-h-full bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)] px-5 pb-[calc(120px+env(safe-area-inset-bottom))] pt-1 text-[var(--vyva-ink)]"
       data-testid="menu-screen"
     >
-      <div className="mx-auto w-full max-w-[560px]">
-        <header className="mb-8 grid grid-cols-[48px_1fr_48px] items-center gap-3">
+      <div className="mx-auto w-full max-w-[430px] sm:max-w-[560px]">
+        <header className="mb-5 grid grid-cols-[44px_1fr_44px] items-center gap-3 sm:mb-7 sm:grid-cols-[48px_1fr_48px]">
           <button
             type="button"
-            className="vyva-tap flex h-12 w-12 items-center justify-center rounded-full bg-white text-[var(--vyva-ink)] shadow-[0_12px_26px_rgba(36,28,48,0.08)]"
+            className="vyva-tap flex h-11 w-11 items-center justify-center rounded-full bg-white text-[var(--vyva-ink)] shadow-[0_12px_26px_rgba(36,28,48,0.08)] sm:h-12 sm:w-12"
             aria-label="Back to Home"
             data-testid="button-menu-back"
             onClick={() => navigate("/")}
           >
             <ArrowLeft size={22} strokeWidth={2.3} />
           </button>
-          <h1 className="text-center font-display text-[31px] font-semibold leading-tight text-[var(--vyva-ink)]">
+          <h1 className="text-center font-display text-[28px] font-semibold leading-tight text-[var(--vyva-ink)] min-[390px]:text-[31px]">
             Menu
           </h1>
           <span aria-hidden="true" />
         </header>
 
-        <section className="grid gap-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+        <section className="grid gap-3 min-[390px]:gap-3.5 sm:gap-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
           {MENU_TILES.map((tile) => {
             const Icon = tile.icon;
             return (
               <button
                 key={tile.id}
                 type="button"
-                className="vyva-tap group flex min-h-[118px] items-center gap-4 rounded-[30px] border bg-white p-4 text-left shadow-[0_18px_36px_rgba(36,28,48,0.08)] transition-transform hover:-translate-y-0.5"
+                className="vyva-tap group flex min-h-[88px] items-center gap-3.5 rounded-[22px] border bg-white px-4 py-3 text-left shadow-[0_10px_24px_rgba(36,28,48,0.07)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[96px] min-[390px]:gap-4 min-[390px]:rounded-[24px] min-[390px]:p-4 sm:min-h-[108px] sm:rounded-[28px]"
                 style={{ borderColor: tile.tone.border }}
                 data-testid={`menu-tile-${tile.id}`}
                 onClick={() => navigate(tile.path)}
               >
                 <span
-                  className="flex h-[66px] w-[66px] flex-shrink-0 items-center justify-center rounded-[24px]"
+                  className="flex h-[56px] w-[56px] flex-shrink-0 items-center justify-center rounded-[17px] min-[390px]:h-[58px] min-[390px]:w-[58px] sm:h-[66px] sm:w-[66px] sm:rounded-[24px]"
                   style={{ background: tile.tone.chip, color: tile.tone.icon }}
                 >
-                  <Icon size={32} strokeWidth={2.25} />
+                  <Icon size={28} strokeWidth={2.25} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-display text-[25px] font-semibold leading-tight text-[var(--vyva-ink)]">
+                  <span className="block font-display text-[20px] font-semibold leading-tight text-[var(--vyva-ink)] min-[390px]:text-[22px] sm:text-[25px]">
                     {tile.title}
                   </span>
-                  <span className="mt-1 block font-body text-[17px] font-semibold leading-snug text-[var(--vyva-ink-soft)]">
+                  <span className="mt-0.5 block font-body text-[14.5px] font-semibold leading-snug text-[var(--vyva-ink-soft)] min-[390px]:mt-1 min-[390px]:text-[15.5px] sm:text-[17px]">
                     {tile.detail}
                   </span>
                 </span>

@@ -44,6 +44,7 @@ const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
 const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
 const MenuScreen = lazy(() => import("./pages/MenuScreen"));
+const PrototypeCheckInScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCheckInScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
@@ -758,7 +759,7 @@ const App = () => (
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
                   <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/check-in" element={<AppShell><CheckHowIFeelScreen /></AppShell>} />
+                  <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
