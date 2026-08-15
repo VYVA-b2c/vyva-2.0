@@ -174,12 +174,94 @@ describe("VyvaSessionCta", () => {
 
     expect(screen.getByTestId("button-session")).toHaveAccessibleName("Speaking");
     expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "speaking");
+    expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-idle-visual-style", "default");
     expect(screen.getByTestId("home-dormant-zamora-orb-visual-canvas")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-session"));
 
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(voiceState.startVoice).not.toHaveBeenCalled();
+  });
+
+  it("shows a softer gold Home orb idle hint", () => {
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        supportingLabel="Touch the orb to begin."
+        visual="voiceOrb"
+        voiceOrbCaptionTestId="home-master-hero-subtitle"
+        testId="button-session"
+      />,
+    );
+
+    const caption = screen.getByTestId("home-master-hero-subtitle");
+
+    expect(caption).toHaveTextContent("Touch the orb to begin.");
+    expect(caption).toHaveClass("font-semibold");
+    expect(caption).not.toHaveClass("font-bold");
+    expect(caption).toHaveClass("!text-[#A86610]");
+    expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-idle-visual-style", "homeCalm");
+    expect(screen.getByTestId("home-dormant-zamora-orb-idle-attractor")).toBeInTheDocument();
+    expect(screen.getByTestId("home-dormant-zamora-orb-idle-attractor").querySelectorAll("span")).toHaveLength(3);
+  });
+
+  it("allows the Home idle orb to keep its larger inviting scale", () => {
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        visual="voiceOrb"
+        voiceOrbSize={204}
+        testId="button-session"
+      />,
+    );
+
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toHaveStyle({
+      height: "204px",
+      width: "204px",
+    });
+  });
+
+  it("keeps the Home orb visible and hides the idle hint while listening", () => {
+    voiceState.status = "connected";
+    voiceState.voiceSessionPhase = "listening";
+
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        supportingLabel="Touch the orb to begin."
+        visual="voiceOrb"
+        voiceOrbCaptionTestId="home-master-hero-subtitle"
+        testId="button-session"
+      />,
+    );
+
+    expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "listening");
+    expect(screen.queryByTestId("home-dormant-zamora-orb-idle-attractor")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-master-hero-subtitle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-session")).toBeInTheDocument();
+  });
+
+  it("uses calm actionable copy when the Home orb cannot start voice", () => {
+    voiceState.voiceSessionPhase = "error";
+    voiceState.lastError = "Voice connection failed";
+
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        supportingLabel="Touch the orb to begin."
+        visual="voiceOrb"
+        voiceOrbDark
+        voiceOrbCaptionTestId="home-master-hero-subtitle"
+        testId="button-session"
+      />,
+    );
+
+    const caption = screen.getByTestId("home-master-hero-subtitle");
+
+    expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "error");
+    expect(caption).toHaveTextContent("Voice isn’t available right now. Use the hand button, or tap to retry.");
+    expect(caption).not.toHaveTextContent("Tap to try again.");
+    expect(caption).toHaveClass("!text-[#F6C75B]");
   });
 
   it("remembers the first successful orb activation", () => {

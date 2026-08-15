@@ -137,6 +137,7 @@ vi.mock("@/components/VyvaSessionCta", () => ({
     className,
     supportingLabel,
     visual,
+    voiceOrbCaptionTestId,
     onFirstVoiceOrbActivation,
   }: {
     label?: string;
@@ -144,6 +145,7 @@ vi.mock("@/components/VyvaSessionCta", () => ({
     className?: string;
     supportingLabel?: string;
     visual?: string;
+    voiceOrbCaptionTestId?: string;
     onFirstVoiceOrbActivation?: () => void;
   }) => (
     <button
@@ -155,7 +157,7 @@ vi.mock("@/components/VyvaSessionCta", () => ({
     >
       {visual === "voiceOrb" ? <span data-testid="home-dormant-zamora-orb" /> : null}
       {visual === "voiceRail" ? null : label}
-      {visual === "voiceOrb" ? supportingLabel : null}
+      {visual === "voiceOrb" ? <span data-testid={voiceOrbCaptionTestId}>{supportingLabel}</span> : null}
     </button>
   ),
 }));
@@ -286,12 +288,14 @@ const labels: Record<string, string> = {
   "home.voiceCards.concierge.title": "My Concierge",
   "home.voiceCards.concierge.subtitle": "Bookings, errands and support",
   "home.voiceCards.concierge.micLabel": "Ask for help by voice",
-  "home.master.cards.healthShortTitle": "Health",
-  "home.master.cards.healthDetailShort": "Check-ins and care",
+  "home.master.cards.healthShortTitle": "My Health",
+  "home.master.cards.healthDetailShort": "Check-ins, vitals, medicines",
   "home.master.cards.mindMemoryShortTitle": "My Brain",
-  "home.master.cards.mindMemoryDetailShort": "Memory and focus",
+  "home.master.cards.mindMemoryDetailShort": "Memory, focus, calm",
   "home.master.cards.communityShortTitle": "Community",
+  "home.master.cards.communityDetailShort": "Rooms and support",
   "home.master.cards.conciergeShortTitle": "Concierge",
+  "home.master.cards.conciergeDetailShort": "Everyday help",
 };
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -309,9 +313,9 @@ vi.mock("react-i18next", async (importOriginal) => {
   };
 });
 
-const HomeScreenWithModeControl = () => <HomeScreen />;
+const HomeScreenWithModeControl = ({ menuPath }: { menuPath?: string }) => <HomeScreen menuPath={menuPath} />;
 
-const renderHomeScreen = () => render(<HomeScreenWithModeControl />);
+const renderHomeScreen = (props?: { menuPath?: string }) => render(<HomeScreenWithModeControl {...props} />);
 
 const expectHomeModeControl = (
   mode: HomeInteractionMode,
@@ -399,9 +403,21 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveClass("hover:-translate-y-0.5");
     expect(screen.getByTestId("home-topbar")).toBeInTheDocument();
-    expect(screen.getByTestId("home-dayline")).toHaveTextContent("Jun 26");
-    fireEvent.click(screen.getByTestId("button-home-menu"));
+    const actionPill = within(screen.getByTestId("home-topbar-action-pill"));
+    const profileButton = screen.getByTestId("button-home-profile");
+    const manualButton = actionPill.getByTestId("button-home-mode-touch");
+    expect(profileButton).toHaveAccessibleName("Open profile and settings");
+    expect(profileButton).toHaveClass("h-9");
+    expect(profileButton).toHaveClass("w-9");
+    expect(profileButton).toHaveClass("!min-h-9");
+    expect(manualButton).toHaveAccessibleName("Open manual menu");
+    expect(manualButton).toHaveClass("h-9");
+    expect(manualButton).toHaveClass("w-9");
+    expect(manualButton).toHaveClass("!min-h-9");
+    expect(screen.getByTestId("home-dayline")).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
     expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
     fireEvent.click(screen.getByTestId("button-home-profile"));
     expect(screen.getByTestId("home-profile-menu")).toBeInTheDocument();
@@ -428,6 +444,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-hero-talk")).toBeInTheDocument();
     expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
     expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
+    expect(actionPill.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Open manual menu");
     expect(screen.queryByTestId("home-touch-subheading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
@@ -444,6 +461,30 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
+  });
+
+  it("routes the topbar hand control to the manual Menu instead of changing modes", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen();
+
+    const actionPill = within(screen.getByTestId("home-topbar-action-pill"));
+    fireEvent.click(actionPill.getByTestId("button-home-mode-touch"));
+
+    expect(screen.getByTestId("home-master-layout")).toHaveAttribute("data-screen-mode", "voice");
+    expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
+    expect(guardPathMock).not.toHaveBeenCalledWith("/login", expect.anything());
+    expect(guardPathMock).not.toHaveBeenCalledWith("/settings/account", expect.anything());
+    expect(guardPathMock).not.toHaveBeenCalledWith("/", expect.anything());
+  });
+
+  it("can route the topbar menu button to the public preview menu without changing production default", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen({ menuPath: "/dev/home-master/menu" });
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/dev/home-master/menu", undefined);
+    expect(guardPathMock).not.toHaveBeenCalledWith("/login", expect.anything());
   });
 
   it("uses the existing profile editors from the Home profile menu", () => {
@@ -469,6 +510,67 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-profile-text-size")).toHaveTextContent("Text size");
     expect(screen.getByTestId("button-home-profile-theme")).toHaveTextContent("Theme");
     expect(screen.getByTestId("button-home-profile-mode")).toHaveTextContent("Mode");
+  });
+
+  it("shows the next display preference target instead of the current state", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen();
+
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+
+    const textSizeButton = screen.getByTestId("button-home-profile-text-size");
+    const themeButton = screen.getByTestId("button-home-profile-theme");
+    const modeButton = screen.getByTestId("button-home-profile-mode");
+
+    // Defaults are large text, light theme, and voice mode, so each tile offers the opposite action.
+    expect(textSizeButton).toHaveTextContent("Normal");
+    expect(textSizeButton).not.toHaveTextContent("Large");
+    expect(themeButton).toHaveTextContent("Dark");
+    expect(themeButton).not.toHaveTextContent("Light");
+    expect(modeButton).toHaveTextContent("Touch");
+    expect(modeButton).not.toHaveTextContent("Voice");
+
+    fireEvent.click(textSizeButton);
+    fireEvent.click(themeButton);
+
+    expect(textSizeButton).toHaveTextContent("Large");
+    expect(textSizeButton).not.toHaveTextContent("Normal");
+    expect(themeButton).toHaveTextContent("Light");
+    expect(themeButton).not.toHaveTextContent("Dark");
+    expect(modeButton).toHaveTextContent("Touch");
+    expect(modeButton).not.toHaveTextContent("Voice");
+  });
+
+  it("opens the manual Menu when the profile settings mode target is Touch", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen({ menuPath: "/dev/home-master/menu" });
+
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+    const modeButton = screen.getByTestId("button-home-profile-mode");
+
+    expect(modeButton).toHaveTextContent("Touch");
+
+    fireEvent.click(modeButton);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/dev/home-master/menu", undefined);
+    expect(screen.queryByTestId("home-profile-menu")).not.toBeInTheDocument();
+  });
+
+  it("returns the profile settings mode target to Voice after touch mode is active", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    window.localStorage.setItem("vyva:home-interaction-mode:v1", "touch");
+    renderHomeScreen();
+
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+    const modeButton = screen.getByTestId("button-home-profile-mode");
+
+    expect(modeButton).toHaveTextContent("Voice");
+    expect(modeButton).not.toHaveTextContent("Touch");
+
+    fireEvent.click(modeButton);
+
+    expect(guardPathMock).not.toHaveBeenCalledWith("/menu", expect.anything());
+    expect(screen.queryByTestId("home-profile-menu")).not.toBeInTheDocument();
   });
 
   it("keeps top-level Home on the greeting orb after switching to touch mode", () => {
@@ -510,7 +612,6 @@ describe("Home fast service actions", () => {
     renderHomeScreen();
 
     expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
-    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveClass("!text-[#9A5B00]");
 
     fireEvent.click(screen.getByTestId("button-home-hero-talk"));
 

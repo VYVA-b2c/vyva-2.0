@@ -26,6 +26,7 @@ import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OnboardingGuard from "./components/OnboardingGuard";
+import MenuScreen from "./pages/MenuScreen";
 import VyvaDemoEntry, {
   VyvaCaregiverDashboard,
   VyvaCaregiverSeniorDetail,
@@ -43,7 +44,6 @@ const AccessLinkPage = lazy(() => import("@/pages/AccessLinkPage"));
 const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
 const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
-const MenuScreen = lazy(() => import("./pages/MenuScreen"));
 const PrototypeCheckInScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCheckInScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
@@ -539,7 +539,7 @@ function RootRoute() {
   );
 }
 
-function HomeMasterPreviewRoute() {
+function primeHomeMasterPreviewData() {
   queryClient.setQueryData(["/api/profile"], {
     firstName: "Karim",
     lastName: "",
@@ -566,10 +566,25 @@ function HomeMasterPreviewRoute() {
       minutesUntil: 25,
     },
   });
+}
+
+function HomeMasterPreviewRoute() {
+  primeHomeMasterPreviewData();
+  const navigate = useNavigate();
 
   return (
     <AppShell>
-      <HomeScreen />
+      <HomeScreen menuPath="/dev/home-master/menu" onShellNavigate={navigate} />
+    </AppShell>
+  );
+}
+
+function HomeMasterMenuPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <MenuScreen backPath="/dev/home-master" />
     </AppShell>
   );
 }
@@ -673,6 +688,9 @@ const App = () => (
                 <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/menu" element={<HomeMasterMenuPreviewRoute />} />
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />

@@ -12,9 +12,9 @@ import {
   CheckCircle2,
   ChevronRight,
   FileText,
+  Hand,
   Heart,
   Home,
-  Menu,
   MessageCircle,
   Mic,
   Phone,
@@ -27,6 +27,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { VyvaMark } from "@/components/VyvaMark";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile";
 
@@ -297,17 +298,17 @@ export function PrototypeHomeScreen() {
   return (
     <PrototypeShell testId="home-master-layout">
       <div className="grid grid-cols-3 items-start">
-        <RoundButton label="Profile" testId="button-home-profile" onClick={() => navigate("/settings/account")}>
-          <User className="h-6 w-6" />
+        <RoundButton label="Profile and settings" testId="button-home-profile" onClick={() => navigate("/profile")}>
+          <VyvaMark className="h-7 w-7" />
         </RoundButton>
-        <p className="pt-7 text-center text-[0.72rem] font-black text-[#aaa1b2]">Thursday, August 13</p>
+        <span aria-hidden="true" />
         <RoundButton
-          label="Menu"
-          testId="button-home-menu"
+          label="Manual menu"
+          testId="button-home-mode-touch"
           onClick={() => navigate("/menu")}
           className="justify-self-end"
         >
-          <Menu className="h-6 w-6" strokeWidth={3} />
+          <Hand className="h-5 w-5" strokeWidth={3} />
         </RoundButton>
       </div>
 

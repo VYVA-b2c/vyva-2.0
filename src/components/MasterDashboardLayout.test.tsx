@@ -149,7 +149,8 @@ describe("MasterDashboardLayout Fast help rotation", () => {
       />,
     );
 
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Your medicine is due soon.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good morning, Karim");
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Your medicine is due soon.");
     expect(screen.getByTestId("button-home-hero-talk")).toBeInTheDocument();
     expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();

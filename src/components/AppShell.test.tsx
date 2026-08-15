@@ -211,18 +211,23 @@ describe("app shell route layout", () => {
     expect(getAppShellLayout(pathname)).toBe(layout);
   });
 
-  it("lets Menu own the prototype topbar instead of rendering the global status surface", () => {
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/menu"]}>
-        <AppShell>
-          <div>Menu page content</div>
-        </AppShell>
-      </MemoryRouter>,
-    );
+  it.each(["/menu", "/dev/home-master/menu"])(
+    "lets %s own the prototype topbar instead of rendering the global status surface",
+    (path) => {
+      render(
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+          <AppShell>
+            <div>Menu page content</div>
+          </AppShell>
+        </MemoryRouter>,
+      );
 
-    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
-    expect(screen.getByTestId("app-shell").className).toContain("bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]");
-  });
+      expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+      const shell = screen.getByTestId("app-shell");
+      expect(shell.className).toContain("max-w-[430px]");
+      expect(shell.className).toContain("bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]");
+    },
+  );
 });
 
 describe("app shell voice dock", () => {
@@ -300,28 +305,19 @@ describe("app shell voice dock", () => {
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
   });
 
-  it("keeps Home voice sessions compact with stop-only controls", () => {
+  it("lets the Home orb own active voice sessions without rendering the shell dock", () => {
     renderShell("/");
 
-    const dock = screen.getByTestId("voice-session-dock");
-    expect(dock).toHaveAttribute("data-variant", "home-stop");
-    expect(dock).toHaveTextContent("Voice on");
-    expect(dock).not.toHaveTextContent("Listening");
-    expect(dock).not.toHaveTextContent("Hello Karim");
+    expect(screen.queryByTestId("voice-session-dock")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-open-voice-overlay")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-dock-toggle-mic")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("button-dock-end-call"));
-
-    expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
   });
 
-  it("keeps the dev Home master utility dock stable for visual regression", () => {
+  it("lets the dev Home master topbar own visual controls for regression", () => {
     renderShell("/dev/home-master");
 
-    expect(screen.getByTestId("status-bar")).toHaveAttribute("data-variant", "homeMaster");
-    expect(screen.getByTestId("status-bar")).toHaveAttribute("data-auto-hide-home-controls", "false");
+    expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
   });
 
   it("keeps Concierge voice canvas work compact and non-blocking", async () => {

@@ -46,6 +46,8 @@ describe("BottomNav", () => {
     expect(homeTab).toBeDisabled();
     expect(homeTab).toHaveAttribute("aria-disabled", "true");
     expect(homeTab).not.toHaveAttribute("aria-current");
+    expect(homeTab).toHaveClass("cursor-default");
+    expect(homeTab).not.toHaveClass("opacity-60");
 
     fireEvent.click(homeTab);
 

@@ -207,23 +207,34 @@
     @apply font-body text-[16px] leading-[1.65] text-vyva-text-2;
   }
 
-  [data-vyva-text-size="large"] .text-\[11px\] { font-size: 12px !important; }
-  [data-vyva-text-size="large"] .text-\[12px\] { font-size: 14px !important; }
-  [data-vyva-text-size="large"] .text-\[13px\] { font-size: 15px !important; }
-  [data-vyva-text-size="large"] .text-\[14px\] { font-size: 16px !important; }
-  [data-vyva-text-size="large"] .text-\[15px\] { font-size: 17px !important; }
-  [data-vyva-text-size="large"] .text-\[16px\] { font-size: 18px !important; }
-  [data-vyva-text-size="large"] .text-\[17px\] { font-size: 19px !important; }
-  [data-vyva-text-size="large"] .text-\[18px\] { font-size: 20px !important; }
-  [data-vyva-text-size="large"] .text-\[19px\] { font-size: 21px !important; }
-  [data-vyva-text-size="large"] .text-\[20px\] { font-size: 22px !important; }
-  [data-vyva-text-size="large"] .text-\[21px\] { font-size: 23px !important; }
-  [data-vyva-text-size="large"] .text-\[22px\] { font-size: 24px !important; }
-  [data-vyva-text-size="large"] .text-\[24px\] { font-size: 26px !important; }
-  [data-vyva-text-size="large"] .text-\[26px\] { font-size: 28px !important; }
-  [data-vyva-text-size="large"] .text-\[28px\] { font-size: 30px !important; }
-  [data-vyva-text-size="large"] .text-\[31px\] { font-size: 33px !important; }
-  [data-vyva-text-size="large"] .text-\[34px\] { font-size: 37px !important; }
+  [data-vyva-text-size="large"] .text-xs { font-size: 15px !important; }
+  [data-vyva-text-size="large"] .text-sm { font-size: 17px !important; }
+  [data-vyva-text-size="large"] .text-base { font-size: 20px !important; }
+  [data-vyva-text-size="large"] .text-lg { font-size: 22px !important; }
+  [data-vyva-text-size="large"] .text-xl { font-size: 24px !important; }
+  [data-vyva-text-size="large"] .text-2xl { font-size: 29px !important; }
+  [data-vyva-text-size="large"] .text-3xl { font-size: 36px !important; }
+  [data-vyva-text-size="large"] .text-4xl { font-size: 42px !important; }
+  [data-vyva-text-size="large"] .text-5xl { font-size: 52px !important; }
+  [data-vyva-text-size="large"] .text-\[10\.5px\] { font-size: 13px !important; }
+  [data-vyva-text-size="large"] .text-\[11px\] { font-size: 14px !important; }
+  [data-vyva-text-size="large"] .text-\[11\.5px\] { font-size: 14px !important; }
+  [data-vyva-text-size="large"] .text-\[12px\] { font-size: 15px !important; }
+  [data-vyva-text-size="large"] .text-\[13px\] { font-size: 16px !important; }
+  [data-vyva-text-size="large"] .text-\[14px\] { font-size: 17px !important; }
+  [data-vyva-text-size="large"] .text-\[15px\] { font-size: 18px !important; }
+  [data-vyva-text-size="large"] .text-\[16px\] { font-size: 20px !important; }
+  [data-vyva-text-size="large"] .text-\[17px\] { font-size: 21px !important; }
+  [data-vyva-text-size="large"] .text-\[18px\] { font-size: 22px !important; }
+  [data-vyva-text-size="large"] .text-\[19px\] { font-size: 23px !important; }
+  [data-vyva-text-size="large"] .text-\[20px\] { font-size: 24px !important; }
+  [data-vyva-text-size="large"] .text-\[21px\] { font-size: 25px !important; }
+  [data-vyva-text-size="large"] .text-\[22px\] { font-size: 26px !important; }
+  [data-vyva-text-size="large"] .text-\[24px\] { font-size: 29px !important; }
+  [data-vyva-text-size="large"] .text-\[26px\] { font-size: 31px !important; }
+  [data-vyva-text-size="large"] .text-\[28px\] { font-size: 33px !important; }
+  [data-vyva-text-size="large"] .text-\[31px\] { font-size: 36px !important; }
+  [data-vyva-text-size="large"] .text-\[34px\] { font-size: 39px !important; }
   [data-vyva-text-size="large"] .font-body,
   [data-vyva-text-size="large"] .font-display {
     letter-spacing: 0 !important;
@@ -238,7 +249,18 @@
   }
 
   /* Home Master keeps controls stable; only the greeting copy responds to Aa. */
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-xs { font-size: 0.75rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-sm { font-size: 0.875rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-base { font-size: 1rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-lg { font-size: 1.125rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-xl { font-size: 1.25rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-2xl { font-size: 1.5rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-3xl { font-size: 1.875rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-4xl { font-size: 2.25rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-5xl { font-size: 3rem !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[10\.5px\] { font-size: 10.5px !important; }
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[11px\] { font-size: 11px !important; }
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[11\.5px\] { font-size: 11.5px !important; }
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[12px\] { font-size: 12px !important; }
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[13px\] { font-size: 13px !important; }
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type .text-\[14px\] { font-size: 14px !important; }
@@ -259,23 +281,62 @@
     line-height: normal !important;
   }
 
+  .vyva-home-orb-idle-attractor {
+    position: absolute;
+    inset: -16%;
+    z-index: 0;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+
+  .vyva-home-orb-idle-attractor::before,
+  .vyva-home-orb-idle-attractor > span {
+    content: "";
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .vyva-home-orb-idle-attractor::before {
+    inset: 12%;
+    background:
+      radial-gradient(circle, var(--vyva-home-orb-attention-core) 0%, transparent 62%),
+      radial-gradient(circle, var(--vyva-home-orb-attention-glow) 0%, transparent 72%);
+    filter: blur(16px);
+    opacity: 0.5;
+    transform: scale(1);
+    animation: vyva-home-orb-attention-aura 8.4s ease-in-out infinite;
+  }
+
+  .vyva-home-orb-idle-attractor > span {
+    inset: var(--vyva-home-orb-wave-inset, 4%);
+    border: 1px solid var(--vyva-home-orb-attention-ring);
+    box-shadow:
+      0 0 30px var(--vyva-home-orb-attention-glow),
+      inset 0 0 20px var(--vyva-home-orb-attention-core);
+    opacity: 0;
+    transform: scale(0.9);
+    animation: vyva-home-orb-calm-wave 7.2s cubic-bezier(0.37, 0, 0.23, 1) infinite;
+    animation-delay: var(--vyva-home-orb-wave-delay, 0s);
+  }
+
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-readable {
-    font-size: 36px !important;
+    font-size: 39px !important;
     line-height: 1.04 !important;
   }
 
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type h1.vyva-home-master-context-title {
-    font-size: 32px !important;
+    font-size: 35px !important;
     line-height: 1.08 !important;
   }
 
-  [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
-    font-size: 22px !important;
+  [data-vyva-text-size="large"] .vyva-home-master-fixed-type :is(div, p, span).vyva-home-master-readable {
+    font-size: 24px !important;
     line-height: 1.32 !important;
   }
 
   [data-vyva-text-size="large"] .vyva-home-master-fixed-type[data-home-master-intent-layer="true"] h1.vyva-home-master-readable {
-    font-size: 38px !important;
+    font-size: 40px !important;
   }
 
   @media (min-width: 640px) {
@@ -287,7 +348,7 @@
       font-size: 38px !important;
     }
 
-    [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type :is(div, p, span).vyva-home-master-readable {
       font-size: 25px !important;
     }
 
@@ -305,7 +366,7 @@
       font-size: 42px !important;
     }
 
-    [data-vyva-text-size="large"] .vyva-home-master-fixed-type p.vyva-home-master-readable {
+    [data-vyva-text-size="large"] .vyva-home-master-fixed-type :is(div, p, span).vyva-home-master-readable {
       font-size: 27px !important;
     }
   }
@@ -354,6 +415,52 @@
   0% { box-shadow: 0 0 0 0 rgba(185,28,28,0.4); }
   70% { box-shadow: 0 0 0 10px rgba(185,28,28,0); }
   100% { box-shadow: 0 0 0 0 rgba(185,28,28,0); }
+}
+
+@keyframes vyva-home-orb-calm-wave {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  18% {
+    opacity: 0.34;
+  }
+  58% {
+    opacity: 0.18;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.16);
+  }
+}
+
+@keyframes vyva-home-orb-attention-aura {
+  0%, 100% {
+    opacity: 0.42;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.035);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vyva-home-orb-idle-attractor::before,
+  .vyva-home-orb-idle-attractor > span {
+    animation: none !important;
+  }
+
+  .vyva-home-orb-idle-attractor::before {
+    opacity: 0.46;
+    transform: scale(1);
+  }
+
+  .vyva-home-orb-idle-attractor > span {
+    opacity: 0.18;
+    transform: scale(1);
+  }
 }
 
 @keyframes mic-listen {

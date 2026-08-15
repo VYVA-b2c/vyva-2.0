@@ -3,6 +3,7 @@ import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 type CoreZamoraOrbState = "idle" | "listening" | "speaking";
 export type ZamoraOrbState = CoreZamoraOrbState | "connecting" | "ending" | "error";
+export type ZamoraOrbIdleVisualStyle = "default" | "homeCalm";
 
 type BlobConfig = {
   r: number;
@@ -36,6 +37,7 @@ type ZamoraVoiceOrbProps = {
   size?: number;
   isDark?: boolean;
   audioLevel?: number;
+  idleVisualStyle?: ZamoraOrbIdleVisualStyle;
   testId?: string;
 };
 
@@ -305,11 +307,20 @@ export function useVoiceOrbAudioLevel({
   return 0.08;
 }
 
-function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, width: number, height: number, audioLevel = 0) {
+function drawFrame(
+  ts: number,
+  b: OrbConfig,
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  audioLevel = 0,
+  idleVisualStyle: ZamoraOrbIdleVisualStyle = "default",
+) {
   const cx = width / 2;
   const cy = height / 2;
   const radius = width / 2;
   const level = clampLevel(audioLevel);
+  const isHomeCalmIdle = idleVisualStyle === "homeCalm";
   const rgba = (c: number[], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
   const mix = (a: number[], c: number[], t: number) => [
     a[0] * (1 - t) + c[0] * t,
@@ -341,8 +352,8 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
   ctx.fill();
 
   const anchor = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.78);
-  anchor.addColorStop(0, rgba(mix(b.bgi, b.rim, 0.45), 0.18 + level * 0.1));
-  anchor.addColorStop(0.42, rgba(mix(b.bgi, b.rim, 0.28), 0.12 + level * 0.08));
+  anchor.addColorStop(0, rgba(mix(b.bgi, b.rim, 0.45), isHomeCalmIdle ? 0.045 + level * 0.04 : 0.18 + level * 0.1));
+  anchor.addColorStop(0.42, rgba(mix(b.bgi, b.rim, 0.28), isHomeCalmIdle ? 0.035 + level * 0.03 : 0.12 + level * 0.08));
   anchor.addColorStop(1, rgba(b.bgo, 0));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -376,13 +387,13 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
     ctx.fill();
   });
 
-  const shineX = cx - radius * 0.22 + Math.cos(ts * 0.00028) * 6;
-  const shineY = cy - radius * 0.24 + Math.sin(ts * 0.00022) * 5;
-  const shine = ctx.createRadialGradient(shineX, shineY, 0, shineX, shineY, radius * 0.4);
-  shine.addColorStop(0, rgba([255, 255, 255], Math.min(0.72, b.shA * 0.75 + level * 0.16)));
+  const shineX = cx - radius * (isHomeCalmIdle ? 0.12 : 0.22) + Math.cos(ts * 0.00028) * (isHomeCalmIdle ? 3 : 6);
+  const shineY = cy - radius * (isHomeCalmIdle ? 0.13 : 0.24) + Math.sin(ts * 0.00022) * (isHomeCalmIdle ? 3 : 5);
+  const shine = ctx.createRadialGradient(shineX, shineY, 0, shineX, shineY, radius * (isHomeCalmIdle ? 0.56 : 0.4));
+  shine.addColorStop(0, rgba([255, 255, 255], isHomeCalmIdle ? Math.min(0.22, b.shA * 0.26 + level * 0.08) : Math.min(0.72, b.shA * 0.75 + level * 0.16)));
   shine.addColorStop(1, rgba([255, 255, 255], 0));
   ctx.beginPath();
-  ctx.arc(shineX, shineY, radius * 0.4, 0, Math.PI * 2);
+  ctx.arc(shineX, shineY, radius * (isHomeCalmIdle ? 0.56 : 0.4), 0, Math.PI * 2);
   ctx.fillStyle = shine;
   ctx.fill();
 
@@ -514,6 +525,7 @@ export default function ZamoraVoiceOrb({
   size = BASE_CONTAINER_SIZE,
   isDark = true,
   audioLevel = 0,
+  idleVisualStyle = "default",
   testId = "zamora-voice-orb",
 }: ZamoraVoiceOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -525,15 +537,17 @@ export default function ZamoraVoiceOrb({
   const toRef = useRef<OrbConfig>(resolveConfig(state, isDark));
   const transitionStartRef = useRef<number>(0);
   const stateRef = useRef<ZamoraOrbState>(state);
+  const idleVisualStyleRef = useRef<ZamoraOrbIdleVisualStyle>(idleVisualStyle);
   const visualConfig = useMemo(() => resolveConfig(state, isDark), [isDark, state]);
   const safeAudioLevel = clampLevel(audioLevel);
   const isCalmState = state === "idle" || state === "ending" || state === "error";
-  const liveScale = visualConfig.scale + safeAudioLevel * (isCalmState ? 0.025 : state === "speaking" ? 0.095 : 0.075);
-  const ringDuration = Math.max(0.92, visualConfig.ringDur - safeAudioLevel * 0.46);
+  const isHomeCalmIdle = idleVisualStyle === "homeCalm" && state === "idle";
+  const liveScale = visualConfig.scale + safeAudioLevel * (isHomeCalmIdle ? 0 : isCalmState ? 0.025 : state === "speaking" ? 0.095 : 0.075);
+  const ringDuration = isHomeCalmIdle ? 7.4 : Math.max(0.92, visualConfig.ringDur - safeAudioLevel * 0.46);
 
   const canvasDisplaySize = Math.round(size * (BASE_CANVAS_SIZE / BASE_CONTAINER_SIZE));
   const ringSizes = BASE_RING_SIZES.map((ringSize) => Math.round(size * (ringSize / BASE_CONTAINER_SIZE)));
-  const ringOpacities = visualConfig.ringOp.map((opacity, index) => Math.min(0.58, opacity + safeAudioLevel * (0.06 + index * 0.045)));
+  const ringOpacities = visualConfig.ringOp.map((opacity, index) => Math.min(0.58, (opacity + safeAudioLevel * (0.06 + index * 0.045)) * (isHomeCalmIdle ? 0.68 : 1)));
 
   useEffect(() => {
     audioLevelRef.current = safeAudioLevel;
@@ -542,6 +556,10 @@ export default function ZamoraVoiceOrb({
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    idleVisualStyleRef.current = idleVisualStyle;
+  }, [idleVisualStyle]);
 
   useEffect(() => {
     fromRef.current = cloneConfig(currentRef.current);
@@ -562,8 +580,8 @@ export default function ZamoraVoiceOrb({
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     const currentSize = canvasSizeRef.current || BASE_CANVAS_SIZE;
-    drawFrame(1200, idleConfig, ctx, currentSize, currentSize, 0);
-  }, [isDark, state]);
+    drawFrame(1200, idleConfig, ctx, currentSize, currentSize, 0, idleVisualStyle);
+  }, [idleVisualStyle, isDark, state]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -606,7 +624,7 @@ export default function ZamoraVoiceOrb({
       const blended = blendConfig(fromRef.current, toRef.current, eased);
       currentRef.current = blended;
       const currentSize = canvasSizeRef.current || BASE_CANVAS_SIZE;
-      drawFrame(frameTime, blended, ctx, currentSize, currentSize, frameAudioLevel);
+      drawFrame(frameTime, blended, ctx, currentSize, currentSize, frameAudioLevel, idleVisualStyleRef.current);
       frameRef.current = window.requestAnimationFrame(render);
     };
 
@@ -624,6 +642,7 @@ export default function ZamoraVoiceOrb({
       data-testid={testId}
       data-orb-state={state}
       data-audio-reactive={safeAudioLevel > 0.02 ? "true" : "false"}
+      data-idle-visual-style={idleVisualStyle}
       aria-hidden="true"
       style={
         {
