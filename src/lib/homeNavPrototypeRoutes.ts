@@ -1,6 +1,7 @@
 const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/",
   "/dev/home-master",
+  "/dev/home-master/menu",
   "/menu",
   "/health",
   "/mind-memory",

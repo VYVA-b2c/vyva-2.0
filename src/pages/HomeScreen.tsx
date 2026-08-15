@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ALargeSmall, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, Menu as MenuIcon, type LucideIcon } from "lucide-react";
+import { Activity, ALargeSmall, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -9,6 +9,7 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
+import { HomeMasterActionControl, HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import CrossPillarSubflowCanvas, {
   isCrossPillarCompletionAction,
   type CrossPillarSubflowResult,
@@ -349,10 +350,10 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 ];
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
-  health: { title: "Health", subtitle: "Care today" },
-  cognitive: { title: "My Brain", subtitle: "Memory and focus" },
-  social: { title: "Community", subtitle: "Rooms and chats" },
-  concierge: { title: "Concierge", subtitle: "Help and errands" },
+  health: { title: "My Health", subtitle: "Check-ins, vitals, medicines" },
+  cognitive: { title: "My Brain", subtitle: "Memory, focus, calm" },
+  social: { title: "Community", subtitle: "Rooms and support" },
+  concierge: { title: "Concierge", subtitle: "Everyday help" },
 };
 
 const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { label: string; sub: string }> = {
@@ -373,14 +374,6 @@ function baseLanguageCode(language?: string | null) {
   const code = language?.split("-")[0]?.toLowerCase();
   if (code === "es" || code === "de") return code;
   return "en";
-}
-
-function homeDayline(language: string | undefined | null, clockMs: number) {
-  return new Intl.DateTimeFormat(language || "en", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(clockMs));
 }
 
 function conciergeHomeItems(pending: ConciergePendingHomeSignal | null | undefined) {
@@ -749,7 +742,12 @@ const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
   },
 };
 
-const HomeScreen = () => {
+type HomeScreenProps = {
+  menuPath?: string;
+  onShellNavigate?: (path: string, options?: NavigateOptions) => void;
+};
+
+const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {}) => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -944,6 +942,7 @@ const HomeScreen = () => {
   }, []);
 
   const firstName = displayFirstName(profileFirstName);
+
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
   const gpName = profile?.gpName?.trim();
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
@@ -1120,15 +1119,30 @@ const HomeScreen = () => {
     guardPath(path, options);
   }, [guardPath]);
 
+  const handleHomeShellNavigate = useCallback((path: string, options?: NavigateOptions) => {
+    if (import.meta.env.MODE !== "test" && path.startsWith("/dev/home-master") && onShellNavigate) {
+      onShellNavigate(path, options);
+      return;
+    }
+
+    guardPath(path, options);
+  }, [guardPath, onShellNavigate]);
+
   const handleProfileMenuNavigate = useCallback((path: string, options?: NavigateOptions) => {
     setHomeProfileMenuOpen(false);
     handleNavigate(path, options);
   }, [handleNavigate]);
 
   const switchHomeModeFromProfileMenu = useCallback(() => {
+    const nextMode = homeInteractionMode === "voice" ? "touch" : "voice";
     setHomeModeSwitcherVisible(true);
-    setHomeInteractionMode((mode) => mode === "voice" ? "touch" : "voice");
-  }, []);
+    setHomeInteractionMode(nextMode);
+    setHomeProfileMenuOpen(false);
+
+    if (nextMode === "touch") {
+      handleHomeShellNavigate(menuPath);
+    }
+  }, [handleHomeShellNavigate, homeInteractionMode, menuPath]);
 
   const launchHomeFastHelp = (
     actionId: ContextualHomeFastHelpActionId,
@@ -1323,8 +1337,8 @@ const HomeScreen = () => {
     {
       id: "health",
       icon: Heart,
-      title: t("home.master.cards.healthShortTitle", "Health"),
-      detail: t("home.master.cards.healthDetailShort", "Check-ins and care"),
+      title: t("home.master.cards.healthShortTitle", "My Health"),
+      detail: t("home.master.cards.healthDetailShort", "Check-ins, vitals, medicines"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("health");
@@ -1336,7 +1350,7 @@ const HomeScreen = () => {
       id: "mind-memory",
       icon: Brain,
       title: t("home.master.cards.mindMemoryShortTitle", "My Brain"),
-      detail: t("home.master.cards.mindMemoryDetailShort", "Memory and focus"),
+      detail: t("home.master.cards.mindMemoryDetailShort", "Memory, focus, calm"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("mind");
@@ -1348,7 +1362,7 @@ const HomeScreen = () => {
       id: "social",
       icon: Users,
       title: t("home.master.cards.communityShortTitle", "Community"),
-      detail: t("home.master.cards.communityDetailShort", "Connect with others"),
+      detail: t("home.master.cards.communityDetailShort", "Rooms and support"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("community");
@@ -1360,7 +1374,7 @@ const HomeScreen = () => {
       id: "concierge",
       icon: ConciergeBell,
       title: t("home.master.cards.conciergeShortTitle", "Concierge"),
-      detail: t("home.master.cards.conciergeDetailShort", "Bookings and services"),
+      detail: t("home.master.cards.conciergeDetailShort", "Everyday help"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("concierge");
@@ -2241,10 +2255,6 @@ const HomeScreen = () => {
     voice?.status,
   ]);
   const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
-  const homeMasterDayline = useMemo(
-    () => homeDayline(language, conciergeClockMs),
-    [conciergeClockMs, language],
-  );
   const activeIntentKey = homeIntentLayer === "home" ? null : `${homeIntentLayer}Intent`;
   const activeIntentTitle = activeIntentKey
     ? t(`home.master.${activeIntentKey}.title`)
@@ -2905,6 +2915,16 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
+  const nextReadableTextSizeLabel = isReadableTextLarge
+    ? t("home.profileMenu.normal", "Normal")
+    : t("home.profileMenu.large", "Large");
+  const nextThemeLabel = isHomeMasterDark
+    ? t("home.profileMenu.light", "Light")
+    : t("home.profileMenu.dark", "Dark");
+  const nextModeLabel = homeInteractionMode === "voice"
+    ? t("home.profileMenu.touch", "Touch")
+    : t("home.profileMenu.voice", "Voice");
+  const NextModeIcon = homeInteractionMode === "voice" ? Hand : Mic;
   const homeProfileMenuLinks: Array<{
     label: string;
     detail: string;
@@ -2912,6 +2932,7 @@ const HomeScreen = () => {
     icon: LucideIcon;
     testId: string;
     tone: string;
+    darkTone: string;
   }> = [
     {
       label: t("home.profileMenu.account", "Account details"),
@@ -2920,6 +2941,7 @@ const HomeScreen = () => {
       icon: UserRound,
       testId: "button-home-profile-account",
       tone: "bg-[#F5F3FF] text-vyva-purple",
+      darkTone: "bg-[#7C3AED]/20 text-[#D8B4FE] ring-1 ring-inset ring-[#C4B5FD]/20",
     },
     {
       label: t("home.profileMenu.health", "Health profile"),
@@ -2928,6 +2950,7 @@ const HomeScreen = () => {
       icon: Heart,
       testId: "button-home-profile-health",
       tone: "bg-[#FFF1F2] text-[#E74C43]",
+      darkTone: "bg-[#FB7185]/16 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
     },
     {
       label: t("home.profileMenu.medications", "Medicines"),
@@ -2936,6 +2959,7 @@ const HomeScreen = () => {
       icon: Pill,
       testId: "button-home-profile-medications",
       tone: "bg-[#FEF3C7] text-[#A16207]",
+      darkTone: "bg-[#F59E0B]/18 text-[#FDE68A] ring-1 ring-inset ring-[#FDE68A]/18",
     },
     {
       label: t("home.profileMenu.emergency", "Emergency contact"),
@@ -2944,6 +2968,7 @@ const HomeScreen = () => {
       icon: ShieldCheck,
       testId: "button-home-profile-emergency",
       tone: "bg-[#FFE4E6] text-[#E11D48]",
+      darkTone: "bg-[#F43F5E]/18 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
     },
     {
       label: t("home.profileMenu.careTeam", "Care team"),
@@ -2952,6 +2977,7 @@ const HomeScreen = () => {
       icon: Users,
       testId: "button-home-profile-care-team",
       tone: "bg-[#EFF6FF] text-[#2F66D0]",
+      darkTone: "bg-[#3B82F6]/18 text-[#BFDBFE] ring-1 ring-inset ring-[#BFDBFE]/18",
     },
     {
       label: t("home.profileMenu.providers", "Doctors & providers"),
@@ -2960,6 +2986,7 @@ const HomeScreen = () => {
       icon: Stethoscope,
       testId: "button-home-profile-providers",
       tone: "bg-[#ECFDF5] text-[#149A63]",
+      darkTone: "bg-[#10B981]/18 text-[#A7F3D0] ring-1 ring-inset ring-[#A7F3D0]/18",
     },
   ];
   const homeProfileMenu = homeProfileMenuOpen ? (
@@ -2979,7 +3006,7 @@ const HomeScreen = () => {
         className={[
           "absolute left-1/2 top-[88px] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-hidden rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px]",
           isHomeMasterDark
-            ? "border-white/[0.12] bg-[#170C2A]/[0.92] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
+            ? "border-white/[0.12] bg-[#170C2A] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
             : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",
         ].join(" ")}
       >
@@ -3004,7 +3031,7 @@ const HomeScreen = () => {
             data-testid="button-home-profile-menu-close"
             aria-label={t("home.profileMenu.close", "Close profile menu")}
             onClick={() => setHomeProfileMenuOpen(false)}
-            className={["vyva-tap grid h-10 w-10 flex-shrink-0 place-items-center rounded-full", isHomeMasterDark ? "bg-white/10 text-[#F6F0FF]" : "bg-[#F8F5FF] text-[#6B5173]"].join(" ")}
+            className={["vyva-tap grid h-10 !min-h-10 w-10 flex-shrink-0 place-items-center rounded-full", isHomeMasterDark ? "bg-white/10 text-[#F6F0FF]" : "bg-[#F8F5FF] text-[#6B5173]"].join(" ")}
           >
             <X size={18} strokeWidth={2.4} aria-hidden="true" />
           </button>
@@ -3024,7 +3051,7 @@ const HomeScreen = () => {
                   isHomeMasterDark ? "border-white/[0.10] bg-white/[0.06]" : "border-[#F0E8F5] bg-white shadow-[0_8px_22px_rgba(67,36,95,0.05)]",
                 ].join(" ")}
               >
-                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-[17px] ${item.tone}`}>
+                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full ${isHomeMasterDark ? item.darkTone : item.tone}`}>
                   <Icon size={19} strokeWidth={2.25} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -3055,7 +3082,7 @@ const HomeScreen = () => {
             <ALargeSmall size={19} strokeWidth={2.35} aria-hidden="true" />
             <span className="mt-1">{t("home.profileMenu.textSize", "Text size")}</span>
             <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
-              {isReadableTextLarge ? t("home.profileMenu.large", "Large") : t("home.profileMenu.normal", "Normal")}
+              {nextReadableTextSizeLabel}
             </span>
           </button>
           <button
@@ -3067,7 +3094,7 @@ const HomeScreen = () => {
             {isHomeMasterDark ? <Sun size={18} strokeWidth={2.35} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.35} aria-hidden="true" />}
             <span className="mt-1">{t("home.profileMenu.theme", "Theme")}</span>
             <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
-              {isHomeMasterDark ? t("home.profileMenu.dark", "Dark") : t("home.profileMenu.light", "Light")}
+              {nextThemeLabel}
             </span>
           </button>
           <button
@@ -3076,10 +3103,10 @@ const HomeScreen = () => {
             onClick={switchHomeModeFromProfileMenu}
             className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
           >
-            {homeInteractionMode === "voice" ? <Mic size={18} strokeWidth={2.35} aria-hidden="true" /> : <Hand size={18} strokeWidth={2.35} aria-hidden="true" />}
+            <NextModeIcon size={18} strokeWidth={2.35} aria-hidden="true" />
             <span className="mt-1">{t("home.profileMenu.mode", "Mode")}</span>
             <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
-              {homeInteractionMode === "voice" ? t("home.profileMenu.voice", "Voice") : t("home.profileMenu.touch", "Touch")}
+              {nextModeLabel}
             </span>
           </button>
         </div>
@@ -3100,49 +3127,35 @@ const HomeScreen = () => {
       showCards={showHomeMasterCards}
       modeSwitcher={(
         <div className="mb-4 mt-0 min-[390px]:mb-5 sm:mb-8">
-          <div
+          <HomeMasterTopbar
             className={[
-              "mb-4 grid grid-cols-[44px_1fr_44px] items-center gap-3 px-1 min-[390px]:mb-5 sm:grid-cols-[48px_1fr_48px] sm:px-3",
+              "mb-4 min-[390px]:mb-5",
               isHomeMasterDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]",
             ].join(" ")}
-            data-testid="home-topbar"
+            testId="home-topbar"
           >
-            <button
-              type="button"
-              aria-label="Open profile"
-              data-testid="button-home-profile"
+            <HomeMasterProfileControl
+              isDark={isHomeMasterDark}
+              ariaLabel={t("home.profileMenu.open", "Open profile and settings")}
+              testId="button-home-profile"
               onClick={() => setHomeProfileMenuOpen(true)}
-              aria-expanded={homeProfileMenuOpen}
-              aria-controls={homeProfileMenuOpen ? "home-profile-menu" : undefined}
-              className={[
-                "vyva-tap flex h-11 w-11 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)] sm:h-12 sm:w-12",
-                isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
-              ].join(" ")}
+              expanded={homeProfileMenuOpen}
+              controls={homeProfileMenuOpen ? "home-profile-menu" : undefined}
+            />
+            <span data-testid="home-dayline" aria-hidden="true" />
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full sm:h-10 sm:w-10"
+              data-testid="home-topbar-action-pill"
             >
-              <UserRound size={22} strokeWidth={2.1} />
-            </button>
-            <p
-              className={[
-                "truncate text-center font-body text-[13px] font-extrabold capitalize tracking-[0.01em]",
-                isHomeMasterDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]",
-              ].join(" ")}
-              data-testid="home-dayline"
-            >
-              {homeMasterDayline}
-            </p>
-            <button
-              type="button"
-              aria-label="Open menu"
-              data-testid="button-home-menu"
-              onClick={() => handleNavigate("/menu")}
-              className={[
-                "vyva-tap flex h-11 w-11 items-center justify-center rounded-full shadow-[0_12px_26px_rgba(36,28,48,0.08)] sm:h-12 sm:w-12",
-                isHomeMasterDark ? "bg-white/10 text-[#EDE6F8]" : "bg-white text-[var(--vyva-ink-soft)]",
-              ].join(" ")}
-            >
-              <MenuIcon size={23} strokeWidth={2.3} />
-            </button>
-          </div>
+              <HomeMasterActionControl
+                isDark={isHomeMasterDark}
+                icon={Hand}
+                ariaLabel={t("home.mode.openManual", "Open manual menu")}
+                onClick={() => handleHomeShellNavigate(menuPath)}
+                testId="button-home-mode-touch"
+              />
+            </div>
+          </HomeMasterTopbar>
           {homeProfileMenu}
           {showHomeMasterCards ? (
             <div className="px-3 text-center">

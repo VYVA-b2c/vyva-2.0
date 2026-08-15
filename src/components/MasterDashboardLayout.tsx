@@ -339,27 +339,17 @@ export default function MasterDashboardLayout({
               voiceDynamicVariables={hero.action.voiceDynamicVariables}
               autoStartListening={hero.action.autoStartListening}
               canStartVoice={hero.action.canStartVoice}
-              hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
+              hideWhenSessionActive={hero.action.hideWhenSessionActive ?? false}
               disabled={hero.action.disabled}
               testId={hero.action.testId}
-              supportingLabel={hero.action.supportingLabel}
+              supportingLabel={hero.subtitle ?? hero.action.supportingLabel}
+              voiceOrbCaptionTestId={movesHomeMasterSubtitleBelowOrb ? "home-master-hero-subtitle" : undefined}
               onFirstVoiceOrbActivation={hero.action.onFirstVoiceOrbActivation}
               visual="voiceOrb"
               voiceOrbDark={isHomeMasterDark}
-              voiceOrbSize={isHomeMasterIntentLayer ? 112 : 188}
-              className="vyva-tap mx-auto flex flex-col items-center text-center transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75"
+              voiceOrbSize={isHomeMasterIntentLayer ? 112 : 204}
+              className="vyva-tap mx-auto flex flex-col items-center text-center disabled:cursor-wait disabled:opacity-75"
             />
-            {hero.subtitle && movesHomeMasterSubtitleBelowOrb ? (
-              <div
-                data-testid="home-master-hero-subtitle"
-                className={[
-                  "vyva-home-master-readable mx-auto mt-4 max-w-[20rem] font-body text-[14px] font-bold leading-snug min-[390px]:text-[15px] sm:text-[17px]",
-                  isHomeMasterDark ? "!text-[#E8DDF3]" : hero.subtitleTone === "gold" ? "!text-[#9A5B00]" : "text-[#8A8095]",
-                ].join(" ")}
-              >
-                <span>{hero.subtitle}</span>
-              </div>
-            ) : null}
           </div>
         ) : !isVoiceAction ? (
           <button

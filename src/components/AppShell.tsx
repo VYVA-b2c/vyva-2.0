@@ -539,9 +539,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
+  const isHomeMasterMenuRoute = location.pathname === "/menu" || location.pathname === "/dev/home-master/menu";
   const isConciergeExperienceRoute = location.pathname === "/concierge";
-  const usesHomeMasterShell = isHomeRoute;
-  const ownsPrototypeTopbar = location.pathname !== "/dev/home-master" && isHomeNavPrototypeTopbarRoute(location.pathname);
+  const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute;
+  const ownsPrototypeTopbar = isHomeNavPrototypeTopbarRoute(location.pathname);
   const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
   const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
   const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
@@ -590,6 +591,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
     !isFullScreen &&
+    !isHomeRoute &&
     !isChatTypeMode &&
     compactVoiceSessionActive &&
     !isVoiceOverlayFocused;
@@ -897,14 +899,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className={`flex min-h-screen justify-center ${usesCompactVoiceSurface ? (isHomeMasterDark ? "bg-[#080715]" : "bg-white") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
+      <div className={`flex min-h-screen justify-center ${usesCompactVoiceSurface ? (isHomeMasterDark ? "bg-[#080715]" : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
         data-home-master-theme={usesCompactVoiceSurface && isHomeMasterDark ? "dark" : "light"}
         data-vyva-text-size={readableTextSize}
-        className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
+        className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]") : ""}`}
       >
         {!isFullScreen && !ownsPrototypeTopbar && (
           <StatusBar

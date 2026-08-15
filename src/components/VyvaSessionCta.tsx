@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, MessageCircle, Mic, type LucideIcon } from "lucide-react";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import ZamoraVoiceOrb, { type ZamoraOrbState, useVoiceOrbAudioLevel } from "@/components/ZamoraVoiceOrb";
@@ -34,6 +34,7 @@ type VyvaSessionCtaProps = {
   visual?: "default" | "voiceRail" | "voiceOrb";
   voiceOrbDark?: boolean;
   voiceOrbSize?: number;
+  voiceOrbCaptionTestId?: string;
   onFirstVoiceOrbActivation?: () => void;
 };
 
@@ -117,9 +118,10 @@ function HomeVoiceActivationOrb({
   state: ZamoraOrbState;
   size: number;
 }) {
-  const outerSize = Math.max(104, Math.min(190, size));
+  const outerSize = Math.max(104, Math.min(208, size));
   const iconSize = Math.max(22, Math.min(32, Math.round(outerSize * 0.16)));
   const showIcon = isPreparing;
+  const showIdleAttractor = state === "idle" && !isPreparing;
 
   return (
     <span
@@ -128,9 +130,27 @@ function HomeVoiceActivationOrb({
       data-testid="home-dormant-zamora-orb"
       style={{ height: outerSize, width: outerSize }}
     >
+      {showIdleAttractor ? (
+        <span
+          className="vyva-home-orb-idle-attractor"
+          data-testid="home-dormant-zamora-orb-idle-attractor"
+          style={
+            {
+              "--vyva-home-orb-attention-ring": isDark ? "rgba(246,199,91,0.24)" : "rgba(168,102,16,0.18)",
+              "--vyva-home-orb-attention-glow": isDark ? "rgba(124,58,237,0.34)" : "rgba(168,85,247,0.24)",
+              "--vyva-home-orb-attention-core": isDark ? "rgba(246,199,91,0.12)" : "rgba(246,199,91,0.16)",
+            } as CSSProperties
+          }
+        >
+          <span style={{ "--vyva-home-orb-wave-delay": "0s", "--vyva-home-orb-wave-inset": "7%" } as CSSProperties} />
+          <span style={{ "--vyva-home-orb-wave-delay": "2.15s", "--vyva-home-orb-wave-inset": "3%" } as CSSProperties} />
+          <span style={{ "--vyva-home-orb-wave-delay": "4.3s", "--vyva-home-orb-wave-inset": "-1%" } as CSSProperties} />
+        </span>
+      ) : null}
       <ZamoraVoiceOrb
         key={resetKey}
         audioLevel={audioLevel}
+        idleVisualStyle={state === "idle" ? "homeCalm" : "default"}
         isDark={isDark}
         size={outerSize}
         state={state}
@@ -181,6 +201,7 @@ export function VyvaSessionCta({
   visual = "default",
   voiceOrbDark = false,
   voiceOrbSize = 144,
+  voiceOrbCaptionTestId,
   onFirstVoiceOrbActivation,
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
@@ -347,6 +368,20 @@ export function VyvaSessionCta({
     voiceOrbState === "idle" || voiceOrbState === "ending" || voiceOrbState === "error"
       ? 0
       : voiceOrbAudioLevel;
+  const voiceOrbCaption = hasVoiceOrbError
+    ? errorLabel ?? "Voice isn’t available right now. Use the hand button, or tap to retry."
+    : isPreparing
+      ? preparingLabel ?? "Checking voice…"
+      : isConnecting || voiceSessionPhase === "connecting" || voiceSessionPhase === "transferring"
+        ? connectingLabel ?? "Opening voice…"
+        : isActive
+          ? isSpeaking || voiceSessionPhase === "speaking"
+            ? activeLabel ?? "VYVA is speaking."
+            : "Listening…"
+          : supportingLabel ?? label;
+
+  const displayedVoiceOrbCaption =
+    hasVoiceOrbError || voiceOrbState === "idle" ? voiceOrbCaption : undefined;
 
   return (
     <>
@@ -378,16 +413,35 @@ export function VyvaSessionCta({
           className={className}
         >
           {isVoiceOrb ? (
-            <HomeVoiceActivationOrb
-              Icon={Icon}
-              audioLevel={stableVoiceOrbAudioLevel}
-              iconClassName={iconClassName}
-              isDark={voiceOrbDark}
-              isPreparing={isPreparing}
-              resetKey={`home-voice-orb-${voiceOrbResetVersion}`}
-              state={voiceOrbState}
-              size={voiceOrbSize}
-            />
+            <>
+              <HomeVoiceActivationOrb
+                Icon={Icon}
+                audioLevel={stableVoiceOrbAudioLevel}
+                iconClassName={iconClassName}
+                isDark={voiceOrbDark}
+                isPreparing={isPreparing}
+                resetKey={`home-voice-orb-${voiceOrbResetVersion}`}
+                state={voiceOrbState}
+                size={voiceOrbSize}
+              />
+              {displayedVoiceOrbCaption ? (
+                <span
+                  data-testid={voiceOrbCaptionTestId}
+                  className={[
+                    "vyva-home-master-readable mx-auto mt-4 block max-w-[20rem] font-body text-[14px] font-semibold leading-snug min-[390px]:text-[15px] sm:text-[17px]",
+                    voiceOrbState === "error"
+                      ? voiceOrbDark
+                        ? "!text-[#F6C75B]"
+                        : "!text-[#A86610]"
+                      : voiceOrbDark
+                        ? "!text-[#F6C75B]"
+                        : "!text-[#A86610]",
+                  ].join(" ")}
+                >
+                  {displayedVoiceOrbCaption}
+                </span>
+              ) : null}
+            </>
           ) : isVoiceRail ? (
             <>
               <span className="absolute inset-[-7px] rounded-full bg-[#F3E8FF] opacity-50" aria-hidden="true" />

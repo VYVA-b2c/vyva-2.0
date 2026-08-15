@@ -334,7 +334,7 @@ test("home screen opens the approved Menu and reaches Concierge", async ({ page 
 
   await expect(page.getByTestId("home-master-hero")).toBeVisible();
   await expect(page.getByTestId("home-pillar-cards")).toHaveCount(0);
-  await page.getByTestId("button-home-menu").click();
+  await page.getByTestId("button-home-mode-touch").click();
   await expect(page).toHaveURL(/\/menu$/);
   await expect(page.getByTestId("menu-tile-grid").getByRole("button")).toHaveCount(4);
 

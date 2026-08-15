@@ -63,7 +63,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         disabled={inertHomeTab}
         aria-disabled={inertHomeTab ? "true" : undefined}
         aria-current={activeVisual ? "page" : undefined}
-        className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${usesHomeDockSurface ? "min-h-[66px] sm:min-h-[70px] md:min-h-[74px]" : ""} ${inertHomeTab ? "cursor-default opacity-60" : ""}`}
+        className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-[16px] px-0.5 ${usesHomeDockSurface ? "min-h-[64px] sm:min-h-[68px] md:min-h-[72px]" : ""} ${inertHomeTab ? "cursor-default" : ""}`}
       >
         <div
           className={`flex h-8 w-10 items-center justify-center rounded-full transition-all ${
@@ -71,14 +71,14 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
           }`}
         >
           <Icon
-            size={usesHomeDockSurface ? 21 : 20}
+            size={usesHomeDockSurface ? 18 : 20}
             className={activeVisual ? "text-vyva-purple" : usesHomeDockSurface && isHomeMasterDark ? "" : "text-vyva-text-3"}
-            strokeWidth={activeVisual ? 2.25 : 1.9}
+            strokeWidth={activeVisual ? 2.15 : 1.85}
             style={!activeVisual && usesHomeDockSurface && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
           />
         </div>
         <span
-          className={`max-w-[68px] text-center font-body text-[11px] font-bold leading-[1.05] transition-colors ${
+          className={`max-w-[68px] text-center font-body text-[10.5px] font-bold leading-[1.05] transition-colors ${
             activeVisual ? "text-vyva-purple" : usesHomeDockSurface && isHomeMasterDark ? "" : "text-vyva-text-3"
           }`}
           style={!activeVisual && usesHomeDockSurface && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}

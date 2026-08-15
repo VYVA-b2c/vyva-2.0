@@ -97,8 +97,9 @@ test.describe("home master visual contract", () => {
   test("keeps voice mode focused on greeting, orb, and compact controls", async ({ page }) => {
     await openHomeMasterVoiceMode(page);
 
-    await expect(page.getByTestId("home-master-utility-dock")).toBeVisible();
+    await expect(page.getByTestId("home-topbar-action-pill")).toBeVisible();
     await expect(page.getByTestId("button-home-mode-touch")).toBeVisible();
+    await expect(page.getByTestId("button-home-profile")).toBeVisible();
     await expect(page.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "idle");
     await expect(page.getByTestId("home-pillar-cards")).toHaveCount(0);
     await expect(page.getByTestId("home-fast-help")).toHaveCount(0);
@@ -114,12 +115,7 @@ test.describe("home master visual contract", () => {
     await openHomeMasterVoiceMode(page);
 
     await page.getByTestId("button-home-mode-touch").click();
-
-    await expect(page.getByTestId("home-master-hero")).toBeVisible();
-    await expect(page.getByTestId("home-pillar-cards")).toHaveCount(0);
-    await expect(page.getByTestId("button-home-mode-voice")).toBeVisible();
-    await page.getByTestId("button-home-menu").click();
-    await expect(page).toHaveURL(/\/menu$/);
+    await expect(page).toHaveURL(/\/dev\/home-master\/menu$/);
     await expect(page.getByTestId("menu-tile-grid").getByRole("button")).toHaveCount(4);
   });
 });
