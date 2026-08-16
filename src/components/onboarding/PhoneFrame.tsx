@@ -1,4 +1,4 @@
-import { ArrowLeft, LayoutGrid } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Mic } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
@@ -13,6 +13,7 @@ interface PhoneFrameProps {
   showAllSections?: boolean;
   onAllSections?: () => void;
   showCompanionMode?: boolean;
+  rightAction?: ReactNode;
 }
 
 export function PhoneFrame({
@@ -24,8 +25,14 @@ export function PhoneFrame({
   showAllSections = false,
   onAllSections,
   showCompanionMode = true,
+  rightAction,
 }: PhoneFrameProps) {
   const hasTopBar = Boolean(subtitle || showBack || showAllSections);
+  const isHomeMasterProfilePreview =
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/dev/home-master/profile/");
+  const shouldShowCompanionMode = showCompanionMode && !isHomeMasterProfilePreview;
+  const shouldShowAllSections = showAllSections && !isHomeMasterProfilePreview;
   const toastSurfaceRef = useToastSurface<HTMLDivElement>();
   const { t } = useTranslation();
 
@@ -61,7 +68,7 @@ export function PhoneFrame({
               ) : null}
             </div>
 
-            {showAllSections ? (
+            {shouldShowAllSections ? (
               <button
                 type="button"
                 onClick={onAllSections}
@@ -70,13 +77,27 @@ export function PhoneFrame({
                 <LayoutGrid size={16} />
                 All
               </button>
+            ) : rightAction ? (
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
+                {rightAction}
+              </div>
+            ) : isHomeMasterProfilePreview ? (
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center">
+                <a
+                  href="/dev/home-master"
+                  aria-label="Return to VYVA voice mode"
+                  className="vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150"
+                >
+                  <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+                </a>
+              </div>
             ) : (
               <div className="h-11 w-11 flex-shrink-0" aria-hidden="true" />
             )}
           </div>
         ) : null}
 
-        {showCompanionMode ? (
+        {shouldShowCompanionMode ? (
           <OnboardingCompanionModeChip
             compactLabel={t("profile.overview.companionMode.compactLabel", "VYVA mode")}
             voiceLabel={t("profile.overview.companionMode.voiceLabel", "Voice")}

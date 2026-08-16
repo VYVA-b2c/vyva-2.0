@@ -74,9 +74,14 @@ export { MENU_TILES };
 type MenuScreenProps = {
   backPath?: string;
   profilePath?: string;
+  tilePathOverrides?: Partial<Record<MenuTile["id"], string>>;
 };
 
-export default function MenuScreen({ backPath = "/", profilePath = "/settings/account" }: MenuScreenProps = {}) {
+export default function MenuScreen({
+  backPath = "/",
+  profilePath = "/settings/account",
+  tilePathOverrides,
+}: MenuScreenProps = {}) {
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useHomeMasterTheme();
   const { isLarge: isReadableTextLarge, toggleSize: toggleReadableTextSize } = useReadableTextSize();
@@ -331,6 +336,7 @@ export default function MenuScreen({ backPath = "/", profilePath = "/settings/ac
         <section className="grid gap-3 min-[390px]:gap-3.5 sm:gap-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
           {MENU_TILES.map((tile) => {
             const Icon = tile.icon;
+            const destination = tilePathOverrides?.[tile.id] ?? tile.path;
             return (
               <button
                 key={tile.id}
@@ -343,7 +349,7 @@ export default function MenuScreen({ backPath = "/", profilePath = "/settings/ac
                 ].join(" ")}
                 style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : tile.tone.border }}
                 data-testid={`menu-tile-${tile.id}`}
-                onClick={() => navigate(tile.path)}
+                onClick={() => navigate(destination)}
               >
                 <span
                   className={[

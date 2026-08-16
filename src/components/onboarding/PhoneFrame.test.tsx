@@ -86,6 +86,45 @@ describe("PhoneFrame companion mode", () => {
     expect(screen.queryByTestId("onboarding-companion-mode-chip")).not.toBeInTheDocument();
   });
 
+  it("hides the old companion chip on Home Master profile preview routes", () => {
+    const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    try {
+      window.history.pushState({}, "", "/dev/home-master/profile/health");
+
+      render(
+        <PhoneFrame subtitle="Health conditions" showAllSections>
+          <p>Profile content</p>
+        </PhoneFrame>
+      );
+
+      expect(screen.queryByTestId("onboarding-companion-mode-chip")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Return to VYVA voice mode")).toHaveAttribute(
+        "href",
+        "/dev/home-master"
+      );
+    } finally {
+      window.history.pushState({}, "", originalPath || "/");
+    }
+  });
+
+  it("can render a compact right-side action without showing all sections", () => {
+    render(
+      <PhoneFrame
+        subtitle="Quiet screen"
+        showBack
+        rightAction={<button type="button">Use voice</button>}
+        showCompanionMode={false}
+      >
+        <p>Only content</p>
+      </PhoneFrame>
+    );
+
+    expect(screen.getByRole("button", { name: "Use voice" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+  });
+
   it("shows live voice status, prompt, heard feedback, and error fallback", () => {
     function GuidanceControls() {
       const { setGuidance } = useOnboardingCompanionGuidance();

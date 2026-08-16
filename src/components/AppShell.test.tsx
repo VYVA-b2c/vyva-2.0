@@ -211,7 +211,20 @@ describe("app shell route layout", () => {
     expect(getAppShellLayout(pathname)).toBe(layout);
   });
 
-  it.each(["/menu", "/dev/home-master/menu"])(
+  it.each([
+    "/menu",
+    "/dev/home-master/menu",
+    "/dev/home-master/health",
+    "/dev/home-master/brain",
+    "/dev/home-master/community",
+    "/dev/home-master/concierge",
+    "/dev/home-master/reports",
+    "/dev/home-master/check-in",
+    "/dev/home-master/health-plan",
+    "/dev/home-master/symptom-report",
+    "/dev/home-master/vitals",
+    "/dev/home-master/medicines",
+  ])(
     "lets %s own the prototype topbar instead of rendering the global status surface",
     (path) => {
       render(
@@ -224,8 +237,36 @@ describe("app shell route layout", () => {
 
       expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
       const shell = screen.getByTestId("app-shell");
-      expect(shell.className).toContain("max-w-[430px]");
-      expect(shell.className).toContain("bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]");
+      if (path.startsWith("/dev/home-master")) {
+        expect(shell.className).toContain("max-w-none");
+        expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]");
+      } else {
+        expect(shell.className).toContain("max-w-[430px]");
+        expect(shell.className).toContain("bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]");
+      }
+    },
+  );
+
+  it.each([
+    "/settings/account",
+    "/health/check-in",
+    "/dev/home-master/check-in",
+    "/dev/home-master/health-plan",
+    "/dev/home-master/symptom-report",
+    "/dev/home-master/vitals",
+    "/dev/home-master/medicines",
+  ])(
+    "hides the prototype dock on %s",
+    (path) => {
+      render(
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+          <AppShell>
+            <div>Focused page content</div>
+          </AppShell>
+        </MemoryRouter>,
+      );
+
+      expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
     },
   );
 });

@@ -651,6 +651,168 @@
   font-family: "Figtree", sans-serif;
 }
 
+/* === Home prototype check-in surfaces === */
+
+.prototype-shell {
+  color: #21152f;
+}
+
+.prototype-checkin-card {
+  color: #24152f;
+}
+
+.prototype-checkin-title,
+.prototype-checkin-heading {
+  color: #24152f;
+}
+
+.prototype-checkin-muted {
+  color: #8f849b;
+}
+
+.prototype-checkin-progress {
+  background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
+}
+
+.prototype-checkin-symptom-cta {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 226, 138, 0.18), transparent 32%),
+    linear-gradient(135deg, #2b1938 0%, #21122d 100%);
+}
+
+.vyva-orb-wave {
+  position: absolute;
+  inset: 8%;
+  border-radius: 9999px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 32px rgba(139, 92, 246, 0.12);
+  opacity: 0.45;
+  pointer-events: none;
+  transform: scale(0.76);
+  animation: vyva-prototype-orb-breath 7.4s cubic-bezier(0.37, 0, 0.23, 1) infinite;
+}
+
+.vyva-orb-wave-two {
+  inset: 1%;
+  opacity: 0.32;
+  animation-delay: 1.8s;
+}
+
+.vyva-orb-wave-three {
+  inset: -6%;
+  opacity: 0.2;
+  animation-delay: 3.6s;
+}
+
+[data-home-master-theme="dark"] .vyva-orb-wave {
+  border-color: rgba(232, 163, 61, 0.18);
+  box-shadow: 0 0 42px rgba(232, 163, 61, 0.1);
+}
+
+@keyframes vyva-prototype-orb-breath {
+  0% {
+    opacity: 0.08;
+    transform: scale(0.76);
+  }
+  42% {
+    opacity: 0.44;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.04;
+    transform: scale(1.18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vyva-orb-wave {
+    animation: none;
+    opacity: 0.22;
+    transform: scale(1);
+  }
+}
+
+@media (hover: hover) {
+  .prototype-checkin-symptom-cta:hover {
+    background:
+      radial-gradient(circle at 12% 18%, rgba(255, 226, 138, 0.24), transparent 34%),
+      linear-gradient(135deg, #352044 0%, #261534 100%);
+  }
+}
+
+[data-home-master-theme="dark"] .prototype-shell {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(75, 48, 154, 0.42), transparent 34%),
+    linear-gradient(180deg, #20143f 0%, #120b23 46%, #080715 100%);
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .prototype-section-title {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .prototype-section-subtitle {
+  color: rgba(236, 226, 246, 0.78);
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-card {
+  background: #fffafd;
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.22);
+  color: #24152f;
+  --tw-ring-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-title {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-heading {
+  color: #24152f;
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-muted {
+  color: #766a80;
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-progress-muted {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-option {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: #eee7f0;
+  color: #372943;
+  box-shadow: 0 10px 24px rgba(57, 41, 70, 0.06);
+}
+
+@media (hover: hover) {
+  [data-home-master-theme="dark"] .prototype-checkin-option:hover {
+    background: #fbf7ff;
+    border-color: rgba(139, 92, 246, 0.24);
+  }
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-complete-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: #5eead4;
+  --tw-ring-color: rgba(16, 185, 129, 0.08);
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-recap {
+  background: #fbf8fd;
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-secondary {
+  background: #8b5cf6;
+  box-shadow: 0 18px 36px rgba(124, 58, 237, 0.2);
+}
+
+[data-home-master-theme="dark"] .prototype-checkin-urgent {
+  background: #fff1f1;
+  color: #ef4444;
+  --tw-ring-color: rgba(248, 113, 113, 0.18);
+}
+
 /* === Voice Call Overlay Animations === */
 
 @keyframes vyva-ring-pulse {

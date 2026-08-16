@@ -545,9 +545,32 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const ownsPrototypeTopbar = isHomeNavPrototypeTopbarRoute(location.pathname);
   const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
   const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
+  const usesDevHomeMasterCompactShell =
+    usesHomeMasterShell ||
+    location.pathname === "/dev/home-master/profile";
+  const usesDevHomeMasterDetailShell =
+    location.pathname === "/dev/home-master/health" ||
+    location.pathname === "/dev/home-master/brain" ||
+    location.pathname === "/dev/home-master/community" ||
+    location.pathname === "/dev/home-master/concierge" ||
+    location.pathname === "/dev/home-master/reports";
+  const usesDevHomeMasterPrototypeSurface = location.pathname.startsWith("/dev/home-master");
   const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
+  const homeMasterPrototypeSurfaceClass = isHomeMasterDark
+    ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)]"
+    : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
+  const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
+    ? homeMasterPrototypeSurfaceClass
+    : isHomeMasterDark
+      ? "bg-[#080715]"
+      : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
+  const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface
+    ? homeMasterPrototypeSurfaceClass
+    : isHomeMasterDark
+      ? "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]"
+      : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
@@ -563,7 +586,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? "max-w-none"
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
-      : usesHomeMasterShell
+      : usesDevHomeMasterPrototypeSurface
+        ? "max-w-none"
+      : usesDevHomeMasterDetailShell
+        ? "max-w-[520px]"
+      : usesDevHomeMasterCompactShell
         ? "max-w-[430px]"
       : isWideRoute
         ? "max-w-[920px]"
@@ -899,14 +926,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className={`flex min-h-screen justify-center ${usesCompactVoiceSurface ? (isHomeMasterDark ? "bg-[#080715]" : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
+      <div className={`flex min-h-screen justify-center ${usesCompactVoiceSurface ? compactOuterSurfaceClass : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
         data-home-master-theme={usesCompactVoiceSurface && isHomeMasterDark ? "dark" : "light"}
         data-vyva-text-size={readableTextSize}
-        className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]") : ""}`}
+        className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? `min-h-screen ${compactInnerSurfaceClass}` : ""}`}
       >
         {!isFullScreen && !ownsPrototypeTopbar && (
           <StatusBar

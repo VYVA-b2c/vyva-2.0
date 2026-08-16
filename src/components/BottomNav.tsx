@@ -18,29 +18,32 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   const { t } = useLanguage();
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const usesHomeDockSurface = isHomeNavPrototypeDockRoute(location.pathname);
+  const isDevHomeMasterRoute = location.pathname === "/dev/home-master" || location.pathname.startsWith("/dev/home-master/");
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const homeLabel = isDevHomeMasterRoute ? "Home" : t("nav.home", "Home");
+  const reportsLabel = isDevHomeMasterRoute ? "My Reports" : t("nav.reports", "My Reports");
 
   const tabs: BottomNavTab[] = [
     {
       id: "home",
-      path: "/",
-      label: t("nav.home", "Home"),
+      path: isDevHomeMasterRoute ? "/dev/home-master" : "/",
+      label: homeLabel,
       icon: House,
       isActive: (pathname) => pathname === "/" || pathname === "/dev/home-master",
     },
     {
       id: "reports",
-      path: "/informes",
-      label: t("nav.reports", "My Reports"),
+      path: isDevHomeMasterRoute ? "/dev/home-master/reports" : "/informes",
+      label: reportsLabel,
       icon: FileText,
-      isActive: (pathname) => pathname.startsWith("/informes"),
+      isActive: (pathname) => pathname.startsWith("/informes") || pathname === "/dev/home-master/reports",
     },
   ];
 
   const handleTabClick = (tab: BottomNavTab) => {
     if (tab.id === "home" && isHomeRoute) return;
     if (tab.id === "home") {
-      navigate("/", { state: { vyvaHomeResetAt: Date.now() } });
+      navigate(tab.path, { state: { vyvaHomeResetAt: Date.now() } });
       return;
     }
 
@@ -78,7 +81,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
           />
         </div>
         <span
-          className={`max-w-[68px] text-center font-body text-[10.5px] font-bold leading-[1.05] transition-colors ${
+          className={`${usesHomeDockSurface ? "max-w-[86px] whitespace-nowrap text-[10px]" : "max-w-[68px] text-[10.5px]"} text-center font-body font-bold leading-[1.05] transition-colors ${
             activeVisual ? "text-vyva-purple" : usesHomeDockSurface && isHomeMasterDark ? "" : "text-vyva-text-3"
           }`}
           style={!activeVisual && usesHomeDockSurface && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
