@@ -163,7 +163,12 @@ function PrototypeShell({
 }) {
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
-  const widthClass = width === "flow" ? "max-w-[32.5rem]" : "max-w-[430px]";
+  // Keep the phone-first composition on small screens, but let the same
+  // surface breathe on tablets and desktop instead of leaving a narrow
+  // mobile column in the middle of a wide viewport.
+  const widthClass = width === "flow"
+    ? "max-w-[32.5rem] sm:max-w-[680px] lg:max-w-[900px]"
+    : "max-w-[430px] sm:max-w-[620px] lg:max-w-[760px]";
 
   return (
     <main
@@ -177,7 +182,7 @@ function PrototypeShell({
       ].join(" ")}
     >
       <div
-        data-testid={width === "flow" ? "checkin-desktop-shell" : undefined}
+        data-testid={width === "flow" ? "checkin-desktop-shell" : `${testId}-frame`}
         className={["mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", widthClass].join(" ")}
       >
         {children}
@@ -255,8 +260,10 @@ function VyvaProfileControl({
 
 function CompactVoiceTrigger({
   testId = "button-compact-voice",
+  voicePath = "/dev/home-master",
 }: {
   testId?: string;
+  voicePath?: string;
 }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
@@ -267,7 +274,7 @@ function CompactVoiceTrigger({
         type="button"
         aria-label="Return to VYVA voice mode"
         data-testid={testId}
-        onClick={() => navigate("/dev/home-master")}
+        onClick={() => navigate(voicePath)}
         className={[
           "vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border transition-colors duration-150",
           "border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)]",
@@ -287,6 +294,7 @@ function PrototypeTopbar({
   actionPath,
   compactVoice = false,
   profilePath = "/dev/home-master/profile",
+  voicePath = "/dev/home-master",
 }: {
   kind: "home" | "hub" | "destination" | "detail" | "profile";
   title?: string;
@@ -294,6 +302,7 @@ function PrototypeTopbar({
   actionPath?: string;
   compactVoice?: boolean;
   profilePath?: string;
+  voicePath?: string;
 }) {
   const navigate = usePrototypeNavigate();
   const left = kind === "home" || kind === "hub" ? (
@@ -321,7 +330,7 @@ function PrototypeTopbar({
           />
         </div>
       ) : compactVoice ? (
-        <CompactVoiceTrigger />
+        <CompactVoiceTrigger voicePath={voicePath} />
       ) : (
         <div aria-hidden="true" />
       )}
@@ -637,6 +646,8 @@ export function PrototypeHealthScreen({
   symptomReportPath = "/dev/home-master/symptom-report",
   vitalsPath = "/dev/home-master/vitals",
   medicinesPath = "/dev/home-master/medicines",
+  voicePath = "/dev/home-master",
+  profilePath = "/dev/home-master/profile",
 }: {
   checkInPath?: string;
   healthPlanPath?: string;
@@ -655,7 +666,7 @@ export function PrototypeHealthScreen({
 
   return (
     <PrototypeShell testId="prototype-health-screen">
-      <PrototypeTopbar kind="hub" profilePath="/dev/home-master/profile" compactVoice />
+      <PrototypeTopbar kind="hub" profilePath={profilePath} voicePath={voicePath} compactVoice />
       <HairlineRows items={healthRows} />
     </PrototypeShell>
   );
