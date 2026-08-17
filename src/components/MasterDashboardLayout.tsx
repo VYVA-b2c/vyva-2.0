@@ -210,7 +210,7 @@ export default function MasterDashboardLayout({
       className={[
         "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
         isHomeMaster
-          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] md:pb-[132px] lg:max-w-[390px]"
+          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] md:pb-[132px] lg:max-w-[760px]"
           : "",
         presentationClassName ?? "",
       ].join(" ")}
@@ -245,7 +245,7 @@ export default function MasterDashboardLayout({
                 `text-balance leading-[0.98] text-vyva-text-1 ${isHomeMaster ? "vyva-home-master-readable" : ""} ${isHomeMasterContextMessage ? "vyva-home-master-context-title" : ""}`,
                 isHomeMaster
                   ? [
-                      `mx-auto font-body font-bold tracking-normal ${isHomeMasterContextMessage ? "max-w-[20rem] text-[25px] leading-[1.04] min-[390px]:text-[27px] sm:max-w-[34rem] sm:text-[32px] md:max-w-[40rem] md:text-[35px]" : isHomeMasterIntentLayer ? "max-w-[19rem] text-[26px] min-[390px]:text-[28px] sm:max-w-[30rem] sm:text-[33px] md:text-[36px]" : "max-w-[19rem] text-[24px] min-[390px]:text-[26px] sm:max-w-[28rem] sm:text-[31px] md:max-w-[36rem] md:text-[36px] lg:text-[38px]"}`,
+                      `mx-auto font-body font-bold tracking-normal ${isHomeMasterContextMessage ? "max-w-[20rem] text-[25px] leading-[1.04] min-[390px]:text-[27px] sm:max-w-[34rem] sm:text-[32px] md:max-w-[40rem] md:text-[35px] lg:max-w-[52rem] lg:text-[42px]" : isHomeMasterIntentLayer ? "max-w-[19rem] text-[26px] min-[390px]:text-[28px] sm:max-w-[30rem] sm:text-[33px] md:text-[36px] lg:max-w-[52rem] lg:text-[42px]" : "max-w-[19rem] text-[24px] min-[390px]:text-[26px] sm:max-w-[28rem] sm:text-[31px] md:max-w-[36rem] md:text-[36px] lg:max-w-[52rem] lg:text-[44px]"}`,
                       isHomeMasterDark ? "!text-[#FFF8FF] drop-shadow-[0_2px_12px_rgba(0,0,0,0.22)]" : "!text-[#24113D]",
                     ].join(" ")
                   : "max-w-[8.6em] font-body text-[29px] font-black min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]",
