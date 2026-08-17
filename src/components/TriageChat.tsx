@@ -20,6 +20,8 @@ import {
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
+import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
+import type { SymptomAssessmentStageId } from "@/design/screenPresentation";
 import TriageScanCard from "@/components/TriageScanCard";
 import { ListenButton } from "@/components/ListenButton";
 import { selectTriageScanOffer } from "@/lib/triageScanOffers";
@@ -165,6 +167,7 @@ interface TriageChatProps {
   language?: string;
   languageReady?: boolean;
   showProgressCard?: boolean;
+  presentationStage?: SymptomAssessmentStageId;
   onStageChange?: (stage: string, urgent?: boolean) => void;
   onDraftChange?: (draft: TriageChatDraft) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
@@ -348,6 +351,7 @@ export default function TriageChat({
   language,
   languageReady = true,
   showProgressCard = false,
+  presentationStage,
   onStageChange,
   onDraftChange,
   onVitalsScanned,
@@ -923,7 +927,27 @@ export default function TriageChat({
             </HealthWizardCard>
           ) : null}
 
-          {safetyAlert && (
+          {safetyAlert && presentationStage === "urgent_escalation" ? (
+            <SymptomAssessmentPresentation
+              stageId="urgent_escalation"
+              modality="touch"
+              helper={safetyAlert.recommendation}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (emergencyContact?.telHref) window.location.href = emergencyContact.telHref;
+                }}
+                disabled={!emergencyContact?.telHref}
+                className="vyva-tap inline-flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#DC2626] px-5 font-body text-[19px] font-black text-white shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
+              >
+                <PhoneCall size={22} />
+                {emergencyContact?.telHref
+                  ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+                  : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+              </button>
+            </SymptomAssessmentPresentation>
+          ) : safetyAlert && (
             <HealthWizardHero
               tone="red"
               className="motion-safe:animate-pulse"
@@ -949,7 +973,29 @@ export default function TriageChat({
             </HealthWizardHero>
           )}
 
-          {showQuestion && (
+          {showQuestion && presentationStage && presentationStage !== "urgent_escalation" ? (
+            <SymptomAssessmentPresentation
+              stageId={presentationStage}
+              modality="touch"
+              title={latestQuestion}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-vyva-purple shadow-sm">
+                  <Brain className="h-4 w-4" />
+                  <span data-testid="triage-question-progress">
+                    {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
+                  </span>
+                </span>
+                <ListenButton
+                  text={readoutText}
+                  language={activeLanguage}
+                  label={t("health.symptomCheck.chat.playQuestion", "Play question")}
+                  stopLabel={t("health.symptomCheck.chat.stopQuestion", "Stop")}
+                  className="min-h-[42px] px-3 text-[13px]"
+                />
+              </div>
+            </SymptomAssessmentPresentation>
+          ) : showQuestion && (
             <HealthWizardCard className="overflow-hidden border-[#D8C7FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBFAFF_54%,#FFF8EA_100%)] px-5 py-5 shadow-[0_18px_44px_rgba(107,33,168,0.12)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
