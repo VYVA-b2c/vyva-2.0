@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  PREVENTIVE_CHECK_PRESENTATION_SCENES,
+  PREVENTIVE_CHECK_STAGE_IDS,
+  SYMPTOM_ASSESSMENT_PRESENTATION_SCENES,
+  SYMPTOM_ASSESSMENT_STAGE_IDS,
   getScreenPresentation,
+  resolvePreventiveCheckPresentation,
+  resolveSymptomAssessmentPresentation,
   shouldShowHeadingDetail,
 } from "./screenPresentation";
 import fr from "../i18n/fr";
@@ -12,6 +18,42 @@ function collectStrings(value: unknown): string[] {
 }
 
 describe("screen presentation", () => {
+  it("preserves all 11 ordered preventive-check stages in Voice and Touch", () => {
+    expect(PREVENTIVE_CHECK_STAGE_IDS).toEqual([
+      "welcome", "energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social", "analyzing", "result",
+    ]);
+    expect(Object.keys(PREVENTIVE_CHECK_PRESENTATION_SCENES)).toEqual(PREVENTIVE_CHECK_STAGE_IDS);
+
+    const voiceIds = new Set<string>();
+    const touchIds = new Set<string>();
+    for (const stageId of PREVENTIVE_CHECK_STAGE_IDS) {
+      const scenes = resolvePreventiveCheckPresentation(stageId);
+      expect(scenes).toEqual({
+        voiceSceneId: `health.preventive_check.${stageId}`,
+        touchSceneId: `check-how-i-feel.${stageId}`,
+      });
+      voiceIds.add(scenes.voiceSceneId);
+      touchIds.add(scenes.touchSceneId);
+    }
+    expect(voiceIds.size).toBe(11);
+    expect(touchIds.size).toBe(11);
+  });
+
+  it("maps the 11 symptom-assessment stages to registry, Voice, and Touch identities", () => {
+    expect(SYMPTOM_ASSESSMENT_STAGE_IDS).toEqual([
+      "describe", "safety_check", "urgent_escalation", "symptom_selection", "severity", "onset",
+      "related_details", "review", "checking", "safest_next_step", "save_share_summary",
+    ]);
+    expect(Object.keys(SYMPTOM_ASSESSMENT_PRESENTATION_SCENES)).toEqual(SYMPTOM_ASSESSMENT_STAGE_IDS);
+    for (const stageId of SYMPTOM_ASSESSMENT_STAGE_IDS) {
+      const scenes = resolveSymptomAssessmentPresentation(stageId);
+      expect(scenes.voiceSceneId).toBe(`health.symptom_assessment.${stageId}.voice`);
+      expect(scenes.touchSceneId).toBe(`health.symptom_assessment.${stageId}.touch`);
+      expect(scenes.voiceSceneId).not.toBe(scenes.touchSceneId);
+      expect(scenes.registrySceneId).toMatch(/^health\.symptom_assessment\.(describe|safety|details|review|guidance)$/);
+    }
+  });
+
   it("keeps Home voice mode orb-first with cards and chips hidden", () => {
     const presentation = getScreenPresentation({ screenId: "home", mode: "voice" });
 

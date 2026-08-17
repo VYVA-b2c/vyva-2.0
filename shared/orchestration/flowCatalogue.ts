@@ -875,6 +875,33 @@ const canonicalFlows = [...genericFlows, ...visualFlows];
 replaceFlow(canonicalFlows, "health.symptom_assessment", {
   ownerSpecialistId: "symptom_assessment",
   subflowIds: visualFlowIds,
+  uiScenes: [
+    {
+      sceneId: "health.symptom_assessment.describe",
+      purpose: "Understand what the user is feeling in their own words.",
+      supportedInstructionTypes: ["show_text_prompt"],
+    },
+    {
+      sceneId: "health.symptom_assessment.safety",
+      purpose: "Check warning signs and present urgent escalation when required.",
+      supportedInstructionTypes: ["show_choice_question"],
+    },
+    {
+      sceneId: "health.symptom_assessment.details",
+      purpose: "Collect symptoms, severity, onset, and related details.",
+      supportedInstructionTypes: ["show_choice_question", "show_scale", "show_text_prompt"],
+    },
+    {
+      sceneId: "health.symptom_assessment.review",
+      purpose: "Review answers and show checking progress.",
+      supportedInstructionTypes: ["show_confirmation", "show_progress"],
+    },
+    {
+      sceneId: "health.symptom_assessment.guidance",
+      purpose: "Present the safest next step and saveable or shareable summary.",
+      supportedInstructionTypes: ["show_summary"],
+    },
+  ],
 });
 replaceFlow(canonicalFlows, "health.preventive_check", {
   status: "pilot",

@@ -150,6 +150,27 @@ describe("CheckHowIFeelScreen voice and screen synchronization", () => {
     sendTextMock.mockReset();
   });
 
+  it("exposes the current preventive-check stage and both presentation scenes", async () => {
+    apiFetchMock.mockImplementation(async (url: string) => {
+      if (url === HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FEATURE_ENDPOINT) {
+        return { enabled: true, rolloutPercentage: 100 };
+      }
+      return {};
+    });
+    renderCheckin();
+
+    const flow = screen.getByTestId("checkin-flow-screen");
+    expect(flow).toHaveAttribute("data-preventive-check-stage", "welcome");
+    expect(flow).toHaveAttribute("data-voice-presentation-scene", "health.preventive_check.welcome");
+    expect(flow).toHaveAttribute("data-touch-presentation-scene", "check-how-i-feel.welcome");
+
+    fireEvent.click(screen.getByTestId("button-checkin-start"));
+    await screen.findByText("How much energy do you have today?");
+    expect(flow).toHaveAttribute("data-preventive-check-stage", "energy");
+    expect(flow).toHaveAttribute("data-voice-presentation-scene", "health.preventive_check.energy");
+    expect(flow).toHaveAttribute("data-touch-presentation-scene", "check-how-i-feel.energy");
+  });
+
   it("sends equivalent voice and touch answers through the same canonical Health transition path", async () => {
     apiFetchMock.mockResolvedValue({
       ok: true,

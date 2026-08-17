@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -6,10 +6,11 @@ type HealthWizardShellProps = {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  contentAttributes?: Omit<HTMLAttributes<HTMLDivElement>, "className" | "children">;
   testId?: string;
 };
 
-export function HealthWizardShell({ children, className, contentClassName, testId }: HealthWizardShellProps) {
+export function HealthWizardShell({ children, className, contentClassName, contentAttributes, testId }: HealthWizardShellProps) {
   return (
     <div
       className={cn(
@@ -17,7 +18,7 @@ export function HealthWizardShell({ children, className, contentClassName, testI
         className,
       )}
     >
-      <div data-testid={testId} className={cn("mx-auto w-full max-w-[560px] px-[18px] pb-36 pt-1 md:max-w-[1040px] md:px-10", contentClassName)}>
+      <div {...contentAttributes} data-testid={testId} className={cn("mx-auto w-full max-w-[560px] px-[18px] pb-36 pt-1 md:max-w-[1040px] md:px-10", contentClassName)}>
         {children}
       </div>
     </div>

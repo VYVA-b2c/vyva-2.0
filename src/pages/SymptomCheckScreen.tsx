@@ -27,8 +27,30 @@ import {
 import type { TriagePersonalizedSuggestion } from "@/triage";
 import type { ShoppingSupportPackageId } from "../../shared/shopping";
 import type { TriageScanResult } from "../../shared/triageScans";
+import {
+  resolveSymptomAssessmentPresentation,
+  type SymptomAssessmentStageId,
+} from "@/design/screenPresentation";
 
 type Step = "intro" | "chat" | "report";
+
+export function symptomAssessmentStageForRuntime(
+  runtimeStage: string | null | undefined,
+  urgent = false,
+): SymptomAssessmentStageId {
+  if (urgent) return "urgent_escalation";
+  switch (runtimeStage) {
+    case "checking": return "checking";
+    case "red_flag": return "safety_check";
+    case "symptom": return "symptom_selection";
+    case "severity": return "severity";
+    case "duration": return "onset";
+    case "trend": return "related_details";
+    case "support": return "review";
+    case "complete": return "safest_next_step";
+    default: return "describe";
+  }
+}
 
 type SymptomCheckLocationState = {
   initialClue?: string;
@@ -3407,6 +3429,9 @@ export default function SymptomCheckScreen() {
     staleTime: 2 * 60 * 1000,
   });
   const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? (incomingInitialClue ? "chat" : "intro"));
+  const [touchAssessmentStage, setTouchAssessmentStage] = useState<SymptomAssessmentStageId>(() => (
+    restoredDraft?.step === "report" ? "safest_next_step" : incomingInitialClue ? "symptom_selection" : "describe"
+  ));
   const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
     queryKey: ["/api/onboarding/careteam"],
     enabled: step === "report",
@@ -3538,6 +3563,7 @@ export default function SymptomCheckScreen() {
     setVoiceStartPending(false);
     voiceTriageAnswerMutation.reset();
     setStep("intro");
+    setTouchAssessmentStage("describe");
   }, [voiceTriageAnswerMutation]);
 
   useEffect(() => {
@@ -3584,6 +3610,7 @@ export default function SymptomCheckScreen() {
     setChatStartTime(Date.now());
     setAutoStartVoice(withVoice);
     setStep("chat");
+    setTouchAssessmentStage(clue ? "symptom_selection" : "describe");
   };
 
   const handleIntroStart = useCallback((clue: string) => {
@@ -3925,10 +3952,27 @@ export default function SymptomCheckScreen() {
       : null;
   const activeVoiceTriageSession = voiceTriageSession ?? provisionalVoiceTriageSession;
   const canAnswerVoiceTriageSession = Boolean(voiceTriageSession);
+  const voiceRuntimeStage = activeVoiceTriageSession?.latest_response?.question?.stage;
+  const voiceUrgent = activeVoiceTriageSession?.status === "emergency"
+    || activeVoiceTriageSession?.latest_response?.status === "emergency";
+  const currentAssessmentStage = activeVoiceTriageSession
+    ? symptomAssessmentStageForRuntime(voiceRuntimeStage, voiceUrgent)
+    : step === "report"
+      ? (reportSaveState === "saved" ? "save_share_summary" : "safest_next_step")
+      : touchAssessmentStage;
+  const currentAssessmentPresentation = resolveSymptomAssessmentPresentation(currentAssessmentStage);
 
   return (
     <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col px-0 pb-10 pt-0`}>
-      <div className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`} data-testid="symptom-check-shell">
+      <div
+        className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`}
+        data-testid="symptom-check-shell"
+        data-flow-id="health.symptom_assessment"
+        data-stage-id={currentAssessmentStage}
+        data-registry-scene={currentAssessmentPresentation.registrySceneId}
+        data-voice-presentation-id={currentAssessmentPresentation.voiceSceneId}
+        data-touch-presentation-id={currentAssessmentPresentation.touchSceneId}
+      >
         {step === "intro" && !activeVoiceTriageSession ? (
           <button
             type="button"
@@ -3995,6 +4039,9 @@ export default function SymptomCheckScreen() {
             resumePendingRequest={resumePendingRequest}
             language={language}
             languageReady={!profileLoading}
+            onStageChange={(runtimeStage, urgent) => setTouchAssessmentStage(
+              symptomAssessmentStageForRuntime(runtimeStage, urgent),
+            )}
             onDraftChange={handleChatDraftChange}
             onVitalsScanned={(nextBpm, nextRespiratoryRate) => {
               if (nextBpm != null) setBpm(nextBpm);

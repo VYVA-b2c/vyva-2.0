@@ -61,9 +61,26 @@ const mutatePresentation = (
 };
 
 describe("Presentation identity and versioning", () => {
+  it("registers all 11 symptom-assessment moments against its five canonical scenes", () => {
+    const presentations = VYVA_PRESENTATION_REGISTRY.presentations.filter(
+      (item) => item.supportedFlowIds.includes("health.symptom_assessment"),
+    );
+    expect(presentations.map((item) => item.metadata.moment)).toEqual([
+      "describe", "safety_check", "urgent_escalation", "symptom_selection", "severity", "onset",
+      "related_details", "review", "checking", "safest_next_step", "save_share_summary",
+    ]);
+    expect(new Set(presentations.map((item) => item.sceneId))).toEqual(new Set([
+      "health.symptom_assessment.describe",
+      "health.symptom_assessment.safety",
+      "health.symptom_assessment.details",
+      "health.symptom_assessment.review",
+      "health.symptom_assessment.guidance",
+    ]));
+  });
+
   it("accepts the canonical Presentation Registry", () => {
     expect(parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY).presentations)
-      .toHaveLength(66);
+      .toHaveLength(77);
   });
   it("registers Mental Wellbeing support presentations through existing families", () => {
     const registry = parsePresentationRegistry(VYVA_PRESENTATION_REGISTRY);
@@ -186,7 +203,7 @@ describe("Presentation identity and versioning", () => {
       registry.presentations[1].presentationId;
     registry.presentations[0].compatibility.replacementVersion =
       registry.presentations[1].version;
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(66);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(77);
   });
   it("rejects an unresolved deprecated replacement", () => {
     const registry = clone(VYVA_PRESENTATION_REGISTRY);
@@ -962,7 +979,7 @@ describe("bounded metadata and implementation isolation", () => {
     registry.presentations[0].metadata = {
       futurePolicy: { enabled: true, labels: ["one"], note: null },
     };
-    expect(parsePresentationRegistry(registry).presentations).toHaveLength(66);
+    expect(parsePresentationRegistry(registry).presentations).toHaveLength(77);
   });
   it.each(["apiKey", "providerClient", "callback"])(
     "rejects reserved metadata key %s",
@@ -1016,7 +1033,7 @@ describe("bounded metadata and implementation isolation", () => {
   });
   it("accepts future Family and Presentation fixtures", () => {
     expect(parsePresentationRegistry(futurePresentationRegistryFixture).presentations)
-      .toHaveLength(67);
+      .toHaveLength(78);
   });
 });
 

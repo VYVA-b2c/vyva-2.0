@@ -165,6 +165,7 @@ interface TriageChatProps {
   language?: string;
   languageReady?: boolean;
   showProgressCard?: boolean;
+  onStageChange?: (stage: string, urgent?: boolean) => void;
   onDraftChange?: (draft: TriageChatDraft) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
   onVoiceAutoStarted?: () => void;
@@ -347,6 +348,7 @@ export default function TriageChat({
   language,
   languageReady = true,
   showProgressCard = false,
+  onStageChange,
   onDraftChange,
   onVitalsScanned,
   onVoiceAutoStarted,
@@ -520,6 +522,7 @@ export default function TriageChat({
     ) => {
       if (!languageReady) return;
       setLoading(true);
+      onStageChange?.("checking");
       try {
         const wizardVitals = {
           bpm: vitalsOverride?.bpm ?? bpm,
@@ -557,6 +560,7 @@ export default function TriageChat({
         setProfileContextUsed(Boolean(res.profileContextUsed));
         setVitalsPrompt(res.vitalsPrompt && Array.isArray(res.vitalsPrompt.actions) && res.vitalsPrompt.actions.length ? res.vitalsPrompt : null);
         setGuidancePlan(res.guidancePlan ?? null);
+        onStageChange?.(res.guidancePlan?.stage ?? (res.done ? "complete" : "symptom"), Boolean(res.safetyAlert));
         setMedicalFollowups(
           !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
             ? res.medicalFollowups
@@ -608,7 +612,7 @@ export default function TriageChat({
         setLoading(false);
       }
     },
-    [activeLanguage, animateMessage, bpm, declinedScanTypes, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, messages.length, onComplete, respiratoryRate, scanResults, selectedQuickAnswers, t]
+    [activeLanguage, animateMessage, bpm, declinedScanTypes, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, messages.length, onComplete, onStageChange, respiratoryRate, scanResults, selectedQuickAnswers, t]
   );
 
   useEffect(() => {
