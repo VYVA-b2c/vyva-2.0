@@ -448,9 +448,9 @@ function RowCard({ item }: { item: RowItem }) {
   );
 }
 
-function HairlineRows({ items }: { items: RowItem[] }) {
+function HairlineRows({ items, testId = "prototype-row-list" }: { items: RowItem[]; testId?: string }) {
   return (
-    <div className="mt-7 space-y-4" data-testid="prototype-row-list">
+    <div className="mt-7 space-y-4" data-testid={testId}>
       {items.map((item) => (
         <RowCard key={item.title} item={item} />
       ))}
@@ -627,7 +627,7 @@ export function PrototypeMenuScreen() {
   return (
     <PrototypeShell testId="prototype-menu-screen">
       <PrototypeTopbar kind="hub" profilePath="/dev/home-master/profile" compactVoice />
-      <HairlineRows items={items} />
+      <HairlineRows items={items} testId="menu-tile-grid" />
     </PrototypeShell>
   );
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -87,6 +87,7 @@ describe("Home/Nav prototype screens", () => {
     renderScreen(<PrototypeMenuScreen />);
 
     expect(screen.getByTestId("prototype-menu-screen")).toBeInTheDocument();
+    expect(within(screen.getByTestId("menu-tile-grid")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
     expect(screen.getAllByTestId(/card-home-agent-/)).toHaveLength(4);
