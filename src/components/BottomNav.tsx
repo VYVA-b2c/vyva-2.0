@@ -98,13 +98,13 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         "left-1/2 z-50 w-full -translate-x-1/2 backdrop-blur",
         usesHomeDockSurface
           ? isHomeMasterDark
-            ? "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-white/10 bg-[#171225]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[72px] md:max-w-[390px] lg:h-[72px] lg:max-w-[390px]"
-            : "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-[#EEE4F6] bg-white/95 shadow-[0_12px_28px_rgba(63,45,35,0.10)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[72px] md:max-w-[390px] lg:h-[72px] lg:max-w-[390px]"
+            ? "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-white/10 bg-[#171225]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[72px] md:max-w-[390px] lg:h-[80px] lg:max-w-[760px]"
+            : "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-[#EEE4F6] bg-white/95 shadow-[0_12px_28px_rgba(63,45,35,0.10)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[72px] md:max-w-[390px] lg:h-[80px] lg:max-w-[760px]"
           : `fixed bottom-0 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`,
       ].join(" ")}
       style={usesHomeDockSurface ? undefined : { height: "calc(88px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className={`mx-auto grid h-full w-full grid-cols-3 items-center gap-2 ${usesHomeDockSurface ? "px-5 sm:px-7 md:px-8 lg:px-10" : `px-7 ${wide ? "max-w-[560px]" : ""}`}`}>
+      <div className={`mx-auto grid h-full w-full grid-cols-3 items-center gap-2 ${usesHomeDockSurface ? "px-5 sm:px-7 md:px-8 lg:px-14" : `px-7 ${wide ? "max-w-[560px]" : ""}`}`}>
         {renderTab(tabs[0])}
         <button
           data-testid="nav-tab-sos"
