@@ -10,6 +10,74 @@ import {
   type ScreenVisibility,
 } from "./screenContracts";
 
+export const PREVENTIVE_CHECK_STAGE_IDS = [
+  "welcome", "energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social", "analyzing", "result",
+] as const;
+
+export type PreventiveCheckStageId = (typeof PREVENTIVE_CHECK_STAGE_IDS)[number];
+
+export type FlowPresentationScenes = {
+  voiceSceneId: string;
+  touchSceneId: string;
+};
+
+export const PREVENTIVE_CHECK_PRESENTATION_SCENES = Object.freeze(Object.fromEntries(
+  PREVENTIVE_CHECK_STAGE_IDS.map((stageId) => [stageId, Object.freeze({
+    voiceSceneId: `health.preventive_check.${stageId}`,
+    touchSceneId: `check-how-i-feel.${stageId}`,
+  })]),
+) as Record<PreventiveCheckStageId, FlowPresentationScenes>);
+
+export function resolvePreventiveCheckPresentation(stageId: PreventiveCheckStageId) {
+  return PREVENTIVE_CHECK_PRESENTATION_SCENES[stageId];
+}
+
+export const SYMPTOM_ASSESSMENT_STAGE_IDS = [
+  "describe",
+  "safety_check",
+  "urgent_escalation",
+  "symptom_selection",
+  "severity",
+  "onset",
+  "related_details",
+  "review",
+  "checking",
+  "safest_next_step",
+  "save_share_summary",
+] as const;
+
+export type SymptomAssessmentStageId = (typeof SYMPTOM_ASSESSMENT_STAGE_IDS)[number];
+
+export const SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE = {
+  describe: "health.symptom_assessment.describe",
+  safety_check: "health.symptom_assessment.safety",
+  urgent_escalation: "health.symptom_assessment.safety",
+  symptom_selection: "health.symptom_assessment.details",
+  severity: "health.symptom_assessment.details",
+  onset: "health.symptom_assessment.details",
+  related_details: "health.symptom_assessment.details",
+  review: "health.symptom_assessment.review",
+  checking: "health.symptom_assessment.review",
+  safest_next_step: "health.symptom_assessment.guidance",
+  save_share_summary: "health.symptom_assessment.guidance",
+} as const satisfies Record<SymptomAssessmentStageId, string>;
+
+export type SymptomAssessmentPresentationScenes = FlowPresentationScenes & {
+  registrySceneId: (typeof SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE)[SymptomAssessmentStageId];
+};
+
+export const SYMPTOM_ASSESSMENT_PRESENTATION_SCENES = Object.freeze(Object.fromEntries(
+  SYMPTOM_ASSESSMENT_STAGE_IDS.map((stageId) => [stageId, Object.freeze({
+    registrySceneId: SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE[stageId],
+    voiceSceneId: `health.symptom_assessment.${stageId}.voice`,
+    touchSceneId: `health.symptom_assessment.${stageId}.touch`,
+  })]),
+) as Record<SymptomAssessmentStageId, SymptomAssessmentPresentationScenes>);
+
+export function resolveSymptomAssessmentPresentation(stageId: SymptomAssessmentStageId) {
+  return SYMPTOM_ASSESSMENT_PRESENTATION_SCENES[stageId];
+}
+
 export type ScreenPresentationVisibility = ScreenVisibility | "contextual";
 
 export interface ScreenPresentationInput {

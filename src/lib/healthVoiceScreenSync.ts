@@ -1,5 +1,6 @@
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 import type { VoiceCanvasResponseDetail } from "@/lib/voiceCanvasBridge";
+import { resolvePreventiveCheckPresentation } from "@/design/screenPresentation";
 
 export const HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID = "health.preventive_check" as const;
 export const HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_OWNER = "health_preventive_check" as const;
@@ -203,7 +204,7 @@ export function createHealthVoiceScreenSyncSessionInstanceId() {
 }
 
 export function healthVoiceScreenSyncSceneId(step: HealthVoiceScreenSyncStep) {
-  return `${HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID}.${step}`;
+  return resolvePreventiveCheckPresentation(step).voiceSceneId;
 }
 
 export function healthVoiceScreenSyncQuestion(input: {

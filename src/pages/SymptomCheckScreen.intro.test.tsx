@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AssessmentConfidenceTracker, IntroScreen } from "./SymptomCheckScreen";
+import { AssessmentConfidenceTracker, IntroScreen, symptomAssessmentStageForRuntime } from "./SymptomCheckScreen";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 
 const { apiFetchMock } = vi.hoisted(() => ({
@@ -11,7 +13,74 @@ vi.mock("@/lib/queryClient", () => ({
   apiFetch: apiFetchMock,
   queryClient: {
     invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
   },
+}));
+
+vi.mock("@/contexts/ProfileContext", () => ({
+  useProfile: () => ({ isLoading: false }),
+}));
+
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({ language: "en" }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+vi.mock("@/hooks/useHomeFastHelpOutcome", () => ({
+  useHomeFastHelpOutcome: () => ({
+    markCompleted: vi.fn(),
+    markAbandoned: vi.fn(),
+    markBlocked: vi.fn(),
+  }),
+}));
+
+vi.mock("@/components/TriageChat", () => ({
+  default: ({
+    onStageChange,
+    onComplete,
+  }: {
+    onStageChange?: (stage: string, urgent?: boolean) => void;
+    onComplete: (summary: Record<string, unknown>) => void;
+  }) => (
+    <div data-testid="mock-triage-runtime">
+      {[
+        ["red_flag", false],
+        ["red_flag", true],
+        ["symptom", false],
+        ["severity", false],
+        ["duration", false],
+        ["trend", false],
+        ["support", false],
+        ["checking", false],
+        ["complete", false],
+      ].map(([stage, urgent]) => (
+        <button
+          key={`${stage}-${urgent}`}
+          type="button"
+          data-testid={`runtime-${stage}-${urgent ? "urgent" : "normal"}`}
+          onClick={() => onStageChange?.(String(stage), Boolean(urgent))}
+        >
+          {String(stage)}
+        </button>
+      ))}
+      <button
+        type="button"
+        data-testid="runtime-finish"
+        onClick={() => onComplete({
+          chiefComplaint: "Headache",
+          symptoms: ["headache"],
+          urgency: "monitor",
+          recommendations: ["Rest and monitor"],
+          disclaimer: "Not a diagnosis",
+        })}
+      >
+        finish
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -25,6 +94,19 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 describe("SymptomCheck intro chips", () => {
+  it("maps the live triage runtime onto symptom-assessment presentation stages", () => {
+    expect(symptomAssessmentStageForRuntime(undefined)).toBe("describe");
+    expect(symptomAssessmentStageForRuntime("red_flag")).toBe("safety_check");
+    expect(symptomAssessmentStageForRuntime("red_flag", true)).toBe("urgent_escalation");
+    expect(symptomAssessmentStageForRuntime("symptom")).toBe("symptom_selection");
+    expect(symptomAssessmentStageForRuntime("severity")).toBe("severity");
+    expect(symptomAssessmentStageForRuntime("duration")).toBe("onset");
+    expect(symptomAssessmentStageForRuntime("trend")).toBe("related_details");
+    expect(symptomAssessmentStageForRuntime("support")).toBe("review");
+    expect(symptomAssessmentStageForRuntime("checking")).toBe("checking");
+    expect(symptomAssessmentStageForRuntime("complete")).toBe("safest_next_step");
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     apiFetchMock.mockReset();
@@ -59,6 +141,64 @@ describe("SymptomCheck intro chips", () => {
       score: 3421,
     },
   ];
+
+  it("exposes all 11 ordered runtime presentation identities on the real screen", async () => {
+    const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");
+    apiFetchMock.mockImplementation(async (url: string) => {
+      if (url === "/api/reports/triage") {
+        return { ok: true, json: async () => ({ id: "report-11" }) };
+      }
+      if (url === "/api/symptoms/log") return { ok: true, json: async () => ({}) };
+      return { ok: true, json: async () => ({}) };
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, queryFn: async () => ({}) },
+      },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/health/symptoms"]}>
+          <SymptomCheckScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const shell = screen.getByTestId("symptom-check-shell");
+    const expectStage = (stageId: string) => {
+      expect(shell).toHaveAttribute("data-flow-id", "health.symptom_assessment");
+      expect(shell).toHaveAttribute("data-stage-id", stageId);
+      expect(shell).toHaveAttribute("data-voice-presentation-id", `health.symptom_assessment.${stageId}.voice`);
+      expect(shell).toHaveAttribute("data-touch-presentation-id", `health.symptom_assessment.${stageId}.touch`);
+    };
+
+    expectStage("describe");
+    fireEvent.click(screen.getByRole("button", { name: "I understand, continue to symptom check" }));
+    fireEvent.change(screen.getByTestId("input-symptom-clue"), { target: { value: "Headache" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start check" }));
+
+    await screen.findByTestId("mock-triage-runtime");
+    fireEvent.click(screen.getByTestId("runtime-red_flag-normal"));
+    expectStage("safety_check");
+    fireEvent.click(screen.getByTestId("runtime-red_flag-urgent"));
+    expectStage("urgent_escalation");
+    fireEvent.click(screen.getByTestId("runtime-symptom-normal"));
+    expectStage("symptom_selection");
+    fireEvent.click(screen.getByTestId("runtime-severity-normal"));
+    expectStage("severity");
+    fireEvent.click(screen.getByTestId("runtime-duration-normal"));
+    expectStage("onset");
+    fireEvent.click(screen.getByTestId("runtime-trend-normal"));
+    expectStage("related_details");
+    fireEvent.click(screen.getByTestId("runtime-support-normal"));
+    expectStage("review");
+    fireEvent.click(screen.getByTestId("runtime-checking-normal"));
+    expectStage("checking");
+    fireEvent.click(screen.getByTestId("runtime-complete-normal"));
+    expectStage("safest_next_step");
+    fireEvent.click(screen.getByTestId("runtime-finish"));
+    await waitFor(() => expectStage("save_share_summary"));
+  });
 
   it("shows a dynamic confidence tracker instead of a plain progress bar", () => {
     const { rerender } = render(<AssessmentConfidenceTracker current="chat" variant="compact" />);

@@ -20,6 +20,11 @@ import {
 } from "@/lib/voiceNavigation";
 import VoiceCanvasScene from "./VoiceCanvasScene";
 import type { VoiceCanvasChoice, VoiceCanvasViewModel } from "./types";
+import {
+  resolveSymptomAssessmentPresentation,
+  type SymptomAssessmentStageId,
+  type SymptomAssessmentPresentationScenes,
+} from "@/design/screenPresentation";
 
 export const CROSS_PILLAR_COMPLETION_ACTIONS = [
   "health-symptoms",
@@ -59,9 +64,19 @@ export type CrossPillarSubflowResult = {
 
 type CrossPillarSubflowCanvasProps = {
   actionId: CrossPillarCompletionActionId;
+  currentStage?: SymptomAssessmentStageId;
   onContinue: (result: CrossPillarSubflowResult) => void | Promise<void>;
   onCancel: () => void;
 };
+
+export function resolveCrossPillarSubflowPresentation(
+  actionId: CrossPillarCompletionActionId,
+  currentStage: SymptomAssessmentStageId = "describe",
+): SymptomAssessmentPresentationScenes | null {
+  return actionId === "health-symptoms"
+    ? resolveSymptomAssessmentPresentation(currentStage)
+    : null;
+}
 
 type OptionDefinition = {
   id: string;
@@ -464,11 +479,13 @@ function normalized(value: string) {
 
 export default function CrossPillarSubflowCanvas({
   actionId,
+  currentStage = "describe",
   onContinue,
   onCancel,
 }: CrossPillarSubflowCanvasProps) {
   const { t } = useTranslation();
   const definition = FLOW_DEFINITIONS[actionId];
+  const symptomAssessmentPresentation = resolveCrossPillarSubflowPresentation(actionId, currentStage);
   const [state, setState] = useState<PersistedCanvasState>(() => readPersistedState(actionId));
   const translatedOptions = useMemo(() => definition.options.map((option) => ({
     ...option,
@@ -607,6 +624,9 @@ export default function CrossPillarSubflowCanvas({
       data-testid="cross-pillar-subflow-canvas"
       data-action-id={actionId}
       data-step={state.step}
+      data-symptom-assessment-stage={symptomAssessmentPresentation ? currentStage : undefined}
+      data-voice-presentation-scene={symptomAssessmentPresentation?.voiceSceneId}
+      data-touch-presentation-scene={symptomAssessmentPresentation?.touchSceneId}
     >
       <VoiceCanvasScene
         viewModel={viewModel}
