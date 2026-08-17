@@ -556,7 +556,10 @@ export function PrototypeHomeScreen() {
   return (
     <PrototypeShell testId="home-master-layout">
       <PrototypeTopbar kind="home" actionPath="/dev/home-master/menu" profilePath="/dev/home-master/profile" />
-      <section className="flex flex-1 flex-col items-center justify-center pb-24 pt-12 text-center">
+      <section
+        data-testid="home-master-hero"
+        className="flex flex-1 flex-col items-center justify-center pb-24 pt-12 text-center"
+      >
         <h1
           className={[
             "max-w-[21rem] font-display text-[38px] font-semibold leading-[0.98] tracking-[-0.04em]",
