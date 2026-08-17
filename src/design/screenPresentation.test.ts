@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  SYMPTOM_ASSESSMENT_PRESENTATION_SCENES,
+  SYMPTOM_ASSESSMENT_STAGE_IDS,
   getScreenPresentation,
+  resolveSymptomAssessmentPresentation,
   shouldShowHeadingDetail,
 } from "./screenPresentation";
 import fr from "../i18n/fr";
@@ -12,6 +15,27 @@ function collectStrings(value: unknown): string[] {
 }
 
 describe("screen presentation", () => {
+  it("covers all 11 ordered symptom-assessment stages in Voice and Touch", () => {
+    expect(SYMPTOM_ASSESSMENT_STAGE_IDS).toEqual([
+      "welcome", "energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social", "analyzing", "result",
+    ]);
+    expect(Object.keys(SYMPTOM_ASSESSMENT_PRESENTATION_SCENES)).toEqual(SYMPTOM_ASSESSMENT_STAGE_IDS);
+
+    const voiceIds = new Set<string>();
+    const touchIds = new Set<string>();
+    for (const stageId of SYMPTOM_ASSESSMENT_STAGE_IDS) {
+      const scenes = resolveSymptomAssessmentPresentation(stageId);
+      expect(scenes).toEqual({
+        voiceSceneId: `health.preventive_check.${stageId}`,
+        touchSceneId: `check-how-i-feel.${stageId}`,
+      });
+      voiceIds.add(scenes.voiceSceneId);
+      touchIds.add(scenes.touchSceneId);
+    }
+    expect(voiceIds.size).toBe(11);
+    expect(touchIds.size).toBe(11);
+  });
+
   it("keeps Home voice mode orb-first with cards and chips hidden", () => {
     const presentation = getScreenPresentation({ screenId: "home", mode: "voice" });
 

@@ -21,6 +21,7 @@ import {
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { READABLE_TEXT_SIZE_STORAGE_KEY } from "@/hooks/useReadableTextSize";
+import { VYVA_HOME_INTERACTION_MODE_STORAGE_KEY } from "@/lib/homeModeControl";
 
 const navigateMock = vi.fn();
 
@@ -57,6 +58,7 @@ describe("Home/Nav prototype screens", () => {
   afterEach(() => {
     window.localStorage.removeItem(HOME_MASTER_THEME_STORAGE_KEY);
     window.localStorage.removeItem(READABLE_TEXT_SIZE_STORAGE_KEY);
+    window.localStorage.removeItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY);
   });
 
   it("renders the Home companion presence with profile/settings, manual menu, orb, and moment feed", () => {
@@ -91,7 +93,8 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
     expect(screen.getAllByTestId(/card-home-agent-/)).toHaveLength(4);
-    expect(screen.getByText("Health")).toBeInTheDocument();
+    expect(screen.getByText("My Health")).toBeInTheDocument();
+    expect(screen.getByText("Check-ins, vitals, medicines")).toBeInTheDocument();
     expect(screen.getByText("My Brain")).toBeInTheDocument();
     expect(screen.getByText("Community")).toBeInTheDocument();
     expect(screen.getByText("Concierge")).toBeInTheDocument();
@@ -99,11 +102,30 @@ describe("Home/Nav prototype screens", () => {
   });
 
   it("switches from manual Menu back to the voice Home surface when compact mic is tapped", () => {
+    window.localStorage.setItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY, "touch");
     renderScreen(<PrototypeMenuScreen />);
 
     fireEvent.click(screen.getByTestId("button-compact-voice"));
 
+    expect(window.localStorage.getItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY)).toBe("voice");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
+  });
+
+  it("marks the manual Menu as Touch so the shared Home dock preserves it", async () => {
+    renderScreen(<PrototypeMenuScreen />);
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY)).toBe("touch");
+    });
+  });
+
+  it("persists Touch before the Home hand opens the manual Menu", () => {
+    renderScreen(<PrototypeHomeScreen />);
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    expect(window.localStorage.getItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY)).toBe("touch");
+    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/menu");
   });
 
   it("renders the non-Health destination surfaces with the shared peer-screen controls and row grammar", () => {
@@ -139,10 +161,11 @@ describe("Home/Nav prototype screens", () => {
 
     expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
+    expect(screen.getByTestId("button-health-plan")).toHaveClass("bg-white");
     expect(screen.queryByTestId("prototype-health-orb")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask VYVA")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Health" })).not.toBeInTheDocument();
-    expect(screen.getByText("My Health Plan")).toBeInTheDocument();
+    expect(screen.getByText("Health Plan")).toBeInTheDocument();
     expect(screen.getByText("Preventive steps and guidance")).toBeInTheDocument();
     expect(screen.getByText("Symptom Check")).toBeInTheDocument();
     expect(screen.getByText("Aches, discomfort, or changes")).toBeInTheDocument();
@@ -231,6 +254,19 @@ describe("Home/Nav prototype screens", () => {
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/care-team");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/providers");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/profile/preferences");
+  });
+
+  it("keeps the large-text profile surface scrollable within the viewport", () => {
+    window.localStorage.setItem(READABLE_TEXT_SIZE_STORAGE_KEY, "large");
+
+    renderScreen(<PrototypeProfileScreen />);
+
+    const shell = screen.getByTestId("prototype-profile-screen");
+    expect(shell).toHaveAttribute("data-vyva-text-size", "large");
+    expect(shell).toHaveClass("h-[100svh]");
+    expect(shell).toHaveClass("max-h-[100svh]");
+    expect(shell).toHaveClass("overflow-y-auto");
+    expect(screen.getByTestId("button-profile-call-support")).toBeInTheDocument();
   });
 
   it("renders Preferences as a local profile sub-screen with changeable preference rows", () => {
@@ -380,7 +416,7 @@ describe("Home/Nav prototype screens", () => {
 
   it("renders local preview handoffs for protected Health destinations", () => {
     const cases = [
-      ["plan", "My Health Plan", "Your preventive plan will open here."],
+      ["plan", "Health Plan", "Your preventive plan will open here."],
       ["vitals", "Vitals Scan", "Latest readings and new measurements live here."],
       ["medicines", "Medicines", "Dose times and reminders open here."],
     ] as const;

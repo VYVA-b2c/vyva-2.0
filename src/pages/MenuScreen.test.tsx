@@ -80,8 +80,12 @@ describe("MenuScreen", () => {
 
     fireEvent.click(screen.getByTestId("button-menu-profile"));
 
-    expect(screen.getByTestId("menu-profile-menu")).toBeInTheDocument();
-    expect(screen.getByTestId("menu-profile-menu")).toHaveTextContent("Profile & settings");
+    const profileMenu = screen.getByTestId("menu-profile-menu");
+    expect(profileMenu).toBeInTheDocument();
+    expect(profileMenu).toHaveTextContent("Profile & settings");
+    expect(profileMenu).toHaveClass("max-h-[calc(100svh-104px)]");
+    expect(profileMenu).toHaveClass("box-border");
+    expect(profileMenu).toHaveClass("overflow-y-auto");
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/menu");
 
     fireEvent.click(screen.getByTestId("button-menu-profile-account"));
@@ -142,8 +146,9 @@ describe("MenuScreen", () => {
     expect(shell).toHaveClass("w-full");
     expect(shell).toHaveClass("max-w-[calc(100vw-32px)]");
     expect(shell).toHaveClass("min-[390px]:max-w-[366px]");
-    expect(shell).toHaveClass("sm:max-w-[390px]");
-    expect(shell).not.toHaveClass("sm:max-w-[560px]");
+    expect(shell).toHaveClass("sm:max-w-[620px]");
+    expect(shell).toHaveClass("lg:max-w-[760px]");
+    expect(shell).not.toHaveClass("sm:max-w-[390px]");
     expect(topbar).toHaveClass("px-1");
     expect(topbar).toHaveClass("sm:px-3");
     expect(screen.getByRole("heading", { name: "Menu" })).toHaveClass("sr-only");

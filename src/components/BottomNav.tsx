@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { isHomeNavPrototypeDockRoute } from "@/lib/homeNavPrototypeRoutes";
+import { writeHomeInteractionMode } from "@/lib/homeModeControl";
 
 type BottomNavTab = {
   id: string;
@@ -43,6 +44,9 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   const handleTabClick = (tab: BottomNavTab) => {
     if (tab.id === "home" && isHomeRoute) return;
     if (tab.id === "home") {
+      // Home is the voice-first landing surface. Leaving Touch mode here is
+      // intentional; the hand control is the explicit entry back to Menu.
+      writeHomeInteractionMode("voice");
       navigate(tab.path, { state: { vyvaHomeResetAt: Date.now() } });
       return;
     }

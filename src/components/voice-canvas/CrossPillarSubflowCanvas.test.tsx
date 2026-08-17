@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VYVA_VOICE_USER_MESSAGE_EVENT, type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
 import CrossPillarSubflowCanvas, {
   CROSS_PILLAR_COMPLETION_ACTIONS,
+  resolveCrossPillarSubflowPresentation,
   type CrossPillarCompletionActionId,
 } from "./CrossPillarSubflowCanvas";
 
@@ -36,6 +37,30 @@ beforeEach(() => {
 });
 
 describe("CrossPillarSubflowCanvas", () => {
+  it("resolves every symptom-assessment stage through the cross-pillar entry", () => {
+    expect(resolveCrossPillarSubflowPresentation("health-symptoms", "welcome")).toEqual({
+      voiceSceneId: "health.preventive_check.welcome",
+      touchSceneId: "check-how-i-feel.welcome",
+    });
+    expect(resolveCrossPillarSubflowPresentation("health-symptoms", "result")).toEqual({
+      voiceSceneId: "health.preventive_check.result",
+      touchSceneId: "check-how-i-feel.result",
+    });
+    expect(resolveCrossPillarSubflowPresentation("health-doctor", "welcome")).toBeNull();
+  });
+
+  it("exposes the resolved symptom-assessment entry presentation", () => {
+    renderCanvas("health-symptoms");
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-symptom-assessment-stage",
+      "welcome",
+    );
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-voice-presentation-scene",
+      "health.preventive_check.welcome",
+    );
+  });
+
   it("requires review and confirmation before continuing", async () => {
     const { onContinue } = renderCanvas();
 

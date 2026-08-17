@@ -3004,7 +3004,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
         aria-label={t("home.profileMenu.title", "Profile & settings")}
         data-testid="home-profile-menu"
         className={[
-          "absolute left-1/2 top-[88px] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-hidden rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px]",
+          "absolute left-1/2 top-[88px] box-border max-h-[calc(100svh-104px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-y-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-h-[calc(100svh-108px)] sm:max-w-[366px]",
           isHomeMasterDark
             ? "border-white/[0.12] bg-[#170C2A] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
             : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",

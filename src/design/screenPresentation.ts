@@ -10,6 +10,28 @@ import {
   type ScreenVisibility,
 } from "./screenContracts";
 
+export const SYMPTOM_ASSESSMENT_STAGE_IDS = [
+  "welcome", "energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social", "analyzing", "result",
+] as const;
+
+export type SymptomAssessmentStageId = (typeof SYMPTOM_ASSESSMENT_STAGE_IDS)[number];
+
+export type SymptomAssessmentPresentationScenes = {
+  voiceSceneId: string;
+  touchSceneId: string;
+};
+
+export const SYMPTOM_ASSESSMENT_PRESENTATION_SCENES = Object.freeze(Object.fromEntries(
+  SYMPTOM_ASSESSMENT_STAGE_IDS.map((stageId) => [stageId, Object.freeze({
+    voiceSceneId: `health.preventive_check.${stageId}`,
+    touchSceneId: `check-how-i-feel.${stageId}`,
+  })]),
+) as Record<SymptomAssessmentStageId, SymptomAssessmentPresentationScenes>);
+
+export function resolveSymptomAssessmentPresentation(stageId: SymptomAssessmentStageId) {
+  return SYMPTOM_ASSESSMENT_PRESENTATION_SCENES[stageId];
+}
+
 export type ScreenPresentationVisibility = ScreenVisibility | "contextual";
 
 export interface ScreenPresentationInput {

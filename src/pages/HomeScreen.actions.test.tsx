@@ -420,8 +420,12 @@ describe("Home fast service actions", () => {
     fireEvent.click(screen.getByTestId("button-home-mode-touch"));
     expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
     fireEvent.click(screen.getByTestId("button-home-profile"));
-    expect(screen.getByTestId("home-profile-menu")).toBeInTheDocument();
-    expect(screen.getByTestId("home-profile-menu")).toHaveTextContent("Profile & settings");
+    const profileMenu = screen.getByTestId("home-profile-menu");
+    expect(profileMenu).toBeInTheDocument();
+    expect(profileMenu).toHaveTextContent("Profile & settings");
+    expect(profileMenu).toHaveClass("max-h-[calc(100svh-104px)]");
+    expect(profileMenu).toHaveClass("box-border");
+    expect(profileMenu).toHaveClass("overflow-y-auto");
     expect(screen.getByTestId("button-home-profile-account")).toHaveTextContent("Account details");
     expect(screen.getByTestId("button-home-profile-health")).toHaveTextContent("Health profile");
     expect(screen.getByTestId("button-home-profile-medications")).toHaveTextContent("Medicines");

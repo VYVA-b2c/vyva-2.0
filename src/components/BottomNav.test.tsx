@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import BottomNav from "./BottomNav";
+import { VYVA_HOME_INTERACTION_MODE_STORAGE_KEY } from "@/lib/homeModeControl";
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({
@@ -31,6 +32,10 @@ function renderBottomNav(initialPath = "/") {
 }
 
 describe("BottomNav", () => {
+  afterEach(() => {
+    window.localStorage.removeItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY);
+  });
+
   it("renders exactly Home, SOS and My Reports", () => {
     renderBottomNav();
 
@@ -83,5 +88,25 @@ describe("BottomNav", () => {
     fireEvent.click(homeTab);
 
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/");
+  });
+
+  it("resets Touch mode to the voice Home surface when Home is selected", () => {
+    window.localStorage.setItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY, "touch");
+    renderBottomNav("/dev/home-master/health");
+
+    fireEvent.click(screen.getByTestId("nav-tab-home"));
+
+    expect(window.localStorage.getItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY)).toBe("voice");
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/dev/home-master");
+  });
+
+  it("also leaves the manual Menu for voice Home when its dock Home tab is selected", () => {
+    window.localStorage.setItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY, "touch");
+    renderBottomNav("/dev/home-master/menu");
+
+    fireEvent.click(screen.getByTestId("nav-tab-home"));
+
+    expect(window.localStorage.getItem(VYVA_HOME_INTERACTION_MODE_STORAGE_KEY)).toBe("voice");
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/dev/home-master");
   });
 });

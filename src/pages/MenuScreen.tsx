@@ -172,7 +172,7 @@ export default function MenuScreen({
       data-theme={isDark ? "dark" : "light"}
     >
       <div
-        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] lg:max-w-[390px]"
+        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[620px] lg:max-w-[760px]"
         data-testid="menu-shell"
       >
         <HomeMasterTopbar
@@ -213,7 +213,7 @@ export default function MenuScreen({
               aria-label="Profile & settings"
               data-testid="menu-profile-menu"
               className={[
-                "absolute left-1/2 top-[88px] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-hidden rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px]",
+                "absolute left-1/2 top-[88px] box-border max-h-[calc(100svh-104px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-y-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-h-[calc(100svh-108px)] sm:max-w-[366px]",
                 isDark
                   ? "border-white/[0.12] bg-[#170C2A] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
                   : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",
@@ -342,7 +342,7 @@ export default function MenuScreen({
                 key={tile.id}
                 type="button"
                 className={[
-                  "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px]",
+                  "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-colors duration-150 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[84px] sm:gap-4 sm:rounded-[26px]",
                   isDark
                     ? "bg-[#211235] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
                     : "bg-white shadow-[0_10px_22px_rgba(36,28,48,0.06)]",
@@ -353,7 +353,7 @@ export default function MenuScreen({
               >
                 <span
                   className={[
-                    "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px]",
+                    "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-14 sm:w-14 sm:rounded-[20px]",
                     isDark ? "ring-1 ring-inset ring-white/10" : "",
                   ].join(" ")}
                   style={{
@@ -364,10 +364,10 @@ export default function MenuScreen({
                   <Icon size={23} strokeWidth={2.15} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={["block font-display text-[20px] font-semibold leading-tight min-[390px]:text-[21px] sm:text-[24px]", isDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]"].join(" ")}>
+                  <span className={["block font-display text-[20px] font-semibold leading-tight min-[390px]:text-[21px] sm:text-[20px]", isDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]"].join(" ")}>
                     {tile.title}
                   </span>
-                  <span className={["mt-0.5 block font-body text-[13px] font-semibold leading-snug min-[390px]:mt-1 min-[390px]:text-[14px] sm:text-[15px]", isDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]"].join(" ")}>
+                  <span className={["mt-0.5 block font-body text-[13px] font-semibold leading-snug min-[390px]:mt-1 min-[390px]:text-[14px] sm:text-[13.5px]", isDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]"].join(" ")}>
                     {tile.detail}
                   </span>
                 </span>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { HTMLAttributes, MouseEvent, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -90,8 +90,13 @@ import {
   type CheckInFlowActions,
   type CheckInFlowState,
 } from "@/lib/checkInFlowAdapter";
+import {
+  SYMPTOM_ASSESSMENT_STAGE_IDS,
+  resolveSymptomAssessmentPresentation,
+  type SymptomAssessmentStageId,
+} from "@/design/screenPresentation";
 
-type StepId = "welcome" | "energy" | "mood" | "body" | "sleep" | "symptoms" | "details" | "safety" | "social" | "analyzing" | "result";
+type StepId = SymptomAssessmentStageId;
 
 type Answers = {
   energy_level: number | null;
@@ -169,7 +174,7 @@ type SingleOption = {
 type GrammaticalGender = "female" | "male" | "neutral";
 type WizardLocale = "es" | "en" | "de" | "fr" | "it" | "pt";
 
-const STEPS: StepId[] = ["welcome", "energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social", "analyzing", "result"];
+const STEPS: readonly StepId[] = SYMPTOM_ASSESSMENT_STAGE_IDS;
 const QUESTION_STEPS: StepId[] = ["energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social"];
 
 const initialAnswers: Answers = {
@@ -2034,6 +2039,7 @@ const CheckHowIFeelScreen = () => {
     step: "welcome",
     sceneRevision: 1,
   });
+  const currentPresentation = resolveSymptomAssessmentPresentation(step);
   const activeHealthVoiceQuestionRef = useRef<HealthVoiceScreenSyncQuestion | null>(null);
   const acceptedHealthVoiceScreenSyncEventIdsRef = useRef<Set<string>>(new Set());
   const healthVoiceTouchSequenceRef = useRef(0);
@@ -2730,7 +2736,14 @@ const CheckHowIFeelScreen = () => {
   });
 
   return (
-    <HealthWizardShell testId="checkin-flow-screen">
+    <HealthWizardShell
+      testId="checkin-flow-screen"
+      contentAttributes={{
+        "data-symptom-assessment-stage": step,
+        "data-voice-presentation-scene": currentPresentation.voiceSceneId,
+        "data-touch-presentation-scene": currentPresentation.touchSceneId,
+      } as HTMLAttributes<HTMLDivElement>}
+    >
       <CheckInFlowAdapterBoundary actions={checkInFlowAdapter.actions} state={checkInFlowAdapter.flowState} />
       {questionSteps.includes(step) && !safetyInterruptActive && (
         <HealthWizardCard className="mb-4 p-4">

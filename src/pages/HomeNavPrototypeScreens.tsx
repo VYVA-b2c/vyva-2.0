@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { VyvaMark } from "@/components/VyvaMark";
+import { writeHomeInteractionMode } from "@/lib/homeModeControl";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
@@ -155,11 +156,13 @@ function PrototypeShell({
   testId,
   width = "phone",
   dockPadding = true,
+  scrollable = false,
 }: {
   children: ReactNode;
   testId: string;
   width?: "phone" | "flow";
   dockPadding?: boolean;
+  scrollable?: boolean;
 }) {
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
@@ -177,13 +180,18 @@ function PrototypeShell({
       data-vyva-text-size={readableTextSize}
       className={[
         "prototype-shell vyva-home-master-fixed-type relative left-1/2 min-h-[100svh] w-screen -translate-x-1/2 overflow-x-hidden",
+        scrollable ? "h-[100svh] max-h-[100svh] overflow-y-auto overscroll-y-contain" : "",
         dockPadding ? "pb-32" : "pb-8",
         isDark ? shellSurface.dark : shellSurface.light,
       ].join(" ")}
     >
       <div
         data-testid={width === "flow" ? "checkin-desktop-shell" : `${testId}-frame`}
-        className={["mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", widthClass].join(" ")}
+        className={[
+          "mx-auto flex w-full flex-col px-6 pt-8 sm:px-7",
+          scrollable ? "min-h-0" : "min-h-[100svh]",
+          widthClass,
+        ].join(" ")}
       >
         {children}
       </div>
@@ -274,7 +282,10 @@ function CompactVoiceTrigger({
         type="button"
         aria-label="Return to VYVA voice mode"
         data-testid={testId}
-        onClick={() => navigate(voicePath)}
+        onClick={() => {
+          writeHomeInteractionMode("voice");
+          navigate(voicePath);
+        }}
         className={[
           "vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border transition-colors duration-150",
           "border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)]",
@@ -326,7 +337,10 @@ function PrototypeTopbar({
             label="Open manual menu"
             testId="button-home-mode-touch"
             variant="purple"
-            onClick={() => navigate(actionPath ?? "/dev/home-master/menu")}
+            onClick={() => {
+              writeHomeInteractionMode("touch");
+              navigate(actionPath ?? "/dev/home-master/menu");
+            }}
           />
         </div>
       ) : compactVoice ? (
@@ -417,7 +431,7 @@ function RowCard({ item }: { item: RowItem }) {
         "vyva-tap group flex min-h-[84px] w-full items-center gap-4 rounded-[26px] border px-4 text-left transition-colors duration-150",
         isDark
           ? "border-white/[0.12] bg-white/[0.07] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.12)]"
-          : "border-[#EFE6F5] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
+          : "border-[#EFE6F5] bg-white text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
         isAlert && !isDark ? "border-[#F7C9C5]" : "",
       ].join(" ")}
       style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
@@ -626,11 +640,15 @@ export function PrototypeHomeScreen() {
 }
 
 export function PrototypeMenuScreen() {
+  useEffect(() => {
+    writeHomeInteractionMode("touch");
+  }, []);
+
   const items: RowItem[] = [
-    { icon: Heart, title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health" },
-    { icon: Brain, title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain" },
-    { icon: Users, title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community" },
-    { icon: Bell, title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge" },
+    { icon: Heart, title: "My Health", subtitle: "Check-ins, vitals, medicines", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health" },
+    { icon: Brain, title: "My Brain", subtitle: "Memory, focus, calm", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain" },
+    { icon: Users, title: "Community", subtitle: "Rooms and support", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community" },
+    { icon: Bell, title: "Concierge", subtitle: "Everyday help", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge" },
   ];
 
   return (
@@ -658,7 +676,7 @@ export function PrototypeHealthScreen({
   profilePath?: string;
 }) {
   const healthRows: RowItem[] = [
-    { icon: ShieldCheck, title: "My Health Plan", subtitle: "Preventive steps and guidance", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan" },
+    { icon: ShieldCheck, title: "Health Plan", subtitle: "Preventive steps and guidance", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan" },
     { icon: Stethoscope, title: "Symptom Check", subtitle: "Aches, discomfort, or changes", meta: "Start", tone: "health", path: symptomReportPath, testId: "button-health-symptom-report", emphasis: "alert" },
     { icon: HeartPulse, title: "Vitals Scan", subtitle: "Latest readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals" },
     { icon: Pill, title: "Medicines", subtitle: "Dose times and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines" },
@@ -682,7 +700,7 @@ const healthActionPreviewContent: Record<PrototypeHealthActionPreviewKind, {
 }> = {
   plan: {
     icon: ShieldCheck,
-    title: "My Health Plan",
+    title: "Health Plan",
     subtitle: "Your preventive plan will open here.",
     tone: "brain",
   },
@@ -881,7 +899,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
   ];
 
   return (
-    <PrototypeShell testId="prototype-profile-screen" dockPadding={false}>
+    <PrototypeShell testId="prototype-profile-screen" dockPadding={false} scrollable>
       <PrototypeTopbar kind="profile" backPath={returnPath} compactVoice />
       <section
         className={[
@@ -994,7 +1012,7 @@ export function PrototypeProfileActionPreviewScreen({
   const rows = getProfileAccessibilityRows({ isDark, isLarge, toggleSize, toggleTheme });
 
   return (
-    <PrototypeShell testId={`prototype-profile-action-preview-${kind}`} width="flow" dockPadding={false}>
+    <PrototypeShell testId={`prototype-profile-action-preview-${kind}`} width="flow" dockPadding={false} scrollable>
       <PrototypeTopbar kind="detail" backPath={backPath} />
       <section
         className={[
