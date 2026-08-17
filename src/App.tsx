@@ -617,6 +617,21 @@ function HomeMasterHealthPreviewRoute() {
   );
 }
 
+function HealthHubRoute() {
+  return (
+    <AppShell>
+      <PrototypeHealthScreen
+        healthPlanPath="/health/prevention"
+        symptomReportPath="/health/symptom-check"
+        vitalsPath="/health/vitals"
+        medicinesPath="/meds/my-medicines"
+        voicePath="/"
+        profilePath="/settings/account"
+      />
+    </AppShell>
+  );
+}
+
 function HomeMasterBrainPreviewRoute() {
   primeHomeMasterPreviewData();
 
@@ -965,7 +980,8 @@ const App = () => (
                   <Route path="/settings/trusted-help" element={<AppShell><TrustedHelpSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/menu" element={<AppShell><MenuScreen /></AppShell>} />
-                  <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
+                  <Route path="/health" element={<HealthHubRoute />} />
+                  <Route path="/health/dashboard" element={<AppShell><HealthScreen /></AppShell>} />
                   <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />

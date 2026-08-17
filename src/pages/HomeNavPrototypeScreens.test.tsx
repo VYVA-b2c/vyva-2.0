@@ -181,6 +181,38 @@ describe("Home/Nav prototype screens", () => {
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/medicines");
   });
 
+  it("supports production Health hub destinations and expands its frame on larger screens", () => {
+    renderScreen(
+      <PrototypeHealthScreen
+        healthPlanPath="/health/prevention"
+        symptomReportPath="/health/symptom-check"
+        vitalsPath="/health/vitals"
+        medicinesPath="/meds/my-medicines"
+        voicePath="/"
+        profilePath="/settings/account"
+      />,
+    );
+
+    const frame = screen.getByTestId("prototype-health-screen-frame");
+    expect(frame).toHaveClass("max-w-[430px]");
+    expect(frame).toHaveClass("sm:max-w-[620px]");
+    expect(frame).toHaveClass("lg:max-w-[760px]");
+
+    fireEvent.click(screen.getByTestId("button-health-plan"));
+    fireEvent.click(screen.getByTestId("button-health-symptom-report"));
+    fireEvent.click(screen.getByTestId("button-health-vitals"));
+    fireEvent.click(screen.getByTestId("button-health-medicines"));
+    fireEvent.click(screen.getByTestId("button-compact-voice"));
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/health/prevention");
+    expect(navigateMock).toHaveBeenCalledWith("/health/symptom-check");
+    expect(navigateMock).toHaveBeenCalledWith("/health/vitals");
+    expect(navigateMock).toHaveBeenCalledWith("/meds/my-medicines");
+    expect(navigateMock).toHaveBeenCalledWith("/");
+    expect(navigateMock).toHaveBeenCalledWith("/settings/account");
+  });
+
   it("routes Profile rows to dev-safe preview destinations instead of protected login handoffs", () => {
     renderScreen(<PrototypeProfileScreen />);
 
