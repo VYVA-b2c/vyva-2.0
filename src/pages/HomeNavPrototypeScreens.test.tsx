@@ -64,7 +64,8 @@ describe("Home/Nav prototype screens", () => {
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
-    expect(screen.getByTestId("button-home-menu")).toBeInTheDocument();
+    expect(screen.getByTestId("home-topbar-action-pill")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-mode-touch")).toBeInTheDocument();
     expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "idle");
     expect(screen.getByText(/Good morning|Good afternoon|Good evening/)).toHaveTextContent("Karim");
     expect(screen.getByText("Tap the circle to talk")).toBeInTheDocument();

@@ -311,13 +311,15 @@ function PrototypeTopbar({
         ) : null}
       </div>
       {kind === "home" ? (
-        <RoundControl
-          icon={Hand}
-          label="Open manual menu"
-          testId="button-home-menu"
-          variant="purple"
-          onClick={() => navigate(actionPath ?? "/dev/home-master/menu")}
-        />
+        <div data-testid="home-topbar-action-pill" className="flex justify-end">
+          <RoundControl
+            icon={Hand}
+            label="Open manual menu"
+            testId="button-home-mode-touch"
+            variant="purple"
+            onClick={() => navigate(actionPath ?? "/dev/home-master/menu")}
+          />
+        </div>
       ) : compactVoice ? (
         <CompactVoiceTrigger />
       ) : (
