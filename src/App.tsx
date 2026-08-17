@@ -44,7 +44,18 @@ const AccessLinkPage = lazy(() => import("@/pages/AccessLinkPage"));
 const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
 const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
+const PrototypeHomeScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHomeScreen })));
+const PrototypeMenuScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeMenuScreen })));
 const PrototypeCheckInScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCheckInScreen })));
+const PrototypeHealthScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthScreen })));
+const PrototypeBrainScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeBrainScreen })));
+const PrototypeCommunityScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCommunityScreen })));
+const PrototypeConciergeScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeConciergeScreen })));
+const PrototypeReportsScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeReportsScreen })));
+const PrototypeProfileScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileScreen })));
+const PrototypeHealthActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthActionPreviewScreen })));
+const PrototypeProfileActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileActionPreviewScreen })));
+const PrototypeSymptomReportPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeSymptomReportPreviewScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
@@ -570,11 +581,10 @@ function primeHomeMasterPreviewData() {
 
 function HomeMasterPreviewRoute() {
   primeHomeMasterPreviewData();
-  const navigate = useNavigate();
 
   return (
     <AppShell>
-      <HomeScreen menuPath="/dev/home-master/menu" onShellNavigate={navigate} />
+      <PrototypeHomeScreen />
     </AppShell>
   );
 }
@@ -584,7 +594,131 @@ function HomeMasterMenuPreviewRoute() {
 
   return (
     <AppShell>
-      <MenuScreen backPath="/dev/home-master" />
+      <PrototypeMenuScreen />
+    </AppShell>
+  );
+}
+
+function HomeMasterHealthPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeHealthScreen
+        checkInPath="/dev/home-master/check-in"
+        healthPlanPath="/dev/home-master/health-plan"
+        symptomReportPath="/dev/home-master/symptom-report"
+        vitalsPath="/dev/home-master/vitals"
+        medicinesPath="/dev/home-master/medicines"
+        voicePath="/dev/home-master"
+        profilePath="/dev/home-master/profile"
+      />
+    </AppShell>
+  );
+}
+
+function HomeMasterBrainPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeBrainScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterCommunityPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeCommunityScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterConciergePreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeConciergeScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterReportsPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeReportsScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterProfilePreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeProfileScreen returnPath="/dev/home-master" />
+    </AppShell>
+  );
+}
+
+function HomeMasterCheckInPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeCheckInScreen
+        returnPath="/dev/home-master/health"
+      />
+    </AppShell>
+  );
+}
+
+function HomeMasterSymptomReportPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeSymptomReportPreviewScreen />
+    </AppShell>
+  );
+}
+
+function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" | "medicines" }) {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeHealthActionPreviewScreen kind={kind} />
+    </AppShell>
+  );
+}
+
+function HomeMasterProfileActionPreviewRoute({ kind }: { kind: "account" | "health" | "medicines" | "emergency" | "care-team" | "providers" | "accessibility" }) {
+  primeHomeMasterPreviewData();
+
+  if (kind === "account") {
+    return (
+      <AppShell>
+        <AccountSettings />
+      </AppShell>
+    );
+  }
+
+  if (kind === "health") return <ConditionsSection />;
+  if (kind === "medicines") return <MedicationsSection />;
+  if (kind === "emergency") return <EmergencySection />;
+  if (kind === "care-team") return <CareTeamFlow />;
+  if (kind === "providers") return <ProvidersSection />;
+
+  return (
+    <AppShell>
+      <PrototypeProfileActionPreviewScreen kind={kind} />
     </AppShell>
   );
 }
@@ -691,6 +825,63 @@ const App = () => (
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master/menu" element={<HomeMasterMenuPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/health" element={<HomeMasterHealthPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/brain" element={<HomeMasterBrainPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/community" element={<HomeMasterCommunityPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/concierge" element={<HomeMasterConciergePreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/emergency" element={<HomeMasterProfileActionPreviewRoute kind="emergency" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/care-team" element={<HomeMasterProfileActionPreviewRoute kind="care-team" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/providers" element={<HomeMasterProfileActionPreviewRoute kind="providers" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/preferences" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/profile/accessibility" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/check-in" element={<HomeMasterCheckInPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/symptom-report" element={<HomeMasterSymptomReportPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/vitals" element={<HomeMasterHealthActionPreviewRoute kind="vitals" />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/medicines" element={<HomeMasterHealthActionPreviewRoute kind="medicines" />} />
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />

@@ -1108,23 +1108,24 @@
   const healthDefaultText = healthMomentText.innerHTML;
   const healthTarget = { orbEl: orbWrapHealth, captionEl: tapCaptionHealth, micIconEl: micIconHealth, micBarsEl: micBarsHealth, textEl: healthMomentText };
   const healthDefaultResponse = "Your heart's been steady all day, and your last oxygen reading was ninety-eight percent. You're doing well today, Carmen.";
+  const healthOpts = {
+    idleCaption: 'Tap to ask VYVA',
+    onIdle: ()=> { healthMomentText.innerHTML = healthDefaultText; healthMomentText.style.opacity = 1; }
+  };
 
   orbWrapHealth.addEventListener('click', ()=>{
-    startListeningOn(healthTarget, healthDefaultResponse, {
-      idleCaption: 'Tap to ask VYVA',
-      onIdle: ()=> { healthMomentText.innerHTML = healthDefaultText; healthMomentText.style.opacity = 1; }
-    });
+    if(healthTarget._active) cancelListeningOn(healthTarget);
+    else startListeningOn(healthTarget, healthDefaultResponse, healthOpts);
   });
 
   document.getElementById('vrRecheck').addEventListener('click', function(){
-    startListeningOn(healthTarget, this.dataset.response, {
-      idleCaption: 'Tap to ask VYVA',
-      onIdle: ()=> { healthMomentText.innerHTML = healthDefaultText; healthMomentText.style.opacity = 1; }
-    });
+    if(healthTarget._active) cancelListeningOn(healthTarget);
+    else startListeningOn(healthTarget, this.dataset.response, healthOpts);
   });
 
   // Same in-place voice pattern, now applied consistently to every screen —
-  // no more screens stuck redirecting to Home just to talk to VYVA.
+  // no more screens stuck redirecting to Home just to talk to VYVA. Tapping
+  // the orb again while active cancels back to idle, same as Home/Health.
   function wireScreenOrb(key, response){
     const orbEl = document.getElementById('orbWrap' + key);
     const captionEl = document.getElementById('tapCaption' + key);
@@ -1133,11 +1134,13 @@
     const textEl = document.getElementById(key.charAt(0).toLowerCase() + key.slice(1) + 'MomentText');
     const defaultText = textEl.innerHTML;
     const target = { orbEl, captionEl, micIconEl, micBarsEl, textEl };
+    const opts = {
+      idleCaption: 'Tap to ask VYVA',
+      onIdle: ()=> { textEl.innerHTML = defaultText; textEl.style.opacity = 1; }
+    };
     orbEl.addEventListener('click', ()=>{
-      startListeningOn(target, response, {
-        idleCaption: 'Tap to ask VYVA',
-        onIdle: ()=> { textEl.innerHTML = defaultText; textEl.style.opacity = 1; }
-      });
+      if(target._active) cancelListeningOn(target);
+      else startListeningOn(target, response, opts);
     });
   }
   wireScreenOrb('Brain', "Let's do Rhythm Tap — yesterday you scored eighty-four percent, your best this month. Ready when you are.");
@@ -1189,24 +1192,26 @@
   document.querySelectorAll('[data-detail]').forEach(b => b.addEventListener('click', ()=> showToast(`${b.dataset.detail} — details`)));
   document.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', function(){ const r=this.dataset.response; goToScreen('home'); setTimeout(()=>startListening(r), 350); }));
 
-  document.getElementById('orbWrap').addEventListener('click', ()=>{
-    startListening();
-  });
-
   const orbWrap = document.getElementById('orbWrap');
   const tapCaption = document.getElementById('tapCaption');
   const micIcon = document.getElementById('micIcon');
   const micBars = document.getElementById('micBars');
-  let listeningTimeout;
 
   // Generalized engine: any screen's orb (element set + text target) can run
   // the same listening -> responding -> idle sequence. Home wraps this below;
   // Health gets its own instance so voice can happen in place, not just on Home.
+  //
+  // `target` must be a STABLE object reference (not recreated per-call) —
+  // cancel state (_gen/_active/_timeout) lives on it between calls.
   function startListeningOn(target, responseText, opts){
     opts = opts || {};
     const response = responseText || "I'm here, Carmen. What can I help with?";
     const { orbEl, captionEl, micIconEl, micBarsEl, textEl } = target;
     clearTimeout(target._timeout);
+    target._gen = (target._gen || 0) + 1;
+    const gen = target._gen;
+    target._active = true;
+    target._opts = opts; // cancelListeningOn reuses these for consistent idle restoration
     if(opts.onStart) opts.onStart();
 
     orbEl.classList.add('listening');
@@ -1218,8 +1223,10 @@
     if(opts.dotsEl) opts.dotsEl.style.opacity = 0;
 
     target._timeout = setTimeout(()=>{
+      if(target._gen !== gen) return; // cancelled or superseded — abort
       captionEl.textContent = 'One moment…';
       setTimeout(()=>{
+        if(target._gen !== gen) return;
         orbEl.classList.remove('listening');
         orbEl.classList.add('responding');
         captionEl.classList.remove('listening');
@@ -1227,12 +1234,15 @@
         if(textEl) textEl.style.opacity = 1;
 
         revealInSyncOn(textEl, response, ()=>{
+          if(target._gen !== gen) return;
           setTimeout(()=>{
+            if(target._gen !== gen) return;
             orbEl.classList.remove('responding');
             micIconEl.style.display = 'block';
             micBarsEl.style.display = 'none';
             captionEl.textContent = opts.idleCaption || 'Tap the circle to talk';
             if(opts.dotsEl) opts.dotsEl.style.opacity = 1;
+            target._active = false;
             if(opts.onIdle) opts.onIdle();
           }, 1700); // hold VYVA's answer on screen a beat before resuming
         });
@@ -1240,17 +1250,45 @@
     }, 2200);
   }
 
-  function startListening(responseText){
-    startListeningOn(
-      { orbEl: orbWrap, captionEl: tapCaption, micIconEl: micIcon, micBarsEl: micBars, textEl: momentText },
-      responseText,
-      {
-        dotsEl: dotsWrap,
-        onStart: ()=> clearInterval(timer),
-        onIdle: ()=> { show(idx); startAuto(); }
-      }
-    );
+  // Tapping the orb again while it's listening or responding CANCELS back to
+  // idle immediately — it does not restart the sequence. This was a real gap:
+  // previously the only way out of an accidental orb tap was to wait ~4s for
+  // the full sequence to finish. Confirmed decision: cancel, not restart.
+  function cancelListeningOn(target){
+    if(!target._active) return;
+    target._gen = (target._gen || 0) + 1; // invalidates any in-flight timeouts/reveals
+    clearTimeout(target._timeout);
+    target._active = false;
+    const { orbEl, captionEl, micIconEl, micBarsEl } = target;
+    const opts = target._opts || {};
+    orbEl.classList.remove('listening', 'responding');
+    captionEl.classList.remove('listening');
+    micIconEl.style.display = 'block';
+    micBarsEl.style.display = 'none';
+    captionEl.textContent = opts.idleCaption || 'Tap the circle to talk';
+    if(opts.dotsEl) opts.dotsEl.style.opacity = 1;
+    if(opts.onIdle) opts.onIdle(); // restores default text (Home resumes rotation, detail screens restore default)
   }
+
+  // Home's target is a single stable object reused by every call — required
+  // for cancel to work (see comment on startListeningOn above).
+  const homeTarget = { orbEl: orbWrap, captionEl: tapCaption, micIconEl: micIcon, micBarsEl: micBars, textEl: null };
+  function startListening(responseText){
+    homeTarget.textEl = momentText; // momentText is declared later in this script; assign at call time
+    startListeningOn(homeTarget, responseText, {
+      dotsEl: dotsWrap,
+      onStart: ()=> clearInterval(timer),
+      onIdle: ()=> { show(idx); startAuto(); }
+    });
+  }
+
+  document.getElementById('orbWrap').addEventListener('click', ()=>{
+    if(homeTarget._active){
+      cancelListeningOn(homeTarget);
+    } else {
+      startListening();
+    }
+  });
 
   // Reveals text word-by-word at a natural spoken pace (~230ms/word ≈ 260wpm,
   // adjusted slightly for punctuation pauses) so the caption feels like it's

@@ -53,6 +53,20 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/mind-memory");
   });
 
+  it("can override tile paths for the isolated Home/Nav design preview", () => {
+    renderMenu({
+      tilePathOverrides: {
+        health: "/dev/home-master/health",
+        brain: "/dev/home-master/brain",
+        community: "/dev/home-master/community",
+        concierge: "/dev/home-master/concierge",
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("menu-tile-health"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/dev/home-master/health");
+  });
+
   it("returns to Home from the voice button", () => {
     renderMenu();
 
