@@ -522,7 +522,7 @@ export default function CareTeamFlow() {
   if (effectiveMode === "roster") {
     if (rosterLoading) {
       return (
-        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
           <div className="flex items-center justify-center py-20">
             <div className="font-body text-[15px] font-semibold text-vyva-text-3">{t("onboarding.careTeam.loading")}</div>
           </div>
@@ -532,7 +532,7 @@ export default function CareTeamFlow() {
 
     if (rosterError) {
       return (
-        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
           <div className="flex flex-col items-center gap-4 px-5 py-16 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <AlertTriangle size={28} />
@@ -555,7 +555,7 @@ export default function CareTeamFlow() {
     }
 
     return (
-      <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
         <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
           <ProfileSectionHero
             icon={Users}
@@ -703,6 +703,7 @@ export default function CareTeamFlow() {
         subtitle={careTeamStepLabel(1)}
         showBack
         onBack={() => (members.length > 0 ? backToRoster() : navigate("/onboarding/profile"))}
+        homeMasterBackPath={members.length === 0 ? "/dev/home-master/profile" : undefined}
         showAllSections
         onAllSections={() => navigate("/onboarding/profile")}
       >

@@ -109,6 +109,29 @@ describe("PhoneFrame companion mode", () => {
     }
   });
 
+  it("returns profile previews to the Home Master profile from the shared back control", () => {
+    const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    try {
+      window.history.pushState({}, "", "/dev/home-master/profile/health");
+
+      render(
+        <PhoneFrame
+          subtitle="Health conditions"
+          showBack
+          homeMasterBackPath="/dev/home-master/profile"
+        >
+          <p>Profile content</p>
+        </PhoneFrame>
+      );
+
+      fireEvent.click(screen.getByTestId("button-phone-frame-back"));
+      expect(window.location.pathname).toBe("/dev/home-master/profile");
+    } finally {
+      window.history.pushState({}, "", originalPath || "/");
+    }
+  });
+
   it("can render a compact right-side action without showing all sections", () => {
     render(
       <PhoneFrame

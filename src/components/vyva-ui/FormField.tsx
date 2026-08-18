@@ -27,7 +27,7 @@ export function FormField({
   labelClassName,
 }: FormFieldProps) {
   const labelClass = cn(
-    "flex items-start justify-between gap-3 font-body text-[15px] font-extrabold leading-tight text-vyva-text-2",
+    "home-master-profile-field-label flex items-start justify-between gap-3 font-body text-[15px] font-extrabold leading-tight text-vyva-text-2",
     labelClassName,
   );
 
@@ -39,8 +39,10 @@ export function FormField({
       </span>
       <span
         className={cn(
-          "shrink-0 rounded-full px-3 py-1 text-[12px] font-extrabold",
-          required ? "bg-[#FFF1F5] text-[#B0355A]" : "bg-[#F6F1EA] text-vyva-text-3",
+          "home-master-profile-field-badge shrink-0 rounded-full px-3 py-1 text-[12px] font-extrabold",
+          required
+            ? "home-master-profile-field-badge-required bg-[#FFF1F5] text-[#B0355A]"
+            : "home-master-profile-field-badge-optional bg-[#F6F1EA] text-vyva-text-3",
         )}
       >
         {required ? requiredLabel : optionalLabel}
