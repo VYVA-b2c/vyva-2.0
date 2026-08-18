@@ -651,6 +651,173 @@
   font-family: "Figtree", sans-serif;
 }
 
+/* === Home Master profile preview shell === */
+
+.home-master-profile-frame,
+.home-master-profile-page {
+  --hm-profile-bg: #fffcf8;
+  --hm-profile-border: #ede2d1;
+  --hm-profile-text: #241c30;
+  --hm-profile-muted: #806f85;
+  --hm-profile-surface: #ffffff;
+  --hm-profile-surface-subtle: #fcf7ff;
+  --hm-profile-control-bg: #ffffff;
+  --hm-profile-control-border: #e7dcf8;
+  --hm-profile-handle: #dacdbd;
+  background-color: var(--hm-profile-bg);
+  border-color: var(--hm-profile-border);
+  color: var(--hm-profile-text);
+}
+
+.home-master-profile-page {
+  background-color: var(--hm-profile-bg);
+}
+
+.home-master-profile-top-gradient {
+  background: linear-gradient(180deg, rgba(107, 33, 168, 0.1) 0%, rgba(255, 202, 75, 0.08) 42%, rgba(255, 255, 255, 0) 100%);
+}
+
+.home-master-profile-handle {
+  background: var(--hm-profile-handle);
+}
+
+.home-master-profile-control {
+  background: var(--hm-profile-control-bg);
+  border-color: var(--hm-profile-control-border);
+  color: var(--hm-profile-text);
+}
+
+.home-master-profile-subtitle {
+  color: var(--hm-profile-text);
+}
+
+[data-home-master-theme="dark"].home-master-profile-frame,
+[data-home-master-theme="dark"].home-master-profile-page {
+  --hm-profile-bg: #120b23;
+  --hm-profile-border: rgba(255, 255, 255, 0.14);
+  --hm-profile-text: #fff8ff;
+  --hm-profile-muted: rgba(236, 226, 246, 0.78);
+  --hm-profile-surface: #1d1230;
+  --hm-profile-surface-subtle: #24183b;
+  --hm-profile-control-bg: #271744;
+  --hm-profile-control-border: rgba(233, 213, 255, 0.3);
+  --hm-profile-handle: rgba(255, 244, 222, 0.56);
+  background: radial-gradient(circle at 50% 0%, rgba(75, 48, 154, 0.42), transparent 34%), linear-gradient(180deg, #20143f 0%, #120b23 46%, #080715 100%);
+}
+
+[data-home-master-theme="dark"] .home-master-profile-top-gradient {
+  background: linear-gradient(180deg, rgba(103, 70, 190, 0.34) 0%, rgba(255, 202, 75, 0.06) 42%, rgba(18, 11, 35, 0) 100%);
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame .bg-white,
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-white"],
+[data-home-master-theme="dark"] .home-master-profile-page .bg-white,
+[data-home-master-theme="dark"] .home-master-profile-page [class*="bg-white"] {
+  background-color: var(--hm-profile-surface) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-vyva-cream"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="bg-vyva-cream"] {
+  background-color: var(--hm-profile-bg) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-1"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-1"] {
+  color: var(--hm-profile-text) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-2"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-2"],
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-text-3"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-text-3"] {
+  color: var(--hm-profile-muted) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame input,
+[data-home-master-theme="dark"] .home-master-profile-frame select,
+[data-home-master-theme="dark"] .home-master-profile-frame textarea,
+[data-home-master-theme="dark"] .home-master-profile-page input,
+[data-home-master-theme="dark"] .home-master-profile-page select,
+[data-home-master-theme="dark"] .home-master-profile-page textarea {
+  background-color: var(--hm-profile-surface-subtle) !important;
+  border-color: var(--hm-profile-control-border) !important;
+  color: var(--hm-profile-text) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-page [class*="bg-white"] {
+  background-color: var(--hm-profile-surface) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-reminder,
+[data-home-master-theme="dark"] .home-master-profile-account-content .home-master-profile-account-avatar-card {
+  background: var(--hm-profile-surface) !important;
+  border-color: var(--hm-profile-border) !important;
+  color: var(--hm-profile-text);
+}
+
+[data-home-master-theme="dark"] .home-master-profile-account-content [style*="FCF7FF"] {
+  background-color: var(--hm-profile-surface-subtle) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-account-content [style*="EFE4D5"] {
+  border-color: var(--hm-profile-border) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-account-content [style*="7A7290"] {
+  color: var(--hm-profile-muted) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-account-content [style*="5B21B6"] {
+  color: #e9d5ff !important;
+}
+
+/* Dark profile previews also contain legacy onboarding utility classes. Keep
+   those controls readable without changing their light-theme presentation. */
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-gray-"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-gray-"] {
+  color: var(--hm-profile-muted) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-vyva-purple"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-vyva-purple"] {
+  color: #e9d5ff !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-[#21152F]"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-[#21152F]"],
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="text-[#22152F]"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="text-[#22152F]"] {
+  color: var(--hm-profile-text) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-gray-50"],
+[data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-gray-100"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="bg-gray-50"],
+[data-home-master-theme="dark"] .home-master-profile-page [class*="bg-gray-100"] {
+  background-color: var(--hm-profile-surface-subtle) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-field-label {
+  color: var(--hm-profile-muted) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-field-badge {
+  border: 1px solid var(--hm-profile-control-border);
+  background: var(--hm-profile-surface-subtle) !important;
+  color: var(--hm-profile-muted) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-field-badge-required {
+  background: rgba(190, 24, 93, 0.22) !important;
+  color: #fecdd3 !important;
+}
+
+@media (max-width: 639px) {
+  .home-master-profile-frame {
+    border-radius: 28px;
+  }
+}
+
 /* === Home prototype check-in surfaces === */
 
 .prototype-shell {

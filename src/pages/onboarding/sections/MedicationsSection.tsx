@@ -615,7 +615,7 @@ export default function MedicationsSection() {
   const inputClassName = "h-14 rounded-[18px] border-[#DDC7FF] bg-white px-4 text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:text-[#8D7D73] focus-visible:ring-4 focus-visible:ring-vyva-purple/15";
 
   return (
-    <PhoneFrame subtitle="💊 Medications" showBack onBack={() => confirmNavigation("/onboarding/profile")} showAllSections onAllSections={() => confirmNavigation("/onboarding/profile")}>
+    <PhoneFrame subtitle="💊 Medications" showBack onBack={() => confirmNavigation("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => confirmNavigation("/onboarding/profile")}>
       <div className="flex flex-col gap-7 px-1 pb-28 pt-5 sm:px-2 sm:pb-5 md:px-3">
         <ProfileSectionHero
           icon={Pill}

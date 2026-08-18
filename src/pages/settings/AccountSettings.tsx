@@ -160,10 +160,10 @@ const TIMEZONE_OPTIONS = [
   { value: "us_pacific", label: "US - Pacific (PST/PDT)", zone: "America/Los_Angeles" },
   { value: "canada_atlantic", label: "Canada - Atlantic (AST/ADT)", zone: "America/Halifax" },
   { value: "london", label: "UK - London (GMT/BST)", zone: "Europe/London" },
-  { value: "europe_central", label: "Europe - Paris/Berlin/Madrid (CET/CEST)", zone: "Europe/Madrid" },
-  { value: "europe_eastern", label: "Europe - Athens/Helsinki (EET/EEST)", zone: "Europe/Athens" },
-  { value: "sydney", label: "Australia - Sydney (AEST/AEDT)", zone: "Australia/Sydney" },
-  { value: "perth", label: "Australia - Perth (AWST)", zone: "Australia/Perth" },
+  { value: "europe_central", label: "Central Europe (CET/CEST)", zone: "Europe/Madrid" },
+  { value: "europe_eastern", label: "Eastern Europe (EET/EEST)", zone: "Europe/Athens" },
+  { value: "sydney", label: "Sydney (AEST/AEDT)", zone: "Australia/Sydney" },
+  { value: "perth", label: "Perth (AWST)", zone: "Australia/Perth" },
   { value: "tokyo", label: "Japan - Tokyo (JST)", zone: "Asia/Tokyo" },
   { value: "singapore", label: "Singapore (SGT)", zone: "Asia/Singapore" },
   { value: "mumbai", label: "India - Mumbai (IST)", zone: "Asia/Kolkata" },
@@ -562,6 +562,7 @@ export default function AccountSettings() {
       subtitle={isHomeMasterPreview ? undefined : t("settings.account.title")}
       showBack
       onBack={() => navigate(isHomeMasterPreview ? "/dev/home-master/profile" : "/settings")}
+      homeMasterBackPath="/dev/home-master/profile"
       showCompanionMode={!isHomeMasterPreview}
       rightAction={
         isHomeMasterPreview ? (
@@ -577,7 +578,7 @@ export default function AccountSettings() {
         ) : undefined
       }
     >
-      <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+      <div className="home-master-profile-account-content flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         {!isHomeMasterPreview ? (
           <ProfileSectionHero
             icon={UserRound}
@@ -590,7 +591,7 @@ export default function AccountSettings() {
         {showRequiredDetailsReminder ? (
           <div
             className={[
-              "flex items-start gap-4 rounded-[24px] border px-5 py-4",
+              "home-master-profile-account-reminder flex items-start gap-4 rounded-[24px] border px-5 py-4",
               isHomeMasterPreview
                 ? "bg-white/80 shadow-[0_10px_24px_rgba(53,28,87,0.05)]"
                 : "shadow-[0_12px_28px_rgba(53,28,87,0.06)]",
@@ -611,7 +612,7 @@ export default function AccountSettings() {
           </div>
         ) : null}
 
-        <div className="flex flex-col items-center gap-3 rounded-[28px] border border-[#EFE4D5] bg-white px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
+        <div className="home-master-profile-account-avatar-card flex flex-col items-center gap-3 rounded-[28px] border border-[#EFE4D5] bg-white px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
           <div className="relative">
             <div
               className="flex h-[112px] w-[112px] items-center justify-center overflow-hidden rounded-full text-[40px] font-black text-white shadow-[0_18px_34px_rgba(107,33,168,0.18)]"
@@ -742,7 +743,9 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, gender: value }));
               }}
             >
-              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
+              <SelectTrigger className={accountSelectClassName}>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="female">{t("settings.account.genderFemale")}</SelectItem>
                 <SelectItem value="male">{t("settings.account.genderMale")}</SelectItem>
@@ -859,7 +862,12 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, timezone: value }));
               }}
             >
-              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
+              <SelectTrigger
+                className={`${accountSelectClassName} min-w-0`}
+                title={TIMEZONE_OPTIONS.find((option) => option.value === form.timezone)?.label}
+              >
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {TIMEZONE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
@@ -880,7 +888,16 @@ export default function AccountSettings() {
           >
             {saving ? t("settings.account.saving") : t("settings.account.saveChanges")}
           </Button>
-          <button className="rounded-full py-3 text-[14px] font-black text-red-500">{t("settings.account.changePassword")}</button>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            data-testid="button-account-change-password"
+            title="Password changes are managed securely outside this preview"
+            className="cursor-not-allowed rounded-full py-3 text-[14px] font-black text-vyva-text-3 opacity-60"
+          >
+            {t("settings.account.changePassword")}
+          </button>
           <button
             data-testid="button-account-sign-out"
             onClick={() => {

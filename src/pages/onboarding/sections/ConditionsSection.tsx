@@ -625,7 +625,7 @@ export default function ConditionsSection() {
   };
 
   return (
-    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
       <div className="flex flex-col gap-5 px-1 pb-6 pt-4 sm:px-2 md:px-3">
         <ProfileSectionHero
           compact

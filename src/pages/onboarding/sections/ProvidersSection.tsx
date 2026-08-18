@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import {
   ChevronLeft,
   Building2,
@@ -426,8 +427,10 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
 const ProvidersSection = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const isHomeMasterProfilePreview = location.pathname.startsWith("/dev/home-master/profile/");
 
   const providerPrefill = providerPrefillFromState(location.state);
   const setupReturnTo = returnToFromState(location.state);
@@ -874,44 +877,61 @@ const ProvidersSection = () => {
   const defaultProviderReadiness = defaultProvider ? savedProviderContactReadiness(defaultProvider) : null;
 
   return (
-    <div className="min-h-screen bg-vyva-cream flex flex-col">
+    <div
+      data-home-master-profile-page={isHomeMasterProfilePreview ? "true" : undefined}
+      data-home-master-theme={isHomeMasterProfilePreview ? (isDark ? "dark" : "light") : undefined}
+      className={`home-master-profile-page min-h-screen flex flex-col ${isHomeMasterProfilePreview ? "" : "bg-vyva-cream"}`}
+    >
       <div className="flex items-center gap-3 px-5 pt-12 pb-4">
         <button
           data-testid="button-providers-back"
-          onClick={() => navigate("/onboarding/profile")}
-          className="w-10 h-10 rounded-full bg-white border border-vyva-border flex items-center justify-center"
+          onClick={() => navigate(isHomeMasterProfilePreview ? "/dev/home-master/profile" : "/onboarding/profile")}
+          className="home-master-profile-control w-10 h-10 rounded-full border flex items-center justify-center"
         >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
+          <ChevronLeft size={20} />
         </button>
-        <div className="flex items-center gap-2">
-          <div
-            className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0"
-            style={{ background: "#F5F3FF" }}
-          >
-            <Building2 size={18} style={{ color: "#6B21A8" }} />
+        {!isHomeMasterProfilePreview ? (
+          <div className="flex items-center gap-2">
+            <div
+              className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0"
+              style={{ background: "#F5F3FF" }}
+            >
+              <Building2 size={18} style={{ color: "#6B21A8" }} />
+            </div>
+            <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">
+              {t("onboarding.providers.title", "Trusted providers")}
+            </h1>
           </div>
-          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">
-            {t("onboarding.providers.title", "Trusted providers")}
-          </h1>
-        </div>
+        ) : null}
+        {isHomeMasterProfilePreview ? (
+          <a
+            href="/dev/home-master"
+            aria-label="Return to VYVA voice mode"
+            className="home-master-profile-voice-trigger vyva-tap ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)]"
+          >
+            <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+          </a>
+        ) : null}
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
-        <OnboardingCompanionModeChip
-          compactLabel="VYVA mode"
-          voiceLabel="Voice"
-          voiceDescription="VYVA can talk you through this page."
-          tactileLabel="Tactile"
-          tactileDescription="Use touch or keyboard controls quietly."
-          accessibleLabel="Choose voice or tactile help for profile setup"
-          statusLabels={{
-            idle: "Ready",
-            listening: "Listening",
-            speaking: "Speaking",
-            thinking: "Thinking",
-            error: "Needs attention",
-          }}
-        />
+        {!isHomeMasterProfilePreview ? (
+          <OnboardingCompanionModeChip
+            compactLabel="VYVA mode"
+            voiceLabel="Voice"
+            voiceDescription="VYVA can talk you through this page."
+            tactileLabel="Tactile"
+            tactileDescription="Use touch or keyboard controls quietly."
+            accessibleLabel="Choose voice or tactile help for profile setup"
+            statusLabels={{
+              idle: "Ready",
+              listening: "Listening",
+              speaking: "Speaking",
+              thinking: "Thinking",
+              error: "Needs attention",
+            }}
+          />
+        ) : null}
         <ProfileSectionHero
           icon={Building2}
           title={t("onboarding.providers.title", "Trusted providers")}
@@ -1143,50 +1163,38 @@ const ProvidersSection = () => {
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Name <span className="text-vyva-red">*</span>
               </label>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-md" />
-              ) : (
-                <Input
-                  data-testid="input-manual-name"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder={`e.g. My local ${categoryLabel}`}
-                  className={seniorInputClassName}
-                />
-              )}
+              <Input
+                data-testid="input-manual-name"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder={`e.g. My local ${categoryLabel}`}
+                className={seniorInputClassName}
+              />
             </div>
             <div>
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Address <span className="text-vyva-text-3 font-normal">(optional)</span>
               </label>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-md" />
-              ) : (
-                <Input
-                  data-testid="input-manual-address"
-                  value={manualAddress}
-                  onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder="Full address"
-                  className={seniorInputClassName}
-                />
-              )}
+              <Input
+                data-testid="input-manual-address"
+                value={manualAddress}
+                onChange={(e) => setManualAddress(e.target.value)}
+                placeholder="Full address"
+                className={seniorInputClassName}
+              />
             </div>
             <div>
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Phone <span className="text-vyva-text-3 font-normal">(optional)</span>
               </label>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-md" />
-              ) : (
-                <Input
-                  data-testid="input-manual-phone"
-                  type="tel"
-                  value={manualPhone}
-                  onChange={(e) => setManualPhone(e.target.value)}
-                  placeholder="+44 1234 567890"
-                  className={seniorInputClassName}
-                />
-              )}
+              <Input
+                data-testid="input-manual-phone"
+                type="tel"
+                value={manualPhone}
+                onChange={(e) => setManualPhone(e.target.value)}
+                placeholder="+44 1234 567890"
+                className={seniorInputClassName}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -1324,7 +1332,7 @@ const ProvidersSection = () => {
             <button
               data-testid="button-manual-add"
               onClick={addFromManual}
-              disabled={!manualName.trim() || isLoading || adding || saving}
+              disabled={!manualName.trim() || adding || saving}
               className="flex items-center gap-2 rounded-full px-4 py-2 font-body text-[14px] font-medium text-vyva-purple border border-vyva-purple disabled:opacity-40"
             >
               <Plus size={16} />

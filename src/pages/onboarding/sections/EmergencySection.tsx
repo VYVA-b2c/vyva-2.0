@@ -263,7 +263,7 @@ export default function EmergencySection() {
   const FieldSkeleton = () => <Skeleton className="h-11 w-full rounded-lg" />;
 
   return (
-    <PhoneFrame subtitle="Emergency contact" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+    <PhoneFrame subtitle="Emergency contact" showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
       <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
         <ProfileSectionHero
           icon={ShieldAlert}
