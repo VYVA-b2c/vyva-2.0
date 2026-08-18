@@ -11,6 +11,7 @@ import {
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
+import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
 import { useToast } from "@/hooks/use-toast";
 import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import { useLanguage } from "@/i18n";
@@ -670,11 +671,13 @@ type VoiceTriageAnswerInput = {
 
 function VoiceTriageLivePanel({
   session,
+  stageId,
   onAnswer,
   onStartOver,
   isAnswering = false,
 }: {
   session: VoiceTriageSessionResponse;
+  stageId: SymptomAssessmentStageId;
   onAnswer?: (answer: VoiceTriageAnswerInput) => void;
   onStartOver?: () => void;
   isAnswering?: boolean;
@@ -731,6 +734,15 @@ function VoiceTriageLivePanel({
       <div className={`p-4 sm:p-5 ${
         isEmergency ? "bg-[#FFF7F7]" : isComplete ? "bg-[#F0FDF4]" : "bg-gradient-to-br from-[#FBFAFF] via-white to-[#F0FDFF]"
       }`}>
+        <SymptomAssessmentPresentation
+          stageId={stageId}
+          modality="voice"
+          title={headline}
+          helper={!isComplete && !isEmergency
+            ? t("health.symptomCheck.voicePanel.sayOrTap", "Say your answer out loud, or tap one answer below.")
+            : undefined}
+          className="mb-4 shadow-none"
+        />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] shadow-sm ${
@@ -1643,20 +1655,15 @@ export function IntroScreen({
         </div>
       ) : null}
 
-      <section
+      <SymptomAssessmentPresentation stageId="describe" modality="touch">
+      <div
         data-testid="symptom-check-start-panel"
-        className={`grid min-w-0 gap-4 rounded-[32px] border border-[#E8DED4] bg-white p-4 shadow-[0_18px_46px_rgba(63,45,35,0.10)] sm:p-5 lg:p-6 ${showGuide ? "lg:grid-cols-[minmax(0,1fr)_270px]" : ""}`}
+        className={`grid min-w-0 gap-4 ${showGuide ? "lg:grid-cols-[minmax(0,1fr)_270px]" : ""}`}
       >
+        <span className="sr-only">
+          {t("health.symptomCheck.intro.assistantTitle", "Tell VYVA what has changed")}
+        </span>
         <div className="min-w-0 space-y-4">
-          <div className="min-w-0 text-left">
-            <h1 className="font-body text-[34px] font-black leading-[1.02] text-vyva-text-1 sm:text-[42px]">
-              {t("health.symptomCheck.intro.assistantTitle", "Tell VYVA what has changed")}
-            </h1>
-            <p className="mt-2 max-w-[620px] font-body text-[17px] font-bold leading-snug text-vyva-text-2 sm:text-[19px]">
-              {t("health.symptomCheck.intro.assistantBody", "Use your voice or type a few words.")}
-            </p>
-          </div>
-
           <div className="rounded-[28px] border border-[#DDD6FE] bg-[#FBFAFF] p-3 shadow-[0_10px_26px_rgba(63,45,35,0.06)] sm:p-4">
             <label className="sr-only" htmlFor="symptom-clue">
               {t("health.symptomCheck.intro.inputLabel", "What feels different?")}
@@ -1774,7 +1781,8 @@ export function IntroScreen({
             </details>
           </aside>
         ) : null}
-      </section>
+      </div>
+      </SymptomAssessmentPresentation>
 
       {(moreIdeas.length || profileContextItems.length) ? (
         <details
@@ -4021,6 +4029,7 @@ export default function SymptomCheckScreen() {
         {activeVoiceTriageSession ? (
           <VoiceTriageLivePanel
             session={activeVoiceTriageSession}
+            stageId={currentAssessmentStage}
             onAnswer={canAnswerVoiceTriageSession ? handleVoiceTriageAnswer : undefined}
             onStartOver={resetSymptomCheck}
             isAnswering={voiceTriageAnswerMutation.isPending || !canAnswerVoiceTriageSession}
@@ -4039,6 +4048,7 @@ export default function SymptomCheckScreen() {
             resumePendingRequest={resumePendingRequest}
             language={language}
             languageReady={!profileLoading}
+            presentationStage={currentAssessmentStage}
             onStageChange={(runtimeStage, urgent) => setTouchAssessmentStage(
               symptomAssessmentStageForRuntime(runtimeStage, urgent),
             )}
@@ -4053,7 +4063,14 @@ export default function SymptomCheckScreen() {
         )}
 
         {step === "report" && summary && (
-          <ReportScreen
+          <>
+            <div className="mx-auto w-full max-w-[1040px] px-4 pt-3 sm:px-5 lg:px-0">
+              <SymptomAssessmentPresentation
+                stageId={currentAssessmentStage}
+                modality={activeVoiceTriageSession ? "voice" : "touch"}
+              />
+            </div>
+            <ReportScreen
             summary={summary}
             bpm={bpm}
             respiratoryRate={respiratoryRate}
@@ -4068,7 +4085,8 @@ export default function SymptomCheckScreen() {
             refinementStatus={refinementStatus}
             onRefineVital={handleRefineVital}
             onDone={handleDone}
-          />
+            />
+          </>
         )}
       </div>
     </HealthWizardShell>
