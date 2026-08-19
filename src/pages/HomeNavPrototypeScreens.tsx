@@ -169,6 +169,11 @@ function PrototypeShell({
   const widthClass = width === "flow"
     ? "max-w-[32.5rem] sm:max-w-[680px] lg:max-w-[900px]"
     : "max-w-[430px] sm:max-w-[620px] lg:max-w-[760px]";
+  const frameBottomPadding = dockPadding
+    // The dock is fixed over the page. Reserve more than its visual height so
+    // the final message card remains readable above it on short viewports.
+    ? "pb-[calc(10rem+env(safe-area-inset-bottom))]"
+    : "pb-8";
 
   return (
     <main
@@ -183,7 +188,7 @@ function PrototypeShell({
     >
       <div
         data-testid={width === "flow" ? "checkin-desktop-shell" : `${testId}-frame`}
-        className={["mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", widthClass].join(" ")}
+        className={["mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", frameBottomPadding, widthClass].join(" ")}
       >
         {children}
       </div>
@@ -344,6 +349,7 @@ function CompanionOrb({
   response = "I'm here with you. We can take this one step at a time.",
   testId = "prototype-orb",
   showCaption = true,
+  showIdlePrompt = true,
   onActiveChange,
 }: {
   compact?: boolean;
@@ -351,6 +357,7 @@ function CompanionOrb({
   response?: string;
   testId?: string;
   showCaption?: boolean;
+  showIdlePrompt?: boolean;
   onActiveChange?: (isActive: boolean) => void;
 }) {
   const interaction = useOrbInteraction(response, prompt);
@@ -380,7 +387,7 @@ function CompanionOrb({
           core,
         ].join(" ")}
       />
-      {showCaption ? (
+      {showCaption && (interaction.isActive || showIdlePrompt) ? (
         <span className="absolute -bottom-9 w-[15rem] text-center font-body text-[15px] font-bold tracking-[-0.01em] text-[#D89225]">
           {interaction.caption}
         </span>
@@ -554,13 +561,19 @@ export function PrototypeHomeScreen() {
     },
   ], []);
   const [momentIndex, setMomentIndex] = useState(0);
+  const [showIdlePrompt, setShowIdlePrompt] = useState(true);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       setMomentIndex((current) => (current + 1) % moments.length);
-    }, 8500);
+    }, 8_500);
     return () => window.clearInterval(timer);
   }, [moments.length]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowIdlePrompt(false), 10_000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const currentMoment = moments[momentIndex];
 
@@ -569,7 +582,7 @@ export function PrototypeHomeScreen() {
       <PrototypeTopbar kind="home" actionPath="/dev/home-master/menu" profilePath="/dev/home-master/profile" />
       <section
         data-testid="home-master-hero"
-        className="flex flex-1 flex-col items-center justify-center pb-24 pt-12 text-center"
+        className="flex min-h-0 flex-1 flex-col items-center justify-center pb-[calc(9rem+env(safe-area-inset-bottom))] pt-12 text-center md:justify-start md:pb-[calc(7rem+env(safe-area-inset-bottom))] md:pt-14"
       >
         <h1
           className={[
@@ -584,6 +597,7 @@ export function PrototypeHomeScreen() {
             prompt="Tap the circle to talk"
             response={currentMoment.response ?? "I'm here. Tell me what you'd like to do next."}
             testId="home-dormant-zamora-orb-visual"
+            showIdlePrompt={showIdlePrompt}
             onActiveChange={setIsVoiceActive}
           />
         </div>
@@ -595,7 +609,9 @@ export function PrototypeHomeScreen() {
               if (currentMoment.path) navigate(currentMoment.path);
             }}
             className={[
-              "mt-24 w-full max-w-[22rem] rounded-[28px] border px-5 py-4 text-left transition-colors duration-150",
+              // Keep the board in normal flow, then let desktop flex space
+              // place it above the reserved dock area instead of underneath it.
+              "relative z-10 mt-10 w-full max-w-[22rem] rounded-[28px] border px-5 py-4 text-left transition-colors duration-150 md:mt-auto md:mb-4",
               isDark ? "border-white/[0.12] bg-white/[0.07]" : "border-[#EFE4F6] bg-white/82 shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
             ].join(" ")}
           >
@@ -604,7 +620,12 @@ export function PrototypeHomeScreen() {
                 {currentMoment.tag}
               </span>
             ) : null}
-            <span className={["block font-body text-[17px] font-extrabold leading-snug", isDark ? "text-[#F7F0FF]" : "text-[#6C5F78]"].join(" ")}>
+            <span
+              className={[
+                "block max-h-[3.5rem] overflow-hidden font-body text-[17px] font-extrabold leading-snug [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]",
+                isDark ? "text-[#F7F0FF]" : "text-[#6C5F78]",
+              ].join(" ")}
+            >
               {currentMoment.text}
             </span>
             <span className="mt-3 flex gap-1.5" aria-hidden="true">
