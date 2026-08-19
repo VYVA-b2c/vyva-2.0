@@ -687,6 +687,12 @@
   color: var(--hm-profile-text);
 }
 
+.home-master-profile-question {
+  background: color-mix(in srgb, var(--hm-profile-surface) 94%, var(--hm-profile-surface-subtle));
+  border-color: var(--hm-profile-control-border);
+  color: var(--hm-profile-text);
+}
+
 .home-master-profile-subtitle {
   color: var(--hm-profile-text);
 }
@@ -714,6 +720,21 @@
 [data-home-master-theme="dark"] .home-master-profile-page .bg-white,
 [data-home-master-theme="dark"] .home-master-profile-page [class*="bg-white"] {
   background-color: var(--hm-profile-surface) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-question [style*="FFFFFF"],
+[data-home-master-theme="dark"] .home-master-profile-question [style*="ffffff"] {
+  background-color: var(--hm-profile-surface) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-question [style*="FAF8FF"],
+[data-home-master-theme="dark"] .home-master-profile-question [style*="faf8ff"] {
+  background-color: var(--hm-profile-surface-subtle) !important;
+}
+
+[data-home-master-theme="dark"] .home-master-profile-question [style*="2C2320"],
+[data-home-master-theme="dark"] .home-master-profile-question [style*="2c2320"] {
+  color: var(--hm-profile-text) !important;
 }
 
 [data-home-master-theme="dark"] .home-master-profile-frame [class*="bg-vyva-cream"],
