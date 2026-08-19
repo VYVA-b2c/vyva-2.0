@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -63,10 +63,15 @@ describe("Home/Nav prototype screens", () => {
     renderScreen(<PrototypeHomeScreen />);
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("home-master-layout-frame")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
+    expect(screen.getByTestId("home-rotating-moment")).toHaveClass("mt-10");
+    expect(screen.getByTestId("home-rotating-moment")).toHaveClass("md:mt-auto");
+    expect(screen.getByTestId("home-rotating-moment").querySelector("span.block")).toHaveClass("[-webkit-line-clamp:2]");
     expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
     expect(screen.getByTestId("home-topbar-action-pill")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-mode-touch")).toBeInTheDocument();
     expect(screen.getByTestId("home-dormant-zamora-orb-visual")).toHaveAttribute("data-orb-state", "idle");
+    expect(screen.queryByTestId("home-idle-hand-cue")).not.toBeInTheDocument();
     expect(screen.getByText(/Good morning|Good afternoon|Good evening/)).toHaveTextContent("Karim");
     expect(screen.getByText("Tap the circle to talk")).toBeInTheDocument();
   });
@@ -80,7 +85,32 @@ describe("Home/Nav prototype screens", () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId("home-rotating-moment")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("home-idle-hand-cue")).not.toBeInTheDocument();
     });
+  });
+
+  it("shows the idle prompt only during the first ten seconds after app load", () => {
+    vi.useFakeTimers();
+    try {
+      renderScreen(<PrototypeHomeScreen />);
+
+      expect(screen.getByText("Tap the circle to talk")).toBeInTheDocument();
+      expect(screen.getByTestId("home-rotating-moment")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(9_999);
+      });
+      expect(screen.getByText("Tap the circle to talk")).toBeInTheDocument();
+      expect(screen.getByTestId("home-rotating-moment")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.queryByText("Tap the circle to talk")).not.toBeInTheDocument();
+      expect(screen.getByTestId("home-rotating-moment")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders Menu as the approved four-tile manual hub", () => {
