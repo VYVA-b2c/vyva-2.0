@@ -12,7 +12,10 @@ import {
   SlidersHorizontal,
   Stethoscope,
 } from "lucide-react";
-import type { SymptomAssessmentStageId } from "@/design/screenPresentation";
+import {
+  resolveSymptomAssessmentPresentation,
+  type SymptomAssessmentStageId,
+} from "@/design/screenPresentation";
 
 export type SymptomAssessmentModality = "voice" | "touch";
 
@@ -124,15 +127,26 @@ export function SymptomAssessmentPresentation({
   const copy = stageCopy[stageId];
   const Icon = iconByStage[stageId];
   const urgent = stageId === "urgent_escalation";
+  const loading = stageId === "checking";
+  const presentation = resolveSymptomAssessmentPresentation(stageId);
+  const presentationState = urgent ? "urgent" : loading ? "loading" : "default";
+  const presentationId = modality === "voice"
+    ? presentation.voiceSceneId
+    : presentation.touchSceneId;
 
   return (
     <section
+      aria-busy={loading || undefined}
       className={`overflow-hidden rounded-[30px] border bg-white shadow-[0_18px_44px_rgba(63,45,35,0.09)] ${
         urgent ? "border-[#FCA5A5]" : "border-[#DDD6FE]"
       } ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
+      data-flow-id="health.symptom_assessment"
+      data-presentation-id={presentationId}
       data-presentation-modality={modality}
+      data-presentation-state={presentationState}
+      data-registry-scene={presentation.registrySceneId}
     >
       <div className={`p-5 ${urgent ? "bg-[#FFF7F7]" : "bg-[linear-gradient(145deg,#FFFFFF_0%,#FBFAFF_62%,#F0FDFF_100%)]"}`}>
         <div className="flex items-start gap-4">
@@ -141,7 +155,7 @@ export function SymptomAssessmentPresentation({
           }`}>
             {stageId === "describe" && modality === "voice" ? (
               <Mic size={27} strokeWidth={2.7} />
-            ) : stageId === "checking" ? (
+            ) : loading ? (
               <Icon size={27} strokeWidth={2.7} className="animate-spin" />
             ) : (
               <Icon size={27} strokeWidth={2.7} />

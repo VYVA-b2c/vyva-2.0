@@ -8,6 +8,7 @@ import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDra
 import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
 import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileQuestionLayout } from "@/components/onboarding/ProfileQuestionLayout";
 import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
@@ -630,14 +631,14 @@ export default function ConditionsSection() {
         <ProfileSectionHero
           compact
           icon={HeartPulse}
-          title={t("onboarding.conditions.title", "Health profile")}
-          kicker="Your health"
+          title={t("onboarding.conditions.title", "Tell us about your health")}
+          kicker="A quick question"
           description={t(
             "onboarding.conditions.description",
-            "Add health conditions so VYVA can give safer, more useful support.",
+            "Pick what fits. You can change it anytime.",
           )}
           iconBgClassName="bg-[#B0355A]"
-          className="!rounded-[22px] !p-4 [&_h2]:!text-[30px] sm:!p-5 sm:[&_h2]:!text-[34px]"
+          className="!rounded-[22px] !p-4 [&_h2]:!text-[30px] sm:!p-5 sm:[&_h2]:!text-[34px] [&_p]:!text-[16px]"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
         />
 
@@ -740,20 +741,18 @@ export default function ConditionsSection() {
             ))}
           </div>
         ) : (
-          <>
-            <div className="flex items-center gap-3" aria-hidden="true">
-              <span className="h-px flex-1 bg-[#E4D9CF]" />
-              <span className="font-body text-[13px] font-black uppercase text-vyva-text-2">or choose manually</span>
-              <span className="h-px flex-1 bg-[#E4D9CF]" />
-            </div>
-
-            <div className="flex items-end justify-between gap-3">
+          <ProfileQuestionLayout
+            eyebrow="One step at a time"
+            title="What applies to you?"
+            description="Search or choose a category."
+            testId="profile-question-health-conditions"
+          >
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="font-body text-[17px] font-black text-vyva-text-1">Find a condition</p>
-                <p className="mt-1 font-body text-[14px] font-semibold text-vyva-text-2">Search by name or browse a category.</p>
+                <p className="font-body text-[18px] font-black text-vyva-text-1">Choose what fits</p>
               </div>
               {selected.length > 0 ? (
-                <span className="shrink-0 rounded-full bg-[#F3E8FF] px-3 py-1 text-[12px] font-black text-vyva-purple">
+                <span className="shrink-0 rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
                   {selected.length} selected
                 </span>
               ) : null}
@@ -765,8 +764,9 @@ export default function ConditionsSection() {
                   <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#766B66]" />
                   <input
                     data-testid="input-conditions-search"
-                    className="h-14 w-full rounded-[18px] border border-[#CBB5EC] bg-white pl-12 pr-12 text-[17px] font-semibold text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:font-medium placeholder:text-[#766B66] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
-                    placeholder="Search health conditions"
+                    aria-label="Search health conditions"
+                    className="h-16 w-full rounded-[20px] border border-[#CBB5EC] bg-white pl-12 pr-12 text-[18px] font-semibold text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:font-medium placeholder:text-[#766B66] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
+                    placeholder="Search conditions"
                     value={search}
                     onFocus={() =>
                       setVoiceGuidance({
@@ -821,7 +821,7 @@ export default function ConditionsSection() {
                 }
                 onClick={toggleNoKnownConditions}
                 className={cn(
-                  "flex min-h-[64px] w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/15",
+                  "flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/15",
                   noKnownConditions
                     ? "border-vyva-purple bg-[#F3E8FF] text-vyva-purple"
                     : "border-[#E4D9CF] bg-white text-vyva-text-1 hover:border-[#CBB5EC]",
@@ -834,8 +834,8 @@ export default function ConditionsSection() {
                   <CheckCircle2 size={17} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block font-body text-[15px] font-black">I have no known health conditions</span>
-                  <span className="mt-0.5 block font-body text-[13px] font-semibold text-vyva-text-2">Choose this only if none currently apply.</span>
+                  <span className="block font-body text-[17px] font-black">None of these</span>
+                  <span className="mt-0.5 block font-body text-[14px] font-semibold text-vyva-text-2">I don&apos;t have any known conditions.</span>
                 </span>
               </button>
             </OnboardingCompanionTarget>
@@ -887,10 +887,10 @@ export default function ConditionsSection() {
                       data-testid={`accordion-${group.cat}`}
                       onClick={() => !isSearching && toggleCat(group.cat)}
                       aria-expanded={isOpen}
-                      className="grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8FF]"
+                      className="grid min-h-[72px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8FF] focus:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                     >
                       <span className="min-w-0">
-                        <span className="block font-body text-[16px] font-black leading-snug text-gray-800">{cat.label}</span>
+                        <span className="block font-body text-[18px] font-black leading-snug text-gray-800">{cat.label}</span>
                         {hasSelections && (
                           <span
                             className="mt-0.5 block text-[12px] font-bold text-vyva-purple"
@@ -924,7 +924,7 @@ export default function ConditionsSection() {
                               data-testid={`card-condition-${item.replace(/\s+/g, "-").toLowerCase()}`}
                               onClick={() => toggleCondition(item)}
                               className={cn(
-                                "flex min-h-[64px] items-center gap-3 rounded-[18px] px-4 py-3 text-left transition-all",
+                                "flex min-h-[68px] items-center gap-3 rounded-[18px] px-4 py-3 text-left transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15",
                               )}
                               style={
                                 isSelected
@@ -933,7 +933,7 @@ export default function ConditionsSection() {
                               }
                             >
                               <span
-                                className="font-body text-[15px] font-bold leading-tight flex-1 min-w-0"
+                                className="font-body text-[17px] font-bold leading-tight flex-1 min-w-0"
                                 style={{ color: isSelected ? "#5B12A0" : "#2C2320" }}
                               >
                                 {item}
@@ -971,13 +971,13 @@ export default function ConditionsSection() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-body text-[16px] font-black text-vyva-text-1">Daily-life context</span>
+                    <span className="font-body text-[18px] font-black text-vyva-text-1">Anything else to share?</span>
                     <span className="rounded-full bg-[#F5F1EC] px-2 py-0.5 text-[11px] font-black uppercase text-vyva-text-2">
                       Optional
                     </span>
                   </span>
                   <span className="mt-0.5 block truncate font-body text-[13px] font-semibold text-vyva-text-2">
-                    {dailyLifeSummary || "Mobility and living situation"}
+                    {dailyLifeSummary || "Optional context for your support"}
                   </span>
                 </span>
                 <ChevronDown
@@ -1011,7 +1011,7 @@ export default function ConditionsSection() {
                 </div>
               ) : null}
             </div>
-          </>
+          </ProfileQuestionLayout>
         )}
 
         <OnboardingCompanionTarget targetId="health-review-save">
