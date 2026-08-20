@@ -89,8 +89,9 @@ async function loadJourneys(
 
 export async function homeFastHelpSyncAvailableForUser(userId: string) {
   const result = await pool.query<{ available: boolean }>(`
-    select exists (
-      select 1 from auth.users where id = $1::uuid
+    select (
+      exists (select 1 from public.users where id = $1)
+      or exists (select 1 from public.profiles where id = $1)
     ) as available
   `, [userId]);
   return Boolean(result.rows[0]?.available);
