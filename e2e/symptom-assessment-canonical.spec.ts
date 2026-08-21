@@ -152,14 +152,15 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
     await page.getByTestId("button-symptom-emergency-continue").click();
   }
   await expect(describeScene).toHaveAttribute("data-scene-layout", "capture");
-  await expect(page.getByRole("button", { name: "VYVA" })).toBeVisible();
+  await expect(page.getByTestId("prototype-home-master-topbar")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Symptoms Check" })).toBeVisible();
+  await expect(page.getByTestId("button-prototype-back")).toBeVisible();
   await expect(page.getByTestId("nav-tab-home")).toBeVisible();
   await expect(page.getByTestId("nav-tab-sos")).toBeVisible();
   await expect(page.getByTestId("nav-tab-reports")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Use Voice mode" }),
+    page.getByRole("button", { name: "Switch to voice mode" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Use Touch mode" })).toBeVisible();
   await expect(describeScene.getByLabel("Touch mode", { exact: true })).toHaveCount(0);
 
   await page.screenshot({
@@ -198,6 +199,7 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   await expect(yesButton).toBeVisible();
   await expect(yesButton).toHaveCSS("background-color", "rgb(8, 127, 118)");
   await expect(yesButton).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
 
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-safety-390.png"),

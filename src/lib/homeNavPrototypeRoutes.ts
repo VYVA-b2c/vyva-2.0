@@ -13,9 +13,6 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/social-rooms",
   "/concierge",
   "/informes",
-]);
-
-const HOME_NAV_PROTOTYPE_DOCK_ONLY_ROUTES = new Set([
   "/health/symptom-check",
 ]);
 
@@ -44,8 +41,7 @@ export function isHomeNavPrototypeTopbarRoute(pathname: string) {
 }
 
 export function isHomeNavPrototypeDockRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) ||
-    HOME_NAV_PROTOTYPE_DOCK_ONLY_ROUTES.has(pathname);
+  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname);
 }
 
 export function hidesHomeNavPrototypeDock(pathname: string) {

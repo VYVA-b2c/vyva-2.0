@@ -296,24 +296,30 @@ function PrototypeTopbar({
   kind,
   title,
   backPath,
+  onBack,
   actionPath,
   compactVoice = false,
   profilePath = "/dev/home-master/profile",
   voicePath = "/dev/home-master",
+  interactionMode = "touch",
+  onInteractionModeChange,
 }: {
   kind: "home" | "hub" | "destination" | "detail" | "profile";
   title?: string;
   backPath?: string;
+  onBack?: () => void;
   actionPath?: string;
   compactVoice?: boolean;
   profilePath?: string;
   voicePath?: string;
+  interactionMode?: "voice" | "touch";
+  onInteractionModeChange?: (mode: "voice" | "touch") => void;
 }) {
   const navigate = usePrototypeNavigate();
   const left = kind === "home" || kind === "hub" ? (
     <VyvaProfileControl onClick={() => navigate(profilePath)} />
   ) : (
-    <RoundControl icon={ArrowLeft} label="Back" testId="button-prototype-back" onClick={() => navigate(backPath ?? "/dev/home-master")} />
+    <RoundControl icon={ArrowLeft} label="Back" testId="button-prototype-back" onClick={onBack ?? (() => navigate(backPath ?? "/dev/home-master"))} />
   );
 
   return (
@@ -334,12 +340,50 @@ function PrototypeTopbar({
             onClick={() => navigate(actionPath ?? "/dev/home-master/menu")}
           />
         </div>
+      ) : compactVoice && onInteractionModeChange ? (
+        <div className="flex justify-end">
+          <RoundControl
+            icon={interactionMode === "voice" ? Hand : Mic}
+            label={interactionMode === "voice" ? "Switch to touch mode" : "Switch to voice mode"}
+            testId={interactionMode === "voice" ? "button-symptom-mode-touch" : "button-symptom-mode-voice"}
+            variant="purple"
+            onClick={() => onInteractionModeChange(interactionMode === "voice" ? "touch" : "voice")}
+          />
+        </div>
       ) : compactVoice ? (
         <CompactVoiceTrigger voicePath={voicePath} />
       ) : (
         <div aria-hidden="true" />
       )}
     </header>
+  );
+}
+
+export function PrototypeSymptomAssessmentShell({
+  children,
+  interactionMode,
+  onInteractionModeChange,
+  onBack,
+}: {
+  children: ReactNode;
+  interactionMode: "voice" | "touch";
+  onInteractionModeChange: (mode: "voice" | "touch") => void;
+  onBack: () => void;
+}) {
+  return (
+    <PrototypeShell testId="prototype-symptom-assessment-screen" width="flow">
+      <PrototypeTopbar
+        kind="detail"
+        title="Symptoms Check"
+        compactVoice
+        interactionMode={interactionMode}
+        onInteractionModeChange={onInteractionModeChange}
+        onBack={onBack}
+      />
+      <div className="mt-6 flex min-h-0 flex-1 flex-col" data-testid="prototype-symptom-assessment-content">
+        {children}
+      </div>
+    </PrototypeShell>
   );
 }
 

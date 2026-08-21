@@ -16,7 +16,7 @@ import { VyvaMark } from "./VyvaMark";
 
 type StatusBarProps = {
   wide?: boolean;
-  variant?: "default" | "homeMaster" | "symptomAssessment";
+  variant?: "default" | "homeMaster";
   autoHideHomeControls?: boolean;
 };
 
@@ -47,7 +47,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
 
   useEffect(() => {
-    if (variant !== "homeMaster" && variant !== "symptomAssessment") return;
+    if (variant !== "homeMaster") return;
     if (!shouldAutoHideHomeControls) return;
     if (homeControlsHideTimerRef.current) {
       window.clearTimeout(homeControlsHideTimerRef.current);
@@ -69,7 +69,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
   }, [shouldAutoHideHomeControls, variant]);
 
   useEffect(() => {
-    if (variant !== "homeMaster" && variant !== "symptomAssessment") return;
+    if (variant !== "homeMaster") return;
     const handleHomeModeControl = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : null;
       if (!detail || (detail.mode !== "voice" && detail.mode !== "touch")) return;
@@ -107,54 +107,6 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
     document.addEventListener("pointerdown", closeFromOutsideTap);
     return () => document.removeEventListener("pointerdown", closeFromOutsideTap);
   }, [homeSettingsMenuOpen, shouldAutoHideHomeControls, variant]);
-
-  if (variant === "symptomAssessment") {
-    const currentMode: HomeInteractionMode = homeModeControl?.mode === "voice" ? "voice" : "touch";
-    const selectMode = (mode: HomeInteractionMode) => {
-      if (mode === currentMode) return;
-      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
-        detail: { mode },
-      }));
-    };
-
-    return (
-      <div className="fixed left-1/2 top-0 z-50 flex w-full max-w-[330px] -translate-x-1/2 items-center justify-between px-5 py-5">
-        <button
-          type="button"
-          onClick={() => navigate("/")}
-          aria-label="VYVA"
-          className="vyva-tap grid h-10 !min-h-10 w-10 place-items-center rounded-[12px] bg-[#7024C4] font-display text-[22px] font-black leading-none text-white"
-        >
-          Y
-        </button>
-        <div
-          aria-label={`${currentMode === "voice" ? "Voice" : "Touch"} mode`}
-          className="flex gap-[5px] rounded-full border border-[#E6DCEC] bg-white p-1 text-[12px] font-black"
-        >
-          <button
-            type="button"
-            aria-label="Use Voice mode"
-            aria-pressed={currentMode === "voice"}
-            disabled={currentMode === "voice"}
-            onClick={() => selectMode("voice")}
-            className={`grid h-[30px] min-w-[30px] place-items-center rounded-full ${currentMode === "voice" ? "bg-[#7024C4] text-white" : "text-[#746A72]"}`}
-          >
-            V
-          </button>
-          <button
-            type="button"
-            aria-label="Use Touch mode"
-            aria-pressed={currentMode === "touch"}
-            disabled={currentMode === "touch"}
-            onClick={() => selectMode("touch")}
-            className={`grid h-[30px] min-w-[30px] place-items-center rounded-full ${currentMode === "touch" ? "bg-[#7024C4] text-white" : "text-[#746A72]"}`}
-          >
-            T
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (variant === "homeMaster") {
     const homeIconButtonClass = isDark

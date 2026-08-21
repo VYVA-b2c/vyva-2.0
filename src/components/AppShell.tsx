@@ -938,7 +938,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         {!isFullScreen && !ownsPrototypeTopbar && (
           <StatusBar
             wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
-            variant={isSymptomCheckRoute ? "symptomAssessment" : usesCompactVoiceSurface ? "homeMaster" : "default"}
+            variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
             autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}

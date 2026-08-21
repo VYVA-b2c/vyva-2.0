@@ -850,7 +850,7 @@ export default function TriageChat({
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="px-4 py-4"
+        className={presentationStage ? "py-4" : "px-4 py-4"}
       >
         <div className="mx-auto flex w-full max-w-[620px] flex-col gap-5">
           {showProgressCard ? (
@@ -1307,7 +1307,7 @@ export default function TriageChat({
         </div>
       </div>
 
-      <div
+      {!presentationStage ? <div
         className="px-4 pb-3 pt-2"
         style={{
           background: "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
@@ -1365,7 +1365,7 @@ export default function TriageChat({
             </button>
           </div>
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }

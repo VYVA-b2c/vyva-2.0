@@ -151,7 +151,7 @@ export function SymptomAssessmentPresentation({
   return (
     <section
       aria-busy={loading || undefined}
-      className={`mx-auto min-h-[535px] w-[calc(100%_-_28px)] max-w-[330px] overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
+      className={`mx-auto min-h-[535px] ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} max-w-[330px] overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"

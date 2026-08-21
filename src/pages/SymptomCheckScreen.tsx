@@ -8,9 +8,9 @@ import { useProfile } from "@/contexts/ProfileContext";
 import {
   HealthWizardCard,
   HealthWizardHero,
-  HealthWizardShell,
 } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
+import { PrototypeSymptomAssessmentShell } from "@/pages/HomeNavPrototypeScreens";
 import { useToast } from "@/hooks/use-toast";
 import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
 import { useLanguage } from "@/i18n";
@@ -31,13 +31,7 @@ import {
   resolveSymptomAssessmentPresentation,
   type SymptomAssessmentStageId,
 } from "@/design/screenPresentation";
-import {
-  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
-  publishHomeModeControl,
-  type HomeInteractionMode,
-  type HomeModeControlActionDetail,
-  type HomeModeControlDetail,
-} from "@/lib/homeModeControl";
+import type { HomeInteractionMode } from "@/lib/homeModeControl";
 
 type Step = "intro" | "chat" | "report";
 
@@ -3625,37 +3619,6 @@ export default function SymptomCheckScreen() {
     if (voiceTriageSessionId) setSymptomInteractionMode("voice");
   }, [voiceTriageSessionId]);
 
-  useEffect(() => {
-    const nextMode: HomeInteractionMode = symptomInteractionMode === "voice" ? "touch" : "voice";
-    const detail: HomeModeControlDetail = {
-      mode: symptomInteractionMode,
-      visible: true,
-      label: nextMode === "voice"
-        ? t("home.mode.switchToVoice", "Switch to voice")
-        : t("home.mode.switchToTouch", "Switch to touch"),
-      testId: nextMode === "voice" ? "button-home-mode-voice" : "button-home-mode-touch",
-    };
-
-    publishHomeModeControl(detail);
-    return () => publishHomeModeControl({ ...detail, visible: false });
-  }, [symptomInteractionMode, t]);
-
-  useEffect(() => {
-    const handleModeControlAction = (event: Event) => {
-      const detail = event instanceof CustomEvent
-        ? event.detail as HomeModeControlActionDetail | undefined
-        : undefined;
-      if (detail?.mode === "voice") {
-        handleTalkToVyva();
-        return;
-      }
-      if (detail?.mode === "touch") setSymptomInteractionMode("touch");
-    };
-
-    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleModeControlAction);
-    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleModeControlAction);
-  }, [handleTalkToVyva]);
-
   const handleEmergencyUnsure = useCallback(() => {
     setVoiceStartPending(true);
     const contextHint = "The user is unsure if their situation is an emergency. Start by asking one calm question about their most urgent symptom to help them decide whether to call 112.";
@@ -3909,9 +3872,6 @@ export default function SymptomCheckScreen() {
     }
   };
 
-  const isWideWorkspace = step === "intro";
-  const shellMaxWidth = isWideWorkspace ? "max-w-[1120px]" : "max-w-[920px]";
-  const topBarMaxWidth = isWideWorkspace ? "max-w-[1040px]" : "max-w-[760px]";
   const provisionalVoiceTriageSession: VoiceTriageSessionResponse | null =
     voiceStartPending && voiceTriageSessionId && !voiceTriageSession
       ? {
@@ -3944,9 +3904,19 @@ export default function SymptomCheckScreen() {
   const currentAssessmentPresentation = resolveSymptomAssessmentPresentation(currentAssessmentStage);
 
   return (
-    <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col px-0 pb-10 pt-0`}>
+    <PrototypeSymptomAssessmentShell
+      interactionMode={symptomInteractionMode}
+      onInteractionModeChange={(mode) => {
+        if (mode === "voice") {
+          handleTalkToVyva();
+          return;
+        }
+        setSymptomInteractionMode("touch");
+      }}
+      onBack={handleBack}
+    >
       <div
-        className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`}
+        className="flex min-h-0 flex-1 flex-col"
         data-testid="symptom-check-shell"
         data-flow-id="health.symptom_assessment"
         data-stage-id={currentAssessmentStage}
@@ -3954,19 +3924,6 @@ export default function SymptomCheckScreen() {
         data-voice-presentation-id={currentAssessmentPresentation.voiceSceneId}
         data-touch-presentation-id={currentAssessmentPresentation.touchSceneId}
       >
-        {step === "intro" && !activeVoiceTriageSession ? (
-          <button
-            type="button"
-            onClick={handleBack}
-            aria-label={t("common.back", "Back")}
-            className="vyva-tap flex h-12 w-12 items-center justify-center rounded-full bg-white text-vyva-text-1 shadow-[0_8px_24px_rgba(63,45,35,0.10)]"
-          >
-            <ChevronLeft size={24} strokeWidth={2.6} />
-          </button>
-        ) : null}
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col">
         {step === "intro" && !activeVoiceTriageSession && (
           <IntroScreen
             onStart={handleIntroStart}
@@ -4046,6 +4003,6 @@ export default function SymptomCheckScreen() {
           </>
         )}
       </div>
-    </HealthWizardShell>
+    </PrototypeSymptomAssessmentShell>
   );
 }
