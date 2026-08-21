@@ -920,7 +920,7 @@
         clueSub: "Say or type a few words.",
         simpleTitle: "Tell me how you feel, right now",
         simpleBody: "Speak, type, or tap an example.",
-        simplePlaceholder: "Type what changed...",
+        simplePlaceholder: "Type here if you prefer...",
         startBtn: "Start check",
         examplesLabel: "Examples",
         moreIdeas: "More ideas",

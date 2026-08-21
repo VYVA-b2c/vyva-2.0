@@ -224,7 +224,7 @@ describe("SymptomCheck intro chips", () => {
 
     expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("If this feels urgent, do not wait");
     expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
-    expect(screen.getByPlaceholderText("Type what changed...")).toBeVisible();
+    expect(screen.getByPlaceholderText("Type here if you prefer...")).toBeVisible();
     expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
     expect(screen.getByText("How VYVA helps")).toBeVisible();
     expect(screen.queryByTestId("symptom-check-one-question-note")).not.toBeInTheDocument();
@@ -245,9 +245,11 @@ describe("SymptomCheck intro chips", () => {
   });
 
   it("uses a single voice entry point when Talk to VYVA is available", () => {
-    render(<IntroScreen onStart={vi.fn()} onTalkToVyva={vi.fn()} />);
+    const onTalkToVyva = vi.fn();
+    render(<IntroScreen onStart={vi.fn()} onTalkToVyva={onTalkToVyva} />);
 
-    expect(screen.getByTestId("button-symptom-check-talk-to-vyva")).toHaveTextContent("Talk to VYVA");
+    fireEvent.click(screen.getByRole("button", { name: "Use Voice mode" }));
+    expect(onTalkToVyva).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("button-symptom-clue-voice")).not.toBeInTheDocument();
   });
 

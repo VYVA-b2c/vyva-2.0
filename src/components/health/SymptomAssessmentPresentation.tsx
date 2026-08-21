@@ -42,7 +42,7 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   describe: {
     eyebrow: "Describe how you feel",
     title: "How are you feeling?",
-    helper: "Tell VYVA in your own words. You can speak or type.",
+    helper: "Tell VYVA in your own words.",
     layout: "capture",
   },
   safety_check: {
@@ -60,19 +60,19 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   symptom_selection: {
     eyebrow: "Symptom details",
     title: "What do you notice?",
-    helper: "Choose everything that applies.",
+    helper: "",
     layout: "choices",
   },
   severity: {
     eyebrow: "Severity",
     title: "How strong is it?",
-    helper: "0 means none. 10 means the strongest you can imagine.",
+    helper: "0 is none. 10 is the worst imaginable.",
     layout: "scale",
   },
   onset: {
     eyebrow: "Timing",
     title: "When did it start?",
-    helper: "An approximate time is enough.",
+    helper: "",
     layout: "choices",
   },
   related_details: {
@@ -84,7 +84,7 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   review: {
     eyebrow: "Review",
     title: "Is this right?",
-    helper: "Check what you shared before VYVA continues.",
+    helper: "",
     layout: "review",
   },
   checking: {
@@ -102,7 +102,7 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   save_share_summary: {
     eyebrow: "Summary",
     title: "Your summary is ready",
-    helper: "Keep a copy or share it with someone supporting your care.",
+    helper: "Keep it for yourself or share it with someone you trust.",
     layout: "handoff",
   },
 };
@@ -119,6 +119,7 @@ type SymptomAssessmentPresentationProps = {
   helper?: string;
   children?: ReactNode;
   reviewItems?: SymptomAssessmentReviewItem[];
+  onModalityChange?: (modality: SymptomAssessmentModality) => void;
   className?: string;
 };
 
@@ -129,12 +130,14 @@ export function SymptomAssessmentPresentation({
   helper,
   children,
   reviewItems = [],
+  onModalityChange,
   className = "",
 }: SymptomAssessmentPresentationProps) {
   const scene = stagePresentation[stageId];
   const presentation = resolveSymptomAssessmentPresentation(stageId);
   const urgent = scene.layout === "alert";
   const loading = scene.layout === "progress";
+  const displayHelper = helper ?? scene.helper;
   const presentationId =
     modality === "voice" ? presentation.voiceSceneId : presentation.touchSceneId;
   const showsVoiceOrb =
@@ -146,7 +149,7 @@ export function SymptomAssessmentPresentation({
   return (
     <section
       aria-busy={loading || undefined}
-      className={`overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
+      className={`mx-auto min-h-[535px] w-[calc(100%_-_28px)] max-w-[330px] overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
@@ -168,7 +171,12 @@ export function SymptomAssessmentPresentation({
           aria-label={`${modality === "voice" ? "Voice" : "Touch"} mode`}
           className="flex gap-[5px] rounded-full border border-[#E6DCEC] bg-white p-1 text-[12px] font-black"
         >
-          <span
+          <button
+            type="button"
+            aria-pressed={modality === "voice"}
+            aria-label="Use Voice mode"
+            disabled={!onModalityChange || modality === "voice"}
+            onClick={() => onModalityChange?.("voice")}
             className={`grid h-[30px] min-w-[30px] place-items-center rounded-full ${
               modality === "voice"
                 ? "bg-[#7024C4] text-white"
@@ -176,8 +184,13 @@ export function SymptomAssessmentPresentation({
             }`}
           >
             V
-          </span>
-          <span
+          </button>
+          <button
+            type="button"
+            aria-pressed={modality === "touch"}
+            aria-label="Use Touch mode"
+            disabled={!onModalityChange || modality === "touch"}
+            onClick={() => onModalityChange?.("touch")}
             className={`grid h-[30px] min-w-[30px] place-items-center rounded-full ${
               modality === "touch"
                 ? "bg-[#7024C4] text-white"
@@ -185,7 +198,7 @@ export function SymptomAssessmentPresentation({
             }`}
           >
             T
-          </span>
+          </button>
         </div>
       </div>
 
@@ -203,7 +216,7 @@ export function SymptomAssessmentPresentation({
               VYVA will stay with you.
             </p>
             <p className="mt-1 text-[14px] font-semibold leading-snug text-[#8C2724]">
-              {helper || scene.helper}
+              {displayHelper}
             </p>
           </div>
         ) : scene.layout === "progress" ? (
@@ -213,7 +226,7 @@ export function SymptomAssessmentPresentation({
           >
             <div className="h-[120px] w-[120px] animate-spin rounded-full border-[12px] border-[#D9F1ED] border-t-[#087F76]" />
             <p className="mt-[26px] max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
-              {helper || scene.helper}
+              {displayHelper}
             </p>
           </div>
         ) : scene.layout === "guidance" ? (
@@ -222,14 +235,14 @@ export function SymptomAssessmentPresentation({
             data-testid="symptom-scene-guidance"
           >
             <p className="text-[15px] font-bold leading-snug text-[#0D694B]">
-              {helper || scene.helper}
+              {displayHelper}
             </p>
           </div>
-        ) : (
+        ) : displayHelper ? (
           <p className="mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
-            {helper || scene.helper}
+            {displayHelper}
           </p>
-        )}
+        ) : null}
 
         {showsVoiceOrb ? (
           <div

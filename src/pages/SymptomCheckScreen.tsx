@@ -9,7 +9,6 @@ import {
   HealthWizardCard,
   HealthWizardHero,
   HealthWizardShell,
-  HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
 import { useToast } from "@/hooks/use-toast";
@@ -673,13 +672,11 @@ function VoiceTriageLivePanel({
   session,
   stageId,
   onAnswer,
-  onStartOver,
   isAnswering = false,
 }: {
   session: VoiceTriageSessionResponse;
   stageId: SymptomAssessmentStageId;
   onAnswer?: (answer: VoiceTriageAnswerInput) => void;
-  onStartOver?: () => void;
   isAnswering?: boolean;
 }) {
   const { t } = useTranslation();
@@ -687,27 +684,14 @@ function VoiceTriageLivePanel({
   const [typedAnswer, setTypedAnswer] = useState("");
   const latest = session.latest_response;
   const question = latest?.question;
-  const choices = question?.choices?.slice(0, 3) ?? [];
+  const choices = question?.choices ?? [];
   const actionOptions = latest?.action_options?.filter((action) => action.kind !== "call_emergency") ?? [];
   const vitalsPrompt = latest?.vitals_prompt;
   const isEmergency = session.status === "emergency";
   const isComplete = session.status === "complete";
   const isFailed = session.status === "failed";
   const canTapAnswer = Boolean(onAnswer && !isAnswering && !isEmergency && !isComplete && !isFailed);
-  const voiceGuidancePlan = latest?.guidancePlan;
   const emergencyContact = latest?.emergencyContact;
-  const statusLabel = isEmergency
-    ? t("health.symptomCheck.voicePanel.emergency", "Emergency guidance")
-    : isComplete
-      ? t("health.symptomCheck.voicePanel.saved", "Report saved")
-      : isFailed
-        ? t("health.symptomCheck.voicePanel.needsRetry", "Needs retry")
-        : t("health.symptomCheck.voicePanel.live", "Voice and touch check");
-  const headline = isEmergency
-    ? latest?.spoken_text || t("health.symptomCheck.voicePanel.emergencyFallback", "This may need emergency help.")
-    : isComplete
-      ? latest?.report?.chief_complaint || t("health.symptomCheck.voicePanel.completedTitle", "Your check has been saved.")
-      : question?.text || latest?.spoken_text || t("health.symptomCheck.voicePanel.waiting", "VYVA is listening.");
   const cleanTypedAnswer = typedAnswer.trim();
   const submitTypedAnswer = () => {
     if (!cleanTypedAnswer || !canTapAnswer) return;
@@ -732,54 +716,13 @@ function VoiceTriageLivePanel({
       <SymptomAssessmentPresentation
         stageId={stageId}
         modality="voice"
-        helper={headline}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-3 py-1.5 text-[12px] font-black ${
-              isEmergency
-                ? "bg-[#FFF0EF] text-[#D94C48]"
-                : isComplete
-                  ? "bg-[#E9F8F0] text-[#11865D]"
-                  : "bg-[#F3EAFF] text-[#7024C4]"
-            }`}>
-              {statusLabel}
-            </span>
-            {voiceGuidancePlan?.confidence ? (
-              <span className="rounded-full border border-[#B8E3D0] bg-[#E6F8F4] px-3 py-1.5 text-[12px] font-black text-[#087F76]" data-testid="voice-triage-context-confidence">
-                {t("health.symptomCheck.voicePanel.contextConfidence", "{{label}} - {{score}}/5 signals", {
-                  label: voiceGuidancePlan.confidence.label,
-                  score: voiceGuidancePlan.confidence.score,
-                })}
-              </span>
-            ) : null}
-          </div>
-          {isAnswering ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#DFD3E7] bg-white px-3 py-2 text-[13px] font-black text-[#7024C4]">
-              <Loader2 size={16} className="animate-spin" />
-              {t("health.symptomCheck.voicePanel.checking", "Checking")}
-            </span>
-          ) : isComplete && latest?.report?.triage_report_id ? (
-            <span className="rounded-full bg-[#E9F8F0] px-3 py-2 text-[13px] font-black text-[#11865D]">
-              {t("health.symptomCheck.voicePanel.reportReady", "Ready in My Reports")}
-            </span>
-          ) : onStartOver ? (
-            <button
-              type="button"
-              onClick={onStartOver}
-              className="vyva-tap rounded-full border border-[#DFD3E7] bg-white px-3 py-2 text-[13px] font-black text-[#7024C4]"
-            >
-              {t("health.symptomCheck.voicePanel.startOver", "Start over")}
-            </button>
-          ) : null}
-        </div>
-
-        {choices.length ? (
-          <div className={`mt-4 grid gap-2 ${
+        {stageId !== "checking" && choices.length ? (
+          <div className={`grid gap-[10px] ${
             stageId === "safety_check" || stageId === "review"
               ? "grid-cols-2"
               : stageId === "severity"
-                ? "grid-cols-[repeat(auto-fit,minmax(46px,1fr))]"
+                ? "grid-cols-[repeat(11,minmax(0,1fr))] gap-1"
                 : ""
           }`}>
             {choices.map((choice, index) => (
@@ -791,10 +734,12 @@ function VoiceTriageLivePanel({
                   choiceId: choice.id,
                   utterance: choice.value || choice.spoken_label,
                 })}
-                className={`vyva-tap flex min-h-[54px] items-center justify-center border px-3 py-3 text-center text-[15px] font-black leading-tight transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                className={`vyva-tap flex items-center justify-center border text-center font-black leading-tight transition disabled:cursor-not-allowed disabled:opacity-55 ${
                   stageId === "safety_check" || stageId === "review"
-                    ? "rounded-full"
-                    : "rounded-[8px]"
+                    ? "min-h-[54px] rounded-full px-3 py-3 text-[15px]"
+                    : stageId === "severity"
+                      ? "h-[38px] rounded-[8px] px-0 text-[12px]"
+                      : "min-h-[58px] rounded-[8px] px-[14px] py-3 text-[15px]"
                 } ${
                   stageId === "safety_check" && index === 1
                     ? "border-[#087F76] bg-[#087F76] text-white"
@@ -807,8 +752,8 @@ function VoiceTriageLivePanel({
           </div>
         ) : null}
 
-        {!isEmergency && !isComplete && !isFailed ? (
-          <div className="mt-4 rounded-[8px] border border-[#E7DDE6] bg-white p-2">
+        {stageId !== "checking" && !isEmergency && !isComplete && !isFailed ? (
+          <div className="rounded-[8px] border border-[#D9CFE0] bg-white p-2">
             <label className="sr-only" htmlFor="voice-triage-typed-answer">
               {t("health.symptomCheck.voicePanel.typeAnother", "Type another answer")}
             </label>
@@ -882,16 +827,18 @@ function VoiceTriageLivePanel({
         ) : null}
 
         {isComplete && actionOptions.length ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-[10px]">
             {actionOptions.map((action) => (
               <button
                 key={action.id}
                 type="button"
                 disabled={Boolean(action.disabled)}
                 onClick={() => runActionOption(action)}
-                className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-[8px] border border-[#B8E3D0] bg-white px-3 text-center text-[14px] font-black text-[#11865D] disabled:cursor-default disabled:border-[#E5E7EB] disabled:text-[#746A72]"
+                className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[8px] border border-[#DED3E2] bg-white px-[14px] py-3 text-left text-[15px] font-black text-[#241238] disabled:cursor-default disabled:opacity-55"
               >
-                {action.kind === "view_report" ? <FileText size={17} strokeWidth={2.7} /> : <CheckCircle size={17} strokeWidth={2.7} />}
+                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[8px] bg-[#F3EAFF] text-[#7024C4]">
+                  {action.kind === "view_report" ? <FileText size={17} strokeWidth={2.7} /> : <CheckCircle size={17} strokeWidth={2.7} />}
+                </span>
                 <span>{action.label}</span>
               </button>
             ))}
@@ -901,10 +848,12 @@ function VoiceTriageLivePanel({
         {isEmergency && emergencyContact?.telHref ? (
           <a
             href={emergencyContact.telHref}
-            className="vyva-tap mt-4 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-full bg-[#D94C48] px-5 text-center text-[17px] font-black text-white shadow-[0_12px_28px_rgba(217,76,72,0.22)] sm:w-fit"
+            className="vyva-tap flex min-h-[58px] w-full items-center gap-3 rounded-[8px] border border-[#DED3E2] bg-white px-[14px] py-3 text-left text-[15px] font-black text-[#241238]"
           >
-            <PhoneCall size={20} strokeWidth={2.8} />
-            {t("health.symptomCheck.voicePanel.callEmergency", "Call {{number}} now", { number: emergencyContact.label })}
+            <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[8px] bg-[#FFF0EF] text-[#D94C48]">
+              <PhoneCall size={19} strokeWidth={2.8} />
+            </span>
+            <span>{t("health.symptomCheck.voicePanel.callEmergency", "Call {{number}} now", { number: emergencyContact.label })}</span>
           </a>
         ) : null}
       </SymptomAssessmentPresentation>
@@ -1649,7 +1598,6 @@ export function IntroScreen({
         </div>
       ) : null}
 
-      <SymptomAssessmentPresentation stageId="describe" modality="touch">
       <div
         data-testid="symptom-check-start-panel"
         className={`grid min-w-0 gap-4 ${showGuide ? "lg:grid-cols-[minmax(0,1fr)_270px]" : ""}`}
@@ -1657,8 +1605,17 @@ export function IntroScreen({
         <span className="sr-only">
           {t("health.symptomCheck.intro.assistantTitle", "Tell VYVA what has changed")}
         </span>
+        <SymptomAssessmentPresentation
+          stageId="describe"
+          modality="touch"
+          onModalityChange={onTalkToVyva && !voiceCtaBusy
+            ? (nextModality) => {
+                if (nextModality === "voice") onTalkToVyva();
+              }
+            : undefined}
+        >
         <div className="min-w-0 space-y-4">
-          <div className="rounded-[8px] border border-[#E7DDE6] bg-[#FBF6FF] p-3 sm:p-4">
+          <div className="space-y-3">
             <label className="sr-only" htmlFor="symptom-clue">
               {t("health.symptomCheck.intro.inputLabel", "What feels different?")}
             </label>
@@ -1669,31 +1626,14 @@ export function IntroScreen({
                 setClue(event.target.value);
                 if (voiceError) setVoiceError(null);
               }}
-              placeholder={t("health.symptomCheck.intro.simplePlaceholder", "Type what changed...")}
+              placeholder={t("health.symptomCheck.intro.simplePlaceholder", "Type here if you prefer...")}
               data-testid="input-symptom-clue"
               rows={4}
-              className="min-h-[128px] w-full min-w-0 max-w-full resize-none rounded-[8px] border-2 border-transparent bg-white px-5 py-4 font-body text-[21px] font-black leading-snug text-[#241238] outline-none placeholder:text-[#9A8C83] focus:border-[#7024C4] sm:min-h-[150px] sm:text-[24px]"
+              className="min-h-[128px] w-full min-w-0 max-w-full resize-none rounded-[8px] border border-[#D9CFE0] bg-white p-[17px] text-[16px] font-bold leading-[1.42] text-[#241238] outline-none placeholder:text-[#746A72] focus:border-[#7024C4]"
             />
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {onTalkToVyva ? (
-                <button
-                  type="button"
-                  onClick={onTalkToVyva}
-                  disabled={voiceCtaBusy}
-                  data-testid="button-symptom-check-talk-to-vyva"
-                  className="vyva-primary-action min-h-[66px] w-full bg-[#17B8D6] text-[17px] shadow-[0_14px_28px_rgba(23,184,214,0.20)] disabled:opacity-70 sm:text-[18px]"
-                >
-                  {voiceCtaBusy ? (
-                    <>
-                      <Loader2 size={20} className="animate-spin" />
-                      {t("health.symptomCheck.intro.voiceConnecting", "Connecting...")}
-                    </>
-                  ) : (
-                    t("health.symptomCheck.intro.talkToVyva", "Talk to VYVA")
-                  )}
-                </button>
-              ) : (
+            <div className="mt-3 grid gap-3">
+              {!onTalkToVyva ? (
                 <button
                   type="button"
                   onClick={toggleVoiceCapture}
@@ -1716,14 +1656,14 @@ export function IntroScreen({
                   )}
                   {voiceButtonLabel}
                 </button>
-              )}
+              ) : null}
 
               <button
                 type="button"
                 onClick={() => onStart(cleanClue)}
                 disabled={!canStart}
                 data-testid="button-symptom-check-start"
-                className="vyva-primary-action min-h-[66px] w-full text-[17px] disabled:opacity-45 sm:text-[18px]"
+                className="vyva-tap min-h-[54px] w-full rounded-full border border-[#087F76] bg-[#087F76] px-5 text-[16px] font-black text-white disabled:opacity-45"
               >
                 {t("health.symptomCheck.intro.startBtn", "Start check")}
               </button>
@@ -1738,16 +1678,16 @@ export function IntroScreen({
               </p>
             ) : null}
           </div>
+        </div>
+        </SymptomAssessmentPresentation>
 
-          <div className="grid gap-2 text-left" data-testid="symptom-check-example-chips">
+        <div className="grid gap-2 text-left" data-testid="symptom-check-example-chips">
             <p className="px-1 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
               {t("health.symptomCheck.intro.examplesLabel", "Examples")}
             </p>
             <div className={`grid gap-2 ${visibleExamples.length > 3 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
               {visibleExamples.map(renderExampleChip)}
             </div>
-          </div>
-
         </div>
 
         {showGuide ? (
@@ -1776,7 +1716,6 @@ export function IntroScreen({
           </aside>
         ) : null}
       </div>
-      </SymptomAssessmentPresentation>
 
       {(moreIdeas.length || profileContextItems.length) ? (
         <details
@@ -3536,12 +3475,6 @@ export default function SymptomCheckScreen() {
     voiceTriageAnswerMutation.mutate(answer);
   }, [voiceTriageAnswerMutation]);
 
-  const stepTitle: Record<Step, string> = {
-    intro: t("health.symptomCheck.title"),
-    chat: t("health.symptomCheck.chat.title"),
-    report: t("health.symptomCheck.report.yourAnswerTitle", "Your answer"),
-  };
-
   const resetSymptomCheck = useCallback(() => {
     if (voiceStartResetTimerRef.current !== null) {
       window.clearTimeout(voiceStartResetTimerRef.current);
@@ -3984,24 +3917,7 @@ export default function SymptomCheckScreen() {
           >
             <ChevronLeft size={24} strokeWidth={2.6} />
           </button>
-        ) : (
-          <HealthWizardTopBar
-            title={activeVoiceTriageSession ? t("health.symptomCheck.voicePanel.topBarTitle", "Symptoms Check") : stepTitle[step]}
-            kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
-            onBack={handleBack}
-            backLabel={t("common.back", "Back")}
-            action={(
-            <button
-              type="button"
-              onClick={resetSymptomCheck}
-              data-testid="button-symptom-check-start-over"
-              className="vyva-tap min-h-[40px] rounded-full bg-white px-3 font-body text-[13px] font-black text-vyva-purple shadow-[0_4px_14px_rgba(63,45,35,0.08)]"
-            >
-              {t("health.symptomCheck.startOver", "Start over")}
-            </button>
-            )}
-          />
-        )}
+        ) : null}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
@@ -4025,7 +3941,6 @@ export default function SymptomCheckScreen() {
             session={activeVoiceTriageSession}
             stageId={currentAssessmentStage}
             onAnswer={canAnswerVoiceTriageSession ? handleVoiceTriageAnswer : undefined}
-            onStartOver={resetSymptomCheck}
             isAnswering={voiceTriageAnswerMutation.isPending || !canAnswerVoiceTriageSession}
           />
         ) : null}

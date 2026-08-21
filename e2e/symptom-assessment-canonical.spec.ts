@@ -152,7 +152,9 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
     await page.getByTestId("button-symptom-emergency-continue").click();
   }
   await expect(describeScene).toHaveAttribute("data-scene-layout", "capture");
-  await expect(describeScene.getByLabel("Touch mode")).toBeVisible();
+  await expect(
+    describeScene.getByLabel("Touch mode", { exact: true }),
+  ).toBeVisible();
 
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-describe-390.png"),
@@ -165,6 +167,22 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   const safetyScene = page.getByTestId("symptom-presentation-safety_check-touch");
   await expect(safetyScene).toBeVisible();
   await expect(safetyScene).toHaveAttribute("data-scene-layout", "binary");
+  const safetyFrame = await safetyScene.boundingBox();
+  expect(safetyFrame?.width).toBe(330);
+  expect(safetyFrame?.height).toBeGreaterThanOrEqual(535);
+  await expect(
+    safetyScene.getByRole("heading", { name: "Any urgent warning signs?" }),
+  ).toBeVisible();
+  await expect(
+    safetyScene.getByText(
+      "For example severe chest pain, fainting, or struggling to breathe.",
+    ),
+  ).toBeVisible();
+  await expect(safetyScene.getByTestId("triage-question-progress")).toHaveCount(0);
+  await expect(
+    safetyScene.getByRole("button", { name: "Play question" }),
+  ).toHaveCount(0);
+  await expect(safetyScene.getByText("Choose the closest answer")).toHaveCount(0);
   const controls = safetyScene.getByTestId(
     "symptom-scene-controls-safety_check-touch",
   );
