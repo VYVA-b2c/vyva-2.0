@@ -13,17 +13,41 @@ if (!process.env.DATABASE_URL) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const migrationPath = path.join(
-  repoRoot,
-  "migrations",
+const migrationPaths = [
   "0083_replit_publish_runtime_schema.sql",
-);
-const migrationSql = readFileSync(migrationPath, "utf8");
+  "0084_replit_publish_schema_parity.sql",
+].map((name) => path.join(repoRoot, "migrations", name));
+const migrationSql = migrationPaths
+  .map((migrationPath) => readFileSync(migrationPath, "utf8"))
+  .join("\n\n");
 const requiredTables = [
   "home_fast_help_impressions",
   "home_fast_help_journeys",
   "home_fast_help_journey_events",
   "cross_pillar_execution_attempts",
+];
+const requiredColumns = [
+  "user_providers.is_trusted",
+  "user_channel_preferences.preventive_web_push_enabled",
+  "user_channel_preferences.preventive_web_push_consent_revision",
+  "user_channel_preferences.preventive_web_push_consent_updated_at",
+  "user_channel_preferences.preventive_web_push_consent_granted_at",
+  "user_channel_preferences.preventive_web_push_consent_revoked_at",
+  "checkin_sessions.why_today",
+  "checkin_sessions.trend_note",
+  "checkin_sessions.personal_plan",
+  "checkin_sessions.app_suggestion",
+  "checkin_sessions.suggested_app_action",
+  "checkin_sessions.orchestration_flow_id",
+  "checkin_sessions.orchestration_flow_version",
+  "checkin_sessions.orchestration_flow_instance_id",
+  "checkin_sessions.orchestration_completion_reference",
+  "checkin_sessions.orchestration_answer_digest",
+  "checkin_sessions.orchestration_completion_status",
+  "checkin_sessions.orchestration_claim_token",
+  "checkin_sessions.orchestration_claimed_at",
+  "checkin_sessions.orchestration_claim_expires_at",
+  "checkin_sessions.orchestration_failure_reason",
 ];
 
 const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -35,34 +59,30 @@ try {
   await client.query(migrationSql);
   await client.query("commit");
 
-  const verification = await client.query(
-    `select
-       array_agg(required.name order by required.name)
-         filter (where tables.table_name is null) as missing_tables,
-       bool_and(
-         case when required.name = 'user_providers.is_trusted'
-           then columns.column_name is not null
-           else true
-         end
-       ) as provider_column_ready
-     from unnest($1::text[]) as required(name)
-     left join information_schema.tables as tables
-       on required.name = tables.table_name
-      and tables.table_schema = 'public'
-     left join information_schema.columns as columns
-       on required.name = 'user_providers.is_trusted'
-      and columns.table_schema = 'public'
-      and columns.table_name = 'user_providers'
-      and columns.column_name = 'is_trusted'`,
-    [[...requiredTables, "user_providers.is_trusted"]],
+  const tablesVerification = await client.query(
+    `select table_name
+       from information_schema.tables
+      where table_schema = 'public'
+        and table_name = any($1::text[])`,
+    [requiredTables],
   );
-  const missingTables = (verification.rows[0]?.missing_tables ?? [])
-    .filter((name) => name !== "user_providers.is_trusted");
-  const providerColumnReady = verification.rows[0]?.provider_column_ready === true;
-  if (missingTables.length > 0 || !providerColumnReady) {
+  const readyTables = new Set(tablesVerification.rows.map((row) => row.table_name));
+  const missingTables = requiredTables.filter((name) => !readyTables.has(name));
+
+  const columnsVerification = await client.query(
+    `select table_name || '.' || column_name as name
+       from information_schema.columns
+      where table_schema = 'public'
+        and table_name || '.' || column_name = any($1::text[])`,
+    [requiredColumns],
+  );
+  const readyColumns = new Set(columnsVerification.rows.map((row) => row.name));
+  const missingColumns = requiredColumns.filter((name) => !readyColumns.has(name));
+
+  if (missingTables.length > 0 || missingColumns.length > 0) {
     throw new Error(
       `schema verification failed (missing tables: ${missingTables.join(", ") || "none"}; `
-      + `user_providers.is_trusted: ${providerColumnReady ? "ready" : "missing"})`,
+      + `missing columns: ${missingColumns.join(", ") || "none"})`,
     );
   }
 
