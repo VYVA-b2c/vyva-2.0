@@ -726,7 +726,7 @@ export default function TriageChat({
       ? animatedText
       : latestAssistantEntry.msg.content
     : t("health.symptomCheck.chat.reviewTitle", "Checking your next step");
-  const showQuestion = Boolean(latestAssistantEntry || !loading);
+  const showQuestion = Boolean(latestAssistantEntry || !loading || presentationStage === "checking");
   const waitingForLanguage = !languageReady && !initiated;
   const canAnswer = languageReady && !loading && animatingIdx === null && messages.length > 0;
   const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;

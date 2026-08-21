@@ -29,6 +29,7 @@ import type { ShoppingSupportPackageId } from "../../shared/shopping";
 import type { TriageScanResult } from "../../shared/triageScans";
 import {
   resolveSymptomAssessmentPresentation,
+  SYMPTOM_ASSESSMENT_STAGE_IDS,
   type SymptomAssessmentStageId,
 } from "@/design/screenPresentation";
 import type { HomeInteractionMode } from "@/lib/homeModeControl";
@@ -306,7 +307,12 @@ type SymptomCheckDraft = {
   durationSeconds: number | null;
   refinementStatus: RefinementStatus;
   chatDraft: TriageChatDraft | null;
+  assessmentStage: SymptomAssessmentStageId;
 };
+
+const isSymptomAssessmentStageId = (value: unknown): value is SymptomAssessmentStageId =>
+  typeof value === "string"
+  && (SYMPTOM_ASSESSMENT_STAGE_IDS as readonly string[]).includes(value);
 
 const canUseSessionStorage = () => typeof window !== "undefined" && Boolean(window.sessionStorage);
 
@@ -362,6 +368,13 @@ function readSymptomCheckDraft(): SymptomCheckDraft | null {
       durationSeconds: typeof parsed.durationSeconds === "number" ? parsed.durationSeconds : null,
       refinementStatus: parsed.refinementStatus ?? { state: "idle" },
       chatDraft: parsed.chatDraft ?? null,
+      assessmentStage: isSymptomAssessmentStageId(parsed.assessmentStage)
+        ? parsed.assessmentStage
+        : parsed.step === "report"
+          ? "safest_next_step"
+          : parsed.chatDraft?.pendingRequest
+            ? "checking"
+            : "symptom_selection",
     };
   } catch {
     clearSymptomCheckDraft();
@@ -3371,7 +3384,8 @@ export default function SymptomCheckScreen() {
   });
   const [step, setStep] = useState<Step>(() => restoredDraft?.step ?? (incomingInitialClue ? "chat" : "intro"));
   const [touchAssessmentStage, setTouchAssessmentStage] = useState<SymptomAssessmentStageId>(() => (
-    restoredDraft?.step === "report" ? "safest_next_step" : incomingInitialClue ? "symptom_selection" : "describe"
+    restoredDraft?.assessmentStage
+      ?? (restoredDraft?.step === "report" ? "safest_next_step" : incomingInitialClue ? "symptom_selection" : "describe")
   ));
   const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
     queryKey: ["/api/onboarding/careteam"],
@@ -3521,8 +3535,9 @@ export default function SymptomCheckScreen() {
       durationSeconds,
       refinementStatus,
       chatDraft,
+      assessmentStage: touchAssessmentStage,
     });
-  }, [bpm, chatDraft, chatStartTime, durationSeconds, initialClue, refinementStatus, reportId, reportSaveState, respiratoryRate, step, summary]);
+  }, [bpm, chatDraft, chatStartTime, durationSeconds, initialClue, refinementStatus, reportId, reportSaveState, respiratoryRate, step, summary, touchAssessmentStage]);
 
   const handleBack = () => {
     markAbandoned({ reason: "left_symptom_check" });
