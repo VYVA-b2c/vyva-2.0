@@ -776,6 +776,117 @@ export default function TriageChat({
       ? t("health.symptomCheck.chat.readoutChoices", "Choices: {{choices}}", { choices: visibleQuickAnswers.map((answer) => answer.label).join(". ") })
       : "",
   ].filter(Boolean).join(" ");
+  const canonicalReviewItems = selectedQuickAnswers.slice(-4).map((answer, index) => ({
+    label: answer.kind && answer.kind !== "general"
+      ? answer.kind.replace(/[_-]+/g, " ")
+      : t("health.symptomCheck.chat.reviewAnswer", "Answer {{count}}", { count: index + 1 }),
+    value: answer.label,
+  }));
+  const canonicalSceneControls = presentationStage ? (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-2 rounded-full bg-[#F3EAFF] px-3 py-1.5 text-[12px] font-black text-[#7024C4]">
+          <Brain className="h-4 w-4" />
+          <span data-testid="triage-question-progress">
+            {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
+          </span>
+        </span>
+        <ListenButton
+          text={readoutText}
+          language={activeLanguage}
+          label={t("health.symptomCheck.chat.playQuestion", "Play question")}
+          stopLabel={t("health.symptomCheck.chat.stopQuestion", "Stop")}
+          className="min-h-[42px] px-3 text-[13px]"
+        />
+      </div>
+
+      {canAnswer ? (
+        <div
+          className="mt-4 grid gap-2"
+          data-testid="triage-quick-answers"
+        >
+          <div className="flex items-center gap-2 pb-1 text-[13px] font-black text-[#746A72]">
+            <CheckCircle className="h-4 w-4 text-[#087F76]" />
+            {t("health.symptomCheck.chat.chooseClosest", "Choose the closest answer")}
+          </div>
+          <div
+            className={
+              presentationStage === "safety_check" || presentationStage === "review"
+                ? "grid grid-cols-2 gap-2"
+                : presentationStage === "severity"
+                  ? "grid grid-cols-[repeat(auto-fit,minmax(46px,1fr))] gap-2"
+                  : "grid gap-2"
+            }
+          >
+            {visibleQuickAnswers.map((quickAnswer, index) => {
+              const { id, label, value, Icon } = quickAnswer;
+              const compact =
+                presentationStage === "safety_check" ||
+                presentationStage === "review" ||
+                presentationStage === "severity";
+              const actionPill =
+                presentationStage === "safety_check" ||
+                presentationStage === "review";
+              const isSafetyPrimary =
+                presentationStage === "safety_check" && index === 1;
+              return (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => void sendText(value, quickAnswer)}
+                  className={`vyva-tap flex min-h-[52px] items-center justify-center gap-2 border px-3 text-[14px] font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#D9C2F3] ${
+                    isSafetyPrimary
+                      ? "rounded-full border-[#087F76] bg-[#087F76] text-white hover:border-[#087F76] hover:bg-[#087F76]"
+                      : compact
+                      ? `${actionPill ? "rounded-full" : "rounded-[8px]"} border-[#D7C6E3] bg-white text-[#241238] hover:border-[#7024C4] hover:bg-[#F3EAFF]`
+                      : "rounded-[8px] border-[#E7DDE6] bg-white text-left text-[#241238] hover:border-[#7024C4] hover:bg-[#FBF6FF]"
+                  }`}
+                >
+                  {compact ? null : (
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#F3EAFF] text-[#7024C4]">
+                      <Icon size={18} />
+                    </span>
+                  )}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {extraQuickAnswers.length ? (
+            <details
+              data-testid="triage-more-choices"
+              className="group rounded-[8px] border border-[#E7DDE6] bg-white p-2"
+            >
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-2">
+                <span className="text-[14px] font-black text-[#7024C4]">
+                  {t("health.symptomCheck.chat.moreChoices", "More choices")}
+                </span>
+                <ChevronDown size={18} className="shrink-0 text-[#7024C4] transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-2 grid gap-2 border-t border-[#E7DDE6] pt-2">
+                {extraQuickAnswers.map((quickAnswer) => {
+                  const { id, label, value, Icon } = quickAnswer;
+                  return (
+                    <button
+                      type="button"
+                      key={id}
+                      onClick={() => void sendText(value, quickAnswer)}
+                      className="vyva-tap flex min-h-[52px] items-center gap-3 rounded-[8px] border border-[#E7DDE6] bg-white px-3 text-left text-[14px] font-black text-[#241238] hover:border-[#7024C4] hover:bg-[#FBF6FF]"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[#F3EAFF] text-[#7024C4]">
+                        <Icon size={18} />
+                      </span>
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </details>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  ) : null;
 
   const handleSkipScan = (type: TriageScanType) => {
     setDeclinedScanTypes((current) => current.includes(type) ? current : [...current, type]);
@@ -977,23 +1088,10 @@ export default function TriageChat({
             <SymptomAssessmentPresentation
               stageId={presentationStage}
               modality="touch"
-              title={latestQuestion}
+              helper={presentationStage === "checking" ? undefined : latestQuestion}
+              reviewItems={canonicalReviewItems}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-vyva-purple shadow-sm">
-                  <Brain className="h-4 w-4" />
-                  <span data-testid="triage-question-progress">
-                    {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
-                  </span>
-                </span>
-                <ListenButton
-                  text={readoutText}
-                  language={activeLanguage}
-                  label={t("health.symptomCheck.chat.playQuestion", "Play question")}
-                  stopLabel={t("health.symptomCheck.chat.stopQuestion", "Stop")}
-                  className="min-h-[42px] px-3 text-[13px]"
-                />
-              </div>
+              {canonicalSceneControls}
             </SymptomAssessmentPresentation>
           ) : showQuestion && (
             <HealthWizardCard className="overflow-hidden border-[#D8C7FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBFAFF_54%,#FFF8EA_100%)] px-5 py-5 shadow-[0_18px_44px_rgba(107,33,168,0.12)]">
@@ -1097,7 +1195,7 @@ export default function TriageChat({
             </details>
           ) : null}
 
-          {(loading || waitingForLanguage) && (
+          {(loading || waitingForLanguage) && presentationStage !== "checking" && (
             <TriageReviewPanel />
           )}
 
@@ -1141,7 +1239,7 @@ export default function TriageChat({
             </details>
           )}
 
-          {canAnswer && (
+          {canAnswer && !presentationStage && (
             <div className="grid gap-3 rounded-[28px] border border-[#E8DED4] bg-white/88 p-3 shadow-[0_12px_30px_rgba(63,45,35,0.06)]" data-testid="triage-quick-answers">
               <div className="flex items-center gap-2 px-2 font-body text-[15px] font-black text-vyva-text-2">
                 <CheckCircle className="h-4 w-4 text-teal-700" />

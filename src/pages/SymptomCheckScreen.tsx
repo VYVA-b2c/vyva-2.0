@@ -725,69 +725,49 @@ function VoiceTriageLivePanel({
 
   return (
     <aside
-      className={`mx-auto mt-4 w-full max-w-[1040px] overflow-hidden rounded-[30px] border bg-white shadow-[0_18px_44px_rgba(63,45,35,0.09)] ${
-        isEmergency ? "border-[#FCA5A5]" : isComplete ? "border-[#BBF7D0]" : isFailed ? "border-[#FCA5A5]" : "border-[#DDD6FE]"
-      }`}
+      className="mx-auto mt-4 w-full max-w-[620px]"
       data-testid="voice-triage-live-panel"
       aria-live="polite"
     >
-      <div className={`p-4 sm:p-5 ${
-        isEmergency ? "bg-[#FFF7F7]" : isComplete ? "bg-[#F0FDF4]" : "bg-gradient-to-br from-[#FBFAFF] via-white to-[#F0FDFF]"
-      }`}>
-        <SymptomAssessmentPresentation
-          stageId={stageId}
-          modality="voice"
-          title={headline}
-          helper={!isComplete && !isEmergency
-            ? t("health.symptomCheck.voicePanel.sayOrTap", "Say your answer out loud, or tap one answer below.")
-            : undefined}
-          className="mb-4 shadow-none"
-        />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] shadow-sm ${
-              isEmergency ? "bg-[#FEE2E2] text-[#B91C1C]" : isComplete ? "bg-[#DCFCE7] text-[#047857]" : "bg-white text-vyva-purple"
+      <SymptomAssessmentPresentation
+        stageId={stageId}
+        modality="voice"
+        helper={headline}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-3 py-1.5 text-[12px] font-black ${
+              isEmergency
+                ? "bg-[#FFF0EF] text-[#D94C48]"
+                : isComplete
+                  ? "bg-[#E9F8F0] text-[#11865D]"
+                  : "bg-[#F3EAFF] text-[#7024C4]"
             }`}>
-              {isEmergency ? <AlertTriangle size={24} strokeWidth={2.8} /> : isComplete ? <CheckCircle size={24} strokeWidth={2.8} /> : <Mic size={24} strokeWidth={2.8} />}
+              {statusLabel}
             </span>
-            <div className="min-w-0">
-              <p className={`font-body text-[12px] font-black uppercase tracking-[0.14em] ${
-                isEmergency ? "text-[#B91C1C]" : isComplete ? "text-[#047857]" : "text-vyva-purple"
-              }`}>
-                {statusLabel}
-              </p>
-              <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:text-[30px]">
-                {headline}
-              </h2>
-              {!isComplete && !isEmergency ? (
-                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-                  {t("health.symptomCheck.voicePanel.sayOrTap", "Say your answer out loud, or tap one answer below.")}
-                </p>
-              ) : null}
-              {voiceGuidancePlan?.confidence ? (
-                <p className="mt-2 inline-flex rounded-full border border-[#BFDBFE] bg-white px-3 py-1.5 font-body text-[12px] font-black text-[#1D4ED8]" data-testid="voice-triage-context-confidence">
-                  {t("health.symptomCheck.voicePanel.contextConfidence", "{{label}} - {{score}}/5 signals", {
-                    label: voiceGuidancePlan.confidence.label,
-                    score: voiceGuidancePlan.confidence.score,
-                  })}
-                </p>
-              ) : null}
-            </div>
+            {voiceGuidancePlan?.confidence ? (
+              <span className="rounded-full border border-[#B8E3D0] bg-[#E6F8F4] px-3 py-1.5 text-[12px] font-black text-[#087F76]" data-testid="voice-triage-context-confidence">
+                {t("health.symptomCheck.voicePanel.contextConfidence", "{{label}} - {{score}}/5 signals", {
+                  label: voiceGuidancePlan.confidence.label,
+                  score: voiceGuidancePlan.confidence.score,
+                })}
+              </span>
+            ) : null}
           </div>
           {isAnswering ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-vyva-purple shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#DFD3E7] bg-white px-3 py-2 text-[13px] font-black text-[#7024C4]">
               <Loader2 size={16} className="animate-spin" />
               {t("health.symptomCheck.voicePanel.checking", "Checking")}
             </span>
           ) : isComplete && latest?.report?.triage_report_id ? (
-            <span className="rounded-full bg-[#DCFCE7] px-3 py-2 font-body text-[13px] font-black text-[#047857]">
+            <span className="rounded-full bg-[#E9F8F0] px-3 py-2 text-[13px] font-black text-[#11865D]">
               {t("health.symptomCheck.voicePanel.reportReady", "Ready in My Reports")}
             </span>
           ) : onStartOver ? (
             <button
               type="button"
               onClick={onStartOver}
-              className="vyva-tap rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-vyva-purple shadow-sm"
+              className="vyva-tap rounded-full border border-[#DFD3E7] bg-white px-3 py-2 text-[13px] font-black text-[#7024C4]"
             >
               {t("health.symptomCheck.voicePanel.startOver", "Start over")}
             </button>
@@ -795,8 +775,14 @@ function VoiceTriageLivePanel({
         </div>
 
         {choices.length ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {choices.map((choice) => (
+          <div className={`mt-4 grid gap-2 ${
+            stageId === "safety_check" || stageId === "review"
+              ? "grid-cols-2"
+              : stageId === "severity"
+                ? "grid-cols-[repeat(auto-fit,minmax(46px,1fr))]"
+                : ""
+          }`}>
+            {choices.map((choice, index) => (
               <button
                 key={choice.id}
                 type="button"
@@ -805,7 +791,15 @@ function VoiceTriageLivePanel({
                   choiceId: choice.id,
                   utterance: choice.value || choice.spoken_label,
                 })}
-                className="vyva-tap flex min-h-[74px] items-center justify-center rounded-[22px] border border-[#DDD6FE] bg-white px-4 py-3 text-center font-body text-[16px] font-black leading-tight text-vyva-text-1 shadow-[0_8px_20px_rgba(63,45,35,0.06)] transition hover:border-vyva-purple hover:text-vyva-purple disabled:cursor-not-allowed disabled:opacity-55 sm:text-[17px]"
+                className={`vyva-tap flex min-h-[54px] items-center justify-center border px-3 py-3 text-center text-[15px] font-black leading-tight transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                  stageId === "safety_check" || stageId === "review"
+                    ? "rounded-full"
+                    : "rounded-[8px]"
+                } ${
+                  stageId === "safety_check" && index === 1
+                    ? "border-[#087F76] bg-[#087F76] text-white"
+                    : "border-[#D7C6E3] bg-white text-[#241238] hover:border-[#7024C4] hover:bg-[#F3EAFF]"
+                }`}
               >
                 {choice.spoken_label}
               </button>
@@ -814,7 +808,7 @@ function VoiceTriageLivePanel({
         ) : null}
 
         {!isEmergency && !isComplete && !isFailed ? (
-          <div className="mt-4 rounded-[24px] border border-[#E8DED4] bg-white p-2 shadow-sm">
+          <div className="mt-4 rounded-[8px] border border-[#E7DDE6] bg-white p-2">
             <label className="sr-only" htmlFor="voice-triage-typed-answer">
               {t("health.symptomCheck.voicePanel.typeAnother", "Type another answer")}
             </label>
@@ -830,13 +824,13 @@ function VoiceTriageLivePanel({
                   }
                 }}
                 placeholder={t("health.symptomCheck.voicePanel.typePlaceholder", "Or type your answer...")}
-                className="min-h-[56px] min-w-0 rounded-[18px] border border-transparent bg-[#FBFAFF] px-4 font-body text-[16px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83] focus:border-vyva-purple"
+                className="min-h-[56px] min-w-0 rounded-[8px] border border-transparent bg-[#FBF6FF] px-4 text-[16px] font-bold text-[#241238] outline-none placeholder:text-[#9A8C83] focus:border-[#7024C4]"
               />
               <button
                 type="button"
                 onClick={submitTypedAnswer}
                 disabled={!canTapAnswer || cleanTypedAnswer.length < 2}
-                className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
+                className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-full bg-[#7024C4] px-5 text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <Send size={18} strokeWidth={2.7} />
                 {t("health.symptomCheck.voicePanel.sendAnswer", "Send")}
@@ -846,7 +840,7 @@ function VoiceTriageLivePanel({
         ) : null}
 
         {!isEmergency && !isComplete && vitalsPrompt?.actions?.length ? (
-          <div className="mt-4 rounded-[24px] border border-[#BFEAF2] bg-white/85 p-3">
+          <div className="mt-4 rounded-[8px] border border-[#B8E3D0] bg-[#E6F8F4] p-3">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#E6FAFD] text-[#0E7490]">
                 <Activity size={20} strokeWidth={2.7} />
@@ -867,7 +861,7 @@ function VoiceTriageLivePanel({
                   type="button"
                   disabled={!canTapAnswer}
                   onClick={() => onAnswer?.({ utterance: action.value, vitalsText: action.value })}
-                  className="vyva-tap min-h-[54px] rounded-[18px] border border-[#BFEAF2] bg-white px-3 font-body text-[14px] font-black text-[#0E7490] disabled:cursor-not-allowed disabled:opacity-55"
+                  className="vyva-tap min-h-[54px] rounded-[8px] border border-[#B8E3D0] bg-white px-3 text-[14px] font-black text-[#087F76] disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   {action.label}
                 </button>
@@ -877,7 +871,7 @@ function VoiceTriageLivePanel({
         ) : null}
 
         {question?.reason ? (
-          <details className="mt-4 rounded-[20px] border border-[#E8DED4] bg-white/80 px-4 py-3">
+          <details className="mt-4 rounded-[8px] border border-[#E7DDE6] bg-white px-4 py-3">
             <summary className="cursor-pointer list-none font-body text-[13px] font-black text-vyva-text-2">
               {t("health.symptomCheck.voicePanel.whyAsking", "Why VYVA is asking this")}
             </summary>
@@ -895,7 +889,7 @@ function VoiceTriageLivePanel({
                 type="button"
                 disabled={Boolean(action.disabled)}
                 onClick={() => runActionOption(action)}
-                className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-[18px] border border-[#BBF7D0] bg-white px-3 text-center font-body text-[14px] font-black text-[#047857] shadow-sm disabled:cursor-default disabled:border-[#E5E7EB] disabled:text-vyva-text-2"
+                className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-[8px] border border-[#B8E3D0] bg-white px-3 text-center text-[14px] font-black text-[#11865D] disabled:cursor-default disabled:border-[#E5E7EB] disabled:text-[#746A72]"
               >
                 {action.kind === "view_report" ? <FileText size={17} strokeWidth={2.7} /> : <CheckCircle size={17} strokeWidth={2.7} />}
                 <span>{action.label}</span>
@@ -907,13 +901,13 @@ function VoiceTriageLivePanel({
         {isEmergency && emergencyContact?.telHref ? (
           <a
             href={emergencyContact.telHref}
-            className="vyva-tap mt-4 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#B91C1C] px-4 text-center font-body text-[17px] font-black text-white shadow-[0_12px_28px_rgba(185,28,28,0.22)] sm:w-fit"
+            className="vyva-tap mt-4 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-full bg-[#D94C48] px-5 text-center text-[17px] font-black text-white shadow-[0_12px_28px_rgba(217,76,72,0.22)] sm:w-fit"
           >
             <PhoneCall size={20} strokeWidth={2.8} />
             {t("health.symptomCheck.voicePanel.callEmergency", "Call {{number}} now", { number: emergencyContact.label })}
           </a>
         ) : null}
-      </div>
+      </SymptomAssessmentPresentation>
     </aside>
   );
 }
@@ -1664,7 +1658,7 @@ export function IntroScreen({
           {t("health.symptomCheck.intro.assistantTitle", "Tell VYVA what has changed")}
         </span>
         <div className="min-w-0 space-y-4">
-          <div className="rounded-[28px] border border-[#DDD6FE] bg-[#FBFAFF] p-3 shadow-[0_10px_26px_rgba(63,45,35,0.06)] sm:p-4">
+          <div className="rounded-[8px] border border-[#E7DDE6] bg-[#FBF6FF] p-3 sm:p-4">
             <label className="sr-only" htmlFor="symptom-clue">
               {t("health.symptomCheck.intro.inputLabel", "What feels different?")}
             </label>
@@ -1678,7 +1672,7 @@ export function IntroScreen({
               placeholder={t("health.symptomCheck.intro.simplePlaceholder", "Type what changed...")}
               data-testid="input-symptom-clue"
               rows={4}
-              className="min-h-[128px] w-full min-w-0 max-w-full resize-none rounded-[24px] border-2 border-transparent bg-white px-5 py-4 font-body text-[21px] font-black leading-snug text-vyva-text-1 shadow-[0_8px_18px_rgba(63,45,35,0.05)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:min-h-[150px] sm:text-[24px]"
+              className="min-h-[128px] w-full min-w-0 max-w-full resize-none rounded-[8px] border-2 border-transparent bg-white px-5 py-4 font-body text-[21px] font-black leading-snug text-[#241238] outline-none placeholder:text-[#9A8C83] focus:border-[#7024C4] sm:min-h-[150px] sm:text-[24px]"
             />
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
