@@ -3976,31 +3976,29 @@ export default function SymptomCheckScreen() {
         )}
 
         {step === "report" && summary && (
-          <>
-            <div className="mx-auto w-full max-w-[1040px] px-4 pt-3 sm:px-5 lg:px-0">
-              <SymptomAssessmentPresentation
-                stageId={currentAssessmentStage}
-                modality={activeVoiceTriageSession ? "voice" : "touch"}
-                showHeader={false}
-              />
-            </div>
+          <SymptomAssessmentPresentation
+            stageId={currentAssessmentStage}
+            modality={activeVoiceTriageSession ? "voice" : "touch"}
+            showHeader={false}
+            fullBleedChildren
+          >
             <ReportScreen
-            summary={summary}
-            bpm={bpm}
-            respiratoryRate={respiratoryRate}
-            durationSeconds={durationSeconds}
-            reportId={reportId}
-            reportSaveState={reportSaveState}
-            savedReport={savedReport}
-            profileContacts={profileContacts}
-            careTeamMembers={careTeamData?.members ?? []}
-            emergencyContact={triageContext?.emergencyContact ?? null}
-            latestVitalReadings={latestVitalsData?.recent_readings ?? []}
-            refinementStatus={refinementStatus}
-            onRefineVital={handleRefineVital}
-            onDone={handleDone}
+              summary={summary}
+              bpm={bpm}
+              respiratoryRate={respiratoryRate}
+              durationSeconds={durationSeconds}
+              reportId={reportId}
+              reportSaveState={reportSaveState}
+              savedReport={savedReport}
+              profileContacts={profileContacts}
+              careTeamMembers={careTeamData?.members ?? []}
+              emergencyContact={triageContext?.emergencyContact ?? null}
+              latestVitalReadings={latestVitalsData?.recent_readings ?? []}
+              refinementStatus={refinementStatus}
+              onRefineVital={handleRefineVital}
+              onDone={handleDone}
             />
-          </>
+          </SymptomAssessmentPresentation>
         )}
       </div>
     </PrototypeSymptomAssessmentShell>

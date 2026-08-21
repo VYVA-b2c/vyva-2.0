@@ -121,6 +121,7 @@ type SymptomAssessmentPresentationProps = {
   reviewItems?: SymptomAssessmentReviewItem[];
   onModalityChange?: (modality: SymptomAssessmentModality) => void;
   showHeader?: boolean;
+  fullBleedChildren?: boolean;
   className?: string;
 };
 
@@ -133,6 +134,7 @@ export function SymptomAssessmentPresentation({
   reviewItems = [],
   onModalityChange,
   showHeader = true,
+  fullBleedChildren = false,
   className = "",
 }: SymptomAssessmentPresentationProps) {
   const scene = stagePresentation[stageId];
@@ -204,10 +206,32 @@ export function SymptomAssessmentPresentation({
         </div>
       </div> : null}
 
-      <div className={`px-[22px] pb-[100px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
-        <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
-          {title || scene.title}
-        </h2>
+      {fullBleedChildren ? (
+        <>
+          <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
+            <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
+              {title || scene.title}
+            </h2>
+            {displayHelper ? (
+              <p className="mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
+                {displayHelper}
+              </p>
+            ) : null}
+          </div>
+          {children ? (
+            <div
+              className="mt-7 text-left"
+              data-testid={`symptom-scene-controls-${stageId}-${modality}`}
+            >
+              {children}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className={`px-[22px] pb-[100px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
+          <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
+            {title || scene.title}
+          </h2>
 
         {scene.layout === "alert" ? (
           <div
@@ -283,7 +307,8 @@ export function SymptomAssessmentPresentation({
             {children}
           </div>
         ) : null}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

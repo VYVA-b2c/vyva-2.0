@@ -1028,15 +1028,17 @@ export default function TriageChat({
             </HealthWizardHero>
           )}
 
-          {showQuestion && presentationStage && presentationStage !== "urgent_escalation" ? (
-            <SymptomAssessmentPresentation
-              stageId={presentationStage}
-              modality="touch"
-              showHeader={false}
-              reviewItems={canonicalReviewItems}
-            >
-              {canonicalSceneControls}
-            </SymptomAssessmentPresentation>
+          {showQuestion && presentationStage ? (
+            presentationStage !== "urgent_escalation" ? (
+              <SymptomAssessmentPresentation
+                stageId={presentationStage}
+                modality="touch"
+                showHeader={false}
+                reviewItems={canonicalReviewItems}
+              >
+                {canonicalSceneControls}
+              </SymptomAssessmentPresentation>
+            ) : null
           ) : showQuestion && (
             <HealthWizardCard className="overflow-hidden border-[#D8C7FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBFAFF_54%,#FFF8EA_100%)] px-5 py-5 shadow-[0_18px_44px_rgba(107,33,168,0.12)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
