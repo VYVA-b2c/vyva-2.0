@@ -31,6 +31,13 @@ import {
   resolveSymptomAssessmentPresentation,
   type SymptomAssessmentStageId,
 } from "@/design/screenPresentation";
+import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  publishHomeModeControl,
+  type HomeInteractionMode,
+  type HomeModeControlActionDetail,
+  type HomeModeControlDetail,
+} from "@/lib/homeModeControl";
 
 type Step = "intro" | "chat" | "report";
 
@@ -671,11 +678,13 @@ type VoiceTriageAnswerInput = {
 function VoiceTriageLivePanel({
   session,
   stageId,
+  modality,
   onAnswer,
   isAnswering = false,
 }: {
   session: VoiceTriageSessionResponse;
   stageId: SymptomAssessmentStageId;
+  modality: HomeInteractionMode;
   onAnswer?: (answer: VoiceTriageAnswerInput) => void;
   isAnswering?: boolean;
 }) {
@@ -715,7 +724,8 @@ function VoiceTriageLivePanel({
     >
       <SymptomAssessmentPresentation
         stageId={stageId}
-        modality="voice"
+        modality={modality}
+        showHeader={false}
       >
         {stageId !== "checking" && choices.length ? (
           <div className={`grid gap-[10px] ${
@@ -1608,11 +1618,7 @@ export function IntroScreen({
         <SymptomAssessmentPresentation
           stageId="describe"
           modality="touch"
-          onModalityChange={onTalkToVyva && !voiceCtaBusy
-            ? (nextModality) => {
-                if (nextModality === "voice") onTalkToVyva();
-              }
-            : undefined}
+          showHeader={false}
         >
         <div className="min-w-0 space-y-4">
           <div className="space-y-3">
@@ -3401,6 +3407,9 @@ export default function SymptomCheckScreen() {
   const [showFirstVisitGuide, setShowFirstVisitGuide] = useState(() => !readSymptomCheckVisited());
   const [voiceTriageSessionId, setVoiceTriageSessionId] = useState<string | null>(() => readVoiceSessionId());
   const [voiceStartPending, setVoiceStartPending] = useState(false);
+  const [symptomInteractionMode, setSymptomInteractionMode] = useState<HomeInteractionMode>(() =>
+    incomingState?.autoStartVoice ? "voice" : "touch",
+  );
   const voiceStartResetTimerRef = useRef<number | null>(null);
   const { data: voiceTriageSession } = useQuery<VoiceTriageSessionResponse | null>({
     queryKey: ["/api/voice-triage/session", voiceTriageSessionId],
@@ -3496,6 +3505,7 @@ export default function SymptomCheckScreen() {
     setChatDraft(null);
     setVoiceTriageSessionId(null);
     setVoiceStartPending(false);
+    setSymptomInteractionMode("touch");
     voiceTriageAnswerMutation.reset();
     setStep("intro");
     setTouchAssessmentStage("describe");
@@ -3592,6 +3602,7 @@ export default function SymptomCheckScreen() {
   }, []);
 
   const handleTalkToVyva = useCallback(() => {
+    setSymptomInteractionMode("voice");
     setVoiceStartPending(true);
     writeSymptomCheckVisited();
     setShowFirstVisitGuide(false);
@@ -3609,6 +3620,41 @@ export default function SymptomCheckScreen() {
     refreshVoiceSessionIdSoon();
     scheduleVoiceStartReset();
   }, [refreshVoiceSessionIdSoon, scheduleVoiceStartReset]);
+
+  useEffect(() => {
+    if (voiceTriageSessionId) setSymptomInteractionMode("voice");
+  }, [voiceTriageSessionId]);
+
+  useEffect(() => {
+    const nextMode: HomeInteractionMode = symptomInteractionMode === "voice" ? "touch" : "voice";
+    const detail: HomeModeControlDetail = {
+      mode: symptomInteractionMode,
+      visible: true,
+      label: nextMode === "voice"
+        ? t("home.mode.switchToVoice", "Switch to voice")
+        : t("home.mode.switchToTouch", "Switch to touch"),
+      testId: nextMode === "voice" ? "button-home-mode-voice" : "button-home-mode-touch",
+    };
+
+    publishHomeModeControl(detail);
+    return () => publishHomeModeControl({ ...detail, visible: false });
+  }, [symptomInteractionMode, t]);
+
+  useEffect(() => {
+    const handleModeControlAction = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as HomeModeControlActionDetail | undefined
+        : undefined;
+      if (detail?.mode === "voice") {
+        handleTalkToVyva();
+        return;
+      }
+      if (detail?.mode === "touch") setSymptomInteractionMode("touch");
+    };
+
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleModeControlAction);
+    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleModeControlAction);
+  }, [handleTalkToVyva]);
 
   const handleEmergencyUnsure = useCallback(() => {
     setVoiceStartPending(true);
@@ -3940,6 +3986,7 @@ export default function SymptomCheckScreen() {
           <VoiceTriageLivePanel
             session={activeVoiceTriageSession}
             stageId={currentAssessmentStage}
+            modality={symptomInteractionMode}
             onAnswer={canAnswerVoiceTriageSession ? handleVoiceTriageAnswer : undefined}
             isAnswering={voiceTriageAnswerMutation.isPending || !canAnswerVoiceTriageSession}
           />
@@ -3977,6 +4024,7 @@ export default function SymptomCheckScreen() {
               <SymptomAssessmentPresentation
                 stageId={currentAssessmentStage}
                 modality={activeVoiceTriageSession ? "voice" : "touch"}
+                showHeader={false}
               />
             </div>
             <ReportScreen

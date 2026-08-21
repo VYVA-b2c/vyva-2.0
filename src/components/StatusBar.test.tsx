@@ -165,4 +165,33 @@ describe("StatusBar home master variant", () => {
     expect(screen.queryByTestId("button-home-controls-reveal")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
   });
+
+  it("uses the canonical Y and V/T header for symptom assessment", () => {
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
+
+    render(<StatusBar variant="symptomAssessment" />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_EVENT, {
+        detail: {
+          mode: "touch",
+          visible: true,
+          label: "Switch to voice",
+          testId: "button-home-mode-voice",
+        },
+      }));
+    });
+
+    expect(screen.getByRole("button", { name: "VYVA" })).toHaveTextContent("Y");
+    expect(screen.getByRole("button", { name: "Use Touch mode" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Use Voice mode" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("button-my-profile")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use Voice mode" }));
+    expect(actionHandler).toHaveBeenCalledWith(expect.objectContaining({
+      detail: { mode: "voice" },
+    }));
+
+    window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, actionHandler);
+  });
 });

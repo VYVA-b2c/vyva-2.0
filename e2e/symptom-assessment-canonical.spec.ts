@@ -152,9 +152,15 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
     await page.getByTestId("button-symptom-emergency-continue").click();
   }
   await expect(describeScene).toHaveAttribute("data-scene-layout", "capture");
+  await expect(page.getByRole("button", { name: "VYVA" })).toBeVisible();
+  await expect(page.getByTestId("nav-tab-home")).toBeVisible();
+  await expect(page.getByTestId("nav-tab-sos")).toBeVisible();
+  await expect(page.getByTestId("nav-tab-reports")).toBeVisible();
   await expect(
-    describeScene.getByLabel("Touch mode", { exact: true }),
+    page.getByRole("button", { name: "Use Voice mode" }),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Touch mode" })).toBeVisible();
+  await expect(describeScene.getByLabel("Touch mode", { exact: true })).toHaveCount(0);
 
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-describe-390.png"),

@@ -244,12 +244,12 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getByTestId("input-symptom-clue")).toBeVisible();
   });
 
-  it("uses a single voice entry point when Talk to VYVA is available", () => {
+  it("leaves the single voice entry point to the shared Home header", () => {
     const onTalkToVyva = vi.fn();
     render(<IntroScreen onStart={vi.fn()} onTalkToVyva={onTalkToVyva} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Voice mode" }));
-    expect(onTalkToVyva).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Use Voice mode" })).not.toBeInTheDocument();
+    expect(onTalkToVyva).not.toHaveBeenCalled();
     expect(screen.queryByTestId("button-symptom-clue-voice")).not.toBeInTheDocument();
   });
 

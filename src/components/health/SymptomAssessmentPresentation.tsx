@@ -120,6 +120,7 @@ type SymptomAssessmentPresentationProps = {
   children?: ReactNode;
   reviewItems?: SymptomAssessmentReviewItem[];
   onModalityChange?: (modality: SymptomAssessmentModality) => void;
+  showHeader?: boolean;
   className?: string;
 };
 
@@ -131,6 +132,7 @@ export function SymptomAssessmentPresentation({
   children,
   reviewItems = [],
   onModalityChange,
+  showHeader = true,
   className = "",
 }: SymptomAssessmentPresentationProps) {
   const scene = stagePresentation[stageId];
@@ -160,7 +162,7 @@ export function SymptomAssessmentPresentation({
       data-scene-kind={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-scene-layout={scene.layout}
     >
-      <div className="flex items-center justify-between px-5 pt-5">
+      {showHeader ? <div className="flex items-center justify-between px-5 pt-5">
         <span
           aria-label="VYVA"
           className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#7024C4] font-display text-[22px] font-black leading-none text-white"
@@ -200,9 +202,9 @@ export function SymptomAssessmentPresentation({
             T
           </button>
         </div>
-      </div>
+      </div> : null}
 
-      <div className="px-[22px] pb-[100px] pt-[38px] text-center">
+      <div className={`px-[22px] pb-[100px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
         <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
           {title || scene.title}
         </h2>

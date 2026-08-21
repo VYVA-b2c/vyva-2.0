@@ -982,6 +982,7 @@ export default function TriageChat({
             <SymptomAssessmentPresentation
               stageId="urgent_escalation"
               modality="touch"
+              showHeader={false}
             >
               <button
                 type="button"
@@ -1031,6 +1032,7 @@ export default function TriageChat({
             <SymptomAssessmentPresentation
               stageId={presentationStage}
               modality="touch"
+              showHeader={false}
               reviewItems={canonicalReviewItems}
             >
               {canonicalSceneControls}
