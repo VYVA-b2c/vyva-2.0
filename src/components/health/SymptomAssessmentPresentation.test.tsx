@@ -56,6 +56,26 @@ describe("SymptomAssessmentPresentation", () => {
         "data-scene-layout",
         expectedLayout[stageId],
       );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-shell-contract",
+        "home.production",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-header-contract",
+        "detail.voice-touch",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-container-contract",
+        "flow.rounded-card",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-bottom-nav-contract",
+        "home-sos-reports",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-composer-contract",
+        "hidden",
+      );
     }
   });
 

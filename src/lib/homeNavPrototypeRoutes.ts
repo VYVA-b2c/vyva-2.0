@@ -1,3 +1,7 @@
+import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
+
+const SYMPTOM_ASSESSMENT_ROUTE = "/health/symptom-check";
+
 const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/",
   "/dev/home-master",
@@ -13,7 +17,9 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/social-rooms",
   "/concierge",
   "/informes",
-  "/health/symptom-check",
+  ...(SYMPTOM_ASSESSMENT_SHELL_CONTRACT.bottomNavId === "home-sos-reports"
+    ? [SYMPTOM_ASSESSMENT_ROUTE]
+    : []),
 ]);
 
 const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([

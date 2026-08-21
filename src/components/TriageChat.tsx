@@ -21,7 +21,10 @@ import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
-import type { SymptomAssessmentStageId } from "@/design/screenPresentation";
+import type {
+  SymptomAssessmentComposerVisibility,
+  SymptomAssessmentStageId,
+} from "@/design/screenPresentation";
 import TriageScanCard from "@/components/TriageScanCard";
 import { ListenButton } from "@/components/ListenButton";
 import { selectTriageScanOffer } from "@/lib/triageScanOffers";
@@ -168,6 +171,7 @@ interface TriageChatProps {
   languageReady?: boolean;
   showProgressCard?: boolean;
   presentationStage?: SymptomAssessmentStageId;
+  composerVisibility?: SymptomAssessmentComposerVisibility;
   onStageChange?: (stage: string, urgent?: boolean) => void;
   onDraftChange?: (draft: TriageChatDraft) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
@@ -352,6 +356,7 @@ export default function TriageChat({
   languageReady = true,
   showProgressCard = false,
   presentationStage,
+  composerVisibility,
   onStageChange,
   onDraftChange,
   onVitalsScanned,
@@ -1309,7 +1314,7 @@ export default function TriageChat({
         </div>
       </div>
 
-      {!presentationStage ? <div
+      {(composerVisibility ? composerVisibility === "visible" : !presentationStage) ? <div
         className="px-4 pb-3 pt-2"
         style={{
           background: "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",

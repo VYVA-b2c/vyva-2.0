@@ -253,6 +253,26 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   }
   await expect(describeScene).toHaveAttribute("data-scene-layout", "capture");
   await expect(page.getByTestId("prototype-home-master-topbar")).toBeVisible();
+  await expect(page.getByTestId("prototype-symptom-assessment-screen")).toHaveAttribute(
+    "data-shell-contract",
+    "home.production",
+  );
+  await expect(page.getByTestId("prototype-symptom-assessment-screen")).toHaveAttribute(
+    "data-header-contract",
+    "detail.voice-touch",
+  );
+  await expect(page.getByTestId("prototype-symptom-assessment-screen")).toHaveAttribute(
+    "data-container-contract",
+    "flow.rounded-card",
+  );
+  await expect(page.getByTestId("prototype-symptom-assessment-screen")).toHaveAttribute(
+    "data-bottom-nav-contract",
+    "home-sos-reports",
+  );
+  await expect(page.getByTestId("prototype-symptom-assessment-screen")).toHaveAttribute(
+    "data-composer-contract",
+    "hidden",
+  );
   await expect(page.getByRole("heading", { name: "Symptoms Check" })).toBeVisible();
   await expect(page.getByTestId("button-prototype-back")).toBeVisible();
   await expect(page.getByTestId("nav-tab-home")).toBeVisible();
@@ -274,6 +294,7 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   const safetyScene = page.getByTestId("symptom-presentation-safety_check-touch");
   await expect(safetyScene).toBeVisible();
   await expect(safetyScene).toHaveAttribute("data-scene-layout", "binary");
+  await expect(safetyScene).toHaveAttribute("data-shell-contract", "home.production");
   const safetyFrame = await safetyScene.boundingBox();
   expect(safetyFrame?.width).toBe(330);
   expect(safetyFrame?.height).toBeGreaterThanOrEqual(535);

@@ -3,6 +3,7 @@ import {
   PREVENTIVE_CHECK_PRESENTATION_SCENES,
   PREVENTIVE_CHECK_STAGE_IDS,
   SYMPTOM_ASSESSMENT_PRESENTATION_SCENES,
+  SYMPTOM_ASSESSMENT_SHELL_CONTRACT,
   SYMPTOM_ASSESSMENT_STAGE_IDS,
   getScreenPresentation,
   resolvePreventiveCheckPresentation,
@@ -51,6 +52,15 @@ describe("screen presentation", () => {
       expect(scenes.touchSceneId).toBe(`health.symptom_assessment.${stageId}.touch`);
       expect(scenes.voiceSceneId).not.toBe(scenes.touchSceneId);
       expect(scenes.registrySceneId).toMatch(/^health\.symptom_assessment\.(describe|safety|details|review|guidance)$/);
+      expect(scenes.shell).toBe(SYMPTOM_ASSESSMENT_SHELL_CONTRACT);
+      expect(scenes.shell).toEqual({
+        shellId: "home.production",
+        headerId: "detail.voice-touch",
+        headerTitle: "Symptoms Check",
+        containerId: "flow.rounded-card",
+        bottomNavId: "home-sos-reports",
+        composer: "hidden",
+      });
     }
   });
 

@@ -161,6 +161,11 @@ export function SymptomAssessmentPresentation({
       data-presentation-modality={modality}
       data-presentation-state={urgent ? "urgent" : loading ? "loading" : "default"}
       data-registry-scene={presentation.registrySceneId}
+      data-shell-contract={presentation.shell.shellId}
+      data-header-contract={presentation.shell.headerId}
+      data-container-contract={presentation.shell.containerId}
+      data-bottom-nav-contract={presentation.shell.bottomNavId}
+      data-composer-contract={presentation.shell.composer}
       data-scene-kind={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-scene-layout={scene.layout}
     >

@@ -133,6 +133,12 @@ describe("TriageChat MediSearch follow-ups", () => {
     await screen.findByText("Bien");
   });
 
+  it("obeys the registry composer contract", async () => {
+    await renderTriageChat({ languageReady: false, composerVisibility: "hidden" });
+
+    expect(screen.queryByTestId("input-triage-message")).not.toBeInTheDocument();
+  });
+
   it("rotates the review headline through VYVA thinking steps", async () => {
     vi.useFakeTimers();
 

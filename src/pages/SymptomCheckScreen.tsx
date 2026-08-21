@@ -3914,6 +3914,7 @@ export default function SymptomCheckScreen() {
         setSymptomInteractionMode("touch");
       }}
       onBack={handleBack}
+      shellContract={currentAssessmentPresentation.shell}
     >
       <div
         className="flex min-h-0 flex-1 flex-col"
@@ -3962,6 +3963,7 @@ export default function SymptomCheckScreen() {
             language={language}
             languageReady={!profileLoading}
             presentationStage={currentAssessmentStage}
+            composerVisibility={currentAssessmentPresentation.shell.composer}
             onStageChange={(runtimeStage, urgent) => setTouchAssessmentStage(
               symptomAssessmentStageForRuntime(runtimeStage, urgent),
             )}

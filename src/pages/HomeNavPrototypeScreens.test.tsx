@@ -15,9 +15,11 @@ import {
   PrototypeProfileActionPreviewScreen,
   PrototypeProfileScreen,
   PrototypeReportsScreen,
+  PrototypeSymptomAssessmentShell,
   PrototypeSymptomReportPreviewScreen,
   submitPrototypeCheckInAnswer,
 } from "./HomeNavPrototypeScreens";
+import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { READABLE_TEXT_SIZE_STORAGE_KEY } from "@/hooks/useReadableTextSize";
@@ -87,6 +89,29 @@ describe("Home/Nav prototype screens", () => {
       expect(screen.queryByTestId("home-rotating-moment")).not.toBeInTheDocument();
       expect(screen.queryByTestId("home-idle-hand-cue")).not.toBeInTheDocument();
     });
+  });
+
+  it("renders Symptom Assessment chrome from its registry shell contract", () => {
+    renderScreen(
+      <PrototypeSymptomAssessmentShell
+        interactionMode="touch"
+        onInteractionModeChange={vi.fn()}
+        onBack={vi.fn()}
+        shellContract={SYMPTOM_ASSESSMENT_SHELL_CONTRACT}
+      >
+        <div>Assessment content</div>
+      </PrototypeSymptomAssessmentShell>,
+    );
+
+    const shell = screen.getByTestId("prototype-symptom-assessment-screen");
+    expect(shell).toHaveAttribute("data-shell-contract", "home.production");
+    expect(shell).toHaveAttribute("data-header-contract", "detail.voice-touch");
+    expect(shell).toHaveAttribute("data-container-contract", "flow.rounded-card");
+    expect(shell).toHaveAttribute("data-bottom-nav-contract", "home-sos-reports");
+    expect(shell).toHaveAttribute("data-composer-contract", "hidden");
+    expect(screen.getByRole("heading", { name: "Symptoms Check" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-desktop-shell")).toBeInTheDocument();
   });
 
   it("shows the idle prompt only during the first ten seconds after app load", () => {
