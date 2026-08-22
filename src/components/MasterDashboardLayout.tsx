@@ -148,6 +148,7 @@ export default function MasterDashboardLayout({
   const isHomeMasterDark = isHomeMaster && isDarkMode;
   const isHomeMasterIntentLayer = isHomeMaster && intentLayer;
   const isHomeMasterTopLevelCards = isHomeMaster && !isHomeMasterIntentLayer;
+  const isHomeMasterSingleSurface = isHomeMaster && showHero && !showCards;
   const allowMessageControls = !(isHomeMaster && isVoiceAction);
   const hasMessageAction = allowMessageControls && Boolean(hero.messageActionLabel && hero.onMessageAction);
   const hasMessageDismiss = allowMessageControls && Boolean(hero.onMessageDismiss);
@@ -210,8 +211,9 @@ export default function MasterDashboardLayout({
       className={[
         "vyva-page px-4 pb-4 min-[390px]:px-[22px] sm:pb-8",
         isHomeMaster
-          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] md:pb-[132px] lg:max-w-[760px]"
+          ? "vyva-home-master-fixed-type mx-auto min-h-[calc(100svh-148px)] max-w-[calc(100vw-32px)] !px-0 pb-[148px] min-[390px]:max-w-[366px] sm:max-w-[390px] md:min-h-[calc(100svh-186px)] md:max-w-[640px] md:pb-0 lg:max-w-[720px]"
           : "",
+        isHomeMasterSingleSurface ? "md:flex md:flex-col" : "",
         presentationClassName ?? "",
       ].join(" ")}
       {...(presentationAttributes ?? {})}
@@ -225,7 +227,7 @@ export default function MasterDashboardLayout({
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className={[
           isHomeMaster
-            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-3 min-[390px]:pt-4 sm:pt-7" : "pt-1 min-[390px]:pt-2 sm:pt-8 md:pt-10"}`
+            ? `relative text-center ${isHomeMasterIntentLayer ? "pt-3 min-[390px]:pt-4 sm:pt-7" : `pt-1 min-[390px]:pt-2 sm:pt-8 ${isHomeMasterSingleSurface ? "md:flex md:flex-1 md:flex-col md:justify-center md:pt-0" : "md:pt-10"}`}`
             : "mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6",
         ].join(" ")}
         style={isHomeMaster ? undefined : {

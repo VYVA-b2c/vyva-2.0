@@ -242,6 +242,7 @@ describe("app shell route layout", () => {
         expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]");
       } else {
         expect(shell.className).toContain("max-w-[430px]");
+        expect(shell.className).toContain("md:max-w-[720px]");
         expect(shell.className).toContain("bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]");
       }
     },

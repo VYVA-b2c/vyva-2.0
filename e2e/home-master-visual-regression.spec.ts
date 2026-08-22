@@ -4,6 +4,11 @@ const HOME_MODE_STORAGE_KEY = "vyva:home-interaction-mode:v1";
 const HOME_THEME_STORAGE_KEY = "vyva:home-master-theme:v1";
 const VOICE_ORB_HINT_SEEN_STORAGE_KEY = "vyva:voice-orb-hint-seen:v1";
 const FIXED_HOME_NOW_MS = new Date("2026-07-07T20:00:00+02:00").getTime();
+const FUTURE_AUTH_TOKEN = [
+  "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0",
+  btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 60 * 60 })),
+  "signature",
+].join(".");
 
 async function fulfillJson(route: Route, status: number, body: unknown) {
   await route.fulfill({
@@ -62,21 +67,23 @@ async function installHomeMasterMocks(page: Page) {
 
 async function openHomeMasterVoiceMode(page: Page) {
   await installHomeMasterMocks(page);
-  await page.addInitScript(({ homeModeKey, themeKey, hintKey, fixedNowMs }) => {
+  await page.addInitScript(({ authToken, homeModeKey, themeKey, hintKey, fixedNowMs }) => {
     Date.now = () => fixedNowMs;
+    window.localStorage.setItem("vyva_auth_token", authToken);
     window.localStorage.setItem(homeModeKey, "voice");
     window.localStorage.setItem(themeKey, "light");
     window.localStorage.setItem(hintKey, "true");
     window.localStorage.setItem("vyva_lang", "es");
     window.localStorage.setItem("vyva_lang_source", "user");
   }, {
+    authToken: FUTURE_AUTH_TOKEN,
     homeModeKey: HOME_MODE_STORAGE_KEY,
     themeKey: HOME_THEME_STORAGE_KEY,
     hintKey: VOICE_ORB_HINT_SEEN_STORAGE_KEY,
     fixedNowMs: FIXED_HOME_NOW_MS,
   });
 
-  await page.goto("/dev/home-master", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => document.fonts?.ready);
   await expect(page.getByTestId("home-master-layout")).toBeVisible();
   await expect(page.getByTestId("home-master-hero")).toBeVisible();
@@ -115,7 +122,40 @@ test.describe("home master visual contract", () => {
     await openHomeMasterVoiceMode(page);
 
     await page.getByTestId("button-home-mode-touch").click();
-    await expect(page).toHaveURL(/\/dev\/home-master\/menu$/);
+    await expect(page).toHaveURL(/\/menu$/);
     await expect(page.getByTestId("menu-tile-grid").getByRole("button")).toHaveCount(4);
+  });
+
+  test("balances the Home voice surface inside the desktop shell", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openHomeMasterVoiceMode(page);
+    await page.waitForTimeout(1_500);
+    await expect(page.getByTestId("home-master-layout")).toBeVisible();
+
+    const layoutBox = await page.getByTestId("home-master-layout").boundingBox();
+    const topbarBox = await page.getByTestId("home-topbar").boundingBox();
+    const headingBox = await page.getByTestId("home-master-hero").getByRole("heading").boundingBox();
+    const orbBox = await page.getByTestId("button-home-hero-talk").boundingBox();
+    const dockBox = await page.getByRole("navigation").boundingBox();
+
+    expect(layoutBox).not.toBeNull();
+    expect(topbarBox).not.toBeNull();
+    expect(headingBox).not.toBeNull();
+    expect(orbBox).not.toBeNull();
+    expect(dockBox).not.toBeNull();
+
+    expect(layoutBox!.width).toBeGreaterThanOrEqual(600);
+    expect(layoutBox!.width).toBeLessThanOrEqual(720);
+    expect(dockBox!.width).toBeGreaterThanOrEqual(540);
+    expect(dockBox!.width).toBeLessThanOrEqual(620);
+
+    const availableCenter = (topbarBox!.y + topbarBox!.height + dockBox!.y) / 2;
+    const heroContentCenter = (headingBox!.y + orbBox!.y + orbBox!.height) / 2;
+    expect(Math.abs(heroContentCenter - availableCenter)).toBeLessThan(100);
+    expect(orbBox!.y + orbBox!.height).toBeLessThan(dockBox!.y - 24);
+
+    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+
   });
 });
