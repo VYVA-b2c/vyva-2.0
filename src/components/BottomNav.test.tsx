@@ -78,6 +78,7 @@ describe("BottomNav", () => {
 
     expect(dock).toHaveClass("bottom-[18px]");
     expect(dock).toHaveClass("rounded-[22px]");
+    expect(dock).toHaveClass("md:max-w-[560px]", "lg:max-w-[620px]");
     expect(homeTab).not.toBeDisabled();
 
     fireEvent.click(homeTab);

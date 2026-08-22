@@ -150,6 +150,13 @@ describe("MasterDashboardLayout Fast help rotation", () => {
     );
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good morning, Karim");
+    expect(screen.getByTestId("home-master-hero")).toHaveClass("md:flex-1", "md:justify-center", "md:pt-0");
+    expect(screen.getByTestId("home-master-hero").parentElement).toHaveClass(
+      "md:min-h-[calc(100svh-186px)]",
+      "md:max-w-[640px]",
+      "md:pb-0",
+      "md:flex",
+    );
     expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Your medicine is due soon.");
     expect(screen.getByTestId("button-home-hero-talk")).toBeInTheDocument();
     expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
