@@ -2993,7 +2993,11 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     <div className="fixed inset-0 z-[80]" data-testid="home-profile-menu-layer">
       <button
         type="button"
-        className="absolute inset-0 cursor-default bg-transparent"
+        data-testid="button-home-profile-menu-backdrop"
+        className={[
+          "absolute inset-0 cursor-default bg-transparent md:backdrop-blur-[3px]",
+          isHomeMasterDark ? "md:bg-black/35" : "md:bg-[#2D1748]/15",
+        ].join(" ")}
         aria-label={t("home.profileMenu.close", "Close profile menu")}
         onClick={() => setHomeProfileMenuOpen(false)}
       />
@@ -3004,7 +3008,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
         aria-label={t("home.profileMenu.title", "Profile & settings")}
         data-testid="home-profile-menu"
         className={[
-          "absolute left-1/2 top-[88px] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-hidden rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px]",
+          "absolute left-1/2 top-[88px] max-h-[calc(100svh-110px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px] md:top-1/2 md:max-h-[calc(100svh-96px)] md:max-w-[720px] md:-translate-y-1/2 md:rounded-[32px] md:p-5",
           isHomeMasterDark
             ? "border-white/[0.12] bg-[#170C2A] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
             : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",
@@ -3037,7 +3041,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
           </button>
         </div>
 
-        <div className="mt-2 grid gap-1.5">
+        <div className="mt-2 grid gap-1.5 md:grid-cols-2 md:gap-3" data-testid="home-profile-menu-links">
           {homeProfileMenuLinks.map((item) => {
             const Icon = item.icon;
             return (
@@ -3047,7 +3051,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
                 data-testid={item.testId}
                 onClick={() => handleProfileMenuNavigate(item.path)}
                 className={[
-                  "vyva-tap flex min-h-[60px] w-full items-center gap-2.5 rounded-[21px] border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5",
+                  "vyva-tap flex min-h-[60px] w-full items-center gap-2.5 rounded-[21px] border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[72px] md:px-4",
                   isHomeMasterDark ? "border-white/[0.10] bg-white/[0.06]" : "border-[#F0E8F5] bg-white shadow-[0_8px_22px_rgba(67,36,95,0.05)]",
                 ].join(" ")}
               >

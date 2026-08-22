@@ -80,8 +80,14 @@ describe("MenuScreen", () => {
 
     fireEvent.click(screen.getByTestId("button-menu-profile"));
 
-    expect(screen.getByTestId("menu-profile-menu")).toBeInTheDocument();
-    expect(screen.getByTestId("menu-profile-menu")).toHaveTextContent("Profile & settings");
+    const profileMenu = screen.getByTestId("menu-profile-menu");
+    expect(profileMenu).toBeInTheDocument();
+    expect(profileMenu).toHaveTextContent("Profile & settings");
+    expect(profileMenu).toHaveClass("md:max-w-[720px]");
+    expect(profileMenu).toHaveClass("md:top-1/2");
+    expect(profileMenu).toHaveClass("md:-translate-y-1/2");
+    expect(screen.getByTestId("menu-profile-menu-links")).toHaveClass("md:grid-cols-2");
+    expect(screen.getByTestId("button-menu-profile-menu-backdrop")).toHaveClass("md:backdrop-blur-[3px]");
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/menu");
 
     fireEvent.click(screen.getByTestId("button-menu-profile-account"));
@@ -129,7 +135,9 @@ describe("MenuScreen", () => {
     const firstTile = screen.getByTestId("menu-tile-health");
 
     expect(grid).toHaveClass("gap-3");
+    expect(grid).toHaveClass("md:grid-cols-2");
     expect(firstTile).toHaveClass("min-h-[82px]");
+    expect(firstTile).toHaveClass("md:min-h-[128px]");
     expect(firstTile).not.toHaveClass("min-h-[118px]");
   });
 
@@ -143,7 +151,8 @@ describe("MenuScreen", () => {
     expect(shell).toHaveClass("max-w-[calc(100vw-32px)]");
     expect(shell).toHaveClass("min-[390px]:max-w-[366px]");
     expect(shell).toHaveClass("sm:max-w-[390px]");
-    expect(shell).not.toHaveClass("sm:max-w-[560px]");
+    expect(shell).toHaveClass("md:max-w-[680px]");
+    expect(shell).toHaveClass("lg:max-w-[880px]");
     expect(topbar).toHaveClass("px-1");
     expect(topbar).toHaveClass("sm:px-3");
     expect(screen.getByRole("heading", { name: "Menu" })).toHaveClass("sr-only");

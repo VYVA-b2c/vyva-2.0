@@ -591,7 +591,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       : usesDevHomeMasterDetailShell
         ? "max-w-[520px]"
       : usesDevHomeMasterCompactShell
-        ? "max-w-[430px] md:max-w-[720px]"
+        ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
