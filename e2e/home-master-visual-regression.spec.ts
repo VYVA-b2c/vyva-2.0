@@ -158,4 +158,46 @@ test.describe("home master visual contract", () => {
     expect(hasHorizontalOverflow).toBe(false);
 
   });
+
+  test("uses a centered desktop profile dialog without exposing the Home hero", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openHomeMasterVoiceMode(page);
+    await page.getByTestId("button-home-profile").click();
+
+    const dialog = page.getByTestId("home-profile-menu");
+    const dialogBox = await dialog.boundingBox();
+    const columns = await page.getByTestId("home-profile-menu-links").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    );
+
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox!.width).toBeGreaterThanOrEqual(680);
+    expect(dialogBox!.width).toBeLessThanOrEqual(720);
+    expect(Math.abs(dialogBox!.x + dialogBox!.width / 2 - 720)).toBeLessThan(2);
+    expect(Math.abs(dialogBox!.y + dialogBox!.height / 2 - 450)).toBeLessThan(2);
+    expect(columns).toBe(2);
+    await expect(page.getByTestId("button-home-profile-menu-backdrop")).toBeVisible();
+  });
+
+  test("uses a two-column desktop Menu and keeps the shared dock visible", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openHomeMasterVoiceMode(page);
+    await page.getByTestId("button-home-mode-touch").click();
+    await expect(page).toHaveURL(/\/menu$/);
+
+    const menuShellBox = await page.getByTestId("menu-shell").boundingBox();
+    const columns = await page.getByTestId("menu-tile-grid").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    );
+    const dock = page.getByRole("navigation");
+
+    expect(menuShellBox).not.toBeNull();
+    expect(menuShellBox!.width).toBeGreaterThanOrEqual(840);
+    expect(menuShellBox!.width).toBeLessThanOrEqual(880);
+    expect(columns).toBe(2);
+    await expect(dock).toBeVisible();
+
+    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+  });
 });

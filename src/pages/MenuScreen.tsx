@@ -163,7 +163,7 @@ export default function MenuScreen({
   return (
     <main
       className={[
-        "min-h-full px-5 pb-[calc(120px+env(safe-area-inset-bottom))]",
+        "min-h-[calc(100svh-136px)] px-5 pb-[calc(120px+env(safe-area-inset-bottom))] md:px-8",
         isDark
           ? "bg-[linear-gradient(180deg,#1E1139_0%,#11081F_46%,#070311_100%)] text-[#FFF8FF]"
           : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)] text-[var(--vyva-ink)]",
@@ -172,11 +172,11 @@ export default function MenuScreen({
       data-theme={isDark ? "dark" : "light"}
     >
       <div
-        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[390px] lg:max-w-[390px]"
+        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[680px] lg:max-w-[880px]"
         data-testid="menu-shell"
       >
         <HomeMasterTopbar
-          className="mb-5 sm:mb-7"
+          className="mb-5 sm:mb-7 md:mb-10"
           testId="menu-topbar"
         >
           <HomeMasterProfileControl
@@ -202,7 +202,11 @@ export default function MenuScreen({
           <div className="fixed inset-0 z-[80]" data-testid="menu-profile-menu-layer">
             <button
               type="button"
-              className="absolute inset-0 cursor-default bg-transparent"
+              data-testid="button-menu-profile-menu-backdrop"
+              className={[
+                "absolute inset-0 cursor-default bg-transparent md:backdrop-blur-[3px]",
+                isDark ? "md:bg-black/35" : "md:bg-[#2D1748]/15",
+              ].join(" ")}
               aria-label="Close profile menu"
               onClick={() => setProfileMenuOpen(false)}
             />
@@ -213,7 +217,7 @@ export default function MenuScreen({
               aria-label="Profile & settings"
               data-testid="menu-profile-menu"
               className={[
-                "absolute left-1/2 top-[88px] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-hidden rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px]",
+                "absolute left-1/2 top-[88px] max-h-[calc(100svh-110px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px] md:top-1/2 md:max-h-[calc(100svh-96px)] md:max-w-[720px] md:-translate-y-1/2 md:rounded-[32px] md:p-5",
                 isDark
                   ? "border-white/[0.12] bg-[#170C2A] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
                   : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",
@@ -253,7 +257,7 @@ export default function MenuScreen({
                 </button>
               </div>
 
-              <div className="mt-2 grid gap-1.5">
+              <div className="mt-2 grid gap-1.5 md:grid-cols-2 md:gap-3" data-testid="menu-profile-menu-links">
                 {profileLinks.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -263,7 +267,7 @@ export default function MenuScreen({
                       data-testid={item.testId}
                       onClick={() => navigateFromProfileMenu(item.path)}
                       className={[
-                        "vyva-tap flex min-h-[60px] w-full items-center gap-2.5 rounded-[21px] border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5",
+                        "vyva-tap flex min-h-[60px] w-full items-center gap-2.5 rounded-[21px] border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[72px] md:px-4",
                         isDark ? "border-white/[0.10] bg-white/[0.06]" : "border-[#F0E8F5] bg-white shadow-[0_8px_22px_rgba(67,36,95,0.05)]",
                       ].join(" ")}
                     >
@@ -333,7 +337,7 @@ export default function MenuScreen({
           </div>
         ) : null}
 
-        <section className="grid gap-3 min-[390px]:gap-3.5 sm:gap-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+        <section className="grid gap-3 min-[390px]:gap-3.5 sm:gap-4 md:grid-cols-2 md:gap-5" aria-label="VYVA main menu" data-testid="menu-tile-grid">
           {MENU_TILES.map((tile) => {
             const Icon = tile.icon;
             const destination = tilePathOverrides?.[tile.id] ?? tile.path;
@@ -342,7 +346,7 @@ export default function MenuScreen({
                 key={tile.id}
                 type="button"
                 className={[
-                  "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px]",
+                  "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px] md:min-h-[128px] md:px-5",
                   isDark
                     ? "bg-[#211235] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
                     : "bg-white shadow-[0_10px_22px_rgba(36,28,48,0.06)]",
@@ -353,7 +357,7 @@ export default function MenuScreen({
               >
                 <span
                   className={[
-                    "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px]",
+                    "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px] md:h-[64px] md:w-[64px]",
                     isDark ? "ring-1 ring-inset ring-white/10" : "",
                   ].join(" ")}
                   style={{
