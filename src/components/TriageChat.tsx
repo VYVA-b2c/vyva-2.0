@@ -21,7 +21,10 @@ import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
-import type { SymptomAssessmentStageId } from "@/design/screenPresentation";
+import type {
+  SymptomAssessmentComposerVisibility,
+  SymptomAssessmentStageId,
+} from "@/design/screenPresentation";
 import TriageScanCard from "@/components/TriageScanCard";
 import { ListenButton } from "@/components/ListenButton";
 import { selectTriageScanOffer } from "@/lib/triageScanOffers";
@@ -168,6 +171,7 @@ interface TriageChatProps {
   languageReady?: boolean;
   showProgressCard?: boolean;
   presentationStage?: SymptomAssessmentStageId;
+  composerVisibility?: SymptomAssessmentComposerVisibility;
   onStageChange?: (stage: string, urgent?: boolean) => void;
   onDraftChange?: (draft: TriageChatDraft) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
@@ -352,6 +356,7 @@ export default function TriageChat({
   languageReady = true,
   showProgressCard = false,
   presentationStage,
+  composerVisibility,
   onStageChange,
   onDraftChange,
   onVitalsScanned,
@@ -721,7 +726,7 @@ export default function TriageChat({
       ? animatedText
       : latestAssistantEntry.msg.content
     : t("health.symptomCheck.chat.reviewTitle", "Checking your next step");
-  const showQuestion = Boolean(latestAssistantEntry || !loading);
+  const showQuestion = Boolean(latestAssistantEntry || !loading || presentationStage === "checking");
   const waitingForLanguage = !languageReady && !initiated;
   const canAnswer = languageReady && !loading && animatingIdx === null && messages.length > 0;
   const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
@@ -776,6 +781,57 @@ export default function TriageChat({
       ? t("health.symptomCheck.chat.readoutChoices", "Choices: {{choices}}", { choices: visibleQuickAnswers.map((answer) => answer.label).join(". ") })
       : "",
   ].filter(Boolean).join(" ");
+  const canonicalReviewItems = selectedQuickAnswers.slice(-4).map((answer, index) => ({
+    label: answer.kind && answer.kind !== "general"
+      ? answer.kind.replace(/[_-]+/g, " ")
+      : t("health.symptomCheck.chat.reviewAnswer", "Answer {{count}}", { count: index + 1 }),
+    value: answer.label,
+  }));
+  const canonicalSceneControls = presentationStage && canAnswer ? (
+    <div data-testid="triage-quick-answers">
+      <div
+        className={
+          presentationStage === "safety_check" || presentationStage === "review"
+            ? "grid grid-cols-2 gap-[10px]"
+            : presentationStage === "severity"
+              ? "grid grid-cols-[repeat(11,minmax(0,1fr))] gap-1"
+              : "grid gap-[10px]"
+        }
+      >
+        {quickAnswers.map((quickAnswer, index) => {
+          const { id, label, value, Icon } = quickAnswer;
+          const isAction =
+            presentationStage === "safety_check" || presentationStage === "review";
+          const isScale = presentationStage === "severity";
+          const isSafetyPrimary =
+            presentationStage === "safety_check" && index === 1;
+          return (
+            <button
+              type="button"
+              key={id}
+              onClick={() => void sendText(value, quickAnswer)}
+              className={`vyva-tap flex items-center justify-center border font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#D9C2F3] ${
+                isSafetyPrimary
+                  ? "min-h-[54px] rounded-full border-[#087F76] bg-[#087F76] px-3 text-[14px] text-white"
+                  : isAction
+                    ? "min-h-[54px] rounded-full border-[#D9CFE0] bg-white px-3 text-[14px] text-[#241238]"
+                    : isScale
+                      ? "h-[38px] rounded-[8px] border-[#D9CFE0] bg-white px-0 text-[12px] text-[#241238]"
+                      : "min-h-[58px] justify-start gap-3 rounded-[8px] border-[#DED3E2] bg-white px-[14px] py-3 text-left text-[14px] text-[#241238]"
+              }`}
+            >
+              {isAction || isScale ? null : (
+                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[8px] bg-[#F3EAFF] text-[#7024C4]">
+                  <Icon size={18} />
+                </span>
+              )}
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
 
   const handleSkipScan = (type: TriageScanType) => {
     setDeclinedScanTypes((current) => current.includes(type) ? current : [...current, type]);
@@ -799,7 +855,7 @@ export default function TriageChat({
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="px-4 py-4"
+        className={presentationStage ? "py-4" : "px-4 py-4"}
       >
         <div className="mx-auto flex w-full max-w-[620px] flex-col gap-5">
           {showProgressCard ? (
@@ -931,7 +987,7 @@ export default function TriageChat({
             <SymptomAssessmentPresentation
               stageId="urgent_escalation"
               modality="touch"
-              helper={safetyAlert.recommendation}
+              showHeader={false}
             >
               <button
                 type="button"
@@ -939,12 +995,16 @@ export default function TriageChat({
                   if (emergencyContact?.telHref) window.location.href = emergencyContact.telHref;
                 }}
                 disabled={!emergencyContact?.telHref}
-                className="vyva-tap inline-flex min-h-[66px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#DC2626] px-5 font-body text-[19px] font-black text-white shadow-[0_10px_24px_rgba(127,29,29,0.24)]"
+                className="vyva-tap flex min-h-[58px] w-full items-center gap-3 rounded-[8px] border border-[#DED3E2] bg-white px-[14px] py-3 text-left text-[15px] font-black text-[#241238]"
               >
-                <PhoneCall size={22} />
-                {emergencyContact?.telHref
-                  ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
-                  : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[8px] bg-[#FFF0EF] text-[#D94C48]">
+                  <PhoneCall size={19} />
+                </span>
+                <span>
+                  {emergencyContact?.telHref
+                    ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+                    : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+                </span>
               </button>
             </SymptomAssessmentPresentation>
           ) : safetyAlert && (
@@ -973,28 +1033,17 @@ export default function TriageChat({
             </HealthWizardHero>
           )}
 
-          {showQuestion && presentationStage && presentationStage !== "urgent_escalation" ? (
-            <SymptomAssessmentPresentation
-              stageId={presentationStage}
-              modality="touch"
-              title={latestQuestion}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-vyva-purple shadow-sm">
-                  <Brain className="h-4 w-4" />
-                  <span data-testid="triage-question-progress">
-                    {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
-                  </span>
-                </span>
-                <ListenButton
-                  text={readoutText}
-                  language={activeLanguage}
-                  label={t("health.symptomCheck.chat.playQuestion", "Play question")}
-                  stopLabel={t("health.symptomCheck.chat.stopQuestion", "Stop")}
-                  className="min-h-[42px] px-3 text-[13px]"
-                />
-              </div>
-            </SymptomAssessmentPresentation>
+          {showQuestion && presentationStage ? (
+            presentationStage !== "urgent_escalation" ? (
+              <SymptomAssessmentPresentation
+                stageId={presentationStage}
+                modality="touch"
+                showHeader={false}
+                reviewItems={canonicalReviewItems}
+              >
+                {canonicalSceneControls}
+              </SymptomAssessmentPresentation>
+            ) : null
           ) : showQuestion && (
             <HealthWizardCard className="overflow-hidden border-[#D8C7FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBFAFF_54%,#FFF8EA_100%)] px-5 py-5 shadow-[0_18px_44px_rgba(107,33,168,0.12)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1097,7 +1146,7 @@ export default function TriageChat({
             </details>
           ) : null}
 
-          {(loading || waitingForLanguage) && (
+          {(loading || waitingForLanguage) && presentationStage !== "checking" && (
             <TriageReviewPanel />
           )}
 
@@ -1141,7 +1190,7 @@ export default function TriageChat({
             </details>
           )}
 
-          {canAnswer && (
+          {canAnswer && !presentationStage && (
             <div className="grid gap-3 rounded-[28px] border border-[#E8DED4] bg-white/88 p-3 shadow-[0_12px_30px_rgba(63,45,35,0.06)]" data-testid="triage-quick-answers">
               <div className="flex items-center gap-2 px-2 font-body text-[15px] font-black text-vyva-text-2">
                 <CheckCircle className="h-4 w-4 text-teal-700" />
@@ -1265,7 +1314,7 @@ export default function TriageChat({
         </div>
       </div>
 
-      <div
+      {(composerVisibility ? composerVisibility === "visible" : !presentationStage) ? <div
         className="px-4 pb-3 pt-2"
         style={{
           background: "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
@@ -1323,7 +1372,7 @@ export default function TriageChat({
             </button>
           </div>
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }

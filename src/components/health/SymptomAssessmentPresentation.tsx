@@ -1,18 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  ListChecks,
-  LoaderCircle,
-  MessageCircleMore,
-  Mic,
-  Save,
-  ShieldCheck,
-  SlidersHorizontal,
-  Stethoscope,
-} from "lucide-react";
-import {
   resolveSymptomAssessmentPresentation,
   type SymptomAssessmentStageId,
 } from "@/design/screenPresentation";
@@ -33,81 +20,110 @@ export const SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE = {
   save_share_summary: "summary.share_or_save",
 } as const satisfies Record<SymptomAssessmentStageId, string>;
 
-const stageCopy: Record<SymptomAssessmentStageId, {
+type SceneLayout =
+  | "capture"
+  | "binary"
+  | "alert"
+  | "choices"
+  | "scale"
+  | "review"
+  | "progress"
+  | "guidance"
+  | "handoff";
+
+type StagePresentation = {
   eyebrow: string;
   title: string;
   helper: string;
-}> = {
+  layout: SceneLayout;
+};
+
+const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   describe: {
     eyebrow: "Describe how you feel",
     title: "How are you feeling?",
     helper: "Tell VYVA in your own words.",
+    layout: "capture",
   },
   safety_check: {
     eyebrow: "Safety check",
     title: "Any urgent warning signs?",
     helper: "For example severe chest pain, fainting, or struggling to breathe.",
+    layout: "binary",
   },
   urgent_escalation: {
     eyebrow: "Urgent guidance",
     title: "Get urgent help now",
     helper: "Call emergency services now. Do not wait for an online assessment.",
+    layout: "alert",
   },
   symptom_selection: {
     eyebrow: "Symptom details",
-    title: "What are you noticing?",
-    helper: "Choose the closest symptom or describe it in your own words.",
+    title: "What do you notice?",
+    helper: "",
+    layout: "choices",
   },
   severity: {
     eyebrow: "Severity",
-    title: "How strong does it feel?",
-    helper: "Use the scale or choose the closest answer.",
+    title: "How strong is it?",
+    helper: "0 is none. 10 is the worst imaginable.",
+    layout: "scale",
   },
   onset: {
     eyebrow: "Timing",
     title: "When did it start?",
-    helper: "An approximate time is enough.",
+    helper: "",
+    layout: "choices",
   },
   related_details: {
     eyebrow: "Related details",
-    title: "A little more detail",
-    helper: "This helps VYVA understand what may matter next.",
+    title: "One more detail",
+    helper: "Has anything made it better or worse?",
+    layout: "capture",
   },
   review: {
     eyebrow: "Review",
-    title: "Check what you shared",
-    helper: "Make sure this looks right before VYVA checks the safest next step.",
+    title: "Is this right?",
+    helper: "",
+    layout: "review",
   },
   checking: {
     eyebrow: "Checking",
-    title: "VYVA is checking your answers",
-    helper: "Looking for the safest next step based on what you shared.",
+    title: "Checking safely",
+    helper: "VYVA is comparing your answers with trusted guidance.",
+    layout: "progress",
   },
   safest_next_step: {
     eyebrow: "Guidance",
     title: "Your safest next step",
     helper: "Follow this guidance and watch for any change in how you feel.",
+    layout: "guidance",
   },
   save_share_summary: {
     eyebrow: "Summary",
-    title: "Save or share your summary",
-    helper: "Keep a copy or share it with someone supporting your care.",
+    title: "Your summary is ready",
+    helper: "Keep it for yourself or share it with someone you trust.",
+    layout: "handoff",
   },
 };
 
-const iconByStage = {
-  describe: MessageCircleMore,
-  safety_check: ShieldCheck,
-  urgent_escalation: AlertTriangle,
-  symptom_selection: Stethoscope,
-  severity: SlidersHorizontal,
-  onset: Clock3,
-  related_details: MessageCircleMore,
-  review: ListChecks,
-  checking: LoaderCircle,
-  safest_next_step: CheckCircle2,
-  save_share_summary: Save,
-} as const;
+export type SymptomAssessmentReviewItem = {
+  label: string;
+  value: string;
+};
+
+type SymptomAssessmentPresentationProps = {
+  stageId: SymptomAssessmentStageId;
+  modality: SymptomAssessmentModality;
+  title?: string;
+  helper?: string;
+  children?: ReactNode;
+  reviewItems?: SymptomAssessmentReviewItem[];
+  onModalityChange?: (modality: SymptomAssessmentModality) => void;
+  showHeader?: boolean;
+  fullBleedChildren?: boolean;
+  className?: string;
+};
 
 export function SymptomAssessmentPresentation({
   stageId,
@@ -115,78 +131,189 @@ export function SymptomAssessmentPresentation({
   title,
   helper,
   children,
+  reviewItems = [],
+  onModalityChange,
+  showHeader = true,
+  fullBleedChildren = false,
   className = "",
-}: {
-  stageId: SymptomAssessmentStageId;
-  modality: SymptomAssessmentModality;
-  title?: string;
-  helper?: string;
-  children?: ReactNode;
-  className?: string;
-}) {
-  const copy = stageCopy[stageId];
-  const Icon = iconByStage[stageId];
-  const urgent = stageId === "urgent_escalation";
-  const loading = stageId === "checking";
+}: SymptomAssessmentPresentationProps) {
+  const scene = stagePresentation[stageId];
   const presentation = resolveSymptomAssessmentPresentation(stageId);
-  const presentationState = urgent ? "urgent" : loading ? "loading" : "default";
-  const presentationId = modality === "voice"
-    ? presentation.voiceSceneId
-    : presentation.touchSceneId;
+  const urgent = scene.layout === "alert";
+  const loading = scene.layout === "progress";
+  const displayHelper = helper ?? scene.helper;
+  const presentationId =
+    modality === "voice" ? presentation.voiceSceneId : presentation.touchSceneId;
+  const showsVoiceOrb =
+    modality === "voice" &&
+    (scene.layout === "capture" ||
+      scene.layout === "choices" ||
+      scene.layout === "binary");
 
   return (
     <section
       aria-busy={loading || undefined}
-      className={`overflow-hidden rounded-[30px] border bg-white shadow-[0_18px_44px_rgba(63,45,35,0.09)] ${
-        urgent ? "border-[#FCA5A5]" : "border-[#DDD6FE]"
-      } ${className}`}
+      className={`mx-auto min-h-[535px] ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} max-w-[330px] overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
       data-presentation-id={presentationId}
       data-presentation-modality={modality}
-      data-presentation-state={presentationState}
+      data-presentation-state={urgent ? "urgent" : loading ? "loading" : "default"}
       data-registry-scene={presentation.registrySceneId}
+      data-shell-contract={presentation.shell.shellId}
+      data-header-contract={presentation.shell.headerId}
+      data-container-contract={presentation.shell.containerId}
+      data-bottom-nav-contract={presentation.shell.bottomNavId}
+      data-composer-contract={presentation.shell.composer}
+      data-scene-kind={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
+      data-scene-layout={scene.layout}
     >
-      <div className={`p-5 ${urgent ? "bg-[#FFF7F7]" : "bg-[linear-gradient(145deg,#FFFFFF_0%,#FBFAFF_62%,#F0FDFF_100%)]"}`}>
-        <div className="flex items-start gap-4">
-          <span className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] shadow-sm ${
-            urgent ? "bg-[#FEE2E2] text-[#B91C1C]" : "bg-white text-vyva-purple"
-          }`}>
-            {stageId === "describe" && modality === "voice" ? (
-              <Mic size={27} strokeWidth={2.7} />
-            ) : loading ? (
-              <Icon size={27} strokeWidth={2.7} className="animate-spin" />
-            ) : (
-              <Icon size={27} strokeWidth={2.7} />
-            )}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className={`font-body text-[12px] font-black uppercase tracking-[0.14em] ${urgent ? "text-[#B91C1C]" : "text-vyva-purple"}`}>
-                {copy.eyebrow}
-              </p>
-              <span className={`rounded-full px-2.5 py-1 font-body text-[10px] font-black uppercase tracking-[0.1em] ${
-                urgent ? "bg-[#FEE2E2] text-[#991B1B]" : "bg-white text-[#0E7490] shadow-sm"
-              }`}>
-                {modality === "voice" ? "Voice" : "Touch"}
-              </span>
-            </div>
-            <h2 className={`mt-2 font-body text-[30px] font-black leading-[1.08] sm:text-[36px] ${urgent ? "text-[#7F1D1D]" : "text-vyva-text-1"}`}>
-              {title || copy.title}
+      {showHeader ? <div className="flex items-center justify-between px-5 pt-5">
+        <span
+          aria-label="VYVA"
+          className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#7024C4] font-display text-[22px] font-black leading-none text-white"
+        >
+          Y
+        </span>
+        <div
+          aria-label={`${modality === "voice" ? "Voice" : "Touch"} mode`}
+          className="flex gap-[5px] rounded-full border border-[#E6DCEC] bg-white p-1 text-[12px] font-black"
+        >
+          <button
+            type="button"
+            aria-pressed={modality === "voice"}
+            aria-label="Use Voice mode"
+            disabled={!onModalityChange || modality === "voice"}
+            onClick={() => onModalityChange?.("voice")}
+            className={`grid h-[30px] min-w-[30px] place-items-center rounded-full ${
+              modality === "voice"
+                ? "bg-[#7024C4] text-white"
+                : "text-[#746A72]"
+            }`}
+          >
+            V
+          </button>
+          <button
+            type="button"
+            aria-pressed={modality === "touch"}
+            aria-label="Use Touch mode"
+            disabled={!onModalityChange || modality === "touch"}
+            onClick={() => onModalityChange?.("touch")}
+            className={`grid h-[30px] min-w-[30px] place-items-center rounded-full ${
+              modality === "touch"
+                ? "bg-[#7024C4] text-white"
+                : "text-[#746A72]"
+            }`}
+          >
+            T
+          </button>
+        </div>
+      </div> : null}
+
+      {fullBleedChildren ? (
+        <>
+          <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
+            <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
+              {title || scene.title}
             </h2>
-            <p className={`mt-2 font-body text-[16px] font-bold leading-snug sm:text-[17px] ${urgent ? "text-[#991B1B]" : "text-vyva-text-2"}`}>
-              {helper || copy.helper}
+            {displayHelper ? (
+              <p className="mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
+                {displayHelper}
+              </p>
+            ) : null}
+          </div>
+          {children ? (
+            <div
+              className="mt-7 text-left"
+              data-testid={`symptom-scene-controls-${stageId}-${modality}`}
+            >
+              {children}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className={`px-[22px] pb-[100px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
+          <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
+            {title || scene.title}
+          </h2>
+
+        {scene.layout === "alert" ? (
+          <div
+            className="mt-7 rounded-[8px] border border-[#EFAAA7] bg-[#FFF0EF] p-[18px] text-left"
+            data-testid="symptom-scene-alert"
+          >
+            <p className="text-[15px] font-black leading-snug text-[#8C2724]">
+              VYVA will stay with you.
+            </p>
+            <p className="mt-1 text-[14px] font-semibold leading-snug text-[#8C2724]">
+              {displayHelper}
             </p>
           </div>
-        </div>
-        {urgent ? (
-          <div className="mt-4 rounded-[20px] border border-[#FCA5A5] bg-white px-4 py-3 font-body text-[15px] font-bold leading-snug text-[#7F1D1D]">
-            <strong>VYVA will stay with you.</strong> Normal assessment questions stop here.
+        ) : scene.layout === "progress" ? (
+          <div
+            className="mt-6 flex flex-col items-center text-center"
+            data-testid="symptom-scene-progress"
+          >
+            <div className="h-[120px] w-[120px] animate-spin rounded-full border-[12px] border-[#D9F1ED] border-t-[#087F76]" />
+            <p className="mt-[26px] max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
+              {displayHelper}
+            </p>
+          </div>
+        ) : scene.layout === "guidance" ? (
+          <div
+            className="mt-7 rounded-[8px] border border-[#9ED9C4] bg-[#E9F8F0] p-5 text-left"
+            data-testid="symptom-scene-guidance"
+          >
+            <p className="text-[15px] font-bold leading-snug text-[#0D694B]">
+              {displayHelper}
+            </p>
+          </div>
+        ) : displayHelper ? (
+          <p className="mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
+            {displayHelper}
+          </p>
+        ) : null}
+
+        {showsVoiceOrb ? (
+          <div
+            aria-label="Voice capture ready"
+            className="mx-auto my-[34px] h-[118px] w-[118px] rounded-full border-[18px] border-[#EEE4FF] bg-[radial-gradient(circle_at_35%_28%,#E9C9FF_0_8%,#A66CE3_40%,#7024C4_100%)] shadow-[0_0_0_1px_#D9C8ED,0_0_0_13px_rgba(112,36,196,0.05)]"
+            data-testid="symptom-scene-orb"
+          />
+        ) : null}
+
+        {scene.layout === "review" && reviewItems.length > 0 ? (
+          <dl
+            className="mt-7 divide-y divide-[#E7DDE6] text-left"
+            data-testid="symptom-scene-review"
+          >
+            {reviewItems.map((item) => (
+              <div
+                className="py-3"
+                key={`${item.label}-${item.value}`}
+              >
+                <dt className="text-[12px] font-black uppercase tracking-[0.08em] text-[#746A72]">
+                  {item.label}
+                </dt>
+                <dd className="mt-1 text-[14px] font-bold text-[#241238]">
+                  {item.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+
+        {children ? (
+          <div
+            className="mt-7 text-left"
+            data-testid={`symptom-scene-controls-${stageId}-${modality}`}
+          >
+            {children}
           </div>
         ) : null}
-        {children ? <div className="mt-4">{children}</div> : null}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -1162,7 +1162,7 @@ test("service setup guidance is visible and responsive", async ({ page }) => {
   }
 });
 
-test("symptom check replaces repeated thinking with review guidance", async ({ page }) => {
+test("symptom check replaces repeated thinking with the canonical checking scene", async ({ page }) => {
   await mockApi(page, true);
   await page.route("**/api/triage/context", async (route) => {
     await fulfillJson(route, 200, {
@@ -1212,22 +1212,22 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
     await page.getByTestId("button-symptom-check-start").click();
     await expect.poll(() => triageRequestCount).toBe(1);
 
-    const reviewPanel = page.getByTestId("triage-review-panel");
-    await expect(reviewPanel).toBeVisible();
-    await expect(page.getByTestId("triage-review-headline")).toContainText(
-      /Checking your next step|Reviewing trusted medical guidance|Checking your answers for red flags|Considering your health profile and medications|Preparing clear next steps/,
-    );
-    await expect(reviewPanel).toContainText("Reviewing trusted medical guidance");
-    await expect(reviewPanel).toContainText("Checking your answers for red flags");
+    const checkingScene = page.getByTestId("symptom-presentation-checking-touch");
+    await expect(checkingScene).toBeVisible();
+    await expect(checkingScene).toContainText("Checking safely");
+    await expect(checkingScene).toContainText("VYVA is comparing your answers with trusted guidance.");
+    await expect(page.getByTestId("symptom-scene-progress")).toBeVisible();
     await expect(page.getByText("VYVA is thinkingâ€¦")).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
 
     releaseTriage?.();
-    await expect(page.getByText("How strong is it?")).toBeVisible();
+    const symptomScene = page.getByTestId("symptom-presentation-symptom_selection-touch");
+    await expect(symptomScene).toBeVisible();
+    await expect(symptomScene.getByRole("button", { name: "Mild" })).toBeVisible();
   }
 });
 
-test("symptom check resumes an unfinished chat and can start over", async ({ page }) => {
+test("symptom check resumes an unfinished chat and restarts from the canonical header", async ({ page }) => {
   await mockApi(page, true);
   await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
   await page.route("**/api/triage/context", async (route) => {
@@ -1256,19 +1256,21 @@ test("symptom check resumes an unfinished chat and can start over", async ({ pag
   await continuePastSymptomEmergencyModal(page);
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
-  await expect(page.getByText("How strong is it?")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-symptom_selection-touch")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mild" })).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.step, symptomCheckDraftKey)).toBe("chat");
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
 
-  await expect(page.getByText("How strong is it?")).toBeVisible();
-  await expect(page.getByTestId("button-symptom-check-start-over")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-symptom_selection-touch")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mild" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
   await expect(page.getByTestId("input-symptom-clue")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 
-  await page.getByTestId("button-symptom-check-start-over").click();
+  await page.getByRole("button", { name: "Back" }).click();
   await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
 });
@@ -1309,7 +1311,8 @@ test("symptom check resumes and retries a pending review", async ({ page }) => {
   await page.getByTestId("input-symptom-clue").fill("bad headache");
   await page.getByTestId("button-symptom-check-start").click();
   await expect.poll(() => requestCount).toBe(1);
-  await expect(page.getByTestId("triage-review-panel")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-checking-touch")).toBeVisible();
+  await expect(page.getByTestId("symptom-scene-progress")).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.chatDraft?.pendingRequest, symptomCheckDraftKey)).toBe(true);
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
@@ -1317,9 +1320,11 @@ test("symptom check resumes and retries a pending review", async ({ page }) => {
   await continuePastSymptomEmergencyModal(page);
 
   await expect.poll(() => requestCount).toBe(2);
-  await expect(page.getByTestId("triage-review-panel")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-checking-touch")).toBeVisible();
+  await expect(page.getByTestId("symptom-scene-progress")).toBeVisible();
   releaseSecond?.();
-  await expect(page.getByText("How strong is it?")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-symptom_selection-touch")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mild" })).toBeVisible();
   releaseFirst?.();
   await expectNoHorizontalOverflow(page);
 });

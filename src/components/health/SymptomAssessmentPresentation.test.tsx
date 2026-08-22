@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -11,6 +11,20 @@ import { resolveSymptomAssessmentPresentation } from "@/design/screenPresentatio
 afterEach(cleanup);
 
 describe("SymptomAssessmentPresentation", () => {
+  const expectedLayout = {
+    describe: "capture",
+    safety_check: "binary",
+    urgent_escalation: "alert",
+    symptom_selection: "choices",
+    severity: "scale",
+    onset: "choices",
+    related_details: "capture",
+    review: "review",
+    checking: "progress",
+    safest_next_step: "guidance",
+    save_share_summary: "handoff",
+  } as const;
+
   it.each(SYMPTOM_ASSESSMENT_STAGE_IDS)("renders both approved %s presentation variants", (stageId) => {
     render(
       <>
@@ -38,7 +52,75 @@ describe("SymptomAssessmentPresentation", () => {
           ? resolveSymptomAssessmentPresentation(stageId).voiceSceneId
           : resolveSymptomAssessmentPresentation(stageId).touchSceneId,
       );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-scene-layout",
+        expectedLayout[stageId],
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-shell-contract",
+        "home.production",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-header-contract",
+        "detail.voice-touch",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-container-contract",
+        "flow.rounded-card",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-bottom-nav-contract",
+        "home-sos-reports",
+      );
+      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+        "data-composer-contract",
+        "hidden",
+      );
     }
+  });
+
+  it("shows the canonical mode chrome and Voice capture orb only for Voice capture", () => {
+    render(
+      <>
+        <SymptomAssessmentPresentation stageId="describe" modality="voice" />
+        <SymptomAssessmentPresentation stageId="describe" modality="touch" />
+      </>,
+    );
+
+    const voiceScene = screen.getByTestId("symptom-presentation-describe-voice");
+    const touchScene = screen.getByTestId("symptom-presentation-describe-touch");
+    expect(within(voiceScene).getByLabelText("Voice mode")).toBeInTheDocument();
+    expect(within(touchScene).getByLabelText("Touch mode")).toBeInTheDocument();
+    expect(within(voiceScene).getByTestId("symptom-scene-orb")).toHaveAttribute(
+      "aria-label",
+      "Voice capture ready",
+    );
+    expect(within(touchScene).queryByTestId("symptom-scene-orb")).not.toBeInTheDocument();
+  });
+
+  it("renders the canonical urgent, progress, guidance, and review scene structures", () => {
+    render(
+      <>
+        <SymptomAssessmentPresentation stageId="urgent_escalation" modality="touch" />
+        <SymptomAssessmentPresentation stageId="checking" modality="touch" />
+        <SymptomAssessmentPresentation stageId="safest_next_step" modality="touch" />
+        <SymptomAssessmentPresentation
+          stageId="review"
+          modality="touch"
+          reviewItems={[
+            { label: "Symptom", value: "Headache" },
+            { label: "Severity", value: "6 out of 10" },
+          ]}
+        />
+      </>,
+    );
+
+    expect(screen.getByTestId("symptom-scene-alert")).toHaveTextContent("Call emergency services");
+    expect(screen.getByTestId("symptom-scene-progress")).toHaveTextContent("trusted guidance");
+    expect(screen.getByTestId("symptom-presentation-checking-touch")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("symptom-scene-guidance")).toHaveTextContent("Follow this guidance");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Headache");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("6 out of 10");
   });
 
   it("keeps the approved mobile Touch selected-control state child-owned and interactive", () => {

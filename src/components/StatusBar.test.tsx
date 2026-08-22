@@ -165,4 +165,5 @@ describe("StatusBar home master variant", () => {
     expect(screen.queryByTestId("button-home-controls-reveal")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Switch to touch");
   });
+
 });

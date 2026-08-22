@@ -133,6 +133,25 @@ describe("TriageChat MediSearch follow-ups", () => {
     await screen.findByText("Bien");
   });
 
+  it("obeys the registry composer contract", async () => {
+    await renderTriageChat({ languageReady: false, composerVisibility: "hidden" });
+
+    expect(screen.queryByTestId("input-triage-message")).not.toBeInTheDocument();
+  });
+
+  it("renders the canonical checking scene while the triage request is pending", async () => {
+    apiFetchMock.mockImplementationOnce(() => new Promise<Response>(() => undefined));
+
+    await renderTriageChat({
+      presentationStage: "checking",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByTestId("symptom-presentation-checking-touch")).toBeVisible();
+    expect(screen.getByTestId("symptom-scene-progress")).toBeVisible();
+    expect(screen.queryByTestId("triage-review-panel")).not.toBeInTheDocument();
+  });
+
   it("rotates the review headline through VYVA thinking steps", async () => {
     vi.useFakeTimers();
 

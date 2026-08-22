@@ -48,6 +48,26 @@ export const SYMPTOM_ASSESSMENT_STAGE_IDS = [
 
 export type SymptomAssessmentStageId = (typeof SYMPTOM_ASSESSMENT_STAGE_IDS)[number];
 
+export type SymptomAssessmentComposerVisibility = "hidden" | "visible";
+
+export type SymptomAssessmentShellContract = Readonly<{
+  shellId: "home.production";
+  headerId: "detail.voice-touch";
+  headerTitle: "Symptoms Check";
+  containerId: "flow.rounded-card";
+  bottomNavId: "home-sos-reports";
+  composer: SymptomAssessmentComposerVisibility;
+}>;
+
+export const SYMPTOM_ASSESSMENT_SHELL_CONTRACT: SymptomAssessmentShellContract = Object.freeze({
+  shellId: "home.production",
+  headerId: "detail.voice-touch",
+  headerTitle: "Symptoms Check",
+  containerId: "flow.rounded-card",
+  bottomNavId: "home-sos-reports",
+  composer: "hidden",
+});
+
 export const SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE = {
   describe: "health.symptom_assessment.describe",
   safety_check: "health.symptom_assessment.safety",
@@ -64,6 +84,7 @@ export const SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE = {
 
 export type SymptomAssessmentPresentationScenes = FlowPresentationScenes & {
   registrySceneId: (typeof SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE)[SymptomAssessmentStageId];
+  shell: SymptomAssessmentShellContract;
 };
 
 export const SYMPTOM_ASSESSMENT_PRESENTATION_SCENES = Object.freeze(Object.fromEntries(
@@ -71,6 +92,7 @@ export const SYMPTOM_ASSESSMENT_PRESENTATION_SCENES = Object.freeze(Object.fromE
     registrySceneId: SYMPTOM_ASSESSMENT_REGISTRY_SCENE_BY_STAGE[stageId],
     voiceSceneId: `health.symptom_assessment.${stageId}.voice`,
     touchSceneId: `health.symptom_assessment.${stageId}.touch`,
+    shell: SYMPTOM_ASSESSMENT_SHELL_CONTRACT,
   })]),
 ) as Record<SymptomAssessmentStageId, SymptomAssessmentPresentationScenes>);
 

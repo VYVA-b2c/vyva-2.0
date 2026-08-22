@@ -33,6 +33,7 @@ import { VyvaMark } from "@/components/VyvaMark";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
+import type { SymptomAssessmentShellContract } from "@/design/screenPresentation";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
@@ -155,11 +156,13 @@ function PrototypeShell({
   testId,
   width = "phone",
   dockPadding = true,
+  shellContract,
 }: {
   children: ReactNode;
   testId: string;
   width?: "phone" | "flow";
   dockPadding?: boolean;
+  shellContract?: SymptomAssessmentShellContract;
 }) {
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
@@ -180,6 +183,11 @@ function PrototypeShell({
       data-testid={testId}
       data-home-master-theme={isDark ? "dark" : "light"}
       data-vyva-text-size={readableTextSize}
+      data-shell-contract={shellContract?.shellId}
+      data-header-contract={shellContract?.headerId}
+      data-container-contract={shellContract?.containerId}
+      data-bottom-nav-contract={shellContract?.bottomNavId}
+      data-composer-contract={shellContract?.composer}
       className={[
         "prototype-shell vyva-home-master-fixed-type relative left-1/2 min-h-[100svh] w-screen -translate-x-1/2 overflow-x-hidden",
         dockPadding ? "pb-32" : "pb-8",
@@ -296,24 +304,30 @@ function PrototypeTopbar({
   kind,
   title,
   backPath,
+  onBack,
   actionPath,
   compactVoice = false,
   profilePath = "/dev/home-master/profile",
   voicePath = "/dev/home-master",
+  interactionMode = "touch",
+  onInteractionModeChange,
 }: {
   kind: "home" | "hub" | "destination" | "detail" | "profile";
   title?: string;
   backPath?: string;
+  onBack?: () => void;
   actionPath?: string;
   compactVoice?: boolean;
   profilePath?: string;
   voicePath?: string;
+  interactionMode?: "voice" | "touch";
+  onInteractionModeChange?: (mode: "voice" | "touch") => void;
 }) {
   const navigate = usePrototypeNavigate();
   const left = kind === "home" || kind === "hub" ? (
     <VyvaProfileControl onClick={() => navigate(profilePath)} />
   ) : (
-    <RoundControl icon={ArrowLeft} label="Back" testId="button-prototype-back" onClick={() => navigate(backPath ?? "/dev/home-master")} />
+    <RoundControl icon={ArrowLeft} label="Back" testId="button-prototype-back" onClick={onBack ?? (() => navigate(backPath ?? "/dev/home-master"))} />
   );
 
   return (
@@ -334,12 +348,61 @@ function PrototypeTopbar({
             onClick={() => navigate(actionPath ?? "/dev/home-master/menu")}
           />
         </div>
+      ) : compactVoice && onInteractionModeChange ? (
+        <div className="flex justify-end">
+          <RoundControl
+            icon={interactionMode === "voice" ? Hand : Mic}
+            label={interactionMode === "voice" ? "Switch to touch mode" : "Switch to voice mode"}
+            testId={interactionMode === "voice" ? "button-symptom-mode-touch" : "button-symptom-mode-voice"}
+            variant="purple"
+            onClick={() => onInteractionModeChange(interactionMode === "voice" ? "touch" : "voice")}
+          />
+        </div>
       ) : compactVoice ? (
         <CompactVoiceTrigger voicePath={voicePath} />
       ) : (
         <div aria-hidden="true" />
       )}
     </header>
+  );
+}
+
+export function PrototypeSymptomAssessmentShell({
+  children,
+  interactionMode,
+  onInteractionModeChange,
+  onBack,
+  shellContract,
+}: {
+  children: ReactNode;
+  interactionMode: "voice" | "touch";
+  onInteractionModeChange: (mode: "voice" | "touch") => void;
+  onBack: () => void;
+  shellContract: SymptomAssessmentShellContract;
+}) {
+  const usesFlowContainer = shellContract.containerId === "flow.rounded-card";
+  const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
+  const usesProductionDock = shellContract.bottomNavId === "home-sos-reports";
+
+  return (
+    <PrototypeShell
+      testId="prototype-symptom-assessment-screen"
+      width={usesFlowContainer ? "flow" : "phone"}
+      dockPadding={usesProductionDock}
+      shellContract={shellContract}
+    >
+      <PrototypeTopbar
+        kind="detail"
+        title={shellContract.headerTitle}
+        compactVoice={usesVoiceTouchHeader}
+        interactionMode={interactionMode}
+        onInteractionModeChange={onInteractionModeChange}
+        onBack={onBack}
+      />
+      <div className="mt-6 flex min-h-0 flex-1 flex-col" data-testid="prototype-symptom-assessment-content">
+        {children}
+      </div>
+    </PrototypeShell>
   );
 }
 

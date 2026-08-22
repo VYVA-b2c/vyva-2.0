@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
 import { VYVA_VOICE_USER_MESSAGE_EVENT, type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
 import CrossPillarSubflowCanvas, {
   CROSS_PILLAR_COMPLETION_ACTIONS,
@@ -42,11 +43,13 @@ describe("CrossPillarSubflowCanvas", () => {
       registrySceneId: "health.symptom_assessment.describe",
       voiceSceneId: "health.symptom_assessment.describe.voice",
       touchSceneId: "health.symptom_assessment.describe.touch",
+      shell: SYMPTOM_ASSESSMENT_SHELL_CONTRACT,
     });
     expect(resolveCrossPillarSubflowPresentation("health-symptoms", "save_share_summary")).toEqual({
       registrySceneId: "health.symptom_assessment.guidance",
       voiceSceneId: "health.symptom_assessment.save_share_summary.voice",
       touchSceneId: "health.symptom_assessment.save_share_summary.touch",
+      shell: SYMPTOM_ASSESSMENT_SHELL_CONTRACT,
     });
     expect(resolveCrossPillarSubflowPresentation("health-doctor", "describe")).toBeNull();
   });
