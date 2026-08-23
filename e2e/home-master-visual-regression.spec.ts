@@ -65,7 +65,7 @@ async function installHomeMasterMocks(page: Page) {
   });
 }
 
-async function openHomeMasterVoiceMode(page: Page) {
+async function prepareHomeMasterPreview(page: Page) {
   await installHomeMasterMocks(page);
   await page.addInitScript(({ authToken, homeModeKey, themeKey, hintKey, fixedNowMs }) => {
     Date.now = () => fixedNowMs;
@@ -82,9 +82,13 @@ async function openHomeMasterVoiceMode(page: Page) {
     hintKey: VOICE_ORB_HINT_SEEN_STORAGE_KEY,
     fixedNowMs: FIXED_HOME_NOW_MS,
   });
+}
 
+async function openHomeMasterVoiceMode(page: Page) {
+  await prepareHomeMasterPreview(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => document.fonts?.ready);
+  await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 5_000 });
   await expect(page.getByTestId("home-master-layout")).toBeVisible();
   await expect(page.getByTestId("home-master-hero")).toBeVisible();
   await expect(page.getByTestId("home-dormant-zamora-orb-visual")).toBeVisible();
@@ -123,7 +127,98 @@ test.describe("home master visual contract", () => {
 
     await page.getByTestId("button-home-mode-touch").click();
     await expect(page).toHaveURL(/\/menu$/);
+
     await expect(page.getByTestId("menu-tile-grid").getByRole("button")).toHaveCount(4);
+
+    const columns = await page.getByTestId("menu-tile-grid").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    );
+    const lastTileBox = await page.getByTestId("menu-tile-concierge").boundingBox();
+    const dockBox = await page.getByRole("navigation").boundingBox();
+    expect(columns).toBe(1);
+    expect(lastTileBox).not.toBeNull();
+    expect(dockBox).not.toBeNull();
+    expect(lastTileBox!.y + lastTileBox!.height).toBeLessThan(dockBox!.y - 12);
+    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+  });
+
+  test("keeps the mobile Profile menu inside the production shell", async ({ page }) => {
+    await openHomeMasterVoiceMode(page);
+    await page.getByTestId("button-home-profile").click();
+
+    const dialogBox = await page.getByTestId("home-profile-menu").boundingBox();
+    const columns = await page.getByTestId("home-profile-menu-links").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    );
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(16);
+    expect(dialogBox!.y).toBeGreaterThanOrEqual(80);
+    expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(384);
+    expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(828);
+    expect(columns).toBe(1);
+  });
+
+  test("uses a two-column tablet Menu with clear dock separation", async ({ page }) => {
+    await page.setViewportSize({ width: 820, height: 900 });
+    await openHomeMasterVoiceMode(page);
+    await page.getByTestId("button-home-mode-touch").click();
+    await expect(page).toHaveURL(/\/menu$/);
+
+    const columns = await page.getByTestId("menu-tile-grid").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    );
+    const gridBox = await page.getByTestId("menu-tile-grid").boundingBox();
+    const dockBox = await page.getByRole("navigation").boundingBox();
+    expect(columns).toBe(2);
+    expect(gridBox).not.toBeNull();
+    expect(dockBox).not.toBeNull();
+    expect(gridBox!.y + gridBox!.height).toBeLessThan(dockBox!.y - 24);
+    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+  });
+
+  test("keeps the Health hub usable across mobile and desktop shells", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await prepareHomeMasterPreview(page);
+    await page.goto("/health", { waitUntil: "domcontentloaded" });
+    await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 5_000 });
+
+    await expect(page.getByTestId("prototype-health-screen")).toBeVisible();
+    await expect(page.getByTestId("prototype-home-master-topbar")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "My Health", exact: true })).toBeVisible();
+    await expect(page.getByTestId("button-health-plan")).toBeVisible();
+    await expect(page.getByTestId("button-health-symptom-report")).toBeVisible();
+    await expect(page.getByTestId("button-health-vitals")).toBeVisible();
+    await expect(page.getByTestId("button-health-medicines")).toBeVisible();
+    await expect(page.getByRole("navigation")).toBeVisible();
+    const mobileSubtitlesFit = await page.getByTestId("prototype-health-screen").locator("span.truncate").evaluateAll((elements) =>
+      elements.every((element) => element.scrollWidth <= element.clientWidth),
+    );
+    expect(mobileSubtitlesFit).toBe(true);
+    await page.setViewportSize({ width: 1290, height: 663 });
+    await expect(page.getByTestId("prototype-health-screen")).toBeVisible();
+    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+  });
+
+  test("keeps the Prevention page usable across mobile and desktop shells", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await prepareHomeMasterPreview(page);
+    await page.goto("/health/prevention", { waitUntil: "domcontentloaded" });
+    await page.locator("#vyva-launch").waitFor({ state: "detached", timeout: 5_000 });
+
+    await expect(page.getByTestId("prevention-page")).toBeVisible();
+    await expect(page.getByTestId("prevention-hero")).toBeVisible();
+    await expect(page.getByTestId("prevention-guidance-panel")).toBeVisible();
+    await expect(page.getByRole("navigation")).toBeVisible();
+    const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(mobileOverflow).toBe(false);
+
+    await page.setViewportSize({ width: 1290, height: 663 });
+    await expect(page.getByTestId("prevention-page")).toBeVisible();
+    const desktopOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(desktopOverflow).toBe(false);
   });
 
   test("balances the Home voice surface inside the desktop shell", async ({ page }) => {
@@ -179,8 +274,8 @@ test.describe("home master visual contract", () => {
     await expect(page.getByTestId("button-home-profile-menu-backdrop")).toBeVisible();
   });
 
-  test("uses a two-column desktop Menu and keeps the shared dock visible", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
+  test("uses a balanced desktop Menu dashboard and keeps the shared dock visible", async ({ page }) => {
+    await page.setViewportSize({ width: 1290, height: 663 });
     await openHomeMasterVoiceMode(page);
     await page.getByTestId("button-home-mode-touch").click();
     await expect(page).toHaveURL(/\/menu$/);
@@ -194,8 +289,31 @@ test.describe("home master visual contract", () => {
     expect(menuShellBox).not.toBeNull();
     expect(menuShellBox!.width).toBeGreaterThanOrEqual(840);
     expect(menuShellBox!.width).toBeLessThanOrEqual(880);
-    expect(columns).toBe(2);
+    expect(columns).toBe(4);
     await expect(dock).toBeVisible();
+
+    const gridBox = await page.getByTestId("menu-tile-grid").boundingBox();
+    const topbarBox = await page.getByTestId("menu-topbar").boundingBox();
+    const dockBox = await dock.boundingBox();
+    expect(gridBox).not.toBeNull();
+    expect(topbarBox).not.toBeNull();
+    expect(dockBox).not.toBeNull();
+    const availableCenter = (topbarBox!.y + topbarBox!.height + dockBox!.y) / 2;
+    const gridCenter = gridBox!.y + gridBox!.height / 2;
+    expect(Math.abs(gridCenter - availableCenter)).toBeLessThan(70);
+    expect(gridBox!.y + gridBox!.height).toBeLessThan(dockBox!.y - 24);
+
+    const titleTops = await page.locator('[data-testid$="-title"]').evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().top),
+    );
+    expect(Math.max(...titleTops) - Math.min(...titleTops)).toBeLessThan(2);
+    const detailsFitOneLine = await page.locator('[data-testid$="-detail"]').evaluateAll((elements) =>
+      elements.every((element) => {
+        const style = getComputedStyle(element);
+        return style.whiteSpace === "nowrap" && element.scrollWidth <= element.clientWidth;
+      }),
+    );
+    expect(detailsFitOneLine).toBe(true);
 
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(hasHorizontalOverflow).toBe(false);

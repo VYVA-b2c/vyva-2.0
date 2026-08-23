@@ -85,4 +85,12 @@ describe("BottomNav", () => {
 
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/");
   });
+
+  it("uses the floating home dock surface on the Health Plan", () => {
+    renderBottomNav("/health/prevention");
+
+    const dock = screen.getByRole("navigation");
+    expect(dock).toHaveClass("bottom-[18px]", "rounded-[22px]");
+    expect(dock).toHaveClass("md:max-w-[560px]", "lg:max-w-[620px]");
+  });
 });

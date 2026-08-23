@@ -433,30 +433,34 @@ describe("PreventionScreen", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders focus, why, today action, help signs, and Talk to VYVA", async () => {
+  it("renders a concise prevention plan with one header voice entry", async () => {
     renderPrevention();
 
     expect(await screen.findByTestId("prevention-page")).toBeInTheDocument();
+    expect(screen.getByTestId("prevention-topbar")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Health Plan" })).toBeInTheDocument();
+    expect(screen.getByTestId("button-prevention-back")).toBeInTheDocument();
+    expect(screen.getByTestId("button-prevention-header-talk")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Heart check today."));
-    expect(screen.getByTestId("prevention-personalization")).toHaveTextContent("Blood pressure profile");
-    expect(screen.getByTestId("prevention-personalization")).not.toHaveTextContent("BP 168/96");
+    expect(screen.queryByTestId("prevention-personalization")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Blood pressure profile");
     expect(screen.getByTestId("prevention-guidance-panel")).toHaveTextContent("Today's 3 moves");
-    expect(screen.getByTestId("prevention-loop-summary")).toHaveTextContent("Why today: A recent blood pressure reading was high.");
+    expect(screen.queryByTestId("prevention-loop-summary")).not.toBeInTheDocument();
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Low-salt meal");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("3-minute breathing");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("BP after rest");
     expect(screen.getByTestId("prevention-feedback-row-heart-low-salt-meal")).toHaveTextContent("Too hard");
     expect(screen.getByTestId("prevention-feedback-row-heart-low-salt-meal")).not.toHaveTextContent("Remind me");
     expect(screen.getByTestId("prevention-feedback-row-heart-low-salt-meal")).not.toHaveTextContent("Ask VYVA");
-    expect(screen.getByTestId("prevention-weekly-memory")).toHaveTextContent("VYVA is building on what worked.");
+    expect(screen.getByTestId("prevention-weekly-memory")).toHaveTextContent("Calm breathing worked recently.");
     expect(screen.getByTestId("prevention-learning")).toHaveTextContent("New options to ask about");
     expect(screen.getByTestId("prevention-learning")).toHaveTextContent("DASH-style meals");
     expect(screen.getByTestId("prevention-actions")).toHaveTextContent("Food ideas");
     expect(screen.getByTestId("prevention-actions")).toHaveTextContent("Movement plan");
     expect(screen.getByTestId("prevention-help-signs")).toHaveTextContent("Chest pain");
-    expect(screen.getByTestId("button-prevention-talk")).toHaveTextContent("Talk to VYVA");
+    expect(screen.queryByTestId("button-prevention-talk")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-prevention-talk"));
+    fireEvent.click(screen.getByTestId("button-prevention-header-talk"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
       state: expect.objectContaining({ autoStartVoice: true }),
     }));

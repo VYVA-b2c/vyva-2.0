@@ -49,6 +49,8 @@ type RowItem = {
   onClick?: () => void;
   testId?: string;
   emphasis?: "primary" | "alert" | "standard";
+  solidSurface?: boolean;
+  compactTitle?: boolean;
 };
 
 type PrototypeSection = {
@@ -380,6 +382,7 @@ export function PrototypeSymptomAssessmentShell({
   onBack: () => void;
   shellContract: SymptomAssessmentShellContract;
 }) {
+  const { isDark } = useHomeMasterTheme();
   const usesFlowContainer = shellContract.containerId === "flow.rounded-card";
   const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
   const usesProductionDock = shellContract.bottomNavId === "home-sos-reports";
@@ -391,14 +394,21 @@ export function PrototypeSymptomAssessmentShell({
       dockPadding={usesProductionDock}
       shellContract={shellContract}
     >
-      <PrototypeTopbar
-        kind="detail"
-        title={shellContract.headerTitle}
-        compactVoice={usesVoiceTouchHeader}
-        interactionMode={interactionMode}
-        onInteractionModeChange={onInteractionModeChange}
-        onBack={onBack}
-      />
+      <div
+        className={[
+          "sticky top-0 z-40 -mx-3 px-3 py-3 backdrop-blur-xl",
+          isDark ? "bg-[#17101F]/90" : "bg-[#F8EEFF]/90",
+        ].join(" ")}
+      >
+        <PrototypeTopbar
+          kind="detail"
+          title={shellContract.headerTitle}
+          compactVoice={usesVoiceTouchHeader}
+          interactionMode={interactionMode}
+          onInteractionModeChange={onInteractionModeChange}
+          onBack={onBack}
+        />
+      </div>
       <div className="mt-6 flex min-h-0 flex-1 flex-col" data-testid="prototype-symptom-assessment-content">
         {children}
       </div>
@@ -471,7 +481,7 @@ function RowCard({ item }: { item: RowItem }) {
   const palette = rowTonePalettes[item.tone ?? "neutral"];
   const Icon = item.icon;
   const isAlert = item.emphasis === "alert";
-  const titleSize = isLarge ? 22 : 20;
+  const titleSize = isLarge ? (item.compactTitle ? 20 : 22) : item.compactTitle ? 18 : 20;
   const subtitleSize = isLarge ? 15 : 13.5;
   const metaSize = isLarge ? 12 : 11;
 
@@ -487,7 +497,9 @@ function RowCard({ item }: { item: RowItem }) {
         "vyva-tap group flex min-h-[84px] w-full items-center gap-4 rounded-[26px] border px-4 text-left transition-colors duration-150",
         isDark
           ? "border-white/[0.12] bg-white/[0.07] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.12)]"
-          : "border-[#EFE6F5] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
+          : item.solidSurface
+            ? "border-[#EFE6F5] bg-white text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]"
+            : "border-[#EFE6F5] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
         isAlert && !isDark ? "border-[#F7C9C5]" : "",
       ].join(" ")}
       style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
@@ -742,15 +754,15 @@ export function PrototypeHealthScreen({
   profilePath?: string;
 }) {
   const healthRows: RowItem[] = [
-    { icon: ShieldCheck, title: "My Health Plan", subtitle: "Preventive steps and guidance", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan" },
-    { icon: Stethoscope, title: "Symptom Check", subtitle: "Aches, discomfort, or changes", meta: "Start", tone: "health", path: symptomReportPath, testId: "button-health-symptom-report", emphasis: "alert" },
-    { icon: HeartPulse, title: "Vitals Scan", subtitle: "Latest readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals" },
-    { icon: Pill, title: "Medicines", subtitle: "Dose times and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines" },
+    { icon: ShieldCheck, title: "Health Plan", subtitle: "Preventive plan", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: Stethoscope, title: "Symptom Check", subtitle: "Aches or changes", meta: "Start", tone: "health", path: symptomReportPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: HeartPulse, title: "Vitals Scan", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, title: "Medicines", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
     <PrototypeShell testId="prototype-health-screen">
-      <PrototypeTopbar kind="hub" profilePath={profilePath} voicePath={voicePath} compactVoice />
+      <PrototypeTopbar kind="hub" title="My Health" profilePath={profilePath} voicePath={voicePath} compactVoice />
       <HairlineRows items={healthRows} />
     </PrototypeShell>
   );

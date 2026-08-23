@@ -101,8 +101,8 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   },
   save_share_summary: {
     eyebrow: "Summary",
-    title: "Your summary is ready",
-    helper: "Keep it for yourself or share it with someone you trust.",
+    title: "Your summary",
+    helper: "",
     layout: "handoff",
   },
 };
@@ -149,11 +149,29 @@ export function SymptomAssessmentPresentation({
     (scene.layout === "capture" ||
       scene.layout === "choices" ||
       scene.layout === "binary");
+  const usesCompactProductionDescribeFrame =
+    stageId === "describe" && modality === "touch" && !showHeader;
+  const usesResultFrame = stageId === "safest_next_step" || stageId === "save_share_summary";
+  const responsiveFrameWidth = "max-w-[330px] md:max-w-[520px]";
+  const responsiveFrameHeight = stageId === "severity"
+    ? "min-h-[440px] md:min-h-[410px]"
+    : stageId === "related_details"
+      ? "min-h-[535px] md:min-h-[460px]"
+    : stageId === "checking"
+      ? "min-h-[535px] md:min-h-[420px]"
+    : usesCompactProductionDescribeFrame
+      ? "min-h-0"
+      : "min-h-[535px]";
+  const responsiveContentSpacing = usesCompactProductionDescribeFrame
+    ? "pb-7 pt-7"
+    : stageId === "related_details"
+      ? "pb-[100px] pt-[34px] md:pb-11 md:pt-8"
+      : `pb-[100px] ${showHeader ? "pt-[38px]" : "pt-[34px]"}`;
 
   return (
     <section
       aria-busy={loading || undefined}
-      className={`mx-auto min-h-[535px] ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} max-w-[330px] overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
+      className={`mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
@@ -213,19 +231,26 @@ export function SymptomAssessmentPresentation({
 
       {fullBleedChildren ? (
         <>
-          <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
-            <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
+          <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
+            <h2 className={`font-display font-medium leading-[1.08] text-[#241238] ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
             {displayHelper ? (
-              <p className="mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
-                {displayHelper}
+              <p className={`mx-auto mt-3 font-semibold leading-[1.42] text-[#746A72] ${usesResultFrame ? "max-w-[290px] text-[14px] md:text-[15px]" : "max-w-[250px] text-[15px]"}`}>
+                {usesResultFrame ? (
+                  <>
+                    <span className="md:hidden">
+                      {stageId === "safest_next_step" ? "Follow this guidance." : displayHelper}
+                    </span>
+                    <span className="hidden md:inline">{displayHelper}</span>
+                  </>
+                ) : displayHelper}
               </p>
             ) : null}
           </div>
           {children ? (
             <div
-              className="mt-7 text-left"
+              className={`${usesResultFrame ? "mt-5 md:mt-7" : "mt-7"} text-left`}
               data-testid={`symptom-scene-controls-${stageId}-${modality}`}
             >
               {children}
@@ -233,7 +258,7 @@ export function SymptomAssessmentPresentation({
           ) : null}
         </>
       ) : (
-        <div className={`px-[22px] pb-[100px] text-center ${showHeader ? "pt-[38px]" : "pt-[34px]"}`}>
+        <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
           <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
             {title || scene.title}
           </h2>

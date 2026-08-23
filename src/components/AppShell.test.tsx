@@ -213,6 +213,7 @@ describe("app shell route layout", () => {
 
   it.each([
     "/menu",
+    "/health/prevention",
     "/dev/home-master/menu",
     "/dev/home-master/health",
     "/dev/home-master/brain",
@@ -237,7 +238,10 @@ describe("app shell route layout", () => {
 
       expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
       const shell = screen.getByTestId("app-shell");
-      if (path.startsWith("/dev/home-master")) {
+      if (path === "/health/prevention") {
+        expect(shell.className).toContain("max-w-[920px]");
+        expect(shell.className).toContain("bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]");
+      } else if (path.startsWith("/dev/home-master")) {
         expect(shell.className).toContain("max-w-none");
         expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]");
       } else {

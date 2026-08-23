@@ -197,18 +197,23 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.queryByTestId("prototype-health-orb")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask VYVA")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Health" })).not.toBeInTheDocument();
-    expect(screen.getByText("My Health Plan")).toBeInTheDocument();
-    expect(screen.getByText("Preventive steps and guidance")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My Health" })).toBeInTheDocument();
+    expect(screen.getByText("Health Plan")).toBeInTheDocument();
+    expect(screen.getByText("Preventive plan")).toBeInTheDocument();
     expect(screen.getByText("Symptom Check")).toBeInTheDocument();
-    expect(screen.getByText("Aches, discomfort, or changes")).toBeInTheDocument();
+    expect(screen.getByText("Aches or changes")).toBeInTheDocument();
     expect(screen.getByText("Vitals Scan")).toBeInTheDocument();
-    expect(screen.getByText("Latest readings and trends")).toBeInTheDocument();
+    expect(screen.getByText("Readings and trends")).toBeInTheDocument();
     expect(screen.getByText("Medicines")).toBeInTheDocument();
-    expect(screen.getByText("Dose times and reminders")).toBeInTheDocument();
+    expect(screen.getByText("Doses and reminders")).toBeInTheDocument();
     expect(screen.getByText("Today")).toBeInTheDocument();
     expect(screen.getByText("Start")).toBeInTheDocument();
     expect(screen.getByText("72 bpm")).toBeInTheDocument();
     expect(screen.getByText("2:00 PM")).toBeInTheDocument();
+    for (const testId of ["button-health-plan", "button-health-symptom-report", "button-health-vitals", "button-health-medicines"]) {
+      expect(screen.getByTestId(testId)).toHaveClass("bg-white");
+      expect(screen.getByTestId(testId)).not.toHaveClass("bg-white/92");
+    }
     expect(screen.queryByText("Heart rate — this week")).not.toBeInTheDocument();
     expect(screen.queryByText("Heart rate")).not.toBeInTheDocument();
     expect(screen.queryByText("Blood pressure")).not.toBeInTheDocument();

@@ -37,6 +37,10 @@ describe("MenuScreen", () => {
     expect(grid).toHaveTextContent("My Brain");
     expect(grid).toHaveTextContent("Community");
     expect(grid).toHaveTextContent("Concierge");
+    expect(grid).toHaveTextContent("Check-ins & medicines");
+    expect(grid).toHaveTextContent("Memory, focus & calm");
+    expect(grid).toHaveTextContent("Rooms & support");
+    expect(grid).toHaveTextContent("Everyday help");
     expect(MENU_TILES.map((tile) => tile.path)).toEqual([
       "/health",
       "/mind-memory",
@@ -136,8 +140,14 @@ describe("MenuScreen", () => {
 
     expect(grid).toHaveClass("gap-3");
     expect(grid).toHaveClass("md:grid-cols-2");
+    expect(grid).toHaveClass("lg:grid-cols-4");
     expect(firstTile).toHaveClass("min-h-[82px]");
     expect(firstTile).toHaveClass("md:min-h-[128px]");
+    expect(firstTile).toHaveClass("lg:min-h-[184px]");
+    expect(firstTile).toHaveClass("lg:flex-col");
+    expect(firstTile).toHaveClass("lg:justify-start");
+    expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("lg:whitespace-nowrap");
+    expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("lg:text-[13px]");
     expect(firstTile).not.toHaveClass("min-h-[118px]");
   });
 
@@ -156,5 +166,8 @@ describe("MenuScreen", () => {
     expect(topbar).toHaveClass("px-1");
     expect(topbar).toHaveClass("sm:px-3");
     expect(screen.getByRole("heading", { name: "Menu" })).toHaveClass("sr-only");
+    expect(screen.getByRole("heading", { name: "Menu" })).toHaveClass("md:not-sr-only");
+    expect(screen.getByTestId("menu-grid-stage")).toHaveClass("md:items-center");
+    expect(screen.getByTestId("menu-screen")).not.toHaveClass("pb-[calc(120px+env(safe-area-inset-bottom))]");
   });
 });

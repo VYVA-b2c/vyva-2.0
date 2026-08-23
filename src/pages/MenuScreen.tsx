@@ -38,7 +38,7 @@ const MENU_TILES: MenuTile[] = [
   {
     id: "health",
     title: "My Health",
-    detail: "Check-ins, vitals, medicines",
+    detail: "Check-ins & medicines",
     path: "/health",
     icon: Heart,
     tone: { chip: "#FCEBEA", icon: "#D9463E", border: "#F7C9C5" },
@@ -46,7 +46,7 @@ const MENU_TILES: MenuTile[] = [
   {
     id: "brain",
     title: "My Brain",
-    detail: "Memory, focus, calm",
+    detail: "Memory, focus & calm",
     path: "/mind-memory",
     icon: Brain,
     tone: { chip: "#F2ECFF", icon: "#7C3AED", border: "#DDD6FE" },
@@ -54,7 +54,7 @@ const MENU_TILES: MenuTile[] = [
   {
     id: "community",
     title: "Community",
-    detail: "Rooms and support",
+    detail: "Rooms & support",
     path: "/social-rooms",
     icon: Users,
     tone: { chip: "#EAF3FF", icon: "#2563EB", border: "#BFDBFE" },
@@ -163,7 +163,7 @@ export default function MenuScreen({
   return (
     <main
       className={[
-        "min-h-[calc(100svh-136px)] px-5 pb-[calc(120px+env(safe-area-inset-bottom))] md:px-8",
+        "min-h-[calc(100svh-136px)] px-5 md:px-8",
         isDark
           ? "bg-[linear-gradient(180deg,#1E1139_0%,#11081F_46%,#070311_100%)] text-[#FFF8FF]"
           : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)] text-[var(--vyva-ink)]",
@@ -172,11 +172,11 @@ export default function MenuScreen({
       data-theme={isDark ? "dark" : "light"}
     >
       <div
-        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[390px] md:max-w-[680px] lg:max-w-[880px]"
+        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[390px] md:flex md:min-h-[calc(100svh-136px)] md:max-w-[680px] md:flex-col lg:max-w-[880px]"
         data-testid="menu-shell"
       >
         <HomeMasterTopbar
-          className="mb-5 sm:mb-7 md:mb-10"
+          className="mb-5 sm:mb-7 md:mb-0"
           testId="menu-topbar"
         >
           <HomeMasterProfileControl
@@ -188,7 +188,9 @@ export default function MenuScreen({
             controls={profileMenuOpen ? "menu-profile-menu" : undefined}
           />
           <div className="flex h-9 items-center justify-center sm:h-10">
-            <h1 className="sr-only">Menu</h1>
+            <h1 className="sr-only md:not-sr-only md:font-display md:text-[24px] md:font-semibold md:text-[var(--vyva-ink)] dark:md:text-[#FFF8FF]">
+              Menu
+            </h1>
           </div>
           <HomeMasterActionControl
             isDark={isDark}
@@ -337,48 +339,50 @@ export default function MenuScreen({
           </div>
         ) : null}
 
-        <section className="grid gap-3 min-[390px]:gap-3.5 sm:gap-4 md:grid-cols-2 md:gap-5" aria-label="VYVA main menu" data-testid="menu-tile-grid">
-          {MENU_TILES.map((tile) => {
-            const Icon = tile.icon;
-            const destination = tilePathOverrides?.[tile.id] ?? tile.path;
-            return (
-              <button
-                key={tile.id}
-                type="button"
-                className={[
-                  "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px] md:min-h-[128px] md:px-5",
-                  isDark
-                    ? "bg-[#211235] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
-                    : "bg-white shadow-[0_10px_22px_rgba(36,28,48,0.06)]",
-                ].join(" ")}
-                style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : tile.tone.border }}
-                data-testid={`menu-tile-${tile.id}`}
-                onClick={() => navigate(destination)}
-              >
-                <span
+        <div className="md:flex md:flex-1 md:items-center md:py-8" data-testid="menu-grid-stage">
+          <section className="grid w-full gap-3 min-[390px]:gap-3.5 sm:gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4 lg:gap-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+            {MENU_TILES.map((tile) => {
+              const Icon = tile.icon;
+              const destination = tilePathOverrides?.[tile.id] ?? tile.path;
+              return (
+                <button
+                  key={tile.id}
+                  type="button"
                   className={[
-                    "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px] md:h-[64px] md:w-[64px]",
-                    isDark ? "ring-1 ring-inset ring-white/10" : "",
+                    "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px] md:min-h-[128px] md:px-5 lg:min-h-[184px] lg:flex-col lg:items-start lg:justify-start lg:gap-4 lg:p-5",
+                    isDark
+                      ? "bg-[#211235] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
+                      : "bg-white shadow-[0_10px_22px_rgba(36,28,48,0.06)]",
                   ].join(" ")}
-                  style={{
-                    background: isDark ? `${tile.tone.icon}24` : tile.tone.chip,
-                    color: isDark ? "#F7ECFF" : tile.tone.icon,
-                  }}
+                  style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : tile.tone.border }}
+                  data-testid={`menu-tile-${tile.id}`}
+                  onClick={() => navigate(destination)}
                 >
-                  <Icon size={23} strokeWidth={2.15} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className={["block font-display text-[20px] font-semibold leading-tight min-[390px]:text-[21px] sm:text-[24px]", isDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]"].join(" ")}>
-                    {tile.title}
+                  <span
+                    className={[
+                      "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px] md:h-[64px] md:w-[64px]",
+                      isDark ? "ring-1 ring-inset ring-white/10" : "",
+                    ].join(" ")}
+                    style={{
+                      background: isDark ? `${tile.tone.icon}24` : tile.tone.chip,
+                      color: isDark ? "#F7ECFF" : tile.tone.icon,
+                    }}
+                  >
+                    <Icon size={23} strokeWidth={2.15} />
                   </span>
-                  <span className={["mt-0.5 block font-body text-[13px] font-semibold leading-snug min-[390px]:mt-1 min-[390px]:text-[14px] sm:text-[15px]", isDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]"].join(" ")}>
-                    {tile.detail}
+                  <span className="min-w-0 flex-1 lg:flex-none">
+                    <span data-testid={`menu-tile-${tile.id}-title`} className={["block font-display text-[20px] font-semibold leading-tight min-[390px]:text-[21px] sm:text-[24px] lg:text-[22px]", isDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]"].join(" ")}>
+                      {tile.title}
+                    </span>
+                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-0.5 block font-body text-[13px] font-semibold leading-snug min-[390px]:mt-1 min-[390px]:text-[14px] sm:text-[15px] lg:whitespace-nowrap lg:text-[13px]", isDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]"].join(" ")}>
+                      {tile.detail}
+                    </span>
                   </span>
-                </span>
-              </button>
-            );
-          })}
-        </section>
+                </button>
+              );
+            })}
+          </section>
+        </div>
       </div>
     </main>
   );

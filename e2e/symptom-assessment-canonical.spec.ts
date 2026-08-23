@@ -282,9 +282,20 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
     page.getByRole("button", { name: "Switch to voice mode" }),
   ).toBeVisible();
   await expect(describeScene.getByLabel("Touch mode", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("symptom-check-example-chips")).toBeVisible();
+  await expect(page.getByTestId("symptom-check-more-ideas")).toBeHidden();
 
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-describe-390.png"),
+    fullPage: true,
+  });
+
+  await page.getByTestId("button-symptom-example-1").click();
+  await expect(page.getByTestId("input-symptom-clue")).toHaveValue("Pain or headache");
+  await expect(page.getByTestId("button-symptom-check-start")).toBeEnabled();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-selected-390.png"),
     fullPage: true,
   });
 
@@ -299,12 +310,9 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   expect(safetyFrame?.width).toBe(330);
   expect(safetyFrame?.height).toBeGreaterThanOrEqual(535);
   await expect(
-    safetyScene.getByRole("heading", { name: "Any urgent warning signs?" }),
-  ).toBeVisible();
-  await expect(
-    safetyScene.getByText(
-      "For example severe chest pain, fainting, or struggling to breathe.",
-    ),
+    safetyScene.getByRole("heading", {
+      name: "Before we continue, are you having severe chest pain, fainting, or struggling to breathe?",
+    }),
   ).toBeVisible();
   await expect(safetyScene.getByTestId("triage-question-progress")).toHaveCount(0);
   await expect(
@@ -318,7 +326,7 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   await expect(controls.getByRole("button", { name: "No" })).toBeVisible();
   const yesButton = controls.getByRole("button", { name: "Yes" });
   await expect(yesButton).toBeVisible();
-  await expect(yesButton).toHaveCSS("background-color", "rgb(8, 127, 118)");
+  await expect(yesButton).toHaveCSS("background-color", "rgb(112, 36, 196)");
   await expect(yesButton).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
 
@@ -332,6 +340,44 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   );
   expect(horizontalOverflow).toBeLessThanOrEqual(0);
   expect(browserErrors).toEqual([]);
+});
+
+test("the desktop Touch entry keeps the canonical flow centered and readable", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1290, height: 663 });
+  await installSymptomAssessmentApi(page);
+
+  const browserErrors = collectBrowserErrors(page);
+  await page.goto("/health/symptom-check");
+
+  const describeScene = page.getByTestId("symptom-presentation-describe-touch");
+  await expect(describeScene).toBeVisible();
+  await page.locator("#vyva-launch").waitFor({ state: "hidden", timeout: 20_000 });
+  await page.waitForTimeout(1_000);
+  const emergencyModal = page.getByTestId("symptom-emergency-modal");
+  if (await emergencyModal.isVisible()) {
+    await page.getByTestId("button-symptom-emergency-continue").click();
+  }
+
+  await expect(page.getByTestId("prototype-home-master-topbar")).toBeVisible();
+  await expect(page.getByRole("navigation")).toBeVisible();
+  const sceneFrame = await describeScene.boundingBox();
+  expect(sceneFrame?.width).toBeGreaterThanOrEqual(330);
+  expect(sceneFrame?.width).toBeLessThanOrEqual(620);
+  const exampleButtons = page.getByTestId("symptom-check-example-chips").getByRole("button");
+  await expect(exampleButtons).toHaveCount(3);
+  for (const button of await exampleButtons.all()) {
+    const frame = await button.boundingBox();
+    expect(frame?.width).toBeGreaterThanOrEqual(150);
+    expect(frame?.height).toBeLessThanOrEqual(120);
+  }
+  const horizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(horizontalOverflow).toBeLessThanOrEqual(0);
+  expect(browserErrors).toEqual([]);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
 });
 
 test("the complete mobile Touch flow reaches a saved and shareable report", async ({ page }) => {
@@ -369,10 +415,11 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
       quickReply("days", "A few days ago", "duration"),
       quickReply("week", "More than a week ago", "duration"),
     ]),
-    triageStep("trend", "Is anything making it better or worse?", [
-      quickReply("better", "Getting better", "trend"),
-      quickReply("same", "About the same", "trend"),
-      quickReply("worse", "Getting worse", "trend"),
+    triageStep("trend", "Has anything made it better or worse?", [
+      quickReply("better", "Rest or medicine helped", "trend"),
+      quickReply("worse", "Activity, light, or noise made it worse", "trend"),
+      quickReply("headache_fever_stiff", "An injury or other symptoms affected it", "trend"),
+      quickReply("same", "Nothing clearly changed it", "trend"),
     ]),
     triageStep("support", "Does this summary look right?", [
       quickReply("confirm", "Yes, it is right", "review"),
@@ -401,10 +448,11 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
 
   await installSymptomAssessmentApi(page, {
     onTriageMessage: async (call) => {
-      await new Promise((resolve) => setTimeout(resolve, 180));
+      const responseDelayMs = call === responses.length - 1 ? 2_500 : 180;
+      await new Promise((resolve) => setTimeout(resolve, responseDelayMs));
       return responses[call];
     },
-    reportSaveDelayMs: 350,
+    reportSaveDelayMs: 2_500,
   });
   const browserErrors = collectBrowserErrors(page);
 
@@ -421,27 +469,190 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   await expect(stage("safety_check")).toBeVisible();
   await stage("safety_check").getByRole("button", { name: "No" }).click();
   await expect(stage("symptom_selection")).toBeVisible();
-  await stage("symptom_selection").getByRole("button", { name: "Headache" }).click();
+  await expect(stage("symptom_selection").getByRole("button", { name: "Nothing else" })).toBeVisible();
+  await expect(stage("symptom_selection").getByRole("button", { name: "Headache" })).toHaveCount(0);
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-symptom-selection-390.png"),
+    fullPage: false,
+  });
+  await stage("symptom_selection").getByRole("button", { name: "Nothing else" }).click();
   await expect(stage("severity")).toBeVisible();
-  await stage("severity").getByRole("button", { name: "5", exact: true }).click();
+  await expect(stage("severity").getByRole("slider", { name: "Symptom severity from 0 to 10" })).toHaveValue("5");
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-severity-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  expect((await stage("severity").boundingBox())?.width).toBeGreaterThanOrEqual(500);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-severity-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await stage("severity").getByTestId("symptom-severity-continue").click();
   await expect(stage("onset")).toBeVisible();
+  await expect(stage("onset").getByRole("button", { name: "Today" })).toBeVisible();
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-onset-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  expect((await stage("onset").boundingBox())?.width).toBeGreaterThanOrEqual(500);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-onset-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await stage("onset").getByRole("button", { name: "Today" }).click();
   await expect(stage("related_details")).toBeVisible();
-  await stage("related_details").getByRole("button", { name: "About the same" }).click();
+  await expect(stage("related_details").getByRole("heading", { name: "One more detail" })).toBeVisible();
+  await expect(stage("related_details").getByText("Has anything made it better or worse?")).toBeVisible();
+  await expect(stage("related_details").getByRole("button", { name: "Nothing clearly changed it" })).toBeVisible();
+  const mobileRelatedDetailsFrame = await stage("related_details").boundingBox();
+  expect(mobileRelatedDetailsFrame?.width).toBeLessThanOrEqual(360);
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-related-details-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  const desktopRelatedDetailsFrame = await stage("related_details").boundingBox();
+  expect(desktopRelatedDetailsFrame?.width).toBeGreaterThanOrEqual(500);
+  expect(desktopRelatedDetailsFrame?.height).toBeLessThanOrEqual(520);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-related-details-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await stage("related_details").getByRole("button", { name: "Nothing clearly changed it" }).click();
   await expect(stage("review")).toBeVisible();
   await expect(stage("review").getByTestId("symptom-scene-review")).toBeVisible();
+  await expect(stage("review").getByRole("heading", { name: "Does this summary look right?" })).toBeVisible();
+  await expect(stage("review").getByRole("button", { name: "Yes, it is right" })).toBeVisible();
+  await expect(stage("review").getByRole("button", { name: "Change something" })).toBeVisible();
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-review-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  expect((await stage("review").boundingBox())?.width).toBeGreaterThanOrEqual(500);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-review-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await stage("review").getByRole("button", { name: "Yes, it is right" }).click();
   await expect(stage("checking")).toBeVisible();
+  await expect(stage("checking").getByRole("heading", { name: "Checking safely" })).toBeVisible();
+  await expect(stage("checking").getByText("VYVA is comparing your answers with trusted guidance.")).toBeVisible();
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-checking-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const desktopCheckingFrame = await stage("checking").boundingBox();
+  expect(desktopCheckingFrame?.width).toBeGreaterThanOrEqual(500);
+  expect(desktopCheckingFrame?.height).toBeLessThanOrEqual(450);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-checking-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await expect(stage("safest_next_step")).toBeVisible();
   await expect(page.getByTestId("symptom-check-report")).toBeVisible();
-  await expect(stage("save_share_summary")).toBeVisible();
-  await expect(stage("save_share_summary").getByTestId("symptom-check-report")).toBeVisible();
+  await expect(stage("safest_next_step").getByRole("heading", { name: "Your safest next step" })).toBeVisible();
+  await expect(stage("safest_next_step").getByText("Follow this guidance.", { exact: true })).toBeVisible();
   await expect(page.getByTestId("card-report-answer")).toContainText("I have a headache");
   await expect(page.getByTestId("card-report-do-now")).toContainText("Monitor at home");
-  await page.getByTestId("report-share-save").click();
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-safest-next-step-390.png"),
+    fullPage: false,
+  });
+  await expect(page.getByTestId("button-report-vitals")).toBeVisible();
+  const mobilePrimaryAction = await page.getByTestId("button-report-vitals").boundingBox();
+  const mobileBottomNav = await page.getByRole("navigation").boundingBox();
+  expect((mobilePrimaryAction?.y ?? 0) + (mobilePrimaryAction?.height ?? 0)).toBeLessThanOrEqual(mobileBottomNav?.y ?? 0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  expect((await stage("safest_next_step").boundingBox())?.width).toBeGreaterThanOrEqual(500);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-safest-next-step-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(stage("save_share_summary")).toBeVisible();
+  await expect(stage("save_share_summary").getByTestId("symptom-check-report")).toBeVisible();
+  await expect(stage("save_share_summary").getByRole("heading", { name: "Your summary" })).toBeVisible();
+  await expect(stage("save_share_summary").getByText(/ready to share/i)).toHaveCount(0);
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-save-share-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  expect((await stage("save_share_summary").boundingBox())?.width).toBeGreaterThanOrEqual(500);
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-save-share-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.getByTestId("card-report-saved-confirmation")).toBeVisible();
   await expect(page.getByTestId("button-report-share")).toBeVisible();
   await expect(page.getByTestId("button-report-view-reports")).toBeVisible();
+  await expect(page.getByTestId("report-saved-details")).not.toHaveAttribute("open", "");
   await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
+  await page.getByTestId("report-saved-details").locator("summary").click();
+  await expect(page.getByTestId("report-saved-details")).toHaveAttribute("open", "");
+  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-details-390.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.resolve("artifacts/symptom-assessment-production-details-1440.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-complete-390.png"),
     fullPage: true,

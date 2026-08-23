@@ -203,6 +203,37 @@
     @apply vyva-tap inline-flex items-center justify-center gap-2 rounded-full border border-vyva-border bg-white px-5 py-3 font-body text-[16px] font-semibold text-vyva-text-1;
   }
 
+  .vyva-severity-range {
+    height: 10px;
+    appearance: none;
+    border-radius: 999px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .vyva-severity-range::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    appearance: none;
+    border: 4px solid white;
+    border-radius: 999px;
+    background: #7024c4;
+    box-shadow: 0 3px 10px rgba(112, 36, 196, 0.28);
+  }
+
+  .vyva-severity-range::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 4px solid white;
+    border-radius: 999px;
+    background: #7024c4;
+    box-shadow: 0 3px 10px rgba(112, 36, 196, 0.28);
+  }
+
+  .vyva-severity-range:focus-visible {
+    box-shadow: 0 0 0 4px #d9c2f3;
+  }
+
   .vyva-readable {
     @apply font-body text-[16px] leading-[1.65] text-vyva-text-2;
   }
