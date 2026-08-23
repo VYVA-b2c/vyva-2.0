@@ -632,13 +632,16 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(page.getByTestId("card-report-saved-confirmation")).toBeVisible();
+  await expect(page.getByTestId("card-report-do-now")).toBeVisible();
+  await expect(page.getByTestId("card-report-handoff")).toContainText("No handoff sent");
+  await expect(page.getByTestId("report-share-save")).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("button-report-share")).not.toBeVisible();
+  await expect(page.getByTestId("button-report-view-reports")).not.toBeVisible();
+  await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
+  await page.getByTestId("report-share-save").locator("summary").click();
+  await expect(page.getByTestId("report-share-save")).toHaveAttribute("open", "");
   await expect(page.getByTestId("button-report-share")).toBeVisible();
   await expect(page.getByTestId("button-report-view-reports")).toBeVisible();
-  await expect(page.getByTestId("report-saved-details")).not.toHaveAttribute("open", "");
-  await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
-  await page.getByTestId("report-saved-details").locator("summary").click();
-  await expect(page.getByTestId("report-saved-details")).toHaveAttribute("open", "");
   await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
