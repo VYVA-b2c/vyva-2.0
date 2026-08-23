@@ -191,14 +191,14 @@ function PrototypeShell({
       data-bottom-nav-contract={shellContract?.bottomNavId}
       data-composer-contract={shellContract?.composer}
       className={[
-        "prototype-shell vyva-home-master-fixed-type relative left-1/2 min-h-[100svh] w-screen -translate-x-1/2 overflow-x-hidden",
+        "prototype-shell relative min-h-[100svh] w-full overflow-x-hidden",
         dockPadding ? "pb-32" : "pb-8",
         isDark ? shellSurface.dark : shellSurface.light,
       ].join(" ")}
     >
       <div
         data-testid={width === "flow" ? "checkin-desktop-shell" : `${testId}-frame`}
-        className={["mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", frameBottomPadding, widthClass].join(" ")}
+        className={["vyva-home-master-fixed-type mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", frameBottomPadding, widthClass].join(" ")}
       >
         {children}
       </div>
@@ -385,13 +385,12 @@ export function PrototypeSymptomAssessmentShell({
   const { isDark } = useHomeMasterTheme();
   const usesFlowContainer = shellContract.containerId === "flow.rounded-card";
   const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
-  const usesProductionDock = shellContract.bottomNavId === "home-sos-reports";
 
   return (
     <PrototypeShell
       testId="prototype-symptom-assessment-screen"
       width={usesFlowContainer ? "flow" : "phone"}
-      dockPadding={usesProductionDock}
+      dockPadding={false}
       shellContract={shellContract}
     >
       <div

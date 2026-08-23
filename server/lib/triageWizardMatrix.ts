@@ -194,9 +194,9 @@ const redFlag: StageMatrix = {
   other: {
     question: t("Do any of these warning signs apply?", "Aplica alguna de estas senales de alerta?"),
     replies: [
-      r("chest_pain", "red_flag", "Chest pain, hard breathing, or blue/grey/pale skin", "Pecho, respiracion o piel azul/gris/palida", "I have chest pain, trouble breathing, or blue/grey/pale skin.", "Tengo dolor de pecho, dificultad para respirar o piel azul/gris/palida.", "alert", "red"),
-      r("stroke_sign", "red_flag", "Face/arm weakness, speech/vision trouble, seizure, or fainted", "Cara/brazo, habla/vision, convulsion o desmayo", "I have face or arm weakness, speech or vision trouble, seizure, or fainted.", "Tengo debilidad en cara o brazo, problema de habla o vision, convulsion o desmayo.", "alert", "red"),
-      r("new_confusion", "red_flag", "Very confused, hard to wake, heavy bleeding, severe pain, or allergy swelling", "Confusion, despertar, sangrado, dolor o alergia", "I am very confused, hard to wake, heavily bleeding, in severe pain, or have allergy swelling.", "Tengo mucha confusion, cuesta despertarme, sangrado fuerte, dolor fuerte o hinchazon alergica.", "alert", "red"),
+      r("chest_pain", "red_flag", "Chest pain, breathing trouble, or pale/blue skin", "Pecho, respiracion o piel azul/gris/palida", "I have chest pain, trouble breathing, or blue/grey/pale skin.", "Tengo dolor de pecho, dificultad para respirar o piel azul/gris/palida.", "alert", "red"),
+      r("stroke_sign", "red_flag", "Face/arm weakness, speech or vision trouble, seizure, or fainting", "Cara/brazo, habla/vision, convulsion o desmayo", "I have face or arm weakness, speech or vision trouble, seizure, or fainted.", "Tengo debilidad en cara o brazo, problema de habla o vision, convulsion o desmayo.", "alert", "red"),
+      r("new_confusion", "red_flag", "Confusion, hard to wake, heavy bleeding, severe pain, or swelling", "Confusion, despertar, sangrado, dolor o alergia", "I am very confused, hard to wake, heavily bleeding, in severe pain, or have allergy swelling.", "Tengo mucha confusion, cuesta despertarme, sangrado fuerte, dolor fuerte o hinchazon alergica.", "alert", "red"),
       r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
     ],
   },

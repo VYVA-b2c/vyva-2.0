@@ -109,7 +109,7 @@ describe("Home/Nav prototype screens", () => {
     expect(shell).toHaveAttribute("data-container-contract", "flow.rounded-card");
     expect(shell).toHaveAttribute("data-bottom-nav-contract", "home-sos-reports");
     expect(shell).toHaveAttribute("data-composer-contract", "hidden");
-    expect(screen.getByRole("heading", { name: "Symptoms Check" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Symptom Check" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
     expect(screen.getByTestId("checkin-desktop-shell")).toBeInTheDocument();
   });

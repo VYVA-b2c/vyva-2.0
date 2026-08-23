@@ -240,6 +240,26 @@ type VoiceTriageSessionResponse = {
   updated_at?: string;
 };
 
+const SYMPTOM_WARNING_PREVIEW_SESSION: VoiceTriageSessionResponse = {
+  conversation_id: "symptom-warning-preview",
+  status: "active",
+  latest_response: {
+    status: "active",
+    question: {
+      stage: "red_flag",
+      text: "Do any of these warning signs apply?",
+      choices: [
+        { id: "very_high_bp", spoken_label: "Very high blood pressure", value: "My blood pressure is very high." },
+        { id: "one_sided_weakness", spoken_label: "Weakness or speech trouble", value: "I have weakness or speech trouble." },
+        { id: "new_confusion", spoken_label: "Confusion, hard to wake, heavy bleeding, severe pain, or swelling", value: "One of these warning signs applies." },
+        { id: "chest_pain", spoken_label: "Chest pain, breathing trouble, or pale/blue skin", value: "One of these warning signs applies." },
+        { id: "stroke_sign", spoken_label: "Face/arm weakness, speech or vision trouble, seizure, or fainting", value: "One of these warning signs applies." },
+        { id: "no_red_flag", spoken_label: "No, none of these", value: "None of these warning signs apply." },
+      ],
+    },
+  },
+};
+
 type ProfileContactsResponse = {
   caregiverName?: string | null;
   caregiverContact?: string | null;
@@ -743,7 +763,7 @@ function VoiceTriageLivePanel({
 
   return (
     <aside
-      className="mx-auto mt-4 w-full max-w-[620px]"
+      className="mx-auto mb-8 mt-4 w-full max-w-[620px] md:mb-10"
       data-testid="voice-triage-live-panel"
       aria-live="polite"
     >
@@ -767,31 +787,46 @@ function VoiceTriageLivePanel({
             maximumLabel={t("health.symptomCheck.chat.severityWorst", "Worst imaginable")}
           />
         ) : stageId !== "checking" && choices.length ? (
-          <div className={
-            `grid gap-[10px] ${stageId === "safety_check" || stageId === "review" ? "grid-cols-2" : ""}`
-          }>
-            {choices.map((choice, index) => (
-              <button
-                key={choice.id}
-                type="button"
-                disabled={!canTapAnswer}
-                onClick={() => onAnswer?.({
-                  choiceId: choice.id,
-                  utterance: choice.value || choice.spoken_label,
-                })}
-                className={`vyva-tap flex items-center justify-center border text-center font-black leading-tight transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                  stageId === "safety_check" || stageId === "review"
-                    ? "min-h-[54px] rounded-full px-3 py-3 text-[15px]"
-                    : "min-h-[58px] rounded-[8px] px-[14px] py-3 text-[15px]"
-                } ${
-                  stageId === "safety_check" && index === 1
-                    ? "border-[#7024C4] bg-[#7024C4] text-white shadow-[0_10px_22px_rgba(112,36,196,0.18)]"
-                    : "border-[#D7C6E3] bg-white text-[#241238] hover:border-[#7024C4] hover:bg-[#F3EAFF]"
-                }`}
-              >
-                {choice.spoken_label}
-              </button>
-            ))}
+          <div
+            className={`grid gap-[10px] ${stageId === "review" ? "grid-cols-2" : "grid-cols-1"}`}
+            data-testid={`voice-triage-choice-grid-${stageId}`}
+          >
+            {choices.map((choice) => {
+              const isSafetyChoice = stageId === "safety_check";
+              const isNoWarningChoice = choice.id === "no_red_flag";
+              const ChoiceIcon = isNoWarningChoice ? CheckCircle : AlertTriangle;
+
+              return (
+                <button
+                  key={choice.id}
+                  type="button"
+                  disabled={!canTapAnswer}
+                  data-testid={`voice-triage-choice-${choice.id}`}
+                  onClick={() => onAnswer?.({
+                    choiceId: choice.id,
+                    utterance: choice.value || choice.spoken_label,
+                  })}
+                  className={`group vyva-tap flex w-full items-center border font-black leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55 ${
+                    isSafetyChoice
+                      ? "min-h-[68px] justify-start gap-3 rounded-[16px] px-4 py-3 text-left text-[15px]"
+                      : stageId === "review"
+                        ? "min-h-[54px] justify-center rounded-full px-3 py-3 text-center text-[15px]"
+                        : "min-h-[58px] justify-center rounded-[8px] px-[14px] py-3 text-center text-[15px]"
+                  } border-[#D7C6E3] bg-white text-[#241238] hover:border-[#7024C4] hover:bg-[#F3EAFF] active:border-[#7024C4] active:bg-[#7024C4] active:text-white`}
+                >
+                  {isSafetyChoice ? (
+                    <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] transition-colors group-active:bg-white/20 group-active:text-white ${
+                      isNoWarningChoice
+                        ? "bg-[#ECFDF5] text-[#047857]"
+                        : "bg-[#F3EAFF] text-[#7024C4]"
+                    }`}>
+                      <ChoiceIcon size={19} strokeWidth={2.6} aria-hidden="true" />
+                    </span>
+                  ) : null}
+                  <span>{choice.spoken_label}</span>
+                </button>
+              );
+            })}
           </div>
         ) : null}
 
@@ -901,6 +936,28 @@ function VoiceTriageLivePanel({
         ) : null}
       </SymptomAssessmentPresentation>
     </aside>
+  );
+}
+
+export function SymptomWarningSignsPreviewScreen() {
+  const navigate = useNavigate();
+  const [interactionMode, setInteractionMode] = useState<HomeInteractionMode>("touch");
+  const shellContract = resolveSymptomAssessmentPresentation("safety_check").shell;
+
+  return (
+    <PrototypeSymptomAssessmentShell
+      interactionMode={interactionMode}
+      onInteractionModeChange={setInteractionMode}
+      onBack={() => navigate("/dev/home-master/health")}
+      shellContract={shellContract}
+    >
+      <VoiceTriageLivePanel
+        session={SYMPTOM_WARNING_PREVIEW_SESSION}
+        stageId="safety_check"
+        modality={interactionMode}
+        onAnswer={() => undefined}
+      />
+    </PrototypeSymptomAssessmentShell>
   );
 }
 
@@ -3642,11 +3699,11 @@ export default function SymptomCheckScreen() {
     setVoiceStartPending(true);
     writeSymptomCheckVisited();
     setShowFirstVisitGuide(false);
-    const contextHint = "The user opened Symptoms Check and wants a voice-first symptom check. Start by asking what has changed today, then call the VYVA triage tool before giving health guidance.";
+    const contextHint = "The user opened Symptom Check and wants a voice-first symptom check. Start by asking what has changed today, then call the VYVA triage tool before giving health guidance.";
     emitVoiceSpecialistTransfer({
       domain: "health",
-      reason: "The user tapped Talk to VYVA on Symptoms Check.",
-      evidence: "Symptoms Check voice-first entry",
+      reason: "The user tapped Talk to VYVA on Symptom Check.",
+      evidence: "Symptom Check voice-first entry",
       contextHint,
       route: "/health/symptom-check",
       agentSlug: VOICE_SPECIALIST_AGENT_SLUGS.health,
