@@ -106,7 +106,7 @@ describe("SymptomCheck intro chips", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "Symptom Check" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
     expect(screen.getByTestId("voice-triage-choice-grid-safety_check")).toHaveClass("grid-cols-1");
 
     const warningChoice = screen.getByTestId("voice-triage-choice-one_sided_weakness");
@@ -196,7 +196,7 @@ describe("SymptomCheck intro chips", () => {
     };
 
     expectStage("describe");
-    fireEvent.click(screen.getByRole("button", { name: "I understand, continue to symptom check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
     fireEvent.change(screen.getByTestId("input-symptom-clue"), { target: { value: "Headache" } });
     fireEvent.click(screen.getByRole("button", { name: "Start check" }));
 
@@ -245,7 +245,8 @@ describe("SymptomCheck intro chips", () => {
   it("renders one senior-friendly start panel", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
-    expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("If this feels urgent, do not wait");
+    expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("Do not wait in an emergency");
+    expect(screen.queryByRole("button", { name: "Help me decide" })).not.toBeInTheDocument();
     expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
     expect(screen.getByPlaceholderText("Type here if you prefer...")).toBeVisible();
     expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
@@ -261,7 +262,7 @@ describe("SymptomCheck intro chips", () => {
   it("dismisses the emergency modal before the symptom check", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "I understand, continue to symptom check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
 
     expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
     expect(screen.getByTestId("input-symptom-clue")).toBeVisible();
@@ -274,15 +275,6 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByRole("button", { name: "Use Voice mode" })).not.toBeInTheDocument();
     expect(onTalkToVyva).not.toHaveBeenCalled();
     expect(screen.queryByTestId("button-symptom-clue-voice")).not.toBeInTheDocument();
-  });
-
-  it("starts a guided check when the emergency uncertainty action is used", () => {
-    const onStart = vi.fn();
-    render(<IntroScreen onStart={onStart} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Help me decide" }));
-
-    expect(onStart).toHaveBeenCalledWith("I am not sure if this is urgent");
   });
 
   it("shows profile-aware examples and keeps extra ideas collapsed", () => {

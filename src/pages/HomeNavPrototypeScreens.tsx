@@ -753,10 +753,10 @@ export function PrototypeHealthScreen({
   profilePath?: string;
 }) {
   const healthRows: RowItem[] = [
-    { icon: ShieldCheck, title: "Health Plan", subtitle: "Preventive plan", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: Stethoscope, title: "Symptom Check", subtitle: "Aches or changes", meta: "Start", tone: "health", path: symptomReportPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: HeartPulse, title: "Vitals Scan", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, title: "Medicines", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: ShieldCheck, title: "Longevity Plan", subtitle: "Preventive plan", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: Stethoscope, title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: symptomReportPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: HeartPulse, title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, title: "My Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
@@ -777,25 +777,25 @@ const healthActionPreviewContent: Record<PrototypeHealthActionPreviewKind, {
 }> = {
   plan: {
     icon: ShieldCheck,
-    title: "My Health Plan",
+    title: "Longevity Plan",
     subtitle: "Your preventive plan will open here.",
     tone: "brain",
   },
   symptom: {
     icon: Stethoscope,
-    title: "Symptom Check",
+    title: "Ask Dr. AI",
     subtitle: "A focused symptom report starts here.",
     tone: "health",
   },
   vitals: {
     icon: HeartPulse,
-    title: "Vitals Scan",
+    title: "My Vitals",
     subtitle: "Latest readings and new measurements live here.",
     tone: "community",
   },
   medicines: {
     icon: Pill,
-    title: "Medicines",
+    title: "My Medication",
     subtitle: "Dose times and reminders open here.",
     tone: "profile",
   },
@@ -961,7 +961,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
       items: [
         { icon: UserRound, title: "Account details", subtitle: "Name, phone, language", tone: "brain", path: "/dev/home-master/profile/account", testId: "button-profile-account" },
         { icon: Heart, title: "Health profile", subtitle: "Conditions and basics", tone: "health", path: "/dev/home-master/profile/health", testId: "button-profile-health" },
-        { icon: Pill, title: "Medicines", subtitle: "Current medications", tone: "profile", path: "/dev/home-master/profile/medicines", testId: "button-profile-medicines" },
+        { icon: Pill, title: "My Medication", subtitle: "Current medications", tone: "profile", path: "/dev/home-master/profile/medicines", testId: "button-profile-medicines" },
         { icon: ShieldCheck, title: "Emergency contact", subtitle: "Who to call if needed", tone: "health", path: "/dev/home-master/profile/emergency", testId: "button-profile-emergency" },
         { icon: SlidersHorizontal, title: "Preferences", subtitle: "Text and theme", tone: "reports", path: "/dev/home-master/profile/preferences", testId: "button-profile-accessibility" },
       ],

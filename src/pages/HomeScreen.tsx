@@ -2360,7 +2360,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "feel-better",
       icon: HeartPulse,
-      label: t("home.master.fastHelp.feelBetter", "Symptom Check"),
+      label: t("home.master.fastHelp.feelBetter", "Ask Dr. AI"),
       detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
       onClick: () => launchHomeFastHelp("feel-better", "/health/symptom-check"),
@@ -2953,7 +2953,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
       darkTone: "bg-[#FB7185]/16 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
     },
     {
-      label: t("home.profileMenu.medications", "Medicines"),
+      label: t("home.profileMenu.medications", "My Medication"),
       detail: t("home.profileMenu.medicationsDetail", "Current medications"),
       path: "/onboarding/profile/medications",
       icon: Pill,

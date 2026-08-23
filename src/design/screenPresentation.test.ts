@@ -56,7 +56,7 @@ describe("screen presentation", () => {
       expect(scenes.shell).toEqual({
         shellId: "home.production",
         headerId: "detail.voice-touch",
-        headerTitle: "Symptom Check",
+        headerTitle: "Ask Dr. AI",
         containerId: "flow.rounded-card",
         bottomNavId: "home-sos-reports",
         composer: "hidden",

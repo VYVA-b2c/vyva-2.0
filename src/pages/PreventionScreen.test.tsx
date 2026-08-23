@@ -438,7 +438,7 @@ describe("PreventionScreen", () => {
 
     expect(await screen.findByTestId("prevention-page")).toBeInTheDocument();
     expect(screen.getByTestId("prevention-topbar")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Health Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Longevity Plan" })).toBeInTheDocument();
     expect(screen.getByTestId("button-prevention-back")).toBeInTheDocument();
     expect(screen.getByTestId("button-prevention-header-talk")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Heart check today."));

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, Brain, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, ArrowRight, Droplets, Eye, ClipboardList, FileText, Gauge, Heart, HeartPulse, Home, Loader2, Mail, Mic, PhoneCall, Pill, Send, ShieldCheck, ShoppingBasket, Square, Stethoscope, Users, Wind, type LucideIcon } from "lucide-react";
@@ -964,7 +965,6 @@ export function SymptomWarningSignsPreviewScreen() {
 type IntroScreenProps = {
   onStart: (clue: string) => void;
   onTalkToVyva?: () => void;
-  onEmergencyUnsure?: () => void;
   onNavigate?: (route: string) => void;
   personalizedSuggestions?: TriagePersonalizedSuggestion[];
   activeConditions?: string[];
@@ -973,6 +973,80 @@ type IntroScreenProps = {
   voiceCtaBusy?: boolean;
   showGuide?: boolean;
 };
+
+function EmergencySafetyDialog({
+  emergencyContact,
+  onDismiss,
+}: {
+  emergencyContact?: EmergencyContact | null;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  const emergencyCallLabel = emergencyContact?.telHref
+    ? t("health.symptomCheck.intro.emergencyCallNumber", "Call {{number}} now", { number: emergencyContact.label })
+    : t("health.symptomCheck.intro.emergencyCall", "Call emergency services");
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center overflow-y-auto bg-[#1C1714]/50 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur-[2px] sm:items-center sm:px-6 sm:py-8"
+      role="presentation"
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="symptom-emergency-modal-title"
+        aria-describedby="symptom-emergency-modal-description"
+        data-testid="symptom-emergency-modal"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto rounded-[26px] border border-[#F3C4C4] bg-white p-4 text-left shadow-[0_24px_70px_rgba(63,45,35,0.30)] sm:p-5"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#FEE2E2] text-[#B91C1C]">
+            <AlertTriangle size={23} strokeWidth={2.7} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 pt-0.5">
+            <h2 id="symptom-emergency-modal-title" className="font-body text-[20px] font-black leading-[1.15] text-[#7F1D1D] sm:text-[22px]">
+              {t("health.symptomCheck.intro.emergencyTitle", "Do not wait in an emergency")}
+            </h2>
+            <p id="symptom-emergency-modal-description" className="mt-2 font-body text-[15px] font-semibold leading-[1.4] text-[#7F1D1D]">
+              {t("health.symptomCheck.intro.emergencyBody", "Call now for chest pain, severe breathing trouble, sudden weakness, heavy bleeding, or collapse.")}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2.5">
+          {emergencyContact?.telHref ? (
+            <a
+              href={emergencyContact.telHref}
+              className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-[17px] bg-[#B91C1C] px-4 text-center font-body text-[16px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(185,28,28,0.22)]"
+            >
+              <PhoneCall size={19} strokeWidth={2.8} aria-hidden="true" />
+              {emergencyCallLabel}
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="flex min-h-[52px] cursor-not-allowed items-center justify-center rounded-[17px] bg-[#B91C1C] px-4 text-center font-body text-[16px] font-black leading-tight text-white opacity-70"
+            >
+              {emergencyCallLabel}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            data-testid="button-symptom-emergency-continue"
+            className="vyva-tap min-h-[50px] w-full rounded-[17px] border border-[#E7DCEB] bg-[#FAF7FC] px-4 font-body text-[16px] font-black text-vyva-purple"
+          >
+            {t("health.symptomCheck.intro.emergencyContinue", "Continue to Ask Dr. AI")}
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  );
+}
 
 function fallbackIntroSuggestions(t: ReturnType<typeof useTranslation>["t"]): TriagePersonalizedSuggestion[] {
   return [
@@ -1337,7 +1411,6 @@ function stopVoiceStream(stream: MediaStream | null) {
 export function IntroScreen({
   onStart,
   onTalkToVyva,
-  onEmergencyUnsure,
   onNavigate,
   personalizedSuggestions,
   activeConditions = [],
@@ -1389,15 +1462,6 @@ export function IntroScreen({
     recent_report: t("health.symptomCheck.intro.sourceRecentReport", "Recent report"),
     vitals: t("health.symptomCheck.intro.sourceVitals", "Recent vitals"),
   };
-  const handleEmergencyUnsure = useCallback(() => {
-    setShowEmergencyModal(false);
-    if (onEmergencyUnsure) {
-      onEmergencyUnsure();
-      return;
-    }
-    onStart(t("health.symptomCheck.intro.notSureEmergencyClue", "I am not sure if this is urgent"));
-  }, [onEmergencyUnsure, onStart, t]);
-
   const renderSuggestion = (suggestion: TriagePersonalizedSuggestion) => {
     const Icon = suggestionIconByKey[suggestion.icon] ?? Stethoscope;
     const tone = suggestionToneClass[suggestion.tone] ?? suggestionToneClass.purple;
@@ -1610,9 +1674,6 @@ export function IntroScreen({
     : isTranscribingVoice
       ? t("health.symptomCheck.intro.voiceTranscribingStatus", "Turning voice into text...")
       : voiceError;
-  const emergencyCallLabel = emergencyContact?.telHref
-    ? t("health.symptomCheck.intro.emergencyCallNumber", "Call {{number}} now", { number: emergencyContact.label })
-    : t("health.symptomCheck.intro.emergencyCall", "Call emergency services");
   const guidancePromises = [
     {
       key: "listen",
@@ -1638,63 +1699,10 @@ export function IntroScreen({
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-[1040px] flex-1 flex-col gap-4 px-4 py-3 sm:px-5 lg:px-0" data-testid="symptom-check-intro">
       {showEmergencyModal ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#1C1714]/45 px-4 py-6 backdrop-blur-[2px]" role="presentation">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="symptom-emergency-modal-title"
-            data-testid="symptom-emergency-modal"
-            className="w-full max-w-[520px] rounded-[30px] border border-[#FECACA] bg-white p-5 text-left shadow-[0_26px_80px_rgba(63,45,35,0.28)] sm:p-6"
-          >
-            <div className="flex items-start gap-4">
-              <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[22px] bg-[#FEE2E2] text-[#B91C1C]">
-                <AlertTriangle size={28} strokeWidth={2.8} />
-              </span>
-              <div className="min-w-0">
-                <h2 id="symptom-emergency-modal-title" className="font-body text-[23px] font-black leading-tight text-[#7F1D1D]">
-                  {t("health.symptomCheck.intro.emergencyTitle", "If this feels urgent, do not wait")}
-                </h2>
-                <p className="mt-2 font-body text-[16px] font-bold leading-snug text-[#991B1B]">
-                  {t("health.symptomCheck.intro.emergencyBody", "Chest pain, breathing trouble, sudden weakness, heavy bleeding, or collapse needs emergency help.")}
-                </p>
-              </div>
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {emergencyContact?.telHref ? (
-                <a
-                  href={emergencyContact.telHref}
-                  className="vyva-tap flex min-h-[60px] items-center justify-center gap-2 rounded-[21px] bg-[#B91C1C] px-4 text-center font-body text-[17px] font-black leading-tight text-white shadow-[0_12px_26px_rgba(185,28,28,0.24)]"
-                >
-                  <PhoneCall size={20} strokeWidth={2.8} />
-                  {emergencyCallLabel}
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="flex min-h-[60px] cursor-not-allowed items-center justify-center rounded-[21px] bg-[#B91C1C] px-4 text-center font-body text-[17px] font-black leading-tight text-white opacity-70"
-                >
-                  {emergencyCallLabel}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleEmergencyUnsure}
-                className="vyva-tap min-h-[60px] rounded-[21px] border-2 border-[#FCA5A5] bg-white px-4 font-body text-[17px] font-black text-[#991B1B]"
-              >
-                {t("health.symptomCheck.intro.notSureEmergency", "Help me decide")}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowEmergencyModal(false)}
-              data-testid="button-symptom-emergency-continue"
-              className="vyva-tap mt-3 min-h-[58px] w-full rounded-[21px] bg-[#F7F0FF] px-4 font-body text-[17px] font-black text-vyva-purple shadow-sm"
-            >
-              {t("health.symptomCheck.intro.emergencyContinue", "I understand, continue to symptom check")}
-            </button>
-          </section>
-        </div>
+        <EmergencySafetyDialog
+          emergencyContact={emergencyContact}
+          onDismiss={() => setShowEmergencyModal(false)}
+        />
       ) : null}
 
       <div
@@ -3718,23 +3726,6 @@ export default function SymptomCheckScreen() {
     if (voiceTriageSessionId) setSymptomInteractionMode("voice");
   }, [voiceTriageSessionId]);
 
-  const handleEmergencyUnsure = useCallback(() => {
-    setVoiceStartPending(true);
-    const contextHint = "The user is unsure if their situation is an emergency. Start by asking one calm question about their most urgent symptom to help them decide whether to call 112.";
-    emitVoiceSpecialistTransfer({
-      domain: "health",
-      reason: "The user tapped Help me decide on the symptom-check emergency banner.",
-      evidence: "Emergency banner uncertainty action",
-      contextHint,
-      route: "/health/symptom-check",
-      agentSlug: VOICE_SPECIALIST_AGENT_SLUGS.health,
-      autoStart: true,
-      appEntrypoint: "feel_better_emergency_unsure",
-    });
-    refreshVoiceSessionIdSoon();
-    scheduleVoiceStartReset();
-  }, [refreshVoiceSessionIdSoon, scheduleVoiceStartReset]);
-
   const handleChatDraftChange = useCallback((draft: TriageChatDraft) => {
     setChatDraft(draft);
   }, []);
@@ -4028,7 +4019,6 @@ export default function SymptomCheckScreen() {
           <IntroScreen
             onStart={handleIntroStart}
             onTalkToVyva={handleTalkToVyva}
-            onEmergencyUnsure={handleEmergencyUnsure}
             onNavigate={(route) => navigate(route)}
             personalizedSuggestions={triageContext?.personalizedSuggestions}
             activeConditions={triageContext?.activeConditions ?? []}

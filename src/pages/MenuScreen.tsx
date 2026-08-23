@@ -118,7 +118,7 @@ export default function MenuScreen({
       darkTone: "bg-[#FB7185]/16 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
     },
     {
-      label: "Medicines",
+      label: "My Medication",
       detail: "Current medications",
       path: "/onboarding/profile/medications",
       icon: Pill,

@@ -281,7 +281,7 @@ describe("Vitals Hub", () => {
   it("renders a mobile-first hub with capture methods hidden by default", async () => {
     renderScreen();
 
-    expect(await screen.findByText("My Health Plan")).toBeInTheDocument();
+    expect(await screen.findByText("Longevity Plan")).toBeInTheDocument();
     expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Heart");
     expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Likely");
     expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Low-salt meal");

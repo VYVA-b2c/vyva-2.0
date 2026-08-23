@@ -430,7 +430,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-profile-menu-backdrop")).toHaveClass("md:backdrop-blur-[3px]");
     expect(screen.getByTestId("button-home-profile-account")).toHaveTextContent("Account details");
     expect(screen.getByTestId("button-home-profile-health")).toHaveTextContent("Health profile");
-    expect(screen.getByTestId("button-home-profile-medications")).toHaveTextContent("Medicines");
+    expect(screen.getByTestId("button-home-profile-medications")).toHaveTextContent("My Medication");
     expect(screen.getByTestId("button-home-profile-emergency")).toHaveTextContent("Emergency contact");
     expect(screen.getByTestId("button-home-profile-care-team")).toHaveTextContent("Care team");
     expect(screen.getByTestId("button-home-profile-providers")).toHaveTextContent("Doctors & providers");
@@ -1436,7 +1436,7 @@ describe("Home fast service actions", () => {
     expect(fastHelp).toHaveTextContent("Fast help");
     const initialActions = within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid);
     expect(initialActions).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptom Check");
+    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Ask Dr. AI");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
     const initialImpressions = JSON.parse(
