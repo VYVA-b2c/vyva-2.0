@@ -273,7 +273,7 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
     "data-composer-contract",
     "hidden",
   );
-  await expect(page.getByRole("heading", { name: "Symptoms Check" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Symptom Check" })).toBeVisible();
   await expect(page.getByTestId("button-prototype-back")).toBeVisible();
   await expect(page.getByTestId("nav-tab-home")).toBeVisible();
   await expect(page.getByTestId("nav-tab-sos")).toBeVisible();
