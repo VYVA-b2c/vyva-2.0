@@ -2472,7 +2472,7 @@ export function ReportScreen({
     ? t("health.symptomCheck.report.staffReviewTitle", "Staff review requested")
     : savedRecipientLabels.length
       ? t("health.symptomCheck.report.handoffSentTitle", "Care handoff started")
-      : t("health.symptomCheck.report.handoffReadyTitle", "Ready to share");
+      : t("health.symptomCheck.report.handoffNoneTitle", "No handoff sent");
   const handoffBody = staffReviewRequested
     ? savedRecipientLabels.length
       ? t("health.symptomCheck.report.staffReviewWithContacts", "The team has this report for review. It was also shared with {{contacts}}.", {
