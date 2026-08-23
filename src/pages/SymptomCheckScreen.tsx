@@ -2484,7 +2484,7 @@ export function ReportScreen({
           contacts: savedRecipientLabels.join(", "),
         })
       : t("health.symptomCheck.report.handoffReadyBody", "No caregiver or doctor was notified automatically. You can share this report with someone you trust.");
-  const handoffIsActive = staffReviewRequested || savedRecipientLabels.length > 0 || Boolean(reportId);
+  const handoffIsActive = staffReviewRequested || savedRecipientLabels.length > 0;
   const planSteps = visibleRecommendations.length
     ? visibleRecommendations.slice(0, 3)
     : [recommendationExplanation];
