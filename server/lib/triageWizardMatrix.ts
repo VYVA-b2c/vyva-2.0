@@ -597,12 +597,12 @@ const otherMedicationVariants: Partial<Record<TriageWizardMatrixStage, TriageWiz
 
 const painTrendVariants: Record<"head_neck_pain" | "back_pain" | "limb_joint_pain", TriageWizardMatrixNode> = {
   head_neck_pain: {
-    question: t("Does the head or neck pain have any of these signs?", "El dolor de cabeza o cuello tiene estas senales?"),
+    question: t("Has anything made it better or worse?", "Algo hizo que mejorara o empeorara?"),
     replies: [
-      r("headache_fever_stiff", "trend", "Fever, stiff neck, rash, confusion, seizure, or double vision", "Fiebre, cuello rigido, erupcion, confusion, convulsion o vision doble", "Headache comes with fever, stiff neck, rash, confusion, seizure, or double vision.", "El dolor de cabeza viene con fiebre, cuello rigido, erupcion, confusion, convulsion o vision doble.", "alert", "red"),
-      r("after_fall", "trend", "Started after head injury", "Tras golpe en cabeza", "It started after a head injury.", "Empezo tras un golpe en la cabeza.", "alert", "amber"),
-      r("new_headache_after_50", "trend", "New or very different for me", "Nuevo o muy diferente", "This is new or very different for me.", "Es nuevo o muy diferente para mi.", "activity", "amber"),
-      r("better", "trend", "Mild, familiar, improving", "Leve, conocido, mejora", "It is mild, familiar, and improving.", "Es leve, conocido y mejora.", "help", "green"),
+      r("better", "trend", "Rest or medicine helped", "Descanso o medicina ayudo", "Rest or medicine made it feel better.", "El descanso o la medicina hizo que mejorara.", "help", "purple"),
+      r("worse", "trend", "Activity, light, or noise made it worse", "Actividad, luz o ruido lo empeoro", "Activity, light, or noise made it feel worse.", "La actividad, la luz o el ruido hizo que empeorara.", "activity", "purple"),
+      r("headache_fever_stiff", "trend", "An injury or other symptoms affected it", "Una lesion u otros sintomas lo afectaron", "An injury, fever, stiff neck, or other new symptoms affected it.", "Una lesion, fiebre, cuello rigido u otros sintomas nuevos lo afectaron.", "alert", "purple"),
+      r("same", "trend", "Nothing clearly changed it", "Nada lo cambio claramente", "Nothing clearly made it better or worse.", "Nada hizo claramente que mejorara o empeorara.", "help", "purple"),
     ],
   },
   back_pain: {

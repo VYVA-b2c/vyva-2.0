@@ -21,6 +21,10 @@ import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
+import {
+  isNumericSeverityScaleChoices,
+  SeverityScaleControl,
+} from "@/components/health/SeverityScaleControl";
 import type {
   SymptomAssessmentComposerVisibility,
   SymptomAssessmentStageId,
@@ -245,6 +249,30 @@ const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
   green: { border: "#BBF7D0", text: "#332925" },
 };
 
+const symptomConceptPatterns = [
+  { key: "headache", pattern: /\b(headach\w*|migraine\w*)\b/i },
+  { key: "pain", pattern: /\b(pain\w*|hurt\w*|ache\w*)\b/i },
+  { key: "dizziness", pattern: /\b(dizz\w*|lighthead\w*|vertigo\w*)\b/i },
+  { key: "breathing", pattern: /\b(breath\w*|wheez\w*)\b/i },
+  { key: "nausea", pattern: /\b(nause\w*|vomit\w*)\b/i },
+  { key: "weakness", pattern: /\b(weak\w*|faint\w*)\b/i },
+] as const;
+
+function symptomConceptsFor(value: string): Set<string> {
+  return new Set(
+    symptomConceptPatterns
+      .filter(({ pattern }) => pattern.test(value))
+      .map(({ key }) => key),
+  );
+}
+
+function quickAnswerRepeatsInitialSymptom(initialClue: string, answer: QuickAnswer): boolean {
+  if (answer.kind !== "symptom") return false;
+  const initialConcepts = symptomConceptsFor(initialClue);
+  const answerConcepts = symptomConceptsFor(`${answer.label} ${answer.value}`);
+  return [...answerConcepts].some((concept) => initialConcepts.has(concept));
+}
+
 type BrowserSpeechRecognitionEvent = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>;
 };
@@ -427,6 +455,23 @@ export default function TriageChat({
         kind: reply.kind ?? reply.id,
       }))
     : fallbackQuickAnswers;
+  const repeatedInitialSymptomAnswers = presentationStage === "symptom_selection"
+    ? quickAnswers.filter((answer) => quickAnswerRepeatsInitialSymptom(initialClue, answer))
+    : [];
+  const hasRepeatedInitialSymptom = repeatedInitialSymptomAnswers.length > 0;
+  const displayedQuickAnswers: QuickAnswer[] = hasRepeatedInitialSymptom
+    ? [
+        ...quickAnswers.filter((answer) => !repeatedInitialSymptomAnswers.some((repeated) => repeated.id === answer.id)),
+        {
+          id: "no-additional-symptoms",
+          label: t("health.symptomCheck.chat.noAdditionalSymptoms", "Nothing else"),
+          value: t("health.symptomCheck.chat.noAdditionalSymptomsValue", "No other symptoms."),
+          Icon: CheckCircle,
+          tone: "purple",
+          kind: "symptom",
+        },
+      ]
+    : quickAnswers;
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -741,8 +786,8 @@ export default function TriageChat({
   });
   const answeredCount = selectedQuickAnswers.length;
   const questionNumber = answeredCount + 1;
-  const visibleQuickAnswers = quickAnswers.slice(0, 4);
-  const extraQuickAnswers = quickAnswers.slice(4);
+  const visibleQuickAnswers = displayedQuickAnswers.slice(0, 4);
+  const extraQuickAnswers = displayedQuickAnswers.slice(4);
   const guidanceConfidenceScore = guidancePlan?.confidence?.score;
   const confidenceSignals = typeof guidanceConfidenceScore === "number"
     ? Math.min(5, Math.max(1, guidanceConfidenceScore))
@@ -781,28 +826,67 @@ export default function TriageChat({
       ? t("health.symptomCheck.chat.readoutChoices", "Choices: {{choices}}", { choices: visibleQuickAnswers.map((answer) => answer.label).join(". ") })
       : "",
   ].filter(Boolean).join(" ");
-  const canonicalReviewItems = selectedQuickAnswers.slice(-4).map((answer, index) => ({
-    label: answer.kind && answer.kind !== "general"
-      ? answer.kind.replace(/[_-]+/g, " ")
-      : t("health.symptomCheck.chat.reviewAnswer", "Answer {{count}}", { count: index + 1 }),
-    value: answer.label,
-  }));
-  const canonicalSceneControls = presentationStage && canAnswer ? (
+  const initialSymptomConcepts = symptomConceptsFor(initialClue);
+  const additionalSymptomLabels = selectedQuickAnswers
+    .filter((answer) => answer.kind === "symptom" && answer.id !== "no-additional-symptoms")
+    .filter((answer) => {
+      const answerConcepts = symptomConceptsFor(`${answer.label} ${answer.value}`);
+      return ![...answerConcepts].some((concept) => initialSymptomConcepts.has(concept));
+    })
+    .map((answer) => answer.label);
+  const symptomSummary = [initialClue.trim(), ...additionalSymptomLabels].filter(Boolean).join("; ");
+  const reviewLabelByKind: Record<string, string> = {
+    severity: t("health.symptomCheck.chat.reviewSeverity", "Severity"),
+    duration: t("health.symptomCheck.chat.reviewOnset", "When it started"),
+    trend: t("health.symptomCheck.chat.reviewRelatedDetail", "Related detail"),
+  };
+  const canonicalReviewItems = [
+    ...(symptomSummary
+      ? [{ label: t("health.symptomCheck.chat.reviewSymptom", "Symptom"), value: symptomSummary }]
+      : []),
+    ...selectedQuickAnswers
+      .filter((answer) => reviewLabelByKind[answer.kind])
+      .slice(-3)
+      .map((answer) => ({
+        label: reviewLabelByKind[answer.kind],
+        value: answer.label,
+      })),
+  ];
+  const usesNumericSeverityScale = presentationStage === "severity"
+    && isNumericSeverityScaleChoices(displayedQuickAnswers);
+  const usesRuntimeQuestion = presentationStage !== undefined && [
+    "safety_check",
+    "symptom_selection",
+    "severity",
+    "onset",
+    "review",
+  ].includes(presentationStage);
+  const canonicalSceneControls = usesNumericSeverityScale && canAnswer ? (
+    <div data-testid="triage-quick-answers">
+      <SeverityScaleControl
+        choices={displayedQuickAnswers}
+        onSubmit={(choice) => {
+          const quickAnswer = displayedQuickAnswers.find((answer) => answer.id === choice.id);
+          if (quickAnswer) void sendText(quickAnswer.value, quickAnswer);
+        }}
+        continueLabel={t("health.symptomCheck.chat.continue", "Continue")}
+        minimumLabel={t("health.symptomCheck.chat.severityNone", "None")}
+        maximumLabel={t("health.symptomCheck.chat.severityWorst", "Worst imaginable")}
+      />
+    </div>
+  ) : presentationStage && canAnswer ? (
     <div data-testid="triage-quick-answers">
       <div
         className={
           presentationStage === "safety_check" || presentationStage === "review"
             ? "grid grid-cols-2 gap-[10px]"
-            : presentationStage === "severity"
-              ? "grid grid-cols-[repeat(11,minmax(0,1fr))] gap-1"
-              : "grid gap-[10px]"
+            : "grid gap-[10px]"
         }
       >
-        {quickAnswers.map((quickAnswer, index) => {
+        {displayedQuickAnswers.map((quickAnswer, index) => {
           const { id, label, value, Icon } = quickAnswer;
           const isAction =
             presentationStage === "safety_check" || presentationStage === "review";
-          const isScale = presentationStage === "severity";
           const isSafetyPrimary =
             presentationStage === "safety_check" && index === 1;
           return (
@@ -810,19 +894,17 @@ export default function TriageChat({
               type="button"
               key={id}
               onClick={() => void sendText(value, quickAnswer)}
-              className={`vyva-tap flex items-center justify-center border font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#D9C2F3] ${
+              className={`vyva-tap flex items-center border font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#D9C2F3] ${
                 isSafetyPrimary
-                  ? "min-h-[54px] rounded-full border-[#087F76] bg-[#087F76] px-3 text-[14px] text-white"
+                  ? "min-h-[54px] justify-center rounded-full border-[#7024C4] bg-[#7024C4] px-3 text-[14px] text-white shadow-[0_10px_22px_rgba(112,36,196,0.18)]"
                   : isAction
-                    ? "min-h-[54px] rounded-full border-[#D9CFE0] bg-white px-3 text-[14px] text-[#241238]"
-                    : isScale
-                      ? "h-[38px] rounded-[8px] border-[#D9CFE0] bg-white px-0 text-[12px] text-[#241238]"
-                      : "min-h-[58px] justify-start gap-3 rounded-[8px] border-[#DED3E2] bg-white px-[14px] py-3 text-left text-[14px] text-[#241238]"
+                    ? "min-h-[54px] justify-center rounded-full border-[#D9CFE0] bg-white px-3 text-[14px] text-[#241238]"
+                    : "min-h-[68px] justify-start gap-3 rounded-[18px] border-[#DED3E2] bg-white px-4 py-3 text-left text-[14px] text-[#241238] shadow-[0_6px_16px_rgba(63,45,35,0.04)]"
               }`}
             >
-              {isAction || isScale ? null : (
-                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[8px] bg-[#F3EAFF] text-[#7024C4]">
-                  <Icon size={18} />
+              {isAction ? null : (
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[#F3EAFF] text-[#7024C4]">
+                  <Icon size={21} />
                 </span>
               )}
               <span>{label}</span>
@@ -1039,6 +1121,12 @@ export default function TriageChat({
                 stageId={presentationStage}
                 modality="touch"
                 showHeader={false}
+                title={presentationStage === "symptom_selection" && hasRepeatedInitialSymptom
+                  ? t("health.symptomCheck.chat.anythingElse", "Anything else?")
+                  : usesRuntimeQuestion
+                    ? latestQuestion.trim() || undefined
+                    : undefined}
+                helper={usesRuntimeQuestion && !usesNumericSeverityScale ? "" : undefined}
                 reviewItems={canonicalReviewItems}
               >
                 {canonicalSceneControls}

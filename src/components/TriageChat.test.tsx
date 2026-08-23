@@ -202,6 +202,133 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByText("Could caffeine make anxiety worse?")).toBeVisible();
   });
 
+  it("uses the VYVA purple primary treatment for the safety action", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Are any warning signs present?",
+      done: false,
+      quickReplies: [
+        { id: "yes", label: "Yes", value: "Yes.", icon: "help", tone: "red", kind: "red_flag" },
+        { id: "no", label: "No", value: "No.", icon: "help", tone: "green", kind: "red_flag" },
+      ],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "safety_check",
+      composerVisibility: "hidden",
+    });
+
+    const primarySafetyAction = await screen.findByRole("button", { name: "No" });
+    expect(primarySafetyAction).toHaveClass("border-[#7024C4]", "bg-[#7024C4]");
+    expect(primarySafetyAction).not.toHaveClass("border-[#087F76]", "bg-[#087F76]");
+  });
+
+  it("renders a compact accessible severity slider with one primary continuation", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "How strong is it from 0 to 10?",
+      done: false,
+      quickReplies: Array.from({ length: 11 }, (_, value) => ({
+        id: `severity-${value}`,
+        label: String(value),
+        value: String(value),
+        icon: "help",
+        tone: "purple",
+        kind: "severity",
+      })),
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "severity",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByTestId("symptom-severity-scale")).toBeVisible();
+    expect(screen.getByRole("slider", { name: "Symptom severity from 0 to 10" })).toHaveValue("5");
+    expect(screen.getByTestId("symptom-severity-continue")).toHaveClass("vyva-primary-action");
+    expect(screen.queryByRole("button", { name: "5" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the approved related-detail question with matching factor answers", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "A runtime trend prompt that should not replace the approved scene copy.",
+      done: false,
+      quickReplies: [
+        { id: "better", label: "Rest or medicine helped", value: "Rest or medicine helped.", icon: "help", tone: "purple", kind: "trend" },
+        { id: "worse", label: "Activity, light, or noise made it worse", value: "Activity, light, or noise made it worse.", icon: "activity", tone: "purple", kind: "trend" },
+        { id: "same", label: "Nothing clearly changed it", value: "Nothing clearly changed it.", icon: "help", tone: "purple", kind: "trend" },
+      ],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "related_details",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByRole("heading", { name: "One more detail" })).toBeVisible();
+    expect(screen.getByText("Has anything made it better or worse?")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "A runtime trend prompt that should not replace the approved scene copy." })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rest or medicine helped" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Activity, light, or noise made it worse" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Nothing clearly changed it" })).toBeVisible();
+  });
+
+  it("uses choice cards when a severity-stage question is not a numeric scale", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Where is the pain mainly?",
+      done: false,
+      quickReplies: [
+        { id: "head", label: "Head or neck", value: "Head or neck.", icon: "help", tone: "purple", kind: "severity" },
+        { id: "back", label: "Back", value: "Back.", icon: "help", tone: "purple", kind: "severity" },
+        { id: "joint", label: "Arm, leg, or joint", value: "Arm, leg, or joint.", icon: "help", tone: "purple", kind: "severity" },
+      ],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "severity",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByRole("heading", { name: "Where is the pain mainly?" })).toBeVisible();
+    expect(screen.queryByTestId("symptom-severity-scale")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Head or neck" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Back" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Arm, leg, or joint" })).toBeVisible();
+  });
+
+  it("keeps the reported symptom in review and ignores the no-additional-symptoms answer", async () => {
+    await renderTriageChat({
+      initialClue: "I have a headache",
+      presentationStage: "review",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Does this summary look right?" }],
+        selectedQuickAnswers: [
+          { id: "no-additional-symptoms", label: "Nothing else", value: "No other symptoms.", kind: "symptom" },
+          { id: "severity-5", label: "5", value: "5", kind: "severity" },
+          { id: "today", label: "Today", value: "Today", kind: "duration" },
+          { id: "same", label: "Nothing clearly changed it", value: "Nothing clearly changed it", kind: "trend" },
+        ],
+        apiQuickReplies: [
+          { id: "confirm", label: "Yes, it is right", value: "Yes.", icon: "help", tone: "purple", kind: "review" },
+          { id: "change", label: "Change something", value: "Change something.", icon: "help", tone: "purple", kind: "review" },
+        ],
+      },
+    });
+
+    const review = await screen.findByTestId("symptom-scene-review");
+    expect(review).toHaveTextContent("I have a headache");
+    expect(review).not.toHaveTextContent("Nothing else");
+    expect(review).toHaveTextContent("When it started");
+    expect(review).toHaveTextContent("Related detail");
+  });
+
   it("shows simple question progress without the confidence tracker by default", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
@@ -324,6 +451,41 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     expect(screen.getByRole("button", { name: "Fifth answer" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Sixth answer" })).toBeVisible();
+  });
+
+  it("does not ask for an initial symptom a second time", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Which symptom is closest?",
+      done: false,
+      quickReplies: [
+        { id: "headache", label: "Headache", value: "Headache", icon: "help", tone: "purple", kind: "symptom" },
+        { id: "dizziness", label: "Dizziness", value: "Dizziness", icon: "help", tone: "purple", kind: "symptom" },
+        { id: "nausea", label: "Nausea", value: "Nausea", icon: "help", tone: "purple", kind: "symptom" },
+      ],
+      guidancePlan: {
+        stage: "symptom",
+        priorityLabel: "Safety first",
+        protocolLabel: "Symptom assessment",
+        nextQuestionFocus: "Choose symptoms",
+        usefulSignals: [],
+        confidence: { score: 3, label: "Building", reasons: [], missing: [] },
+      },
+    }));
+
+    await renderTriageChat({
+      initialClue: "Pain or headache",
+      presentationStage: "symptom_selection",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByRole("heading", { name: "Anything else?" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Headache" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dizziness" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Dizziness" })).toHaveClass("justify-start", "rounded-[18px]");
+    expect(screen.getByRole("button", { name: "Dizziness" })).not.toHaveClass("justify-center");
+    expect(screen.getByRole("button", { name: "Nausea" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Nothing else" })).toBeVisible();
   });
 
   it("sends follow-up chips as free text without adding quickAnswers", async () => {

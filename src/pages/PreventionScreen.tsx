@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import { HomeMasterActionControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import { apiFetch } from "@/lib/queryClient";
 import {
   appendPreventionLoopHistory as appendLoopHistory,
@@ -991,6 +993,7 @@ export default function PreventionScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const { markCompleted, markDismissed, markAbandoned } = useHomeFastHelpOutcome(location.state);
   const { guardPath } = useServiceGate();
   const [selectedAction, setSelectedAction] = useState<PreventionDailyAction | null>(null);
@@ -1066,9 +1069,6 @@ export default function PreventionScreen() {
         mode: "voice" as const,
       },
     ];
-  const personalizationSummary = focus.personalizationSummary?.length
-    ? focus.personalizationSummary.slice(0, 3)
-    : focus.profileSignals?.filter((item) => !/\d/.test(item)).slice(0, 3) ?? [focus.focus];
   const weeklySummary = focus.weeklySummary ?? fallbackFocus.weeklySummary;
   const doctorNote = [focus.doctorNote || focus.why.concat(focus.todayAction).join(" "), weeklySummary?.doctorSummary].filter(Boolean).join(" ");
   const talkContext = isFollowUp
@@ -1320,19 +1320,30 @@ export default function PreventionScreen() {
 
   return (
     <div className="vyva-page pb-32 sm:pb-12" data-testid="prevention-page">
-      <button
-        type="button"
-        onClick={leavePrevention}
-        className="vyva-tap mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#E6E0F4] bg-white px-4 font-body text-[14px] font-black text-vyva-text-2 shadow-[0_8px_18px_rgba(31,41,55,0.05)]"
-      >
-        <ArrowLeft size={17} aria-hidden="true" />
-        {t("health.prevention.back", "Health Plan")}
-      </button>
+      <HomeMasterTopbar className="mb-5" testId="prevention-topbar">
+        <HomeMasterActionControl
+          isDark={isDark}
+          icon={ArrowLeft}
+          onClick={leavePrevention}
+          testId="button-prevention-back"
+          ariaLabel={t("health.prevention.back", "Back to My Health")}
+        />
+        <h1 className={["font-display text-[24px] font-semibold leading-tight tracking-[-0.03em]", isDark ? "text-[#FFF8FF]" : "text-[#241C30]"].join(" ")}>
+          {t("health.prevention.title", "Health Plan")}
+        </h1>
+        <HomeMasterActionControl
+          isDark={isDark}
+          icon={Mic}
+          onClick={() => openTalk()}
+          testId="button-prevention-header-talk"
+          ariaLabel={t("health.prevention.talk", "Talk to VYVA")}
+        />
+      </HomeMasterTopbar>
 
       <section
         className={isFollowUp
-          ? "mt-3 overflow-hidden rounded-[24px] border bg-white p-3 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"
-          : "mt-3 overflow-hidden rounded-[26px] border bg-white p-4 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"}
+          ? "overflow-hidden rounded-[24px] border bg-white p-3 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"
+          : "overflow-hidden rounded-[26px] border bg-white p-4 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"}
         style={{ borderColor: tone.border, background: tone.surface }}
         data-testid="prevention-hero"
       >
@@ -1366,44 +1377,8 @@ export default function PreventionScreen() {
               </button>
             ) : null}
           </div>
-          {isFollowUp ? (
-            <button
-              type="button"
-              onClick={() => openTalk()}
-              data-testid="button-prevention-talk"
-              aria-label={t("health.prevention.askVyva", "Ask VYVA")}
-              className="vyva-tap flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple text-white shadow-[0_10px_20px_rgba(109,40,217,0.18)]"
-            >
-              <Mic size={21} strokeWidth={2.7} aria-hidden="true" />
-            </button>
-          ) : null}
         </div>
 
-        {!isFollowUp ? (
-          <button
-            type="button"
-            onClick={() => openTalk()}
-            data-testid="button-prevention-talk"
-            className="vyva-tap mt-4 flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_24px_rgba(109,40,217,0.18)]"
-          >
-            <MessageCircle size={18} aria-hidden="true" />
-            {t("health.prevention.talk", "Talk to VYVA")}
-          </button>
-        ) : null}
-
-        {!isFollowUp && personalizationSummary.length ? (
-          <div className="mt-3 flex flex-wrap gap-2" data-testid="prevention-personalization">
-            {personalizationSummary.map((signal) => (
-              <span
-                key={signal}
-                className="rounded-full px-2.5 py-1 font-body text-[12px] font-black"
-                style={{ background: tone.iconBg, color: tone.iconColor }}
-              >
-                {signal}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </section>
 
       <section
@@ -1413,60 +1388,18 @@ export default function PreventionScreen() {
         style={{ borderColor: tone.border }}
         data-testid="prevention-guidance-panel"
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <h2 className={isFollowUp ? "font-body text-[19px] font-black leading-tight text-vyva-text-1" : "font-body text-[22px] font-black leading-tight text-vyva-text-1"}>
             {isFollowUp ? t("health.prevention.followUpTitle", "VYVA can help") : t("health.prevention.guidanceTitle", "Today's 3 moves")}
           </h2>
-          {!isFollowUp ? (
-            <span
-              className="rounded-full px-3 py-1 font-body text-[12px] font-black"
-              style={{ background: tone.iconBg, color: tone.iconColor }}
-            >
-              {focus.confidence === "strong"
-                ? t("health.prevention.confidenceStrong", "Clear")
-                : focus.confidence === "moderate"
-                  ? t("health.prevention.confidenceModerate", "Likely")
-                : t("health.prevention.confidenceLimited", "Limited")}
-            </span>
-          ) : null}
         </div>
 
-        {!isFollowUp ? (
+        {!isFollowUp && (Object.keys(actionFeedback).length > 0 || lastLoopFeedback) ? (
           <div
-          className="mt-3 rounded-[18px] border border-[#E6E0F4] bg-white px-3 py-2 font-body text-[13px] font-black leading-snug text-vyva-text-2"
-          data-testid="prevention-loop-summary"
+            className="mt-3 rounded-[16px] bg-[#F7F4FC] px-3 py-2 font-body text-[13px] font-bold leading-snug text-vyva-text-2"
+            data-testid="prevention-loop-summary"
           >
             {loopSummary}
-          </div>
-        ) : null}
-
-        {!isFollowUp && weeklySummary ? (
-          <div
-            className="mt-2 rounded-[18px] border border-[#E6E0F4] bg-[#FBFAFF] px-3 py-2"
-            data-testid="prevention-weekly-memory"
-          >
-            <div className="flex items-start gap-2">
-              <Sparkles size={16} className="mt-0.5 flex-shrink-0 text-vyva-purple" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
-                  VYVA learned
-                </p>
-                <p className="mt-0.5 font-body text-[13px] font-black leading-snug text-vyva-text-1">
-                  {weeklySummary.headline}
-                </p>
-                <p className="mt-0.5 line-clamp-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-                  {weeklySummary.detail}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => openTalk(`${focus.focus}: ${weeklySummary.doctorSummary} ${weeklySummary.caregiverSummary}`)}
-                data-testid="button-prevention-weekly-summary"
-                className="vyva-tap flex min-h-[36px] flex-shrink-0 items-center justify-center rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple"
-              >
-                Ask
-              </button>
-            </div>
           </div>
         ) : null}
 
@@ -1506,11 +1439,6 @@ export default function PreventionScreen() {
                           {item.step}
                         </span>
                       ) : null}
-                      {!isFollowUp && item.evidenceLabel ? (
-                        <span className="rounded-full bg-white px-2 py-0.5 font-body text-[11px] font-black" style={{ color: style.iconColor }}>
-                          {item.evidenceLabel}
-                        </span>
-                      ) : null}
                       {feedback && feedback !== "ask_vyva" ? (
                         <span className="rounded-full bg-white px-2 py-0.5 font-body text-[11px] font-black text-vyva-text-2" data-testid={`prevention-feedback-${item.id}`}>
                           {feedbackDisplay[feedback as Exclude<PreventionFeedback, "ask_vyva">]}
@@ -1519,21 +1447,20 @@ export default function PreventionScreen() {
                     </div>
                     <h3 className={isFollowUp
                       ? "mt-0.5 font-body text-[16px] font-black leading-tight text-vyva-text-1"
-                      : "mt-1.5 font-body text-[18px] font-black leading-tight text-vyva-text-1"}
+                      : "mt-1.5 font-body text-[17px] font-black leading-tight text-vyva-text-1"}
                     >
                       {item.title}
                     </h3>
-                    <p className={isFollowUp
-                      ? "mt-0.5 line-clamp-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2"
-                      : "mt-1 line-clamp-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2"}
-                    >
-                      {visibleDetail}
-                    </p>
+                    {isFollowUp ? (
+                      <p className="mt-0.5 line-clamp-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                        {visibleDetail}
+                      </p>
+                    ) : null}
                   </div>
                   <ChevronRight size={17} strokeWidth={2.6} className={isFollowUp ? "mt-4 flex-shrink-0 text-vyva-text-3" : "mt-3 flex-shrink-0 text-vyva-text-3"} aria-hidden="true" />
                 </button>
                 {!isFollowUp ? (
-                  <div className="mt-2 grid grid-cols-2 gap-1.5 pl-[52px]" data-testid={`prevention-feedback-row-${item.id}`}>
+                  <div className="mt-3 flex flex-wrap justify-end gap-2 pl-[52px]" data-testid={`prevention-feedback-row-${item.id}`}>
                   {item.feedbackOptions.filter((option) => option.id === "done" || option.id === "too_hard").map((option) => {
                     const selected = feedback === option.id;
                     const Icon = option.id === "done"
@@ -1549,8 +1476,12 @@ export default function PreventionScreen() {
                         type="button"
                         onClick={() => markAction(item, option.id)}
                         data-testid={`button-prevention-feedback-${item.id}-${option.id}`}
-                        className="vyva-tap inline-flex min-h-[34px] items-center justify-center gap-1 rounded-full bg-white px-2 font-body text-[11px] font-black"
-                        style={{ color: selected && option.id === "done" ? "#047857" : selected ? "#6B21A8" : style.iconColor }}
+                        className="vyva-tap inline-flex min-h-[36px] min-w-[92px] items-center justify-center gap-1.5 rounded-[12px] border bg-white px-3.5 font-body text-[12px] font-black shadow-[0_2px_6px_rgba(31,41,55,0.04)]"
+                        style={{
+                          borderColor: selected ? style.iconColor : style.border,
+                          background: selected ? style.iconBg : "#FFFFFF",
+                          color: selected && option.id === "done" ? "#047857" : selected ? "#6B21A8" : style.iconColor,
+                        }}
                       >
                         <Icon size={14} aria-hidden="true" />
                         <span>{option.label}</span>
@@ -1609,6 +1540,22 @@ export default function PreventionScreen() {
               </p>
             </div>
           </div>
+          {weeklySummary ? (
+            <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-[#FBFAFF] px-3 py-2" data-testid="prevention-weekly-memory">
+              <Sparkles size={16} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+              <p className="min-w-0 flex-1 truncate font-body text-[13px] font-bold text-vyva-text-2">
+                {weeklySummary.detail}
+              </p>
+              <button
+                type="button"
+                onClick={() => openTalk(`${focus.focus}: ${weeklySummary.doctorSummary} ${weeklySummary.caregiverSummary}`)}
+                data-testid="button-prevention-weekly-summary"
+                className="vyva-tap min-h-[34px] flex-shrink-0 rounded-full bg-white px-3 font-body text-[13px] font-black text-vyva-purple"
+              >
+                Ask
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => openTalk(`${focus.focus}: ${learning.askPrompt}`)}

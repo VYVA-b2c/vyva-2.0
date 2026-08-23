@@ -34,7 +34,9 @@ describe("SymptomAssessmentPresentation", () => {
     );
 
     for (const modality of ["voice", "touch"] as const) {
-      expect(screen.getByTestId(`symptom-presentation-${stageId}-${modality}`)).toHaveAttribute(
+      const presentation = screen.getByTestId(`symptom-presentation-${stageId}-${modality}`);
+      expect(presentation).toHaveClass("max-w-[330px]", "md:max-w-[520px]");
+      expect(presentation).toHaveAttribute(
         "data-approved-frame",
         SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId],
       );
@@ -202,5 +204,19 @@ describe("SymptomAssessmentPresentation", () => {
       "data-presentation-state",
       "default",
     );
+  });
+
+  it("uses concise mobile helper copy for result and handoff scenes", () => {
+    render(
+      <>
+        <SymptomAssessmentPresentation stageId="safest_next_step" modality="touch" fullBleedChildren />
+        <SymptomAssessmentPresentation stageId="save_share_summary" modality="touch" fullBleedChildren />
+      </>,
+    );
+
+    expect(screen.getByText("Follow this guidance.")).toHaveClass("md:hidden");
+    expect(screen.getByText("Follow this guidance and watch for any change in how you feel.")).toHaveClass("hidden", "md:inline");
+    expect(screen.getByRole("heading", { name: "Your summary" })).toBeInTheDocument();
+    expect(screen.queryByText(/ready to share/i)).not.toBeInTheDocument();
   });
 });

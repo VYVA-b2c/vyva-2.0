@@ -13,6 +13,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/reports",
   "/menu",
   "/health",
+  "/health/prevention",
   "/mind-memory",
   "/social-rooms",
   "/concierge",
