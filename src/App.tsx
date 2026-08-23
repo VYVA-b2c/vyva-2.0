@@ -56,6 +56,7 @@ const PrototypeProfileScreen = lazy(() => import("./pages/HomeNavPrototypeScreen
 const PrototypeHealthActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthActionPreviewScreen })));
 const PrototypeProfileActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileActionPreviewScreen })));
 const PrototypeSymptomReportPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeSymptomReportPreviewScreen })));
+const SymptomWarningSignsPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomWarningSignsPreviewScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
@@ -888,6 +889,9 @@ const App = () => (
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master/symptom-report" element={<HomeMasterSymptomReportPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/symptom-warning" element={<AppShell><SymptomWarningSignsPreviewScreen /></AppShell>} />
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />

@@ -2360,7 +2360,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "feel-better",
       icon: HeartPulse,
-      label: t("home.master.fastHelp.feelBetter", "Symptoms Check"),
+      label: t("home.master.fastHelp.feelBetter", "Symptom Check"),
       detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
       onClick: () => launchHomeFastHelp("feel-better", "/health/symptom-check"),

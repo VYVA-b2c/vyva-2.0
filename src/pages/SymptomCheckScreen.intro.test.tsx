@@ -2,7 +2,12 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AssessmentConfidenceTracker, IntroScreen, symptomAssessmentStageForRuntime } from "./SymptomCheckScreen";
+import {
+  AssessmentConfidenceTracker,
+  IntroScreen,
+  SymptomWarningSignsPreviewScreen,
+  symptomAssessmentStageForRuntime,
+} from "./SymptomCheckScreen";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 
 const { apiFetchMock } = vi.hoisted(() => ({
@@ -94,6 +99,24 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 describe("SymptomCheck intro chips", () => {
+  it("presents warning signs as readable single-column choices without a false selected state", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SymptomWarningSignsPreviewScreen />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Symptom Check" })).toBeInTheDocument();
+    expect(screen.getByTestId("voice-triage-choice-grid-safety_check")).toHaveClass("grid-cols-1");
+
+    const warningChoice = screen.getByTestId("voice-triage-choice-one_sided_weakness");
+    expect(warningChoice).toHaveClass("justify-start", "rounded-[16px]", "bg-white");
+    expect(warningChoice).not.toHaveClass("bg-[#7024C4]");
+
+    const noWarningChoice = screen.getByTestId("voice-triage-choice-no_red_flag");
+    expect(noWarningChoice).toHaveTextContent("No, none of these");
+  });
+
   it("maps the live triage runtime onto symptom-assessment presentation stages", () => {
     expect(symptomAssessmentStageForRuntime(undefined)).toBe("describe");
     expect(symptomAssessmentStageForRuntime("red_flag")).toBe("safety_check");
