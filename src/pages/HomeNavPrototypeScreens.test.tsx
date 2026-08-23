@@ -111,7 +111,7 @@ describe("Home/Nav prototype screens", () => {
     expect(shell).toHaveAttribute("data-composer-contract", "hidden");
     expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
-    expect(screen.getByTestId("checkin-desktop-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-desktop-shell")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
   });
 
   it("shows the idle prompt only during the first ten seconds after app load", () => {

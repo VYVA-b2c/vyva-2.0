@@ -290,8 +290,8 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
     fullPage: true,
   });
 
-  await page.getByTestId("button-symptom-example-1").click();
-  await expect(page.getByTestId("input-symptom-clue")).toHaveValue("Pain or headache");
+  await page.getByTestId("button-symptom-other").click();
+  await page.getByTestId("input-symptom-clue").fill("Pain or headache");
   await expect(page.getByTestId("button-symptom-check-start")).toBeEnabled();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
@@ -462,6 +462,7 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   if (await emergencyModal.isVisible()) {
     await page.getByTestId("button-symptom-emergency-continue").click();
   }
+  await page.getByTestId("button-symptom-other").click();
   await page.getByTestId("input-symptom-clue").fill("I have a headache");
   await page.getByTestId("button-symptom-check-start").click();
 
@@ -698,6 +699,7 @@ test("an urgent Touch answer renders the emergency escalation scene", async ({ p
   if (await emergencyModal.isVisible()) {
     await page.getByTestId("button-symptom-emergency-continue").click();
   }
+  await page.getByTestId("button-symptom-other").click();
   await page.getByTestId("input-symptom-clue").fill("I have chest pain");
   await page.getByTestId("button-symptom-check-start").click();
   const safety = page.getByTestId("symptom-presentation-safety_check-touch");

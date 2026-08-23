@@ -197,8 +197,7 @@ describe("SymptomCheck intro chips", () => {
 
     expectStage("describe");
     fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
-    fireEvent.change(screen.getByTestId("input-symptom-clue"), { target: { value: "Headache" } });
-    fireEvent.click(screen.getByRole("button", { name: "Start check" }));
+    fireEvent.click(screen.getByTestId("button-symptom-example-0"));
 
     await screen.findByTestId("mock-triage-runtime");
     fireEvent.click(screen.getByTestId("runtime-red_flag-normal"));
@@ -247,10 +246,12 @@ describe("SymptomCheck intro chips", () => {
 
     expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("Do not wait in an emergency");
     expect(screen.queryByRole("button", { name: "Help me decide" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
-    expect(screen.getByPlaceholderText("Type here if you prefer...")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
-    expect(screen.getByText("How VYVA helps")).toBeVisible();
+    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Choose what feels different");
+    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("What feels different today?");
+    expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-symptom-check-start")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Something else" })).toBeVisible();
+    expect(screen.queryByText("How VYVA helps")).not.toBeInTheDocument();
     expect(screen.queryByTestId("symptom-check-one-question-note")).not.toBeInTheDocument();
     expect(screen.queryByText("One question at a time")).not.toBeInTheDocument();
     expect(screen.queryByText("Profile tuned")).not.toBeInTheDocument();
@@ -265,7 +266,8 @@ describe("SymptomCheck intro chips", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
 
     expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
-    expect(screen.getByTestId("input-symptom-clue")).toBeVisible();
+    expect(screen.getByTestId("symptom-check-example-chips")).toBeVisible();
+    expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
   });
 
   it("leaves the single voice entry point to the shared Home header", () => {
@@ -298,18 +300,28 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByText("3430")).not.toBeInTheDocument();
   });
 
-  it("fills the symptom input from a concern chip and keeps Continue explicit", () => {
+  it("starts immediately from a suggested concern", () => {
     const onStart = vi.fn();
     render(<IntroScreen onStart={onStart} personalizedSuggestions={profileSuggestions} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Chest pressure or tightness/i }));
 
-    expect(screen.getByTestId("input-symptom-clue")).toHaveValue("Chest pressure or tightness");
-    expect(onStart).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Start check" }));
-
     expect(onStart).toHaveBeenCalledWith("Chest pressure or tightness");
+  });
+
+  it("reveals one compact input only for Something else", () => {
+    const onStart = vi.fn();
+    render(<IntroScreen onStart={onStart} />);
+
+    expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Something else" }));
+
+    const input = screen.getByTestId("input-symptom-clue");
+    expect(input).toBeVisible();
+    fireEvent.change(input, { target: { value: "Aching back" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(onStart).toHaveBeenCalledWith("Aching back");
   });
 
   it("fills the symptom input from the voice transcription button", async () => {

@@ -390,7 +390,7 @@ export function PrototypeSymptomAssessmentShell({
     <PrototypeShell
       testId="prototype-symptom-assessment-screen"
       width={usesFlowContainer ? "flow" : "phone"}
-      dockPadding={false}
+      dockPadding={shellContract.bottomNavId === "home-sos-reports"}
       shellContract={shellContract}
     >
       <div
@@ -408,7 +408,7 @@ export function PrototypeSymptomAssessmentShell({
           onBack={onBack}
         />
       </div>
-      <div className="mt-6 flex min-h-0 flex-1 flex-col" data-testid="prototype-symptom-assessment-content">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col sm:mt-5" data-testid="prototype-symptom-assessment-content">
         {children}
       </div>
     </PrototypeShell>

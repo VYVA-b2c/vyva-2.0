@@ -163,7 +163,7 @@ export function SymptomAssessmentPresentation({
       ? "min-h-0"
       : "min-h-[535px]";
   const responsiveContentSpacing = usesCompactProductionDescribeFrame
-    ? "pb-7 pt-7"
+    ? "pb-5 pt-6 sm:pb-6 sm:pt-7"
     : stageId === "related_details"
       ? "pb-[100px] pt-[34px] md:pb-11 md:pt-8"
       : `pb-[100px] ${showHeader ? "pt-[38px]" : "pt-[34px]"}`;
@@ -171,7 +171,7 @@ export function SymptomAssessmentPresentation({
   return (
     <section
       aria-busy={loading || undefined}
-      className={`mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
+      className={`mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden border text-[#241238] ${usesCompactProductionDescribeFrame ? "rounded-[28px] border-[#E6DCEB] bg-white shadow-[0_16px_40px_rgba(63,45,75,0.08)]" : "rounded-[32px] border-[#DFD3E7] bg-[#FBF6FF] shadow-[0_18px_36px_rgba(47,24,64,0.11)]"} ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
@@ -259,7 +259,7 @@ export function SymptomAssessmentPresentation({
         </>
       ) : (
         <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
-          <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
+          <h2 className={`font-display font-medium leading-[1.08] text-[#241238] ${usesCompactProductionDescribeFrame ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
             {title || scene.title}
           </h2>
 
