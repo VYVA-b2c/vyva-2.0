@@ -364,8 +364,12 @@ test("the desktop Touch entry keeps the canonical flow centered and readable", a
   const sceneFrame = await describeScene.boundingBox();
   expect(sceneFrame?.width).toBeGreaterThanOrEqual(330);
   expect(sceneFrame?.width).toBeLessThanOrEqual(620);
-  const exampleButtons = page.getByTestId("symptom-check-example-chips").getByRole("button");
+  const exampleButtons = page
+    .getByTestId("symptom-check-example-chips")
+    .locator('[data-testid^="button-symptom-example-"]');
   await expect(exampleButtons).toHaveCount(3);
+  await expect(page.getByTestId("button-symptom-more-examples")).toBeVisible();
+  await expect(page.getByTestId("button-symptom-other")).toBeVisible();
   for (const button of await exampleButtons.all()) {
     const frame = await button.boundingBox();
     expect(frame?.width).toBeGreaterThanOrEqual(150);
@@ -570,8 +574,11 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   await page.evaluate(() => window.scrollTo(0, 0));
   await stage("review").getByRole("button", { name: "Yes, it is right" }).click();
   await expect(stage("checking")).toBeVisible();
-  await expect(stage("checking").getByRole("heading", { name: "Checking safely" })).toBeVisible();
-  await expect(stage("checking").getByText("VYVA is comparing your answers with trusted guidance.")).toBeVisible();
+  const checkingProgress = stage("checking").getByTestId("symptom-scene-progress");
+  await expect(checkingProgress).toBeVisible();
+  await expect(checkingProgress.getByRole("heading")).toHaveText(
+    /Reviewing your symptoms|Reviewing your health profile|Searching 40M\+ peer-reviewed sources|Checking safety signals/,
+  );
   await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
