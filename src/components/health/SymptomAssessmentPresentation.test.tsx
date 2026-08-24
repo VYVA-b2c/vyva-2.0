@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE,
   SymptomAssessmentPresentation,
@@ -8,7 +8,10 @@ import {
 import { SYMPTOM_ASSESSMENT_STAGE_IDS } from "@/design/screenPresentation";
 import { resolveSymptomAssessmentPresentation } from "@/design/screenPresentation";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("SymptomAssessmentPresentation", () => {
   const expectedLayout = {
@@ -104,7 +107,9 @@ describe("SymptomAssessmentPresentation", () => {
     render(
       <>
         <SymptomAssessmentPresentation stageId="urgent_escalation" modality="touch" />
-        <SymptomAssessmentPresentation stageId="checking" modality="touch" />
+        <SymptomAssessmentPresentation stageId="checking" modality="touch">
+          <button type="button">Leaked severity choice</button>
+        </SymptomAssessmentPresentation>
         <SymptomAssessmentPresentation stageId="safest_next_step" modality="touch" />
         <SymptomAssessmentPresentation
           stageId="review"
@@ -118,11 +123,36 @@ describe("SymptomAssessmentPresentation", () => {
     );
 
     expect(screen.getByTestId("symptom-scene-alert")).toHaveTextContent("Call emergency services");
-    expect(screen.getByTestId("symptom-scene-progress")).toHaveTextContent("trusted guidance");
+    const progress = screen.getByTestId("symptom-scene-progress");
+    expect(screen.getByRole("heading", { name: "Reviewing your symptoms" })).toBeInTheDocument();
+    expect(progress).toHaveTextContent("Reviewing your symptoms");
+    expect(progress).not.toHaveTextContent("Reviewing your health profile");
+    expect(progress).not.toHaveTextContent("What VYVA is considering");
+    expect(progress).not.toHaveTextContent("anything missing stays unknown");
     expect(screen.getByTestId("symptom-presentation-checking-touch")).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByRole("button", { name: "Leaked severity choice" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("symptom-scene-controls-checking-touch")).not.toBeInTheDocument();
     expect(screen.getByTestId("symptom-scene-guidance")).toHaveTextContent("Follow this guidance");
     expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Headache");
     expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("6 out of 10");
+  });
+
+  it("rotates one useful checking insight at a time", () => {
+    vi.useFakeTimers();
+    render(<SymptomAssessmentPresentation stageId="checking" modality="touch" />);
+
+    expect(screen.getByRole("heading", { name: "Reviewing your symptoms" })).toBeInTheDocument();
+    expect(screen.queryByText("Reviewing your health profile")).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(1600));
+    expect(screen.getByRole("heading", { name: "Reviewing your health profile" })).toBeInTheDocument();
+    expect(screen.queryByText("Reviewing your symptoms")).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(1600));
+    expect(screen.getByRole("heading", { name: "Searching 40M+ peer-reviewed sources" })).toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(1600));
+    expect(screen.getByRole("heading", { name: "Checking safety signals" })).toBeInTheDocument();
   });
 
   it("keeps the approved mobile Touch selected-control state child-owned and interactive", () => {
@@ -168,7 +198,7 @@ describe("SymptomAssessmentPresentation", () => {
   it("renders the approved mobile Voice generic-error state with a retry child action", () => {
     let retried = false;
     render(
-      <SymptomAssessmentPresentation stageId="checking" modality="voice">
+      <SymptomAssessmentPresentation stageId="checking" modality="voice" allowProgressChildren>
         <div data-presentation-state="error" role="alert">
           <p>Something went wrong.</p>
           <button type="button" onClick={() => { retried = true; }}>Retry</button>

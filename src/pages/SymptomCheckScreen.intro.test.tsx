@@ -250,7 +250,9 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("What feels different today?");
     expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-symptom-check-start")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Something else" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Type your symptoms" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "More examples" })).toBeVisible();
+    expect(screen.queryByText("Examples")).not.toBeInTheDocument();
     expect(screen.queryByText("How VYVA helps")).not.toBeInTheDocument();
     expect(screen.queryByTestId("symptom-check-one-question-note")).not.toBeInTheDocument();
     expect(screen.queryByText("One question at a time")).not.toBeInTheDocument();
@@ -309,17 +311,20 @@ describe("SymptomCheck intro chips", () => {
     expect(onStart).toHaveBeenCalledWith("Chest pressure or tightness");
   });
 
-  it("reveals one compact input only for Something else", () => {
+  it("opens a dedicated full-page writing surface when the user prefers to type", () => {
     const onStart = vi.fn();
     render(<IntroScreen onStart={onStart} />);
 
     expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Something else" }));
+    fireEvent.click(screen.getByRole("button", { name: "Type your symptoms" }));
 
     const input = screen.getByTestId("input-symptom-clue");
     expect(input).toBeVisible();
+    expect(screen.getByTestId("symptom-custom-input")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Back to options" })).toBeVisible();
+    expect(screen.queryByTestId("symptom-check-example-chips")).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: "Aching back" } });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start check" }));
 
     expect(onStart).toHaveBeenCalledWith("Aching back");
   });
@@ -462,6 +467,13 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getByRole("button", { name: /Breathing feels different/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /Dizzy or weak/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /Check vitals/i })).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "More examples" }));
+
+    expect(screen.getByRole("button", { name: /Stomach or nausea/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Fever or chills/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Skin change or swelling/i })).toBeVisible();
+    expect(screen.getByTestId("symptom-check-example-chips")).not.toHaveTextContent("Breathing feels different");
 
     fireEvent.click(screen.getByText("More ideas"));
 

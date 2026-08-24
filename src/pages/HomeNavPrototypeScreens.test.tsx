@@ -21,6 +21,11 @@ import {
 } from "./HomeNavPrototypeScreens";
 import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import {
+  hidesHomeNavPrototypeDock,
+  isHomeNavPrototypeDockRoute,
+  isHomeNavPrototypeTopbarRoute,
+} from "@/lib/homeNavPrototypeRoutes";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { READABLE_TEXT_SIZE_STORAGE_KEY } from "@/hooks/useReadableTextSize";
 
@@ -113,6 +118,15 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
     expect(screen.getByTestId("checkin-desktop-shell")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
   });
+
+  it.each(["/health/symptom-check", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next"])(
+    "keeps one flow-owned header and the shared Home/SOS/Reports dock on %s",
+    (pathname) => {
+      expect(isHomeNavPrototypeTopbarRoute(pathname)).toBe(true);
+      expect(isHomeNavPrototypeDockRoute(pathname)).toBe(true);
+      expect(hidesHomeNavPrototypeDock(pathname)).toBe(false);
+    },
+  );
 
   it("shows the idle prompt only during the first ten seconds after app load", () => {
     vi.useFakeTimers();

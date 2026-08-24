@@ -57,6 +57,8 @@ const PrototypeHealthActionPreviewScreen = lazy(() => import("./pages/HomeNavPro
 const PrototypeProfileActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileActionPreviewScreen })));
 const PrototypeSymptomReportPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeSymptomReportPreviewScreen })));
 const SymptomWarningSignsPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomWarningSignsPreviewScreen })));
+const SymptomCheckingPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomCheckingPreviewScreen })));
+const SymptomSeverityPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomSeverityPreviewScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
@@ -892,6 +894,15 @@ const App = () => (
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master/symptom-warning" element={<AppShell><SymptomWarningSignsPreviewScreen /></AppShell>} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/ask-dr-ai" element={<AppShell><SymptomCheckScreen /></AppShell>} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/ask-dr-ai-checking" element={<AppShell><SymptomCheckingPreviewScreen /></AppShell>} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/home-master/ask-dr-ai-next" element={<AppShell><SymptomSeverityPreviewScreen /></AppShell>} />
                 ) : null}
                 {import.meta.env.DEV ? (
                   <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />
