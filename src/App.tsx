@@ -610,7 +610,7 @@ function HomeMasterHealthPreviewRoute() {
       <PrototypeHealthScreen
         checkInPath="/dev/home-master/check-in"
         healthPlanPath="/dev/home-master/health-plan"
-        symptomReportPath="/dev/home-master/symptom-report"
+        askDrAiPath="/dev/home-master/ask-dr-ai?fresh=1"
         vitalsPath="/dev/home-master/vitals"
         medicinesPath="/dev/home-master/medicines"
         voicePath="/dev/home-master"
@@ -625,11 +625,12 @@ function HealthHubRoute() {
     <AppShell>
       <PrototypeHealthScreen
         healthPlanPath="/health/prevention"
-        symptomReportPath="/health/symptom-check"
+        askDrAiPath="/health/symptom-check?fresh=1"
         vitalsPath="/health/vitals"
         medicinesPath="/meds/my-medicines"
         voicePath="/"
         profilePath="/settings/account"
+        backPath="/menu"
       />
     </AppShell>
   );
@@ -803,6 +804,8 @@ function PwaInstallPromptGate() {
   return <PwaInstallPrompt />;
 }
 
+const showDevelopmentPreviewRoutes = import.meta.env.DEV || import.meta.env.MODE === "development";
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageControllerProvider>
@@ -838,110 +841,44 @@ const App = () => (
                 <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey" element={<VyvaCaregiverDashboard />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/menu" element={<HomeMasterMenuPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/health" element={<HomeMasterHealthPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/brain" element={<HomeMasterBrainPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/community" element={<HomeMasterCommunityPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/concierge" element={<HomeMasterConciergePreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/emergency" element={<HomeMasterProfileActionPreviewRoute kind="emergency" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/care-team" element={<HomeMasterProfileActionPreviewRoute kind="care-team" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/providers" element={<HomeMasterProfileActionPreviewRoute kind="providers" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/preferences" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/profile/accessibility" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/check-in" element={<HomeMasterCheckInPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/symptom-report" element={<HomeMasterSymptomReportPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/symptom-warning" element={<AppShell><SymptomWarningSignsPreviewScreen /></AppShell>} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/ask-dr-ai" element={<AppShell><SymptomCheckScreen /></AppShell>} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/ask-dr-ai-checking" element={<AppShell><SymptomCheckingPreviewScreen /></AppShell>} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/ask-dr-ai-next" element={<AppShell><SymptomSeverityPreviewScreen /></AppShell>} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/vitals" element={<HomeMasterHealthActionPreviewRoute kind="vitals" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master/medicines" element={<HomeMasterHealthActionPreviewRoute kind="medicines" />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/trusted-help" element={<TrustedHelpSettings />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/admin-modules" element={<AdminModulesPage />} />
+                {showDevelopmentPreviewRoutes ? (
+                  <>
+                    <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                    <Route path="/dev/home-master/menu" element={<HomeMasterMenuPreviewRoute />} />
+                    <Route path="/dev/home-master/health" element={<HomeMasterHealthPreviewRoute />} />
+                    <Route path="/dev/home-master/brain" element={<HomeMasterBrainPreviewRoute />} />
+                    <Route path="/dev/home-master/community" element={<HomeMasterCommunityPreviewRoute />} />
+                    <Route path="/dev/home-master/concierge" element={<HomeMasterConciergePreviewRoute />} />
+                    <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
+                    <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
+                    <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
+                    <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
+                    <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/home-master/profile/emergency" element={<HomeMasterProfileActionPreviewRoute kind="emergency" />} />
+                    <Route path="/dev/home-master/profile/care-team" element={<HomeMasterProfileActionPreviewRoute kind="care-team" />} />
+                    <Route path="/dev/home-master/profile/providers" element={<HomeMasterProfileActionPreviewRoute kind="providers" />} />
+                    <Route path="/dev/home-master/profile/preferences" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
+                    <Route path="/dev/home-master/profile/accessibility" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
+                    <Route path="/dev/home-master/check-in" element={<HomeMasterCheckInPreviewRoute />} />
+                    <Route path="/dev/home-master/symptom-report" element={<HomeMasterSymptomReportPreviewRoute />} />
+                    <Route path="/dev/home-master/symptom-warning" element={<AppShell><SymptomWarningSignsPreviewScreen /></AppShell>} />
+                    <Route path="/dev/home-master/ask-dr-ai" element={<AppShell><SymptomCheckScreen /></AppShell>} />
+                    <Route path="/dev/home-master/ask-dr-ai-checking" element={<AppShell><SymptomCheckingPreviewScreen /></AppShell>} />
+                    <Route path="/dev/home-master/ask-dr-ai-next" element={<AppShell><SymptomSeverityPreviewScreen /></AppShell>} />
+                    <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />
+                    <Route path="/dev/home-master/vitals" element={<HomeMasterHealthActionPreviewRoute kind="vitals" />} />
+                    <Route path="/dev/home-master/medicines" element={<HomeMasterHealthActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />
+                    <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
+                    <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
+                    <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
+                    <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
+                    <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
+                    <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
+                    <Route path="/dev/trusted-help" element={<TrustedHelpSettings />} />
+                    <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
+                    <Route path="/dev/admin-modules" element={<AdminModulesPage />} />
+                  </>
                 ) : null}
                 <Route path="/admin" element={<AdminRoute><AdminModulesPage /></AdminRoute>} />
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />

@@ -148,7 +148,7 @@ type TriageQuickReply = {
   value: string;
   icon: "heart" | "wind" | "thermometer" | "activity" | "alert" | "help";
   tone: "purple" | "red" | "blue" | "amber" | "green";
-  kind: "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
+  kind: "symptom" | "location" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
 };
 
 type TriageVitalsPromptAction = {
@@ -534,6 +534,7 @@ function sanitizeWizard(wizard: TriageWizardContext | undefined): TriageWizardCo
 function wizardStageLabel(stage: WizardStage, locale: string) {
   const labels: Record<WizardStage, { en: string; es: string }> = {
     symptom: { en: "Choose symptom", es: "Elige sintoma" },
+    location: { en: "Pain location", es: "Zona del dolor" },
     red_flag: { en: "Safety check", es: "Chequeo de seguridad" },
     duration: { en: "When it started", es: "Cuando empezo" },
     severity: { en: "More details", es: "Mas detalles" },
@@ -556,7 +557,7 @@ function wizardQuestionText(
   if (stage === "severity") {
     return text(locale, "How strong is it?", "Que intensidad tiene?");
   }
-  if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) {
+  if (!["symptom", "location", "red_flag", "duration", "severity", "trend"].includes(stage)) {
     return text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer.");
   }
   const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
@@ -822,6 +823,10 @@ function questionReasonFor(
       en: "I first need to understand what feels different so I can choose the safest next question.",
       es: "Primero necesito entender que se siente diferente para elegir la siguiente pregunta mas segura.",
     },
+    location: {
+      en: "Where the pain is helps VYVA ask only the warning signs that fit.",
+      es: "La zona del dolor ayuda a VYVA a preguntar solo las senales de alerta relevantes.",
+    },
     red_flag: {
       en: "I am checking urgent warning signs first, before asking about smaller details.",
       es: "Primero compruebo senales urgentes de alerta, antes de preguntar detalles menores.",
@@ -877,34 +882,56 @@ function vitalsAction(
 
 function vitalsPromptFor(stage: WizardStage, wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageVitalsPrompt {
   if (stage === "symptom" || stage === "red_flag" || stage === "support" || stage === "complete") return null;
+  if (!selectedAnswers(wizard).some((answer) => answer.kind === "red_flag") || selectedSafetyAnswer(wizard)) return null;
   const symptomId = selectedSymptomId(wizard);
   const risks = profileRiskFlags(healthMemory);
-  const requested: TriageVitalsPromptAction[] = [];
-  const add = (action: TriageVitalsPromptAction) => {
-    if (!hasPromptVital(wizard, action.id) && !requested.some((item) => item.id === action.id)) {
-      requested.push(action);
-    }
+  const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
+  const locationId = selectedAnswers(wizard).find((answer) => answer.kind === "location")?.id;
+  const requested = new Map<TriageVitalsPromptAction["id"], { action: TriageVitalsPromptAction; score: number }>();
+  const add = (action: TriageVitalsPromptAction, score: number) => {
+    if (hasPromptVital(wizard, action.id)) return;
+    const current = requested.get(action.id);
+    if (!current || score > current.score) requested.set(action.id, { action, score });
   };
 
-  if (symptomId === "breathing" || symptomId === "chest") {
-    add(vitalsAction(locale, "oxygen", "Oxygen", "Oxigeno", "I can check my oxygen level if that would help.", "Puedo comprobar mi oxigeno si ayuda.", "wind", "blue"));
-    add(vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple"));
+  const oxygen = () => vitalsAction(locale, "oxygen", "Oxygen", "Oxigeno", "I can check my oxygen level if that would help.", "Puedo comprobar mi oxigeno si ayuda.", "wind", "blue");
+  const pulse = () => vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple");
+  const bloodPressure = () => vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue");
+  const temperature = () => vitalsAction(locale, "temperature", "Temperature", "Temperatura", "I can check my temperature if that would help.", "Puedo comprobar mi temperatura si ayuda.", "thermometer", "amber");
+  const glucose = () => vitalsAction(locale, "glucose", "Blood sugar", "Azucar", "I can check my blood sugar if that would help.", "Puedo comprobar mi azucar si ayuda.", "activity", "amber");
+
+  if (symptomId === "breathing") {
+    add(oxygen(), 110);
+    if (risks.afib || risks.heartDisease || risks.heartFailure) add(pulse(), 100);
   }
-  if (["dizzy", "tired", "fall"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple"));
-    add(vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue"));
+  if (symptomId === "chest") {
+    add(pulse(), 100);
+    if (risks.hypertension) add(bloodPressure(), 95);
+    if (risks.copd || risks.heartFailure) add(oxygen(), 95);
   }
-  if (["fever", "urinary", "stomach", "skin", "confusion"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "temperature", "Temperature", "Temperatura", "I can check my temperature if that would help.", "Puedo comprobar mi temperatura si ayuda.", "thermometer", "amber"));
+  if (symptomId === "dizzy") {
+    if (risks.diabetes) add(glucose(), 115);
+    add(bloodPressure(), risks.hypertension || risks.diureticMedication ? 105 : 90);
+    if (risks.afib || risks.heartDisease || answerIds.has("fainted_with_chest")) add(pulse(), 100);
   }
-  if (risks.diabetes && ["dizzy", "tired", "stomach", "confusion", "other"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "glucose", "Blood sugar", "Azucar", "I can check my blood sugar if that would help.", "Puedo comprobar mi azucar si ayuda.", "activity", "amber"));
+  if (symptomId === "fever") add(temperature(), 115);
+  if (symptomId === "urinary" && answerIds.has("no_red_flag")) add(temperature(), 105);
+  if (symptomId === "stomach" && answerIds.has("no_red_flag")) add(temperature(), 95);
+  if (symptomId === "skin" && (answerIds.has("wound_spreading") || risks.immunosuppressed)) add(temperature(), 100);
+  if (symptomId === "confusion" && risks.diabetes) add(glucose(), 115);
+  if (symptomId === "tired") {
+    if (risks.diabetes) add(glucose(), 110);
+    if (risks.afib || risks.heartFailure) add(pulse(), 95);
   }
-  if (risks.hypertension && ["chest", "dizzy", "pain", "confusion", "other"].includes(symptomId ?? "")) {
-    add(vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue"));
+  if (symptomId === "pain" && locationId === "head_neck_pain" && risks.hypertension) {
+    add(bloodPressure(), 105);
   }
 
-  const actions = requested.slice(0, 2);
+  const ranked = [...requested.values()].sort((left, right) => right.score - left.score);
+  const actions = ranked
+    .filter((item, index) => index === 0 || item.score >= 95)
+    .slice(0, 2)
+    .map((item) => item.action);
   if (!actions.length) return null;
   return {
     title: text(locale, "If you can, one reading may help", "Si puedes, una medicion puede ayudar"),
@@ -985,7 +1012,7 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
       score >= 7 ? "red" : score >= 4 ? "amber" : "green",
     ));
   }
-  if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) return [];
+  if (!["symptom", "location", "red_flag", "duration", "severity", "trend"].includes(stage)) return [];
 
   const symptomId = selectedSymptomId(wizard);
   if (stage === "red_flag" && !symptomId) return quickRepliesFor(undefined, locale, healthMemory);
@@ -1112,7 +1139,7 @@ ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMe
 CONVERSATION FLOW:
 1. The app is a senior-friendly wizard. Match the current wizard stage and ask only one very simple question.
 2. If there is no symptom category yet, ask what feels wrong today.
-3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
+3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. For broad pain, ask its location first, then show only the warning signs relevant to that location. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
 5. After the safety check, follow every wizard stage supplied by the app: severity, onset, change over time, and review. Ask the single next question that matches the quick reply choices.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.

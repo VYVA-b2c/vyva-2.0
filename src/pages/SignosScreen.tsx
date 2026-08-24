@@ -79,6 +79,7 @@ import {
   VITALS_SIGNAL_CATALOG,
   type VitalsSignalKey,
 } from "../../shared/vitalsSignalCatalog";
+import { compatibleCaptureMethods } from "../../shared/vitalsAcquisition";
 import {
   formatVitalsReadingDisplay,
   type ProposedVitalsReading,
@@ -2180,6 +2181,8 @@ function AddReadingSheet({
 }) {
   const { t } = useTranslation();
   const signalLabel = selectedSignal ? publicSignalLabel(selectedSignal) : null;
+  const compatibleMethods = selectedSignal ? compatibleCaptureMethods(selectedSignal) : null;
+  const allows = (method: "phone_camera" | "web_bluetooth" | "device_photo" | "voice" | "manual") => !compatibleMethods || compatibleMethods.includes(method);
   const captureWithSignal = (mode: VitalsCaptureMode) => {
     onClose();
     onCapture(mode, selectedSignal ?? undefined);
@@ -2203,7 +2206,7 @@ function AddReadingSheet({
     >
 
         <div className="grid gap-3">
-          <PurpleModalOption
+          {allows("phone_camera") ? <PurpleModalOption
             onClick={() => {
               onClose();
               onFaceScan();
@@ -2218,9 +2221,9 @@ function AddReadingSheet({
               <span className="block font-body text-[17px] font-black leading-tight">{t("statusVitals.faceScan.action", "Face scan")}</span>
               <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("statusVitals.faceScan.actionHint", "Heart, breathing, HRV")}</span>
             </span>
-          </PurpleModalOption>
+          </PurpleModalOption> : null}
 
-          <PurpleModalOption
+          {allows("web_bluetooth") ? <PurpleModalOption
             onClick={onConnectDevice}
             className="min-h-[66px] gap-4 p-4"
             data-testid="button-open-bluetooth-device"
@@ -2232,10 +2235,10 @@ function AddReadingSheet({
               <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("settings.healthDevices.title", "Health devices")}</span>
               <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("settings.healthDevices.addSheetHint", "Set up Bluetooth devices in Settings")}</span>
             </span>
-          </PurpleModalOption>
+          </PurpleModalOption> : null}
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <PurpleModalOption
+            {allows("voice") ? <PurpleModalOption
               onClick={() => captureWithSignal("voice")}
               align="center"
               className="min-h-[62px] gap-2 px-3 text-[14px]"
@@ -2243,8 +2246,8 @@ function AddReadingSheet({
             >
               <Mic size={17} />
               {t("statusVitals.hub.say", "Say reading")}
-            </PurpleModalOption>
-            <PurpleModalOption
+            </PurpleModalOption> : null}
+            {allows("device_photo") ? <PurpleModalOption
               onClick={() => captureWithSignal("photo")}
               align="center"
               className="min-h-[62px] gap-2 px-3 text-[14px]"
@@ -2252,8 +2255,8 @@ function AddReadingSheet({
             >
               <Camera size={17} />
               {t("statusVitals.hub.snapShort", "Scan")}
-            </PurpleModalOption>
-            <PurpleModalOption
+            </PurpleModalOption> : null}
+            {allows("manual") ? <PurpleModalOption
               onClick={() => captureWithSignal("text")}
               align="center"
               className="min-h-[62px] gap-2 px-3 text-[14px]"
@@ -2261,7 +2264,7 @@ function AddReadingSheet({
             >
               <Keyboard size={17} />
               {t("statusVitals.logAction", "Type reading")}
-            </PurpleModalOption>
+            </PurpleModalOption> : null}
           </div>
         </div>
     </PurpleModal>

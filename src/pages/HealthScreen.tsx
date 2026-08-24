@@ -2993,10 +2993,8 @@ const HealthScreen = () => {
       },
     },
   ];
-  const preventionCardDetail = preventionFocus?.headline ?? (latestTriage?.chief_complaint
-    ? t("health.master.cards.preventionLatest", "Follow-up: {{topic}}", { topic: latestTriage.chief_complaint })
-    : t("health.master.cards.preventionDetail", "Risks and next steps"));
-  const preventionCardAccent = preventionFocus?.focus ?? t("health.master.cards.preventionReady", "Plan");
+  const preventionCardDetail = t("health.master.cards.longevityDetail", "Prevention is the best cure");
+  const preventionCardAccent = preventionCardDetail;
 
   const healthMasterCards: MasterDashboardCard[] = [
     {
@@ -3018,22 +3016,22 @@ const HealthScreen = () => {
       testId: "button-health-tool-feel-better",
     },
     {
-      id: "my-medication",
-      icon: Pill,
-      title: t("health.master.cards.myMedication", "My Medication"),
-      detail: medicineToolDetail,
-      accent: medicineCardAccent,
+      id: "stay-well",
+      icon: ShieldCheck,
+      title: t("health.master.cards.stayWell", "Longevity"),
+      detail: preventionCardDetail,
+      accent: preventionCardAccent,
       tone: {
-        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
-        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
-        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
+        iconBg: "#ECFDF5",
+        iconColor: "#047857",
+        border: "#BBF7D0",
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to open medicines");
-        guardPath("/meds");
+        sendDoctorUserMessage("I want to review my prevention focus");
+        navigate("/health/prevention");
       },
-      testId: "button-health-tool-my-medication",
+      testId: "button-health-tool-stay-well",
     },
     {
       id: "my-vitals",
@@ -3054,22 +3052,22 @@ const HealthScreen = () => {
       testId: "button-health-tool-my-vitals",
     },
     {
-      id: "stay-well",
-      icon: ShieldCheck,
-      title: t("health.master.cards.stayWell", "Age Well"),
-      detail: preventionCardDetail,
-      accent: preventionCardAccent,
+      id: "my-medication",
+      icon: Pill,
+      title: t("health.master.cards.myMedication", "Medication"),
+      detail: medicineToolDetail,
+      accent: medicineCardAccent,
       tone: {
-        iconBg: "#ECFDF5",
-        iconColor: "#047857",
-        border: "#BBF7D0",
+        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
+        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
+        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to review my prevention focus");
-        navigate("/health/prevention");
+        sendDoctorUserMessage("I want to open medicines");
+        guardPath("/meds");
       },
-      testId: "button-health-tool-stay-well",
+      testId: "button-health-tool-my-medication",
     },
   ];
 

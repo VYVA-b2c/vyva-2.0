@@ -104,7 +104,8 @@ describe("triage telemetry", () => {
       quickAnswers: [
         { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
         { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
-        { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
+        { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "location" },
+        { id: "severity_3", label: "3", value: "The symptom feels 3 out of 10.", kind: "severity" },
         { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
       ],
     }, [{ role: "user", content: "Bad headache" }]);

@@ -50,30 +50,6 @@
   src: url("/fonts/vyva/figtree-900.ttf") format("truetype");
 }
 
-@font-face {
-  font-family: "Fraunces";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/vyva/fraunces-400.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Fraunces";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/vyva/fraunces-600.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Fraunces";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/vyva/fraunces-700.ttf") format("truetype");
-}
-
 @layer base {
   :root {
     --background: 36 33% 97%;
@@ -159,7 +135,7 @@
     text-rendering: optimizeLegibility;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Fraunces", serif;
+    font-family: "Figtree", sans-serif;
   }
   button,
   a,
@@ -675,7 +651,7 @@
 }
 
 .font-display {
-  font-family: "Fraunces", serif;
+  font-family: "Figtree", sans-serif;
 }
 
 .font-body {

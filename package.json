@@ -44,6 +44,7 @@
     "start": "cross-env NODE_ENV=production node ./server-dist/index.cjs",
     "lint": "eslint . --max-warnings=0",
     "preview": "vite preview",
+    "preview:symptom-flow": "cross-env NODE_ENV=development PORT=8125 DATABASE_URL=postgresql://127.0.0.1:1/vyva_local_preview tsx scripts/preview-symptom-flow.ts",
     "test:e2e": "playwright test",
     "test": "node scripts/run-vitest.mjs",
     "test:watch": "vitest",

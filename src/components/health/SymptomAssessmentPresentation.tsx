@@ -86,7 +86,7 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   related_details: {
     eyebrow: "Related details",
     title: "One more detail",
-    helper: "Has anything made it better or worse?",
+    helper: "Choose the pattern that fits best.",
     layout: "capture",
   },
   review: {
@@ -167,7 +167,7 @@ function SymptomCheckingProgress() {
       <span className="grid h-[72px] w-[72px] place-items-center rounded-[24px] border border-white/20 bg-white/15 text-white shadow-[0_14px_32px_rgba(32,12,68,0.22)] backdrop-blur-sm motion-safe:animate-pulse">
         <ActiveIcon size={32} strokeWidth={2.25} aria-hidden="true" />
       </span>
-      <h2 className="mt-7 max-w-[300px] font-display text-[28px] font-medium leading-[1.08] text-white">
+      <h2 className="mt-7 max-w-[300px] font-body text-[28px] font-extrabold leading-[1.08] tracking-[-0.025em] text-white">
         {activeCopy.title}
       </h2>
       <div className="mt-7 flex items-center justify-center gap-2" aria-label={`Step ${activeInsight + 1} of ${CHECKING_INSIGHTS.length}`}>
@@ -231,23 +231,15 @@ export function SymptomAssessmentPresentation({
     stageId === "describe" && modality === "touch" && !showHeader;
   const usesCheckingFrame = stageId === "checking";
   const usesResultFrame = stageId === "safest_next_step" || stageId === "save_share_summary";
-  const responsiveFrameWidth = "max-w-[330px] md:max-w-[520px]";
-  const responsiveFrameHeight = stageId === "severity"
-    ? "min-h-[440px] md:min-h-[410px]"
-    : stageId === "related_details"
-      ? "min-h-[535px] md:min-h-[460px]"
-    : stageId === "checking"
+  const responsiveFrameWidth = "max-w-[330px] sm:max-w-[760px]";
+  const responsiveFrameHeight = stageId === "checking"
       ? "min-h-[360px] md:min-h-[350px]"
-    : usesCompactProductionDescribeFrame
-      ? "min-h-0"
-      : "min-h-[535px]";
+      : "min-h-0";
   const responsiveContentSpacing = usesCompactProductionDescribeFrame
     ? "pb-5 pt-6 sm:pb-6 sm:pt-7"
-    : stageId === "related_details"
-      ? "pb-[100px] pt-[34px] md:pb-11 md:pt-8"
-      : stageId === "checking"
-        ? "pb-8 pt-[30px] md:pb-10 md:pt-8"
-      : `pb-[100px] ${showHeader ? "pt-[38px]" : "pt-[34px]"}`;
+    : stageId === "checking"
+      ? "pb-8 pt-[30px] md:pb-10 md:pt-8"
+      : `pb-8 ${showHeader ? "pt-[38px]" : "pt-8"} md:pb-9 md:pt-8`;
 
   return (
     <section
@@ -314,7 +306,7 @@ export function SymptomAssessmentPresentation({
         <>
           <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
           {scene.layout !== "progress" ? (
-            <h2 className={`font-display font-medium leading-[1.08] text-[#241238] ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
+            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] text-[#241238] ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
           ) : null}
@@ -343,7 +335,7 @@ export function SymptomAssessmentPresentation({
       ) : (
         <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
           {scene.layout !== "progress" ? (
-            <h2 className={`font-display font-medium leading-[1.08] text-[#241238] ${usesCompactProductionDescribeFrame ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
+            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] text-[#241238] ${usesCompactProductionDescribeFrame || stageId === "safety_check" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
           ) : null}

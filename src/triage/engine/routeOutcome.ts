@@ -273,6 +273,8 @@ export function nextAdaptiveStage(wizard: TriageWizardContext | undefined, _heal
   const answers = selectedAnswers(wizard);
   if (wizard?.refineRequested) return "complete";
   if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
+  const symptomId = selectedSymptomId(wizard);
+  if (symptomId === "pain" && !answers.some((answer) => answer.kind === "location")) return "location";
   if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
   // The canonical presentation flow is intentionally consistent for every
   // non-emergency symptom. Outcome rules still determine urgency, but they
@@ -673,13 +675,14 @@ export function evaluateTriageSafetyFloor(
   const symptom = selectedSymptomId(wizard);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
   const risks = profileRiskFlags(healthMemory);
-  const bpm = wizard?.vitals?.bpm ?? undefined;
-  const respiratoryRate = wizard?.vitals?.respiratoryRate ?? undefined;
+  const eligibleVital = (key: keyof NonNullable<TriageWizardContext["vitals"]>) => wizard?.vitalsEvidence?.[key]?.affectsTriage !== false;
+  const bpm = eligibleVital("bpm") ? wizard?.vitals?.bpm ?? undefined : undefined;
+  const respiratoryRate = eligibleVital("respiratoryRate") ? wizard?.vitals?.respiratoryRate ?? undefined : undefined;
   const abnormalPulse = typeof bpm === "number" && (bpm >= 110 || bpm <= 50);
   const abnormalBreathingRate = typeof respiratoryRate === "number" && (respiratoryRate >= 24 || respiratoryRate <= 10);
   const scanResults = wizard?.scanResults ?? [];
   const scanNotes = scanNotesFor(locale, wizard);
-  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent");
+  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent" && scan.type !== "vitals");
   const urgentScanReason = urgentScans.length
     ? text(locale, "An optional scan found a concerning visible change that should be shared with a clinician today.", "Un escaneo opcional encontro un cambio visible preocupante que conviene compartir hoy con un clinico.")
     : "";
@@ -696,11 +699,11 @@ export function evaluateTriageSafetyFloor(
     abnormalBreathingRate,
     pulseBpm: bpm,
     respiratoryRate,
-    oxygenSaturation: wizard?.vitals?.oxygenSaturation ?? undefined,
-    temperatureC: wizard?.vitals?.temperatureC ?? undefined,
-    systolicBp: wizard?.vitals?.systolicBp ?? undefined,
-    diastolicBp: wizard?.vitals?.diastolicBp ?? undefined,
-    glucoseMgdl: wizard?.vitals?.glucoseMgdl ?? undefined,
+    oxygenSaturation: eligibleVital("oxygenSaturation") ? wizard?.vitals?.oxygenSaturation ?? undefined : undefined,
+    temperatureC: eligibleVital("temperatureC") ? wizard?.vitals?.temperatureC ?? undefined : undefined,
+    systolicBp: eligibleVital("systolicBp") ? wizard?.vitals?.systolicBp ?? undefined : undefined,
+    diastolicBp: eligibleVital("diastolicBp") ? wizard?.vitals?.diastolicBp ?? undefined : undefined,
+    glucoseMgdl: eligibleVital("glucoseMgdl") ? wizard?.vitals?.glucoseMgdl ?? undefined : undefined,
     painScore: wizard?.vitals?.painScore ?? selectedSeverityScore(wizard) ?? undefined,
     energyLevel: wizard?.vitals?.energyLevel ?? undefined,
   });

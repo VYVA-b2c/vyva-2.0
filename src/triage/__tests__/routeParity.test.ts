@@ -81,7 +81,8 @@ const pathCases: Array<{
     quickAnswers: [
       { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
       { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
-      { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
+      { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "location" },
+      { id: "severity_3", label: "3", value: "The symptom feels 3 out of 10.", kind: "severity" },
       { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
     ],
     expectedContent: "Your answers fit a lower-risk pain or headache pattern right now.",
@@ -451,6 +452,8 @@ describe("triage route outcome parity", () => {
     const answers: TriageWizardAnswer[] = [
       { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
     ];
+    expect(nextAdaptiveStage(wizard(answers))).toBe("location");
+    answers.push({ id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "location" });
     expect(nextAdaptiveStage(wizard(answers))).toBe("red_flag");
     answers.push({ id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" });
     expect(nextAdaptiveStage(wizard(answers))).toBe("severity");
@@ -474,6 +477,26 @@ describe("triage route outcome parity", () => {
 
     expect(refined.nextStepLevel).toBe("emergency");
     expect(refined.vitalsNotes).toContain("Temperature was 38.5 C.");
+  });
+
+  it("does not let a phone estimate independently change acute triage", () => {
+    const answers: TriageWizardAnswer[] = [
+      { id: "breathing", label: "Breathing", value: "I have a breathing concern.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ];
+    const estimated = fallback(answers, {
+      vitals: { oxygenSaturation: 88 },
+      vitalsEvidence: { oxygenSaturation: { source: "phone_estimate", affectsTriage: false } },
+    });
+    const connected = fallback(answers, {
+      vitals: { oxygenSaturation: 88 },
+      vitalsEvidence: { oxygenSaturation: { source: "connected_device", affectsTriage: true } },
+    });
+
+    expect(estimated.summary.nextStepLevel).toBe("monitor");
+    expect(connected.summary.nextStepLevel).toBe("emergency");
   });
 
   it("uses the canonical numeric severity scale in deterministic guidance", () => {

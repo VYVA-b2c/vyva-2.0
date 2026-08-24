@@ -1768,6 +1768,7 @@ export const vyvaSignalReadings = pgTable("vyva_signal_readings", {
   capture_method:  text("capture_method"),
   unit:            text("unit"),
   source_ref:      jsonb("source_ref"),
+  assessment_session_id: text("assessment_session_id"),
   context_tag:     text("context_tag").default("general"),
   baseline_ref:    numeric("baseline_ref", { precision: 8, scale: 2 }),
   deviation_pct:   numeric("deviation_pct", { precision: 6, scale: 2 }),
@@ -1824,11 +1825,15 @@ export const userDeviceConnections = pgTable("user_device_connections", {
   is_active:       boolean("is_active").default(true),
   provider_user_id: text("provider_user_id"),
   device_label:    text("device_label"),
+  device_kind:     text("device_kind"),
+  external_device_id: text("external_device_id"),
+  status:          text("status").notNull().default("ready"),
+  capabilities:    text("capabilities").array().notNull().default([]),
   metadata:        jsonb("metadata").default({}),
   connected_at:    timestamp("connected_at", { withTimezone: true }).defaultNow(),
   last_synced_at:  timestamp("last_synced_at", { withTimezone: true }),
 }, (t) => [
-  unique("user_device_connections_user_provider_unique").on(t.user_id, t.provider),
+  unique("user_device_connections_user_provider_kind_unique").on(t.user_id, t.provider, t.device_kind),
 ]);
 
 export const insertVyvaSignalReadingSchema = createInsertSchema(vyvaSignalReadings).omit({ id: true, created_at: true });

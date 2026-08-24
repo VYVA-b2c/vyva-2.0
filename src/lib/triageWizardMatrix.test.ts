@@ -111,6 +111,27 @@ const benignFlows: Record<string, Array<{ stage: PathStage; answerId: string }>>
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 describe("triage wizard matrix", () => {
+  it("asks pain location before showing location-specific warning signs", () => {
+    const location = triageWizardNodeFor("location", "pain");
+    expect(location.question.en).toBe("Where is the main pain?");
+    expect(location.replies.map((reply) => reply.label.en)).toEqual([
+      "Head or neck",
+      "Back",
+      "Belly or side",
+      "Arm, leg, or joint",
+      "Somewhere else",
+    ]);
+    expect(location.replies.every((reply) => reply.kind === "location")).toBe(true);
+
+    const headacheSafety = triageWizardNodeFor("red_flag", "pain", new Set(["head_neck_pain"]));
+    expect(headacheSafety.question.en).toBe("Does the head or neck pain include any warning signs?");
+    expect(headacheSafety.replies.map((reply) => reply.label.en)).not.toContain("Bladder, bowel, numbness, or leg weakness");
+
+    const backSafety = triageWizardNodeFor("red_flag", "pain", new Set(["back_pain"]));
+    expect(backSafety.question.en).toBe("Does the back pain include any warning signs?");
+    expect(backSafety.replies.map((reply) => reply.label.en)).toContain("Bladder, bowel, numbness, or leg weakness");
+  });
+
   it.each(TRIAGE_SYMPTOM_IDS)("matches approved question and choice text for %s", (symptomId) => {
     const expectedStages = expectedDefaultNodes[symptomId];
 

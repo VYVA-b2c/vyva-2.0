@@ -93,7 +93,7 @@ export const VITALS_DEVICE_CATALOG: VitalsDeviceCatalogItem[] = [
     label: "Heart-rate strap / BLE monitor",
     shortLabel: "Heart monitor",
     helper: "Reads pulse from straps and simple BLE heart monitors.",
-    signals: ["resting_hr_bpm", "hrv_ms"],
+    signals: ["resting_hr_bpm"],
     bleServices: [0x180d],
     bleCharacteristics: [0x2a37],
     fallbackSignals: ["resting_hr_bpm"],

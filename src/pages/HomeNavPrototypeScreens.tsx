@@ -313,6 +313,7 @@ function PrototypeTopbar({
   voicePath = "/dev/home-master",
   interactionMode = "touch",
   onInteractionModeChange,
+  titleTypography = "display",
 }: {
   kind: "home" | "hub" | "destination" | "detail" | "profile";
   title?: string;
@@ -324,9 +325,11 @@ function PrototypeTopbar({
   voicePath?: string;
   interactionMode?: "voice" | "touch";
   onInteractionModeChange?: (mode: "voice" | "touch") => void;
+  titleTypography?: "display" | "body";
 }) {
   const navigate = usePrototypeNavigate();
-  const left = kind === "home" || kind === "hub" ? (
+  const hasBackAction = kind !== "home" && Boolean(onBack || backPath);
+  const left = !hasBackAction && (kind === "home" || kind === "hub") ? (
     <VyvaProfileControl onClick={() => navigate(profilePath)} />
   ) : (
     <RoundControl icon={ArrowLeft} label="Back" testId="button-prototype-back" onClick={onBack ?? (() => navigate(backPath ?? "/dev/home-master"))} />
@@ -337,7 +340,11 @@ function PrototypeTopbar({
       <div>{left}</div>
       <div className="min-w-0 text-center">
         {title ? (
-          <h1 className="truncate font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">{title}</h1>
+          <h1 className={`truncate text-[24px] leading-tight text-inherit ${
+            titleTypography === "body"
+              ? "font-body font-extrabold tracking-[-0.025em]"
+              : "font-display font-semibold tracking-[-0.03em]"
+          }`}>{title}</h1>
         ) : null}
       </div>
       {kind === "home" ? (
@@ -383,13 +390,12 @@ export function PrototypeSymptomAssessmentShell({
   shellContract: SymptomAssessmentShellContract;
 }) {
   const { isDark } = useHomeMasterTheme();
-  const usesFlowContainer = shellContract.containerId === "flow.rounded-card";
   const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
 
   return (
     <PrototypeShell
       testId="prototype-symptom-assessment-screen"
-      width={usesFlowContainer ? "flow" : "phone"}
+      width="phone"
       dockPadding={shellContract.bottomNavId === "home-sos-reports"}
       shellContract={shellContract}
     >
@@ -720,17 +726,21 @@ export function PrototypeHomeScreen() {
   );
 }
 
-export function PrototypeMenuScreen() {
+export function PrototypeMenuScreen({
+  backPath = "/dev/home-master",
+}: {
+  backPath?: string;
+} = {}) {
   const items: RowItem[] = [
-    { icon: Heart, title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health" },
-    { icon: Brain, title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain" },
-    { icon: Users, title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community" },
-    { icon: Bell, title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge" },
+    { icon: Heart, title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
+    { icon: Brain, title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
+    { icon: Users, title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
+    { icon: Bell, title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
   ];
 
   return (
     <PrototypeShell testId="prototype-menu-screen">
-      <PrototypeTopbar kind="hub" profilePath="/dev/home-master/profile" compactVoice />
+      <PrototypeTopbar kind="hub" title="Menu" backPath={backPath} profilePath="/dev/home-master/profile" compactVoice />
       <HairlineRows items={items} testId="menu-tile-grid" />
     </PrototypeShell>
   );
@@ -738,30 +748,32 @@ export function PrototypeMenuScreen() {
 
 export function PrototypeHealthScreen({
   healthPlanPath = "/dev/home-master/health-plan",
-  symptomReportPath = "/dev/home-master/symptom-report",
+  askDrAiPath = "/dev/home-master/ask-dr-ai?fresh=1",
   vitalsPath = "/dev/home-master/vitals",
   medicinesPath = "/dev/home-master/medicines",
   voicePath = "/dev/home-master",
   profilePath = "/dev/home-master/profile",
+  backPath = "/dev/home-master/menu",
 }: {
   checkInPath?: string;
   healthPlanPath?: string;
-  symptomReportPath?: string;
+  askDrAiPath?: string;
   vitalsPath?: string;
   medicinesPath?: string;
   voicePath?: string;
   profilePath?: string;
+  backPath?: string;
 }) {
   const healthRows: RowItem[] = [
-    { icon: ShieldCheck, title: "Longevity Plan", subtitle: "Preventive plan", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: Stethoscope, title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: symptomReportPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: Stethoscope, title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
     { icon: HeartPulse, title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, title: "My Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Pill, title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
     <PrototypeShell testId="prototype-health-screen">
-      <PrototypeTopbar kind="hub" title="My Health" profilePath={profilePath} voicePath={voicePath} compactVoice />
+      <PrototypeTopbar kind="hub" title="My Health" backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
       <HairlineRows items={healthRows} />
     </PrototypeShell>
   );
@@ -777,8 +789,8 @@ const healthActionPreviewContent: Record<PrototypeHealthActionPreviewKind, {
 }> = {
   plan: {
     icon: ShieldCheck,
-    title: "Longevity Plan",
-    subtitle: "Your preventive plan will open here.",
+    title: "Longevity",
+    subtitle: "Prevention is the best cure",
     tone: "brain",
   },
   symptom: {
@@ -795,7 +807,7 @@ const healthActionPreviewContent: Record<PrototypeHealthActionPreviewKind, {
   },
   medicines: {
     icon: Pill,
-    title: "My Medication",
+    title: "Medication",
     subtitle: "Dose times and reminders open here.",
     tone: "profile",
   },

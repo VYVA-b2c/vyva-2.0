@@ -116,7 +116,8 @@ describe("Home/Nav prototype screens", () => {
     expect(shell).toHaveAttribute("data-composer-contract", "hidden");
     expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
-    expect(screen.getByTestId("checkin-desktop-shell")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
+    expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass("max-w-[430px]");
+    expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
   });
 
   it.each(["/health/symptom-check", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next"])(
@@ -157,14 +158,18 @@ describe("Home/Nav prototype screens", () => {
 
     expect(screen.getByTestId("prototype-menu-screen")).toBeInTheDocument();
     expect(within(screen.getByTestId("menu-tile-grid")).getAllByRole("button")).toHaveLength(4);
-    expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
+    expect(screen.getByTestId("button-prototype-back")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
     expect(screen.getAllByTestId(/card-home-agent-/)).toHaveLength(4);
     expect(screen.getByText("Health")).toBeInTheDocument();
     expect(screen.getByText("My Brain")).toBeInTheDocument();
     expect(screen.getByText("Community")).toBeInTheDocument();
     expect(screen.getByText("Concierge")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Menu" })).toBeInTheDocument();
     expect(screen.queryByText("Reports")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-prototype-back"));
+    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
   });
 
   it("switches from manual Menu back to the voice Home surface when compact mic is tapped", () => {
@@ -206,19 +211,19 @@ describe("Home/Nav prototype screens", () => {
   it("renders Health as a calm row-based detail surface with check-in and symptom report separated", () => {
     renderScreen(<PrototypeHealthScreen />);
 
-    expect(screen.getByTestId("button-home-profile")).toBeInTheDocument();
+    expect(screen.getByTestId("button-prototype-back")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
     expect(screen.queryByTestId("prototype-health-orb")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask VYVA")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Health" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "My Health" })).toBeInTheDocument();
-    expect(screen.getByText("Longevity Plan")).toBeInTheDocument();
-    expect(screen.getByText("Preventive plan")).toBeInTheDocument();
+    expect(screen.getByText("Longevity")).toBeInTheDocument();
+    expect(screen.getByText("Prevention is the best cure")).toBeInTheDocument();
     expect(screen.getByText("Ask Dr. AI")).toBeInTheDocument();
     expect(screen.getByText("Aches or changes")).toBeInTheDocument();
     expect(screen.getByText("My Vitals")).toBeInTheDocument();
     expect(screen.getByText("Readings and trends")).toBeInTheDocument();
-    expect(screen.getByText("My Medication")).toBeInTheDocument();
+    expect(screen.getByText("Medication")).toBeInTheDocument();
     expect(screen.getByText("Doses and reminders")).toBeInTheDocument();
     expect(screen.getByText("Today")).toBeInTheDocument();
     expect(screen.getByText("Start")).toBeInTheDocument();
@@ -231,6 +236,9 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.queryByText("Heart rate — this week")).not.toBeInTheDocument();
     expect(screen.queryByText("Heart rate")).not.toBeInTheDocument();
     expect(screen.queryByText("Blood pressure")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-prototype-back"));
+    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/menu");
   });
 
   it("switches from Health back to the voice Home surface when compact mic is tapped", () => {
@@ -250,7 +258,7 @@ describe("Home/Nav prototype screens", () => {
     fireEvent.click(screen.getByTestId("button-health-medicines"));
 
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/health-plan");
-    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/symptom-report");
+    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/ask-dr-ai?fresh=1");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/vitals");
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/medicines");
   });
@@ -259,11 +267,12 @@ describe("Home/Nav prototype screens", () => {
     renderScreen(
       <PrototypeHealthScreen
         healthPlanPath="/health/prevention"
-        symptomReportPath="/health/symptom-check"
+        askDrAiPath="/health/symptom-check?fresh=1"
         vitalsPath="/health/vitals"
         medicinesPath="/meds/my-medicines"
         voicePath="/"
         profilePath="/settings/account"
+        backPath="/menu"
       />,
     );
 
@@ -277,14 +286,14 @@ describe("Home/Nav prototype screens", () => {
     fireEvent.click(screen.getByTestId("button-health-vitals"));
     fireEvent.click(screen.getByTestId("button-health-medicines"));
     fireEvent.click(screen.getByTestId("button-compact-voice"));
-    fireEvent.click(screen.getByTestId("button-home-profile"));
+    fireEvent.click(screen.getByTestId("button-prototype-back"));
 
     expect(navigateMock).toHaveBeenCalledWith("/health/prevention");
-    expect(navigateMock).toHaveBeenCalledWith("/health/symptom-check");
+    expect(navigateMock).toHaveBeenCalledWith("/health/symptom-check?fresh=1");
     expect(navigateMock).toHaveBeenCalledWith("/health/vitals");
     expect(navigateMock).toHaveBeenCalledWith("/meds/my-medicines");
     expect(navigateMock).toHaveBeenCalledWith("/");
-    expect(navigateMock).toHaveBeenCalledWith("/settings/account");
+    expect(navigateMock).toHaveBeenCalledWith("/menu");
   });
 
   it("routes Profile rows to dev-safe preview destinations instead of protected login handoffs", () => {
@@ -433,12 +442,12 @@ describe("Home/Nav prototype screens", () => {
     window.removeEventListener(VYVA_OPEN_SOS_EVENT, handler);
   });
 
-  it("keeps symptom reporting as a separate Health entry instead of a check-in summary branch", () => {
-    renderScreen(<PrototypeHealthScreen checkInPath="/dev/home-master/check-in" symptomReportPath="/dev/home-master/symptom-report" />);
+  it("opens Ask Dr. AI as a fresh assessment instead of the report placeholder", () => {
+    renderScreen(<PrototypeHealthScreen checkInPath="/dev/home-master/check-in" askDrAiPath="/dev/home-master/ask-dr-ai?fresh=1" />);
 
     fireEvent.click(screen.getByTestId("button-health-symptom-report"));
 
-    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/symptom-report");
+    expect(navigateMock).toHaveBeenCalledWith("/dev/home-master/ask-dr-ai?fresh=1");
   });
 
   it("renders the local symptom-report handoff preview without requiring auth", () => {
@@ -454,9 +463,9 @@ describe("Home/Nav prototype screens", () => {
 
   it("renders local preview handoffs for protected Health destinations", () => {
     const cases = [
-      ["plan", "Longevity Plan", "Your preventive plan will open here."],
+      ["plan", "Longevity", "Prevention is the best cure"],
       ["vitals", "My Vitals", "Latest readings and new measurements live here."],
-      ["medicines", "My Medication", "Dose times and reminders open here."],
+      ["medicines", "Medication", "Dose times and reminders open here."],
     ] as const;
 
     for (const [kind, title, subtitle] of cases) {
