@@ -3564,7 +3564,11 @@ export default function SymptomCheckScreen() {
   const { markCompleted, markAbandoned, markBlocked } = useHomeFastHelpOutcome(location.state);
   const incomingState = location.state as SymptomCheckLocationState;
   const incomingInitialClue = typeof incomingState?.initialClue === "string" ? incomingState.initialClue.trim() : "";
-  const [restoredDraft] = useState(() => readSymptomCheckDraft());
+  const [restoredDraft] = useState(() => (
+    import.meta.env.DEV && new URLSearchParams(window.location.search).get("fresh") === "1"
+      ? null
+      : readSymptomCheckDraft()
+  ));
   const { data: triageContext } = useQuery<TriageContextResponse>({
     queryKey: ["/api/triage/context"],
     retry: false,

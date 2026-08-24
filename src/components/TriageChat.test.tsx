@@ -329,6 +329,51 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(review).toHaveTextContent("Related detail");
   });
 
+  it("returns to severity when the user edits the review", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "How strong is it?",
+      done: false,
+      wizardStage: "severity",
+      quickReplies: Array.from({ length: 11 }, (_, value) => ({
+        id: `severity_${value}`,
+        label: String(value),
+        value: `The symptom feels ${value} out of 10.`,
+        icon: "activity",
+        tone: "purple",
+        kind: "severity",
+      })),
+    }));
+
+    await renderTriageChat({
+      initialClue: "I have a headache",
+      presentationStage: "review",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Does this look right?" }],
+        selectedQuickAnswers: [
+          { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+          { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" },
+          { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
+          { id: "today", label: "Today", value: "Today", kind: "duration" },
+          { id: "same", label: "Nothing changed", value: "Nothing changed.", kind: "trend" },
+        ],
+        apiQuickReplies: [
+          { id: "edit_answers", label: "Edit", value: "I want to edit my answers.", icon: "activity", tone: "purple", kind: "support" },
+          { id: "confirm_review", label: "Confirm", value: "These answers are correct.", icon: "help", tone: "purple", kind: "support" },
+        ],
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const requestBody = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(requestBody.wizard.quickAnswers).toEqual([
+      expect.objectContaining({ id: "pain", kind: "symptom" }),
+      expect.objectContaining({ id: "no_red_flag", kind: "red_flag" }),
+    ]);
+  });
+
   it("shows simple question progress without the confidence tracker by default", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",

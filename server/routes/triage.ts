@@ -538,7 +538,7 @@ function wizardStageLabel(stage: WizardStage, locale: string) {
     duration: { en: "When it started", es: "Cuando empezo" },
     severity: { en: "More details", es: "Mas detalles" },
     trend: { en: "What changed", es: "Que cambio" },
-    support: { en: "Next step", es: "Siguiente paso" },
+    support: { en: "Review answers", es: "Revisar respuestas" },
     complete: { en: "Summary", es: "Resumen" },
   };
   return text(locale, labels[stage].en, labels[stage].es);
@@ -550,6 +550,12 @@ function wizardQuestionText(
   locale: string,
 ): string {
   const symptomId = selectedSymptomId(wizard);
+  if (stage === "support") {
+    return text(locale, "Does this look right?", "Esto parece correcto?");
+  }
+  if (stage === "severity") {
+    return text(locale, "How strong is it?", "Que intensidad tiene?");
+  }
   if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) {
     return text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer.");
   }
@@ -940,6 +946,45 @@ function matrixReplyToQuickReply(locale: string, item: TriageWizardMatrixReply):
 function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageQuickReply[] {
   const stage = nextAdaptiveStage(wizard, healthMemory);
   if (stage === "complete") return [];
+  if (stage === "support") {
+    return [
+      reply(
+        locale,
+        "edit_answers",
+        "support",
+        "Edit",
+        "Editar",
+        "I want to edit my answers.",
+        "Quiero editar mis respuestas.",
+        "activity",
+        "purple",
+      ),
+      reply(
+        locale,
+        "confirm_review",
+        "support",
+        "Yes, show my guidance",
+        "Si, muestra mi orientacion",
+        "These answers are correct. Show my guidance.",
+        "Estas respuestas son correctas. Muestra mi orientacion.",
+        "help",
+        "purple",
+      ),
+    ];
+  }
+  if (stage === "severity") {
+    return Array.from({ length: 11 }, (_, score) => reply(
+      locale,
+      `severity_${score}`,
+      "severity",
+      String(score),
+      String(score),
+      `The symptom feels ${score} out of 10.`,
+      `El sintoma se siente ${score} de 10.`,
+      "activity",
+      score >= 7 ? "red" : score >= 4 ? "amber" : "green",
+    ));
+  }
   if (!["symptom", "red_flag", "duration", "severity", "trend"].includes(stage)) return [];
 
   const symptomId = selectedSymptomId(wizard);
@@ -1069,9 +1114,9 @@ CONVERSATION FLOW:
 2. If there is no symptom category yet, ask what feels wrong today.
 3. After a symptom category, ask the most relevant red-flag question first using the SYMPTOM AND PROFILE QUESTION MATRIX. If the reply buttons cover several warning signs, ask a broad matching question like "Do any of these warning signs apply?" instead of naming only one option.
 4. Adapt concern level to HEALTH MEMORY. Be more cautious for diabetes, kidney disease, COPD/oxygen use, heart failure, heart disease/AFib, high blood pressure, stroke/TIA history, blood thinners, low immunity/cancer treatment, liver disease, recent surgery, falls/frailty, Parkinson's, osteoporosis, high-risk medications, and new confusion.
-5. After the safety check, follow the adaptive wizard stage supplied by the app. Ask the single next question that matches the quick reply choices. You may finish once the app stage is complete, even if fewer than 5 questions were needed.
+5. After the safety check, follow every wizard stage supplied by the app: severity, onset, change over time, and review. Ask the single next question that matches the quick reply choices.
 6. Avoid repeating questions already answered in WIZARD CONTEXT.
-7. After gathering sufficient information, gently wrap up. Some high-signal paths need fewer questions.
+7. Only wrap up after the user confirms the review stage. Emergency warning signs may still escalate immediately.
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START

@@ -740,6 +740,17 @@ export default function TriageChat({
 
     const userMsg: ChatMessage = { role: "user", content: text };
     const newHistory = [...messages, userMsg];
+    if (quickAnswer?.id === "edit_answers") {
+      const retainedAnswers = selectedQuickAnswers.filter((answer) =>
+        answer.kind === "symptom" || answer.kind === "red_flag"
+      );
+      setSelectedQuickAnswers(retainedAnswers);
+      setMessages(newHistory);
+      scrollToBottom();
+      await sendToApi(newHistory, retainedAnswers);
+      inputRef.current?.focus();
+      return;
+    }
     const nextSelectedQuickAnswers = quickAnswer
       ? [...selectedQuickAnswers, { id: quickAnswer.id, label: quickAnswer.label, value: quickAnswer.value, kind: quickAnswer.kind }]
       : selectedQuickAnswers;

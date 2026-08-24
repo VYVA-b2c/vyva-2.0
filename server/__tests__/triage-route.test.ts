@@ -45,8 +45,28 @@ type QuickAnswer = {
   id: string;
   label: string;
   value: string;
-  kind: "symptom" | "red_flag" | "duration" | "severity" | "trend";
+  kind: "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support";
 };
+
+function completedAnswers(answers: QuickAnswer[]): QuickAnswer[] {
+  return [
+    ...answers,
+    ...(answers.some((answer) => answer.kind === "duration")
+      ? []
+      : [{ id: "today", label: "Started today", value: "It started today.", kind: "duration" as const }]),
+    ...(answers.some((answer) => answer.kind === "trend")
+      ? []
+      : [{ id: "same", label: "About the same", value: "It is about the same.", kind: "trend" as const }]),
+    ...(answers.some((answer) => answer.kind === "support")
+      ? []
+      : [{
+          id: "confirm_review",
+          label: "Yes, show my guidance",
+          value: "These answers are correct. Show my guidance.",
+          kind: "support" as const,
+        }]),
+  ];
+}
 
 const summaryShapeKeys = [
   "chiefComplaint",
@@ -285,6 +305,56 @@ describe("triage route wizard questions", () => {
     openAiTranscriptionCreateMock.mockReset();
   });
 
+  it("walks every canonical non-emergency stage before returning guidance", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const answers: QuickAnswer[] = [
+      { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+    ];
+    const submit = () => request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "I have a headache" }],
+        wizard: { mode: "without_vitals", quickAnswers: answers },
+      })
+      .expect(200);
+
+    expect((await submit()).body.wizardStage).toBe("red_flag");
+    answers.push({ id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" });
+    const severity = await submit();
+    expect(severity.body).toMatchObject({ wizardStage: "severity", content: "How strong is it?" });
+    expect(severity.body.quickReplies.map((reply: { label: string }) => reply.label)).toEqual([
+      "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    ]);
+    answers.push({ id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" });
+    expect((await submit()).body.wizardStage).toBe("duration");
+    answers.push({ id: "today", label: "Started today", value: "It started today.", kind: "duration" });
+    expect((await submit()).body.wizardStage).toBe("trend");
+    answers.push({ id: "same", label: "Nothing clearly changed it", value: "Nothing clearly changed it.", kind: "trend" });
+
+    const review = await submit();
+    expect(review.body).toMatchObject({
+      done: false,
+      wizardStage: "support",
+      wizardStageLabel: "Review answers",
+      content: "Does this look right?",
+    });
+    expect(review.body.quickReplies).toEqual([
+      expect.objectContaining({ id: "edit_answers", kind: "support", label: "Edit" }),
+      expect.objectContaining({ id: "confirm_review", kind: "support", label: "Yes, show my guidance" }),
+    ]);
+
+    answers.push({
+      id: "confirm_review",
+      label: "Yes, show my guidance",
+      value: "These answers are correct. Show my guidance.",
+      kind: "support",
+    });
+    const complete = await submit();
+    expect(complete.body).toMatchObject({ done: true, wizardStage: "complete" });
+    expect(complete.body.summary).toBeDefined();
+  });
+
   it("transcribes raw symptom audio into a short clue", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
     openAiToFileMock.mockResolvedValue("audio-file");
@@ -357,13 +427,13 @@ describe("triage route wizard questions", () => {
       .expect(200);
 
     expect(res.body.done).toBe(false);
-    expect(res.body.wizardStage).toBe("trend");
-    expect(res.body.content).toBe("Which best describes what is happening now?");
+    expect(res.body.wizardStage).toBe("duration");
+    expect(res.body.content).toBe("When did this start?");
     expect(res.body.quickReplies.map((reply: { label: string }) => reply.label)).toEqual([
-      "It started suddenly or is worse today",
-      "It started after medicine, surgery, hospital, or a fall",
-      "It is ongoing and not improving",
-      "It is mild, brief, and improving",
+      "Started today",
+      "Few days",
+      "Longer than a few days",
+      "I am not sure",
     ]);
   });
 
@@ -385,8 +455,8 @@ describe("triage route wizard questions", () => {
       .expect(200);
 
     expect(res.body.done).toBe(false);
-    expect(res.body.wizardStage).toBe("trend");
-    expect(res.body.content).toBe("How is pain or movement now?");
+    expect(res.body.wizardStage).toBe("duration");
+    expect(res.body.content).toBe("When did the fall or injury happen?");
     expect(res.body.quickReplies.map((reply: { label: string }) => reply.label).join(" ")).not.toContain("Knocked out");
   });
 
@@ -400,12 +470,12 @@ describe("triage route wizard questions", () => {
         messages: [{ role: "user", content: "Bad headache" }],
         wizard: {
           mode: "without_vitals",
-          quickAnswers: [
+          quickAnswers: completedAnswers([
             { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
             { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
             { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
             { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
-          ],
+          ]),
         },
       })
       .expect(200);
@@ -438,12 +508,12 @@ describe("triage route wizard questions", () => {
         messages: [{ role: "user", content: "Breathing feels off" }],
         wizard: {
           mode: "without_vitals",
-          quickAnswers: [
+          quickAnswers: completedAnswers([
             { id: "breathing", label: "Breathing", value: "I have a breathing concern.", kind: "symptom" },
             { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
             { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
             { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
-          ],
+          ]),
           vitals: { oxygenSaturation: 92 },
         },
       })
@@ -483,12 +553,12 @@ describe("triage route wizard questions", () => {
         messages: [{ role: "user", content: "Bad headache" }],
         wizard: {
           mode: "without_vitals",
-          quickAnswers: [
+          quickAnswers: completedAnswers([
             { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
             { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
             { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
             { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
-          ],
+          ]),
         },
       })
       .expect(200);
@@ -519,7 +589,7 @@ describe("triage route wizard questions", () => {
         messages: [{ role: "user", content: message }],
         wizard: {
           mode: "without_vitals",
-          quickAnswers,
+          quickAnswers: completedAnswers(quickAnswers),
         },
       })
       .expect(200);
@@ -554,12 +624,12 @@ describe("triage route wizard questions", () => {
         messages: [{ role: "user", content: "My urine looks red" }],
         wizard: {
           mode: "without_vitals",
-          quickAnswers: [
+          quickAnswers: completedAnswers([
             { id: "urinary", label: "Urine problem", value: "I have a urine problem.", kind: "symptom" },
             { id: "blood_in_urine", label: "Blood in urine or clots", value: "There is blood or clots in my urine.", kind: "red_flag" },
             { id: "moderate", label: "Moderate", value: "It feels moderate.", kind: "severity" },
             { id: "worse", label: "Worse", value: "It is getting worse.", kind: "trend" },
-          ],
+          ]),
           scanResults: [{
             id: "scan-urine-1",
             type: "urine_photo",
@@ -699,12 +769,12 @@ describe("triage route wizard questions", () => {
         ],
         wizard: {
           mode: "without_vitals",
-          quickAnswers: [
+          quickAnswers: completedAnswers([
             { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
             { id: "no_red_flag", label: "No, none of these", value: "None of these apply.", kind: "red_flag" },
             { id: "limb_joint_pain", label: "Arm, leg, joint, or other", value: "The pain is in an arm, leg, joint, or somewhere else.", kind: "severity" },
             { id: "better", label: "Pain is easing", value: "The pain is easing.", kind: "trend" },
-          ],
+          ]),
         },
       })
       .expect(200);
