@@ -2861,7 +2861,7 @@ const SignosScreen = () => {
   return (
     <HealthWizardShell contentClassName="max-w-[1180px] px-4 pb-40 sm:px-6 lg:px-8">
       <HealthWizardTopBar
-        title={t("statusVitals.plan.pageTitle", "My Health Plan")}
+        title={t("statusVitals.plan.pageTitle", "Longevity Plan")}
         kicker={t("statusVitals.hub.pageKicker", "Health")}
         onBack={() => navigate("/health")}
         backLabel={t("common.back", "Back")}

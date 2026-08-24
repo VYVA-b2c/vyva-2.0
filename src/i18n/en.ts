@@ -527,21 +527,21 @@
         mobileHint: "Pulse and trends",
       },
       healthPlan: {
-        label: "My Health Plan",
+        label: "Longevity Plan",
         hint: "Check-ins and care plan",
-        mobileLabel: "Health Plan",
+        mobileLabel: "Longevity Plan",
         mobileHint: "Check-ins",
       },
     },
     master: {
-      heroEyebrow: "Health Plan",
-      heroTitle: "Health Plan Ready",
+      heroEyebrow: "Longevity Plan",
+      heroTitle: "Longevity Plan Ready",
       talkToVyva: "Talk to VYVA",
       voiceSupport: "Speak anytime",
       pauseVyva: "Pause VYVA",
       connectingVyva: "Connecting...",
       cards: {
-        feelBetter: "Symptom Check",
+        feelBetter: "Ask Dr. AI",
         myMedication: "My Medication",
         myVitals: "My Vitals",
         stayWell: "Age Well",
@@ -584,7 +584,7 @@
       },
     },
     prevention: {
-      back: "Health Plan",
+      back: "Longevity Plan",
       eyebrow: "Prevention",
       talk: "Talk to VYVA",
       askVyva: "Ask VYVA",
@@ -749,7 +749,7 @@
     homeTools: {
       kicker: "Health tools",
       title: "All health areas",
-      plan: { label: "Health Plan", detail: "Care steps", upToDate: "Up to date", stepLeft: "1 step left", stepsLeft: "{{count}} steps left" },
+      plan: { label: "Longevity Plan", detail: "Care steps", upToDate: "Up to date", stepLeft: "1 step left", stepsLeft: "{{count}} steps left" },
       vitals: { label: "Vitals", detail: "Capture", reviewDetail: "Needs review", stableDetail: "{{signal}} stable" },
       symptoms: { label: "Symptoms", detail: "Start check", monitorOnly: "Monitor only", review: "Review report" },
       medicine: { label: "Medicine", detail: "Schedule", due: "{{count}} due", oneDueTonight: "1 due tonight", oneDueAt: "1 due {{time}}", nextDue: "{{name}} {{time}}" },
@@ -864,7 +864,7 @@
       nextAt: "Next check-in",
       defaultTime: "Default time: 10:00",
       needsCaregiver: "Caregiver contact needed",
-      history: "My Health Plan",
+      history: "Longevity Plan",
       messages: {
         completed: "VYVA has today's signal.",
         dueNow: "Answer in a few seconds.",
@@ -875,7 +875,7 @@
       },
       actions: {
         primary: "Check in",
-        viewHistory: "My Health Plan",
+        viewHistory: "Longevity Plan",
         checkInEarly: "Check early",
         setup: "Set up",
       },
@@ -2052,7 +2052,7 @@
         help: "Help",
       },
       fastHelp: {
-        feelBetter: "Symptom Check",
+        feelBetter: "Ask Dr. AI",
         feelBetterDetail: "Symptoms or worries",
         stayWell: "Age Well",
         stayWellDetail: "Prevention tips",

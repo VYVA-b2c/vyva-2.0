@@ -53,7 +53,7 @@ export type SymptomAssessmentComposerVisibility = "hidden" | "visible";
 export type SymptomAssessmentShellContract = Readonly<{
   shellId: "home.production";
   headerId: "detail.voice-touch";
-  headerTitle: "Symptom Check";
+  headerTitle: "Ask Dr. AI";
   containerId: "flow.rounded-card";
   bottomNavId: "home-sos-reports";
   composer: SymptomAssessmentComposerVisibility;
@@ -62,7 +62,7 @@ export type SymptomAssessmentShellContract = Readonly<{
 export const SYMPTOM_ASSESSMENT_SHELL_CONTRACT: SymptomAssessmentShellContract = Object.freeze({
   shellId: "home.production",
   headerId: "detail.voice-touch",
-  headerTitle: "Symptom Check",
+  headerTitle: "Ask Dr. AI",
   containerId: "flow.rounded-card",
   bottomNavId: "home-sos-reports",
   composer: "hidden",

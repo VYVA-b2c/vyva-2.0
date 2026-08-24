@@ -1329,7 +1329,7 @@ export default function PreventionScreen() {
           ariaLabel={t("health.prevention.back", "Back to My Health")}
         />
         <h1 className={["font-display text-[24px] font-semibold leading-tight tracking-[-0.03em]", isDark ? "text-[#FFF8FF]" : "text-[#241C30]"].join(" ")}>
-          {t("health.prevention.title", "Health Plan")}
+          {t("health.prevention.title", "Longevity Plan")}
         </h1>
         <HomeMasterActionControl
           isDark={isDark}

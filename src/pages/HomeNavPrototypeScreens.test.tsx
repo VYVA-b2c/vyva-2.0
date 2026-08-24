@@ -21,6 +21,11 @@ import {
 } from "./HomeNavPrototypeScreens";
 import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import {
+  hidesHomeNavPrototypeDock,
+  isHomeNavPrototypeDockRoute,
+  isHomeNavPrototypeTopbarRoute,
+} from "@/lib/homeNavPrototypeRoutes";
 import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { READABLE_TEXT_SIZE_STORAGE_KEY } from "@/hooks/useReadableTextSize";
 
@@ -109,10 +114,19 @@ describe("Home/Nav prototype screens", () => {
     expect(shell).toHaveAttribute("data-container-contract", "flow.rounded-card");
     expect(shell).toHaveAttribute("data-bottom-nav-contract", "home-sos-reports");
     expect(shell).toHaveAttribute("data-composer-contract", "hidden");
-    expect(screen.getByRole("heading", { name: "Symptom Check" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
-    expect(screen.getByTestId("checkin-desktop-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-desktop-shell")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
   });
+
+  it.each(["/health/symptom-check", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next"])(
+    "keeps one flow-owned header and the shared Home/SOS/Reports dock on %s",
+    (pathname) => {
+      expect(isHomeNavPrototypeTopbarRoute(pathname)).toBe(true);
+      expect(isHomeNavPrototypeDockRoute(pathname)).toBe(true);
+      expect(hidesHomeNavPrototypeDock(pathname)).toBe(false);
+    },
+  );
 
   it("shows the idle prompt only during the first ten seconds after app load", () => {
     vi.useFakeTimers();
@@ -198,13 +212,13 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.queryByText("Ask VYVA")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Health" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "My Health" })).toBeInTheDocument();
-    expect(screen.getByText("Health Plan")).toBeInTheDocument();
+    expect(screen.getByText("Longevity Plan")).toBeInTheDocument();
     expect(screen.getByText("Preventive plan")).toBeInTheDocument();
-    expect(screen.getByText("Symptom Check")).toBeInTheDocument();
+    expect(screen.getByText("Ask Dr. AI")).toBeInTheDocument();
     expect(screen.getByText("Aches or changes")).toBeInTheDocument();
-    expect(screen.getByText("Vitals Scan")).toBeInTheDocument();
+    expect(screen.getByText("My Vitals")).toBeInTheDocument();
     expect(screen.getByText("Readings and trends")).toBeInTheDocument();
-    expect(screen.getByText("Medicines")).toBeInTheDocument();
+    expect(screen.getByText("My Medication")).toBeInTheDocument();
     expect(screen.getByText("Doses and reminders")).toBeInTheDocument();
     expect(screen.getByText("Today")).toBeInTheDocument();
     expect(screen.getByText("Start")).toBeInTheDocument();
@@ -431,7 +445,7 @@ describe("Home/Nav prototype screens", () => {
     renderScreen(<PrototypeSymptomReportPreviewScreen />);
 
     expect(screen.getByTestId("prototype-health-action-preview-symptom")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Symptom Check" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
     expect(screen.getByText("A focused symptom report starts here.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-health-action-preview-back"));
@@ -440,9 +454,9 @@ describe("Home/Nav prototype screens", () => {
 
   it("renders local preview handoffs for protected Health destinations", () => {
     const cases = [
-      ["plan", "My Health Plan", "Your preventive plan will open here."],
-      ["vitals", "Vitals Scan", "Latest readings and new measurements live here."],
-      ["medicines", "Medicines", "Dose times and reminders open here."],
+      ["plan", "Longevity Plan", "Your preventive plan will open here."],
+      ["vitals", "My Vitals", "Latest readings and new measurements live here."],
+      ["medicines", "My Medication", "Dose times and reminders open here."],
     ] as const;
 
     for (const [kind, title, subtitle] of cases) {

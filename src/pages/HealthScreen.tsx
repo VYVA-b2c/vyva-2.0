@@ -1173,7 +1173,7 @@ export function DailyCheckinCard({
     checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Scheduled for later today.") :
     t("health.dailyCheckin.messages.notScheduled", "Pick a daily check-in time.");
   const primaryLabel =
-    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "My Health Plan") :
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "Longevity Plan") :
     checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check early") :
     checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up") :
     t("health.dailyCheckin.actions.primary", "Check in");
@@ -1226,7 +1226,7 @@ export function DailyCheckinCard({
             onClick={onHistory}
             className="vyva-secondary-action min-h-[58px] text-[17px]"
           >
-            {t("health.dailyCheckin.history", "My Health Plan")}
+            {t("health.dailyCheckin.history", "Longevity Plan")}
           </button>
         ) : null}
       </div>
@@ -2943,7 +2943,7 @@ const HealthScreen = () => {
     {
       id: "plan",
       Icon: ClipboardList,
-      label: t("health.homeTools.plan.label", "Health Plan"),
+      label: t("health.homeTools.plan.label", "Longevity Plan"),
       detail: planToolDetail,
       iconBg: "#F5F3FF",
       iconColor: "#6B21A8",
@@ -3002,7 +3002,7 @@ const HealthScreen = () => {
     {
       id: "feel-better",
       icon: HeartPulse,
-      title: t("health.master.cards.feelBetter", "Symptom Check"),
+      title: t("health.master.cards.feelBetter", "Ask Dr. AI"),
       detail: t("health.homeTools.symptoms.detail", "Start check"),
       accent: t("health.master.cards.symptomsStart", "Start"),
       tone: {
@@ -3221,8 +3221,8 @@ const HealthScreen = () => {
         fastHelpTitle={t("health.fastHelp.kicker", "Fast help")}
         hero={{
           icon: Stethoscope,
-          eyebrow: t("health.master.heroEyebrow", "Health Plan"),
-          title: t("health.master.heroTitle", "Health Plan Ready"),
+          eyebrow: t("health.master.heroEyebrow", "Longevity Plan"),
+          title: t("health.master.heroTitle", "Longevity Plan Ready"),
           action: {
             kind: "voice",
             label: t("health.master.talkToVyva", "Talk to VYVA"),

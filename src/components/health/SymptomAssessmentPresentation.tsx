@@ -1,4 +1,12 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+import {
+  HeartPulse,
+  Search,
+  ShieldCheck,
+  Stethoscope,
+  type LucideIcon,
+} from "lucide-react";
 import {
   resolveSymptomAssessmentPresentation,
   type SymptomAssessmentStageId,
@@ -88,9 +96,9 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
     layout: "review",
   },
   checking: {
-    eyebrow: "Checking",
-    title: "Checking safely",
-    helper: "VYVA is comparing your answers with trusted guidance.",
+    eyebrow: "Bringing it together",
+    title: "Reviewing your symptoms",
+    helper: "",
     layout: "progress",
   },
   safest_next_step: {
@@ -107,6 +115,74 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
   },
 };
 
+type CheckingInsight = {
+  title: string;
+  Icon: LucideIcon;
+};
+
+const CHECKING_INSIGHTS: readonly CheckingInsight[] = [
+  {
+    title: "Reviewing your symptoms",
+    Icon: Stethoscope,
+  },
+  {
+    title: "Reviewing your health profile",
+    Icon: HeartPulse,
+  },
+  {
+    title: "Searching 40M+ peer-reviewed sources",
+    Icon: Search,
+  },
+  {
+    title: "Checking safety signals",
+    Icon: ShieldCheck,
+  },
+] as const;
+
+function SymptomCheckingProgress() {
+  const [activeInsight, setActiveInsight] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setActiveInsight((current) => (current + 1) % CHECKING_INSIGHTS.length);
+    }, 1600);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const activeCopy = CHECKING_INSIGHTS[activeInsight];
+  const ActiveIcon = activeCopy.Icon;
+
+  return (
+    <div
+      className="flex min-h-[250px] flex-col items-center justify-center px-3 text-center"
+      data-testid="symptom-scene-progress"
+      role="status"
+      aria-live="polite"
+    >
+      <span className="grid h-[72px] w-[72px] place-items-center rounded-[24px] border border-white/20 bg-white/15 text-white shadow-[0_14px_32px_rgba(32,12,68,0.22)] backdrop-blur-sm motion-safe:animate-pulse">
+        <ActiveIcon size={32} strokeWidth={2.25} aria-hidden="true" />
+      </span>
+      <h2 className="mt-7 max-w-[300px] font-display text-[28px] font-medium leading-[1.08] text-white">
+        {activeCopy.title}
+      </h2>
+      <div className="mt-7 flex items-center justify-center gap-2" aria-label={`Step ${activeInsight + 1} of ${CHECKING_INSIGHTS.length}`}>
+        {CHECKING_INSIGHTS.map(({ title }, index) => (
+          <span
+            key={title}
+            className={`h-2 rounded-full transition-all duration-300 ${index === activeInsight ? "w-7 bg-white" : "w-2 bg-white/30"}`}
+            aria-hidden="true"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export type SymptomAssessmentReviewItem = {
   label: string;
   value: string;
@@ -122,6 +198,7 @@ type SymptomAssessmentPresentationProps = {
   onModalityChange?: (modality: SymptomAssessmentModality) => void;
   showHeader?: boolean;
   fullBleedChildren?: boolean;
+  allowProgressChildren?: boolean;
   className?: string;
 };
 
@@ -135,6 +212,7 @@ export function SymptomAssessmentPresentation({
   onModalityChange,
   showHeader = true,
   fullBleedChildren = false,
+  allowProgressChildren = false,
   className = "",
 }: SymptomAssessmentPresentationProps) {
   const scene = stagePresentation[stageId];
@@ -151,6 +229,7 @@ export function SymptomAssessmentPresentation({
       scene.layout === "binary");
   const usesCompactProductionDescribeFrame =
     stageId === "describe" && modality === "touch" && !showHeader;
+  const usesCheckingFrame = stageId === "checking";
   const usesResultFrame = stageId === "safest_next_step" || stageId === "save_share_summary";
   const responsiveFrameWidth = "max-w-[330px] md:max-w-[520px]";
   const responsiveFrameHeight = stageId === "severity"
@@ -158,20 +237,22 @@ export function SymptomAssessmentPresentation({
     : stageId === "related_details"
       ? "min-h-[535px] md:min-h-[460px]"
     : stageId === "checking"
-      ? "min-h-[535px] md:min-h-[420px]"
+      ? "min-h-[360px] md:min-h-[350px]"
     : usesCompactProductionDescribeFrame
       ? "min-h-0"
       : "min-h-[535px]";
   const responsiveContentSpacing = usesCompactProductionDescribeFrame
-    ? "pb-7 pt-7"
+    ? "pb-5 pt-6 sm:pb-6 sm:pt-7"
     : stageId === "related_details"
       ? "pb-[100px] pt-[34px] md:pb-11 md:pt-8"
+      : stageId === "checking"
+        ? "pb-8 pt-[30px] md:pb-10 md:pt-8"
       : `pb-[100px] ${showHeader ? "pt-[38px]" : "pt-[34px]"}`;
 
   return (
     <section
       aria-busy={loading || undefined}
-      className={`mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden rounded-[32px] border border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)] ${className}`}
+      className={`mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden border text-[#241238] ${usesCheckingFrame ? "rounded-[32px] border-[#7C3AED] bg-[linear-gradient(145deg,#4C1D95_0%,#6D28D9_52%,#7C3AED_100%)] shadow-[0_22px_48px_rgba(76,29,149,0.28)]" : usesCompactProductionDescribeFrame ? "rounded-[28px] border-[#E6DCEB] bg-white shadow-[0_16px_40px_rgba(63,45,75,0.08)]" : "rounded-[32px] border-[#DFD3E7] bg-[#FBF6FF] shadow-[0_18px_36px_rgba(47,24,64,0.11)]"} ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
@@ -232,9 +313,11 @@ export function SymptomAssessmentPresentation({
       {fullBleedChildren ? (
         <>
           <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
+          {scene.layout !== "progress" ? (
             <h2 className={`font-display font-medium leading-[1.08] text-[#241238] ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
+          ) : null}
             {displayHelper ? (
               <p className={`mx-auto mt-3 font-semibold leading-[1.42] text-[#746A72] ${usesResultFrame ? "max-w-[290px] text-[14px] md:text-[15px]" : "max-w-[250px] text-[15px]"}`}>
                 {usesResultFrame ? (
@@ -248,7 +331,7 @@ export function SymptomAssessmentPresentation({
               </p>
             ) : null}
           </div>
-          {children ? (
+          {children && (scene.layout !== "progress" || allowProgressChildren) ? (
             <div
               className={`${usesResultFrame ? "mt-5 md:mt-7" : "mt-7"} text-left`}
               data-testid={`symptom-scene-controls-${stageId}-${modality}`}
@@ -259,9 +342,11 @@ export function SymptomAssessmentPresentation({
         </>
       ) : (
         <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
-          <h2 className="font-display text-[31px] font-medium leading-[1.08] text-[#241238]">
-            {title || scene.title}
-          </h2>
+          {scene.layout !== "progress" ? (
+            <h2 className={`font-display font-medium leading-[1.08] text-[#241238] ${usesCompactProductionDescribeFrame ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
+              {title || scene.title}
+            </h2>
+          ) : null}
 
         {scene.layout === "alert" ? (
           <div
@@ -276,15 +361,7 @@ export function SymptomAssessmentPresentation({
             </p>
           </div>
         ) : scene.layout === "progress" ? (
-          <div
-            className="mt-6 flex flex-col items-center text-center"
-            data-testid="symptom-scene-progress"
-          >
-            <div className="h-[120px] w-[120px] animate-spin rounded-full border-[12px] border-[#D9F1ED] border-t-[#087F76]" />
-            <p className="mt-[26px] max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
-              {displayHelper}
-            </p>
-          </div>
+          <SymptomCheckingProgress />
         ) : scene.layout === "guidance" ? (
           <div
             className="mt-7 rounded-[8px] border border-[#9ED9C4] bg-[#E9F8F0] p-5 text-left"
@@ -329,7 +406,7 @@ export function SymptomAssessmentPresentation({
           </dl>
         ) : null}
 
-        {children ? (
+        {children && (scene.layout !== "progress" || allowProgressChildren) ? (
           <div
             className="mt-7 text-left"
             data-testid={`symptom-scene-controls-${stageId}-${modality}`}
