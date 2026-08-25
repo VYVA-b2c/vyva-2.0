@@ -68,6 +68,16 @@ const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: str
   neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)" },
 };
 
+const healthHubIconTreatments: Record<RowTone, { background: string; shadow: string }> = {
+  health: { background: "linear-gradient(145deg,#FF8C82 0%,#E65349 100%)", shadow: "0 12px 24px rgba(217,70,62,0.22)" },
+  brain: { background: "linear-gradient(145deg,#B58BFF 0%,#7C3AED 100%)", shadow: "0 12px 24px rgba(124,58,237,0.22)" },
+  community: { background: "linear-gradient(145deg,#70B7FF 0%,#2563EB 100%)", shadow: "0 12px 24px rgba(37,99,235,0.2)" },
+  concierge: { background: "linear-gradient(145deg,#4ED79C 0%,#0F7A50 100%)", shadow: "0 12px 24px rgba(15,122,80,0.2)" },
+  reports: { background: "linear-gradient(145deg,#9BA7B8 0%,#64748B 100%)", shadow: "0 12px 24px rgba(100,116,139,0.18)" },
+  profile: { background: "linear-gradient(145deg,#F6C453 0%,#B77910 100%)", shadow: "0 12px 24px rgba(183,121,16,0.2)" },
+  neutral: { background: "linear-gradient(145deg,#9D7BB0 0%,#6B5173 100%)", shadow: "0 12px 24px rgba(107,81,115,0.18)" },
+};
+
 const shellSurface = {
   light: "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
   dark: "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]",
@@ -560,7 +570,9 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
-  const palette = rowTonePalettes[item.tone ?? "neutral"];
+  const tone = item.tone ?? "neutral";
+  const palette = rowTonePalettes[tone];
+  const iconTreatment = healthHubIconTreatments[tone];
   const Icon = item.icon;
   const isAlert = item.emphasis === "alert";
   const titleSize = item.compactTitle
@@ -593,11 +605,13 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
       style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
     >
       <span
-        className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-[20px] md:row-span-2 md:h-16 md:w-16 md:self-start"
-        style={{ background: isDark ? palette.darkChip : palette.chip, color: isDark ? "#F7F0FF" : palette.icon }}
+        className="relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] text-white shadow-sm ring-1 ring-inset ring-white/45 transition-transform duration-200 group-hover:-rotate-2 group-hover:scale-105 group-focus-visible:-rotate-2 group-focus-visible:scale-105 md:row-span-2 md:h-16 md:w-16 md:self-start"
+        style={{ background: iconTreatment.background, boxShadow: iconTreatment.shadow }}
+        data-testid={item.testId ? `${item.testId}-icon` : undefined}
         aria-hidden="true"
       >
-        <Icon size={25} strokeWidth={2.25} />
+        <span className="absolute left-2 top-2 h-2 w-2 rounded-full bg-white/55" />
+        <Icon className="relative h-[27px] w-[27px] md:h-[29px] md:w-[29px]" strokeWidth={2.55} />
       </span>
       <span className="min-w-0 self-center md:self-start">
         <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
@@ -616,6 +630,8 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
             metaSize,
             isDark ? "bg-white/[0.08] text-[#E8DFF3]" : "bg-[#FBF6FD] text-[#8A8095]",
           ].join(" ")}
+          style={!isDark ? { background: palette.chip, color: palette.icon } : undefined}
+          data-testid={item.testId ? `${item.testId}-status` : undefined}
         >
           {item.meta}
         </span>

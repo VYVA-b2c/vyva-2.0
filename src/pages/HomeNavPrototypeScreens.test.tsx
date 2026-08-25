@@ -234,6 +234,9 @@ describe("Home/Nav prototype screens", () => {
       expect(screen.getByTestId(testId)).toHaveClass("bg-white");
       expect(screen.getByTestId(testId)).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
       expect(screen.getByTestId(testId)).not.toHaveClass("bg-white/92");
+      expect(screen.getByTestId(`${testId}-icon`)).toHaveClass("text-white");
+      expect(screen.getByTestId(`${testId}-icon`).getAttribute("style")).toContain("linear-gradient");
+      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toContain("background");
     }
     expect(screen.queryByText("Heart rate — this week")).not.toBeInTheDocument();
     expect(screen.queryByText("Heart rate")).not.toBeInTheDocument();
