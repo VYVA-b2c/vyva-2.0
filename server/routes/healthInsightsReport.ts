@@ -97,6 +97,56 @@ type PendingOutcome = {
   delivered_surface: DeliveredSurface;
 };
 
+type PreventionPillar = "heart" | "brain" | "strength" | "nourishment" | "calm";
+type PreventionPillarStatus = "thriving" | "steady" | "needs_attention" | "priority_focus";
+type PreventionPillarScores = Record<PreventionPillar, PreventionPillarStatus>;
+type PreventionRecommendation = { action: string; why: string };
+type PreventionRecommendations = Record<PreventionPillar, PreventionRecommendation[]>;
+type CrossPillarPattern = {
+  pattern: string;
+  fired: boolean;
+  severity: "needs_attention" | "priority_focus";
+  pillars_affected: PreventionPillar[];
+};
+
+type LongevityPreventionPlan = {
+  id: string;
+  user_id: string;
+  generated_at: Date;
+  period_start: Date;
+  period_end: Date;
+  pillar_heart: PreventionPillarStatus;
+  pillar_brain: PreventionPillarStatus;
+  pillar_strength: PreventionPillarStatus;
+  pillar_nourishment: PreventionPillarStatus;
+  pillar_calm: PreventionPillarStatus;
+  pillar_heart_signals: SummaryMap;
+  pillar_brain_signals: SummaryMap;
+  pillar_strength_signals: SummaryMap;
+  pillar_nourishment_signals: SummaryMap;
+  pillar_calm_signals: SummaryMap;
+  cross_pillar_patterns: CrossPillarPattern[];
+  recommendations: PreventionRecommendations;
+  priority_intervention: string | null;
+  priority_why: string | null;
+  plan_narrative_senior: string | null;
+  plan_narrative_caregiver: string | null;
+  plan_abstract_gp: string | null;
+  trajectory: "improving" | "stable" | "declining" | "first";
+  source_signals: Record<string, boolean>;
+  confidence: string | number | null;
+  priority_pillar: PreventionPillar | null;
+  status: "active" | "superseded" | "archived";
+};
+
+const PREVENTION_PILLARS: PreventionPillar[] = ["heart", "brain", "strength", "nourishment", "calm"];
+const PREVENTION_STATUS_RANK: Record<PreventionPillarStatus, number> = {
+  thriving: 0,
+  steady: 1,
+  needs_attention: 2,
+  priority_focus: 3,
+};
+
 const FALLBACK_PROFILE: ProfileSummary = {
   first_name: "there",
   language_preference: "es",
@@ -1008,6 +1058,387 @@ async function getActiveUserIds(): Promise<string[]> {
   return Array.from(new Set(sources.flat().map((row) => row.user_id).filter(isUuid)));
 }
 
+function asSummary(value: SummaryMap): Record<string, unknown> {
+  return value ?? {};
+}
+
+function numericValue(value: unknown, fallback = 0): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function conditionIncludes(conditions: string[], name: string): boolean {
+  return conditions.some((condition) => normalizeConditionTag(condition) === name || condition.toLowerCase().includes(name));
+}
+
+export function scorePillarHeart(input: {
+  vitals: SummaryMap;
+  meds: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.vitals && !input.meds) return "steady";
+  const vitals = asSummary(input.vitals);
+  const meds = asSummary(input.meds);
+  let score = 0;
+  if (vitals.hr_trend === "elevated") score += 2;
+  if (vitals.hr_trend === "significantly_elevated") score += 3;
+  if (vitals.hrv_trend === "declining") score += 2;
+  if (vitals.bp_deviation === true) score += 2;
+  const adherence = numericValue(meds.cardiac_adherence_pct ?? meds.adherence_pct, 100);
+  if (adherence < 70) score += 2;
+  if (adherence < 50) score += 1;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.vitals, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 6) return "priority_focus";
+  if (weighted >= 3) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarBrain(input: {
+  cognitive: SummaryMap;
+  mood: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.cognitive && !input.mood) return "steady";
+  const cognitive = asSummary(input.cognitive);
+  const mood = asSummary(input.mood);
+  let score = 0;
+  if (cognitive.accuracy_trend === "declining") score += 2;
+  if (numericValue(cognitive.tier_delta) < -1) score += 2;
+  const sessions = numericValue(cognitive.sessions_this_month ?? cognitive.sessions_this_week);
+  if (sessions < 4) score += 1;
+  if (sessions === 0) score += 2;
+  if (mood.trend === "negative") score += 1;
+  if (mood.trend === "significantly_negative") score += 2;
+  if (sessions === 0 && numericValue(mood.check_ins_logged) < 4) score += 2;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.cognitive, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 6) return "priority_focus";
+  if (weighted >= 3) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarStrength(input: {
+  vitals: SummaryMap;
+  conditions: string[];
+  symptoms: SummaryMap;
+  medicationCount: number;
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.vitals && !input.symptoms && input.conditions.length === 0 && input.medicationCount === 0) return "steady";
+  const symptoms = asSummary(input.symptoms);
+  let score = conditionIncludes(input.conditions, "falls") ? 2 : 0;
+  const symptomText = `${String(symptoms.latest_chief_complaint ?? "")} ${JSON.stringify(symptoms.episodes ?? [])}`.toLowerCase();
+  const matches = symptomText.match(/dizz|weak|unstead|fall/g) ?? [];
+  if (matches.length > 0) score += 2;
+  if (matches.length > 2) score += 1;
+  if (input.medicationCount >= 5) score += 1;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.move, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 5) return "priority_focus";
+  if (weighted >= 2) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarNourishment(input: {
+  meds: SummaryMap;
+  mood: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.meds && !input.mood && input.conditions.length === 0) return "steady";
+  const meds = asSummary(input.meds);
+  const mood = asSummary(input.mood);
+  const active = Array.isArray(meds.active) ? meds.active as Array<Record<string, unknown>> : [];
+  let score = active.some((med) => String(med.name ?? "").toLowerCase().includes("metformin")) ? 1 : 0;
+  if (active.some((med) => String(med.therapeutic_class ?? "").toLowerCase().includes("diuretic"))) score += 1;
+  if (mood.trend === "negative" && mood.fatigue_signals === true) score += 1;
+  if (conditionIncludes(input.conditions, "oncology")) score += 2;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.eat, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 4) return "priority_focus";
+  if (weighted >= 2) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarCalm(input: {
+  mood: SummaryMap;
+  vitals: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.mood && !input.vitals && input.conditions.length === 0) return "steady";
+  const mood = asSummary(input.mood);
+  const vitals = asSummary(input.vitals);
+  let score = 0;
+  if (mood.trend === "negative") score += 2;
+  if (mood.trend === "significantly_negative") score += 3;
+  const checkIns = numericValue(mood.check_ins_logged);
+  if (checkIns < 4) score += 1;
+  if (checkIns === 0) score += 2;
+  if (vitals.hrv_trend === "declining") score += 1;
+  const baseSensitivity = numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  const sensitivity = conditionIncludes(input.conditions, "anxiety") ? Math.min(baseSensitivity, 0.8) : baseSensitivity;
+  const weighted = score * numericValue(input.conditionProfile.weighted_domains.mood, 1) * sensitivity;
+  if (weighted >= 5) return "priority_focus";
+  if (weighted >= 2) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function detectCrossPillarPatterns(input: {
+  pillarScores: PreventionPillarScores;
+  vitals: SummaryMap;
+  meds: SummaryMap;
+  cognitive: SummaryMap;
+  mood: SummaryMap;
+  symptoms: SummaryMap;
+}): CrossPillarPattern[] {
+  const vitals = asSummary(input.vitals);
+  const meds = asSummary(input.meds);
+  const cognitive = asSummary(input.cognitive);
+  const mood = asSummary(input.mood);
+  const sessions = numericValue(cognitive.sessions_this_month ?? cognitive.sessions_this_week);
+  const activeCount = numericValue(meds.active_count ?? meds.active_medications);
+  const adherence = numericValue(meds.overall_adherence_pct ?? meds.adherence_pct, 100);
+  return [
+    { pattern: "silent_withdrawal_spiral", fired: sessions === 0 && mood.trend === "negative" && numericValue(mood.check_ins_logged) < 3, severity: "priority_focus", pillars_affected: ["brain", "calm"] },
+    { pattern: "sleep_cognitive_loop", fired: numericValue(mood.morning_vs_evening_delta) < -1.5 && cognitive.accuracy_trend === "declining", severity: "needs_attention", pillars_affected: ["brain", "calm"] },
+    { pattern: "medication_cascade", fired: activeCount >= 5 && adherence < 70 && mood.trend === "negative", severity: "needs_attention", pillars_affected: ["nourishment", "calm"] },
+    { pattern: "cardiovascular_cognitive_convergence", fired: vitals.hr_trend === "elevated" && cognitive.accuracy_trend === "declining", severity: "needs_attention", pillars_affected: ["heart", "brain"] },
+    { pattern: "nutritional_decline", fired: mood.fatigue_signals === true && activeCount >= 3 && mood.trend === "negative", severity: "needs_attention", pillars_affected: ["nourishment", "strength"] },
+  ];
+}
+
+export function resolvePriorityPillar(scores: PreventionPillarScores, conditions: string[]): PreventionPillar | null {
+  const candidates = PREVENTION_PILLARS.filter((pillar) => scores[pillar] === "priority_focus");
+  if (candidates.length === 0) return null;
+  const preferred = conditionIncludes(conditions, "alzheimers") ? "brain"
+    : conditionIncludes(conditions, "heart") ? "heart"
+      : conditionIncludes(conditions, "falls") ? "strength"
+        : null;
+  return preferred && candidates.includes(preferred) ? preferred : candidates[0];
+}
+
+export function enforceSinglePriority(scores: PreventionPillarScores, priority: PreventionPillar | null): PreventionPillarScores {
+  return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [
+    pillar,
+    scores[pillar] === "priority_focus" && pillar !== priority ? "needs_attention" : scores[pillar],
+  ])) as PreventionPillarScores;
+}
+
+function computePreventionTrajectory(scores: PreventionPillarScores, previous: LongevityPreventionPlan | null): LongevityPreventionPlan["trajectory"] {
+  if (!previous) return "first";
+  const currentTotal = PREVENTION_PILLARS.reduce((total, pillar) => total + PREVENTION_STATUS_RANK[scores[pillar]], 0);
+  const previousTotal = PREVENTION_PILLARS.reduce((total, pillar) => total + PREVENTION_STATUS_RANK[previous[`pillar_${pillar}`]], 0);
+  if (currentTotal < previousTotal) return "improving";
+  if (currentTotal > previousTotal) return "declining";
+  return "stable";
+}
+
+const PREVENTION_RECOMMENDATIONS: Record<PreventionPillar, Record<PreventionPillarStatus, PreventionRecommendation[]>> = {
+  heart: {
+    thriving: [{ action: "Keep your daily walk going", why: "Consistency supports your heart over time." }, { action: "Keep medicine timing consistent", why: "A regular routine makes daily care easier." }],
+    steady: [{ action: "Walk after lunch four days this week", why: "A steady walk supports circulation and energy." }, { action: "Use less salt at one meal each day", why: "Small changes can support your heart." }],
+    needs_attention: [{ action: "Take a steady walk four days this week", why: "Regular movement is a strong heart-health habit." }, { action: "Set a daily medicine reminder", why: "A simple reminder supports consistency." }],
+    priority_focus: [{ action: "Start with a gentle walk today", why: "Movement is the most useful step for this month." }, { action: "Check today's medicine routine", why: "Consistency matters most right now." }],
+  },
+  brain: {
+    thriving: [{ action: "Keep up your Brain Coach sessions", why: "Regular challenge supports the progress you have built." }, { action: "Call someone you enjoy this week", why: "Connection supports memory and wellbeing." }],
+    steady: [{ action: "Try Brain Coach each day this week", why: "Regularity matters more than duration." }, { action: "Aim for the same bedtime each night", why: "Rest supports attention and memory." }],
+    needs_attention: [{ action: "Try ten minutes of Brain Coach daily", why: "A short streak can rebuild momentum." }, { action: "Plan one meaningful conversation", why: "Social connection keeps the mind engaged." }],
+    priority_focus: [{ action: "Set a consistent bedtime starting tonight", why: "Rest is the foundation for this month's brain focus." }, { action: "Open Brain Coach once each day", why: "Small, regular sessions support continuity." }],
+  },
+  strength: {
+    thriving: [{ action: "Keep moving every day", why: "Any comfortable movement counts." }, { action: "Include protein at each meal", why: "Daily protein supports muscle." }],
+    steady: [{ action: "Try ten minutes of chair exercises daily", why: "Seated strength work supports stability." }, { action: "Clear your walking path tonight", why: "A clear route makes movement easier and safer." }],
+    needs_attention: [{ action: "Do chair exercises each morning", why: "A routine is easier to maintain than occasional exercise." }, { action: "Walk through your home and remove obstacles", why: "A clear home supports confident movement." }],
+    priority_focus: [{ action: "Begin with ten minutes of seated strength work", why: "Strength is the most useful focus this month." }, { action: "Arrange a home safety check this week", why: "Practical changes can support stability." }],
+  },
+  nourishment: {
+    thriving: [{ action: "Keep adding colour to your plate", why: "Variety supports balanced eating." }, { action: "Keep water within easy reach", why: "Regular hydration supports energy and clarity." }],
+    steady: [{ action: "Add a protein food to each meal", why: "Daily protein supports strength and recovery." }, { action: "Set simple water reminders", why: "A prompt makes hydration easier to remember." }],
+    needs_attention: [{ action: "Choose protein first at each meal", why: "This is a simple way to support daily nourishment." }, { action: "Ask VYVA for an easy meal idea", why: "A little planning can make meals easier." }],
+    priority_focus: [{ action: "Plan protein and water for today", why: "These are the most useful nourishment steps this month." }, { action: "Ask Concierge to help plan this week's food", why: "Practical support can make the plan easier." }],
+  },
+  calm: {
+    thriving: [{ action: "Keep your breathing practice going", why: "A short daily pause supports calm." }, { action: "Wind down at the same time each evening", why: "Routine can make rest easier." }],
+    steady: [{ action: "Open the Breath Garden for two minutes", why: "Slow breathing can help settle the body." }, { action: "Choose a regular wind-down time", why: "A predictable evening supports rest." }],
+    needs_attention: [{ action: "Practice slow breathing each day", why: "A daily pause can support your mood." }, { action: "Contact someone who lifts your spirits", why: "Connection can make a difficult day feel lighter." }],
+    priority_focus: [{ action: "Practice slow breathing morning and evening", why: "Daily calm is the foundation for this month." }, { action: "Make one meaningful social contact today", why: "Connection supports emotional wellbeing." }],
+  },
+};
+
+async function getLatestPreventionPlan(userId: string): Promise<LongevityPreventionPlan | null> {
+  if (!isUuid(userId)) return null;
+  const rows = await optionalQuery<LongevityPreventionPlan>("longevity_prevention_plans", `
+    select * from public.longevity_prevention_plans
+    where user_id = $1::uuid and status = 'active'
+    order by generated_at desc limit 1
+  `, [userId]);
+  return rows[0] ?? null;
+}
+
+function preventionRecommendations(scores: PreventionPillarScores): PreventionRecommendations {
+  return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [pillar, PREVENTION_RECOMMENDATIONS[pillar][scores[pillar]]])) as PreventionRecommendations;
+}
+
+async function synthesizePreventionPlan(input: {
+  pillarScores: PreventionPillarScores;
+  priorityPillar: PreventionPillar | null;
+  crossPillarPatterns: CrossPillarPattern[];
+  conditionProfile: ConditionProfile;
+  profile: ProfileSummary;
+}): Promise<{
+  recommendations: PreventionRecommendations;
+  seniorNarrative: string;
+  caregiverNarrative: string;
+  gpAbstract: string;
+  priorityIntervention: string;
+  priorityWhy: string;
+}> {
+  const recommendations = preventionRecommendations(input.pillarScores);
+  const focus = input.priorityPillar ?? [...PREVENTION_PILLARS].sort((a, b) => PREVENTION_STATUS_RANK[input.pillarScores[b]] - PREVENTION_STATUS_RANK[input.pillarScores[a]])[0];
+  const first = recommendations[focus][0];
+  const fallback = {
+    recommendations,
+    seniorNarrative: `${input.profile.first_name}, this month we are keeping your plan simple and practical. Your main focus is ${focus}, with small steps you can build into your day. Start with one action and add more only when it feels comfortable.`,
+    caregiverNarrative: `Monthly wellness plan generated from available 90-day signals. Primary lifestyle domain: ${focus}.`,
+    gpAbstract: `A 90-day general-wellness summary was generated across heart, cognitive, strength, nourishment, and calm domains. The current lifestyle focus is ${focus}.`,
+    priorityIntervention: first?.action ?? "Choose one small wellbeing action today",
+    priorityWhy: first?.why ?? "One clear step makes the plan easier to begin.",
+  };
+  if (!process.env.ANTHROPIC_API_KEY) return fallback;
+
+  const fired = input.crossPillarPatterns.filter((pattern) => pattern.fired).map((pattern) => pattern.pattern);
+  const system = `You write VYVA monthly longevity wellness plans for adults 65+.
+Condition context: ${input.conditionProfile.framing_note}
+Never diagnose, predict illness, recommend medication changes, or use these words in senior-facing text: risk, elevated, abnormal, diagnosis, critical, dangerous.
+Every recommendation is a lifestyle action. For clinical matters say "worth discussing with your doctor."
+Senior text: warm, personal, 3-5 sentences, first name ${input.profile.first_name}, language ${input.profile.language_preference || "es"}.
+Caregiver and GP text: factual, in English. The deterministic statuses are fixed and must not be changed.`;
+  const prompt = `Pillar statuses: ${JSON.stringify(input.pillarScores)}
+Priority pillar: ${focus}
+Patterns: ${fired.length ? fired.join(", ") : "none"}
+Actions: ${JSON.stringify(recommendations)}
+Produce exactly:
+SENIOR_NARRATIVE: [text]
+PRIORITY_INTERVENTION: [one verb-led sentence]
+PRIORITY_WHY: [one sentence]
+CAREGIVER_NARRATIVE: [text]
+GP_ABSTRACT: [one paragraph]`;
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 600,
+      system,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const block = response.content[0];
+    const text = block?.type === "text" ? block.text : "";
+    const read = (label: string, next?: string) => text.match(new RegExp(`${label}:\\s*([\\s\\S]+?)${next ? `(?=${next}:|$)` : "$"}`, "i"))?.[1]?.trim() ?? "";
+    return {
+      recommendations,
+      seniorNarrative: read("SENIOR_NARRATIVE", "PRIORITY_INTERVENTION") || fallback.seniorNarrative,
+      priorityIntervention: read("PRIORITY_INTERVENTION", "PRIORITY_WHY") || fallback.priorityIntervention,
+      priorityWhy: read("PRIORITY_WHY", "CAREGIVER_NARRATIVE") || fallback.priorityWhy,
+      caregiverNarrative: read("CAREGIVER_NARRATIVE", "GP_ABSTRACT") || fallback.caregiverNarrative,
+      gpAbstract: read("GP_ABSTRACT") || fallback.gpAbstract,
+    };
+  } catch (err) {
+    console.error("[PreventionPlan] LLM synthesis failed:", err);
+    return fallback;
+  }
+}
+
+export async function runPreventionPlanSynthesis(userId: string): Promise<LongevityPreventionPlan> {
+  if (!isUuid(userId)) throw new Error("A UUID user ID is required for prevention plan synthesis");
+  const periodEnd = new Date();
+  const periodStart = daysAgo(90);
+  const [vitals, meds, cognitive, mood, symptoms, conditions, profile] = await Promise.all([
+    getVitalsSummary(userId, periodStart),
+    getMedicationSummary(userId, periodStart),
+    getCognitiveSummary(userId, periodStart),
+    getMoodSummary(userId, periodStart),
+    getSymptomSummary(userId, periodStart),
+    getUserConditions(userId),
+    getUserProfile(userId),
+  ]);
+  const conditionProfile = await getConditionProfile(conditions);
+  const medicationCount = numericValue(asSummary(meds).active_medications);
+  const scores: PreventionPillarScores = {
+    heart: scorePillarHeart({ vitals, meds, conditions, conditionProfile }),
+    brain: scorePillarBrain({ cognitive, mood, conditions, conditionProfile }),
+    strength: scorePillarStrength({ vitals, conditions, symptoms, medicationCount, conditionProfile }),
+    nourishment: scorePillarNourishment({ meds, mood, conditions, conditionProfile }),
+    calm: scorePillarCalm({ mood, vitals, conditions, conditionProfile }),
+  };
+  const patterns = detectCrossPillarPatterns({ pillarScores: scores, vitals, meds, cognitive, mood, symptoms });
+  const priorityPillar = resolvePriorityPillar(scores, conditions);
+  const finalScores = enforceSinglePriority(scores, priorityPillar);
+  const synthesis = await synthesizePreventionPlan({ pillarScores: finalScores, priorityPillar, crossPillarPatterns: patterns, conditionProfile, profile });
+  const previous = await getLatestPreventionPlan(userId);
+  const trajectory = computePreventionTrajectory(finalScores, previous);
+  const sourceSignals = { vitals: vitals !== null, medications: meds !== null, cognitive: cognitive !== null, mood: mood !== null, symptoms: symptoms !== null };
+
+  await pool.query("update public.longevity_prevention_plans set status = 'superseded' where user_id = $1::uuid and status = 'active'", [userId]);
+  const result = await pool.query<LongevityPreventionPlan>(`
+    insert into public.longevity_prevention_plans (
+      user_id, period_start, period_end, pillar_heart, pillar_brain, pillar_strength, pillar_nourishment, pillar_calm,
+      pillar_heart_signals, pillar_brain_signals, pillar_strength_signals, pillar_nourishment_signals, pillar_calm_signals,
+      cross_pillar_patterns, recommendations, priority_intervention, priority_why, priority_pillar,
+      plan_narrative_senior, plan_narrative_caregiver, plan_abstract_gp, trajectory, source_signals, confidence, status
+    ) values (
+      $1::uuid,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,
+      $14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24,'active'
+    ) returning *
+  `, [
+    userId, periodStart, periodEnd, finalScores.heart, finalScores.brain, finalScores.strength, finalScores.nourishment, finalScores.calm,
+    JSON.stringify(vitals), JSON.stringify(cognitive), JSON.stringify({ vitals, symptoms }), JSON.stringify({ meds, mood }), JSON.stringify({ mood, vitals }),
+    JSON.stringify(patterns), JSON.stringify(synthesis.recommendations), synthesis.priorityIntervention, synthesis.priorityWhy, priorityPillar,
+    synthesis.seniorNarrative, synthesis.caregiverNarrative, synthesis.gpAbstract, trajectory, JSON.stringify(sourceSignals), computeConfidence(sourceSignals),
+  ]);
+  return result.rows[0];
+}
+
+async function hasAtLeastThirtyDaysOfData(userId: string): Promise<boolean> {
+  if (!isUuid(userId)) return false;
+  const candidates = await Promise.all([
+    optionalQuery<{ first_at: Date | null }>("vyva_signal_readings", "select min(recorded_at) as first_at from public.vyva_signal_readings where user_id::text = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("medication_adherence", "select min(created_at) as first_at from public.medication_adherence where user_id = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("triage_reports", "select min(created_at) as first_at from public.triage_reports where user_id = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("checkin_sessions", "select min(completed_at) as first_at from public.checkin_sessions where user_id = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("cognitive_session_index", "select min(played_at) as first_at from public.cognitive_session_index where user_id = $1", [userId]),
+  ]);
+  return candidates.some((rows) => rows[0]?.first_at && new Date(rows[0].first_at).getTime() <= daysAgo(30).getTime());
+}
+
+async function wasPlanNudgeShownThisMonth(userId: string): Promise<boolean> {
+  const rows = await optionalQuery<{ count: string | number }>("insight_outcomes", `
+    select count(*)::int from public.insight_outcomes
+    where user_id = $1::uuid and delivered_surface = 'smart_nudge' and action_taken = 'other'
+      and delivered_at >= date_trunc('month', now())
+  `, [userId]);
+  return numericValue(rows[0]?.count) > 0;
+}
+
+async function markPlanNudgeShown(userId: string): Promise<void> {
+  await optionalQuery("insight_outcomes", `
+    insert into public.insight_outcomes (user_id, tier_at_generation, delivered_surface, action_taken)
+    values ($1::uuid, 1, 'smart_nudge', 'other')
+  `, [userId]);
+}
+
 async function runLLMSynthesis(input: {
   severity_tier: number;
   focus_domain: string;
@@ -1208,7 +1639,42 @@ async function resolvePendingOutcomes(): Promise<void> {
   }
 }
 
-router.get("/agewell/today/:userId", async (req: Request, res: Response) => {
+router.get("/prevention/plan/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+  try {
+    const stored = await getLatestPreventionPlan(userId);
+    if (stored && Date.now() - new Date(stored.generated_at).getTime() < 35 * 24 * 60 * 60 * 1000) {
+      return res.json(stored);
+    }
+    return res.json(await runPreventionPlanSynthesis(userId));
+  } catch (err) {
+    console.error("[PreventionPlan] GET error:", err);
+    return res.json({
+      id: null,
+      pillar_heart: "steady",
+      pillar_brain: "steady",
+      pillar_strength: "steady",
+      pillar_nourishment: "steady",
+      pillar_calm: "steady",
+      priority_pillar: null,
+      priority_intervention: null,
+      priority_why: null,
+      plan_narrative_senior: null,
+      plan_narrative_caregiver: null,
+      recommendations: {},
+      cross_pillar_patterns: [],
+      trajectory: "first",
+      source_signals: {},
+      generated_at: null,
+    });
+  }
+});
+
+// Longevity is canonical; /agewell remains a compatibility alias for already
+// deployed clients and database delivery records.
+router.get(["/longevity/today/:userId", "/agewell/today/:userId"], async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req, res, req.params.userId);
   if (!profileId) return;
   const userId = storageUserId(profileId, req.user?.id);
@@ -1243,12 +1709,12 @@ router.get("/agewell/today/:userId", async (req: Request, res: Response) => {
       report_generated_at: latestReport?.generated_at ?? null,
     });
   } catch (err) {
-    console.error("[AgeWell] /today error:", err);
+    console.error("[Longevity] /today error:", err);
     res.json(safeFallbackToday());
   }
 });
 
-router.post("/agewell/feedback", async (req: Request, res: Response) => {
+router.post(["/longevity/feedback", "/agewell/feedback"], async (req: Request, res: Response) => {
   const { userId: rawUserId, actionId, outcome, reportId } = req.body ?? {};
   const profileId = await resolveProfileId(req, res, rawUserId);
   if (!profileId) return;
@@ -1263,7 +1729,7 @@ router.post("/agewell/feedback", async (req: Request, res: Response) => {
     await updateFeedback(userId, actionId, outcome, reportId);
     res.json({ success: true });
   } catch (err) {
-    console.error("[AgeWell] /feedback error:", err);
+    console.error("[Longevity] /feedback error:", err);
     res.status(500).json({ success: false });
   }
 });
@@ -1335,6 +1801,21 @@ router.get("/smart-nudge/current/:userId", async (req: Request, res: Response) =
       });
     }
 
+    const now = new Date();
+    if (now.getDay() === 1 && now.getDate() <= 7) {
+      const latestPlan = await getLatestPreventionPlan(userId);
+      if (latestPlan && !(await wasPlanNudgeShownThisMonth(userId))) {
+        const profile = await getUserProfile(userId);
+        await markPlanNudgeShown(userId);
+        return res.json({
+          type: "prevention_plan",
+          color: "#6B21A8",
+          message: `Tu plan del mes está listo, ${profile.first_name}.`,
+          action_route: "/health/prevention-plan",
+        });
+      }
+    }
+
     if (report && report.severity_tier === 2 && !(await wasNudgeShownToday(userId, report.id))) {
       await logDelivery(userId, report.id, null, "smart_nudge", 2);
       return res.json({
@@ -1395,6 +1876,15 @@ export function registerHealthInsightsJobs(): void {
       } catch (err) {
         console.error(`[InsightsEngine] Monthly failed for ${userId}:`, err);
       }
+      try {
+        if (await hasAtLeastThirtyDaysOfData(userId)) {
+          await runPreventionPlanSynthesis(userId);
+        } else {
+          console.log(`[PreventionPlan] Skipped ${userId}; fewer than 30 days of data.`);
+        }
+      } catch (err) {
+        console.error(`[PreventionPlan] Monthly synthesis failed for ${userId}:`, err);
+      }
     }
     console.log("[InsightsEngine] Monthly deep report complete.");
   }, { timezone });
@@ -1406,10 +1896,14 @@ export function registerHealthInsightsJobs(): void {
   }, { timezone });
 }
 
-// TODO: Wire SignosScreen.tsx to /api/agewell/today/:userId.
+// TODO: Wire the Longevity UI to /api/longevity/today/:userId.
 // TODO: ElevenLabs voice delivery for synthesized senior recommendations.
 // TODO: GP-ready PDF export from monthly health_insight_reports.
 // TODO: Caregiver dashboard report view from health_insight_reports.
 // TODO: Aggregate operator view grouped by report_type, generated_at, and severity_tier.
+// TODO: GP-ready PDF export from plan_abstract_gp in the care-team accordion.
+// TODO: ElevenLabs voice delivery for the senior narrative and pillar actions.
+// TODO: Month-over-month trajectory visualisation after at least two stored plans.
+// TODO: Outcome learning from Done and Skip feedback after at least three months.
 
 export default router;

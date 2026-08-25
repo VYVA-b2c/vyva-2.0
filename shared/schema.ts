@@ -1718,20 +1718,66 @@ export type InsertTriageReport = z.infer<typeof insertTriageReportSchema>;
 export type TriageReport = typeof triageReports.$inferSelect;
 
 export const insightOutcomes = pgTable("insight_outcomes", {
-  id:                 uuid("id").primaryKey().defaultRandom(),
-  user_id:            text("user_id").notNull(),
-  triage_report_id:   uuid("triage_report_id"),
-  delivered_surface:  text("delivered_surface").notNull(),
-  action_taken:       text("action_taken").notNull().default("none"),
-  tier_at_generation: integer("tier_at_generation").notNull().default(4),
-  outcome_payload:    jsonb("outcome_payload").notNull().default({}),
-  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  report_id:            uuid("report_id"),
+  action_id:            uuid("action_id"),
+  user_id:              uuid("user_id").notNull(),
+  tier_at_generation:   integer("tier_at_generation").notNull(),
+  delivered_at:         timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
+  delivered_surface:    text("delivered_surface").notNull(),
+  acknowledged_at:      timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledged_by:      text("acknowledged_by"),
+  action_taken:         text("action_taken").notNull().default("none"),
+  follow_up_check_at:   timestamp("follow_up_check_at", { withTimezone: true }),
+  outcome_metric_delta: jsonb("outcome_metric_delta"),
+  resolved:             boolean("resolved").notNull().default(false),
+  created_at:           timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
-  index("insight_outcomes_user_time_idx").on(t.user_id, t.created_at.desc()),
-  index("insight_outcomes_triage_report_idx").on(t.triage_report_id),
+  index("idx_insight_outcomes_user_report_delivered").on(t.user_id, t.report_id, t.delivered_at.desc()),
+  index("idx_insight_outcomes_followup_pending").on(t.follow_up_check_at).where(sql`${t.resolved} = false`),
 ]);
 
 export const insertInsightOutcomeSchema = createInsertSchema(insightOutcomes).omit({ id: true, created_at: true });
+
+export const longevityPreventionPlans = pgTable("longevity_prevention_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull(),
+  generated_at: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  period_start: timestamp("period_start", { withTimezone: true }).notNull(),
+  period_end: timestamp("period_end", { withTimezone: true }).notNull(),
+  pillar_heart: text("pillar_heart").notNull().default("steady"),
+  pillar_brain: text("pillar_brain").notNull().default("steady"),
+  pillar_strength: text("pillar_strength").notNull().default("steady"),
+  pillar_nourishment: text("pillar_nourishment").notNull().default("steady"),
+  pillar_calm: text("pillar_calm").notNull().default("steady"),
+  pillar_heart_signals: jsonb("pillar_heart_signals"),
+  pillar_brain_signals: jsonb("pillar_brain_signals"),
+  pillar_strength_signals: jsonb("pillar_strength_signals"),
+  pillar_nourishment_signals: jsonb("pillar_nourishment_signals"),
+  pillar_calm_signals: jsonb("pillar_calm_signals"),
+  cross_pillar_patterns: jsonb("cross_pillar_patterns").notNull().default([]),
+  recommendations: jsonb("recommendations").notNull().default({}),
+  priority_intervention: text("priority_intervention"),
+  priority_why: text("priority_why"),
+  plan_narrative_senior: text("plan_narrative_senior"),
+  plan_narrative_caregiver: text("plan_narrative_caregiver"),
+  plan_abstract_gp: text("plan_abstract_gp"),
+  trajectory: text("trajectory"),
+  source_signals: jsonb("source_signals").notNull().default({}),
+  confidence: numeric("confidence", { precision: 3, scale: 2 }),
+  priority_pillar: text("priority_pillar"),
+  status: text("status").notNull().default("active"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_lpp_user_generated").on(t.user_id, t.generated_at.desc()),
+  index("idx_lpp_user_active").on(t.user_id, t.status).where(sql`${t.status} = 'active'`),
+  check("lpp_trajectory_check", sql`${t.trajectory} is null or ${t.trajectory} in ('improving','stable','declining','first')`),
+  check("lpp_priority_pillar_check", sql`${t.priority_pillar} is null or ${t.priority_pillar} in ('heart','brain','strength','nourishment','calm')`),
+]);
+
+export const insertLongevityPreventionPlanSchema = createInsertSchema(longevityPreventionPlans).omit({ id: true, generated_at: true, created_at: true });
+export type InsertLongevityPreventionPlan = z.infer<typeof insertLongevityPreventionPlanSchema>;
+export type LongevityPreventionPlan = typeof longevityPreventionPlans.$inferSelect;
 export type InsertInsightOutcome = z.infer<typeof insertInsightOutcomeSchema>;
 export type InsightOutcome = typeof insightOutcomes.$inferSelect;
 
