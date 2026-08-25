@@ -3,6 +3,7 @@ import { ArrowLeft, Check, ChevronDown, ChevronRight, Clipboard, Mic, Share2 } f
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOptionalProfile } from "@/contexts/ProfileContext";
 import { apiFetch } from "@/lib/queryClient";
 
 type Pillar = "heart" | "brain" | "strength" | "nourishment" | "calm";
@@ -27,20 +28,27 @@ type PreventionPlanData = {
   trajectory: "improving" | "stable" | "declining" | "first";
 };
 
-const PILLARS: Array<{ id: Pillar; icon: string; label: string }> = [
-  { id: "heart", icon: "🫀", label: "Heart & circulation" },
-  { id: "brain", icon: "🧠", label: "Brain & memory" },
-  { id: "strength", icon: "💪", label: "Strength & stability" },
-  { id: "nourishment", icon: "🥗", label: "Nourishment" },
-  { id: "calm", icon: "😮‍💨", label: "Calm & recovery" },
+const PILLARS: Array<{ id: Pillar; icon: string; iconBackground: string; iconColor: string; label: string }> = [
+  { id: "heart", icon: "ti-activity", iconBackground: "#FCEBEB", iconColor: "#A32D2D", label: "Heart & circulation" },
+  { id: "brain", icon: "ti-brain", iconBackground: "#EEEDFE", iconColor: "#534AB7", label: "Brain & memory" },
+  { id: "strength", icon: "ti-walk", iconBackground: "#E6F1FB", iconColor: "#185FA5", label: "Strength & stability" },
+  { id: "nourishment", icon: "ti-leaf", iconBackground: "#EAF3DE", iconColor: "#3B6D11", label: "Nourishment" },
+  { id: "calm", icon: "ti-ripple", iconBackground: "#E1F5EE", iconColor: "#0F6E56", label: "Calm & recovery" },
 ];
 
 const STATUS: Record<PillarStatus, { label: string; className: string }> = {
-  thriving: { label: "Doing well", className: "bg-[#149A63] text-white" },
+  thriving: { label: "Thriving", className: "bg-[#149A63] text-white" },
   steady: { label: "Steady", className: "bg-[#EEE9E6] text-[#665B56]" },
   needs_attention: { label: "Needs attention", className: "bg-[#F59E0B] text-[#261600]" },
-  priority_focus: { label: "This month", className: "bg-[#FAEEDA] text-[#854F0B]" },
+  priority_focus: { label: "Needs attention", className: "bg-[#F59E0B] text-[#261600]" },
 };
+
+const PRIORITY_STATUS = { label: "This month", className: "bg-[#FAEEDA] text-[#854F0B]" };
+
+function narrativeForProfile(narrative: string | null, firstName: string): string | null {
+  if (!narrative || !firstName) return narrative;
+  return narrative.replace(/^[^,]+(?=,\s*this month\b)/i, firstName);
+}
 
 function usePreventionPlan(userId: string) {
   return useQuery<PreventionPlanData>({
@@ -81,6 +89,7 @@ function PreventionPlanSkeleton() {
 
 export default function PreventionPlan() {
   const { user } = useAuth();
+  const firstName = useOptionalProfile()?.firstName ?? "";
   const navigate = useNavigate();
   const userId = user?.id ?? "";
   const { data: plan, isLoading, isError } = usePreventionPlan(userId);
@@ -102,6 +111,7 @@ export default function PreventionPlan() {
   const generatedLabel = plan.generated_at
     ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(new Date(plan.generated_at))
     : "Preparing your first plan";
+  const seniorNarrative = narrativeForProfile(plan.plan_narrative_senior, firstName);
 
   const openAction = (action: string) => {
     const route = actionRoute(action);
@@ -141,7 +151,7 @@ export default function PreventionPlan() {
             <time className="text-[#806F79]">{generatedLabel}</time>
           </div>
           <p className="mt-7 text-[22px] font-medium leading-9 text-[#3D2C37]">
-            {plan.plan_narrative_senior || "Your monthly plan brings five areas together into a few practical steps. Begin with the action that feels easiest today."}
+            {seniorNarrative || "Your monthly plan brings five areas together into a few practical steps. Begin with the action that feels easiest today."}
           </p>
           {plan.priority_pillar && (
             <div className="mt-7 inline-flex min-h-[70px] items-center rounded-full bg-[#FFF1CB] px-6 text-[20px] font-black uppercase text-[#704300]">
@@ -158,14 +168,21 @@ export default function PreventionPlan() {
         <div className="space-y-5">
           {PILLARS.map((pillar) => {
             const status = plan[`pillar_${pillar.id}`];
+            const isPriority = plan.priority_pillar === pillar.id;
+            const statusDisplay = isPriority ? PRIORITY_STATUS : STATUS[status];
             const recommendations = plan.recommendations?.[pillar.id] ?? [];
             return (
-              <section key={pillar.id} className={`rounded-[30px] border border-[#E9DDED] bg-white p-6 shadow-sm ${status === "priority_focus" ? "border-l-4 border-l-[#F59E0B]" : ""}`}>
+              <section key={pillar.id} className={`rounded-[30px] border border-[#E9DDED] bg-white p-6 shadow-sm ${isPriority ? "border-l-4 border-l-[#F59E0B]" : ""}`}>
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                  <h3 className="flex items-center gap-3 text-[22px] font-black uppercase"><span className="text-[32px]" aria-hidden="true">{pillar.icon}</span>{pillar.label}</h3>
-                  <span className={`inline-flex min-h-[52px] items-center gap-2 rounded-full px-5 text-[20px] font-black ${STATUS[status].className}`}>
-                    {status === "priority_focus" && <ArrowLeft aria-hidden="true" size={19} strokeWidth={2.5} />}
-                    {STATUS[status].label}
+                  <h3 className="flex items-center gap-3 text-[22px] font-black uppercase">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: pillar.iconBackground, color: pillar.iconColor }} aria-hidden="true">
+                      <i className={`ti ${pillar.icon} text-[20px]`} />
+                    </span>
+                    {pillar.label}
+                  </h3>
+                  <span className={`inline-flex min-h-[52px] items-center gap-2 rounded-full px-5 text-[20px] font-black ${statusDisplay.className}`}>
+                    {isPriority && <span aria-hidden="true">←</span>}
+                    {statusDisplay.label}
                   </span>
                 </div>
                 <div className="my-5 h-px bg-[#EEE5E9]" />
@@ -181,7 +198,7 @@ export default function PreventionPlan() {
                   ))}
                   {recommendations.length === 0 && <li className="text-[20px] leading-8 text-[#725F69]">Your next actions will appear after the plan has enough information.</li>}
                 </ul>
-                {status === "priority_focus" && plan.priority_why && (
+                {isPriority && plan.priority_why && (
                   <div className="mt-5 rounded-[18px] bg-[#FAEEDA] px-4 py-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#854F0B]">Why this matters</p>
                     <p className="mt-1.5 text-[14px] font-semibold leading-5 text-[#633806]">{plan.priority_why}</p>
