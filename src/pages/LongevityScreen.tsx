@@ -1474,7 +1474,7 @@ export default function LongevityScreen({ backPath = "/health" }: LongevityScree
         className={isFollowUp
           ? "mt-3 rounded-[22px] border bg-white p-3 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"
           : "mt-4 rounded-[24px] border bg-white p-4 shadow-[0_12px_28px_rgba(31,41,55,0.05)]"}
-        style={{ borderColor: tone.border }}
+        style={{ borderColor: dailyActionToneStyle(dailyActions[0]?.tone ?? "check").border }}
         data-testid="prevention-guidance-panel"
       >
         <div className="flex items-center gap-3">
