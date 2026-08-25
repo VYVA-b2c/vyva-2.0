@@ -109,9 +109,6 @@ export default function PreventionPlan() {
     );
   }
 
-  const generatedLabel = plan.generated_at
-    ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(new Date(plan.generated_at))
-    : "Preparing your first plan";
   const seniorNarrative = narrativeForProfile(plan.plan_narrative_senior, firstName);
 
   const openAction = (action: string) => {
@@ -185,9 +182,8 @@ export default function PreventionPlan() {
         </header>
 
         <section className="mt-5 rounded-[34px] border border-[#E9DDED] bg-white p-6 shadow-[0_20px_55px_rgba(107,33,168,0.08)] sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-[20px] font-extrabold uppercase tracking-[0.08em] text-[#6B21A8]">
+          <div className="text-[20px] font-extrabold uppercase tracking-[0.08em] text-[#6B21A8]">
             <span>Your longevity plan</span>
-            <time className="text-[#806F79]">{generatedLabel}</time>
           </div>
           <p className="mt-7 text-[22px] font-medium leading-9 text-[#3D2C37]">
             {seniorNarrative || "Your monthly plan brings five areas together into a few practical steps. Begin with the action that feels easiest today."}
