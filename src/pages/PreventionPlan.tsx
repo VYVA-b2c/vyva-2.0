@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, ChevronDown, Clipboard, Mic, Share2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Clipboard, Mic, Share2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,7 +39,7 @@ const STATUS: Record<PillarStatus, { label: string; className: string }> = {
   thriving: { label: "Doing well", className: "bg-[#149A63] text-white" },
   steady: { label: "Steady", className: "bg-[#EEE9E6] text-[#665B56]" },
   needs_attention: { label: "Needs attention", className: "bg-[#F59E0B] text-[#261600]" },
-  priority_focus: { label: "This month", className: "bg-[#F59E0B] text-[#261600]" },
+  priority_focus: { label: "This month", className: "bg-[#FAEEDA] text-[#854F0B]" },
 };
 
 function usePreventionPlan(userId: string) {
@@ -160,23 +160,33 @@ export default function PreventionPlan() {
             const status = plan[`pillar_${pillar.id}`];
             const recommendations = plan.recommendations?.[pillar.id] ?? [];
             return (
-              <section key={pillar.id} className={`rounded-[30px] border bg-white p-6 shadow-sm ${status === "priority_focus" ? "border-[#F59E0B] ring-2 ring-[#F59E0B]/20" : "border-[#E9DDED]"}`}>
+              <section key={pillar.id} className={`rounded-[30px] border border-[#E9DDED] bg-white p-6 shadow-sm ${status === "priority_focus" ? "border-l-4 border-l-[#F59E0B]" : ""}`}>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <h3 className="flex items-center gap-3 text-[22px] font-black uppercase"><span className="text-[32px]" aria-hidden="true">{pillar.icon}</span>{pillar.label}</h3>
-                  <span className={`inline-flex min-h-[52px] items-center rounded-full px-5 text-[20px] font-black ${STATUS[status].className}`}>{STATUS[status].label}</span>
+                  <span className={`inline-flex min-h-[52px] items-center gap-2 rounded-full px-5 text-[20px] font-black ${STATUS[status].className}`}>
+                    {status === "priority_focus" && <ArrowLeft aria-hidden="true" size={19} strokeWidth={2.5} />}
+                    {STATUS[status].label}
+                  </span>
                 </div>
                 <div className="my-5 h-px bg-[#EEE5E9]" />
-                <ul className="space-y-3">
+                <ul className="divide-y-[0.5px] divide-[#E3D8DE]">
                   {recommendations.map((item) => (
                     <li key={item.action}>
-                      <button type="button" onClick={() => openAction(item.action)} className="flex min-h-[70px] w-full items-center justify-between gap-4 rounded-[22px] bg-[#FBF8F6] px-5 py-3 text-left text-[20px] font-bold leading-7 transition hover:bg-[#F4EBF8] focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#6B21A8]">
-                        <span>{item.action}</span><span aria-hidden="true" className="text-[#6B21A8]">→</span>
+                      <button type="button" onClick={() => openAction(item.action)} className="grid min-h-[52px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-1 py-2 text-left text-[18px] font-bold leading-6 transition-colors hover:bg-[#FBF8FC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]">
+                        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#8B5CF6]" />
+                        <span>{item.action}</span>
+                        <ChevronRight aria-hidden="true" className="text-[#8C7297]" size={20} strokeWidth={2.5} />
                       </button>
                     </li>
                   ))}
                   {recommendations.length === 0 && <li className="text-[20px] leading-8 text-[#725F69]">Your next actions will appear after the plan has enough information.</li>}
                 </ul>
-                {status === "priority_focus" && plan.priority_why && <p className="mt-5 rounded-[20px] bg-[#FFF7E4] p-5 text-[20px] font-semibold leading-8 text-[#66420C]"><strong>Why:</strong> {plan.priority_why}</p>}
+                {status === "priority_focus" && plan.priority_why && (
+                  <div className="mt-5 rounded-[18px] bg-[#FAEEDA] px-4 py-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#854F0B]">Why this matters</p>
+                    <p className="mt-1.5 text-[14px] font-semibold leading-5 text-[#633806]">{plan.priority_why}</p>
+                  </div>
+                )}
               </section>
             );
           })}
