@@ -1741,7 +1741,7 @@ export const insertInsightOutcomeSchema = createInsertSchema(insightOutcomes).om
 
 export const longevityPreventionPlans = pgTable("longevity_prevention_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: uuid("user_id").notNull(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   generated_at: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   period_start: timestamp("period_start", { withTimezone: true }).notNull(),
   period_end: timestamp("period_end", { withTimezone: true }).notNull(),
