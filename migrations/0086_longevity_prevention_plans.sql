@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.longevity_prevention_plans (
   id                         uuid primary key default gen_random_uuid(),
-  user_id                    uuid not null references auth.users(id) on delete cascade,
+  user_id                    text not null references public.profiles(id) on delete cascade,
   generated_at               timestamptz not null default now(),
   period_start               timestamptz not null,
   period_end                 timestamptz not null,
@@ -31,13 +31,8 @@ create table if not exists public.longevity_prevention_plans (
   created_at                 timestamptz not null default now()
 );
 
-alter table public.longevity_prevention_plans enable row level security;
-
-drop policy if exists user_own_prevention_plans on public.longevity_prevention_plans;
-create policy user_own_prevention_plans on public.longevity_prevention_plans
-  for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+comment on table public.longevity_prevention_plans is
+  'Backend-owned monthly longevity plans keyed by the active health profile. Access is enforced by authenticated Express routes.';
 
 create index if not exists idx_lpp_user_generated
   on public.longevity_prevention_plans (user_id, generated_at desc);

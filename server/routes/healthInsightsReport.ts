@@ -298,9 +298,7 @@ async function resolveProfileId(req: Request, res: Response, requestedUserId?: s
   return activeProfileId;
 }
 
-function storageUserId(profileId: string, accountUserId?: string): string {
-  if (isUuid(profileId)) return profileId;
-  if (isUuid(accountUserId)) return accountUserId;
+function storageUserId(profileId: string, _accountUserId?: string): string {
   return profileId;
 }
 
@@ -1280,10 +1278,9 @@ const PREVENTION_RECOMMENDATIONS: Record<PreventionPillar, Record<PreventionPill
 };
 
 async function getLatestPreventionPlan(userId: string): Promise<LongevityPreventionPlan | null> {
-  if (!isUuid(userId)) return null;
   const rows = await optionalQuery<LongevityPreventionPlan>("longevity_prevention_plans", `
     select * from public.longevity_prevention_plans
-    where user_id = $1::uuid and status = 'active'
+    where user_id = $1 and status = 'active'
     order by generated_at desc limit 1
   `, [userId]);
   return rows[0] ?? null;
@@ -1362,7 +1359,7 @@ GP_ABSTRACT: [one paragraph]`;
 }
 
 export async function runPreventionPlanSynthesis(userId: string): Promise<LongevityPreventionPlan> {
-  if (!isUuid(userId)) throw new Error("A UUID user ID is required for prevention plan synthesis");
+  if (!userId.trim()) throw new Error("A profile ID is required for prevention plan synthesis");
   const periodEnd = new Date();
   const periodStart = daysAgo(90);
   const [vitals, meds, cognitive, mood, symptoms, conditions, profile] = await Promise.all([
@@ -1391,7 +1388,7 @@ export async function runPreventionPlanSynthesis(userId: string): Promise<Longev
   const trajectory = computePreventionTrajectory(finalScores, previous);
   const sourceSignals = { vitals: vitals !== null, medications: meds !== null, cognitive: cognitive !== null, mood: mood !== null, symptoms: symptoms !== null };
 
-  await pool.query("update public.longevity_prevention_plans set status = 'superseded' where user_id = $1::uuid and status = 'active'", [userId]);
+  await pool.query("update public.longevity_prevention_plans set status = 'superseded' where user_id = $1 and status = 'active'", [userId]);
   const result = await pool.query<LongevityPreventionPlan>(`
     insert into public.longevity_prevention_plans (
       user_id, period_start, period_end, pillar_heart, pillar_brain, pillar_strength, pillar_nourishment, pillar_calm,
@@ -1399,7 +1396,7 @@ export async function runPreventionPlanSynthesis(userId: string): Promise<Longev
       cross_pillar_patterns, recommendations, priority_intervention, priority_why, priority_pillar,
       plan_narrative_senior, plan_narrative_caregiver, plan_abstract_gp, trajectory, source_signals, confidence, status
     ) values (
-      $1::uuid,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,
+      $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,
       $14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24,'active'
     ) returning *
   `, [
@@ -1412,7 +1409,6 @@ export async function runPreventionPlanSynthesis(userId: string): Promise<Longev
 }
 
 async function hasAtLeastThirtyDaysOfData(userId: string): Promise<boolean> {
-  if (!isUuid(userId)) return false;
   const candidates = await Promise.all([
     optionalQuery<{ first_at: Date | null }>("vyva_signal_readings", "select min(recorded_at) as first_at from public.vyva_signal_readings where user_id::text = $1", [userId]),
     optionalQuery<{ first_at: Date | null }>("medication_adherence", "select min(created_at) as first_at from public.medication_adherence where user_id = $1", [userId]),
