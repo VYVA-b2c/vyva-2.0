@@ -50,6 +50,33 @@ function narrativeForProfile(narrative: string | null, firstName: string): strin
   return narrative.replace(/^[^,]+(?=,\s*this month\b)/i, firstName);
 }
 
+function withoutMonthlyRepetition(value: string): string {
+  return value.trim().replace(/\s+this month[.!]?$/i, "").replace(/[.!?]+$/, "");
+}
+
+function lowerFirst(value: string): string {
+  return value ? `${value[0].toLowerCase()}${value.slice(1)}` : value;
+}
+
+function upperFirst(value: string): string {
+  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+}
+
+function focusHeadline(firstName: string, intervention: string | null, priorityLabel: string | null): string {
+  const action = intervention ? withoutMonthlyRepetition(intervention) : "";
+  if (action) return firstName ? `${firstName}, let’s ${lowerFirst(action)}` : upperFirst(action);
+  if (priorityLabel) return firstName ? `${firstName}, your focus is ${priorityLabel.toLowerCase()}` : `Your focus is ${priorityLabel.toLowerCase()}`;
+  return firstName ? `${firstName}, small steps can build lasting strength` : "Small steps can build lasting strength";
+}
+
+function supportingNarrative(narrative: string | null): string | null {
+  if (!narrative) return null;
+  const withoutGreeting = narrative.replace(/^[^,]+,\s*this month\s+/i, "").trim();
+  const supportingContext = withoutGreeting.match(/^your plan focuses on .+ while keeping (.+)$/i);
+  if (supportingContext) return `It also keeps ${supportingContext[1]}`;
+  return upperFirst(withoutGreeting);
+}
+
 function usePreventionPlan(userId: string) {
   return useQuery<PreventionPlanData>({
     queryKey: ["prevention-plan", userId],
@@ -131,6 +158,8 @@ export default function PreventionPlan() {
   const priorityActions = plan.priority_pillar
     ? plan.recommendations?.[plan.priority_pillar] ?? []
     : [];
+  const heroHeadline = focusHeadline(firstName, plan.priority_intervention, priorityLabel);
+  const heroNarrative = supportingNarrative(seniorNarrative);
   const careTeamSummary = [
     plan.plan_narrative_caregiver,
     priorityLabel ? `Priority this month: ${priorityLabel}` : null,
@@ -182,20 +211,18 @@ export default function PreventionPlan() {
         </header>
 
         <section className="mt-5 rounded-[34px] border border-[#E9DDED] bg-white p-6 shadow-[0_20px_55px_rgba(107,33,168,0.08)] sm:p-8">
-          <div className="text-[20px] font-extrabold uppercase tracking-[0.08em] text-[#6B21A8]">
-            <span>Your longevity plan</span>
-          </div>
-          <p className="mt-7 text-[22px] font-medium leading-9 text-[#3D2C37]">
-            {seniorNarrative || "Your monthly plan brings five areas together into a few practical steps. Begin with the action that feels easiest today."}
+          <p className="text-[16px] font-extrabold uppercase tracking-[0.12em] text-[#6B21A8]">Personalised for you</p>
+          <h2 className="mt-4 text-[30px] font-black leading-[1.2] text-[#24132E] sm:text-[34px]">{heroHeadline}</h2>
+          <p className="mt-5 text-[20px] font-medium leading-8 text-[#5F5058]">
+            {heroNarrative || "Your five pillars come together in a few practical steps. Begin with the action that feels easiest today."}
           </p>
           {plan.priority_pillar && (
-            <div className="mt-7 inline-flex min-h-[70px] items-center rounded-full bg-[#FFF1CB] px-6 text-[20px] font-black uppercase text-[#704300]">
-              This month: {PILLARS.find((item) => item.id === plan.priority_pillar)?.label}
+            <div className="mt-6 inline-flex min-h-[56px] items-center rounded-full bg-[#FFF1CB] px-5 text-[16px] font-black uppercase tracking-[0.06em] text-[#704300]">
+              Priority · {PILLARS.find((item) => item.id === plan.priority_pillar)?.label}
             </div>
           )}
-          {plan.priority_intervention && <p className="mt-6 text-[22px] font-black leading-8">{plan.priority_intervention}</p>}
           <button type="button" onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent("Tell me about my monthly longevity plan")}`)} className="mt-8 flex min-h-[70px] w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 text-[20px] font-black text-white shadow-lg shadow-purple-900/15">
-            <Mic size={28} /> Ask VYVA about this plan
+            <Mic size={28} /> Talk this through with VYVA
           </button>
         </section>
 
