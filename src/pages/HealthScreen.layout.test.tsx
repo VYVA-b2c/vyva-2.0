@@ -285,8 +285,8 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
     expect(mocks.voiceHero).not.toHaveBeenCalled();
 
-    expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Longevity Plan");
-    expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Longevity Plan Ready");
+    expect(screen.getByTestId("health-master-hero")).toHaveAccessibleName("Longevity: Your plan is ready");
+    expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Your plan is ready");
     expect(screen.getByTestId("button-health-hero-talk")).toHaveAccessibleName("Speak anytime");
     expect(screen.getByTestId("button-health-hero-talk")).not.toHaveTextContent("Talk to VYVA");
 

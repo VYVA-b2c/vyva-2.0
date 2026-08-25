@@ -3219,8 +3219,8 @@ const HealthScreen = () => {
         fastHelpTitle={t("health.fastHelp.kicker", "Fast help")}
         hero={{
           icon: Stethoscope,
-          eyebrow: t("health.master.heroEyebrow", "Longevity Plan"),
-          title: t("health.master.heroTitle", "Longevity Plan Ready"),
+          eyebrow: t("health.master.heroEyebrow", "Longevity"),
+          title: t("health.master.heroTitle", "Your plan is ready"),
           action: {
             kind: "voice",
             label: t("health.master.talkToVyva", "Talk to VYVA"),

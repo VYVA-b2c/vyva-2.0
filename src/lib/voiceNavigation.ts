@@ -133,7 +133,7 @@ export const VOICE_HOME_SUBFLOW_SAMPLE_PHRASES: Record<
     pt: "Preciso de um medico",
   },
   "health-prevention": {
-    en: "Show my prevention check",
+    en: "Show my Longevity plan",
     es: "Quiero revisar mi prevencion",
     fr: "Je veux voir ma prevention",
     de: "Zeige mir meine Vorsorge",
@@ -403,7 +403,7 @@ const VOICE_HOME_SUBFLOW_UTTERANCES: Array<[VoiceHomeSubflowId, RegExp]> = [
   ["health-meds", /\b(?:medications?|medicines?|pills?|doses?|medicacion|medicina|pastillas?|dosis|medicaments?|medikament\w*|tabletten?|farmac\w*|pillol\w*|medicament\w*|remedio|comprimido)\b/],
   ["health-doctor", /\b(?:doctor|gp|physician|medico|medecin|arzt)\b/],
   ["health-symptoms", /\b(?:symptoms?|pain|fever|dizzy|sintomas?|dolor|fiebre|mareo|symptomes?|douleur|fievre|vertige|schmerzen?|fieber|schwindel|sintomo|dolore|febbre|vertigine|dor|febre|tontura)\b/],
-  ["health-prevention", /\b(?:prevention|preventive|checkup|screening|vaccine|prevencion|chequeo|cribado|vacuna|prevention|depistage|vaccin|vorsorge|pravention|impfung|prevenzione|controllo preventivo|vaccino|prevencao|rastreio|vacina)\b/],
+  ["health-prevention", /\b(?:longevity|prevention|preventive|checkup|screening|vaccine|prevencion|chequeo|cribado|vacuna|prevention|depistage|vaccin|vorsorge|pravention|impfung|prevenzione|controllo preventivo|vaccino|prevencao|rastreio|vacina)\b/],
   ["health-visual-scan", /\b(?:health (?:photo|image)|scan this|review this (?:photo|image)|foto de salud|imagen de salud|revisa esta foto|photo de sante|image de sante|regarde cette photo|gesundheitsfoto|gesundheitsbild|prufe dieses foto|foto di salute|immagine di salute|controlla questa foto|foto de saude|imagem de saude|verifica esta foto)\b/],
   ["mind-memory", /\b(?:memory|remember|recall|memoria|recordar|souvenir|memoire|gedachtnis\w*|erinner\w*|ricord\w*|lembr\w*)\b/],
   ["mind-reflexes", /\b(?:reflex\w*|reaction|speed|reflej\w*|reaccion|reaktion|rifless\w*|reazione|reflexo\w*|reacao)\b/],

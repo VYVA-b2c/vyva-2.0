@@ -534,8 +534,8 @@
       },
     },
     master: {
-      heroEyebrow: "Longevity Plan",
-      heroTitle: "Longevity Plan Ready",
+      heroEyebrow: "Longevity",
+      heroTitle: "Your plan is ready",
       talkToVyva: "Talk to VYVA",
       voiceSupport: "Speak anytime",
       pauseVyva: "Pause VYVA",
