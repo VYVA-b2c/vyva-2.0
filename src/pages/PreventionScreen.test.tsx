@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import PreventionScreen from "./PreventionScreen";
+import LongevityScreen from "./LongevityScreen";
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -63,13 +63,13 @@ function renderPrevention() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <PreventionScreen />
+        <LongevityScreen />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe("PreventionScreen", () => {
+describe("LongevityScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
