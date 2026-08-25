@@ -38,6 +38,7 @@ import type { SymptomAssessmentShellContract } from "@/design/screenPresentation
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
 type ShellWidth = "phone" | "flow" | "hub";
+type HealthHubBrandIconKind = "doctor" | "longevity" | "vitals" | "medication";
 
 type RowItem = {
   icon: LucideIcon;
@@ -51,6 +52,7 @@ type RowItem = {
   emphasis?: "primary" | "alert" | "standard";
   solidSurface?: boolean;
   compactTitle?: boolean;
+  brandIcon?: HealthHubBrandIconKind;
 };
 
 type PrototypeSection = {
@@ -66,16 +68,6 @@ const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: str
   reports: { chip: "#F7F8FB", icon: "#64748B", border: "#E2E8F0", darkChip: "rgba(226,232,240,0.12)" },
   profile: { chip: "#FFF4CF", icon: "#A16207", border: "#F6D681", darkChip: "rgba(232,163,61,0.16)" },
   neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)" },
-};
-
-const healthHubIconTreatments: Record<RowTone, { background: string; shadow: string }> = {
-  health: { background: "linear-gradient(145deg,#FF8C82 0%,#E65349 100%)", shadow: "0 12px 24px rgba(217,70,62,0.22)" },
-  brain: { background: "linear-gradient(145deg,#B58BFF 0%,#7C3AED 100%)", shadow: "0 12px 24px rgba(124,58,237,0.22)" },
-  community: { background: "linear-gradient(145deg,#70B7FF 0%,#2563EB 100%)", shadow: "0 12px 24px rgba(37,99,235,0.2)" },
-  concierge: { background: "linear-gradient(145deg,#4ED79C 0%,#0F7A50 100%)", shadow: "0 12px 24px rgba(15,122,80,0.2)" },
-  reports: { background: "linear-gradient(145deg,#9BA7B8 0%,#64748B 100%)", shadow: "0 12px 24px rgba(100,116,139,0.18)" },
-  profile: { background: "linear-gradient(145deg,#F6C453 0%,#B77910 100%)", shadow: "0 12px 24px rgba(183,121,16,0.2)" },
-  neutral: { background: "linear-gradient(145deg,#9D7BB0 0%,#6B5173 100%)", shadow: "0 12px 24px rgba(107,81,115,0.18)" },
 };
 
 const shellSurface = {
@@ -566,15 +558,90 @@ function HairlineRows({ items, testId = "prototype-row-list" }: { items: RowItem
   );
 }
 
+function HealthHubBrandIcon({ kind }: { kind: HealthHubBrandIconKind }) {
+  const gradientId = `vyva-health-icon-${kind}`;
+  const ribbonStroke = `url(#${gradientId})`;
+
+  return (
+    <svg
+      viewBox="0 0 56 56"
+      className="h-11 w-11"
+      fill="none"
+      data-brand-icon={kind}
+      focusable="false"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="9" y1="7" x2="47" y2="49" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#9D4FE0" />
+          <stop offset="1" stopColor="#5C22B9" />
+        </linearGradient>
+      </defs>
+      {kind === "doctor" ? (
+        <>
+          <path
+            d="M15 11v14c0 9 6 15 13 15s13-6 13-15V11"
+            stroke={ribbonStroke}
+            strokeWidth="6.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M28 40v2.5c0 5 3.6 8.5 8.5 8.5S45 47.5 45 43"
+            stroke={ribbonStroke}
+            strokeWidth="6.5"
+            strokeLinecap="round"
+          />
+          <circle cx="45" cy="39" r="5.3" fill="#F8AE1B" stroke="#F1E8FF" strokeWidth="2.4" />
+        </>
+      ) : null}
+      {kind === "longevity" ? (
+        <>
+          <path
+            d="M28 8 43 14v12c0 10-5.8 17.2-15 22-9.2-4.8-15-12-15-22V14Z"
+            stroke={ribbonStroke}
+            strokeWidth="6.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="m20.5 27 5.2 5.2 10-11" stroke="#F8AE1B" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : null}
+      {kind === "vitals" ? (
+        <>
+          <path
+            d="M28 47S10 36.4 10 22c0-7 4.6-11.2 10.6-11.2 3.3 0 5.8 1.7 7.4 4.5 1.6-2.8 4.1-4.5 7.4-4.5C41.4 10.8 46 15 46 22c0 14.4-18 25-18 25Z"
+            stroke={ribbonStroke}
+            strokeWidth="6.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M14.5 28h7l3.2-7 4.1 14 4-9.2 2.7 2.2h6"
+            stroke="#F8AE1B"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
+      ) : null}
+      {kind === "medication" ? (
+        <>
+          <g transform="translate(28 29) rotate(-42)">
+            <rect x="-20" y="-10" width="40" height="20" rx="10" stroke={ribbonStroke} strokeWidth="6.2" />
+            <path d="M0-8v16" stroke="#F8AE1B" strokeWidth="4" strokeLinecap="round" />
+          </g>
+          <circle cx="43" cy="13" r="4.5" fill="#F8AE1B" />
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
 function HealthHubActionCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
-  const tone = item.tone ?? "neutral";
-  const palette = rowTonePalettes[tone];
-  const iconTreatment = healthHubIconTreatments[tone];
   const Icon = item.icon;
-  const isAlert = item.emphasis === "alert";
   const titleSize = item.compactTitle
     ? isLarge
       ? "text-[20px] md:text-[22px]"
@@ -598,20 +665,23 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
         isDark
           ? "border-white/[0.12] bg-[#211235] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
           : item.solidSurface
-            ? "bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
-            : "bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
-        isAlert && !isDark ? "border-[#F7C9C5]" : "",
+            ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
+            : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
       ].join(" ")}
-      style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
     >
       <span
-        className="relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] text-white shadow-sm ring-1 ring-inset ring-white/45 transition-transform duration-200 group-hover:-rotate-2 group-hover:scale-105 group-focus-visible:-rotate-2 group-focus-visible:scale-105 md:row-span-2 md:h-16 md:w-16 md:self-start"
-        style={{ background: iconTreatment.background, boxShadow: iconTreatment.shadow }}
+        className={[
+          "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
+          isDark ? "bg-[#35284A] group-hover:bg-[#3D2E53]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+        ].join(" ")}
         data-testid={item.testId ? `${item.testId}-icon` : undefined}
         aria-hidden="true"
       >
-        <span className="absolute left-2 top-2 h-2 w-2 rounded-full bg-white/55" />
-        <Icon className="relative h-[27px] w-[27px] md:h-[29px] md:w-[29px]" strokeWidth={2.55} />
+        {item.brandIcon ? (
+          <HealthHubBrandIcon kind={item.brandIcon} />
+        ) : (
+          <Icon className={isDark ? "h-7 w-7 text-[#D6B8FF]" : "h-7 w-7 text-[#6B2CCB]"} strokeWidth={2.55} />
+        )}
       </span>
       <span className="min-w-0 self-center md:self-start">
         <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
@@ -628,16 +698,18 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
           className={[
             "self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start",
             metaSize,
-            isDark ? "bg-white/[0.08] text-[#E8DFF3]" : "bg-[#FBF6FD] text-[#8A8095]",
+            isDark ? "bg-[#4A3563] text-[#F0E7FF]" : "bg-[#F3EDFF] text-[#6B2CCB]",
           ].join(" ")}
-          style={!isDark ? { background: palette.chip, color: palette.icon } : undefined}
           data-testid={item.testId ? `${item.testId}-status` : undefined}
         >
           {item.meta}
         </span>
       ) : null}
       <ChevronRight
-        className={["hidden md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end", isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]"].join(" ")}
+        className={[
+          "hidden opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end",
+          isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]",
+        ].join(" ")}
         size={22}
         strokeWidth={2.5}
         aria-hidden="true"
@@ -867,10 +939,10 @@ export function PrototypeHealthScreen({
   backPath?: string;
 }) {
   const healthRows: RowItem[] = [
-    { icon: Stethoscope, title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: ShieldCheck, title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: HeartPulse, title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Stethoscope, brandIcon: "doctor", title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, brandIcon: "longevity", title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: HeartPulse, brandIcon: "vitals", title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, brandIcon: "medication", title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (

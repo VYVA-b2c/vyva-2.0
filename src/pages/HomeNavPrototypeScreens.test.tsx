@@ -234,10 +234,17 @@ describe("Home/Nav prototype screens", () => {
       expect(screen.getByTestId(testId)).toHaveClass("bg-white");
       expect(screen.getByTestId(testId)).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
       expect(screen.getByTestId(testId)).not.toHaveClass("bg-white/92");
-      expect(screen.getByTestId(`${testId}-icon`)).toHaveClass("text-white");
-      expect(screen.getByTestId(`${testId}-icon`).getAttribute("style")).toContain("linear-gradient");
-      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toContain("background");
+      expect(screen.getByTestId(`${testId}-icon`)).toHaveClass("bg-[#F1E8FF]");
+      expect(screen.getByTestId(`${testId}-icon`)).not.toHaveClass("text-white");
+      expect(screen.getByTestId(`${testId}-icon`).getAttribute("style")).toBeNull();
+      expect(screen.getByTestId(`${testId}-icon`).querySelector("svg")).toHaveAttribute("data-brand-icon");
+      expect(screen.getByTestId(`${testId}-status`)).toHaveClass("bg-[#F3EDFF]", "text-[#6B2CCB]");
+      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toBeNull();
     }
+    expect(screen.getByTestId("button-health-symptom-report-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "doctor");
+    expect(screen.getByTestId("button-health-plan-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "longevity");
+    expect(screen.getByTestId("button-health-vitals-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "vitals");
+    expect(screen.getByTestId("button-health-medicines-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "medication");
     expect(screen.queryByText("Heart rate — this week")).not.toBeInTheDocument();
     expect(screen.queryByText("Heart rate")).not.toBeInTheDocument();
     expect(screen.queryByText("Blood pressure")).not.toBeInTheDocument();
