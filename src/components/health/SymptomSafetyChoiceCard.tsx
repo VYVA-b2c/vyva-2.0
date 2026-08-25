@@ -5,6 +5,7 @@ type SymptomSafetyChoiceCardProps = {
   label: string;
   isClearChoice?: boolean;
   disabled?: boolean;
+  testId?: string;
   onClick: () => void;
 };
 
@@ -13,6 +14,7 @@ export function SymptomSafetyChoiceCard({
   label,
   isClearChoice = false,
   disabled = false,
+  testId,
   onClick,
 }: SymptomSafetyChoiceCardProps) {
   const safetyTone = isClearChoice ? "clear" : "warning";
@@ -21,6 +23,7 @@ export function SymptomSafetyChoiceCard({
     <button
       type="button"
       disabled={disabled}
+      data-testid={testId}
       data-safety-tone={safetyTone}
       onClick={onClick}
       className={`group vyva-tap flex min-h-[68px] w-full items-center gap-3 rounded-[18px] border bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(63,45,75,0.05)] transition focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-55 ${

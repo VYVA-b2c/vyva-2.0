@@ -2730,7 +2730,6 @@ const SignosScreen = () => {
   const doctorHelpAction = statusServiceActions.find((action) => action.kind === "doctor_help");
   const rideAction = statusServiceActions.find((action) => action.kind === "book_ride");
   const guideQuery = `Please guide me through my AgeWell plan. Focus: ${preventionFocus.focus}. ${preventionFocus.why?.[0] ?? preventionFocus.headline}`;
-  const missingBloodPressure = !metricHasValue(summary, "bp");
   const ageWellMissionSteps = useMemo(() => buildAgeWellMission({
     actions: longevityMoves,
   }), [longevityMoves]);
@@ -2791,7 +2790,7 @@ const SignosScreen = () => {
         Icon: Activity,
         accent: "#B45309",
         soft: "#FFF2DC",
-        onClick: missingBloodPressure ? () => openAddReadingSheet("bp_systolic") : () => openAddReadingSheet(),
+        onClick: () => openAddReadingSheet(),
       },
       {
         id: "medicine",
@@ -2826,7 +2825,7 @@ const SignosScreen = () => {
         onClick: () => navigate("/health/prevention"),
       },
     ];
-  }, [latestText, missingBloodPressure, navigate, openAddReadingSheet, preventionFocus, summary, t]);
+  }, [latestText, navigate, openAddReadingSheet, preventionFocus, summary, t]);
 
   const runStatusAction = (action?: VitalsStatusServiceAction) => {
     if (!action) return;
