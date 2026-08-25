@@ -3,7 +3,7 @@ import { ArrowLeft, Check, ChevronDown, ChevronRight, Clipboard, Mic, Share2 } f
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useProfile } from "@/contexts/ProfileContext";
+import { useOptionalProfile } from "@/contexts/ProfileContext";
 import { apiFetch } from "@/lib/queryClient";
 
 type Pillar = "heart" | "brain" | "strength" | "nourishment" | "calm";
@@ -89,7 +89,7 @@ function PreventionPlanSkeleton() {
 
 export default function PreventionPlan() {
   const { user } = useAuth();
-  const { firstName } = useProfile();
+  const firstName = useOptionalProfile()?.firstName ?? "";
   const navigate = useNavigate();
   const userId = user?.id ?? "";
   const { data: plan, isLoading, isError } = usePreventionPlan(userId);
