@@ -62,7 +62,7 @@ const SymptomSeverityPreviewScreen = lazy(() => import("./pages/SymptomCheckScre
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
 const PreventionPlan = lazy(() => import("./pages/PreventionPlan"));
-const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
+const LongevityScreen = lazy(() => import("./pages/LongevityScreen"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
@@ -935,7 +935,7 @@ const App = () => (
                   <Route path="/menu" element={<AppShell><MenuScreen /></AppShell>} />
                   <Route path="/health" element={<HealthHubRoute />} />
                   <Route path="/health/dashboard" element={<AppShell><HealthScreen /></AppShell>} />
-                  <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
+                  <Route path="/health/prevention" element={<AppShell><LongevityScreen /></AppShell>} />
                   <Route path="/health/prevention-plan" element={<AppShell><PreventionPlan /></AppShell>} />
                   <Route path="/health/exercises/gentle-walk" element={<Navigate to="/activity?focus=gentle-walk" replace />} />
                   <Route path="/mind" element={<Navigate to="/mind-memory" replace />} />
