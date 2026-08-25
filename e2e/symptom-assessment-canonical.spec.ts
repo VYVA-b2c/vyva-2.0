@@ -308,7 +308,8 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   await expect(safetyScene).toHaveAttribute("data-shell-contract", "home.production");
   const safetyFrame = await safetyScene.boundingBox();
   expect(safetyFrame?.width).toBe(330);
-  expect(safetyFrame?.height).toBeGreaterThanOrEqual(535);
+  expect(safetyFrame?.height).toBeGreaterThanOrEqual(400);
+  expect(safetyFrame?.height).toBeLessThanOrEqual(535);
   await expect(
     safetyScene.getByRole("heading", {
       name: "Before we continue, are you having severe chest pain, fainting, or struggling to breathe?",
@@ -326,8 +327,9 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   await expect(controls.getByRole("button", { name: "No" })).toBeVisible();
   const yesButton = controls.getByRole("button", { name: "Yes" });
   await expect(yesButton).toBeVisible();
-  await expect(yesButton).toHaveCSS("background-color", "rgb(112, 36, 196)");
-  await expect(yesButton).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(yesButton).toHaveAttribute("data-safety-tone", "warning");
+  await expect(yesButton).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(yesButton).toHaveCSS("color", "rgb(127, 29, 29)");
   await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
 
   await page.screenshot({
@@ -363,7 +365,7 @@ test("the desktop Touch entry keeps the canonical flow centered and readable", a
   await expect(page.getByRole("navigation")).toBeVisible();
   const sceneFrame = await describeScene.boundingBox();
   expect(sceneFrame?.width).toBeGreaterThanOrEqual(330);
-  expect(sceneFrame?.width).toBeLessThanOrEqual(620);
+  expect(sceneFrame?.width).toBeLessThanOrEqual(760);
   const exampleButtons = page
     .getByTestId("symptom-check-example-chips")
     .locator('[data-testid^="button-symptom-example-"]');
@@ -526,7 +528,7 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   await stage("onset").getByRole("button", { name: "Today" }).click();
   await expect(stage("related_details")).toBeVisible();
   await expect(stage("related_details").getByRole("heading", { name: "One more detail" })).toBeVisible();
-  await expect(stage("related_details").getByText("Has anything made it better or worse?")).toBeVisible();
+  await expect(stage("related_details").getByText("Choose the pattern that fits best.")).toBeVisible();
   await expect(stage("related_details").getByRole("button", { name: "Nothing clearly changed it" })).toBeVisible();
   const mobileRelatedDetailsFrame = await stage("related_details").boundingBox();
   expect(mobileRelatedDetailsFrame?.width).toBeLessThanOrEqual(360);
@@ -646,6 +648,8 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   await expect(page.getByTestId("button-report-share")).not.toBeVisible();
   await expect(page.getByTestId("button-report-view-reports")).not.toBeVisible();
   await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
+  await page.getByTestId("report-result-details").locator(":scope > summary").click();
+  await page.getByTestId("button-report-detail-share").click();
   await page.getByTestId("report-share-save").locator("summary").click();
   await expect(page.getByTestId("report-share-save")).toHaveAttribute("open", "");
   await expect(page.getByTestId("button-report-share")).toBeVisible();

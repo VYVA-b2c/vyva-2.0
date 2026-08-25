@@ -521,7 +521,7 @@ function RowCard({ item }: { item: RowItem }) {
           {item.title}
         </span>
         <span
-          className={["mt-1 block truncate font-body font-bold leading-snug", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}
+          className={["mt-1 line-clamp-2 font-body font-bold leading-snug", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}
           style={{ fontSize: subtitleSize }}
         >
           {item.subtitle}
