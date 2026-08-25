@@ -208,7 +208,7 @@ describe("Home/Nav prototype screens", () => {
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
   });
 
-  it("renders Health as a calm row-based detail surface with check-in and symptom report separated", () => {
+  it("renders Health as a calm responsive action grid with check-in and symptom report separated", () => {
     renderScreen(<PrototypeHealthScreen />);
 
     expect(screen.getByTestId("button-prototype-back")).toBeInTheDocument();
@@ -229,8 +229,10 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByText("Start")).toBeInTheDocument();
     expect(screen.getByText("72 bpm")).toBeInTheDocument();
     expect(screen.getByText("2:00 PM")).toBeInTheDocument();
+    expect(screen.getByTestId("health-action-grid")).toHaveClass("grid-cols-1", "md:grid-cols-2");
     for (const testId of ["button-health-plan", "button-health-symptom-report", "button-health-vitals", "button-health-medicines"]) {
       expect(screen.getByTestId(testId)).toHaveClass("bg-white");
+      expect(screen.getByTestId(testId)).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
       expect(screen.getByTestId(testId)).not.toHaveClass("bg-white/92");
     }
     expect(screen.queryByText("Heart rate — this week")).not.toBeInTheDocument();
@@ -278,8 +280,8 @@ describe("Home/Nav prototype screens", () => {
 
     const frame = screen.getByTestId("prototype-health-screen-frame");
     expect(frame).toHaveClass("max-w-[430px]");
-    expect(frame).toHaveClass("sm:max-w-[620px]");
-    expect(frame).toHaveClass("lg:max-w-[760px]");
+    expect(frame).toHaveClass("sm:max-w-[680px]");
+    expect(frame).toHaveClass("lg:max-w-[900px]");
 
     fireEvent.click(screen.getByTestId("button-health-plan"));
     fireEvent.click(screen.getByTestId("button-health-symptom-report"));
