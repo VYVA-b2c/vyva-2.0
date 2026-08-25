@@ -127,6 +127,10 @@ export type TriageWizardContext = {
     painScore?: number | null;
     energyLevel?: number | null;
   };
+  vitalsEvidence?: Partial<Record<
+    "bpm" | "respiratoryRate" | "oxygenSaturation" | "temperatureC" | "systolicBp" | "diastolicBp" | "glucoseMgdl" | "painScore" | "energyLevel",
+    { source: "phone_estimate" | "manual_entry" | "connected_device" | "clinical"; affectsTriage: boolean }
+  >>;
   quickAnswers?: TriageWizardAnswer[];
   scanResults?: TriageScanResult[];
   declinedScanTypes?: TriageScanType[];
@@ -203,7 +207,7 @@ export type TriageChatMessage = {
   content: string;
 };
 
-export type WizardStage = "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "complete";
+export type WizardStage = "symptom" | "location" | "red_flag" | "duration" | "severity" | "trend" | "support" | "complete";
 
 export type ProtocolRule = {
   ids: string[];

@@ -179,6 +179,20 @@ function hasKind(wizard: TriageWizardContext | undefined, kind: string) {
   return selectedAnswers(wizard).some((answer) => answer.kind === kind);
 }
 
+function selectedSeverityScore(wizard: TriageWizardContext | undefined) {
+  const answer = selectedAnswers(wizard).find((item) => item.kind === "severity");
+  if (!answer) return null;
+  const labelScore = Number(answer.label);
+  if (Number.isFinite(labelScore) && labelScore >= 0 && labelScore <= 10) return labelScore;
+  const idScore = Number(answer.id.match(/^severity_(\d{1,2})$/)?.[1]);
+  return Number.isFinite(idScore) && idScore >= 0 && idScore <= 10 ? idScore : null;
+}
+
+function hasStrongSeverity(wizard: TriageWizardContext | undefined) {
+  return selectedAnswers(wizard).some((answer) => answer.id === "strong")
+    || (selectedSeverityScore(wizard) ?? -1) >= 7;
+}
+
 export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory) {
   const answers = selectedAnswers(wizard);
   if (!answers.some((answer) => answer.kind === "red_flag")) return false;
@@ -186,18 +200,19 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
   const symptomId = selectedSymptomId(wizard);
   const risks = profileRiskFlags(healthMemory);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+  const strongSeverity = hasStrongSeverity(wizard);
 
   if (hasCriticalRedFlag) return true;
 
   if (symptomId === "breathing") {
-    if (ids.has("strong")) return true;
+    if (strongSeverity) return true;
     if (ids.has("walking_only") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
     if (ids.has("no_red_flag") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "pain") {
     if (ids.has("after_fall") && hasKind(wizard, "severity")) return true;
-    if (ids.has("strong") && ids.has("worse")) return true;
+    if (strongSeverity && ids.has("worse")) return true;
     if (hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
@@ -206,25 +221,25 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
   }
 
   if (symptomId === "dizzy") {
-    if ((ids.has("strong") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if ((strongSeverity || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "fever") {
     if ((risks.immunosuppressed || risks.cancerActive || risks.steroidMedication) && hasKind(wizard, "duration")) return true;
-    if ((ids.has("strong") || ids.has("week_plus") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if ((strongSeverity || ids.has("week_plus") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "tired") {
-    if ((ids.has("not_drinking") || ids.has("strong") || ids.has("worse")) && hasKind(wizard, "severity")) return true;
+    if ((ids.has("not_drinking") || strongSeverity || ids.has("worse")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "stomach") {
     if ((ids.has("not_drinking") || ids.has("fever_or_severe_pain") || ids.has("diabetes_vomiting")) && hasKind(wizard, "severity")) return true;
     if (ids.has("vomit_diarrhea_24h") || ids.has("constipation_passing_gas")) return true;
-    if ((ids.has("strong") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if ((strongSeverity || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
@@ -254,75 +269,20 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
   return hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend");
 }
 
-export function nextAdaptiveStage(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory): WizardStage {
+export function nextAdaptiveStage(wizard: TriageWizardContext | undefined, _healthMemory?: TriageHealthMemory): WizardStage {
   const answers = selectedAnswers(wizard);
   if (wizard?.refineRequested) return "complete";
   if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
-  if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
-  if (shouldCompleteFromRules(wizard, healthMemory)) return "complete";
-
-  const ids = new Set(answers.map((answer) => answer.id));
   const symptomId = selectedSymptomId(wizard);
-
-  if (symptomId === "breathing") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "pain") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if ((ids.has("after_fall") || ids.has("strong")) && !hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-    if (!hasKind(wizard, "trend")) return "trend";
-  }
-
-  if (symptomId === "chest") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "dizzy") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "fever") {
-    if (!hasKind(wizard, "duration")) return "duration";
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-  }
-
-  if (symptomId === "tired") {
-    if ((ids.has("not_drinking") || ids.has("new_severe")) && !hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "duration")) return "duration";
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-  }
-
-  if (symptomId === "fall") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "confusion") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (["stomach", "urinary", "skin", "other"].includes(symptomId ?? "")) {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
+  if (symptomId === "pain" && !answers.some((answer) => answer.kind === "location")) return "location";
+  if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
+  // The canonical presentation flow is intentionally consistent for every
+  // non-emergency symptom. Outcome rules still determine urgency, but they
+  // must not skip information-gathering or the user's final review.
   if (!hasKind(wizard, "severity")) return "severity";
   if (!hasKind(wizard, "duration")) return "duration";
   if (!hasKind(wizard, "trend")) return "trend";
+  if (!hasKind(wizard, "support")) return "support";
   return "complete";
 }
 
@@ -476,6 +436,7 @@ export function vitalsNotesFor(locale: string, wizard: TriageWizardContext | und
   const diastolicBp = wizard?.vitals?.diastolicBp;
   const glucoseMgdl = wizard?.vitals?.glucoseMgdl;
   const painScore = wizard?.vitals?.painScore;
+  const symptomSeverity = selectedSeverityScore(wizard);
   const energyLevel = wizard?.vitals?.energyLevel;
   const notes: string[] = [];
   if (typeof bpm === "number" && (bpm >= 110 || bpm <= 50)) {
@@ -502,6 +463,8 @@ export function vitalsNotesFor(locale: string, wizard: TriageWizardContext | und
   }
   if (typeof painScore === "number") {
     notes.push(text(locale, `Pain score was ${painScore}/10.`, `El dolor fue ${painScore}/10.`));
+  } else if (typeof symptomSeverity === "number") {
+    notes.push(text(locale, `Symptom severity was ${symptomSeverity}/10.`, `La intensidad del sintoma fue ${symptomSeverity}/10.`));
   }
   if (typeof energyLevel === "number") {
     notes.push(text(locale, `Energy level was ${energyLevel}/10.`, `La energia fue ${energyLevel}/10.`));
@@ -631,6 +594,7 @@ export function nextStepFor(
   const answers = selectedAnswers(wizard);
   const ids = new Set(answers.map((answer) => answer.id));
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+  const strongSeverity = hasStrongSeverity(wizard);
 
   if (hasCriticalRedFlag) {
     return {
@@ -638,13 +602,13 @@ export function nextStepFor(
       nextStepLabel: text(locale, "Call emergency services now", "Llama a emergencias ahora"),
     };
   }
-  if (summary.urgency === "urgent" || (ids.has("strong") && ids.has("worse")) || ids.has("new_symptoms")) {
+  if (summary.urgency === "urgent" || (strongSeverity && ids.has("worse")) || ids.has("new_symptoms")) {
     return {
       nextStepLevel: "doctor_today",
       nextStepLabel: text(locale, "Talk to a doctor today", "Habla con un médico hoy"),
     };
   }
-  if (summary.urgency === "routine" || ids.has("strong") || ids.has("worse")) {
+  if (summary.urgency === "routine" || strongSeverity || ids.has("worse")) {
     return {
       nextStepLevel: "doctor_24_48",
       nextStepLabel: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un médico en 24-48 horas"),
@@ -711,13 +675,14 @@ export function evaluateTriageSafetyFloor(
   const symptom = selectedSymptomId(wizard);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
   const risks = profileRiskFlags(healthMemory);
-  const bpm = wizard?.vitals?.bpm ?? undefined;
-  const respiratoryRate = wizard?.vitals?.respiratoryRate ?? undefined;
+  const eligibleVital = (key: keyof NonNullable<TriageWizardContext["vitals"]>) => wizard?.vitalsEvidence?.[key]?.affectsTriage !== false;
+  const bpm = eligibleVital("bpm") ? wizard?.vitals?.bpm ?? undefined : undefined;
+  const respiratoryRate = eligibleVital("respiratoryRate") ? wizard?.vitals?.respiratoryRate ?? undefined : undefined;
   const abnormalPulse = typeof bpm === "number" && (bpm >= 110 || bpm <= 50);
   const abnormalBreathingRate = typeof respiratoryRate === "number" && (respiratoryRate >= 24 || respiratoryRate <= 10);
   const scanResults = wizard?.scanResults ?? [];
   const scanNotes = scanNotesFor(locale, wizard);
-  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent");
+  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent" && scan.type !== "vitals");
   const urgentScanReason = urgentScans.length
     ? text(locale, "An optional scan found a concerning visible change that should be shared with a clinician today.", "Un escaneo opcional encontro un cambio visible preocupante que conviene compartir hoy con un clinico.")
     : "";
@@ -734,12 +699,12 @@ export function evaluateTriageSafetyFloor(
     abnormalBreathingRate,
     pulseBpm: bpm,
     respiratoryRate,
-    oxygenSaturation: wizard?.vitals?.oxygenSaturation ?? undefined,
-    temperatureC: wizard?.vitals?.temperatureC ?? undefined,
-    systolicBp: wizard?.vitals?.systolicBp ?? undefined,
-    diastolicBp: wizard?.vitals?.diastolicBp ?? undefined,
-    glucoseMgdl: wizard?.vitals?.glucoseMgdl ?? undefined,
-    painScore: wizard?.vitals?.painScore ?? undefined,
+    oxygenSaturation: eligibleVital("oxygenSaturation") ? wizard?.vitals?.oxygenSaturation ?? undefined : undefined,
+    temperatureC: eligibleVital("temperatureC") ? wizard?.vitals?.temperatureC ?? undefined : undefined,
+    systolicBp: eligibleVital("systolicBp") ? wizard?.vitals?.systolicBp ?? undefined : undefined,
+    diastolicBp: eligibleVital("diastolicBp") ? wizard?.vitals?.diastolicBp ?? undefined : undefined,
+    glucoseMgdl: eligibleVital("glucoseMgdl") ? wizard?.vitals?.glucoseMgdl ?? undefined : undefined,
+    painScore: wizard?.vitals?.painScore ?? selectedSeverityScore(wizard) ?? undefined,
     energyLevel: wizard?.vitals?.energyLevel ?? undefined,
   });
   const baseSummary = {

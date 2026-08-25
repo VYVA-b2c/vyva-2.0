@@ -192,10 +192,12 @@ test.describe("home master visual contract", () => {
     await expect(page.getByTestId("button-health-vitals")).toBeVisible();
     await expect(page.getByTestId("button-health-medicines")).toBeVisible();
     await expect(page.getByRole("navigation")).toBeVisible();
-    const mobileSubtitlesFit = await page.getByTestId("prototype-health-screen").locator("span.truncate").evaluateAll((elements) =>
-      elements.every((element) => element.scrollWidth <= element.clientWidth),
+    const mobileSubtitleOverflows = await page.getByTestId("prototype-health-screen").locator("span.truncate").evaluateAll((elements) =>
+      elements
+        .filter((element) => element.scrollWidth > element.clientWidth)
+        .map((element) => ({ text: element.textContent, className: element.className, parentClassName: element.parentElement?.className, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth })),
     );
-    expect(mobileSubtitlesFit).toBe(true);
+    expect(mobileSubtitleOverflows).toEqual([]);
     await page.setViewportSize({ width: 1290, height: 663 });
     await expect(page.getByTestId("prototype-health-screen")).toBeVisible();
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);

@@ -81,7 +81,8 @@ const pathCases: Array<{
     quickAnswers: [
       { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
       { id: "no_red_flag", label: "No, none of these", value: "None of these warning signs apply.", kind: "red_flag" },
-      { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "severity" },
+      { id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "location" },
+      { id: "severity_3", label: "3", value: "The symptom feels 3 out of 10.", kind: "severity" },
       { id: "better", label: "Mild, familiar, improving", value: "It is mild, familiar, and improving.", kind: "trend" },
     ],
     expectedContent: "Your answers fit a lower-risk pain or headache pattern right now.",
@@ -439,14 +440,32 @@ describe("triage route outcome parity", () => {
     expect(risks.fallsFrailty).toBe(true);
   });
 
-  it("preserves adaptive completion and deterministic floor composition", () => {
+  it("requires the complete canonical sequence before deterministic guidance", () => {
     const incompleteFall = wizard([
       { id: "fall", label: "Fall or injury", value: "I fell or got injured.", kind: "symptom" },
       { id: "no_red_flag", label: "No, only a small bruise or soreness", value: "Only a small bruise or soreness.", kind: "red_flag" },
       { id: "mild", label: "Yes, normal movement and mild soreness", value: "I can move normally with mild soreness.", kind: "severity" },
     ]);
 
-    expect(nextAdaptiveStage(incompleteFall)).toBe("trend");
+    expect(nextAdaptiveStage(incompleteFall)).toBe("duration");
+
+    const answers: TriageWizardAnswer[] = [
+      { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+    ];
+    expect(nextAdaptiveStage(wizard(answers))).toBe("location");
+    answers.push({ id: "head_neck_pain", label: "Head or neck", value: "The pain is mainly in my head or neck.", kind: "location" });
+    expect(nextAdaptiveStage(wizard(answers))).toBe("red_flag");
+    answers.push({ id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" });
+    expect(nextAdaptiveStage(wizard(answers))).toBe("severity");
+    answers.push({ id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" });
+    expect(nextAdaptiveStage(wizard(answers))).toBe("duration");
+    answers.push({ id: "today", label: "Today", value: "It started today.", kind: "duration" });
+    expect(nextAdaptiveStage(wizard(answers))).toBe("trend");
+    answers.push({ id: "same", label: "About the same", value: "It is about the same.", kind: "trend" });
+    expect(nextAdaptiveStage(wizard(answers))).toBe("support");
+    answers.push({ id: "confirm_review", label: "Yes, show my guidance", value: "These answers are correct.", kind: "support" });
+    expect(nextAdaptiveStage(wizard(answers))).toBe("complete");
+
     expect(nextAdaptiveStage(wizard([
       { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
     ], { refineRequested: true, vitals: { painScore: 6 } }))).toBe("complete");
@@ -458,6 +477,40 @@ describe("triage route outcome parity", () => {
 
     expect(refined.nextStepLevel).toBe("emergency");
     expect(refined.vitalsNotes).toContain("Temperature was 38.5 C.");
+  });
+
+  it("does not let a phone estimate independently change acute triage", () => {
+    const answers: TriageWizardAnswer[] = [
+      { id: "breathing", label: "Breathing", value: "I have a breathing concern.", kind: "symptom" },
+      { id: "no_red_flag", label: "No emergency signs", value: "No emergency signs.", kind: "red_flag" },
+      { id: "mild", label: "Mild", value: "It feels mild.", kind: "severity" },
+      { id: "better", label: "Better", value: "It is getting better.", kind: "trend" },
+    ];
+    const estimated = fallback(answers, {
+      vitals: { oxygenSaturation: 88 },
+      vitalsEvidence: { oxygenSaturation: { source: "phone_estimate", affectsTriage: false } },
+    });
+    const connected = fallback(answers, {
+      vitals: { oxygenSaturation: 88 },
+      vitalsEvidence: { oxygenSaturation: { source: "connected_device", affectsTriage: true } },
+    });
+
+    expect(estimated.summary.nextStepLevel).toBe("monitor");
+    expect(connected.summary.nextStepLevel).toBe("emergency");
+  });
+
+  it("uses the canonical numeric severity scale in deterministic guidance", () => {
+    const result = fallback([
+      { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+      { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" },
+      { id: "severity_8", label: "8", value: "The symptom feels 8 out of 10.", kind: "severity" },
+      { id: "today", label: "Today", value: "It started today.", kind: "duration" },
+      { id: "same", label: "About the same", value: "It is about the same.", kind: "trend" },
+      { id: "confirm_review", label: "Confirm", value: "These answers are correct.", kind: "support" },
+    ], {}, "Strong headache");
+
+    expect(result.summary.nextStepLevel).toBe("doctor_today");
+    expect(result.summary.vitalsNotes).toContain("Symptom severity was 8/10.");
   });
 
   it("deduplicates semantically repeated report recommendations", () => {

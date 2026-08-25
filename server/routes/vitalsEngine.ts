@@ -26,6 +26,7 @@ import {
   teamInvitations,
   triageReports,
   userHealthConditions,
+  userDeviceConnections,
   userMedications,
 } from "../../shared/schema.js";
 import {
@@ -51,6 +52,12 @@ import {
   type ProposedVitalsReading,
   type VitalsParsingResult,
 } from "../../shared/vitalsParsing.js";
+import {
+  TRIAGE_VITAL_SIGNAL_MAP,
+  compatibleCaptureMethods,
+  measurementEnvelope,
+  newestReadingBySignal,
+} from "../../shared/vitalsAcquisition.js";
 
 const router = Router();
 router.use(requireUser);
@@ -73,6 +80,7 @@ const signalReadingSchema = z.object({
   source_ref: z.record(z.unknown()).optional(),
   recorded_at: z.string().datetime().optional(),
   condition_tags: z.array(z.string()).optional().default([]),
+  assessment_session_id: z.string().max(160).optional(),
 });
 
 const readingSchema = signalReadingSchema.extend({
@@ -113,12 +121,18 @@ const acknowledgeSchema = z.object({
 type RiskTier = "none" | "watch" | "notify" | "urgent";
 
 type SignalReadingRow = {
+  id?: string;
   signal_type: string;
   context_tag: string | null;
   value: string | number;
   recorded_at: Date | string;
   source: string;
   deviation_pct: string | number | null;
+  capture_method?: string | null;
+  unit?: string | null;
+  source_ref?: Record<string, unknown> | null;
+  quality_flag?: string | null;
+  assessment_session_id?: string | null;
 };
 
 type SignalReadingResponse = SignalReadingRow & {
@@ -314,7 +328,8 @@ async function resolveProfileId(req: Request): Promise<string> {
 
 async function getRecentReadings(userId: string, hours = 72): Promise<SignalReadingRow[]> {
   const result = await db.execute(sql`
-    SELECT signal_type, value, recorded_at, source, deviation_pct, context_tag
+    SELECT id, signal_type, value, recorded_at, source, deviation_pct, context_tag,
+           capture_method, unit, source_ref, quality_flag, assessment_session_id
     FROM vyva_signal_readings
     WHERE user_id = ${userId}
       AND recorded_at >= ${daysAgo(hours)}
@@ -670,6 +685,7 @@ async function saveSignalReading(params: {
   sourceRef?: Record<string, unknown>;
   recordedAt?: string;
   conditionTags: string[];
+  assessmentSessionId?: string;
 }) {
   const baselineResult = await db.execute(sql`
     SELECT baseline_mean
@@ -693,6 +709,7 @@ async function saveSignalReading(params: {
       capture_method,
       unit,
       source_ref,
+      assessment_session_id,
       context_tag,
       baseline_ref,
       deviation_pct,
@@ -707,6 +724,7 @@ async function saveSignalReading(params: {
       ${params.captureMethod},
       ${params.unit ?? unitForSignal(params.signalType)},
       ${params.sourceRef ? JSON.stringify(params.sourceRef) : null}::jsonb,
+      ${params.assessmentSessionId ?? null},
       ${params.contextTag},
       ${baselineMean},
       ${deviationPct},
@@ -746,6 +764,7 @@ async function saveValidatedReadings(
       sourceRef: reading.source_ref,
       recordedAt: reading.recorded_at,
       conditionTags: reading.condition_tags,
+      assessmentSessionId: reading.assessment_session_id,
     });
     saved.push(result);
     if (result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
@@ -1051,6 +1070,69 @@ router.get("/latest/:requestedUserId", async (req: Request, res: Response) => {
     return res.status(403).json({ error: "Cannot read readings for another user" });
   }
   return sendLatestVitalsIntelligence(profileId, res);
+});
+
+router.get("/acquisition-context", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req);
+  const requestedSignals = String(req.query.signals ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(isVitalsSignalKey);
+  const signalTypes: VitalsSignalKey[] = requestedSignals.length
+    ? requestedSignals
+    : [...new Set(Object.values(TRIAGE_VITAL_SIGNAL_MAP).flat())];
+
+  try {
+    const [readingRows, deviceRows] = await Promise.all([
+      getRecentReadings(profileId, 24),
+      db.select().from(userDeviceConnections).where(and(
+        eq(userDeviceConnections.user_id, profileId),
+        eq(userDeviceConnections.is_active, true),
+      )),
+    ]);
+    const readings = readingRows
+      .filter((reading) => isVitalsSignalKey(reading.signal_type) && signalTypes.includes(reading.signal_type))
+      .map((reading) => measurementEnvelope({
+        id: reading.id,
+        signalType: reading.signal_type as VitalsSignalKey,
+        value: reading.value,
+        unit: reading.unit,
+        recordedAt: reading.recorded_at,
+        source: reading.source,
+        captureMethod: reading.capture_method,
+        qualityFlag: reading.quality_flag,
+        sourceRef: reading.source_ref,
+        assessmentSessionId: reading.assessment_session_id,
+      }));
+    const latestBySignal = newestReadingBySignal(readings);
+
+    return res.json({
+      signals: signalTypes.map((signalType) => {
+        const latestReading = latestBySignal.get(signalType) ?? null;
+        return {
+          signal_type: signalType,
+          current_reading: latestReading?.freshness === "current" ? latestReading : null,
+          latest_reading: latestReading,
+          compatible_methods: compatibleCaptureMethods(signalType),
+        };
+      }),
+      readings,
+      devices: deviceRows.map((row) => ({
+        id: row.device_kind,
+        provider: row.provider,
+        deviceName: row.device_label,
+        status: row.status,
+        capabilities: row.capabilities ?? [],
+        connectedAt: row.connected_at,
+        lastSyncedAt: row.last_synced_at,
+        metadata: row.metadata ?? {},
+      })),
+      policy: { current_minutes: 30, context_hours: 24, hrv_triage_enabled: false },
+    });
+  } catch (err) {
+    console.error("[vitals-engine acquisition-context]", err);
+    return res.status(500).json({ error: "Failed to load vitals acquisition context" });
+  }
 });
 
 router.get("/history", async (req: Request, res: Response) => {

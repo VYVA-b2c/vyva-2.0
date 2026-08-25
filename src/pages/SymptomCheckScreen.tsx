@@ -15,6 +15,8 @@ import {
   isNumericSeverityScaleChoices,
   SeverityScaleControl,
 } from "@/components/health/SeverityScaleControl";
+import { SymptomSafetyChoiceCard } from "@/components/health/SymptomSafetyChoiceCard";
+import { SymptomChoiceCard } from "@/components/health/SymptomChoiceCard";
 import { PrototypeSymptomAssessmentShell } from "@/pages/HomeNavPrototypeScreens";
 import { useToast } from "@/hooks/use-toast";
 import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
@@ -41,6 +43,12 @@ import type { HomeInteractionMode } from "@/lib/homeModeControl";
 
 type Step = "intro" | "chat" | "report";
 
+export function symptomCheckHealthReturnPath(pathname: string) {
+  return pathname.startsWith("/dev/home-master")
+    ? "/dev/home-master/health"
+    : "/health";
+}
+
 export function symptomAssessmentStageForRuntime(
   runtimeStage: string | null | undefined,
   urgent = false,
@@ -50,6 +58,7 @@ export function symptomAssessmentStageForRuntime(
     case "checking": return "checking";
     case "red_flag": return "safety_check";
     case "symptom": return "symptom_selection";
+    case "location": return "symptom_selection";
     case "severity": return "severity";
     case "duration": return "onset";
     case "trend": return "related_details";
@@ -755,7 +764,7 @@ function VoiceTriageLivePanel({
 
   return (
     <aside
-      className="mx-auto mb-8 mt-4 w-full max-w-[620px] md:mb-10"
+      className="mx-auto mb-8 mt-4 w-full max-w-[760px] md:mb-10"
       data-testid="voice-triage-live-panel"
       aria-live="polite"
     >
@@ -788,6 +797,39 @@ function VoiceTriageLivePanel({
               const isNoWarningChoice = choice.id === "no_red_flag";
               const ChoiceIcon = isNoWarningChoice ? CheckCircle : AlertTriangle;
 
+              if (isSafetyChoice) {
+                return (
+                  <SymptomSafetyChoiceCard
+                    key={choice.id}
+                    Icon={ChoiceIcon}
+                    label={choice.spoken_label}
+                    isClearChoice={isNoWarningChoice}
+                    disabled={!canTapAnswer}
+                    testId={`voice-triage-choice-${choice.id}`}
+                    onClick={() => onAnswer?.({
+                      choiceId: choice.id,
+                      utterance: choice.value || choice.spoken_label,
+                    })}
+                  />
+                );
+              }
+
+              if (stageId !== "review") {
+                return (
+                  <SymptomChoiceCard
+                    key={choice.id}
+                    Icon={Activity}
+                    label={choice.spoken_label}
+                    disabled={!canTapAnswer}
+                    testId={`voice-triage-choice-${choice.id}`}
+                    onClick={() => onAnswer?.({
+                      choiceId: choice.id,
+                      utterance: choice.value || choice.spoken_label,
+                    })}
+                  />
+                );
+              }
+
               return (
                 <button
                   key={choice.id}
@@ -798,23 +840,8 @@ function VoiceTriageLivePanel({
                     choiceId: choice.id,
                     utterance: choice.value || choice.spoken_label,
                   })}
-                  className={`group vyva-tap flex w-full items-center border font-black leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55 ${
-                    isSafetyChoice
-                      ? "min-h-[68px] justify-start gap-3 rounded-[16px] px-4 py-3 text-left text-[15px]"
-                      : stageId === "review"
-                        ? "min-h-[54px] justify-center rounded-full px-3 py-3 text-center text-[15px]"
-                        : "min-h-[58px] justify-center rounded-[8px] px-[14px] py-3 text-center text-[15px]"
-                  } border-[#D7C6E3] bg-white text-[#241238] hover:border-[#7024C4] hover:bg-[#F3EAFF] active:border-[#7024C4] active:bg-[#7024C4] active:text-white`}
+                  className="vyva-tap flex min-h-[54px] w-full items-center justify-center rounded-full border border-[#D7C6E3] bg-white px-3 py-3 text-center text-[15px] font-black leading-tight text-[#241238] transition hover:border-[#7024C4] hover:bg-[#F3EAFF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55"
                 >
-                  {isSafetyChoice ? (
-                    <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] transition-colors group-active:bg-white/20 group-active:text-white ${
-                      isNoWarningChoice
-                        ? "bg-[#ECFDF5] text-[#047857]"
-                        : "bg-[#F3EAFF] text-[#7024C4]"
-                    }`}>
-                      <ChoiceIcon size={19} strokeWidth={2.6} aria-hidden="true" />
-                    </span>
-                  ) : null}
                   <span>{choice.spoken_label}</span>
                 </button>
               );
@@ -1546,7 +1573,7 @@ export function IntroScreen({
   );
   const canRefreshExamples = examplePool.length > visibleExamples.length;
   const visibleExampleIds = new Set(visibleExamples.map((suggestion) => suggestion.id));
-  const moreIdeas = [
+  const moreSymptoms = [
     ...suggestions.filter((suggestion) => !visibleExampleIds.has(suggestion.id)),
     ...fallbackSuggestions.filter((suggestion) => !visibleExampleIds.has(suggestion.id) && !suggestions.some((current) => current.id === suggestion.id)),
   ].slice(0, 8);
@@ -1614,8 +1641,15 @@ export function IntroScreen({
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#F3EAFF] text-[#7024C4]">
           <Icon size={21} strokeWidth={2.6} />
         </span>
-        <span className="min-w-0 flex-1 break-words font-body text-[16px] font-black leading-tight text-vyva-text-1">
-          {suggestion.label}
+        <span className="min-w-0 flex-1">
+          <span className="block break-words font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {suggestion.label}
+          </span>
+          {suggestion.source !== "fallback" ? (
+            <span className="mt-1 block font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#765C83]">
+              {sourceLabels[suggestion.source]}
+            </span>
+          ) : null}
         </span>
         <ArrowRight size={18} strokeWidth={2.6} className="flex-shrink-0 text-[#9A83AD]" aria-hidden="true" />
       </button>
@@ -1789,7 +1823,7 @@ export function IntroScreen({
             {t("health.symptomCheck.intro.backToOptions", "Back to options")}
           </button>
 
-          <label className="mt-4 font-display text-[28px] font-medium leading-tight text-[#241238] sm:text-[32px]" htmlFor="symptom-clue">
+          <label className="mt-4 font-body text-[28px] font-extrabold leading-tight tracking-[-0.025em] text-[#241238] sm:text-[32px]" htmlFor="symptom-clue">
             {t("health.symptomCheck.intro.writeTitle", "What are you feeling?")}
           </label>
           <textarea
@@ -1833,7 +1867,7 @@ export function IntroScreen({
 
       <div
         data-testid="symptom-check-start-panel"
-        className="mx-auto w-full min-w-0 max-w-[520px]"
+        className="mx-auto w-full min-w-0 max-w-[760px]"
       >
         <span className="sr-only">
           {t("health.symptomCheck.intro.assistantTitle", "Choose what feels different")}
@@ -1843,7 +1877,7 @@ export function IntroScreen({
           modality="touch"
           showHeader={false}
           title={t("health.symptomCheck.intro.choiceTitle", "What feels different today?")}
-          helper={t("health.symptomCheck.intro.choiceHelper", "Choose the closest option.")}
+          helper=""
         >
           <div className="grid min-w-0 gap-2 text-left" data-testid="symptom-check-example-chips">
             <div className="flex min-h-8 items-center justify-end px-1">
@@ -1852,10 +1886,11 @@ export function IntroScreen({
                   type="button"
                   onClick={() => setExamplePage((current) => (current + 1) % examplePageCount)}
                   data-testid="button-symptom-more-examples"
-                  className="vyva-tap inline-flex min-h-8 items-center gap-1.5 rounded-full border border-[#DFD3E7] bg-white px-3 font-body text-[11px] font-black text-vyva-purple transition hover:border-[#B99BCE] hover:bg-[#FAF7FC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2"
+                  aria-label={t("health.symptomCheck.intro.moreExamples", "More examples")}
+                  title={t("health.symptomCheck.intro.moreExamples", "More examples")}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center text-vyva-purple transition hover:text-[#4C168C] active:rotate-45 focus-visible:rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2"
                 >
-                  <RefreshCw size={13} strokeWidth={2.7} aria-hidden="true" />
-                  {t("health.symptomCheck.intro.moreExamples", "More examples")}
+                  <RefreshCw size={20} strokeWidth={2.5} aria-hidden="true" />
                 </button>
               ) : null}
             </div>
@@ -1923,14 +1958,14 @@ export function IntroScreen({
         </SymptomAssessmentPresentation>
       </div>
 
-      {(moreIdeas.length || profileContextItems.length) ? (
+      {(moreSymptoms.length || profileContextItems.length) ? (
         <details
-          data-testid="symptom-check-more-ideas"
+          data-testid="symptom-check-more-symptoms"
           className="group mx-auto hidden w-full max-w-[520px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)] lg:block"
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="font-body text-[17px] font-black text-vyva-text-1">
-              {t("health.symptomCheck.intro.moreIdeas", "More ideas")}
+              {t("health.symptomCheck.intro.moreSymptoms", "More symptoms")}
             </span>
             <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
           </summary>
@@ -1947,7 +1982,7 @@ export function IntroScreen({
                 </p>
               </div>
             ) : null}
-            {moreIdeas.map(renderSuggestion)}
+            {moreSymptoms.map(renderSuggestion)}
           </div>
         </details>
       ) : null}
@@ -2217,6 +2252,9 @@ export function ReportScreen({
   const [vitalInputs, setVitalInputs] = useState<Record<string, string>>({});
   const [vitalInputError, setVitalInputError] = useState<string | null>(null);
   const reportTopRef = useRef<HTMLDivElement | null>(null);
+  const vitalRefinementRef = useRef<HTMLDetailsElement | null>(null);
+  const reportDetailsRef = useRef<HTMLDetailsElement | null>(null);
+  const [reportDetailView, setReportDetailView] = useState<"why" | "context" | "share" | "full" | null>(isEmergency ? "why" : null);
   useEffect(() => {
     if (refinementStatus.state === "done") {
       reportTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2370,6 +2408,9 @@ export function ReportScreen({
   );
   const passiveMissingSignals = reportMissingSignals.filter((label) => !refinementKeyForMissingSignal(label));
   const openMissingSignalAction = (action: RefinementVitalConfig) => {
+    if (reportDetailsRef.current) reportDetailsRef.current.open = true;
+    setReportDetailView("context");
+    if (vitalRefinementRef.current) vitalRefinementRef.current.open = true;
     setOpenVitalKey(action.key);
     setVitalInputError(null);
     window.setTimeout(() => {
@@ -2740,7 +2781,7 @@ export function ReportScreen({
           <span className="min-w-0 flex-1 pt-0.5">{recommendation}</span>
         </div>
         {actions.length ? (
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`report-actions-${index}`}>
+          <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2" data-testid={`report-actions-${index}`}>
             {actions.map((action) => {
               const Icon = action.Icon;
               const className = "vyva-tap inline-flex min-h-[50px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
@@ -2798,7 +2839,7 @@ export function ReportScreen({
             <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.12em] text-white/76">
               {urgencyQualifierText}
             </p>
-            <p className="mt-1 font-display text-[25px] italic leading-tight text-white sm:text-[28px]">
+            <p className="mt-1 font-body text-[25px] font-extrabold leading-tight tracking-[-0.025em] text-white sm:text-[28px]">
               {urgencyStatusText}
             </p>
           </div>
@@ -2843,7 +2884,7 @@ export function ReportScreen({
             <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
               {t("health.symptomCheck.report.whatToDoNow", "What to do now")}
             </p>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <p className="font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[24px]">
                   {nextStepDisplayText}
@@ -2864,8 +2905,25 @@ export function ReportScreen({
               </button>
             </div>
           </div>
-          <div className="grid gap-3 p-3 sm:gap-4 sm:p-4">
-            <ol className="grid gap-2 sm:gap-3">
+          <details className="group border-t border-[#EFE5DA] bg-white" data-testid="card-report-plan-details">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 sm:px-4">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#F5F3FF] text-vyva-purple">
+                  <ClipboardList size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[15px] font-black text-vyva-text-1">
+                    {t("health.symptomCheck.report.yourStepPlan", "Your {{count}}-step plan", { count: planSteps.length })}
+                  </span>
+                  <span className="mt-0.5 block font-body text-[12px] font-bold text-vyva-text-3">
+                    {t("health.symptomCheck.report.openPlanDetails", "Open for the practical details")}
+                  </span>
+                </span>
+              </span>
+              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="grid gap-3 border-t border-[#EFE5DA] p-3 sm:gap-4 sm:p-4">
+              <ol className="grid gap-2 sm:gap-3">
               {planSteps.map((recommendation, index) => (
                 <li key={`${recommendation}-${index}`} className="flex items-start gap-3 rounded-[16px] border border-[#F1E8DE] bg-[#FFFCF8] p-2.5 sm:rounded-[20px] sm:p-3">
                   <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple font-body text-[12px] font-black text-white sm:h-8 sm:w-8 sm:text-[13px]">
@@ -2876,46 +2934,146 @@ export function ReportScreen({
                   </span>
                 </li>
               ))}
-            </ol>
-            {supportActions.length ? (
+              </ol>
+              {supportActions.length ? (
               <div className="rounded-[22px] border border-[#E7DCF8] bg-[#F8F5FF] p-3" data-testid="report-support-actions">
                 <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
                   {t("health.symptomCheck.report.supportOptions", "Useful support")}
                 </p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="mt-3 grid min-w-0 gap-2 lg:grid-cols-3">
                   {supportActions.map((action) => {
                     const Icon = action.Icon;
-                    const className = "vyva-tap inline-flex min-h-[48px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-3 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
+                    const className = "vyva-tap inline-flex min-h-[48px] w-full min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-3 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
                     if (action.href) {
                       return (
                         <a key={action.kind} href={action.href} aria-label={action.ariaLabel} data-testid={`button-report-support-${action.kind}`} className={className}>
                           <Icon size={18} className="flex-shrink-0" />
-                          <span className="min-w-0 break-words">{action.label}</span>
+                          <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{action.label}</span>
                         </a>
                       );
                     }
                     return (
                       <button key={action.kind} type="button" onClick={action.onClick} aria-label={action.ariaLabel} data-testid={`button-report-support-${action.kind}`} className={className}>
                         <Icon size={18} className="flex-shrink-0" />
-                        <span className="min-w-0 break-words">{action.label}</span>
+                        <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{action.label}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          </details>
         </section>
 
-        <section className="rounded-[24px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-blue-950 shadow-[0_10px_26px_rgba(29,78,216,0.07)]" data-testid="card-report-context-confidence">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        {!isEmergency && visibleWatchSigns.length ? (
+          <div className="flex items-start gap-3 rounded-[20px] border border-[#FED7AA] bg-[#FFF7ED] px-3 py-3 text-[#9A3412] shadow-[0_8px_20px_rgba(154,52,18,0.07)]" data-testid="card-report-watch-highlight">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] bg-[#FFEDD5] text-[#C2410C]">
+              <AlertTriangle size={17} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[11px] font-black uppercase tracking-[0.09em] text-[#C2410C]">
+                {t("health.symptomCheck.report.watchFor", "Watch for")}
+              </span>
+              <span className="mt-0.5 block font-body text-[14px] font-black leading-snug text-[#9A3412]">
+                {visibleWatchSigns[0]}
+              </span>
+            </span>
+          </div>
+        ) : null}
+
+        <details
+          ref={reportDetailsRef}
+          open={isEmergency || undefined}
+          className="group/result-details min-w-0 overflow-hidden rounded-[22px] border border-[#E8DED4] bg-white p-3 shadow-[0_8px_22px_rgba(63,45,35,0.05)]"
+          data-testid="report-result-details"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                <ClipboardList size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[16px] font-black text-vyva-text-1">
+                  {t("health.symptomCheck.report.resultDetails", "Result details")}
+                </span>
+                <span className="mt-0.5 block truncate font-body text-[12px] font-bold text-vyva-text-3">
+                  {t("health.symptomCheck.report.resultDetailsSubCompact", "Why, context & sharing")}
+                </span>
+              </span>
+            </span>
+            <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open/result-details:rotate-90" />
+          </summary>
+          <div className="mt-3 grid min-w-0 max-w-full gap-3 border-t border-[#EADFD5] pt-3">
+
+            <div className="grid min-w-0 max-w-full grid-cols-[repeat(2,minmax(0,1fr))] gap-2" data-testid="report-detail-hub">
+              {([
+                { id: "why", label: t("health.symptomCheck.report.whyAndSafety", "Why & safety"), meta: visibleWatchSigns.length ? t("health.symptomCheck.report.watchCount", "{{count}} watch signs", { count: visibleWatchSigns.length }) : t("health.symptomCheck.report.reasoning", "Reasoning"), Icon: ShieldCheck },
+                { id: "context", label: t("health.symptomCheck.report.contextAndReadings", "Context"), meta: `${reportConfidenceScore}/5 ${t("health.symptomCheck.report.confidenceShort", "confidence")}`, Icon: Activity },
+                { id: "share", label: t("health.symptomCheck.report.shareAndCare", "Share & care"), meta: reportStatusText, Icon: Share2 },
+                { id: "full", label: t("health.symptomCheck.report.fullReport", "Full report"), meta: t("health.symptomCheck.report.allDetails", "All details"), Icon: FileText },
+              ] as const).map(({ id, label, meta, Icon }) => {
+                const active = reportDetailView === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setReportDetailView((current) => current === id ? null : id)}
+                    aria-pressed={active}
+                    data-testid={`button-report-detail-${id}`}
+                    className={`vyva-tap flex min-h-[72px] min-w-0 flex-col items-start justify-center gap-1 rounded-[16px] border px-3 py-2 text-left transition-colors ${
+                      active
+                        ? "border-[#C4B5FD] bg-[#F5F3FF] text-vyva-purple"
+                        : "border-[#EEE5DC] bg-[#FFFCF8] text-vyva-text-1"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2 font-body text-[13px] font-black leading-tight">
+                      <Icon size={16} className="flex-shrink-0" />
+                      <span className="min-w-0 whitespace-normal">{label}</span>
+                    </span>
+                    <span className="line-clamp-1 font-body text-[10px] font-bold text-vyva-text-3">{meta}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+        <div className={reportDetailView === "context" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
+        <details className="group rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] p-3 text-blue-950 shadow-[0_8px_22px_rgba(29,78,216,0.07)]" data-testid="card-report-context-confidence">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span
+                role="meter"
+                aria-label={t("health.symptomCheck.report.contextConfidence", "Context confidence")}
+                aria-valuemin={1}
+                aria-valuemax={5}
+                aria-valuenow={reportConfidenceScore}
+                className="relative grid h-12 w-12 flex-shrink-0 place-items-center rounded-full p-1 shadow-[0_8px_18px_rgba(29,78,216,0.12)]"
+                style={{ background: `conic-gradient(#2563EB 0 ${reportConfidenceScore * 20}%, #DBEAFE ${reportConfidenceScore * 20}% 100%)` }}
+              >
+                <span className="grid h-full w-full place-items-center rounded-full bg-white font-body text-[13px] font-black text-[#1D4ED8]">
+                  {reportConfidenceScore}/5
+                </span>
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#1D4ED8]">
+                  {t("health.symptomCheck.report.contextConfidence", "Context confidence")}
+                </span>
+                <span className="mt-0.5 block truncate font-body text-[16px] font-black text-vyva-text-1">
+                  {reportConfidenceLabel}
+                </span>
+              </span>
+            </span>
+            <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-blue-700 transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="mt-3 border-t border-[#BFDBFE] pt-3">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div
               role="meter"
               aria-label={t("health.symptomCheck.report.contextConfidence", "Context confidence")}
               aria-valuemin={1}
               aria-valuemax={5}
               aria-valuenow={reportConfidenceScore}
-              className="relative mx-auto grid h-[92px] w-[92px] flex-shrink-0 place-items-center rounded-full p-2 shadow-[0_14px_28px_rgba(29,78,216,0.14)] sm:mx-0"
+              className="relative mx-auto hidden h-[92px] w-[92px] flex-shrink-0 place-items-center rounded-full p-2 shadow-[0_14px_28px_rgba(29,78,216,0.14)] lg:grid"
               style={{ background: `conic-gradient(#2563EB 0 ${reportConfidenceScore * 20}%, #DBEAFE ${reportConfidenceScore * 20}% 100%)` }}
             >
               <span className="grid h-full w-full place-items-center rounded-full bg-white text-center">
@@ -2948,16 +3106,16 @@ export function ReportScreen({
                     {reportMissingSignals.join(", ")}
                   </p>
                   {missingSignalActions.length ? (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2" data-testid="report-missing-signal-actions">
+                    <div className="mt-3 grid min-w-0 gap-2 lg:grid-cols-2" data-testid="report-missing-signal-actions">
                       {missingSignalActions.map(({ action }) => (
                         <button
                           key={action.key}
                           type="button"
                           onClick={() => openMissingSignalAction(action)}
                           data-testid={`button-report-missing-signal-${action.key}`}
-                          className="vyva-tap flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] bg-[#1D4ED8] px-3 text-left font-body text-[14px] font-black leading-tight text-white shadow-[0_10px_20px_rgba(29,78,216,0.18)]"
+                          className="vyva-tap flex min-h-[54px] w-full min-w-0 items-center justify-between gap-3 rounded-[18px] bg-[#1D4ED8] px-3 text-left font-body text-[14px] font-black leading-tight text-white shadow-[0_10px_20px_rgba(29,78,216,0.18)]"
                         >
-                          <span className="min-w-0">{action.title}</span>
+                          <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">{action.title}</span>
                           <ArrowRight className="h-4 w-4 flex-shrink-0" />
                         </button>
                       ))}
@@ -2974,50 +3132,65 @@ export function ReportScreen({
               ) : null}
             </div>
           </div>
-        </section>
+          </div>
+        </details>
+        </div>
 
-        <section className="rounded-[24px] border border-[#D9F0E3] bg-[#F0FDF4] p-4 text-[#064E3B] shadow-[0_10px_26px_rgba(4,120,87,0.08)]" data-testid="card-report-handoff">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#047857] shadow-sm">
+        <div className={reportDetailView === "share" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
+        <details className="group rounded-[22px] border border-[#D9F0E3] bg-[#F0FDF4] p-3 text-[#064E3B] shadow-[0_8px_22px_rgba(4,120,87,0.08)]" data-testid="card-report-handoff">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-[#047857] shadow-sm">
               {staffReviewRequested ? <ShieldCheck size={20} /> : savedRecipientLabels.length ? <Send size={20} /> : <Users size={20} />}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#047857]">
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#047857]">
                 {t("health.symptomCheck.report.handoffLabel", "Care handoff")}
-              </p>
-              <p className="mt-1 font-body text-[18px] font-black leading-tight text-[#052E25]">
+                </span>
+                <span className="mt-0.5 block truncate font-body text-[16px] font-black text-[#052E25]">
                 {handoffTitle}
-              </p>
+                </span>
+              </span>
+            </span>
+            <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-[#047857] transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="mt-3 border-t border-[#BBF7D0] pt-3">
               <p className="mt-2 font-body text-[15px] font-bold leading-relaxed text-[#065F46]">
                 {handoffBody}
               </p>
               <p className="mt-3 inline-flex rounded-full border border-[#BBF7D0] bg-white px-3 py-1.5 font-body text-[13px] font-black text-[#047857]">
                 {reportStatusText}
               </p>
-            </div>
           </div>
-        </section>
+        </details>
 
-        <section className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-simple-summary">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+        <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-3 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-simple-summary">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                <FileText size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[11px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
                 {t("health.symptomCheck.report.simpleReport", "Simple report")}
-              </p>
-              <p className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                </span>
+                <span className="mt-0.5 block truncate font-body text-[16px] font-black text-vyva-text-1">
                 {t("health.symptomCheck.report.simpleReportTitle", "For someone helping you")}
-              </p>
-            </div>
+                </span>
+              </span>
+            </span>
+            <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="mt-3 border-t border-[#EADFD5] pt-3">
             <button
               type="button"
               onClick={handleShare}
               data-testid="button-report-share-simple"
-              className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-[#F5F3FF] px-4 text-center font-body text-[15px] font-black text-vyva-purple"
+              className="vyva-tap inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-[#F5F3FF] px-4 text-center font-body text-[15px] font-black text-vyva-purple lg:w-auto"
             >
               <Share2 size={17} />
               {t("health.symptomCheck.report.shareReportAria", "Share report")}
             </button>
-          </div>
           <dl className="mt-4 grid gap-3">
             {simpleReportRows.map((row) => (
               <div key={row.label} className="rounded-[18px] border border-[#F1E8DE] bg-[#FFFCF8] p-3">
@@ -3030,8 +3203,11 @@ export function ReportScreen({
               </div>
             ))}
           </dl>
-        </section>
+          </div>
+        </details>
+        </div>
 
+        <div className={reportDetailView === "why" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
         {isEmergency && visibleWatchSigns.length ? (
           <section className="overflow-hidden rounded-[28px] border-2 border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412] shadow-[0_18px_42px_rgba(154,52,18,0.12)]" data-testid="card-report-watch">
             <div className="flex items-center gap-3 border-b border-[#FED7AA] bg-[#FFEDD5] px-4 py-3">
@@ -3102,7 +3278,9 @@ export function ReportScreen({
             </ul>
           </details>
         ) : null}
+        </div>
 
+        <div className={reportDetailView === "context" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
         {(vitalsSummaryItems.length || summary.evidenceSummary || evidenceSourceNames.length) ? (
           <details className="group rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-blue-900 shadow-[0_8px_22px_rgba(29,78,216,0.07)]" data-testid="card-report-vitals-context">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -3141,7 +3319,24 @@ export function ReportScreen({
         ) : null}
 
         {vitalActions.length ? (
-          <section className="grid grid-cols-1 gap-3" data-testid="card-report-vital-refinement-note">
+          <details ref={vitalRefinementRef} className="group rounded-[22px] border border-[#DDD6FE] bg-[#FAF5FF] p-3 shadow-[0_8px_22px_rgba(107,33,168,0.08)]" data-testid="card-report-vital-refinement-note">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-vyva-purple shadow-sm">
+                  <Activity size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[11px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                    {t("health.symptomCheck.report.optionalReadings", "Optional readings")}
+                  </span>
+                  <span className="mt-0.5 block truncate font-body text-[16px] font-black text-vyva-text-1">
+                    {t("health.symptomCheck.report.refineWithReadingCount", "Add a reading · {{count}} available", { count: vitalActions.length })}
+                  </span>
+                </span>
+              </span>
+              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="mt-3 grid grid-cols-1 gap-3 border-t border-[#DDD6FE] pt-3">
             {vitalActions.map((action) => {
             const open = openVitalKey === action.key;
             const value = vitalInputs[action.key] ?? "";
@@ -3152,16 +3347,13 @@ export function ReportScreen({
               ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
               : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
             return (
-              <div key={action.key} className="min-w-0 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_10px_26px_rgba(107,33,168,0.08)]" data-testid={`card-report-vital-action-${action.key}`}>
+              <div key={action.key} className="min-w-0 overflow-hidden rounded-[20px] border border-[#DDD6FE] bg-white p-3" data-testid={`card-report-vital-action-${action.key}`}>
                 <div className="flex items-start gap-3">
                   <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-vyva-purple shadow-sm">
                     <Activity size={23} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
-                      {t("health.symptomCheck.report.vitalRefinementTitle", "Refine with a reading")}
-                    </p>
-                    <p className="mt-1 break-words font-body text-[19px] font-black leading-tight text-vyva-text-1 sm:text-[21px]">
+                    <p className="break-words font-body text-[17px] font-black leading-tight text-vyva-text-1 lg:text-[19px]">
                       {action.title}
                     </p>
                     <p className="mt-1 break-words font-body text-[14px] font-bold leading-snug text-vyva-text-2 sm:text-[15px]">
@@ -3169,12 +3361,14 @@ export function ReportScreen({
                     </p>
                   </div>
                 </div>
-                <div className={`mt-4 grid min-w-0 gap-2 ${latestCandidate ? "sm:grid-cols-2" : ""}`}>
+                <div className={`mt-3 grid min-w-0 gap-2 ${latestCandidate ? "lg:grid-cols-2" : ""}`}>
                   {latestCandidate ? (
                     <button
-                      type="button"
-                      onClick={() => {
-                        setOpenVitalKey(action.key);
+                     type="button"
+                     onClick={() => {
+                       if (reportDetailsRef.current) reportDetailsRef.current.open = true;
+                       if (vitalRefinementRef.current) vitalRefinementRef.current.open = true;
+                       setOpenVitalKey(action.key);
                         setVitalInputs((current) => ({
                           ...current,
                           [action.key]: latestCandidate.value,
@@ -3200,9 +3394,11 @@ export function ReportScreen({
                     </button>
                   ) : null}
                   <button
-                    type="button"
-                    onClick={() => {
-                      setOpenVitalKey(action.key);
+                     type="button"
+                     onClick={() => {
+                       if (reportDetailsRef.current) reportDetailsRef.current.open = true;
+                       if (vitalRefinementRef.current) vitalRefinementRef.current.open = true;
+                       setOpenVitalKey(action.key);
                       setVitalInputError(null);
                     }}
                     disabled={busy}
@@ -3219,13 +3415,13 @@ export function ReportScreen({
                     <ChevronLeft size={20} className={`ml-3 flex-shrink-0 rotate-180 ${latestCandidate ? "text-vyva-purple" : "text-white"}`} />
                   </button>
                   {!latestCandidate ? (
-                    <p className="px-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2 sm:col-span-2">
+                    <p className="px-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2 lg:col-span-2">
                       {t("health.symptomCheck.report.noLatestReadingDetail", "Enter this reading manually to refine the assessment.")}
                     </p>
                   ) : null}
                   {open ? (
-                    <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#DDD6FE] pt-3 sm:col-span-2">
-                      <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-end gap-2 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4 py-2 sm:items-baseline sm:gap-3 sm:py-0">
+                    <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#DDD6FE] pt-3 lg:col-span-2">
+                      <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-end gap-2 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4 py-2 lg:items-baseline lg:gap-3 lg:py-0">
                         <input
                           type="text"
                           inputMode={action.key === "bloodPressure" ? "text" : "decimal"}
@@ -3271,9 +3467,12 @@ export function ReportScreen({
               {refinementStatus.message}
             </div>
           ) : null}
-          </section>
+            </div>
+          </details>
         ) : null}
+        </div>
 
+        <div className={reportDetailView === "why" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
         {isEmergency ? (
           <section className="rounded-[22px] border-2 border-[#DC2626] bg-[#FEF2F2] p-4 text-[#991B1B] shadow-[0_12px_30px_rgba(220,38,38,0.14)]" data-testid="card-report-emergency">
             <div className="mb-3 flex items-center gap-2">
@@ -3287,7 +3486,9 @@ export function ReportScreen({
             </p>
           </section>
         ) : null}
+        </div>
 
+        <div className={reportDetailView === "share" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="report-share-save">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-3">
@@ -3300,7 +3501,7 @@ export function ReportScreen({
             </span>
             <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
           </summary>
-          <div className="mt-4 grid gap-2 border-t border-[#EADFD5] pt-4 sm:grid-cols-2">
+          <div className="mt-4 grid gap-2 border-t border-[#EADFD5] pt-4 lg:grid-cols-2">
             <button
               type="button"
               onClick={handleShare}
@@ -3321,7 +3522,9 @@ export function ReportScreen({
             </button>
           </div>
         </details>
+        </div>
 
+        <div className={reportDetailView === "share" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
           <summary className="cursor-pointer list-none">
             <span className="flex items-center justify-between gap-3">
@@ -3348,7 +3551,7 @@ export function ReportScreen({
                   aria-label={t("health.symptomCheck.report.shareWithDoctor", "Share with doctor")}
                   title={doctorShareTarget?.name}
                   data-testid="link-report-share-doctor"
-                  className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 text-center font-body text-[15px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] sm:w-auto"
+                  className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 text-center font-body text-[15px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)] lg:w-auto"
                 >
                   <Send size={18} className="flex-shrink-0" />
                   <span className="min-w-0 truncate">{t("health.symptomCheck.report.shareWithDoctor", "Share with doctor")}</span>
@@ -3359,7 +3562,7 @@ export function ReportScreen({
                     event.preventDefault();
                     event.stopPropagation();
                   }}
-                  className="grid w-full gap-2 sm:grid-cols-2"
+                  className="grid w-full gap-2 lg:grid-cols-2"
                 >
                   <button
                     type="button"
@@ -3379,7 +3582,7 @@ export function ReportScreen({
                     <Stethoscope size={18} className="flex-shrink-0" />
                     <span className="min-w-0 truncate">{t("health.symptomCheck.report.actions.doctorHelp", "Doctor help")}</span>
                   </button>
-                  <span className="rounded-[16px] bg-[#FAF9F6] px-3 py-2 text-center font-body text-[13px] font-bold text-vyva-text-2 sm:col-span-2">
+                  <span className="rounded-[16px] bg-[#FAF9F6] px-3 py-2 text-center font-body text-[13px] font-bold text-vyva-text-2 lg:col-span-2">
                     {t("health.symptomCheck.report.noDoctorToShare", "No doctor contact in profile")}
                   </span>
                 </span>
@@ -3401,6 +3604,10 @@ export function ReportScreen({
             </p>
           </div>
         </details>
+
+        </div>
+
+        <div className={reportDetailView === "full" ? "grid min-w-0 max-w-full gap-3 overflow-hidden" : "hidden"}>
 
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -3523,13 +3730,29 @@ export function ReportScreen({
           </div>
         </details>
 
-        <button
-          onClick={onDone}
-          data-testid="button-report-done"
-          className="vyva-secondary-action w-full"
-        >
-          {t("health.symptomCheck.report.doneBtn")}
-        </button>
+        </div>
+          </div>
+        </details>
+
+        <div className="grid min-w-0 grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)] gap-2" data-testid="report-footer-actions">
+          <button
+            type="button"
+            onClick={onDone}
+            data-testid="button-report-done"
+            className="vyva-tap min-h-[54px] min-w-0 rounded-[18px] border border-[#E7DCF8] bg-white px-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple"
+          >
+            {t("health.symptomCheck.report.returnToHealth", "Return to My Health")}
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            data-testid="button-report-share-footer"
+            className="vyva-tap inline-flex min-h-[54px] min-w-0 items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-3 text-center font-body text-[14px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]"
+          >
+            <Share2 size={17} className="flex-shrink-0" />
+            {t("health.symptomCheck.report.shareShort", "Share")}
+          </button>
+        </div>
 
         <p className="px-2 text-center font-body text-[11px] leading-relaxed text-vyva-text-3">
           {t("health.symptomCheck.report.disclaimer")}
@@ -3564,7 +3787,11 @@ export default function SymptomCheckScreen() {
   const { markCompleted, markAbandoned, markBlocked } = useHomeFastHelpOutcome(location.state);
   const incomingState = location.state as SymptomCheckLocationState;
   const incomingInitialClue = typeof incomingState?.initialClue === "string" ? incomingState.initialClue.trim() : "";
-  const [restoredDraft] = useState(() => readSymptomCheckDraft());
+  const [restoredDraft] = useState(() => (
+    new URLSearchParams(window.location.search).get("fresh") === "1"
+      ? null
+      : readSymptomCheckDraft()
+  ));
   const { data: triageContext } = useQuery<TriageContextResponse>({
     queryKey: ["/api/triage/context"],
     retry: false,
@@ -3831,7 +4058,7 @@ export default function SymptomCheckScreen() {
   const handleDone = () => {
     markCompleted({ reason: "symptom_check_finished", referenceId: reportId });
     clearSymptomCheckDraft();
-    navigate("/health");
+    navigate(symptomCheckHealthReturnPath(location.pathname));
   };
 
   const saveTriageReport = async (
