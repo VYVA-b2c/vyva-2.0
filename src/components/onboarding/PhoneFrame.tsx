@@ -1,6 +1,7 @@
 import { ArrowLeft, LayoutGrid, Mic } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useToastSurface } from "@/hooks/useToastSurface";
@@ -72,7 +73,7 @@ export function PhoneFrame({
                 data-testid="button-phone-frame-back"
                 className="home-master-profile-control inline-flex h-11 w-11 items-center justify-center rounded-full border text-vyva-purple shadow-[0_8px_18px_rgba(91,33,182,0.12)]"
               >
-                <ArrowLeft size={20} />
+                <VyvaIcon icon={ArrowLeft} size={20} />
               </button>
             ) : (
               <div className="h-11 w-11 flex-shrink-0" aria-hidden="true" />
@@ -90,7 +91,7 @@ export function PhoneFrame({
                 onClick={onAllSections}
                 className="home-master-profile-control inline-flex h-11 items-center gap-2 rounded-full border px-4 text-[14px] font-extrabold text-vyva-purple shadow-[0_8px_18px_rgba(91,33,182,0.12)]"
               >
-                <LayoutGrid size={16} />
+                <VyvaIcon icon={LayoutGrid} size={16} />
                 All
               </button>
             ) : rightAction ? (
@@ -104,7 +105,7 @@ export function PhoneFrame({
                   aria-label="Return to VYVA voice mode"
                   className="home-master-profile-voice-trigger vyva-tap relative grid h-10 !min-h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150"
                 >
-                  <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+                  <VyvaIcon icon={Mic} size={17} strokeWidth={2.45} tone="inverse" />
                 </a>
               </div>
             ) : (

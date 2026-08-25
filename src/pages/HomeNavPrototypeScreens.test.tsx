@@ -167,6 +167,10 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByText("Concierge")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Menu" })).toBeInTheDocument();
     expect(screen.queryByText("Reports")).not.toBeInTheDocument();
+    for (const button of screen.getAllByTestId(/card-home-agent-/)) {
+      expect(button.querySelector("[data-vyva-icon-tile]")).toBeInTheDocument();
+      expect(button.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
+    }
 
     fireEvent.click(screen.getByTestId("button-prototype-back"));
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
@@ -196,6 +200,7 @@ describe("Home/Nav prototype screens", () => {
       expect(screen.queryByText("Ask VYVA")).not.toBeInTheDocument();
       expect(screen.getByText(row)).toBeInTheDocument();
       expect(screen.getByText(new RegExp(note))).toBeInTheDocument();
+      expect(screen.getByText(row).closest("button")?.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
       unmount();
     }
   });

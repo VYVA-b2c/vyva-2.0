@@ -1,6 +1,7 @@
 import { ALargeSmall, CircleUser, Hand, Mic, Moon, Settings, Sun } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
@@ -229,7 +230,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                 aria-label={t("home.master.header.openControls", "Open display controls")}
                 aria-expanded={homeSettingsMenuOpen}
               >
-                <Settings size={13} strokeWidth={2.25} />
+                <VyvaIcon icon={Settings} size={14} strokeWidth={2.4} tone={isDark ? "inverse" : "brand"} />
               </button>
               {homeModeControl && modeControlVisible ? (
                 <button
@@ -249,7 +250,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                   aria-label={homeModeControl.label}
                   title={homeModeControl.label}
                 >
-                  <ModeControlIcon size={16} strokeWidth={2.45} aria-hidden="true" />
+                  <VyvaIcon icon={ModeControlIcon} size={16} strokeWidth={2.45} tone="inverse" />
                 </button>
               ) : null}
             </div>
@@ -267,7 +268,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                 aria-label={homeControlsRevealLabel}
                 title={homeControlsRevealLabel}
               >
-                <Settings size={15} strokeWidth={2.35} aria-hidden="true" />
+                <VyvaIcon icon={Settings} size={15} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
               </button>
             ) : null}
             {homeSettingsMenuOpen ? (
@@ -294,7 +295,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                   aria-pressed={isReadableTextLarge}
                   aria-label={isReadableTextLarge ? t("home.master.header.normalText", "Use normal text") : t("home.master.header.largeText", "Use larger text")}
                 >
-                  <span className={homeMenuIconClass}><ALargeSmall size={14} strokeWidth={2.35} /></span>
+                  <span className={homeMenuIconClass}><VyvaIcon icon={ALargeSmall} size={15} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} /></span>
                   <span>{t("home.master.header.textSize", "Text size")}</span>
                 </button>
                 <button
@@ -309,7 +310,9 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                   data-testid="button-home-master-theme"
                   aria-label={isDark ? t("home.master.header.lightMode", "Use light mode") : t("home.master.header.darkMode", "Use dark mode")}
                 >
-                  <span className={homeMenuIconClass}>{isDark ? <Sun size={13} strokeWidth={2.25} /> : <Moon size={13} strokeWidth={2.25} />}</span>
+                  <span className={homeMenuIconClass}>
+                    <VyvaIcon icon={isDark ? Sun : Moon} size={14} strokeWidth={2.4} tone={isDark ? "inverse" : "brand"} />
+                  </span>
                   <span>{t("home.master.header.theme", "Theme")}</span>
                 </button>
                 {homeModeControl ? (
@@ -320,7 +323,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
                     data-testid="button-home-mode-menu"
                     aria-label={homeModeControl.label}
                   >
-                    <span className={homeMenuIconClass}><ModeControlIcon size={15} strokeWidth={2.45} /></span>
+                    <span className={homeMenuIconClass}><VyvaIcon icon={ModeControlIcon} size={15} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} /></span>
                     <span>{t("home.master.header.mode", "Mode")}</span>
                   </button>
                 ) : null}
@@ -350,7 +353,7 @@ const StatusBar = ({ wide = false, variant = "default", autoHideHomeControls }: 
             data-testid="button-my-profile"
             aria-label={t("nav.myProfile")}
           >
-            <CircleUser size={20} className="text-vyva-text-2" />
+            <VyvaIcon icon={CircleUser} size={20} tone="muted" />
             <span className="hidden font-body text-[14px] font-semibold text-vyva-text-1 min-[390px]:inline">
               {t("nav.myProfile")}
             </span>

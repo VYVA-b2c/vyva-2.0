@@ -29,6 +29,7 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { VyvaIcon, type VyvaBrandGlyph } from "@/components/brand/VyvaIcon";
 import { VyvaMark } from "@/components/VyvaMark";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -38,7 +39,6 @@ import type { SymptomAssessmentShellContract } from "@/design/screenPresentation
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
 type ShellWidth = "phone" | "flow" | "hub";
-type HealthHubBrandIconKind = "doctor" | "longevity" | "vitals" | "medication";
 
 type RowItem = {
   icon: LucideIcon;
@@ -52,7 +52,7 @@ type RowItem = {
   emphasis?: "primary" | "alert" | "standard";
   solidSurface?: boolean;
   compactTitle?: boolean;
-  brandIcon?: HealthHubBrandIconKind;
+  brandIcon?: VyvaBrandGlyph;
 };
 
 type PrototypeSection = {
@@ -244,7 +244,12 @@ function RoundControl({
         classes,
       ].join(" ")}
     >
-      <Icon size={18} strokeWidth={2.35} aria-hidden="true" />
+      <VyvaIcon
+        icon={Icon}
+        size={18}
+        strokeWidth={2.45}
+        tone={variant === "quiet" && !isDark ? "brand" : "inverse"}
+      />
     </button>
   );
 }
@@ -300,7 +305,7 @@ function CompactVoiceTrigger({
           isDark ? "border-white/20" : "",
         ].join(" ")}
       >
-        <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+        <VyvaIcon icon={Mic} size={17} strokeWidth={2.45} tone="inverse" />
       </button>
     </div>
   );
@@ -487,7 +492,6 @@ function RowCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
-  const palette = rowTonePalettes[item.tone ?? "neutral"];
   const Icon = item.icon;
   const isAlert = item.emphasis === "alert";
   const titleSize = isLarge ? (item.compactTitle ? 20 : 22) : item.compactTitle ? 18 : 20;
@@ -507,18 +511,20 @@ function RowCard({ item }: { item: RowItem }) {
         isDark
           ? "border-white/[0.12] bg-white/[0.07] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.12)]"
           : item.solidSurface
-            ? "border-[#EFE6F5] bg-white text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]"
-            : "border-[#EFE6F5] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
+            ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]"
+            : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
         isAlert && !isDark ? "border-[#F7C9C5]" : "",
       ].join(" ")}
-      style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
     >
       <span
-        className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-[20px]"
-        style={{ background: isDark ? palette.darkChip : palette.chip, color: isDark ? "#F7F0FF" : palette.icon }}
+        className={[
+          "grid h-14 w-14 flex-shrink-0 place-items-center rounded-[20px] transition-colors duration-150",
+          isDark ? "bg-[#35284A] group-hover:bg-[#3D2E53]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+        ].join(" ")}
+        data-vyva-icon-tile={item.brandIcon ?? "utility"}
         aria-hidden="true"
       >
-        <Icon size={25} strokeWidth={2.25} />
+        <VyvaIcon icon={Icon} glyph={item.brandIcon} size={item.brandIcon ? 43 : 27} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display font-semibold leading-[1.03] tracking-[-0.025em]" style={{ fontSize: titleSize }}>
@@ -535,14 +541,14 @@ function RowCard({ item }: { item: RowItem }) {
         <span
           className={[
             "rounded-full px-3 py-1.5 font-body text-[12px] font-black",
-            isDark ? "bg-white/[0.08] text-[#E8DFF3]" : "bg-[#FBF6FD] text-[#8A8095]",
+            isDark ? "bg-[#4A3563] text-[#F0E7FF]" : "bg-[#F3EDFF] text-[#6B2CCB]",
           ].join(" ")}
           style={{ fontSize: metaSize }}
         >
           {item.meta}
         </span>
       ) : (
-        <ChevronRight className={isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]"} size={22} strokeWidth={2.5} aria-hidden="true" />
+        <VyvaIcon icon={ChevronRight} size={22} strokeWidth={2.5} tone="muted" />
       )}
     </button>
   );
@@ -555,85 +561,6 @@ function HairlineRows({ items, testId = "prototype-row-list" }: { items: RowItem
         <RowCard key={item.title} item={item} />
       ))}
     </div>
-  );
-}
-
-function HealthHubBrandIcon({ kind }: { kind: HealthHubBrandIconKind }) {
-  const gradientId = `vyva-health-icon-${kind}`;
-  const ribbonStroke = `url(#${gradientId})`;
-
-  return (
-    <svg
-      viewBox="0 0 56 56"
-      className="h-11 w-11"
-      fill="none"
-      data-brand-icon={kind}
-      focusable="false"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="9" y1="7" x2="47" y2="49" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#9D4FE0" />
-          <stop offset="1" stopColor="#5C22B9" />
-        </linearGradient>
-      </defs>
-      {kind === "doctor" ? (
-        <>
-          <path
-            d="M15 11v14c0 9 6 15 13 15s13-6 13-15V11"
-            stroke={ribbonStroke}
-            strokeWidth="6.5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M28 40v2.5c0 5 3.6 8.5 8.5 8.5S45 47.5 45 43"
-            stroke={ribbonStroke}
-            strokeWidth="6.5"
-            strokeLinecap="round"
-          />
-          <circle cx="45" cy="39" r="5.3" fill="#F8AE1B" stroke="#F1E8FF" strokeWidth="2.4" />
-        </>
-      ) : null}
-      {kind === "longevity" ? (
-        <>
-          <path
-            d="M28 8 43 14v12c0 10-5.8 17.2-15 22-9.2-4.8-15-12-15-22V14Z"
-            stroke={ribbonStroke}
-            strokeWidth="6.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d="m20.5 27 5.2 5.2 10-11" stroke="#F8AE1B" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : null}
-      {kind === "vitals" ? (
-        <>
-          <path
-            d="M28 47S10 36.4 10 22c0-7 4.6-11.2 10.6-11.2 3.3 0 5.8 1.7 7.4 4.5 1.6-2.8 4.1-4.5 7.4-4.5C41.4 10.8 46 15 46 22c0 14.4-18 25-18 25Z"
-            stroke={ribbonStroke}
-            strokeWidth="6.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M14.5 28h7l3.2-7 4.1 14 4-9.2 2.7 2.2h6"
-            stroke="#F8AE1B"
-            strokeWidth="3.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </>
-      ) : null}
-      {kind === "medication" ? (
-        <>
-          <g transform="translate(28 29) rotate(-42)">
-            <rect x="-20" y="-10" width="40" height="20" rx="10" stroke={ribbonStroke} strokeWidth="6.2" />
-            <path d="M0-8v16" stroke="#F8AE1B" strokeWidth="4" strokeLinecap="round" />
-          </g>
-          <circle cx="43" cy="13" r="4.5" fill="#F8AE1B" />
-        </>
-      ) : null}
-    </svg>
   );
 }
 
@@ -677,11 +604,13 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
         data-testid={item.testId ? `${item.testId}-icon` : undefined}
         aria-hidden="true"
       >
-        {item.brandIcon ? (
-          <HealthHubBrandIcon kind={item.brandIcon} />
-        ) : (
-          <Icon className={isDark ? "h-7 w-7 text-[#D6B8FF]" : "h-7 w-7 text-[#6B2CCB]"} strokeWidth={2.55} />
-        )}
+        <VyvaIcon
+          icon={Icon}
+          glyph={item.brandIcon}
+          size={item.brandIcon ? 44 : 29}
+          strokeWidth={2.55}
+          tone={isDark ? "inverse" : "brand"}
+        />
       </span>
       <span className="min-w-0 self-center md:self-start">
         <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
@@ -705,15 +634,9 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
           {item.meta}
         </span>
       ) : null}
-      <ChevronRight
-        className={[
-          "hidden opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end",
-          isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]",
-        ].join(" ")}
-        size={22}
-        strokeWidth={2.5}
-        aria-hidden="true"
-      />
+      <span className="hidden opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
+        <VyvaIcon icon={ChevronRight} size={22} strokeWidth={2.5} tone="muted" />
+      </span>
     </button>
   );
 }
@@ -957,33 +880,33 @@ type PrototypeHealthActionPreviewKind = "plan" | "symptom" | "vitals" | "medicin
 
 const healthActionPreviewContent: Record<PrototypeHealthActionPreviewKind, {
   icon: LucideIcon;
+  glyph: VyvaBrandGlyph;
   title: string;
   subtitle: string;
-  tone: RowTone;
 }> = {
   plan: {
     icon: ShieldCheck,
+    glyph: "longevity",
     title: "Longevity",
     subtitle: "Prevention is the best cure",
-    tone: "brain",
   },
   symptom: {
     icon: Stethoscope,
+    glyph: "doctor",
     title: "Ask Dr. AI",
     subtitle: "A focused symptom report starts here.",
-    tone: "health",
   },
   vitals: {
     icon: HeartPulse,
+    glyph: "vitals",
     title: "My Vitals",
     subtitle: "Latest readings and new measurements live here.",
-    tone: "community",
   },
   medicines: {
     icon: Pill,
+    glyph: "medication",
     title: "Medication",
     subtitle: "Dose times and reminders open here.",
-    tone: "profile",
   },
 };
 
@@ -997,17 +920,15 @@ export function PrototypeHealthActionPreviewScreen({
   const navigate = usePrototypeNavigate();
   const content = healthActionPreviewContent[kind];
   const Icon = content.icon;
-  const palette = rowTonePalettes[content.tone];
 
   return (
     <PrototypeShell testId={`prototype-health-action-preview-${kind}`} width="flow" dockPadding={false}>
       <PrototypeTopbar kind="detail" backPath={backPath} />
       <CheckInCard testId="prototype-health-action-preview-card">
         <span
-          className="mx-auto grid h-16 w-16 place-items-center rounded-full"
-          style={{ background: palette.chip, color: palette.icon }}
+          className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#F1E8FF]"
         >
-          <Icon size={30} strokeWidth={2.35} aria-hidden="true" />
+          <VyvaIcon icon={Icon} glyph={content.glyph} size={46} />
         </span>
         <h2 className="mt-7 font-display text-[34px] font-semibold leading-tight">{content.title}</h2>
         <p className="mx-auto mt-3 max-w-[20rem] font-body text-[17px] font-bold text-[#8A8095] dark:text-[#DCCFEF]">
@@ -1203,7 +1124,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
           isDark ? "border-white/[0.12] bg-white/[0.07] text-[#F7F0FF]" : "border-[#E9DEF2] bg-white/86 text-[#342B3F]",
         ].join(" ")}
       >
-        <Phone size={19} strokeWidth={2.35} aria-hidden="true" />
+        <VyvaIcon icon={Phone} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
         Call support
       </button>
     </PrototypeShell>
@@ -1216,13 +1137,11 @@ const profileActionPreviewContent: Record<PrototypeProfileActionPreviewKind, {
   icon: LucideIcon;
   title: string;
   subtitle: string;
-  tone: RowTone;
 }> = {
   accessibility: {
     icon: SlidersHorizontal,
     title: "Preferences",
     subtitle: "Text size and theme",
-    tone: "reports",
   },
 };
 
@@ -1271,7 +1190,6 @@ export function PrototypeProfileActionPreviewScreen({
   const { isLarge, toggleSize } = useReadableTextSize();
   const content = profileActionPreviewContent[kind];
   const Icon = content.icon;
-  const palette = rowTonePalettes[content.tone];
   const rows = getProfileAccessibilityRows({ isDark, isLarge, toggleSize, toggleTheme });
 
   return (
@@ -1287,11 +1205,13 @@ export function PrototypeProfileActionPreviewScreen({
       >
         <div className="flex items-center gap-4">
           <span
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full"
-            style={{ background: isDark ? palette.darkChip : palette.chip, color: isDark ? "#F7F0FF" : palette.icon }}
+            className={[
+              "grid h-14 w-14 shrink-0 place-items-center rounded-[20px]",
+              isDark ? "bg-[#35284A]" : "bg-[#F1E8FF]",
+            ].join(" ")}
             aria-hidden="true"
           >
-            <Icon size={25} strokeWidth={2.35} />
+            <VyvaIcon icon={Icon} size={27} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-[27px] font-semibold leading-tight tracking-[-0.02em]">
@@ -1561,8 +1481,8 @@ export function PrototypeCheckInScreen({ returnPath = "/dev/home-master/health" 
         <CheckInAdapterBoundary state={flowState} currentQuestion={currentQuestion} />
         <PrototypeTopbar kind="detail" backPath={returnPath} title="Safety" />
         <CheckInCard testId="prototype-checkin-safety-card">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#FFF4CF] text-[#E05B52]">
-            <AlertTriangle size={30} strokeWidth={2.4} aria-hidden="true" />
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#FFF4E5]">
+            <VyvaIcon icon={AlertTriangle} size={30} strokeWidth={2.5} tone="danger" />
           </span>
           <h1 className="mt-7 font-display text-[32px] font-semibold leading-tight">Let’s get you help right now.</h1>
           <p className="mx-auto mt-3 max-w-[20rem] font-body text-[17px] font-bold text-[#8A8095]">
@@ -1595,15 +1515,15 @@ export function PrototypeCheckInScreen({ returnPath = "/dev/home-master/health" 
         <CheckInAdapterBoundary state={flowState} currentQuestion={currentQuestion} />
         <PrototypeTopbar kind="detail" backPath={returnPath} title="Check-in" />
         <CheckInCard testId="prototype-checkin-summary">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#EAFBF1] text-[#0F7A50]">
-            <CheckCircle2 size={31} strokeWidth={2.4} aria-hidden="true" />
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#EAFBF1]">
+            <VyvaIcon icon={CheckCircle2} size={31} strokeWidth={2.5} tone="success" />
           </span>
           <h1 className="mt-7 font-display text-[34px] font-semibold leading-tight">Here’s what you told VYVA.</h1>
           <p className="mt-2 font-body text-[16px] font-bold text-[#8A8095]">Thanks for checking in.</p>
           <div className="mt-7 divide-y divide-[#EFE4F6] rounded-[24px] bg-[#FBF8FD] px-5 text-left">
             {flowState.answers.map((answer) => (
               <div key={`${answer.questionId}-${answer.optionId}`} className="flex items-center gap-3 py-4">
-                <CheckCircle2 className="text-[#10B981]" size={22} aria-hidden="true" />
+                <VyvaIcon icon={CheckCircle2} size={22} tone="success" />
                 <span>
                   <span className="block font-body text-[16px] font-black">{CHECK_IN_ANSWER_LABELS[answer.questionId]}</span>
                   <span className="block font-body text-[15px] font-bold text-[#8A8095]">{answer.label}</span>

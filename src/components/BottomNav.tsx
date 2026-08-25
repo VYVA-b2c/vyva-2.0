@@ -1,5 +1,6 @@
 import { AlertCircle, FileText, House, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { isHomeNavPrototypeDockRoute } from "@/lib/homeNavPrototypeRoutes";
@@ -73,11 +74,11 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
             activeVisual ? "bg-vyva-purple-light shadow-sm" : ""
           }`}
         >
-          <Icon
+          <VyvaIcon
+            icon={Icon}
             size={usesHomeDockSurface ? 18 : 20}
-            className={activeVisual ? "text-vyva-purple" : usesHomeDockSurface && isHomeMasterDark ? "" : "text-vyva-text-3"}
             strokeWidth={activeVisual ? 2.15 : 1.85}
-            style={!activeVisual && usesHomeDockSurface && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
+            tone={activeVisual ? "brand" : usesHomeDockSurface && isHomeMasterDark ? "inverse" : "muted"}
           />
         </div>
         <span
@@ -113,7 +114,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
           aria-label="SOS"
         >
           <div className={`sos-btn flex items-center justify-center rounded-full bg-[#D92020] shadow-[0_8px_20px_rgba(185,28,28,0.32)] ${usesHomeDockSurface ? "h-[44px] w-[44px]" : "h-[52px] w-[52px]"}`}>
-            <AlertCircle size={usesHomeDockSurface ? 21 : 25} className="text-white" />
+            <VyvaIcon icon={AlertCircle} size={usesHomeDockSurface ? 21 : 25} strokeWidth={2.4} tone="inverse" />
           </div>
           <span className="font-body text-[11px] font-extrabold leading-tight text-[#B91C1C]">SOS</span>
         </button>
