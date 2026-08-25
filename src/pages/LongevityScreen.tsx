@@ -11,7 +11,7 @@ import { HomeMasterActionControl, HomeMasterTopbar } from "@/components/HomeMast
 import { LongevityStatusCard, type LongevityActionCard, type LongevityScreenState } from "@/components/health/LongevityStatusCard";
 import { SmartNudge, type SmartNudgeData } from "@/components/health/SmartNudge";
 import { useAuth } from "@/contexts/AuthContext";
-import { useProfile } from "@/contexts/ProfileContext";
+import { useOptionalProfile } from "@/contexts/ProfileContext";
 import { apiFetch } from "@/lib/queryClient";
 import {
   appendPreventionLoopHistory as appendLoopHistory,
@@ -1066,7 +1066,7 @@ type LongevityScreenProps = {
 export default function LongevityScreen({ backPath = "/health" }: LongevityScreenProps = {}) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { firstName: profileFirstName } = useProfile();
+  const profileFirstName = useOptionalProfile()?.firstName ?? "";
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark } = useHomeMasterTheme();
