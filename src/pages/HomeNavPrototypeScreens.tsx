@@ -37,7 +37,7 @@ import type { SymptomAssessmentShellContract } from "@/design/screenPresentation
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
-type ShellWidth = "phone" | "flow";
+type ShellWidth = "phone" | "flow" | "hub";
 
 type RowItem = {
   icon: LucideIcon;
@@ -66,6 +66,16 @@ const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: str
   reports: { chip: "#F7F8FB", icon: "#64748B", border: "#E2E8F0", darkChip: "rgba(226,232,240,0.12)" },
   profile: { chip: "#FFF4CF", icon: "#A16207", border: "#F6D681", darkChip: "rgba(232,163,61,0.16)" },
   neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)" },
+};
+
+const healthHubIconTreatments: Record<RowTone, { background: string; shadow: string }> = {
+  health: { background: "linear-gradient(145deg,#FF8C82 0%,#E65349 100%)", shadow: "0 12px 24px rgba(217,70,62,0.22)" },
+  brain: { background: "linear-gradient(145deg,#B58BFF 0%,#7C3AED 100%)", shadow: "0 12px 24px rgba(124,58,237,0.22)" },
+  community: { background: "linear-gradient(145deg,#70B7FF 0%,#2563EB 100%)", shadow: "0 12px 24px rgba(37,99,235,0.2)" },
+  concierge: { background: "linear-gradient(145deg,#4ED79C 0%,#0F7A50 100%)", shadow: "0 12px 24px rgba(15,122,80,0.2)" },
+  reports: { background: "linear-gradient(145deg,#9BA7B8 0%,#64748B 100%)", shadow: "0 12px 24px rgba(100,116,139,0.18)" },
+  profile: { background: "linear-gradient(145deg,#F6C453 0%,#B77910 100%)", shadow: "0 12px 24px rgba(183,121,16,0.2)" },
+  neutral: { background: "linear-gradient(145deg,#9D7BB0 0%,#6B5173 100%)", shadow: "0 12px 24px rgba(107,81,115,0.18)" },
 };
 
 const shellSurface = {
@@ -162,7 +172,7 @@ function PrototypeShell({
 }: {
   children: ReactNode;
   testId: string;
-  width?: "phone" | "flow";
+  width?: ShellWidth;
   dockPadding?: boolean;
   shellContract?: SymptomAssessmentShellContract;
 }) {
@@ -173,7 +183,9 @@ function PrototypeShell({
   // mobile column in the middle of a wide viewport.
   const widthClass = width === "flow"
     ? "max-w-[32.5rem] sm:max-w-[680px] lg:max-w-[900px]"
-    : "max-w-[430px] sm:max-w-[620px] lg:max-w-[760px]";
+    : width === "hub"
+      ? "max-w-[430px] sm:max-w-[680px] lg:max-w-[900px]"
+      : "max-w-[430px] sm:max-w-[620px] lg:max-w-[760px]";
   const frameBottomPadding = dockPadding
     // The dock is fixed over the page. Reserve more than its visual height so
     // the final message card remains readable above it on short viewports.
@@ -554,6 +566,96 @@ function HairlineRows({ items, testId = "prototype-row-list" }: { items: RowItem
   );
 }
 
+function HealthHubActionCard({ item }: { item: RowItem }) {
+  const navigate = usePrototypeNavigate();
+  const { isDark } = useHomeMasterTheme();
+  const { isLarge } = useReadableTextSize();
+  const tone = item.tone ?? "neutral";
+  const palette = rowTonePalettes[tone];
+  const iconTreatment = healthHubIconTreatments[tone];
+  const Icon = item.icon;
+  const isAlert = item.emphasis === "alert";
+  const titleSize = item.compactTitle
+    ? isLarge
+      ? "text-[20px] md:text-[22px]"
+      : "text-[18px] md:text-[22px]"
+    : isLarge
+      ? "text-[22px] md:text-[25px]"
+      : "text-[20px] md:text-[24px]";
+  const subtitleSize = isLarge ? "text-[15px] md:text-[16px]" : "text-[13.5px] md:text-[14px]";
+  const metaSize = isLarge ? "text-[12px] md:text-[13px]" : "text-[11px] md:text-[12px]";
+
+  return (
+    <button
+      type="button"
+      data-testid={item.testId}
+      onClick={() => {
+        item.onClick?.();
+        if (item.path) navigate(item.path);
+      }}
+      className={[
+        "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
+        isDark
+          ? "border-white/[0.12] bg-[#211235] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
+          : item.solidSurface
+            ? "bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
+            : "bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
+        isAlert && !isDark ? "border-[#F7C9C5]" : "",
+      ].join(" ")}
+      style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
+    >
+      <span
+        className="relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] text-white shadow-sm ring-1 ring-inset ring-white/45 transition-transform duration-200 group-hover:-rotate-2 group-hover:scale-105 group-focus-visible:-rotate-2 group-focus-visible:scale-105 md:row-span-2 md:h-16 md:w-16 md:self-start"
+        style={{ background: iconTreatment.background, boxShadow: iconTreatment.shadow }}
+        data-testid={item.testId ? `${item.testId}-icon` : undefined}
+        aria-hidden="true"
+      >
+        <span className="absolute left-2 top-2 h-2 w-2 rounded-full bg-white/55" />
+        <Icon className="relative h-[27px] w-[27px] md:h-[29px] md:w-[29px]" strokeWidth={2.55} />
+      </span>
+      <span className="min-w-0 self-center md:self-start">
+        <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
+          {item.title}
+        </span>
+        <span
+          className={["mt-1 line-clamp-2 font-body font-bold leading-snug", subtitleSize, isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}
+        >
+          {item.subtitle}
+        </span>
+      </span>
+      {item.meta ? (
+        <span
+          className={[
+            "self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start",
+            metaSize,
+            isDark ? "bg-white/[0.08] text-[#E8DFF3]" : "bg-[#FBF6FD] text-[#8A8095]",
+          ].join(" ")}
+          style={!isDark ? { background: palette.chip, color: palette.icon } : undefined}
+          data-testid={item.testId ? `${item.testId}-status` : undefined}
+        >
+          {item.meta}
+        </span>
+      ) : null}
+      <ChevronRight
+        className={["hidden md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end", isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]"].join(" ")}
+        size={22}
+        strokeWidth={2.5}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+function HealthHubActionGrid({ items }: { items: RowItem[] }) {
+  return (
+    <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5" data-testid="health-action-grid">
+      {items.map((item) => (
+        <HealthHubActionCard key={item.title} item={item} />
+      ))}
+    </div>
+  );
+}
+
 function SectionedRows({ sections }: { sections: PrototypeSection[] }) {
   const { isDark } = useHomeMasterTheme();
   return (
@@ -772,9 +874,9 @@ export function PrototypeHealthScreen({
   ];
 
   return (
-    <PrototypeShell testId="prototype-health-screen">
+    <PrototypeShell testId="prototype-health-screen" width="hub">
       <PrototypeTopbar kind="hub" title="My Health" backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
-      <HairlineRows items={healthRows} />
+      <HealthHubActionGrid items={healthRows} />
     </PrototypeShell>
   );
 }

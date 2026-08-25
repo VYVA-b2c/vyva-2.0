@@ -152,3 +152,7 @@ export function useProfile(): ProfileContextValue {
   if (!ctx) throw new Error("useProfile must be used inside <ProfileProvider>");
   return ctx;
 }
+
+export function useOptionalProfile(): ProfileContextValue | null {
+  return useContext(ProfileContext);
+}
