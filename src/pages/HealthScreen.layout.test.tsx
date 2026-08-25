@@ -343,7 +343,7 @@ describe("HealthScreen home-style layout", () => {
     expect(mocks.guardPath).toHaveBeenCalledWith("/meds");
 
     fireEvent.click(screen.getByTestId("button-health-tool-stay-well"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/health/prevention");
+    expect(mocks.navigate).toHaveBeenCalledWith("/health/prevention-plan");
 
     fireEvent.click(screen.getByTestId("button-health-fast-my-reports"));
     expect(mocks.navigate).toHaveBeenCalledWith("/informes/triage-1");

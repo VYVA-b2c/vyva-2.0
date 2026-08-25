@@ -610,7 +610,7 @@ function HomeMasterHealthPreviewRoute() {
     <AppShell>
       <PrototypeHealthScreen
         checkInPath="/dev/home-master/check-in"
-        healthPlanPath="/dev/home-master/health-plan"
+        healthPlanPath="/health/prevention-plan"
         askDrAiPath="/dev/home-master/ask-dr-ai?fresh=1"
         vitalsPath="/dev/home-master/vitals"
         medicinesPath="/dev/home-master/medicines"
@@ -625,7 +625,7 @@ function HealthHubRoute() {
   return (
     <AppShell>
       <PrototypeHealthScreen
-        healthPlanPath="/health/prevention"
+        healthPlanPath="/health/prevention-plan"
         askDrAiPath="/health/symptom-check?fresh=1"
         vitalsPath="/health/vitals"
         medicinesPath="/meds/my-medicines"

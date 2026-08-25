@@ -3029,7 +3029,7 @@ const HealthScreen = () => {
       },
       onClick: () => {
         sendDoctorUserMessage("I want to review my prevention focus");
-        navigate("/health/prevention");
+        navigate("/health/prevention-plan");
       },
       testId: "button-health-tool-stay-well",
     },
