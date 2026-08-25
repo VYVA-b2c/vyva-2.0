@@ -145,7 +145,7 @@ describe("language persistence", () => {
 
   it("keeps the home-style Health page labels localized", () => {
     const expected = {
-      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "Longevity Plan", "Fast help", "My Reports", "Visual Health Scan", "Ask Expert"],
+      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "Longevity", "Fast help", "My Reports", "Visual Health Scan", "Ask Expert"],
       es: ["o explora un tema", "Mis sintomas", "Mi medicacion", "Mis signos vitales", "Mi plan de salud", "Ayuda rapida", "Mis informes", "Escaneo visual de salud", "Encontrar especialista"],
       fr: ["ou explorez un sujet", "Mes symptomes", "Mes medicaments", "Mes constantes", "Mon plan de sante", "Aide rapide", "Mes rapports", "Scan visuel de sante", "Trouver un specialiste"],
       de: ["oder ein Thema erkunden", "Meine Symptome", "Meine Medikamente", "Meine Vitalwerte", "Mein Gesundheitsplan", "Schnelle Hilfe", "Meine Berichte", "Visueller Gesundheitscheck", "Spezialisten finden"],
@@ -170,7 +170,7 @@ describe("language persistence", () => {
 
   it("keeps compact Health mobile labels localized", () => {
     const expected = {
-      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Longevity Plan", "Need help now?", "Recent summaries", "Image review", "VYVA experts"],
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Longevity", "Need help now?", "Recent summaries", "Image review", "VYVA experts"],
       es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Revision de imagen", "Experto adecuado"],
       fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Revue image", "Bon expert"],
       de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prufen", "Passender Experte"],
@@ -644,7 +644,7 @@ describe("language persistence", () => {
 
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
-      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "Longevity Plan", "Longevity Plan"],
+      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "Longevity", "Longevity"],
       es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Mi plan de salud", "Mi plan de salud"],
       fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Mon plan de sante", "Mon plan de sante"],
       de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Mein Gesundheitsplan", "Mein Gesundheitsplan"],

@@ -31,8 +31,16 @@ vi.mock("react-router-dom", async (importOriginal) => {
   };
 });
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: tMock }),
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...actual,
+    useTranslation: () => ({ t: tMock }),
+  };
+});
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: { id: "user-1" } }),
 }));
 
 vi.mock("@/hooks/useServiceGate", () => ({
