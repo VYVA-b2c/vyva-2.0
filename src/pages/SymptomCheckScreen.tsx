@@ -4453,6 +4453,7 @@ export default function SymptomCheckScreen() {
             stageId={currentAssessmentStage}
             modality={activeVoiceTriageSession ? "voice" : "touch"}
             showHeader={false}
+            showTitle={currentAssessmentStage !== "save_share_summary"}
             fullBleedChildren
           >
             <ReportScreen

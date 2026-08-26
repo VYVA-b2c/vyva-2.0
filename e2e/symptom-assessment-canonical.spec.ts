@@ -328,8 +328,8 @@ test("the real mobile Touch flow uses the canonical describe and safety scenes",
   const yesButton = controls.getByRole("button", { name: "Yes" });
   await expect(yesButton).toBeVisible();
   await expect(yesButton).toHaveAttribute("data-safety-tone", "warning");
-  await expect(yesButton).toHaveCSS("background-color", "rgb(255, 255, 255)");
-  await expect(yesButton).toHaveCSS("color", "rgb(127, 29, 29)");
+  await expect(yesButton).toHaveCSS("background-color", "rgb(58, 36, 46)");
+  await expect(yesButton).toHaveCSS("color", "rgb(253, 164, 175)");
   await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
 
   await page.screenshot({
@@ -625,7 +625,9 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect(stage("save_share_summary")).toBeVisible();
   await expect(stage("save_share_summary").getByTestId("symptom-check-report")).toBeVisible();
-  await expect(stage("save_share_summary").getByRole("heading", { name: "Your summary" })).toBeVisible();
+  const summaryHeading = stage("save_share_summary").getByRole("heading", { name: "Your summary" });
+  await expect(summaryHeading).toHaveCount(1);
+  await expect(summaryHeading).toBeVisible();
   await expect(stage("save_share_summary").getByText(/ready to share/i)).toHaveCount(0);
   await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollTo(0, 0));

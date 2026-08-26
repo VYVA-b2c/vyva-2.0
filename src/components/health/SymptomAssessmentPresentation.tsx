@@ -203,6 +203,7 @@ type SymptomAssessmentPresentationProps = {
   reviewItems?: SymptomAssessmentReviewItem[];
   onModalityChange?: (modality: SymptomAssessmentModality) => void;
   showHeader?: boolean;
+  showTitle?: boolean;
   fullBleedChildren?: boolean;
   allowProgressChildren?: boolean;
   className?: string;
@@ -217,6 +218,7 @@ export function SymptomAssessmentPresentation({
   reviewItems = [],
   onModalityChange,
   showHeader = true,
+  showTitle = true,
   fullBleedChildren = false,
   allowProgressChildren = false,
   className = "",
@@ -238,6 +240,7 @@ export function SymptomAssessmentPresentation({
     stageId === "describe" && modality === "touch" && !showHeader;
   const usesCheckingFrame = stageId === "checking";
   const usesResultFrame = stageId === "safest_next_step" || stageId === "save_share_summary";
+  const showsSceneIntro = (showTitle && scene.layout !== "progress") || Boolean(displayHelper);
   const responsiveFrameWidth = "max-w-[330px] sm:max-w-[760px]";
   const responsiveFrameHeight = stageId === "checking"
       ? "min-h-[360px] md:min-h-[350px]"
@@ -316,8 +319,8 @@ export function SymptomAssessmentPresentation({
 
       {fullBleedChildren ? (
         <>
-          <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
-          {scene.layout !== "progress" ? (
+          {showsSceneIntro ? <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
+          {showTitle && scene.layout !== "progress" ? (
             <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
@@ -334,10 +337,10 @@ export function SymptomAssessmentPresentation({
                 ) : displayHelper}
               </p>
             ) : null}
-          </div>
+          </div> : null}
           {children && (scene.layout !== "progress" || allowProgressChildren) ? (
             <div
-              className={`${usesResultFrame ? "mt-5 md:mt-7" : "mt-7"} text-left`}
+              className={`${showsSceneIntro ? (usesResultFrame ? "mt-5 md:mt-7" : "mt-7") : ""} text-left`}
               data-testid={`symptom-scene-controls-${stageId}-${modality}`}
             >
               {children}
@@ -346,7 +349,7 @@ export function SymptomAssessmentPresentation({
         </>
       ) : (
         <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
-          {scene.layout !== "progress" ? (
+          {showTitle && scene.layout !== "progress" ? (
             <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesCompactProductionDescribeFrame || stageId === "safety_check" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
