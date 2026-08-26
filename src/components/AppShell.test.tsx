@@ -243,7 +243,7 @@ describe("app shell route layout", () => {
         expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]");
       } else if (path.startsWith("/dev/home-master")) {
         expect(shell.className).toContain("max-w-none");
-        expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)]");
+        expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]");
       } else {
         expect(shell.className).toContain("max-w-[430px]");
         expect(shell.className).toContain("md:max-w-[720px]");
@@ -258,7 +258,6 @@ describe("app shell route layout", () => {
     "/health/check-in",
     "/dev/home-master/check-in",
     "/dev/home-master/health-plan",
-    "/dev/home-master/symptom-report",
     "/dev/home-master/vitals",
     "/dev/home-master/medicines",
   ])(
@@ -275,6 +274,18 @@ describe("app shell route layout", () => {
       expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
     },
   );
+
+  it("keeps the shared prototype dock on the canonical symptom report", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/home-master/symptom-report"]}>
+        <AppShell>
+          <div>Symptom report content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
 });
 
 describe("app shell voice dock", () => {
