@@ -47,6 +47,10 @@ describe("MenuScreen", () => {
       "/social-rooms",
       "/concierge",
     ]);
+    expect(screen.getByTestId("menu-tile-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
+    expect(screen.getByTestId("menu-tile-brain").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();
+    expect(screen.getByTestId("menu-tile-community").querySelector('[data-vyva-accent="link"]')).toBeInTheDocument();
+    expect(screen.getByTestId("menu-tile-concierge").querySelector('[data-vyva-accent="clapper"]')).toBeInTheDocument();
   });
 
   it("routes each Menu tile to the existing app destination", () => {
@@ -93,6 +97,12 @@ describe("MenuScreen", () => {
     expect(screen.getByTestId("menu-profile-menu-links")).toHaveClass("md:grid-cols-2");
     expect(screen.getByTestId("button-menu-profile-menu-backdrop")).toHaveClass("md:backdrop-blur-[3px]");
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/menu");
+    expect(screen.getByTestId("button-menu-profile-account").querySelector('[data-vyva-accent="id"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-menu-profile-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-menu-profile-medications").querySelector('[data-vyva-accent="divider"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-menu-profile-emergency").querySelector('[data-vyva-accent="check"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-menu-profile-care-team").querySelector('[data-vyva-accent="link"]')).toBeInTheDocument();
+    expect(screen.getByTestId("button-menu-profile-providers").querySelector('[data-vyva-accent="scope"]')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-menu-profile-account"));
 
@@ -117,7 +127,7 @@ describe("MenuScreen", () => {
     expect(voiceHomeButton).toHaveClass("h-9");
     expect(voiceHomeButton).toHaveClass("w-9");
     expect(voiceHomeButton).toHaveClass("!min-h-9");
-    expect(voiceHomeButton).toHaveClass("bg-vyva-purple");
+    expect(voiceHomeButton).toHaveClass("bg-[#6D28D9]");
     expect(voiceHomeButton).toHaveClass("text-white");
   });
 
@@ -127,8 +137,8 @@ describe("MenuScreen", () => {
     renderMenu();
 
     expect(screen.getByTestId("menu-screen")).toHaveAttribute("data-theme", "dark");
-    expect(screen.getByTestId("menu-screen")).toHaveClass("bg-[linear-gradient(180deg,#1E1139_0%,#11081F_46%,#070311_100%)]");
-    expect(screen.getByTestId("menu-tile-health")).toHaveClass("bg-[#211235]");
+    expect(screen.getByTestId("menu-screen")).toHaveClass("bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)]");
+    expect(screen.getByTestId("menu-tile-health")).toHaveClass("bg-[#2A2034]");
     expect(screen.getByTestId("button-menu-profile")).toBeInTheDocument();
   });
 

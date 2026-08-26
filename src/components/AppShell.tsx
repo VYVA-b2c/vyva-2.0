@@ -559,7 +559,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const homeMasterPrototypeSurfaceClass = isHomeMasterDark
-    ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)]"
+    ? "bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)]"
     : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
   const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
     ? homeMasterPrototypeSurfaceClass

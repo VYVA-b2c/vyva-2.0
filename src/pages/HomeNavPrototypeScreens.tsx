@@ -5,16 +5,23 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  ArrowUpRight,
   Bell,
+  BookOpen,
   Brain,
+  CalendarCheck,
+  Car,
+  ChartNoAxesColumnIncreasing,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Footprints,
   Hand,
   Heart,
   HeartPulse,
   Home,
   MessageCircle,
+  MessagesSquare,
   Mic,
   Phone,
   Pill,
@@ -29,6 +36,7 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { VyvaMark } from "@/components/VyvaMark";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -51,6 +59,8 @@ type RowItem = {
   emphasis?: "primary" | "alert" | "standard";
   solidSurface?: boolean;
   compactTitle?: boolean;
+  brandIcon?: VyvaBrandGlyph;
+  iconAccent?: VyvaIconAccent;
 };
 
 type PrototypeSection = {
@@ -58,29 +68,19 @@ type PrototypeSection = {
   items: RowItem[];
 };
 
-const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: string; darkChip: string }> = {
-  health: { chip: "#FCEBEA", icon: "#D9463E", border: "#F3C2BE", darkChip: "rgba(224,91,82,0.18)" },
-  brain: { chip: "#F1EAFF", icon: "#7C3AED", border: "#D8CBFF", darkChip: "rgba(124,58,237,0.2)" },
-  community: { chip: "#EAF3FF", icon: "#2563EB", border: "#BBD7FF", darkChip: "rgba(47,102,208,0.2)" },
-  concierge: { chip: "#EAFBF1", icon: "#0F7A50", border: "#B7F0CE", darkChip: "rgba(74,222,158,0.16)" },
-  reports: { chip: "#F7F8FB", icon: "#64748B", border: "#E2E8F0", darkChip: "rgba(226,232,240,0.12)" },
-  profile: { chip: "#FFF4CF", icon: "#A16207", border: "#F6D681", darkChip: "rgba(232,163,61,0.16)" },
-  neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)" },
-};
-
-const healthHubIconTreatments: Record<RowTone, { background: string; shadow: string }> = {
-  health: { background: "linear-gradient(145deg,#FF8C82 0%,#E65349 100%)", shadow: "0 12px 24px rgba(217,70,62,0.22)" },
-  brain: { background: "linear-gradient(145deg,#B58BFF 0%,#7C3AED 100%)", shadow: "0 12px 24px rgba(124,58,237,0.22)" },
-  community: { background: "linear-gradient(145deg,#70B7FF 0%,#2563EB 100%)", shadow: "0 12px 24px rgba(37,99,235,0.2)" },
-  concierge: { background: "linear-gradient(145deg,#4ED79C 0%,#0F7A50 100%)", shadow: "0 12px 24px rgba(15,122,80,0.2)" },
-  reports: { background: "linear-gradient(145deg,#9BA7B8 0%,#64748B 100%)", shadow: "0 12px 24px rgba(100,116,139,0.18)" },
-  profile: { background: "linear-gradient(145deg,#F6C453 0%,#B77910 100%)", shadow: "0 12px 24px rgba(183,121,16,0.2)" },
-  neutral: { background: "linear-gradient(145deg,#9D7BB0 0%,#6B5173 100%)", shadow: "0 12px 24px rgba(107,81,115,0.18)" },
+const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: string; darkChip: string; darkIcon: string }> = {
+  health: { chip: "#FCEBEA", icon: "#D9463E", border: "#F3C2BE", darkChip: "rgba(224,91,82,0.18)", darkIcon: "#FF5C52" },
+  brain: { chip: "#F1EAFF", icon: "#7C3AED", border: "#D8CBFF", darkChip: "rgba(124,58,237,0.2)", darkIcon: "#8B5CF6" },
+  community: { chip: "#EAF3FF", icon: "#2563EB", border: "#BBD7FF", darkChip: "rgba(47,102,208,0.2)", darkIcon: "#38BDF8" },
+  concierge: { chip: "#EAFBF1", icon: "#0F7A50", border: "#B7F0CE", darkChip: "rgba(74,222,158,0.16)", darkIcon: "#4ADE9E" },
+  reports: { chip: "#F7F8FB", icon: "#64748B", border: "#E2E8F0", darkChip: "rgba(226,232,240,0.12)", darkIcon: "#CBD5E1" },
+  profile: { chip: "#FFF4CF", icon: "#A16207", border: "#F6D681", darkChip: "rgba(232,163,61,0.16)", darkIcon: "#F8AE1B" },
+  neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)", darkIcon: "#E8DFF3" },
 };
 
 const shellSurface = {
   light: "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
-  dark: "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]",
+  dark: "bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)] text-[#F7F0FF]",
 };
 
 const screenCopy = {
@@ -252,7 +252,12 @@ function RoundControl({
         classes,
       ].join(" ")}
     >
-      <Icon size={18} strokeWidth={2.35} aria-hidden="true" />
+      <VyvaIcon
+        icon={Icon}
+        size={18}
+        strokeWidth={2.45}
+        tone={variant === "quiet" && !isDark ? "brand" : "inverse"}
+      />
     </button>
   );
 }
@@ -308,7 +313,7 @@ function CompactVoiceTrigger({
           isDark ? "border-white/20" : "",
         ].join(" ")}
       >
-        <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+        <VyvaIcon icon={Mic} size={17} strokeWidth={2.45} tone="inverse" />
       </button>
     </div>
   );
@@ -495,8 +500,8 @@ function RowCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
-  const palette = rowTonePalettes[item.tone ?? "neutral"];
   const Icon = item.icon;
+  const palette = rowTonePalettes[item.tone ?? "neutral"];
   const isAlert = item.emphasis === "alert";
   const titleSize = isLarge ? (item.compactTitle ? 20 : 22) : item.compactTitle ? 18 : 20;
   const subtitleSize = isLarge ? 15 : 13.5;
@@ -515,18 +520,20 @@ function RowCard({ item }: { item: RowItem }) {
         isDark
           ? "border-white/[0.12] bg-white/[0.07] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.12)]"
           : item.solidSurface
-            ? "border-[#EFE6F5] bg-white text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]"
-            : "border-[#EFE6F5] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
+            ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]"
+            : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_18px_42px_rgba(80,52,109,0.08)]",
         isAlert && !isDark ? "border-[#F7C9C5]" : "",
       ].join(" ")}
-      style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
     >
       <span
-        className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-[20px]"
-        style={{ background: isDark ? palette.darkChip : palette.chip, color: isDark ? "#F7F0FF" : palette.icon }}
+        className={[
+          "grid h-14 w-14 flex-shrink-0 place-items-center rounded-[20px] transition-colors duration-150",
+          isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+        ].join(" ")}
+        data-vyva-icon-tile={item.brandIcon ?? item.iconAccent ?? "utility"}
         aria-hidden="true"
       >
-        <Icon size={25} strokeWidth={2.25} />
+        <VyvaIcon icon={Icon} glyph={item.brandIcon} accent={item.iconAccent} size={item.brandIcon ? 43 : 27} strokeWidth={2.45} tone="brand" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display font-semibold leading-[1.03] tracking-[-0.025em]" style={{ fontSize: titleSize }}>
@@ -541,16 +548,17 @@ function RowCard({ item }: { item: RowItem }) {
       </span>
       {item.meta ? (
         <span
-          className={[
-            "rounded-full px-3 py-1.5 font-body text-[12px] font-black",
-            isDark ? "bg-white/[0.08] text-[#E8DFF3]" : "bg-[#FBF6FD] text-[#8A8095]",
-          ].join(" ")}
-          style={{ fontSize: metaSize }}
+          className="rounded-full px-3 py-1.5 font-body text-[12px] font-black"
+          style={{
+            fontSize: metaSize,
+            background: isDark ? palette.darkChip : palette.chip,
+            color: isDark ? palette.darkIcon : palette.icon,
+          }}
         >
           {item.meta}
         </span>
       ) : (
-        <ChevronRight className={isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]"} size={22} strokeWidth={2.5} aria-hidden="true" />
+        <VyvaIcon icon={ChevronRight} size={22} strokeWidth={2.5} tone="muted" />
       )}
     </button>
   );
@@ -570,11 +578,8 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
   const navigate = usePrototypeNavigate();
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
-  const tone = item.tone ?? "neutral";
-  const palette = rowTonePalettes[tone];
-  const iconTreatment = healthHubIconTreatments[tone];
   const Icon = item.icon;
-  const isAlert = item.emphasis === "alert";
+  const palette = rowTonePalettes[item.tone ?? "neutral"];
   const titleSize = item.compactTitle
     ? isLarge
       ? "text-[20px] md:text-[22px]"
@@ -596,22 +601,27 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
       className={[
         "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
         isDark
-          ? "border-white/[0.12] bg-[#211235] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
+          ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
           : item.solidSurface
-            ? "bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
-            : "bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
-        isAlert && !isDark ? "border-[#F7C9C5]" : "",
+            ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
+            : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
       ].join(" ")}
-      style={!isDark && item.tone ? { borderColor: palette.border } : undefined}
     >
       <span
-        className="relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] text-white shadow-sm ring-1 ring-inset ring-white/45 transition-transform duration-200 group-hover:-rotate-2 group-hover:scale-105 group-focus-visible:-rotate-2 group-focus-visible:scale-105 md:row-span-2 md:h-16 md:w-16 md:self-start"
-        style={{ background: iconTreatment.background, boxShadow: iconTreatment.shadow }}
+        className={[
+          "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
+          isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+        ].join(" ")}
         data-testid={item.testId ? `${item.testId}-icon` : undefined}
         aria-hidden="true"
       >
-        <span className="absolute left-2 top-2 h-2 w-2 rounded-full bg-white/55" />
-        <Icon className="relative h-[27px] w-[27px] md:h-[29px] md:w-[29px]" strokeWidth={2.55} />
+        <VyvaIcon
+          icon={Icon}
+          glyph={item.brandIcon}
+          size={item.brandIcon ? 44 : 29}
+          strokeWidth={2.55}
+          tone="brand"
+        />
       </span>
       <span className="min-w-0 self-center md:self-start">
         <span className={["block font-display font-semibold leading-[1.03] tracking-[-0.025em]", titleSize].join(" ")}>
@@ -625,23 +635,19 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
       </span>
       {item.meta ? (
         <span
-          className={[
-            "self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start",
-            metaSize,
-            isDark ? "bg-white/[0.08] text-[#E8DFF3]" : "bg-[#FBF6FD] text-[#8A8095]",
-          ].join(" ")}
-          style={!isDark ? { background: palette.chip, color: palette.icon } : undefined}
+          className={["self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start", metaSize].join(" ")}
+          style={{
+            background: isDark ? palette.darkChip : palette.chip,
+            color: isDark ? palette.darkIcon : palette.icon,
+          }}
           data-testid={item.testId ? `${item.testId}-status` : undefined}
         >
           {item.meta}
         </span>
       ) : null}
-      <ChevronRight
-        className={["hidden md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end", isDark ? "text-[#D8CFE6]" : "text-[#B4A8BA]"].join(" ")}
-        size={22}
-        strokeWidth={2.5}
-        aria-hidden="true"
-      />
+      <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
+        <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
+      </span>
     </button>
   );
 }
@@ -834,10 +840,10 @@ export function PrototypeMenuScreen({
   backPath?: string;
 } = {}) {
   const items: RowItem[] = [
-    { icon: Heart, title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
-    { icon: Brain, title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
-    { icon: Users, title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
-    { icon: Bell, title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
+    { icon: Heart, iconAccent: "pulse", title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
+    { icon: Brain, iconAccent: "bridge", title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
+    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
+    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
   ];
 
   return (
@@ -867,10 +873,10 @@ export function PrototypeHealthScreen({
   backPath?: string;
 }) {
   const healthRows: RowItem[] = [
-    { icon: Stethoscope, title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: ShieldCheck, title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: HeartPulse, title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Stethoscope, brandIcon: "doctor", title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, brandIcon: "longevity", title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: HeartPulse, brandIcon: "vitals", title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, brandIcon: "medication", title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
@@ -885,33 +891,33 @@ type PrototypeHealthActionPreviewKind = "plan" | "symptom" | "vitals" | "medicin
 
 const healthActionPreviewContent: Record<PrototypeHealthActionPreviewKind, {
   icon: LucideIcon;
+  glyph: VyvaBrandGlyph;
   title: string;
   subtitle: string;
-  tone: RowTone;
 }> = {
   plan: {
     icon: ShieldCheck,
+    glyph: "longevity",
     title: "Longevity",
     subtitle: "Prevention is the best cure",
-    tone: "brain",
   },
   symptom: {
     icon: Stethoscope,
+    glyph: "doctor",
     title: "Ask Dr. AI",
     subtitle: "A focused symptom report starts here.",
-    tone: "health",
   },
   vitals: {
     icon: HeartPulse,
+    glyph: "vitals",
     title: "My Vitals",
     subtitle: "Latest readings and new measurements live here.",
-    tone: "community",
   },
   medicines: {
     icon: Pill,
+    glyph: "medication",
     title: "Medication",
     subtitle: "Dose times and reminders open here.",
-    tone: "profile",
   },
 };
 
@@ -925,17 +931,15 @@ export function PrototypeHealthActionPreviewScreen({
   const navigate = usePrototypeNavigate();
   const content = healthActionPreviewContent[kind];
   const Icon = content.icon;
-  const palette = rowTonePalettes[content.tone];
 
   return (
     <PrototypeShell testId={`prototype-health-action-preview-${kind}`} width="flow" dockPadding={false}>
       <PrototypeTopbar kind="detail" backPath={backPath} />
       <CheckInCard testId="prototype-health-action-preview-card">
         <span
-          className="mx-auto grid h-16 w-16 place-items-center rounded-full"
-          style={{ background: palette.chip, color: palette.icon }}
+          className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#F1E8FF]"
         >
-          <Icon size={30} strokeWidth={2.35} aria-hidden="true" />
+          <VyvaIcon icon={Icon} glyph={content.glyph} size={46} />
         </span>
         <h2 className="mt-7 font-display text-[34px] font-semibold leading-tight">{content.title}</h2>
         <p className="mx-auto mt-3 max-w-[20rem] font-body text-[17px] font-bold text-[#8A8095] dark:text-[#DCCFEF]">
@@ -989,9 +993,9 @@ export function PrototypeBrainScreen({
       testId="prototype-brain-screen"
       title="My Brain"
       rows={[
-        { icon: Activity, title: "Rhythm Tap", subtitle: "A short focus game", meta: "Play", tone: "brain" },
-        { icon: UserRound, title: "Face-Name Match", subtitle: "Practice names gently", meta: "Play", tone: "community" },
-        { icon: MessageCircle, title: "Mood check-in", subtitle: "A calm reflection", meta: "Start", tone: "profile" },
+        { icon: Activity, iconAccent: "pulse", title: "Rhythm Tap", subtitle: "A short focus game", meta: "Play", tone: "brain" },
+        { icon: UserRound, iconAccent: "id", title: "Face-Name Match", subtitle: "Practice names gently", meta: "Play", tone: "community" },
+        { icon: MessageCircle, iconAccent: "smile", title: "Mood check-in", subtitle: "A calm reflection", meta: "Start", tone: "profile" },
       ]}
       trend={<TrendNote title="Rhythm Tap — this week" tone="brain">Your rhythm score has been <span className="text-violet-500">gently climbing.</span></TrendNote>}
       voicePath={voicePath}
@@ -1012,9 +1016,9 @@ export function PrototypeCommunityScreen({
       testId="prototype-community-screen"
       title="Community"
       rows={[
-        { icon: MessageCircle, title: "Book Club", subtitle: "Elena: I loved that chapter too", tone: "community" },
-        { icon: Users, title: "Morning Walkers", subtitle: "A gentle walk is planned tomorrow", tone: "community" },
-        { icon: Sparkles, title: "Share a story", subtitle: "A simple prompt for today", tone: "profile" },
+        { icon: BookOpen, iconAccent: "bookmark", title: "Book Club", subtitle: "Elena: I loved that chapter too", tone: "community" },
+        { icon: Users, iconAccent: "path", title: "Morning Walkers", subtitle: "A gentle walk is planned tomorrow", tone: "community" },
+        { icon: Sparkles, iconAccent: "spark", title: "Share a story", subtitle: "A simple prompt for today", tone: "profile" },
       ]}
       voicePath={voicePath}
       profilePath={profilePath}
@@ -1034,9 +1038,9 @@ export function PrototypeConciergeScreen({
       testId="prototype-concierge-screen"
       title="Concierge"
       rows={[
-        { icon: Bell, title: "Ride to Dr. Reyes", subtitle: "Confirmed for tomorrow", meta: "Done", tone: "concierge" },
-        { icon: Pill, title: "Pharmacy refill", subtitle: "Waiting for confirmation", meta: "Pending", tone: "profile" },
-        { icon: Phone, title: "Call trusted help", subtitle: "For service questions", tone: "reports" },
+        { icon: Car, iconAccent: "pin", title: "Ride to Dr. Reyes", subtitle: "Confirmed for tomorrow", meta: "Done", tone: "concierge" },
+        { icon: Pill, iconAccent: "divider", title: "Pharmacy refill", subtitle: "Waiting for confirmation", meta: "Pending", tone: "profile" },
+        { icon: Phone, iconAccent: "signal", title: "Call trusted help", subtitle: "For service questions", tone: "reports" },
       ]}
       voicePath={voicePath}
       profilePath={profilePath}
@@ -1056,10 +1060,10 @@ export function PrototypeReportsScreen({
       testId="prototype-reports-screen"
       title="My Reports"
       rows={[
-        { icon: HeartPulse, title: "Steps", subtitle: "A little more than last week", meta: "Good", tone: "health" },
-        { icon: Brain, title: "Rhythm Tap average", subtitle: "Gently improving", meta: "Up", tone: "brain" },
-        { icon: MessageCircle, title: "Conversations", subtitle: "Three meaningful chats", meta: "3", tone: "community" },
-        { icon: CheckCircle2, title: "Appointments kept", subtitle: "Both planned visits completed", meta: "2/2", tone: "concierge" },
+        { icon: Footprints, iconAccent: "step", title: "Steps", subtitle: "A little more than last week", meta: "Good", tone: "health" },
+        { icon: ChartNoAxesColumnIncreasing, iconAccent: "trend", title: "Rhythm Tap average", subtitle: "Gently improving", meta: "Up", tone: "brain" },
+        { icon: MessagesSquare, iconAccent: "dot", title: "Conversations", subtitle: "Three meaningful chats", meta: "3", tone: "community" },
+        { icon: CalendarCheck, iconAccent: "calendar", title: "Appointments kept", subtitle: "Both planned visits completed", meta: "2/2", tone: "concierge" },
       ]}
       voicePath={voicePath}
       profilePath={profilePath}
@@ -1073,18 +1077,18 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
     {
       eyebrow: "Your details",
       items: [
-        { icon: UserRound, title: "Account details", subtitle: "Name, phone, language", tone: "brain", path: "/dev/home-master/profile/account", testId: "button-profile-account" },
-        { icon: Heart, title: "Health profile", subtitle: "Conditions and basics", tone: "health", path: "/dev/home-master/profile/health", testId: "button-profile-health" },
-        { icon: Pill, title: "My Medication", subtitle: "Current medications", tone: "profile", path: "/dev/home-master/profile/medicines", testId: "button-profile-medicines" },
-        { icon: ShieldCheck, title: "Emergency contact", subtitle: "Who to call if needed", tone: "health", path: "/dev/home-master/profile/emergency", testId: "button-profile-emergency" },
-        { icon: SlidersHorizontal, title: "Preferences", subtitle: "Text and theme", tone: "reports", path: "/dev/home-master/profile/preferences", testId: "button-profile-accessibility" },
+        { icon: UserRound, iconAccent: "id", title: "Account details", subtitle: "Name, phone, language", tone: "brain", path: "/dev/home-master/profile/account", testId: "button-profile-account" },
+        { icon: Heart, iconAccent: "pulse", title: "Health profile", subtitle: "Conditions and basics", tone: "health", path: "/dev/home-master/profile/health", testId: "button-profile-health" },
+        { icon: Pill, iconAccent: "divider", title: "My Medication", subtitle: "Current medications", tone: "profile", path: "/dev/home-master/profile/medicines", testId: "button-profile-medicines" },
+        { icon: ShieldCheck, iconAccent: "check", title: "Emergency contact", subtitle: "Who to call if needed", tone: "health", path: "/dev/home-master/profile/emergency", testId: "button-profile-emergency" },
+        { icon: SlidersHorizontal, iconAccent: "knobs", title: "Preferences", subtitle: "Text and theme", tone: "reports", path: "/dev/home-master/profile/preferences", testId: "button-profile-accessibility" },
       ],
     },
     {
       eyebrow: "Who can help",
       items: [
-        { icon: Users, title: "Care team", subtitle: "Family and contacts", tone: "community", path: "/dev/home-master/profile/care-team", testId: "button-profile-care-team" },
-        { icon: Stethoscope, title: "Doctors & providers", subtitle: "Clinics and trusted help", tone: "concierge", path: "/dev/home-master/profile/providers", testId: "button-profile-providers" },
+        { icon: Users, iconAccent: "link", title: "Care team", subtitle: "Family and contacts", tone: "community", path: "/dev/home-master/profile/care-team", testId: "button-profile-care-team" },
+        { icon: Stethoscope, iconAccent: "scope", title: "Doctors & providers", subtitle: "Clinics and trusted help", tone: "concierge", path: "/dev/home-master/profile/providers", testId: "button-profile-providers" },
       ],
     },
   ];
@@ -1131,7 +1135,7 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
           isDark ? "border-white/[0.12] bg-white/[0.07] text-[#F7F0FF]" : "border-[#E9DEF2] bg-white/86 text-[#342B3F]",
         ].join(" ")}
       >
-        <Phone size={19} strokeWidth={2.35} aria-hidden="true" />
+        <VyvaIcon icon={Phone} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
         Call support
       </button>
     </PrototypeShell>
@@ -1144,13 +1148,11 @@ const profileActionPreviewContent: Record<PrototypeProfileActionPreviewKind, {
   icon: LucideIcon;
   title: string;
   subtitle: string;
-  tone: RowTone;
 }> = {
   accessibility: {
     icon: SlidersHorizontal,
     title: "Preferences",
     subtitle: "Text size and theme",
-    tone: "reports",
   },
 };
 
@@ -1199,7 +1201,6 @@ export function PrototypeProfileActionPreviewScreen({
   const { isLarge, toggleSize } = useReadableTextSize();
   const content = profileActionPreviewContent[kind];
   const Icon = content.icon;
-  const palette = rowTonePalettes[content.tone];
   const rows = getProfileAccessibilityRows({ isDark, isLarge, toggleSize, toggleTheme });
 
   return (
@@ -1215,11 +1216,13 @@ export function PrototypeProfileActionPreviewScreen({
       >
         <div className="flex items-center gap-4">
           <span
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full"
-            style={{ background: isDark ? palette.darkChip : palette.chip, color: isDark ? "#F7F0FF" : palette.icon }}
+            className={[
+              "grid h-14 w-14 shrink-0 place-items-center rounded-[20px]",
+              isDark ? "bg-[#35284A]" : "bg-[#F1E8FF]",
+            ].join(" ")}
             aria-hidden="true"
           >
-            <Icon size={25} strokeWidth={2.35} />
+            <VyvaIcon icon={Icon} size={27} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-[27px] font-semibold leading-tight tracking-[-0.02em]">
@@ -1489,8 +1492,8 @@ export function PrototypeCheckInScreen({ returnPath = "/dev/home-master/health" 
         <CheckInAdapterBoundary state={flowState} currentQuestion={currentQuestion} />
         <PrototypeTopbar kind="detail" backPath={returnPath} title="Safety" />
         <CheckInCard testId="prototype-checkin-safety-card">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#FFF4CF] text-[#E05B52]">
-            <AlertTriangle size={30} strokeWidth={2.4} aria-hidden="true" />
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#FFF4E5]">
+            <VyvaIcon icon={AlertTriangle} size={30} strokeWidth={2.5} tone="danger" />
           </span>
           <h1 className="mt-7 font-display text-[32px] font-semibold leading-tight">Let’s get you help right now.</h1>
           <p className="mx-auto mt-3 max-w-[20rem] font-body text-[17px] font-bold text-[#8A8095]">
@@ -1523,15 +1526,15 @@ export function PrototypeCheckInScreen({ returnPath = "/dev/home-master/health" 
         <CheckInAdapterBoundary state={flowState} currentQuestion={currentQuestion} />
         <PrototypeTopbar kind="detail" backPath={returnPath} title="Check-in" />
         <CheckInCard testId="prototype-checkin-summary">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#EAFBF1] text-[#0F7A50]">
-            <CheckCircle2 size={31} strokeWidth={2.4} aria-hidden="true" />
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#EAFBF1]">
+            <VyvaIcon icon={CheckCircle2} size={31} strokeWidth={2.5} tone="success" />
           </span>
           <h1 className="mt-7 font-display text-[34px] font-semibold leading-tight">Here’s what you told VYVA.</h1>
           <p className="mt-2 font-body text-[16px] font-bold text-[#8A8095]">Thanks for checking in.</p>
           <div className="mt-7 divide-y divide-[#EFE4F6] rounded-[24px] bg-[#FBF8FD] px-5 text-left">
             {flowState.answers.map((answer) => (
               <div key={`${answer.questionId}-${answer.optionId}`} className="flex items-center gap-3 py-4">
-                <CheckCircle2 className="text-[#10B981]" size={22} aria-hidden="true" />
+                <VyvaIcon icon={CheckCircle2} size={22} tone="success" />
                 <span>
                   <span className="block font-body text-[16px] font-black">{CHECK_IN_ANSWER_LABELS[answer.questionId]}</span>
                   <span className="block font-body text-[15px] font-bold text-[#8A8095]">{answer.label}</span>

@@ -37,6 +37,9 @@ describe("BottomNav", () => {
     expect(screen.getByTestId("nav-tab-home")).toHaveTextContent("Home");
     expect(screen.getByTestId("nav-tab-sos")).toHaveTextContent("SOS");
     expect(screen.getByTestId("nav-tab-reports")).toHaveTextContent("My Reports");
+    expect(screen.getByTestId("nav-tab-home").querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
+    expect(screen.getByTestId("nav-tab-sos").querySelector('[data-vyva-icon="utility"]')).toHaveAttribute("stroke", "#FFFFFF");
+    expect(screen.getByTestId("nav-tab-reports").querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
   });
 
   it("keeps the Home dock item inert on the Home screen", () => {

@@ -1,5 +1,6 @@
 import { AlertCircle, FileText, House, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useLanguage } from "@/i18n";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { isHomeNavPrototypeDockRoute } from "@/lib/homeNavPrototypeRoutes";
@@ -73,11 +74,11 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
             activeVisual ? "bg-vyva-purple-light shadow-sm" : ""
           }`}
         >
-          <Icon
+          <VyvaIcon
+            icon={Icon}
             size={usesHomeDockSurface ? 18 : 20}
-            className={activeVisual ? "text-vyva-purple" : usesHomeDockSurface && isHomeMasterDark ? "" : "text-vyva-text-3"}
             strokeWidth={activeVisual ? 2.15 : 1.85}
-            style={!activeVisual && usesHomeDockSurface && isHomeMasterDark ? { color: inactiveDarkColor } : undefined}
+            tone={activeVisual ? "brand" : usesHomeDockSurface && isHomeMasterDark ? "inverse" : "muted"}
           />
         </div>
         <span
@@ -98,7 +99,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
         "left-1/2 z-50 w-full -translate-x-1/2 backdrop-blur",
         usesHomeDockSurface
           ? isHomeMasterDark
-            ? "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-white/10 bg-[#171225]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[76px] md:max-w-[560px] lg:h-[80px] lg:max-w-[620px]"
+            ? "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-white/10 bg-[#2A2034]/92 shadow-[0_18px_34px_rgba(0,0,0,0.28)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[76px] md:max-w-[560px] lg:h-[80px] lg:max-w-[620px]"
             : "fixed bottom-[18px] h-[68px] max-w-[calc(100vw-40px)] rounded-[22px] border border-[#EEE4F6] bg-white/95 shadow-[0_12px_28px_rgba(63,45,35,0.10)] min-[390px]:max-w-[360px] sm:h-[72px] sm:max-w-[390px] md:h-[76px] md:max-w-[560px] lg:h-[80px] lg:max-w-[620px]"
           : `fixed bottom-0 border-t border-vyva-border bg-white/95 shadow-[0_-8px_28px_rgba(63,45,35,0.08)] ${wide ? "max-w-[920px]" : "max-w-[520px]"}`,
       ].join(" ")}
@@ -113,7 +114,7 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
           aria-label="SOS"
         >
           <div className={`sos-btn flex items-center justify-center rounded-full bg-[#D92020] shadow-[0_8px_20px_rgba(185,28,28,0.32)] ${usesHomeDockSurface ? "h-[44px] w-[44px]" : "h-[52px] w-[52px]"}`}>
-            <AlertCircle size={usesHomeDockSurface ? 21 : 25} className="text-white" />
+            <VyvaIcon icon={AlertCircle} size={usesHomeDockSurface ? 21 : 25} strokeWidth={2.4} tone="inverse" />
           </div>
           <span className="font-body text-[11px] font-extrabold leading-tight text-[#B91C1C]">SOS</span>
         </button>
