@@ -528,11 +528,11 @@ describe("Home fast service actions", () => {
     const themeButton = screen.getByTestId("button-home-profile-theme");
     const modeButton = screen.getByTestId("button-home-profile-mode");
 
-    // Defaults are large text, light theme, and voice mode, so each tile offers the opposite action.
+    // Defaults are large text, dark theme, and voice mode, so each tile offers the opposite action.
     expect(textSizeButton).toHaveTextContent("Normal");
     expect(textSizeButton).not.toHaveTextContent("Large");
-    expect(themeButton).toHaveTextContent("Dark");
-    expect(themeButton).not.toHaveTextContent("Light");
+    expect(themeButton).toHaveTextContent("Light");
+    expect(themeButton).not.toHaveTextContent("Dark");
     expect(modeButton).toHaveTextContent("Touch");
     expect(modeButton).not.toHaveTextContent("Voice");
 
@@ -541,8 +541,8 @@ describe("Home fast service actions", () => {
 
     expect(textSizeButton).toHaveTextContent("Large");
     expect(textSizeButton).not.toHaveTextContent("Normal");
-    expect(themeButton).toHaveTextContent("Light");
-    expect(themeButton).not.toHaveTextContent("Dark");
+    expect(themeButton).toHaveTextContent("Dark");
+    expect(themeButton).not.toHaveTextContent("Light");
     expect(modeButton).toHaveTextContent("Touch");
     expect(modeButton).not.toHaveTextContent("Voice");
   });
