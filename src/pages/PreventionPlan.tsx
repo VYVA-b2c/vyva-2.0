@@ -45,7 +45,28 @@ const STATUS: Record<PillarStatus, { label: string; className: string }> = {
 
 const PRIORITY_STATUS = { label: "This month", className: "bg-[#FAEEDA] text-[#854F0B]" };
 
-function narrativeForProfile(narrative: string | null, firstName: string): string | null {
+function upperFirst(value: string): string {
+  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+}
+
+function lowerFirst(value: string): string {
+  return value ? `${value[0].toLowerCase()}${value.slice(1)}` : value;
+}
+
+function withoutMonthlySuffix(value: string): string {
+  return value.trim().replace(/\s+this month[.!]?$/i, "").replace(/[.!?]+$/, "");
+}
+
+function personalisedHeadline(firstName: string, intervention: string | null, priorityLabel: string | null): string {
+  const action = intervention
+    ? withoutMonthlySuffix(intervention)
+    : priorityLabel
+      ? `Focus on ${priorityLabel.toLowerCase()}`
+      : "Begin with one practical step";
+  return firstName ? `${firstName}, ${lowerFirst(action)}` : upperFirst(action);
+}
+
+function personalisedNarrative(narrative: string | null, firstName: string): string | null {
   if (!narrative || !firstName) return narrative;
   return narrative.replace(/^[^,]+(?=,\s*this month\b)/i, firstName);
 }
@@ -94,6 +115,7 @@ export default function PreventionPlan() {
   const userId = user?.id ?? "";
   const { data: plan, isLoading, isError } = usePreventionPlan(userId);
   const [copied, setCopied] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
 
   if (isLoading || !userId) return <PreventionPlanSkeleton />;
   if (isError || !plan) {
@@ -108,30 +130,68 @@ export default function PreventionPlan() {
     );
   }
 
-  const generatedLabel = plan.generated_at
-    ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(new Date(plan.generated_at))
-    : "Preparing your first plan";
-  const seniorNarrative = narrativeForProfile(plan.plan_narrative_senior, firstName);
-
   const openAction = (action: string) => {
     const route = actionRoute(action);
     if (route) navigate(route);
     else navigate(`/chat?mode=voice&q=${encodeURIComponent(`Help me with this longevity plan action: ${action}`)}`);
   };
 
-  const sourceSentences: Record<string, string> = {
-    vitals: "Your recent heart and breathing patterns helped shape this plan.",
-    medications: "Your medicine routine helped shape the practical steps.",
-    cognitive: "Your Brain Coach activity helped shape the brain focus.",
-    mood: "Your recent check-ins helped shape the calm and recovery focus.",
-    symptoms: "The changes you recently shared helped shape the plan.",
+  const sourceLabels: Record<string, string> = {
+    vitals: "Recent heart and breathing readings",
+    medications: "Your current medicine routine",
+    cognitive: "Recent Brain Coach activity",
+    mood: "Recent check-ins and recovery patterns",
+    symptoms: "Symptoms you recently shared",
   };
 
+  const priorityLabel = plan.priority_pillar
+    ? PILLARS.find((item) => item.id === plan.priority_pillar)?.label ?? plan.priority_pillar
+    : null;
+  const priorityActions = plan.priority_pillar
+    ? plan.recommendations?.[plan.priority_pillar] ?? []
+    : [];
+  const heroHeadline = personalisedHeadline(firstName, plan.priority_intervention, priorityLabel);
+  const seniorNarrative = personalisedNarrative(plan.plan_narrative_senior, firstName);
+  const vyvaPrompt = plan.priority_intervention
+    ? `Explain why this is my priority and help me start: ${plan.priority_intervention}`
+    : "Explain my longevity plan and help me choose where to start";
+  const careTeamSummary = [
+    plan.plan_narrative_caregiver,
+    priorityLabel ? `Priority this month: ${priorityLabel}` : null,
+    plan.priority_intervention ? `Focus: ${plan.priority_intervention}` : null,
+    plan.priority_why ? `Why it matters: ${plan.priority_why}` : null,
+    priorityActions.length > 0
+      ? `Key actions:\n${priorityActions.map((item) => `• ${item.action}`).join("\n")}`
+      : null,
+  ].filter((value): value is string => Boolean(value)).join("\n\n");
+
   const copyCareText = async () => {
-    if (!plan.plan_narrative_caregiver) return;
-    await navigator.clipboard.writeText(plan.plan_narrative_caregiver);
+    if (!careTeamSummary) return;
+    await navigator.clipboard.writeText(careTeamSummary);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  const shareCareText = async () => {
+    if (!careTeamSummary) return;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "VYVA Longevity Plan",
+          text: careTeamSummary,
+        });
+        setShareFeedback("shared");
+        window.setTimeout(() => setShareFeedback(null), 1800);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    await navigator.clipboard.writeText(careTeamSummary);
+    setShareFeedback("copied");
+    window.setTimeout(() => setShareFeedback(null), 1800);
   };
 
   return (
@@ -146,21 +206,9 @@ export default function PreventionPlan() {
         </header>
 
         <section className="mt-5 rounded-[34px] border border-[#E9DDED] bg-white p-6 shadow-[0_20px_55px_rgba(107,33,168,0.08)] sm:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-[20px] font-extrabold uppercase tracking-[0.08em] text-[#6B21A8]">
-            <span>Your longevity plan</span>
-            <time className="text-[#806F79]">{generatedLabel}</time>
-          </div>
-          <p className="mt-7 text-[22px] font-medium leading-9 text-[#3D2C37]">
-            {seniorNarrative || "Your monthly plan brings five areas together into a few practical steps. Begin with the action that feels easiest today."}
-          </p>
-          {plan.priority_pillar && (
-            <div className="mt-7 inline-flex min-h-[70px] items-center rounded-full bg-[#FFF1CB] px-6 text-[20px] font-black uppercase text-[#704300]">
-              This month: {PILLARS.find((item) => item.id === plan.priority_pillar)?.label}
-            </div>
-          )}
-          {plan.priority_intervention && <p className="mt-6 text-[22px] font-black leading-8">{plan.priority_intervention}</p>}
-          <button type="button" onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent("Tell me about my monthly longevity plan")}`)} className="mt-8 flex min-h-[70px] w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 text-[20px] font-black text-white shadow-lg shadow-purple-900/15">
-            <Mic size={28} /> Ask VYVA about this plan
+          <h2 className="text-[30px] font-black leading-[1.2] text-[#24132E] sm:text-[34px]">{heroHeadline}</h2>
+          <button type="button" onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent(vyvaPrompt)}`)} className="mt-6 flex min-h-[70px] w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 text-[20px] font-black text-white shadow-lg shadow-purple-900/15">
+            <Mic size={28} /> Ask VYVA
           </button>
         </section>
 
@@ -210,21 +258,53 @@ export default function PreventionPlan() {
         </div>
 
         <details className="mt-6 rounded-[26px] border border-[#E9DDED] bg-white">
-          <summary className="flex min-h-[70px] cursor-pointer list-none items-center justify-between gap-4 px-6 text-[20px] font-black">What’s informing this plan?<ChevronDown size={26} /></summary>
-          <div className="space-y-3 border-t border-[#EEE5E9] px-6 py-5">
-            {Object.entries(plan.source_signals ?? {}).filter(([, available]) => available).map(([domain]) => <p key={domain} className="text-[20px] leading-8 text-[#5F5058]">{sourceSentences[domain] ?? "Your recent VYVA activity helped shape this plan."}</p>)}
-            {!Object.values(plan.source_signals ?? {}).some(Boolean) && <p className="text-[20px] leading-8 text-[#5F5058]">This first plan uses gentle general-wellness guidance while VYVA learns what matters to you.</p>}
+          <summary className="flex min-h-[70px] cursor-pointer list-none items-center justify-between gap-4 px-6 text-[20px] font-black">Why these steps?<ChevronDown size={26} /></summary>
+          <div className="border-t border-[#EEE5E9] px-6 py-5">
+            {seniorNarrative && <p className="text-[18px] font-semibold leading-7 text-[#3D2C37]">{seniorNarrative}</p>}
+            {Object.values(plan.source_signals ?? {}).some(Boolean) ? (
+              <div className={seniorNarrative ? "mt-5" : ""}>
+                <p className="text-[12px] font-black uppercase tracking-[0.1em] text-[#6B21A8]">Signals considered</p>
+                <ul className="mt-2 divide-y-[0.5px] divide-[#E3D8DE]">
+                  {Object.entries(plan.source_signals ?? {}).filter(([, available]) => available).map(([domain]) => (
+                    <li key={domain} className="flex min-h-[48px] items-center gap-3 py-2 text-[16px] font-semibold leading-6 text-[#5F5058]">
+                      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[#8B5CF6]" />
+                      <span>{sourceLabels[domain] ?? "Recent VYVA activity"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className={`${seniorNarrative ? "mt-4 " : ""}text-[18px] leading-7 text-[#5F5058]`}>This first plan uses general-wellness guidance while VYVA learns what matters to you.</p>
+            )}
           </div>
         </details>
 
         <details className="mt-5 rounded-[26px] border border-[#E9DDED] bg-white">
-          <summary className="flex min-h-[70px] cursor-pointer list-none items-center justify-between gap-4 px-6 text-[20px] font-black">For your care team<ChevronDown size={26} /></summary>
+          <summary className="flex min-h-[70px] cursor-pointer list-none items-center justify-between gap-4 px-6 text-[20px] font-black">Care-team summary<ChevronDown size={26} /></summary>
           <div className="border-t border-[#EEE5E9] px-6 py-5">
             <p className="text-[20px] leading-8 text-[#5F5058]">{plan.plan_narrative_caregiver || "A care-team summary will appear when the monthly synthesis is complete."}</p>
-            <p className="mt-4 text-[20px] font-semibold text-[#806F79]">Generated {plan.generated_at ? new Date(plan.generated_at).toLocaleDateString() : "today"}</p>
+            {priorityLabel && (
+              <div className="mt-5 rounded-[18px] bg-[#FAEEDA] px-4 py-4">
+                <p className="text-[18px] font-black text-[#633806]">Priority: {priorityLabel}</p>
+                {plan.priority_intervention && <p className="mt-2 text-[16px] font-semibold leading-6 text-[#633806]">{plan.priority_intervention}</p>}
+              </div>
+            )}
+            {priorityActions.length > 0 && (
+              <div className="mt-5">
+                <p className="text-[13px] font-black uppercase tracking-[0.1em] text-[#6B21A8]">Key actions</p>
+                <ul className="mt-2 divide-y-[0.5px] divide-[#E3D8DE]">
+                  {priorityActions.map((item) => (
+                    <li key={item.action} className="flex min-h-[52px] items-center gap-3 py-2 text-[16px] font-bold leading-6 text-[#3D2C37]">
+                      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[#F59E0B]" />
+                      <span>{item.action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => void copyCareText()} disabled={!plan.plan_narrative_caregiver} className="flex min-h-[70px] items-center justify-center gap-3 rounded-full border-2 border-[#6B21A8] px-5 text-[20px] font-black text-[#6B21A8] disabled:opacity-40">{copied ? <Check size={25} /> : <Clipboard size={25} />}{copied ? "Copied" : "Copy"}</button>
-              <button type="button" onClick={() => navigate("/concierge", { state: { preventionPlanSummary: plan.plan_narrative_caregiver } })} disabled={!plan.plan_narrative_caregiver} className="flex min-h-[70px] items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-5 text-[20px] font-black text-white disabled:opacity-40"><Share2 size={25} />Share via Concierge</button>
+              <button type="button" onClick={() => void copyCareText()} disabled={!careTeamSummary} className="flex min-h-[70px] items-center justify-center gap-3 rounded-full border-2 border-[#6B21A8] px-5 text-[20px] font-black text-[#6B21A8] disabled:opacity-40">{copied ? <Check size={25} /> : <Clipboard size={25} />}{copied ? "Copied" : "Copy summary"}</button>
+              <button type="button" onClick={() => void shareCareText()} disabled={!careTeamSummary} className="flex min-h-[70px] items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-5 text-[20px] font-black text-white disabled:opacity-40">{shareFeedback ? <Check size={25} /> : <Share2 size={25} />}{shareFeedback === "shared" ? "Shared" : shareFeedback === "copied" ? "Copied" : "Share summary"}</button>
             </div>
             {/* TODO: Add GP-ready PDF export from plan_abstract_gp after pilot data exists. */}
           </div>
