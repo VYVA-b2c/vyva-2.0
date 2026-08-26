@@ -15,6 +15,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/ask-dr-ai-checking",
   "/dev/home-master/ask-dr-ai-next",
   "/dev/home-master/symptom-warning",
+  "/dev/home-master/symptom-report",
   "/menu",
   "/health",
   "/health/prevention",
@@ -69,7 +70,6 @@ export function hidesHomeNavPrototypeDock(pathname: string) {
     pathname === "/dev/home-master/profile/providers" ||
     pathname === "/dev/home-master/profile/preferences" ||
     pathname === "/dev/home-master/profile/accessibility" ||
-    pathname === "/dev/home-master/symptom-report" ||
     pathname === "/dev/home-master/vitals" ||
     pathname === "/dev/home-master/medicines";
 }

@@ -7,10 +7,12 @@ import {
   Stethoscope,
   type LucideIcon,
 } from "lucide-react";
+import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import {
   resolveSymptomAssessmentPresentation,
   type SymptomAssessmentStageId,
 } from "@/design/screenPresentation";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 
 export type SymptomAssessmentModality = "voice" | "touch";
 
@@ -118,28 +120,34 @@ const stagePresentation: Record<SymptomAssessmentStageId, StagePresentation> = {
 type CheckingInsight = {
   title: string;
   Icon: LucideIcon;
+  accent: VyvaIconAccent;
 };
 
 const CHECKING_INSIGHTS: readonly CheckingInsight[] = [
   {
     title: "Reviewing your symptoms",
     Icon: Stethoscope,
+    accent: "scope",
   },
   {
     title: "Reviewing your health profile",
     Icon: HeartPulse,
+    accent: "pulse",
   },
   {
     title: "Searching 40M+ peer-reviewed sources",
     Icon: Search,
+    accent: "spark",
   },
   {
     title: "Checking safety signals",
     Icon: ShieldCheck,
+    accent: "check",
   },
 ] as const;
 
 function SymptomCheckingProgress() {
+  const { isDark } = useHomeMasterTheme();
   const [activeInsight, setActiveInsight] = useState(0);
 
   useEffect(() => {
@@ -155,8 +163,6 @@ function SymptomCheckingProgress() {
   }, []);
 
   const activeCopy = CHECKING_INSIGHTS[activeInsight];
-  const ActiveIcon = activeCopy.Icon;
-
   return (
     <div
       className="flex min-h-[250px] flex-col items-center justify-center px-3 text-center"
@@ -164,8 +170,8 @@ function SymptomCheckingProgress() {
       role="status"
       aria-live="polite"
     >
-      <span className="grid h-[72px] w-[72px] place-items-center rounded-[24px] border border-white/20 bg-white/15 text-white shadow-[0_14px_32px_rgba(32,12,68,0.22)] backdrop-blur-sm motion-safe:animate-pulse">
-        <ActiveIcon size={32} strokeWidth={2.25} aria-hidden="true" />
+      <span className={`grid h-[72px] w-[72px] place-items-center rounded-[24px] border shadow-[0_14px_32px_rgba(32,12,68,0.22)] backdrop-blur-sm motion-safe:animate-pulse ${isDark ? "border-white/15 bg-[#342548]" : "border-white/50 bg-white/90"}`}>
+        <VyvaIcon icon={activeCopy.Icon} accent={activeCopy.accent} size={34} strokeWidth={2.35} />
       </span>
       <h2 className="mt-7 max-w-[300px] font-body text-[28px] font-extrabold leading-[1.08] tracking-[-0.025em] text-white">
         {activeCopy.title}
@@ -197,6 +203,7 @@ type SymptomAssessmentPresentationProps = {
   reviewItems?: SymptomAssessmentReviewItem[];
   onModalityChange?: (modality: SymptomAssessmentModality) => void;
   showHeader?: boolean;
+  showTitle?: boolean;
   fullBleedChildren?: boolean;
   allowProgressChildren?: boolean;
   className?: string;
@@ -211,10 +218,12 @@ export function SymptomAssessmentPresentation({
   reviewItems = [],
   onModalityChange,
   showHeader = true,
+  showTitle = true,
   fullBleedChildren = false,
   allowProgressChildren = false,
   className = "",
 }: SymptomAssessmentPresentationProps) {
+  const { isDark } = useHomeMasterTheme();
   const scene = stagePresentation[stageId];
   const presentation = resolveSymptomAssessmentPresentation(stageId);
   const urgent = scene.layout === "alert";
@@ -231,6 +240,7 @@ export function SymptomAssessmentPresentation({
     stageId === "describe" && modality === "touch" && !showHeader;
   const usesCheckingFrame = stageId === "checking";
   const usesResultFrame = stageId === "safest_next_step" || stageId === "save_share_summary";
+  const showsSceneIntro = (showTitle && scene.layout !== "progress") || Boolean(displayHelper);
   const responsiveFrameWidth = "max-w-[330px] sm:max-w-[760px]";
   const responsiveFrameHeight = stageId === "checking"
       ? "min-h-[360px] md:min-h-[350px]"
@@ -240,11 +250,16 @@ export function SymptomAssessmentPresentation({
     : stageId === "checking"
       ? "pb-8 pt-[30px] md:pb-10 md:pt-8"
       : `pb-8 ${showHeader ? "pt-[38px]" : "pt-8"} md:pb-9 md:pt-8`;
+  const defaultFrameClass = isDark
+    ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_22px_48px_rgba(0,0,0,0.22)]"
+    : usesCompactProductionDescribeFrame
+      ? "border-[#E6DCEB] bg-white text-[#241238] shadow-[0_16px_40px_rgba(63,45,75,0.08)]"
+      : "border-[#DFD3E7] bg-[#FBF6FF] text-[#241238] shadow-[0_18px_36px_rgba(47,24,64,0.11)]";
 
   return (
     <section
       aria-busy={loading || undefined}
-      className={`mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden border text-[#241238] ${usesCheckingFrame ? "rounded-[32px] border-[#7C3AED] bg-[linear-gradient(145deg,#4C1D95_0%,#6D28D9_52%,#7C3AED_100%)] shadow-[0_22px_48px_rgba(76,29,149,0.28)]" : usesCompactProductionDescribeFrame ? "rounded-[28px] border-[#E6DCEB] bg-white shadow-[0_16px_40px_rgba(63,45,75,0.08)]" : "rounded-[32px] border-[#DFD3E7] bg-[#FBF6FF] shadow-[0_18px_36px_rgba(47,24,64,0.11)]"} ${className}`}
+      className={`symptom-canonical-panel mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden border ${usesCheckingFrame ? "rounded-[32px] border-[#7C3AED] bg-[linear-gradient(145deg,#4C1D95_0%,#6D28D9_52%,#7C3AED_100%)] text-white shadow-[0_22px_48px_rgba(76,29,149,0.28)]" : `rounded-[30px] ${defaultFrameClass}`} ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
@@ -304,14 +319,14 @@ export function SymptomAssessmentPresentation({
 
       {fullBleedChildren ? (
         <>
-          <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
-          {scene.layout !== "progress" ? (
-            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] text-[#241238] ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
+          {showsSceneIntro ? <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
+          {showTitle && scene.layout !== "progress" ? (
+            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
           ) : null}
             {displayHelper ? (
-              <p className={`mx-auto mt-3 font-semibold leading-[1.42] text-[#746A72] ${usesResultFrame ? "max-w-[290px] text-[14px] md:text-[15px]" : "max-w-[250px] text-[15px]"}`}>
+              <p className={`mx-auto mt-3 font-semibold leading-[1.42] ${isDark ? "text-[#D8CDE4]" : "text-[#746A72]"} ${usesResultFrame ? "max-w-[290px] text-[14px] md:text-[15px]" : "max-w-[250px] text-[15px]"}`}>
                 {usesResultFrame ? (
                   <>
                     <span className="md:hidden">
@@ -322,10 +337,10 @@ export function SymptomAssessmentPresentation({
                 ) : displayHelper}
               </p>
             ) : null}
-          </div>
+          </div> : null}
           {children && (scene.layout !== "progress" || allowProgressChildren) ? (
             <div
-              className={`${usesResultFrame ? "mt-5 md:mt-7" : "mt-7"} text-left`}
+              className={`${showsSceneIntro ? (usesResultFrame ? "mt-5 md:mt-7" : "mt-7") : ""} text-left`}
               data-testid={`symptom-scene-controls-${stageId}-${modality}`}
             >
               {children}
@@ -334,8 +349,8 @@ export function SymptomAssessmentPresentation({
         </>
       ) : (
         <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
-          {scene.layout !== "progress" ? (
-            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] text-[#241238] ${usesCompactProductionDescribeFrame || stageId === "safety_check" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
+          {showTitle && scene.layout !== "progress" ? (
+            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesCompactProductionDescribeFrame || stageId === "safety_check" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
               {title || scene.title}
             </h2>
           ) : null}
@@ -364,7 +379,7 @@ export function SymptomAssessmentPresentation({
             </p>
           </div>
         ) : displayHelper ? (
-          <p className="mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] text-[#746A72]">
+          <p className={`mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] ${isDark ? "text-[#D8CDE4]" : "text-[#746A72]"}`}>
             {displayHelper}
           </p>
         ) : null}
@@ -379,7 +394,7 @@ export function SymptomAssessmentPresentation({
 
         {scene.layout === "review" && reviewItems.length > 0 ? (
           <dl
-            className="mt-7 divide-y divide-[#E7DDE6] text-left"
+            className={`mt-7 divide-y text-left ${isDark ? "divide-white/[0.12]" : "divide-[#E7DDE6]"}`}
             data-testid="symptom-scene-review"
           >
             {reviewItems.map((item) => (
@@ -387,10 +402,10 @@ export function SymptomAssessmentPresentation({
                 className="py-3"
                 key={`${item.label}-${item.value}`}
               >
-                <dt className="text-[12px] font-black uppercase tracking-[0.08em] text-[#746A72]">
+                <dt className={`text-[12px] font-black uppercase tracking-[0.08em] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>
                   {item.label}
                 </dt>
-                <dd className="mt-1 text-[14px] font-bold text-[#241238]">
+                <dd className={`mt-1 text-[14px] font-bold ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
                   {item.value}
                 </dd>
               </div>

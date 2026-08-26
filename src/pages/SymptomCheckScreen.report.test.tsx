@@ -71,6 +71,14 @@ function renderReport(
 }
 
 describe("SymptomCheck report service actions", () => {
+  it("uses the canonical summary heading and final report hierarchy", () => {
+    renderReport();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Your summary" })).toBeVisible();
+    expect(screen.getByTestId("card-report-answer")).toHaveTextContent("Doctor today");
+    expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Talk to a doctor today");
+  });
+
   it("puts an emergency call action on the live next step when an emergency number is known", () => {
     renderReport(
       {},

@@ -80,7 +80,7 @@ const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: str
 
 const shellSurface = {
   light: "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
-  dark: "bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)] text-[#F7F0FF]",
+  dark: "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)] text-[#F7F0FF]",
 };
 
 const screenCopy = {
@@ -419,7 +419,7 @@ export function PrototypeSymptomAssessmentShell({
       <div
         className={[
           "sticky top-0 z-40 -mx-3 px-3 py-3 backdrop-blur-xl",
-          isDark ? "bg-[#17101F]/90" : "bg-[#F8EEFF]/90",
+          isDark ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
         ].join(" ")}
       >
         <PrototypeTopbar

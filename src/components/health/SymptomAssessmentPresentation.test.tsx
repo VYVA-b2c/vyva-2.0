@@ -249,4 +249,20 @@ describe("SymptomAssessmentPresentation", () => {
     expect(screen.getByRole("heading", { name: "Your summary" })).toBeInTheDocument();
     expect(screen.queryByText(/ready to share/i)).not.toBeInTheDocument();
   });
+
+  it("lets a full-bleed report own the single page heading", () => {
+    render(
+      <SymptomAssessmentPresentation
+        stageId="save_share_summary"
+        modality="touch"
+        showTitle={false}
+        fullBleedChildren
+      >
+        <h1>Your summary</h1>
+      </SymptomAssessmentPresentation>,
+    );
+
+    expect(screen.getAllByRole("heading", { name: "Your summary" })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Your summary" })).toBeVisible();
+  });
 });

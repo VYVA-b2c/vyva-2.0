@@ -116,7 +116,7 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getByTestId("voice-triage-choice-grid-safety_check")).toHaveClass("grid-cols-1");
 
     const warningChoice = screen.getByTestId("voice-triage-choice-one_sided_weakness");
-    expect(warningChoice).toHaveClass("w-full", "rounded-[18px]", "bg-white", "text-left");
+    expect(warningChoice).toHaveClass("symptom-canonical-choice", "w-full", "rounded-[18px]", "bg-[#3A242E]", "text-left");
     expect(warningChoice).toHaveAttribute("data-safety-tone", "warning");
     expect(warningChoice).not.toHaveClass("bg-[#7024C4]");
 
