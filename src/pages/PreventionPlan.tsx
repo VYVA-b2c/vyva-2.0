@@ -45,36 +45,21 @@ const STATUS: Record<PillarStatus, { label: string; className: string }> = {
 
 const PRIORITY_STATUS = { label: "This month", className: "bg-[#FAEEDA] text-[#854F0B]" };
 
-function narrativeForProfile(narrative: string | null, firstName: string): string | null {
-  if (!narrative || !firstName) return narrative;
-  return narrative.replace(/^[^,]+(?=,\s*this month\b)/i, firstName);
-}
-
-function withoutMonthlyRepetition(value: string): string {
-  return value.trim().replace(/\s+this month[.!]?$/i, "").replace(/[.!?]+$/, "");
-}
-
-function lowerFirst(value: string): string {
-  return value ? `${value[0].toLowerCase()}${value.slice(1)}` : value;
-}
-
 function upperFirst(value: string): string {
   return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
 
-function focusHeadline(firstName: string, intervention: string | null, priorityLabel: string | null): string {
-  const action = intervention ? withoutMonthlyRepetition(intervention) : "";
-  if (action) return firstName ? `${firstName}, let’s ${lowerFirst(action)}` : upperFirst(action);
-  if (priorityLabel) return firstName ? `${firstName}, your focus is ${priorityLabel.toLowerCase()}` : `Your focus is ${priorityLabel.toLowerCase()}`;
-  return firstName ? `${firstName}, small steps can build lasting strength` : "Small steps can build lasting strength";
-}
+const PRIORITY_INSIGHTS: Record<Pillar, string> = {
+  heart: "steady heart habits can keep you moving",
+  brain: "a little brain practice can keep your mind active",
+  strength: "stronger steps can build everyday confidence",
+  nourishment: "simple food choices can steady your energy",
+  calm: "calmer evenings can help your days feel steadier",
+};
 
-function supportingNarrative(narrative: string | null): string | null {
-  if (!narrative) return null;
-  const withoutGreeting = narrative.replace(/^[^,]+,\s*this month\s+/i, "").trim();
-  const supportingContext = withoutGreeting.match(/^your plan focuses on .+ while keeping (.+)$/i);
-  if (supportingContext) return `It also keeps ${supportingContext[1]}`;
-  return upperFirst(withoutGreeting);
+function priorityInsight(firstName: string, priorityPillar: Pillar | null): string {
+  const insight = priorityPillar ? PRIORITY_INSIGHTS[priorityPillar] : "small steps can keep you moving forward";
+  return firstName ? `${firstName}, ${insight}` : upperFirst(insight);
 }
 
 function usePreventionPlan(userId: string) {
@@ -136,8 +121,6 @@ export default function PreventionPlan() {
     );
   }
 
-  const seniorNarrative = narrativeForProfile(plan.plan_narrative_senior, firstName);
-
   const openAction = (action: string) => {
     const route = actionRoute(action);
     if (route) navigate(route);
@@ -158,8 +141,7 @@ export default function PreventionPlan() {
   const priorityActions = plan.priority_pillar
     ? plan.recommendations?.[plan.priority_pillar] ?? []
     : [];
-  const heroHeadline = focusHeadline(firstName, plan.priority_intervention, priorityLabel);
-  const heroNarrative = supportingNarrative(seniorNarrative);
+  const heroHeadline = priorityInsight(firstName, plan.priority_pillar);
   const careTeamSummary = [
     plan.plan_narrative_caregiver,
     priorityLabel ? `Priority this month: ${priorityLabel}` : null,
@@ -211,18 +193,9 @@ export default function PreventionPlan() {
         </header>
 
         <section className="mt-5 rounded-[34px] border border-[#E9DDED] bg-white p-6 shadow-[0_20px_55px_rgba(107,33,168,0.08)] sm:p-8">
-          <p className="text-[16px] font-extrabold uppercase tracking-[0.12em] text-[#6B21A8]">Personalised for you</p>
-          <h2 className="mt-4 text-[30px] font-black leading-[1.2] text-[#24132E] sm:text-[34px]">{heroHeadline}</h2>
-          <p className="mt-5 text-[20px] font-medium leading-8 text-[#5F5058]">
-            {heroNarrative || "Your five pillars come together in a few practical steps. Begin with the action that feels easiest today."}
-          </p>
-          {plan.priority_pillar && (
-            <div className="mt-6 inline-flex min-h-[56px] items-center rounded-full bg-[#FFF1CB] px-5 text-[16px] font-black uppercase tracking-[0.06em] text-[#704300]">
-              Priority · {PILLARS.find((item) => item.id === plan.priority_pillar)?.label}
-            </div>
-          )}
-          <button type="button" onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent("Tell me about my monthly longevity plan")}`)} className="mt-8 flex min-h-[70px] w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 text-[20px] font-black text-white shadow-lg shadow-purple-900/15">
-            <Mic size={28} /> Talk this through with VYVA
+          <h2 className="text-[30px] font-black leading-[1.2] text-[#24132E] sm:text-[34px]">{heroHeadline}</h2>
+          <button type="button" onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent("Tell me about my monthly longevity plan")}`)} className="mt-6 flex min-h-[70px] w-full items-center justify-center gap-3 rounded-full bg-[#6B21A8] px-6 text-[20px] font-black text-white shadow-lg shadow-purple-900/15">
+            <Mic size={28} /> Ask VYVA
           </button>
         </section>
 
