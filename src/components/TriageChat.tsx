@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
 import {
@@ -398,6 +399,7 @@ export default function TriageChat({
 }: TriageChatProps) {
   const { t } = useTranslation();
   const { language: appLanguage, t: appT } = useLanguage();
+  const { isDark } = useHomeMasterTheme();
   const activeLanguage = language ?? appLanguage;
   const hasInitialDraft = Boolean(initialDraft);
   const [assessmentSessionId] = useState(() => initialDraft?.assessmentSessionId
@@ -965,7 +967,7 @@ export default function TriageChat({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="symptom-canonical-triage flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
         className={presentationStage ? "pb-32 pt-4" : "px-4 py-4"}
@@ -1372,9 +1374,11 @@ export default function TriageChat({
       </div>
 
       {(composerVisibility ? composerVisibility === "visible" : !presentationStage) ? <div
-        className="px-4 pb-3 pt-2"
+        className="symptom-canonical-composer px-4 pb-3 pt-2"
         style={{
-          background: "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
+          background: isDark
+            ? "linear-gradient(180deg, rgba(18,11,35,0) 0%, #120B23 28%)"
+            : "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
           paddingBottom: "max(12px, env(safe-area-inset-bottom))",
         }}
       >
@@ -1389,7 +1393,7 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-1.5 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)] sm:gap-3">
+          <div className={`flex items-center gap-1.5 rounded-[30px] border p-2 shadow-[0_14px_34px_rgba(0,0,0,0.12)] sm:gap-3 ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#E8DED4] bg-white"}`}>
             <input
               ref={inputRef}
               type="text"
@@ -1399,7 +1403,7 @@ export default function TriageChat({
               disabled={!languageReady || loading}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-3 py-[15px] font-body text-[17px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83] sm:px-4 sm:py-[16px] sm:text-[20px]"
+              className={`min-w-0 flex-1 rounded-full px-3 py-[15px] font-body text-[17px] font-bold outline-none sm:px-4 sm:py-[16px] sm:text-[20px] ${isDark ? "text-[#FFF8FF] placeholder:text-[#AA9DB7]" : "text-vyva-text-1 placeholder:text-[#9A8C83]"}`}
               style={{
                 background: "transparent",
               }}
@@ -1411,8 +1415,8 @@ export default function TriageChat({
               aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
               className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
               style={{
-                background: isListening ? "#FEE2E2" : "hsl(var(--vyva-purple-light))",
-                color: isListening ? "#B91C1C" : "hsl(var(--vyva-purple))",
+                background: isListening ? "#FEE2E2" : isDark ? "#45325E" : "hsl(var(--vyva-purple-light))",
+                color: isListening ? "#B91C1C" : isDark ? "#C7A4FF" : "hsl(var(--vyva-purple))",
               }}
             >
               {isListening ? <Square size={18} /> : <Mic size={19} />}

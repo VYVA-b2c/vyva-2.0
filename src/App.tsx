@@ -55,7 +55,7 @@ const PrototypeReportsScreen = lazy(() => import("./pages/HomeNavPrototypeScreen
 const PrototypeProfileScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileScreen })));
 const PrototypeHealthActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthActionPreviewScreen })));
 const PrototypeProfileActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileActionPreviewScreen })));
-const PrototypeSymptomReportPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeSymptomReportPreviewScreen })));
+const PrototypeSymptomReportPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomReportPreviewScreen })));
 const SymptomWarningSignsPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomWarningSignsPreviewScreen })));
 const SymptomCheckingPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomCheckingPreviewScreen })));
 const SymptomSeverityPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomSeverityPreviewScreen })));

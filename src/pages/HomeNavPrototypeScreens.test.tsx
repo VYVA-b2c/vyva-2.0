@@ -120,7 +120,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
   });
 
-  it.each(["/health/symptom-check", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next"])(
+  it.each(["/health/symptom-check", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next", "/dev/home-master/symptom-report"])(
     "keeps one flow-owned header and the shared Home/SOS/Reports dock on %s",
     (pathname) => {
       expect(isHomeNavPrototypeTopbarRoute(pathname)).toBe(true);

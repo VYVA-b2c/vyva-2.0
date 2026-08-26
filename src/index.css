@@ -937,8 +937,8 @@
 
 [data-home-master-theme="dark"] .prototype-shell {
   background:
-    radial-gradient(circle at 50% 0%, rgba(75, 48, 154, 0.42), transparent 34%),
-    linear-gradient(180deg, #20143f 0%, #120b23 46%, #080715 100%);
+    radial-gradient(circle at 50% -10%, rgba(88, 52, 112, 0.28), transparent 38%),
+    linear-gradient(180deg, #180f20 0%, #140c18 52%, #100812 100%);
   color: #fff8ff;
 }
 
@@ -1006,6 +1006,101 @@
   background: #fff1f1;
   color: #ef4444;
   --tw-ring-color: rgba(248, 113, 113, 0.18);
+}
+
+/* Canonical Ask Dr. AI surfaces inherit the My Health dark palette while
+   preserving semantic emergency, warning, success, and progress treatments. */
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-vyva-text-1"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-vyva-text-1"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-vyva-text-1"] {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-vyva-text-2"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-vyva-text-2"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-vyva-text-2"] {
+  color: #d8cde4;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-vyva-text-3"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-vyva-text-3"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-vyva-text-3"] {
+  color: #b9acc5;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="border-[#E"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="border-[#E"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#E"] {
+  border-color: rgba(255, 255, 255, 0.13);
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-triage .symptom-canonical-panel button[class*="bg-white"] {
+  background-color: #352842;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"]:not([class*="text-blue"]):not([class*="text-[#047857]"]):not([class*="text-[#9A3412]"]) {
+  background-color: #2d2038;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-composer {
+  background: linear-gradient(180deg, rgba(18, 11, 35, 0) 0%, #120b23 28%) !important;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-composer [class*="bg-white"] {
+  background-color: #352842;
+  border-color: rgba(255, 255, 255, 0.13);
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-composer input {
+  color: #fff8ff;
+  caret-color: #f8ae1b;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-composer input::placeholder {
+  color: #aa9db7;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="bg-[#FFFCF8]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="bg-[#FCFAFD]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="bg-[#FBFAFF]"] {
+  background-color: #352842;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FFFCF8]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FCFAFD]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FBF6FF]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FAF9F6]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FAF7F3]"] {
+  background-color: #2d2038;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="bg-[#F5F3FF]"] {
+  background-color: #45325e;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#F5F3FF]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#F8F5FF]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FAF5FF]"] {
+  background-color: #3b294c;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report > section:first-of-type {
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.24);
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report details:not([class*="bg-[#FFF7ED]"]):not([class*="bg-[#EFF6FF]"]):not([class*="bg-[#ECFDF5]"]) {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report input,
+[data-home-master-theme="dark"] .symptom-canonical-report textarea {
+  color: #fff8ff;
+  caret-color: #f6b81a;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-report input::placeholder,
+[data-home-master-theme="dark"] .symptom-canonical-report textarea::placeholder {
+  color: #9f91ad;
 }
 
 /* === Voice Call Overlay Animations === */
