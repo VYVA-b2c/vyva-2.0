@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HomeMasterActionControl, HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
+import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 
@@ -27,9 +28,8 @@ type MenuTile = {
   detail: string;
   path: string;
   icon: LucideIcon;
+  iconAccent: VyvaIconAccent;
   tone: {
-    chip: string;
-    icon: string;
     border: string;
   };
 };
@@ -41,7 +41,8 @@ const MENU_TILES: MenuTile[] = [
     detail: "Check-ins & medicines",
     path: "/health",
     icon: Heart,
-    tone: { chip: "#FCEBEA", icon: "#D9463E", border: "#F7C9C5" },
+    iconAccent: "pulse",
+    tone: { border: "#F7C9C5" },
   },
   {
     id: "brain",
@@ -49,7 +50,8 @@ const MENU_TILES: MenuTile[] = [
     detail: "Memory, focus & calm",
     path: "/mind-memory",
     icon: Brain,
-    tone: { chip: "#F2ECFF", icon: "#7C3AED", border: "#DDD6FE" },
+    iconAccent: "bridge",
+    tone: { border: "#DDD6FE" },
   },
   {
     id: "community",
@@ -57,7 +59,8 @@ const MENU_TILES: MenuTile[] = [
     detail: "Rooms & support",
     path: "/social-rooms",
     icon: Users,
-    tone: { chip: "#EAF3FF", icon: "#2563EB", border: "#BFDBFE" },
+    iconAccent: "link",
+    tone: { border: "#BFDBFE" },
   },
   {
     id: "concierge",
@@ -65,7 +68,8 @@ const MENU_TILES: MenuTile[] = [
     detail: "Everyday help",
     path: "/concierge",
     icon: BellRing,
-    tone: { chip: "#EAFBF1", icon: "#0F7A50", border: "#BBF7D0" },
+    iconAccent: "clapper",
+    tone: { border: "#BBF7D0" },
   },
 ];
 
@@ -95,63 +99,56 @@ export default function MenuScreen({
     detail: string;
     path: string;
     icon: LucideIcon;
+    iconAccent: VyvaIconAccent;
     testId: string;
-    tone: string;
-    darkTone: string;
   }> = [
     {
       label: "Account details",
       detail: "Name, phone, language",
       path: profilePath,
       icon: UserRound,
+      iconAccent: "id",
       testId: "button-menu-profile-account",
-      tone: "bg-[#F5F3FF] text-vyva-purple",
-      darkTone: "bg-[#7C3AED]/20 text-[#D8B4FE] ring-1 ring-inset ring-[#C4B5FD]/20",
     },
     {
       label: "Health profile",
       detail: "Conditions and basics",
       path: "/onboarding/profile/health",
       icon: Heart,
+      iconAccent: "pulse",
       testId: "button-menu-profile-health",
-      tone: "bg-[#FFF1F2] text-[#E74C43]",
-      darkTone: "bg-[#FB7185]/16 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
     },
     {
       label: "My Medication",
       detail: "Current medications",
       path: "/onboarding/profile/medications",
       icon: Pill,
+      iconAccent: "divider",
       testId: "button-menu-profile-medications",
-      tone: "bg-[#FEF3C7] text-[#A16207]",
-      darkTone: "bg-[#F59E0B]/18 text-[#FDE68A] ring-1 ring-inset ring-[#FDE68A]/18",
     },
     {
       label: "Emergency contact",
       detail: "Who to call if needed",
       path: "/onboarding/profile/emergency",
       icon: ShieldCheck,
+      iconAccent: "check",
       testId: "button-menu-profile-emergency",
-      tone: "bg-[#FFE4E6] text-[#E11D48]",
-      darkTone: "bg-[#F43F5E]/18 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
     },
     {
       label: "Care team",
       detail: "Family and contacts",
       path: "/onboarding/profile/care-team",
       icon: Users,
+      iconAccent: "link",
       testId: "button-menu-profile-care-team",
-      tone: "bg-[#EFF6FF] text-[#2F66D0]",
-      darkTone: "bg-[#3B82F6]/18 text-[#BFDBFE] ring-1 ring-inset ring-[#BFDBFE]/18",
     },
     {
       label: "Doctors & providers",
       detail: "Clinics and trusted help",
       path: "/onboarding/profile/providers",
       icon: Stethoscope,
+      iconAccent: "scope",
       testId: "button-menu-profile-providers",
-      tone: "bg-[#ECFDF5] text-[#149A63]",
-      darkTone: "bg-[#10B981]/18 text-[#A7F3D0] ring-1 ring-inset ring-[#A7F3D0]/18",
     },
   ];
 
@@ -165,7 +162,7 @@ export default function MenuScreen({
       className={[
         "min-h-[calc(100svh-136px)] px-5 md:px-8",
         isDark
-          ? "bg-[linear-gradient(180deg,#1E1139_0%,#11081F_46%,#070311_100%)] text-[#FFF8FF]"
+          ? "bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)] text-[#FFF8FF]"
           : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)] text-[var(--vyva-ink)]",
       ].join(" ")}
       data-testid="menu-screen"
@@ -188,7 +185,7 @@ export default function MenuScreen({
             controls={profileMenuOpen ? "menu-profile-menu" : undefined}
           />
           <div className="flex h-9 items-center justify-center sm:h-10">
-            <h1 className="sr-only md:not-sr-only md:font-display md:text-[24px] md:font-semibold md:text-[var(--vyva-ink)] dark:md:text-[#FFF8FF]">
+            <h1 className={["sr-only md:not-sr-only md:font-display md:text-[24px] md:font-semibold", isDark ? "md:text-[#FFF8FF]" : "md:text-[var(--vyva-ink)]"].join(" ")}>
               Menu
             </h1>
           </div>
@@ -273,8 +270,8 @@ export default function MenuScreen({
                         isDark ? "border-white/[0.10] bg-white/[0.06]" : "border-[#F0E8F5] bg-white shadow-[0_8px_22px_rgba(67,36,95,0.05)]",
                       ].join(" ")}
                     >
-                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full ${isDark ? item.darkTone : item.tone}`}>
-                        <Icon size={19} strokeWidth={2.25} aria-hidden="true" />
+                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full ${isDark ? "bg-[#3C2956] ring-1 ring-inset ring-white/10" : "bg-[#F1E8FF]"}`}>
+                        <VyvaIcon icon={Icon} accent={item.iconAccent} size={21} strokeWidth={2.35} tone="brand" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-display text-[19px] font-semibold leading-none">
@@ -351,7 +348,7 @@ export default function MenuScreen({
                   className={[
                     "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px] md:min-h-[128px] md:px-5 lg:min-h-[184px] lg:flex-col lg:items-start lg:justify-start lg:gap-4 lg:p-5",
                     isDark
-                      ? "bg-[#211235] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
+                      ? "bg-[#2A2034] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
                       : "bg-white shadow-[0_10px_22px_rgba(36,28,48,0.06)]",
                   ].join(" ")}
                   style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : tile.tone.border }}
@@ -361,14 +358,10 @@ export default function MenuScreen({
                   <span
                     className={[
                       "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px] md:h-[64px] md:w-[64px]",
-                      isDark ? "ring-1 ring-inset ring-white/10" : "",
+                      isDark ? "bg-[#3C2956] ring-1 ring-inset ring-white/10" : "bg-[#F1E8FF]",
                     ].join(" ")}
-                    style={{
-                      background: isDark ? `${tile.tone.icon}24` : tile.tone.chip,
-                      color: isDark ? "#F7ECFF" : tile.tone.icon,
-                    }}
                   >
-                    <Icon size={23} strokeWidth={2.15} />
+                    <VyvaIcon icon={Icon} accent={tile.iconAccent} size={27} strokeWidth={2.35} tone="brand" />
                   </span>
                   <span className="min-w-0 flex-1 lg:flex-none">
                     <span data-testid={`menu-tile-${tile.id}-title`} className={["block font-display text-[20px] font-semibold leading-tight min-[390px]:text-[21px] sm:text-[24px] lg:text-[22px]", isDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]"].join(" ")}>

@@ -59,7 +59,7 @@ describe("StatusBar home master variant", () => {
     fireEvent.click(screen.getByTestId("button-my-profile"));
     fireEvent.click(screen.getByTestId("button-home-master-theme"));
 
-    expect(window.localStorage.getItem(HOME_MASTER_THEME_STORAGE_KEY)).toBe("dark");
+    expect(window.localStorage.getItem(HOME_MASTER_THEME_STORAGE_KEY)).toBe("light");
     expect(screen.queryByTestId("home-master-utility-menu")).not.toBeInTheDocument();
   });
 

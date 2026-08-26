@@ -5,16 +5,23 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  ArrowUpRight,
   Bell,
+  BookOpen,
   Brain,
+  CalendarCheck,
+  Car,
+  ChartNoAxesColumnIncreasing,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Footprints,
   Hand,
   Heart,
   HeartPulse,
   Home,
   MessageCircle,
+  MessagesSquare,
   Mic,
   Phone,
   Pill,
@@ -29,7 +36,7 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { VyvaIcon, type VyvaBrandGlyph } from "@/components/brand/VyvaIcon";
+import { VyvaIcon, type VyvaBrandGlyph, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { VyvaMark } from "@/components/VyvaMark";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -53,6 +60,7 @@ type RowItem = {
   solidSurface?: boolean;
   compactTitle?: boolean;
   brandIcon?: VyvaBrandGlyph;
+  iconAccent?: VyvaIconAccent;
 };
 
 type PrototypeSection = {
@@ -60,19 +68,19 @@ type PrototypeSection = {
   items: RowItem[];
 };
 
-const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: string; darkChip: string }> = {
-  health: { chip: "#FCEBEA", icon: "#D9463E", border: "#F3C2BE", darkChip: "rgba(224,91,82,0.18)" },
-  brain: { chip: "#F1EAFF", icon: "#7C3AED", border: "#D8CBFF", darkChip: "rgba(124,58,237,0.2)" },
-  community: { chip: "#EAF3FF", icon: "#2563EB", border: "#BBD7FF", darkChip: "rgba(47,102,208,0.2)" },
-  concierge: { chip: "#EAFBF1", icon: "#0F7A50", border: "#B7F0CE", darkChip: "rgba(74,222,158,0.16)" },
-  reports: { chip: "#F7F8FB", icon: "#64748B", border: "#E2E8F0", darkChip: "rgba(226,232,240,0.12)" },
-  profile: { chip: "#FFF4CF", icon: "#A16207", border: "#F6D681", darkChip: "rgba(232,163,61,0.16)" },
-  neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)" },
+const rowTonePalettes: Record<RowTone, { chip: string; icon: string; border: string; darkChip: string; darkIcon: string }> = {
+  health: { chip: "#FCEBEA", icon: "#D9463E", border: "#F3C2BE", darkChip: "rgba(224,91,82,0.18)", darkIcon: "#FF5C52" },
+  brain: { chip: "#F1EAFF", icon: "#7C3AED", border: "#D8CBFF", darkChip: "rgba(124,58,237,0.2)", darkIcon: "#8B5CF6" },
+  community: { chip: "#EAF3FF", icon: "#2563EB", border: "#BBD7FF", darkChip: "rgba(47,102,208,0.2)", darkIcon: "#38BDF8" },
+  concierge: { chip: "#EAFBF1", icon: "#0F7A50", border: "#B7F0CE", darkChip: "rgba(74,222,158,0.16)", darkIcon: "#4ADE9E" },
+  reports: { chip: "#F7F8FB", icon: "#64748B", border: "#E2E8F0", darkChip: "rgba(226,232,240,0.12)", darkIcon: "#CBD5E1" },
+  profile: { chip: "#FFF4CF", icon: "#A16207", border: "#F6D681", darkChip: "rgba(232,163,61,0.16)", darkIcon: "#F8AE1B" },
+  neutral: { chip: "#F7F3FA", icon: "#6B5173", border: "#E9DEF2", darkChip: "rgba(255,255,255,0.09)", darkIcon: "#E8DFF3" },
 };
 
 const shellSurface = {
   light: "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
-  dark: "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]",
+  dark: "bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)] text-[#F7F0FF]",
 };
 
 const screenCopy = {
@@ -493,6 +501,7 @@ function RowCard({ item }: { item: RowItem }) {
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
   const Icon = item.icon;
+  const palette = rowTonePalettes[item.tone ?? "neutral"];
   const isAlert = item.emphasis === "alert";
   const titleSize = isLarge ? (item.compactTitle ? 20 : 22) : item.compactTitle ? 18 : 20;
   const subtitleSize = isLarge ? 15 : 13.5;
@@ -519,12 +528,12 @@ function RowCard({ item }: { item: RowItem }) {
       <span
         className={[
           "grid h-14 w-14 flex-shrink-0 place-items-center rounded-[20px] transition-colors duration-150",
-          isDark ? "bg-[#35284A] group-hover:bg-[#3D2E53]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+          isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
         ].join(" ")}
-        data-vyva-icon-tile={item.brandIcon ?? "utility"}
+        data-vyva-icon-tile={item.brandIcon ?? item.iconAccent ?? "utility"}
         aria-hidden="true"
       >
-        <VyvaIcon icon={Icon} glyph={item.brandIcon} size={item.brandIcon ? 43 : 27} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
+        <VyvaIcon icon={Icon} glyph={item.brandIcon} accent={item.iconAccent} size={item.brandIcon ? 43 : 27} strokeWidth={2.45} tone="brand" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block font-display font-semibold leading-[1.03] tracking-[-0.025em]" style={{ fontSize: titleSize }}>
@@ -539,11 +548,12 @@ function RowCard({ item }: { item: RowItem }) {
       </span>
       {item.meta ? (
         <span
-          className={[
-            "rounded-full px-3 py-1.5 font-body text-[12px] font-black",
-            isDark ? "bg-[#4A3563] text-[#F0E7FF]" : "bg-[#F3EDFF] text-[#6B2CCB]",
-          ].join(" ")}
-          style={{ fontSize: metaSize }}
+          className="rounded-full px-3 py-1.5 font-body text-[12px] font-black"
+          style={{
+            fontSize: metaSize,
+            background: isDark ? palette.darkChip : palette.chip,
+            color: isDark ? palette.darkIcon : palette.icon,
+          }}
         >
           {item.meta}
         </span>
@@ -569,6 +579,7 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
   const { isDark } = useHomeMasterTheme();
   const { isLarge } = useReadableTextSize();
   const Icon = item.icon;
+  const palette = rowTonePalettes[item.tone ?? "neutral"];
   const titleSize = item.compactTitle
     ? isLarge
       ? "text-[20px] md:text-[22px]"
@@ -590,7 +601,7 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
       className={[
         "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
         isDark
-          ? "border-white/[0.12] bg-[#211235] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
+          ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
           : item.solidSurface
             ? "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]"
             : "border-[#EEE8F1] bg-white/92 text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
@@ -599,7 +610,7 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
       <span
         className={[
           "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
-          isDark ? "bg-[#35284A] group-hover:bg-[#3D2E53]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
+          isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
         ].join(" ")}
         data-testid={item.testId ? `${item.testId}-icon` : undefined}
         aria-hidden="true"
@@ -609,7 +620,7 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
           glyph={item.brandIcon}
           size={item.brandIcon ? 44 : 29}
           strokeWidth={2.55}
-          tone={isDark ? "inverse" : "brand"}
+          tone="brand"
         />
       </span>
       <span className="min-w-0 self-center md:self-start">
@@ -624,18 +635,18 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
       </span>
       {item.meta ? (
         <span
-          className={[
-            "self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start",
-            metaSize,
-            isDark ? "bg-[#4A3563] text-[#F0E7FF]" : "bg-[#F3EDFF] text-[#6B2CCB]",
-          ].join(" ")}
+          className={["self-center whitespace-nowrap rounded-full px-3 py-1.5 font-body font-black md:self-start", metaSize].join(" ")}
+          style={{
+            background: isDark ? palette.darkChip : palette.chip,
+            color: isDark ? palette.darkIcon : palette.icon,
+          }}
           data-testid={item.testId ? `${item.testId}-status` : undefined}
         >
           {item.meta}
         </span>
       ) : null}
-      <span className="hidden opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
-        <VyvaIcon icon={ChevronRight} size={22} strokeWidth={2.5} tone="muted" />
+      <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end">
+        <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
       </span>
     </button>
   );
@@ -829,10 +840,10 @@ export function PrototypeMenuScreen({
   backPath?: string;
 } = {}) {
   const items: RowItem[] = [
-    { icon: Heart, title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
-    { icon: Brain, title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
-    { icon: Users, title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
-    { icon: Bell, title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
+    { icon: Heart, iconAccent: "pulse", title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
+    { icon: Brain, iconAccent: "bridge", title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
+    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
+    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
   ];
 
   return (
@@ -982,9 +993,9 @@ export function PrototypeBrainScreen({
       testId="prototype-brain-screen"
       title="My Brain"
       rows={[
-        { icon: Activity, title: "Rhythm Tap", subtitle: "A short focus game", meta: "Play", tone: "brain" },
-        { icon: UserRound, title: "Face-Name Match", subtitle: "Practice names gently", meta: "Play", tone: "community" },
-        { icon: MessageCircle, title: "Mood check-in", subtitle: "A calm reflection", meta: "Start", tone: "profile" },
+        { icon: Activity, iconAccent: "pulse", title: "Rhythm Tap", subtitle: "A short focus game", meta: "Play", tone: "brain" },
+        { icon: UserRound, iconAccent: "id", title: "Face-Name Match", subtitle: "Practice names gently", meta: "Play", tone: "community" },
+        { icon: MessageCircle, iconAccent: "smile", title: "Mood check-in", subtitle: "A calm reflection", meta: "Start", tone: "profile" },
       ]}
       trend={<TrendNote title="Rhythm Tap — this week" tone="brain">Your rhythm score has been <span className="text-violet-500">gently climbing.</span></TrendNote>}
       voicePath={voicePath}
@@ -1005,9 +1016,9 @@ export function PrototypeCommunityScreen({
       testId="prototype-community-screen"
       title="Community"
       rows={[
-        { icon: MessageCircle, title: "Book Club", subtitle: "Elena: I loved that chapter too", tone: "community" },
-        { icon: Users, title: "Morning Walkers", subtitle: "A gentle walk is planned tomorrow", tone: "community" },
-        { icon: Sparkles, title: "Share a story", subtitle: "A simple prompt for today", tone: "profile" },
+        { icon: BookOpen, iconAccent: "bookmark", title: "Book Club", subtitle: "Elena: I loved that chapter too", tone: "community" },
+        { icon: Users, iconAccent: "path", title: "Morning Walkers", subtitle: "A gentle walk is planned tomorrow", tone: "community" },
+        { icon: Sparkles, iconAccent: "spark", title: "Share a story", subtitle: "A simple prompt for today", tone: "profile" },
       ]}
       voicePath={voicePath}
       profilePath={profilePath}
@@ -1027,9 +1038,9 @@ export function PrototypeConciergeScreen({
       testId="prototype-concierge-screen"
       title="Concierge"
       rows={[
-        { icon: Bell, title: "Ride to Dr. Reyes", subtitle: "Confirmed for tomorrow", meta: "Done", tone: "concierge" },
-        { icon: Pill, title: "Pharmacy refill", subtitle: "Waiting for confirmation", meta: "Pending", tone: "profile" },
-        { icon: Phone, title: "Call trusted help", subtitle: "For service questions", tone: "reports" },
+        { icon: Car, iconAccent: "pin", title: "Ride to Dr. Reyes", subtitle: "Confirmed for tomorrow", meta: "Done", tone: "concierge" },
+        { icon: Pill, iconAccent: "divider", title: "Pharmacy refill", subtitle: "Waiting for confirmation", meta: "Pending", tone: "profile" },
+        { icon: Phone, iconAccent: "signal", title: "Call trusted help", subtitle: "For service questions", tone: "reports" },
       ]}
       voicePath={voicePath}
       profilePath={profilePath}
@@ -1049,10 +1060,10 @@ export function PrototypeReportsScreen({
       testId="prototype-reports-screen"
       title="My Reports"
       rows={[
-        { icon: HeartPulse, title: "Steps", subtitle: "A little more than last week", meta: "Good", tone: "health" },
-        { icon: Brain, title: "Rhythm Tap average", subtitle: "Gently improving", meta: "Up", tone: "brain" },
-        { icon: MessageCircle, title: "Conversations", subtitle: "Three meaningful chats", meta: "3", tone: "community" },
-        { icon: CheckCircle2, title: "Appointments kept", subtitle: "Both planned visits completed", meta: "2/2", tone: "concierge" },
+        { icon: Footprints, iconAccent: "step", title: "Steps", subtitle: "A little more than last week", meta: "Good", tone: "health" },
+        { icon: ChartNoAxesColumnIncreasing, iconAccent: "trend", title: "Rhythm Tap average", subtitle: "Gently improving", meta: "Up", tone: "brain" },
+        { icon: MessagesSquare, iconAccent: "dot", title: "Conversations", subtitle: "Three meaningful chats", meta: "3", tone: "community" },
+        { icon: CalendarCheck, iconAccent: "calendar", title: "Appointments kept", subtitle: "Both planned visits completed", meta: "2/2", tone: "concierge" },
       ]}
       voicePath={voicePath}
       profilePath={profilePath}
@@ -1066,18 +1077,18 @@ export function PrototypeProfileScreen({ returnPath = "/dev/home-master" }: { re
     {
       eyebrow: "Your details",
       items: [
-        { icon: UserRound, title: "Account details", subtitle: "Name, phone, language", tone: "brain", path: "/dev/home-master/profile/account", testId: "button-profile-account" },
-        { icon: Heart, title: "Health profile", subtitle: "Conditions and basics", tone: "health", path: "/dev/home-master/profile/health", testId: "button-profile-health" },
-        { icon: Pill, title: "My Medication", subtitle: "Current medications", tone: "profile", path: "/dev/home-master/profile/medicines", testId: "button-profile-medicines" },
-        { icon: ShieldCheck, title: "Emergency contact", subtitle: "Who to call if needed", tone: "health", path: "/dev/home-master/profile/emergency", testId: "button-profile-emergency" },
-        { icon: SlidersHorizontal, title: "Preferences", subtitle: "Text and theme", tone: "reports", path: "/dev/home-master/profile/preferences", testId: "button-profile-accessibility" },
+        { icon: UserRound, iconAccent: "id", title: "Account details", subtitle: "Name, phone, language", tone: "brain", path: "/dev/home-master/profile/account", testId: "button-profile-account" },
+        { icon: Heart, iconAccent: "pulse", title: "Health profile", subtitle: "Conditions and basics", tone: "health", path: "/dev/home-master/profile/health", testId: "button-profile-health" },
+        { icon: Pill, iconAccent: "divider", title: "My Medication", subtitle: "Current medications", tone: "profile", path: "/dev/home-master/profile/medicines", testId: "button-profile-medicines" },
+        { icon: ShieldCheck, iconAccent: "check", title: "Emergency contact", subtitle: "Who to call if needed", tone: "health", path: "/dev/home-master/profile/emergency", testId: "button-profile-emergency" },
+        { icon: SlidersHorizontal, iconAccent: "knobs", title: "Preferences", subtitle: "Text and theme", tone: "reports", path: "/dev/home-master/profile/preferences", testId: "button-profile-accessibility" },
       ],
     },
     {
       eyebrow: "Who can help",
       items: [
-        { icon: Users, title: "Care team", subtitle: "Family and contacts", tone: "community", path: "/dev/home-master/profile/care-team", testId: "button-profile-care-team" },
-        { icon: Stethoscope, title: "Doctors & providers", subtitle: "Clinics and trusted help", tone: "concierge", path: "/dev/home-master/profile/providers", testId: "button-profile-providers" },
+        { icon: Users, iconAccent: "link", title: "Care team", subtitle: "Family and contacts", tone: "community", path: "/dev/home-master/profile/care-team", testId: "button-profile-care-team" },
+        { icon: Stethoscope, iconAccent: "scope", title: "Doctors & providers", subtitle: "Clinics and trusted help", tone: "concierge", path: "/dev/home-master/profile/providers", testId: "button-profile-providers" },
       ],
     },
   ];

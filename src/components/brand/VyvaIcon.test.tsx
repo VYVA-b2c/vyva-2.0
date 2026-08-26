@@ -21,6 +21,14 @@ describe("VyvaIcon", () => {
     expect(screen.getByTestId("inverse-icon").querySelector("linearGradient")).not.toBeInTheDocument();
   });
 
+  it("adds a meaningful gold detail to branded feature icons", () => {
+    render(<VyvaIcon icon={Brain} accent="bridge" testId="brain-feature-icon" />);
+
+    const icon = screen.getByTestId("brain-feature-icon");
+    expect(icon).toHaveAttribute("data-vyva-accent", "bridge");
+    expect(icon.querySelector('[stroke="#F8AE1B"]')).toBeInTheDocument();
+  });
+
   it("renders custom ribbon glyphs with the restrained gold accent", () => {
     render(<VyvaIcon glyph="medication" testId="medication-glyph" />);
 

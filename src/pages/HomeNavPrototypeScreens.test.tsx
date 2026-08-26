@@ -171,6 +171,10 @@ describe("Home/Nav prototype screens", () => {
       expect(button.querySelector("[data-vyva-icon-tile]")).toBeInTheDocument();
       expect(button.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
     }
+    expect(screen.getByTestId("card-home-agent-health").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-brain").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-community").querySelector('[data-vyva-accent="link"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-concierge").querySelector('[data-vyva-accent="clapper"]')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-prototype-back"));
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
@@ -201,6 +205,7 @@ describe("Home/Nav prototype screens", () => {
       expect(screen.getByText(row)).toBeInTheDocument();
       expect(screen.getByText(new RegExp(note))).toBeInTheDocument();
       expect(screen.getByText(row).closest("button")?.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
+      expect(screen.getByText(row).closest("button")?.querySelector("[data-vyva-accent]")).toBeInTheDocument();
       unmount();
     }
   });
@@ -211,6 +216,23 @@ describe("Home/Nav prototype screens", () => {
     fireEvent.click(screen.getByTestId("button-compact-voice"));
 
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
+  });
+
+  it("uses the approved gold-accent vocabulary across every destination and profile row", () => {
+    const cases = [
+      [<PrototypeBrainScreen key="brain" />, ["pulse", "id", "smile"]],
+      [<PrototypeCommunityScreen key="community" />, ["bookmark", "path", "spark"]],
+      [<PrototypeConciergeScreen key="concierge" />, ["pin", "divider", "signal"]],
+      [<PrototypeReportsScreen key="reports" />, ["step", "trend", "dot", "calendar"]],
+      [<PrototypeProfileScreen key="profile" />, ["id", "pulse", "divider", "check", "knobs", "link", "scope"]],
+    ] as const;
+
+    for (const [ui, expectedAccents] of cases) {
+      const { container, unmount } = renderScreen(ui);
+      const accents = Array.from(container.querySelectorAll("[data-vyva-accent]"), (element) => element.getAttribute("data-vyva-accent"));
+      expect(accents).toEqual(expectedAccents);
+      unmount();
+    }
   });
 
   it("renders Health as a calm responsive action grid with check-in and symptom report separated", () => {
@@ -236,15 +258,15 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByText("2:00 PM")).toBeInTheDocument();
     expect(screen.getByTestId("health-action-grid")).toHaveClass("grid-cols-1", "md:grid-cols-2");
     for (const testId of ["button-health-plan", "button-health-symptom-report", "button-health-vitals", "button-health-medicines"]) {
-      expect(screen.getByTestId(testId)).toHaveClass("bg-white");
+      expect(screen.getByTestId(testId)).toHaveClass("bg-[#2A2034]");
       expect(screen.getByTestId(testId)).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
       expect(screen.getByTestId(testId)).not.toHaveClass("bg-white/92");
-      expect(screen.getByTestId(`${testId}-icon`)).toHaveClass("bg-[#F1E8FF]");
+      expect(screen.getByTestId(`${testId}-icon`)).toHaveClass("bg-[#3C2956]");
       expect(screen.getByTestId(`${testId}-icon`)).not.toHaveClass("text-white");
       expect(screen.getByTestId(`${testId}-icon`).getAttribute("style")).toBeNull();
       expect(screen.getByTestId(`${testId}-icon`).querySelector("svg")).toHaveAttribute("data-brand-icon");
-      expect(screen.getByTestId(`${testId}-status`)).toHaveClass("bg-[#F3EDFF]", "text-[#6B2CCB]");
-      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toBeNull();
+      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toContain("background:");
+      expect(screen.getByTestId(`${testId}-status`).getAttribute("style")).toContain("color:");
     }
     expect(screen.getByTestId("button-health-symptom-report-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "doctor");
     expect(screen.getByTestId("button-health-plan-icon").querySelector("svg")).toHaveAttribute("data-brand-icon", "longevity");
@@ -341,7 +363,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByText("Text size")).toBeInTheDocument();
     expect(screen.getByText("Currently Large")).toBeInTheDocument();
     expect(screen.getByText("Theme")).toBeInTheDocument();
-    expect(screen.getByText("Currently Light")).toBeInTheDocument();
+    expect(screen.getByText("Currently Dark")).toBeInTheDocument();
     expect(screen.getAllByText("Change")).toHaveLength(2);
   });
 
