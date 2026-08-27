@@ -68,6 +68,8 @@ describe("PreventionPlan", () => {
     expect(screen.getByText("Calm & recovery")).toBeVisible();
     expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Brain & memory");
     expect(screen.getAllByText(/A short daily practice supports continuity/)).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Ask VYVA about my plan" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Ask VYVA about this plan" })).not.toBeInTheDocument();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/plan/11111111-1111-4111-8111-111111111111");
   });
 

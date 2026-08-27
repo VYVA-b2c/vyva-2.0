@@ -282,9 +282,7 @@ export default function PreventionPlan({
             <VyvaIcon icon={ArrowLeft} size={20} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
           </button>
           <h1 className="truncate text-center font-display text-[24px] font-semibold tracking-[-0.03em]">Longevity</h1>
-          <button type="button" aria-label="Ask VYVA about this plan" onClick={() => navigate("/chat?mode=voice&q=" + encodeURIComponent(vyvaPrompt))} className="vyva-tap grid h-11 min-h-11 w-11 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.24)]">
-            <VyvaIcon icon={Mic} size={19} strokeWidth={2.45} tone="inverse" />
-          </button>
+          <span className="h-11 w-11" aria-hidden="true" />
         </header>
 
         <section className="relative mt-7 overflow-hidden rounded-[32px] border border-[#8E52E5]/50 bg-[linear-gradient(135deg,#5422B5_0%,#7C2BE8_55%,#8D3CF0_100%)] px-6 py-7 text-white shadow-[0_24px_64px_rgba(94,34,181,0.28)] sm:px-8 sm:py-9">
