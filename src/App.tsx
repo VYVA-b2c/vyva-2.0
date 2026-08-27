@@ -644,6 +644,7 @@ function HomeMasterHealthPreviewRoute() {
         medicinesPath="/dev/home-master/medicines"
         voicePath="/dev/home-master"
         profilePath="/dev/home-master/profile"
+        contained
       />
     </AppShell>
   );
@@ -660,6 +661,7 @@ function HealthHubRoute() {
         voicePath="/"
         profilePath="/settings/account"
         backPath="/menu"
+        contained
       />
     </AppShell>
   );

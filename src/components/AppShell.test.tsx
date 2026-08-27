@@ -213,6 +213,8 @@ describe("app shell route layout", () => {
 
   it.each([
     "/menu",
+    "/health",
+    "/health/symptom-check",
     "/health/prevention",
     "/dev/home-master/menu",
     "/dev/home-master/health",
@@ -223,6 +225,10 @@ describe("app shell route layout", () => {
     "/dev/home-master/check-in",
     "/dev/home-master/health-plan",
     "/dev/home-master/symptom-report",
+    "/dev/home-master/symptom-warning",
+    "/dev/home-master/ask-dr-ai",
+    "/dev/home-master/ask-dr-ai-checking",
+    "/dev/home-master/ask-dr-ai-next",
     "/dev/home-master/vitals",
     "/dev/home-master/medicines",
   ])(
@@ -238,6 +244,18 @@ describe("app shell route layout", () => {
 
       expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
       const shell = screen.getByTestId("app-shell");
+      const content = screen.getByText("Menu page content").closest("main");
+      if (
+        path === "/menu" ||
+        path === "/health" ||
+        path === "/health/symptom-check" ||
+        path === "/dev/home-master/symptom-report" ||
+        path === "/dev/home-master/symptom-warning" ||
+        path.startsWith("/dev/home-master/ask-dr-ai")
+      ) {
+        expect(content).toHaveClass("h-[100svh]", "min-h-0", "[scrollbar-gutter:stable_both-edges]");
+        expect(content).not.toHaveClass("min-h-screen");
+      }
       if (path === "/health/prevention") {
         expect(shell.className).toContain("max-w-[920px]");
         expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]");

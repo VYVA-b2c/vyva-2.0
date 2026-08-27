@@ -1,5 +1,6 @@
 import {
   ALargeSmall,
+  ArrowUpRight,
   BellRing,
   Brain,
   ChevronRight,
@@ -29,9 +30,6 @@ type MenuTile = {
   path: string;
   icon: LucideIcon;
   iconAccent: VyvaIconAccent;
-  tone: {
-    border: string;
-  };
 };
 
 const MENU_TILES: MenuTile[] = [
@@ -42,7 +40,6 @@ const MENU_TILES: MenuTile[] = [
     path: "/health",
     icon: Heart,
     iconAccent: "pulse",
-    tone: { border: "#F7C9C5" },
   },
   {
     id: "brain",
@@ -51,7 +48,6 @@ const MENU_TILES: MenuTile[] = [
     path: "/mind-memory",
     icon: Brain,
     iconAccent: "bridge",
-    tone: { border: "#DDD6FE" },
   },
   {
     id: "community",
@@ -60,7 +56,6 @@ const MENU_TILES: MenuTile[] = [
     path: "/social-rooms",
     icon: Users,
     iconAccent: "link",
-    tone: { border: "#BFDBFE" },
   },
   {
     id: "concierge",
@@ -69,7 +64,6 @@ const MENU_TILES: MenuTile[] = [
     path: "/concierge",
     icon: BellRing,
     iconAccent: "clapper",
-    tone: { border: "#BBF7D0" },
   },
 ];
 
@@ -160,21 +154,22 @@ export default function MenuScreen({
   return (
     <main
       className={[
-        "min-h-[calc(100svh-136px)] px-5 md:px-8",
+        "min-h-[calc(100svh-136px)]",
         isDark
-          ? "bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)] text-[#FFF8FF]"
-          : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)] text-[var(--vyva-ink)]",
+          ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)] text-[#F7F0FF]"
+          : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]",
       ].join(" ")}
       data-testid="menu-screen"
       data-theme={isDark ? "dark" : "light"}
     >
       <div
-        className="mx-auto w-full max-w-[calc(100vw-32px)] min-[390px]:max-w-[366px] sm:max-w-[390px] md:flex md:min-h-[calc(100svh-136px)] md:max-w-[680px] md:flex-col lg:max-w-[880px]"
+        className="mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] lg:!max-w-[880px]"
         data-testid="menu-shell"
       >
         <HomeMasterTopbar
           className="mb-5 sm:mb-7 md:mb-0"
           testId="menu-topbar"
+          compact
         >
           <HomeMasterProfileControl
             isDark={isDark}
@@ -183,6 +178,7 @@ export default function MenuScreen({
             onClick={() => setProfileMenuOpen(true)}
             expanded={profileMenuOpen}
             controls={profileMenuOpen ? "menu-profile-menu" : undefined}
+            compact
           />
           <div className="flex h-9 items-center justify-center sm:h-10">
             <h1 className={["sr-only md:not-sr-only md:font-display md:text-[24px] md:font-semibold", isDark ? "md:text-[#FFF8FF]" : "md:text-[var(--vyva-ink)]"].join(" ")}>
@@ -195,6 +191,7 @@ export default function MenuScreen({
             ariaLabel="Return to voice home"
             testId="button-menu-voice-home"
             onClick={() => navigate(backPath)}
+            compact
           />
         </HomeMasterTopbar>
         {profileMenuOpen ? (
@@ -336,8 +333,8 @@ export default function MenuScreen({
           </div>
         ) : null}
 
-        <div className="md:flex md:flex-1 md:items-center md:py-8" data-testid="menu-grid-stage">
-          <section className="grid w-full gap-3 min-[390px]:gap-3.5 sm:gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4 lg:gap-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+        <div className="mt-7 lg:mt-0 lg:flex lg:flex-1 lg:items-center" data-testid="menu-grid-stage">
+          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:[grid-template-columns:repeat(4,minmax(0,1fr))]" aria-label="VYVA main menu" data-testid="menu-tile-grid">
             {MENU_TILES.map((tile) => {
               const Icon = tile.icon;
               const destination = tilePathOverrides?.[tile.id] ?? tile.path;
@@ -346,30 +343,32 @@ export default function MenuScreen({
                   key={tile.id}
                   type="button"
                   className={[
-                    "vyva-tap group flex min-h-[82px] items-center gap-3 rounded-[21px] border px-4 py-3 text-left transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[88px] min-[390px]:gap-3.5 min-[390px]:rounded-[23px] min-[390px]:p-4 sm:min-h-[100px] sm:rounded-[26px] md:min-h-[128px] md:px-5 lg:min-h-[184px] lg:flex-col lg:items-start lg:justify-start lg:gap-4 lg:p-5",
+                    "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5 lg:flex lg:min-h-[120px] lg:flex-col lg:items-start lg:gap-2 lg:p-4",
                     isDark
-                      ? "bg-[#2A2034] shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
-                      : "bg-white shadow-[0_10px_22px_rgba(36,28,48,0.06)]",
+                      ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
+                      : "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
                   ].join(" ")}
-                  style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : tile.tone.border }}
                   data-testid={`menu-tile-${tile.id}`}
                   onClick={() => navigate(destination)}
                 >
                   <span
                     className={[
-                      "flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[15px] min-[390px]:h-[52px] min-[390px]:w-[52px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px] md:h-[64px] md:w-[64px]",
-                      isDark ? "bg-[#3C2956] ring-1 ring-inset ring-white/10" : "bg-[#F1E8FF]",
+                      "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start lg:h-11 lg:w-11 lg:rounded-[16px]",
+                      isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
                     ].join(" ")}
                   >
                     <VyvaIcon icon={Icon} accent={tile.iconAccent} size={27} strokeWidth={2.35} tone="brand" />
                   </span>
-                  <span className="min-w-0 flex-1 lg:flex-none">
-                    <span data-testid={`menu-tile-${tile.id}-title`} className={["block font-display text-[20px] font-semibold leading-tight min-[390px]:text-[21px] sm:text-[24px] lg:text-[22px]", isDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]"].join(" ")}>
+                  <span className="min-w-0 self-center md:self-start lg:w-full">
+                    <span data-testid={`menu-tile-${tile.id}-title`} className="block font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px] lg:truncate lg:text-[18px]">
                       {tile.title}
                     </span>
-                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-0.5 block font-body text-[13px] font-semibold leading-snug min-[390px]:mt-1 min-[390px]:text-[14px] sm:text-[15px] lg:whitespace-nowrap lg:text-[13px]", isDark ? "text-[#DCCFEF]" : "text-[var(--vyva-ink-soft)]"].join(" ")}>
+                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-1 block line-clamp-2 font-body text-[13.5px] font-bold leading-snug md:text-[14px] lg:mt-0.5 lg:w-full lg:truncate lg:whitespace-nowrap lg:text-[11px]", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}>
                       {tile.detail}
                     </span>
+                  </span>
+                  <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end lg:hidden" aria-hidden="true">
+                    <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
                   </span>
                 </button>
               );

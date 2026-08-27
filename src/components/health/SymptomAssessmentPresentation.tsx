@@ -249,7 +249,7 @@ export function SymptomAssessmentPresentation({
     ? "pb-5 pt-6 sm:pb-6 sm:pt-7"
     : stageId === "checking"
       ? "pb-8 pt-[30px] md:pb-10 md:pt-8"
-      : `pb-8 ${showHeader ? "pt-[38px]" : "pt-8"} md:pb-9 md:pt-8`;
+      : `pb-8 ${showHeader ? "pt-[38px]" : "pt-8"} md:pb-9 md:pt-8 [@media(max-height:800px)]:pb-5 [@media(max-height:800px)]:pt-5`;
   const defaultFrameClass = isDark
     ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_22px_48px_rgba(0,0,0,0.22)]"
     : usesCompactProductionDescribeFrame
@@ -394,12 +394,12 @@ export function SymptomAssessmentPresentation({
 
         {scene.layout === "review" && reviewItems.length > 0 ? (
           <dl
-            className={`mt-7 divide-y text-left ${isDark ? "divide-white/[0.12]" : "divide-[#E7DDE6]"}`}
+            className={`mt-7 divide-y text-left [@media(max-height:800px)]:mt-4 ${isDark ? "divide-white/[0.12]" : "divide-[#E7DDE6]"}`}
             data-testid="symptom-scene-review"
           >
             {reviewItems.map((item) => (
               <div
-                className="py-3"
+                className="py-3 [@media(max-height:800px)]:py-2"
                 key={`${item.label}-${item.value}`}
               >
                 <dt className={`text-[12px] font-black uppercase tracking-[0.08em] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>
@@ -415,7 +415,7 @@ export function SymptomAssessmentPresentation({
 
         {children && (scene.layout !== "progress" || allowProgressChildren) ? (
           <div
-            className="mt-7 text-left"
+            className={`mt-7 text-left [@media(max-height:800px)]:mt-5 ${scene.layout === "review" ? "[@media(max-height:800px)]:mt-3" : ""}`}
             data-testid={`symptom-scene-controls-${stageId}-${modality}`}
           >
             {children}

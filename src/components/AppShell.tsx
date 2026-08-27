@@ -540,8 +540,20 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isWideRoute = appShellLayout === "wide";
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isHomeMasterMenuRoute = location.pathname === "/menu" || location.pathname === "/dev/home-master/menu";
+  const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
+  const isDevSymptomAssessmentRoute =
+    location.pathname === "/dev/home-master/ask-dr-ai" ||
+    location.pathname === "/dev/home-master/ask-dr-ai-checking" ||
+    location.pathname === "/dev/home-master/ask-dr-ai-next" ||
+    location.pathname === "/dev/home-master/symptom-warning" ||
+    location.pathname === "/dev/home-master/symptom-report";
+  const usesAlignedHubViewport =
+    location.pathname === "/menu" ||
+    location.pathname === "/health" ||
+    isSymptomCheckRoute ||
+    isDevSymptomAssessmentRoute;
   const isConciergeExperienceRoute = location.pathname === "/concierge";
-  const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute;
+  const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute || location.pathname === "/health";
   const ownsPrototypeTopbar = isHomeNavPrototypeTopbarRoute(location.pathname);
   const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
   const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
@@ -572,7 +584,6 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       ? "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]"
       : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
-  const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
   const crossPillarHandoffId = typeof routeState?.crossPillarHandoffId === "string"
     ? routeState.crossPillarHandoffId
@@ -591,6 +602,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       : usesDevHomeMasterDetailShell
         ? "max-w-[520px]"
       : usesDevHomeMasterCompactShell
+        ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
+      : isSymptomCheckRoute
         ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
       : isWideRoute
         ? "max-w-[920px]"
@@ -942,7 +955,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
