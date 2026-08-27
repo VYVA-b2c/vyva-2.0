@@ -7,6 +7,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master",
   "/dev/home-master/menu",
   "/dev/home-master/health",
+  "/dev/home-master/health-plan",
   "/dev/home-master/brain",
   "/dev/home-master/community",
   "/dev/home-master/concierge",
@@ -19,6 +20,7 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/menu",
   "/health",
   "/health/prevention",
+  "/health/prevention-plan",
   "/mind-memory",
   "/social-rooms",
   "/concierge",
@@ -60,7 +62,6 @@ export function hidesHomeNavPrototypeDock(pathname: string) {
   return pathname === "/settings/account" ||
     pathname === "/health/check-in" ||
     pathname === "/dev/home-master/check-in" ||
-    pathname === "/dev/home-master/health-plan" ||
     pathname === "/dev/home-master/profile" ||
     pathname === "/dev/home-master/profile/account" ||
     pathname === "/dev/home-master/profile/health" ||

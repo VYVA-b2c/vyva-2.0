@@ -257,7 +257,6 @@ describe("app shell route layout", () => {
     "/settings/account",
     "/health/check-in",
     "/dev/home-master/check-in",
-    "/dev/home-master/health-plan",
     "/dev/home-master/vitals",
     "/dev/home-master/medicines",
   ])(
@@ -274,6 +273,18 @@ describe("app shell route layout", () => {
       expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
     },
   );
+
+  it("keeps the shared prototype dock on the canonical longevity plan", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/dev/home-master/health-plan"]}>
+        <AppShell>
+          <div>Longevity plan content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
 
   it("keeps the shared prototype dock on the canonical symptom report", () => {
     render(
