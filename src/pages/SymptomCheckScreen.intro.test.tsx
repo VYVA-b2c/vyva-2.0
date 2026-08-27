@@ -273,6 +273,26 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
   });
 
+  it("uses semantic VYVA library accents for the symptom entry icons", () => {
+    render(<IntroScreen onStart={vi.fn()} personalizedSuggestions={[]} />);
+
+    expect(screen.getByRole("button", { name: /Breathing feels different/i })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "signal");
+    expect(screen.getByRole("button", { name: /Pain or headache/i })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "pulse");
+    expect(screen.getByRole("button", { name: /Dizzy or weak/i })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "pulse");
+    expect(screen.getByRole("button", { name: "Type your symptoms" })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "knobs");
+    expect(screen.getByRole("button", { name: "More examples" })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "spark");
+  });
+
   it("dismisses the emergency modal before the symptom check", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
@@ -493,5 +513,15 @@ describe("SymptomCheck intro chips", () => {
     fireEvent.click(screen.getByText("More symptoms"));
 
     expect(screen.getByRole("button", { name: /Check vitals/i })).toBeVisible();
+  });
+
+  it("starts the assessment from an expanded fallback symptom", () => {
+    const onStart = vi.fn();
+    render(<IntroScreen onStart={onStart} personalizedSuggestions={[]} />);
+
+    fireEvent.click(screen.getByText("More symptoms"));
+    fireEvent.click(screen.getByRole("button", { name: /Stomach or nausea/i }));
+
+    expect(onStart).toHaveBeenCalledWith("Stomach discomfort or nausea");
   });
 });

@@ -17,7 +17,7 @@ import {
 } from "@/components/health/SeverityScaleControl";
 import { SymptomSafetyChoiceCard } from "@/components/health/SymptomSafetyChoiceCard";
 import { SymptomChoiceCard } from "@/components/health/SymptomChoiceCard";
-import { VyvaIcon } from "@/components/brand/VyvaIcon";
+import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { PrototypeSymptomAssessmentShell } from "@/pages/HomeNavPrototypeScreens";
 import { useToast } from "@/hooks/use-toast";
 import { useHomeFastHelpOutcome } from "@/hooks/useHomeFastHelpOutcome";
@@ -799,6 +799,8 @@ function VoiceTriageLivePanel({
               const isSafetyChoice = stageId === "safety_check";
               const isNoWarningChoice = choice.id === "no_red_flag";
               const ChoiceIcon = isNoWarningChoice ? CheckCircle : AlertTriangle;
+              const assessmentChoiceIcon = assessmentChoiceIconByStage[stageId]
+                ?? { Icon: Activity, accent: "pulse" as const };
 
               if (isSafetyChoice) {
                 return (
@@ -806,7 +808,8 @@ function VoiceTriageLivePanel({
                     key={choice.id}
                     Icon={ChoiceIcon}
                     label={choice.spoken_label}
-                    isClearChoice={isNoWarningChoice}
+                    tone={isNoWarningChoice ? "clear" : "warning"}
+                    accent={isNoWarningChoice ? "check" : "signal"}
                     disabled={!canTapAnswer}
                     testId={`voice-triage-choice-${choice.id}`}
                     onClick={() => onAnswer?.({
@@ -821,7 +824,8 @@ function VoiceTriageLivePanel({
                 return (
                   <SymptomChoiceCard
                     key={choice.id}
-                    Icon={Activity}
+                    Icon={assessmentChoiceIcon.Icon}
+                    accent={assessmentChoiceIcon.accent}
                     label={choice.spoken_label}
                     disabled={!canTapAnswer}
                     testId={`voice-triage-choice-${choice.id}`}
@@ -1475,6 +1479,31 @@ const suggestionIconByKey: Record<TriagePersonalizedSuggestion["icon"], LucideIc
   wind: Wind,
 };
 
+const suggestionAccentByKey: Record<TriagePersonalizedSuggestion["icon"], VyvaIconAccent> = {
+  activity: "pulse",
+  brain: "bridge",
+  droplet: "dot",
+  gauge: "trend",
+  heart: "pulse",
+  home: "path",
+  pill: "divider",
+  shield: "check",
+  stethoscope: "scope",
+  wind: "signal",
+};
+
+const assessmentChoiceIconByStage: Partial<Record<SymptomAssessmentStageId, {
+  Icon: LucideIcon;
+  accent: VyvaIconAccent;
+}>> = {
+  describe: { Icon: Stethoscope, accent: "scope" },
+  symptom_selection: { Icon: HeartPulse, accent: "pulse" },
+  severity: { Icon: Gauge, accent: "trend" },
+  onset: { Icon: Calendar, accent: "calendar" },
+  related_details: { Icon: Activity, accent: "signal" },
+  review: { Icon: ClipboardList, accent: "check" },
+};
+
 const suggestionToneClass: Record<TriagePersonalizedSuggestion["tone"], { button: string; icon: string; badge: string }> = {
   amber: {
     button: "border-[#FED7AA] bg-[#FFF7ED] hover:border-[#FDBA74]",
@@ -1591,6 +1620,7 @@ export function IntroScreen({
   };
   const renderSuggestion = (suggestion: TriagePersonalizedSuggestion) => {
     const Icon = suggestionIconByKey[suggestion.icon] ?? Stethoscope;
+    const accent = suggestionAccentByKey[suggestion.icon] ?? "scope";
     const tone = suggestionToneClass[suggestion.tone] ?? suggestionToneClass.purple;
     const isConcern = suggestion.kind === "common_concern";
     return (
@@ -1599,33 +1629,38 @@ export function IntroScreen({
         type="button"
         onClick={() => {
           if (isConcern) {
-            setClue(suggestion.initialClue || suggestion.label);
+            onStart(suggestion.initialClue || suggestion.label);
             return;
           }
           if (suggestion.route) onNavigate?.(suggestion.route);
         }}
         data-testid={`button-symptom-intro-suggestion-${suggestion.id}`}
-        className={`vyva-tap group flex min-h-[78px] w-full min-w-0 items-start gap-3 rounded-[22px] border px-3 py-3 text-left shadow-[0_8px_20px_rgba(63,45,35,0.05)] transition sm:items-center ${tone.button}`}
+        className={`vyva-tap group flex min-h-[72px] w-full min-w-0 items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/45 focus-visible:ring-offset-2 ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_8px_22px_rgba(0,0,0,0.10)] hover:border-[#8B5CF6]/55 hover:bg-[#3D2D4B]" : `${tone.button} shadow-[0_8px_20px_rgba(63,45,35,0.05)]`}`}
       >
-        <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] ${tone.icon}`}>
-          <Icon size={21} strokeWidth={2.6} />
+        <span
+          className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] ${isDark ? "bg-[#45325E]" : tone.icon}`}
+          data-vyva-icon-tile={suggestion.icon}
+        >
+          <VyvaIcon icon={Icon} accent={accent} size={21} strokeWidth={2.45} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="break-words font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            <span className={`break-words font-body text-[16px] font-black leading-tight ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
               {suggestion.label}
             </span>
-            <span className={`rounded-full px-2.5 py-1 font-body text-[10px] font-black uppercase tracking-[0.08em] ${tone.badge}`}>
-              {sourceLabels[suggestion.source]}
-            </span>
+            {suggestion.source !== "fallback" ? (
+              <span className={`rounded-full px-2.5 py-1 font-body text-[10px] font-black uppercase tracking-[0.08em] ${isDark ? "bg-[#45325E] text-[#D8B4FE]" : tone.badge}`}>
+                {sourceLabels[suggestion.source]}
+              </span>
+            ) : null}
           </span>
-          <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+          <span className={`mt-1 block font-body text-[13px] font-bold leading-snug ${isDark ? "text-[#D8CDE4]" : "text-vyva-text-2"}`}>
             {suggestion.description}
           </span>
         </span>
         {isConcern ? null : (
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/80 text-vyva-purple shadow-sm">
-            <ArrowRight size={18} strokeWidth={2.8} />
+          <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${isDark ? "bg-[#45325E]" : "bg-white/80 shadow-sm"}`}>
+            <VyvaIcon icon={ArrowRight} tone="muted" size={18} strokeWidth={2.8} />
           </span>
         )}
       </button>
@@ -1634,6 +1669,7 @@ export function IntroScreen({
 
   const renderExampleChip = (suggestion: TriagePersonalizedSuggestion, index: number) => {
     const Icon = suggestionIconByKey[suggestion.icon] ?? Stethoscope;
+    const accent = suggestionAccentByKey[suggestion.icon] ?? "scope";
     return (
       <button
         key={suggestion.id}
@@ -1642,8 +1678,11 @@ export function IntroScreen({
         data-testid={`button-symptom-example-${index}`}
         className={`symptom-canonical-choice vyva-tap flex min-h-[60px] min-w-0 items-center gap-3 rounded-[18px] border px-4 py-3 text-left shadow-[0_8px_22px_rgba(0,0,0,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 focus-visible:ring-offset-2 ${isDark ? "border-white/[0.13] bg-[#352842] hover:border-[#8B5CF6]/55" : "border-[#DED3E2] bg-white hover:border-[#B99BCE]"}`}
       >
-        <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}>
-          <VyvaIcon icon={Icon} accent="dot" size={21} strokeWidth={2.45} />
+        <span
+          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}
+          data-vyva-icon-tile={suggestion.icon}
+        >
+          <VyvaIcon icon={Icon} accent={accent} size={21} strokeWidth={2.45} />
         </span>
         <span className="min-w-0 flex-1">
             <span className={`block break-words font-body text-[16px] font-black leading-tight ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
@@ -1655,7 +1694,7 @@ export function IntroScreen({
             </span>
           ) : null}
         </span>
-        <ArrowRight size={18} strokeWidth={2.6} className={`flex-shrink-0 ${isDark ? "text-[#B9ACC5]" : "text-[#9A83AD]"}`} aria-hidden="true" />
+        <VyvaIcon icon={ArrowRight} tone="muted" size={18} strokeWidth={2.6} className="flex-shrink-0" />
       </button>
     );
   };
@@ -1894,7 +1933,7 @@ export function IntroScreen({
                   title={t("health.symptomCheck.intro.moreExamples", "More examples")}
                   className="inline-flex h-9 w-9 shrink-0 items-center justify-center text-vyva-purple transition hover:text-[#4C168C] active:rotate-45 focus-visible:rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2"
                 >
-                  <RefreshCw size={20} strokeWidth={2.5} aria-hidden="true" />
+                  <VyvaIcon icon={RefreshCw} accent="spark" size={20} strokeWidth={2.5} />
                 </button>
               ) : null}
             </div>
@@ -1915,12 +1954,12 @@ export function IntroScreen({
                 className={`symptom-canonical-choice vyva-tap flex min-h-[60px] min-w-0 items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 focus-visible:ring-offset-2 ${isDark ? "border-white/[0.13] bg-[#352842] hover:border-[#8B5CF6]/55" : "border-[#DED3E2] bg-[#FCFAFD] hover:border-[#B99BCE] hover:bg-white"}`}
               >
                 <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}>
-                  <VyvaIcon icon={Keyboard} accent="dot" size={20} strokeWidth={2.45} />
+                  <VyvaIcon icon={Keyboard} accent="knobs" size={20} strokeWidth={2.45} />
                 </span>
                 <span className={`min-w-0 flex-1 font-body text-[16px] font-black leading-tight ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
                   {t("health.symptomCheck.intro.typeOption", "Type your symptoms")}
                 </span>
-                <ArrowRight size={18} strokeWidth={2.6} className={`flex-shrink-0 ${isDark ? "text-[#B9ACC5]" : "text-[#9A83AD]"}`} aria-hidden="true" />
+                <VyvaIcon icon={ArrowRight} tone="muted" size={18} strokeWidth={2.6} className="flex-shrink-0" />
               </button>
             </div>
 
@@ -1965,23 +2004,23 @@ export function IntroScreen({
       {(moreSymptoms.length || profileContextItems.length) ? (
         <details
           data-testid="symptom-check-more-symptoms"
-          className={`group mx-auto hidden w-full max-w-[520px] rounded-[24px] border p-4 shadow-[0_8px_22px_rgba(0,0,0,0.08)] lg:block ${isDark ? "border-white/[0.13] bg-[#2B2035]" : "border-[#E8DED4] bg-white"}`}
+          className={`group mx-auto mb-[calc(8rem+env(safe-area-inset-bottom))] hidden w-full max-w-[520px] rounded-[22px] border p-4 shadow-[0_10px_26px_rgba(0,0,0,0.10)] lg:block ${isDark ? "border-white/[0.14] bg-[#2B2035]" : "border-[#E8DED4] bg-white"}`}
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <span className="font-body text-[17px] font-black text-vyva-text-1">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/45">
+            <span className={`font-body text-[17px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
               {t("health.symptomCheck.intro.moreSymptoms", "More symptoms")}
             </span>
             <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
           </summary>
-          <div className="mt-4 grid gap-3 border-t border-[#EADFD5] pt-4">
+          <div className={`mt-3 grid gap-2.5 border-t pt-3 ${isDark ? "border-white/[0.10]" : "border-[#EADFD5]"}`}>
             {profileContextItems.length ? (
-              <div data-testid="symptom-check-profile-context" className="rounded-[20px] border border-[#EDE5DB] bg-[#FFFCF8] px-4 py-3">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.14em] text-vyva-purple">
+              <div data-testid="symptom-check-profile-context" className={`rounded-[18px] border px-4 py-3 ${isDark ? "border-white/[0.12] bg-[#352842]" : "border-[#EDE5DB] bg-[#FFFCF8]"}`}>
+                <p className={`font-body text-[12px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#D8B4FE]" : "text-vyva-purple"}`}>
                   {hasProfileSuggestions
                     ? t("health.symptomCheck.intro.personalizedBadge", "Profile tuned")
                     : t("health.symptomCheck.intro.fallbackBadge", "Helpful starts")}
                 </p>
-                <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                <p className={`mt-1 font-body text-[14px] font-bold leading-snug ${isDark ? "text-[#D8CDE4]" : "text-vyva-text-2"}`}>
                   {profileContextItems.slice(0, 4).join(" - ")}
                 </p>
               </div>
@@ -2190,6 +2229,7 @@ export function ReportScreen({
   latestVitalReadings = [],
   refinementStatus,
   onRefineVital,
+  onVoiceClick,
   onDone,
 }: {
   summary: TriageSummary;
@@ -2205,6 +2245,7 @@ export function ReportScreen({
   latestVitalReadings?: LatestVitalReading[];
   refinementStatus: RefinementStatus;
   onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
+  onVoiceClick: () => void;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -2836,9 +2877,22 @@ export function ReportScreen({
   return (
     <div className="symptom-canonical-report flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="symptom-check-report">
       <div ref={reportTopRef} />
-      <h1 className="mx-auto w-full max-w-[760px] px-4 pt-4 text-center font-body text-[28px] font-extrabold leading-tight tracking-[-0.035em] text-vyva-text-1 sm:px-5 sm:pt-6 sm:text-[32px] lg:px-0">
-        {t("health.symptomCheck.report.summaryTitle", "Your summary")}
-      </h1>
+      <div className="mx-auto grid w-full max-w-[760px] grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3 px-4 pt-4 sm:grid-cols-[60px_minmax(0,1fr)_60px] sm:px-5 sm:pt-6 lg:px-0">
+        <div aria-hidden="true" />
+        <h1 className="text-center font-body text-[28px] font-extrabold leading-tight tracking-[-0.035em] text-vyva-text-1 sm:text-[32px]">
+          {t("health.symptomCheck.report.summaryTitle", "Your summary")}
+        </h1>
+        <button
+          type="button"
+          aria-label={t("health.symptomCheck.report.voiceAction", "Continue by voice")}
+          title={t("health.symptomCheck.report.voiceAction", "Continue by voice")}
+          data-testid="button-report-voice"
+          onClick={onVoiceClick}
+          className="vyva-tap grid h-14 !min-h-14 w-14 place-items-center justify-self-end rounded-[18px] border border-white/25 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.28)] transition hover:bg-[#7A2ED0] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8B5CF6]/35 sm:h-[60px] sm:!min-h-[60px] sm:w-[60px] sm:rounded-[20px]"
+        >
+          <VyvaIcon icon={Mic} accent="signal" size={28} strokeWidth={2.55} tone="inverse" />
+        </button>
+      </div>
       <section
         data-testid="card-report-answer"
         className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[24px] border p-4 text-white sm:mx-5 sm:mb-4 sm:mt-5 sm:rounded-[28px] sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "border-white/[0.12] shadow-[0_20px_46px_rgba(0,0,0,0.28)]" : "border-transparent shadow-[0_18px_42px_rgba(91,18,160,0.2)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
@@ -3816,6 +3870,7 @@ export function SymptomReportPreviewScreen() {
       onInteractionModeChange={setInteractionMode}
       onBack={() => navigate("/dev/home-master/health")}
       shellContract={shellContract}
+      inlineVoiceControl
     >
       <ReportScreen
         summary={previewSummary}
@@ -3830,6 +3885,7 @@ export function SymptomReportPreviewScreen() {
         emergencyContact={null}
         refinementStatus={{ state: "idle" }}
         onRefineVital={async () => undefined}
+        onVoiceClick={() => setInteractionMode("voice")}
         onDone={() => navigate("/dev/home-master/health")}
       />
     </PrototypeSymptomAssessmentShell>
@@ -3846,8 +3902,9 @@ export default function SymptomCheckScreen() {
   const { markCompleted, markAbandoned, markBlocked } = useHomeFastHelpOutcome(location.state);
   const incomingState = location.state as SymptomCheckLocationState;
   const incomingInitialClue = typeof incomingState?.initialClue === "string" ? incomingState.initialClue.trim() : "";
+  const isFreshStart = new URLSearchParams(window.location.search).get("fresh") === "1";
   const [restoredDraft] = useState(() => (
-    new URLSearchParams(window.location.search).get("fresh") === "1"
+    isFreshStart
       ? null
       : readSymptomCheckDraft()
   ));
@@ -3891,7 +3948,9 @@ export default function SymptomCheckScreen() {
   const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>(() => restoredDraft?.refinementStatus ?? { state: "idle" });
   const [chatDraft, setChatDraft] = useState<TriageChatDraft | null>(() => restoredDraft?.chatDraft ?? null);
   const [resumePendingRequest] = useState(() => Boolean(restoredDraft?.chatDraft?.pendingRequest));
-  const [voiceTriageSessionId, setVoiceTriageSessionId] = useState<string | null>(() => readVoiceSessionId());
+  const [voiceTriageSessionId, setVoiceTriageSessionId] = useState<string | null>(() => (
+    isFreshStart ? null : readVoiceSessionId()
+  ));
   const [voiceStartPending, setVoiceStartPending] = useState(false);
   const [symptomInteractionMode, setSymptomInteractionMode] = useState<HomeInteractionMode>(() =>
     incomingState?.autoStartVoice ? "voice" : "touch",
@@ -4071,15 +4130,19 @@ export default function SymptomCheckScreen() {
   }, [voiceTriageSessionId]);
 
   useEffect(() => {
+    if (isFreshStart) {
+      clearVoiceSessionId();
+      setVoiceTriageSessionId(null);
+    }
     const syncVoiceSessionId = () => setVoiceTriageSessionId(readVoiceSessionId());
-    syncVoiceSessionId();
+    if (!isFreshStart) syncVoiceSessionId();
     window.addEventListener(VYVA_VOICE_SESSION_CHANGED_EVENT, syncVoiceSessionId);
     window.addEventListener("storage", syncVoiceSessionId);
     return () => {
       window.removeEventListener(VYVA_VOICE_SESSION_CHANGED_EVENT, syncVoiceSessionId);
       window.removeEventListener("storage", syncVoiceSessionId);
     };
-  }, []);
+  }, [isFreshStart]);
 
   useEffect(() => () => {
     if (voiceStartResetTimerRef.current !== null) {
@@ -4389,6 +4452,7 @@ export default function SymptomCheckScreen() {
       }}
       onBack={handleBack}
       shellContract={currentAssessmentPresentation.shell}
+      inlineVoiceControl={step === "report"}
     >
       <div
         className="flex min-h-0 flex-1 flex-col"
@@ -4470,6 +4534,7 @@ export default function SymptomCheckScreen() {
               latestVitalReadings={latestVitalsData?.recent_readings ?? []}
               refinementStatus={refinementStatus}
               onRefineVital={handleRefineVital}
+              onVoiceClick={handleTalkToVyva}
               onDone={handleDone}
             />
           </SymptomAssessmentPresentation>

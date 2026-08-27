@@ -209,6 +209,8 @@ describe("TriageChat MediSearch follow-ups", () => {
       done: false,
       quickReplies: [
         { id: "cannot_speak", label: "Gasping or cannot speak", value: "I am gasping or cannot speak.", icon: "help", tone: "red", kind: "red_flag" },
+        { id: "worse_but_speaking", label: "Worse than usual, but I can speak", value: "Breathing is worse than usual.", icon: "activity", tone: "amber", kind: "red_flag" },
+        { id: "walking_only", label: "Mild or only with activity", value: "It is mild or only with activity.", icon: "help", tone: "green", kind: "red_flag" },
         { id: "no_red_flag", label: "No, none of these", value: "No warning signs.", icon: "help", tone: "green", kind: "red_flag" },
       ],
       evidenceSources: [],
@@ -220,12 +222,46 @@ describe("TriageChat MediSearch follow-ups", () => {
     });
 
     const warningChoice = await screen.findByRole("button", { name: "Gasping or cannot speak" });
+    const cautionChoice = screen.getByRole("button", { name: "Worse than usual, but I can speak" });
+    const mildChoice = screen.getByRole("button", { name: "Mild or only with activity" });
     const clearChoice = screen.getByRole("button", { name: "No, none of these" });
 
     expect(warningChoice).toHaveClass("symptom-canonical-choice", "w-full", "rounded-[18px]", "bg-[#3A242E]", "text-left");
     expect(warningChoice).toHaveAttribute("data-safety-tone", "warning");
+    expect(cautionChoice).toHaveAttribute("data-safety-tone", "caution");
+    expect(mildChoice).toHaveAttribute("data-safety-tone", "clear");
     expect(clearChoice).toHaveAttribute("data-safety-tone", "clear");
     expect(clearChoice).not.toHaveClass("bg-[#7024C4]");
+    expect(warningChoice.querySelector('[data-vyva-accent="signal"]')).toBeInTheDocument();
+  });
+
+  it("recovers from a failed triage request with saved answers and an explicit retry", async () => {
+    const onStageChange = vi.fn();
+    apiFetchMock
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Are any warning signs present?",
+        done: false,
+        quickReplies,
+        evidenceSources: [],
+      }));
+
+    await renderTriageChat({
+      presentationStage: "safety_check",
+      composerVisibility: "hidden",
+      onStageChange,
+    });
+
+    const alert = await screen.findByTestId("triage-request-error");
+    expect(alert).toHaveTextContent(/try again/i);
+    expect(onStageChange).toHaveBeenNthCalledWith(1, "checking");
+    expect(onStageChange).toHaveBeenLastCalledWith("red_flag");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText("Are any warning signs present?");
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("triage-request-error")).not.toBeInTheDocument();
   });
 
   it("renders a compact accessible severity slider with one primary continuation", async () => {
@@ -623,7 +659,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     fireEvent.click(screen.getByText("Anadir una medicion rapida"));
     expect(screen.getByTestId("triage-scan-card")).toBeVisible();
     expect(screen.getByText("Revisar pulso y respiracion")).toBeInTheDocument();
-    expect(screen.getByText("Tu decides")).toBeInTheDocument();
+    expect(screen.queryByText("Tu decides")).not.toBeInTheDocument();
     expect(screen.getByText("Ahora no")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-skip"));

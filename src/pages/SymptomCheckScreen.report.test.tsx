@@ -64,6 +64,7 @@ function renderReport(
         emergencyContact={options.emergencyContact ?? null}
         refinementStatus={{ state: "idle" }}
         onRefineVital={vi.fn(async () => undefined)}
+        onVoiceClick={vi.fn()}
         onDone={vi.fn()}
       />
     </MemoryRouter>,
@@ -75,6 +76,7 @@ describe("SymptomCheck report service actions", () => {
     renderReport();
 
     expect(screen.getByRole("heading", { level: 1, name: "Your summary" })).toBeVisible();
+    expect(screen.getByTestId("button-report-voice")).toHaveAccessibleName("Continue by voice");
     expect(screen.getByTestId("card-report-answer")).toHaveTextContent("Doctor today");
     expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Talk to a doctor today");
   });

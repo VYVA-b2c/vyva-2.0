@@ -168,12 +168,14 @@ function PrototypeShell({
   testId,
   width = "phone",
   dockPadding = true,
+  contained = false,
   shellContract,
 }: {
   children: ReactNode;
   testId: string;
   width?: ShellWidth;
   dockPadding?: boolean;
+  contained?: boolean;
   shellContract?: SymptomAssessmentShellContract;
 }) {
   const { isDark } = useHomeMasterTheme();
@@ -186,11 +188,16 @@ function PrototypeShell({
     : width === "hub"
       ? "max-w-[430px] sm:max-w-[680px] lg:max-w-[900px]"
       : "max-w-[430px] sm:max-w-[620px] lg:max-w-[760px]";
-  const frameBottomPadding = dockPadding
+  const frameBottomPadding = contained
+    ? dockPadding
+      ? "pb-[calc(11rem+env(safe-area-inset-bottom))]"
+      : "pb-8"
+    : dockPadding
     // The dock is fixed over the page. Reserve more than its visual height so
     // the final message card remains readable above it on short viewports.
-    ? "pb-[calc(10rem+env(safe-area-inset-bottom))]"
-    : "pb-8";
+      ? "pb-[calc(10rem+env(safe-area-inset-bottom))]"
+      : "pb-8";
+  const viewportMinHeightClass = contained ? "min-h-[calc(100svh-136px)]" : "min-h-[100svh]";
 
   return (
     <main
@@ -203,14 +210,15 @@ function PrototypeShell({
       data-bottom-nav-contract={shellContract?.bottomNavId}
       data-composer-contract={shellContract?.composer}
       className={[
-        "prototype-shell relative min-h-[100svh] w-full overflow-x-hidden",
-        dockPadding ? "pb-32" : "pb-8",
+        "prototype-shell relative w-full overflow-x-hidden",
+        viewportMinHeightClass,
+        contained ? "" : dockPadding ? "pb-32" : "pb-8",
         isDark ? shellSurface.dark : shellSurface.light,
       ].join(" ")}
     >
       <div
         data-testid={width === "flow" ? "checkin-desktop-shell" : `${testId}-frame`}
-        className={["vyva-home-master-fixed-type mx-auto flex min-h-[100svh] w-full flex-col px-6 pt-8 sm:px-7", frameBottomPadding, widthClass].join(" ")}
+        className={["vyva-home-master-fixed-type mx-auto flex w-full flex-col px-6 pt-8 sm:px-7 [@media(max-height:800px)]:pt-4", viewportMinHeightClass, frameBottomPadding, widthClass].join(" ")}
       >
         {children}
       </div>
@@ -399,12 +407,14 @@ export function PrototypeSymptomAssessmentShell({
   onInteractionModeChange,
   onBack,
   shellContract,
+  inlineVoiceControl = false,
 }: {
   children: ReactNode;
   interactionMode: "voice" | "touch";
   onInteractionModeChange: (mode: "voice" | "touch") => void;
   onBack: () => void;
   shellContract: SymptomAssessmentShellContract;
+  inlineVoiceControl?: boolean;
 }) {
   const { isDark } = useHomeMasterTheme();
   const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
@@ -412,26 +422,27 @@ export function PrototypeSymptomAssessmentShell({
   return (
     <PrototypeShell
       testId="prototype-symptom-assessment-screen"
-      width="phone"
+      width="hub"
       dockPadding={shellContract.bottomNavId === "home-sos-reports"}
+      contained
       shellContract={shellContract}
     >
       <div
         className={[
-          "sticky top-0 z-40 -mx-3 px-3 py-3 backdrop-blur-xl",
+          "sticky top-0 z-40 -mx-3 px-3 backdrop-blur-xl",
           isDark ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
         ].join(" ")}
       >
         <PrototypeTopbar
           kind="detail"
           title={shellContract.headerTitle}
-          compactVoice={usesVoiceTouchHeader}
+          compactVoice={usesVoiceTouchHeader && !inlineVoiceControl}
           interactionMode={interactionMode}
           onInteractionModeChange={onInteractionModeChange}
           onBack={onBack}
         />
       </div>
-      <div className="mt-3 flex min-h-0 flex-1 flex-col sm:mt-5" data-testid="prototype-symptom-assessment-content">
+      <div className="mt-5 flex min-h-0 flex-1 flex-col sm:mt-7 [@media(max-height:800px)]:mt-3" data-testid="prototype-symptom-assessment-content">
         {children}
       </div>
     </PrototypeShell>
@@ -613,11 +624,13 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
           isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
         ].join(" ")}
         data-testid={item.testId ? `${item.testId}-icon` : undefined}
+        data-vyva-icon-tile={item.brandIcon ?? item.iconAccent ?? "utility"}
         aria-hidden="true"
       >
         <VyvaIcon
           icon={Icon}
           glyph={item.brandIcon}
+          accent={item.iconAccent}
           size={item.brandIcon ? 44 : 29}
           strokeWidth={2.55}
           tone="brand"
@@ -652,9 +665,15 @@ function HealthHubActionCard({ item }: { item: RowItem }) {
   );
 }
 
-function HealthHubActionGrid({ items }: { items: RowItem[] }) {
+function HealthHubActionGrid({
+  items,
+  testId = "health-action-grid",
+}: {
+  items: RowItem[];
+  testId?: string;
+}) {
   return (
-    <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5" data-testid="health-action-grid">
+    <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5" data-testid={testId}>
       {items.map((item) => (
         <HealthHubActionCard key={item.title} item={item} />
       ))}
@@ -840,16 +859,16 @@ export function PrototypeMenuScreen({
   backPath?: string;
 } = {}) {
   const items: RowItem[] = [
-    { icon: Heart, iconAccent: "pulse", title: "Health", subtitle: "Your vitals and symptoms", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
-    { icon: Brain, iconAccent: "bridge", title: "My Brain", subtitle: "Games, memory and mood", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
-    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Rooms, friends and chats", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
-    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Rides, errands and bookings", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
+    { icon: Heart, iconAccent: "pulse", title: "My Health", subtitle: "Check-ins & medicines", tone: "health", path: "/dev/home-master/health", testId: "card-home-agent-health", solidSurface: true },
+    { icon: Brain, iconAccent: "bridge", title: "My Brain", subtitle: "Memory, focus & calm", tone: "brain", path: "/dev/home-master/brain", testId: "card-home-agent-brain", solidSurface: true },
+    { icon: Users, iconAccent: "link", title: "Community", subtitle: "Rooms & support", tone: "community", path: "/dev/home-master/community", testId: "card-home-agent-community", solidSurface: true },
+    { icon: Bell, iconAccent: "clapper", title: "Concierge", subtitle: "Everyday help", tone: "concierge", path: "/dev/home-master/concierge", testId: "card-home-agent-concierge", solidSurface: true },
   ];
 
   return (
-    <PrototypeShell testId="prototype-menu-screen">
+    <PrototypeShell testId="prototype-menu-screen" width="hub" contained>
       <PrototypeTopbar kind="hub" title="Menu" backPath={backPath} profilePath="/dev/home-master/profile" compactVoice />
-      <HairlineRows items={items} testId="menu-tile-grid" />
+      <HealthHubActionGrid items={items} testId="menu-tile-grid" />
     </PrototypeShell>
   );
 }
@@ -862,6 +881,7 @@ export function PrototypeHealthScreen({
   voicePath = "/dev/home-master",
   profilePath = "/dev/home-master/profile",
   backPath = "/dev/home-master/menu",
+  contained = false,
 }: {
   checkInPath?: string;
   healthPlanPath?: string;
@@ -871,6 +891,7 @@ export function PrototypeHealthScreen({
   voicePath?: string;
   profilePath?: string;
   backPath?: string;
+  contained?: boolean;
 }) {
   const healthRows: RowItem[] = [
     { icon: Stethoscope, brandIcon: "doctor", title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
@@ -880,7 +901,7 @@ export function PrototypeHealthScreen({
   ];
 
   return (
-    <PrototypeShell testId="prototype-health-screen" width="hub">
+    <PrototypeShell testId="prototype-health-screen" width="hub" contained={contained}>
       <PrototypeTopbar kind="hub" title="My Health" backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
       <HealthHubActionGrid items={healthRows} />
     </PrototypeShell>

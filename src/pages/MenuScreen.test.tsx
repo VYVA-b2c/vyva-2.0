@@ -41,6 +41,7 @@ describe("MenuScreen", () => {
     expect(grid).toHaveTextContent("Memory, focus & calm");
     expect(grid).toHaveTextContent("Rooms & support");
     expect(grid).toHaveTextContent("Everyday help");
+    expect(screen.getByTestId("menu-shell")).toHaveClass("lg:max-w-[900px]");
     expect(MENU_TILES.map((tile) => tile.path)).toEqual([
       "/health",
       "/mind-memory",
@@ -124,9 +125,9 @@ describe("MenuScreen", () => {
 
     expect(screen.queryByTestId("button-menu-back")).not.toBeInTheDocument();
     expect(voiceHomeButton).not.toHaveClass("justify-self-end");
-    expect(voiceHomeButton).toHaveClass("h-9");
-    expect(voiceHomeButton).toHaveClass("w-9");
-    expect(voiceHomeButton).toHaveClass("!min-h-9");
+    expect(voiceHomeButton).toHaveClass("h-10");
+    expect(voiceHomeButton).toHaveClass("w-10");
+    expect(voiceHomeButton).toHaveClass("!min-h-10");
     expect(voiceHomeButton).toHaveClass("bg-[#6D28D9]");
     expect(voiceHomeButton).toHaveClass("text-white");
   });
@@ -137,28 +138,28 @@ describe("MenuScreen", () => {
     renderMenu();
 
     expect(screen.getByTestId("menu-screen")).toHaveAttribute("data-theme", "dark");
-    expect(screen.getByTestId("menu-screen")).toHaveClass("bg-[radial-gradient(circle_at_50%_0%,#21132A_0%,#140C18_54%,#100814_100%)]");
+    expect(screen.getByTestId("menu-screen")).toHaveClass("bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]");
     expect(screen.getByTestId("menu-tile-health")).toHaveClass("bg-[#2A2034]");
     expect(screen.getByTestId("button-menu-profile")).toBeInTheDocument();
   });
 
-  it("uses compact mobile tile sizing so all four tiles fit above the dock", () => {
+  it("uses the canonical My Health action-grid rhythm across breakpoints", () => {
     renderMenu();
 
     const grid = screen.getByTestId("menu-tile-grid");
     const firstTile = screen.getByTestId("menu-tile-health");
 
-    expect(grid).toHaveClass("gap-3");
+    expect(grid).toHaveClass("grid-cols-1", "gap-4");
     expect(grid).toHaveClass("md:grid-cols-2");
-    expect(grid).toHaveClass("lg:grid-cols-4");
-    expect(firstTile).toHaveClass("min-h-[82px]");
-    expect(firstTile).toHaveClass("md:min-h-[128px]");
-    expect(firstTile).toHaveClass("lg:min-h-[184px]");
-    expect(firstTile).toHaveClass("lg:flex-col");
-    expect(firstTile).toHaveClass("lg:justify-start");
-    expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("lg:whitespace-nowrap");
-    expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("lg:text-[13px]");
-    expect(firstTile).not.toHaveClass("min-h-[118px]");
+    expect(grid).toHaveClass("md:gap-5");
+    expect(grid).not.toHaveClass("lg:grid-cols-4");
+    expect(firstTile).toHaveClass("min-h-[84px]", "md:min-h-[158px]");
+    expect(firstTile).toHaveClass("grid-cols-[56px_minmax(0,1fr)_auto]");
+    expect(firstTile).toHaveClass("md:grid-cols-[64px_minmax(0,1fr)_auto]");
+    expect(firstTile).toHaveClass("rounded-[26px]", "md:p-5");
+    expect(screen.getByTestId("menu-tile-health-title")).toHaveClass("text-[20px]", "md:text-[24px]");
+    expect(screen.getByTestId("menu-tile-health-detail")).toHaveClass("text-[13.5px]", "md:text-[14px]");
+    expect(firstTile.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
   });
 
   it("matches the Home master responsive shell width without becoming fixed-width", () => {
@@ -168,16 +169,19 @@ describe("MenuScreen", () => {
     const topbar = screen.getByTestId("menu-topbar");
 
     expect(shell).toHaveClass("w-full");
-    expect(shell).toHaveClass("max-w-[calc(100vw-32px)]");
-    expect(shell).toHaveClass("min-[390px]:max-w-[366px]");
-    expect(shell).toHaveClass("sm:max-w-[390px]");
-    expect(shell).toHaveClass("md:max-w-[680px]");
-    expect(shell).toHaveClass("lg:max-w-[880px]");
-    expect(topbar).toHaveClass("px-1");
-    expect(topbar).toHaveClass("sm:px-3");
+    expect(shell).toHaveClass("max-w-[430px]");
+    expect(shell).toHaveClass("sm:max-w-[680px]");
+    expect(shell).toHaveClass("lg:max-w-[900px]");
+    expect(shell).toHaveClass("px-6", "sm:px-7", "pt-8");
+    expect(topbar).toHaveClass("grid-cols-[40px_1fr_40px]");
+    expect(topbar).not.toHaveClass("px-1", "sm:px-3", "lg:px-5");
+    expect(screen.getByTestId("button-menu-profile")).toHaveClass("h-10", "w-10");
+    expect(screen.getByTestId("button-menu-voice-home")).toHaveClass("h-10", "w-10");
+    expect(screen.getByTestId("menu-screen")).not.toHaveClass("px-5", "md:px-8");
     expect(screen.getByRole("heading", { name: "Menu" })).toHaveClass("sr-only");
     expect(screen.getByRole("heading", { name: "Menu" })).toHaveClass("md:not-sr-only");
-    expect(screen.getByTestId("menu-grid-stage")).toHaveClass("md:items-center");
+    expect(screen.getByTestId("menu-grid-stage")).toHaveClass("mt-7");
+    expect(screen.getByTestId("menu-grid-stage")).not.toHaveClass("md:items-center");
     expect(screen.getByTestId("menu-screen")).not.toHaveClass("pb-[calc(120px+env(safe-area-inset-bottom))]");
   });
 });

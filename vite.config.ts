@@ -12,6 +12,194 @@ const appVersion = process.env.VITE_APP_VERSION || packageJson.version || "0.0.0
 const localApiUnavailableMessage =
   "Local API is not running. Start the backend on port 3001 and make sure DATABASE_URL is set.";
 
+type HomeMasterPreviewQuickAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  icon:
+    | "heart"
+    | "wind"
+    | "thermometer"
+    | "activity"
+    | "alert"
+    | "help"
+    | "calendar"
+    | "calendar_range"
+    | "calendar_clock"
+    | "trend_up"
+    | "bed"
+    | "check"
+    | "face";
+  tone: "red" | "amber" | "purple" | "green" | "blue";
+  kind: string;
+};
+
+function previewAnswer(
+  id: string,
+  label: string,
+  value: string,
+  icon: HomeMasterPreviewQuickAnswer["icon"],
+  tone: HomeMasterPreviewQuickAnswer["tone"],
+  kind: string,
+): HomeMasterPreviewQuickAnswer {
+  return { id, label, value, icon, tone, kind };
+}
+
+function homeMasterPreviewPlan(stage: string, focus: string) {
+  return {
+    protocolId: "breathing",
+    protocolLabel: "Breathing changes",
+    stage,
+    priorityLabel: "VYVA guided check",
+    nextQuestionFocus: focus,
+    confidence: {
+      score: 4,
+      label: "Good",
+      reasons: ["symptom described", "safety answers reviewed"],
+      missing: [],
+    },
+    profileContextUsed: false,
+    usefulSignals: [],
+  };
+}
+
+function homeMasterPreviewTriageResponse(payload: Record<string, unknown>) {
+  const wizard = payload.wizard && typeof payload.wizard === "object"
+    ? payload.wizard as Record<string, unknown>
+    : {};
+  const answers = Array.isArray(wizard.quickAnswers)
+    ? wizard.quickAnswers.filter((answer): answer is Record<string, unknown> => Boolean(answer) && typeof answer === "object")
+    : [];
+  const hasKind = (kind: string) => answers.some((answer) => answer.kind === kind);
+
+  if (hasKind("support")) {
+    return {
+      role: "assistant",
+      content: "Your answers fit home monitoring for now, with clear signs that should change the plan.",
+      done: true,
+      quickReplies: [],
+      wizardStage: "complete",
+      wizardStageLabel: "Summary",
+      wizardSymptomId: "breathing",
+      guidancePlan: homeMasterPreviewPlan("complete", "A clear home-monitoring plan."),
+      evidenceSources: [],
+      summary: {
+        chiefComplaint: "Breathing feels different",
+        symptoms: ["Breathing feels different"],
+        urgency: "monitor",
+        recommendations: [
+          "Monitor at home and keep doctor access ready.",
+          "Check your vitals if a reliable device is available.",
+          "Seek urgent help if breathing becomes difficult at rest.",
+        ],
+        disclaimer: "This report is for informational purposes only and does not replace medical diagnosis or treatment.",
+        aiSummary: "Your answers fit home monitoring for now, with clear signs that should change the plan.",
+        nextStepLabel: "Monitor at home, with doctor access ready",
+        nextStepLevel: "monitor",
+        triageReasons: ["No emergency warning sign was selected and the symptom is mild."],
+        watchSigns: ["Breathing becomes difficult at rest."],
+        profileConsiderations: [],
+        vitalsNotes: [],
+        scanResults: [],
+        scanNotes: [],
+      },
+    };
+  }
+
+  if (hasKind("trend")) {
+    return {
+      role: "assistant",
+      content: "Does this look right?",
+      done: false,
+      quickReplies: [
+        previewAnswer("edit_answers", "Edit", "Edit my answers.", "help", "purple", "action"),
+        previewAnswer("confirm_answers", "Yes, show my guidance", "Yes, show my guidance.", "check", "green", "support"),
+      ],
+      wizardStage: "support",
+      wizardStageLabel: "Review answers",
+      wizardSymptomId: "breathing",
+      guidancePlan: homeMasterPreviewPlan("support", "Confirming the answers before guidance."),
+      evidenceSources: [],
+    };
+  }
+
+  if (hasKind("duration")) {
+    return {
+      role: "assistant",
+      content: "One more detail",
+      done: false,
+      quickReplies: [
+        previewAnswer("new_or_worse", "It is new or suddenly worse today", "It is new or suddenly worse today.", "trend_up", "amber", "trend"),
+        previewAnswer("fever_or_cough", "It comes with fever, cough, or more phlegm", "It comes with fever, cough, or more phlegm.", "thermometer", "amber", "trend"),
+        previewAnswer("worse_flat", "It is worse lying flat, or my ankles are swollen", "It is worse lying flat, or my ankles are swollen.", "bed", "purple", "trend"),
+        previewAnswer("mild_improving", "It is mild, usual for me, and improving", "It is mild, usual for me, and improving.", "check", "green", "trend"),
+      ],
+      wizardStage: "trend",
+      wizardStageLabel: "What changed",
+      wizardSymptomId: "breathing",
+      guidancePlan: homeMasterPreviewPlan("trend", "Checking one related detail."),
+      evidenceSources: [],
+    };
+  }
+
+  if (hasKind("severity")) {
+    return {
+      role: "assistant",
+      content: "When did the breathing change start?",
+      done: false,
+      quickReplies: [
+        previewAnswer("today", "New today", "It started today.", "calendar", "purple", "duration"),
+        previewAnswer("few_days", "Few days", "It started a few days ago.", "calendar_range", "purple", "duration"),
+        previewAnswer("week_or_more", "A week or more", "It started a week or more ago.", "calendar_clock", "purple", "duration"),
+        previewAnswer("duration_unsure", "I am not sure", "I am not sure when it started.", "help", "purple", "duration"),
+      ],
+      wizardStage: "duration",
+      wizardStageLabel: "When it started",
+      wizardSymptomId: "breathing",
+      guidancePlan: homeMasterPreviewPlan("duration", "Checking when the change began."),
+      evidenceSources: [],
+    };
+  }
+
+  if (hasKind("red_flag")) {
+    return {
+      role: "assistant",
+      content: "How strong is it?",
+      done: false,
+      quickReplies: Array.from({ length: 11 }, (_, value) =>
+        previewAnswer(`severity_${value}`, String(value), `My symptom severity is ${value} out of 10.`, "activity", "purple", "severity"),
+      ),
+      wizardStage: "severity",
+      wizardStageLabel: "More details",
+      wizardSymptomId: "breathing",
+      guidancePlan: homeMasterPreviewPlan("severity", "Checking symptom strength."),
+      evidenceSources: [],
+    };
+  }
+
+  return {
+    role: "assistant",
+    content: "How is your breathing right now?",
+    done: false,
+    quickReplies: [
+      previewAnswer("cannot_speak", "Gasping or cannot speak", "I am gasping or cannot speak.", "wind", "red", "red_flag"),
+      previewAnswer("blue_or_confused", "Blue, grey, pale, or confused", "I look blue, grey, pale, or confused.", "face", "red", "red_flag"),
+      previewAnswer("worse_can_speak", "Worse than usual, but I can speak", "It is worse than usual, but I can speak.", "trend_up", "amber", "red_flag"),
+      previewAnswer("mild_activity", "Mild or only with activity", "It is mild or only happens with activity.", "check", "green", "red_flag"),
+    ],
+    wizardStage: "red_flag",
+    wizardStageLabel: "Safety check",
+    wizardSymptomId: "breathing",
+    guidancePlan: homeMasterPreviewPlan("red_flag", "Checking urgent breathing warning signs."),
+    evidenceSources: [],
+  };
+}
+
+function isHomeMasterAskDrAiPreview(req: IncomingMessage) {
+  const referer = req.headers.referer ?? "";
+  return referer.includes("/dev/home-master/ask-dr-ai");
+}
+
 function vendorChunkName(id: string) {
   if (!id.includes("node_modules")) return undefined;
 
@@ -66,6 +254,38 @@ function forwardApiRequest(req: IncomingMessage, res: ServerResponse) {
   req.on("end", async () => {
     try {
       const body = chunks.length ? Buffer.concat(chunks) : undefined;
+      const isHomeMasterPreview = isHomeMasterAskDrAiPreview(req);
+      if (isHomeMasterPreview && req.method === "POST" && req.url?.startsWith("/api/triage/message")) {
+        const payload = body?.length
+          ? JSON.parse(body.toString("utf8")) as Record<string, unknown>
+          : {};
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("cache-control", "no-store");
+        res.end(JSON.stringify(homeMasterPreviewTriageResponse(payload)));
+        return;
+      }
+      if (isHomeMasterPreview && req.method === "POST" && req.url?.startsWith("/api/reports/triage")) {
+        const payload = body?.length
+          ? JSON.parse(body.toString("utf8")) as Record<string, unknown>
+          : {};
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("cache-control", "no-store");
+        res.end(JSON.stringify({
+          id: "home-master-preview-report",
+          ...payload,
+          created_at: new Date().toISOString(),
+          sent_to: [],
+          staff_review_requested: false,
+        }));
+        return;
+      }
+      if (isHomeMasterPreview && req.method === "POST" && req.url?.startsWith("/api/symptoms/log")) {
+        res.statusCode = 204;
+        res.end();
+        return;
+      }
       const upstream = await fetch(target, {
         method: req.method,
         headers,
