@@ -22,6 +22,7 @@ import {
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
+import type { PreventionPlanData } from "./pages/PreventionPlan";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -94,6 +95,33 @@ const CuriousMinds = lazy(() => import("./games/CuriousMinds"));
 const ScentMemory = lazy(() => import("./games/ScentMemory"));
 const ListenClosely = lazy(() => import("./games/ListenClosely"));
 const BreathGarden = lazy(() => import("./games/BreathGarden"));
+
+const PREVENTION_PLAN_PREVIEW: PreventionPlanData = {
+  id: "preview-longevity-plan",
+  generated_at: "2026-08-01T09:00:00.000Z",
+  pillar_heart: "steady",
+  pillar_brain: "priority_focus",
+  pillar_strength: "steady",
+  pillar_nourishment: "thriving",
+  pillar_calm: "needs_attention",
+  priority_pillar: "brain",
+  priority_intervention: "Try ten minutes of Brain Coach daily",
+  priority_why: "A short daily practice supports continuity and makes it easier to build a lasting routine.",
+  plan_narrative_senior: "Karim, this month we are keeping your plan simple and practical. One clear focus comes first, while the other pillars stay visible.",
+  plan_narrative_caregiver: "Monthly wellness plan generated from Karim's recent VYVA signals, with brain and memory selected as the current priority.",
+  recommendations: {
+    heart: [{ action: "Keep your daily walk going", why: "Consistency supports your heart and circulation." }],
+    brain: [
+      { action: "Try ten minutes of Brain Coach daily", why: "A regular short practice is easier to sustain." },
+      { action: "Choose one familiar Brain Coach activity", why: "Familiarity lowers the effort needed to begin." },
+    ],
+    strength: [{ action: "Keep moving every day", why: "Any comfortable movement helps preserve stability." }],
+    nourishment: [{ action: "Keep water within easy reach", why: "Hydration supports energy and concentration." }],
+    calm: [{ action: "Open the Breath Garden for two minutes", why: "Slow breathing can support recovery." }],
+  },
+  source_signals: { vitals: true, medications: true, cognitive: true, mood: true, symptoms: false },
+  trajectory: "first",
+};
 const WelcomeScreen = lazy(() => import("./pages/onboarding/WelcomeScreen"));
 const WhoForStep = lazy(() => import("./pages/onboarding/WhoForStep"));
 const BasicsStep = lazy(() => import("./pages/onboarding/BasicsStep"));
@@ -713,6 +741,21 @@ function HomeMasterSymptomReportPreviewRoute() {
 
 function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" | "medicines" }) {
   primeHomeMasterPreviewData();
+  const location = useLocation();
+
+  if (kind === "plan") {
+    const requestedTheme = new URLSearchParams(location.search).get("theme");
+    return (
+      <AppShell>
+        <PreventionPlan
+          previewPlan={PREVENTION_PLAN_PREVIEW}
+          firstNameOverride="Karim"
+          backPath="/dev/home-master/health"
+          themeOverride={requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : undefined}
+        />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
