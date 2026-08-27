@@ -163,7 +163,7 @@ export default function MenuScreen({
       data-theme={isDark ? "dark" : "light"}
     >
       <div
-        className="mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[880px]"
+        className="mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] lg:!max-w-[880px]"
         data-testid="menu-shell"
       >
         <HomeMasterTopbar
@@ -334,7 +334,7 @@ export default function MenuScreen({
         ) : null}
 
         <div className="mt-7 lg:mt-0 lg:flex lg:flex-1 lg:items-center" data-testid="menu-grid-stage">
-          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:[grid-template-columns:repeat(4,minmax(0,1fr))]" aria-label="VYVA main menu" data-testid="menu-tile-grid">
             {MENU_TILES.map((tile) => {
               const Icon = tile.icon;
               const destination = tilePathOverrides?.[tile.id] ?? tile.path;
