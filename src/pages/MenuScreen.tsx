@@ -163,7 +163,7 @@ export default function MenuScreen({
       data-theme={isDark ? "dark" : "light"}
     >
       <div
-        className="mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px]"
+        className="mx-auto flex min-h-[calc(100svh-136px)] w-full max-w-[430px] flex-col px-6 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[880px]"
         data-testid="menu-shell"
       >
         <HomeMasterTopbar
@@ -333,8 +333,8 @@ export default function MenuScreen({
           </div>
         ) : null}
 
-        <div className="mt-7" data-testid="menu-grid-stage">
-          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5" aria-label="VYVA main menu" data-testid="menu-tile-grid">
+        <div className="mt-7 lg:mt-0 lg:flex lg:flex-1 lg:items-center" data-testid="menu-grid-stage">
+          <section className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4" aria-label="VYVA main menu" data-testid="menu-tile-grid">
             {MENU_TILES.map((tile) => {
               const Icon = tile.icon;
               const destination = tilePathOverrides?.[tile.id] ?? tile.path;
@@ -343,7 +343,7 @@ export default function MenuScreen({
                   key={tile.id}
                   type="button"
                   className={[
-                    "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5",
+                    "vyva-tap group grid min-h-[84px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-x-4 rounded-[26px] border px-4 text-left transition-transform duration-150 hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[158px] md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-[auto_1fr] md:items-start md:gap-y-3 md:p-5 lg:flex lg:min-h-[120px] lg:flex-col lg:items-start lg:gap-2 lg:p-4",
                     isDark
                       ? "border-white/[0.14] bg-[#2A2034] text-[#F9F4FF] shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
                       : "border-[#EEE8F1] bg-white text-[#241C30] shadow-[0_14px_30px_rgba(36,28,48,0.07)]",
@@ -353,21 +353,21 @@ export default function MenuScreen({
                 >
                   <span
                     className={[
-                      "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start",
+                      "relative grid h-14 w-14 flex-shrink-0 place-items-center overflow-hidden rounded-[20px] transition-[background-color,transform] duration-200 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:row-span-2 md:h-16 md:w-16 md:self-start lg:h-11 lg:w-11 lg:rounded-[16px]",
                       isDark ? "bg-[#3C2956] group-hover:bg-[#443061]" : "bg-[#F1E8FF] group-hover:bg-[#ECE0FF]",
                     ].join(" ")}
                   >
                     <VyvaIcon icon={Icon} accent={tile.iconAccent} size={27} strokeWidth={2.35} tone="brand" />
                   </span>
-                  <span className="min-w-0 self-center md:self-start">
-                    <span data-testid={`menu-tile-${tile.id}-title`} className="block font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px]">
+                  <span className="min-w-0 self-center md:self-start lg:w-full">
+                    <span data-testid={`menu-tile-${tile.id}-title`} className="block font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px] lg:truncate lg:text-[18px]">
                       {tile.title}
                     </span>
-                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-1 block line-clamp-2 font-body text-[13.5px] font-bold leading-snug md:text-[14px]", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}>
+                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-1 block line-clamp-2 font-body text-[13.5px] font-bold leading-snug md:text-[14px] lg:mt-0.5 lg:w-full lg:truncate lg:whitespace-nowrap lg:text-[12px]", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}>
                       {tile.detail}
                     </span>
                   </span>
-                  <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end" aria-hidden="true">
+                  <span className="hidden opacity-70 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 md:col-start-3 md:row-start-2 md:block md:self-end md:justify-self-end lg:hidden" aria-hidden="true">
                     <VyvaIcon icon={ArrowUpRight} size={20} strokeWidth={2.35} tone="muted" />
                   </span>
                 </button>

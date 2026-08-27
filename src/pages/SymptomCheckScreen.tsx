@@ -2877,7 +2877,7 @@ export function ReportScreen({
   return (
     <div className="symptom-canonical-report flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="symptom-check-report">
       <div ref={reportTopRef} />
-      <div className="mx-auto grid w-full max-w-[760px] grid-cols-[56px_minmax(0,1fr)_56px] items-center gap-3 px-4 pt-4 sm:grid-cols-[60px_minmax(0,1fr)_60px] sm:px-5 sm:pt-6 lg:px-0">
+      <div className="mx-auto grid w-full max-w-[760px] grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 px-4 pt-4 sm:grid-cols-[60px_minmax(0,1fr)_60px] sm:px-5 sm:pt-6 lg:px-0">
         <div aria-hidden="true" />
         <h1 className="text-center font-body text-[28px] font-extrabold leading-tight tracking-[-0.035em] text-vyva-text-1 sm:text-[32px]">
           {t("health.symptomCheck.report.summaryTitle", "Your summary")}
@@ -2888,14 +2888,14 @@ export function ReportScreen({
           title={t("health.symptomCheck.report.voiceAction", "Continue by voice")}
           data-testid="button-report-voice"
           onClick={onVoiceClick}
-          className="vyva-tap grid h-14 !min-h-14 w-14 place-items-center justify-self-end rounded-[18px] border border-white/25 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.28)] transition hover:bg-[#7A2ED0] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8B5CF6]/35 sm:h-[60px] sm:!min-h-[60px] sm:w-[60px] sm:rounded-[20px]"
+          className="vyva-tap grid h-11 !min-h-11 w-11 place-items-center justify-self-end rounded-[15px] border border-white/25 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.28)] transition hover:bg-[#7A2ED0] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8B5CF6]/35 sm:h-[60px] sm:!min-h-[60px] sm:w-[60px] sm:rounded-[20px]"
         >
-          <VyvaIcon icon={Mic} accent="signal" size={28} strokeWidth={2.55} tone="inverse" />
+          <VyvaIcon icon={Mic} accent="signal" size={24} strokeWidth={2.55} tone="inverse" />
         </button>
       </div>
       <section
         data-testid="card-report-answer"
-        className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[24px] border p-4 text-white sm:mx-5 sm:mb-4 sm:mt-5 sm:rounded-[28px] sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "border-white/[0.12] shadow-[0_20px_46px_rgba(0,0,0,0.28)]" : "border-transparent shadow-[0_18px_42px_rgba(91,18,160,0.2)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
+        className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[24px] border p-3 text-white sm:mx-5 sm:mb-4 sm:mt-5 sm:rounded-[28px] sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "border-white/[0.12] shadow-[0_20px_46px_rgba(0,0,0,0.28)]" : "border-transparent shadow-[0_18px_42px_rgba(91,18,160,0.2)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
         style={{ background: isDark ? darkHeroVisual.background : cfg.bg }}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/35" aria-hidden="true" />
