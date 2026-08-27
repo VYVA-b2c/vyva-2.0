@@ -363,7 +363,7 @@ export default function MenuScreen({
                     <span data-testid={`menu-tile-${tile.id}-title`} className="block font-display text-[20px] font-semibold leading-[1.03] tracking-[-0.025em] md:text-[24px] lg:truncate lg:text-[18px]">
                       {tile.title}
                     </span>
-                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-1 block line-clamp-2 font-body text-[13.5px] font-bold leading-snug md:text-[14px] lg:mt-0.5 lg:w-full lg:truncate lg:whitespace-nowrap lg:text-[12px]", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}>
+                    <span data-testid={`menu-tile-${tile.id}-detail`} className={["mt-1 block line-clamp-2 font-body text-[13.5px] font-bold leading-snug md:text-[14px] lg:mt-0.5 lg:w-full lg:truncate lg:whitespace-nowrap lg:text-[11px]", isDark ? "text-[#DDD3EA]" : "text-[#8A8095]"].join(" ")}>
                       {tile.detail}
                     </span>
                   </span>
