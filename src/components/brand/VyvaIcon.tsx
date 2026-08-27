@@ -262,7 +262,7 @@ export function VyvaIcon({
           <VyvaGradient id={gradientId} />
         </defs>
       ) : null}
-      {tone === "brand" && accent ? <VyvaGoldAccent accent={accent} /> : null}
+      {accent ? <VyvaGoldAccent accent={accent} /> : null}
     </Icon>
   );
 }

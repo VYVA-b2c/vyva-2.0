@@ -116,8 +116,14 @@ describe("Home/Nav prototype screens", () => {
     expect(shell).toHaveAttribute("data-composer-contract", "hidden");
     expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to voice mode" })).toBeInTheDocument();
-    expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass("max-w-[430px]");
-    expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
+    expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass(
+      "max-w-[430px]",
+      "sm:max-w-[680px]",
+      "lg:max-w-[900px]",
+      "min-h-[calc(100svh-136px)]",
+    );
+    expect(screen.getByTestId("prototype-symptom-assessment-screen-frame")).toHaveClass("pb-[calc(11rem+env(safe-area-inset-bottom))]");
+    expect(screen.getByTestId("prototype-symptom-assessment-content")).toHaveClass("mt-5", "sm:mt-7");
   });
 
   it.each(["/health/symptom-check", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next", "/dev/home-master/symptom-report"])(
@@ -153,21 +159,26 @@ describe("Home/Nav prototype screens", () => {
     }
   });
 
-  it("renders Menu as the approved four-tile manual hub", () => {
+  it("renders Menu with the canonical My Health two-by-two action-card grammar", () => {
     renderScreen(<PrototypeMenuScreen />);
 
     expect(screen.getByTestId("prototype-menu-screen")).toBeInTheDocument();
     expect(within(screen.getByTestId("menu-tile-grid")).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByTestId("button-prototype-back")).toBeInTheDocument();
     expect(screen.getByTestId("button-compact-voice")).toBeInTheDocument();
-    expect(screen.getAllByTestId(/card-home-agent-/)).toHaveLength(4);
-    expect(screen.getByText("Health")).toBeInTheDocument();
+    const menuCards = ["health", "brain", "community", "concierge"].map((name) =>
+      screen.getByTestId(`card-home-agent-${name}`),
+    );
+    expect(menuCards).toHaveLength(4);
+    expect(screen.getByText("My Health")).toBeInTheDocument();
     expect(screen.getByText("My Brain")).toBeInTheDocument();
     expect(screen.getByText("Community")).toBeInTheDocument();
     expect(screen.getByText("Concierge")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Menu" })).toBeInTheDocument();
     expect(screen.queryByText("Reports")).not.toBeInTheDocument();
-    for (const button of screen.getAllByTestId(/card-home-agent-/)) {
+    expect(screen.getByTestId("menu-tile-grid")).toHaveClass("grid-cols-1", "md:grid-cols-2", "gap-4", "md:gap-5");
+    for (const button of menuCards) {
+      expect(button).toHaveClass("min-h-[84px]", "md:min-h-[158px]", "rounded-[26px]", "md:p-5");
       expect(button.querySelector("[data-vyva-icon-tile]")).toBeInTheDocument();
       expect(button.querySelector('[data-vyva-icon="utility"]')).toBeInTheDocument();
     }
@@ -286,6 +297,16 @@ describe("Home/Nav prototype screens", () => {
     fireEvent.click(screen.getByTestId("button-compact-voice"));
 
     expect(navigateMock).toHaveBeenCalledWith("/dev/home-master");
+  });
+
+  it("fits the production Health hub inside the AppShell viewport without nested overflow", () => {
+    renderScreen(<PrototypeHealthScreen contained />);
+
+    expect(screen.getByTestId("prototype-health-screen")).toHaveClass("min-h-[calc(100svh-136px)]");
+    expect(screen.getByTestId("prototype-health-screen-frame")).toHaveClass("min-h-[calc(100svh-136px)]");
+    expect(screen.getByTestId("prototype-health-screen")).not.toHaveClass("min-h-[100svh]");
+    expect(screen.getByTestId("prototype-health-screen")).not.toHaveClass("pb-32");
+    expect(screen.getByTestId("prototype-health-screen-frame")).not.toHaveClass("pb-[calc(10rem+env(safe-area-inset-bottom))]");
   });
 
   it("lets the dev Health preview route entry rows to the intended destinations", () => {
