@@ -10,6 +10,7 @@ type SignalKey = keyof typeof SIGNAL_CONFIG;
 interface Props {
   userId: string;
   userConditions: string[];
+  previewData?: VitalsTrackerPreviewData;
   language?: Language;
   country?: string | null;
   gpName?: string | null;
@@ -66,7 +67,7 @@ interface RecentReading {
   context_tag: string | null;
 }
 
-interface LatestResponse {
+export interface VitalsTrackerPreviewData {
   analysis: LatestAnalysis | null;
   recent_readings: RecentReading[];
   latest_alert?: LatestAlert | null;
@@ -1001,6 +1002,7 @@ function relativeTime(iso: string | null | undefined, language: Language) {
 export default function VitalsTracker({
   userId,
   userConditions,
+  previewData,
   language = "es",
   country,
   gpName,
@@ -1011,10 +1013,10 @@ export default function VitalsTracker({
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [screen, setScreen] = useState<Screen>("dashboard");
-  const [analysis, setAnalysis] = useState<LatestAnalysis | null>(null);
-  const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
-  const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [analysis, setAnalysis] = useState<LatestAnalysis | null>(previewData?.analysis ?? null);
+  const [recentReadings, setRecentReadings] = useState<RecentReading[]>(previewData?.recent_readings ?? []);
+  const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(previewData?.latest_alert ?? null);
+  const [loading, setLoading] = useState(!previewData);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1065,13 +1067,21 @@ export default function VitalsTracker({
   }, [searchParams]);
 
   const loadDashboard = useCallback(async () => {
+    if (previewData) {
+      setAnalysis(previewData.analysis ?? null);
+      setRecentReadings(previewData.recent_readings ?? []);
+      setLatestAlert(previewData.latest_alert ?? null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
       const response = await apiFetch("/api/vitals-engine/latest");
       if (!response.ok) throw new Error("Dashboard load failed");
-      const data = await response.json() as LatestResponse;
+      const data = await response.json() as VitalsTrackerPreviewData;
       setAnalysis(data.analysis ?? null);
       setRecentReadings(data.recent_readings ?? []);
       setLatestAlert(data.latest_alert ?? null);
@@ -1080,7 +1090,7 @@ export default function VitalsTracker({
     } finally {
       setLoading(false);
     }
-  }, [copy.loadError, userId]);
+  }, [copy.loadError, previewData, userId]);
 
   async function saveReading() {
     const numeric = selectedConfig.isBinary ? Number(inputValue) : Number(inputValue);
@@ -1116,6 +1126,7 @@ export default function VitalsTracker({
   }
 
   async function triggerAnalysis() {
+    if (previewData) return;
     setAnalysing(true);
     setError(null);
     try {

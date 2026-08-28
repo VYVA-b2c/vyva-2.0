@@ -23,6 +23,7 @@ import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRou
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import type { PreventionPlanData } from "./pages/PreventionPlan";
+import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -121,6 +122,89 @@ const PREVENTION_PLAN_PREVIEW: PreventionPlanData = {
   },
   source_signals: { vitals: true, medications: true, cognitive: true, mood: true, symptoms: false },
   trajectory: "first",
+};
+
+const VITALS_PREVIEW_DATA: VitalsTrackerPreviewData = {
+  analysis: {
+    id: "preview-vitals-analysis",
+    analysed_at: "2026-08-28T08:35:00.000Z",
+    safety_status: "steady",
+    recommended_action: "steady",
+    risk_score: 16,
+    risk_tier: "low",
+    senior_message: "Your latest readings look steady. Keep checking them at your usual time.",
+    caregiver_note: "Karim's latest readings are steady, with no new alert.",
+    acknowledged_at: null,
+  },
+  recent_readings: [
+    {
+      signal_type: "resting_hr_bpm",
+      value: 72,
+      recorded_at: "2026-08-28T08:30:00.000Z",
+      source: "manual_entry",
+      source_confidence: "high",
+      source_display_label: "Manual reading",
+      source_context_label: "Morning",
+      deviation_pct: 1.4,
+      context_tag: "morning",
+    },
+    {
+      signal_type: "oxygen_saturation",
+      value: 98,
+      recorded_at: "2026-08-28T08:29:00.000Z",
+      source: "device",
+      source_confidence: "high",
+      source_display_label: "Pulse oximeter",
+      source_context_label: "Resting",
+      deviation_pct: 0,
+      context_tag: "resting",
+    },
+    {
+      signal_type: "temperature_c",
+      value: 36.7,
+      recorded_at: "2026-08-28T08:28:00.000Z",
+      source: "device",
+      source_confidence: "high",
+      source_display_label: "Thermometer",
+      source_context_label: "Now",
+      deviation_pct: 0,
+      context_tag: "general",
+    },
+    {
+      signal_type: "glucose_mgdl",
+      value: 104,
+      recorded_at: "2026-08-28T07:45:00.000Z",
+      source: "manual_entry",
+      source_confidence: "high",
+      source_display_label: "Glucose meter",
+      source_context_label: "Fasting",
+      deviation_pct: 2.9,
+      context_tag: "fasting",
+    },
+    {
+      signal_type: "mood_score",
+      value: 8,
+      recorded_at: "2026-08-28T08:15:00.000Z",
+      source: "manual_entry",
+      source_confidence: "high",
+      source_display_label: "Daily check-in",
+      source_context_label: "Today",
+      deviation_pct: 0,
+      context_tag: "general",
+    },
+    {
+      signal_type: "sleep_quality_score",
+      value: 7,
+      recorded_at: "2026-08-28T08:10:00.000Z",
+      source: "manual_entry",
+      source_confidence: "high",
+      source_display_label: "Daily check-in",
+      source_context_label: "Last night",
+      deviation_pct: -4.1,
+      context_tag: "general",
+    },
+  ],
+  latest_alert: null,
 };
 const WelcomeScreen = lazy(() => import("./pages/onboarding/WelcomeScreen"));
 const WhoForStep = lazy(() => import("./pages/onboarding/WhoForStep"));
@@ -752,6 +836,18 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
           firstNameOverride="Karim"
           backPath="/dev/home-master/health"
           themeOverride={requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : undefined}
+        />
+      </AppShell>
+    );
+  }
+
+  if (kind === "vitals") {
+    return (
+      <AppShell>
+        <VitalsScreen
+          previewData={VITALS_PREVIEW_DATA}
+          previewConditions={["hypertension"]}
+          backPath="/dev/home-master/health"
         />
       </AppShell>
     );

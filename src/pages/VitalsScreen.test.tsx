@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import VitalsScreen from "./VitalsScreen";
 
 const mocks = vi.hoisted(() => ({
@@ -45,6 +45,10 @@ vi.mock("@/components/VitalsTracker", () => ({
 }));
 
 describe("VitalsScreen", () => {
+  beforeEach(() => {
+    mocks.trackerProps.mockClear();
+  });
+
   it("renders the dedicated Vitals experience without Longevity content", () => {
     render(
       <MemoryRouter>
@@ -64,6 +68,33 @@ describe("VitalsScreen", () => {
       gpPhone: "+441234567890",
       gpEmail: "gp@example.com",
       caregiverContact: "+449876543210",
+    }));
+  });
+
+  it("renders representative readings for the local Vitals preview", () => {
+    const previewData = {
+      analysis: {
+        safety_status: "steady" as const,
+        senior_message: "Your latest readings look steady.",
+      },
+      recent_readings: [],
+      latest_alert: null,
+    };
+
+    render(
+      <MemoryRouter>
+        <VitalsScreen
+          previewData={previewData}
+          previewConditions={["hypertension"]}
+          backPath="/dev/home-master/health"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(mocks.trackerProps).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "preview-user",
+      userConditions: ["hypertension"],
+      previewData,
     }));
   });
 });
