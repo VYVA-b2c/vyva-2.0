@@ -791,6 +791,10 @@ describe("triage route wizard questions", () => {
 
     expect(res.body.done).toBe(true);
     expect(res.body.medicalFollowups).toEqual([]);
+    expect(openAiCreateMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      { timeout: 7_000 },
+    );
   });
 
   it("returns the deterministic safety summary when the AI provider fails", async () => {
