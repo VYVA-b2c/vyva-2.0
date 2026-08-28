@@ -1413,12 +1413,12 @@ export default function VitalsTracker({
     const signals = visibleSignalEntries.filter(([key]) => VITALS_SIGNAL_CATALOG[key].displayGroup === group);
     return signals.length ? [{ group, signals }] : [];
   });
-  const safetyHeroTone: "green" | "amber" | "red" =
+  const safetyHeroAccent =
     safetyStatus === "steady"
-      ? "green"
+      ? "border-l-[#047857]"
       : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver"
-        ? "amber"
-        : "red";
+        ? "border-l-[#D97706]"
+        : "border-l-[#B91C1C]";
 
   return (
     <section className="space-y-4" data-testid="vitals-engine-dashboard">
@@ -1433,12 +1433,12 @@ export default function VitalsTracker({
         <>
           <div data-testid="vitals-hero">
             <HealthWizardHero
-              tone={safetyHeroTone}
-              icon={<SafetyIcon className="h-7 w-7" />}
+              tone="light"
+              icon={<SafetyIcon className="h-7 w-7" style={{ color: safety.color }} />}
               kicker={copy.safetyTitle}
               title={safetyLabel(safetyStatus, language)}
               body={analysis?.senior_message ?? copy.messageFallback}
-              className="md:p-6"
+              className={`border-l-[6px] md:p-6 ${safetyHeroAccent}`}
             >
             {heroReadings.length ? (
               <div className="flex flex-wrap gap-2" data-testid="vitals-hero-metrics">
@@ -1478,27 +1478,6 @@ export default function VitalsTracker({
             ) : null}
             </HealthWizardHero>
           </div>
-
-          <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-evidence-guide">
-            <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
-                <ShieldCheck className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
-              <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="border-t border-[#F0E7F4] px-4 pb-4 pt-3">
-              <p className="font-body text-[16px] font-bold leading-relaxed text-[#5D4D64]">{copy.evidenceBody}</p>
-              <div className="mt-3 grid gap-2">
-                {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
-                  <div key={item} className="flex min-h-[48px] items-center gap-3 border-b border-[#F0E7F4] px-1 py-2 last:border-b-0 font-body text-[14px] font-bold text-[#6B5B52]">
-                    <Check className="h-4 w-4 flex-shrink-0 text-[#047857]" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </details>
 
           {(safetyStatus !== "steady" || latestAlert) ? (
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
@@ -1555,7 +1534,7 @@ export default function VitalsTracker({
                   </h3>
                   <div className="h-px flex-1 bg-[#E7DDF0]" />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="divide-y divide-[#EFE7F3] overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
                   {signals.map(([key]) => (
                     <SignalCard
                       key={key}
@@ -1570,6 +1549,27 @@ export default function VitalsTracker({
               </section>
             ))}
           </div>
+
+          <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-evidence-guide">
+            <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
+                <ShieldCheck className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
+              <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-[#F0E7F4] px-4 pb-4 pt-3">
+              <p className="font-body text-[16px] font-bold leading-relaxed text-[#5D4D64]">{copy.evidenceBody}</p>
+              <div className="mt-3 grid gap-2">
+                {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
+                  <div key={item} className="flex min-h-[48px] items-center gap-3 border-b border-[#F0E7F4] px-1 py-2 last:border-b-0 font-body text-[14px] font-bold text-[#6B5B52]">
+                    <Check className="h-4 w-4 flex-shrink-0 text-[#047857]" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
 
           {!analysis?.senior_message && recentReadings.length === 0 && (
             <div className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-5">
@@ -1693,29 +1693,48 @@ function SignalCard({
         ? Activity
         : Keyboard;
 
-  return (
-    <article className="min-h-[152px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-          <SignalIcon type={cfg.icon} className="h-7 w-7" />
+  const rowContent = (
+    <>
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
+          <SignalIcon type={cfg.icon} className="h-6 w-6" />
         </div>
-        {sourceBadge && (
-          <span className="flex items-center gap-1 rounded-full px-2 py-1 font-body text-[10px] font-black" style={{ background: sourceBadge.bg, color: sourceBadge.color }} title={sourceBadge.fullLabel} aria-label={sourceBadge.fullLabel}>
-            <SourceIcon className="h-3 w-3" />
-            {sourceBadge.shortLabel}
-          </span>
-        )}
-      </div>
-      <p className="font-body text-[18px] font-bold text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
-      <p className="mt-1 font-body text-[24px] font-bold leading-tight text-[#2F241F]">{display}</p>
-      <p className="mt-2 font-body text-[18px] font-bold text-[#7A6A60]">{subLabel}</p>
-      {sourceBadge ? (
-        <details className="mt-3 border-t border-[#F0E7F4] pt-2">
-          <summary className="cursor-pointer font-body text-[11px] font-black text-[#7C3AED]">Reading details</summary>
-          <p className="mt-2 font-body text-[12px] font-bold text-[#6B5B72]">Source: {sourceBadge.fullLabel}</p>
-          {reading?.recorded_at ? <p className="mt-1 font-body text-[12px] text-[#7A6A80]">{relativeTime(reading.recorded_at, language)}</p> : null}
-        </details>
-      ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[16px] font-bold leading-tight text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
+          <p className="mt-1 font-body text-[22px] font-black leading-tight text-[#2F241F]">{display}</p>
+        </div>
+        <div className="flex flex-shrink-0 flex-col items-end gap-2 text-right">
+          {sourceBadge ? (
+            <span className="flex items-center gap-1 rounded-full px-2 py-1 font-body text-[10px] font-black" style={{ background: sourceBadge.bg, color: sourceBadge.color }} title={sourceBadge.fullLabel} aria-label={sourceBadge.fullLabel}>
+              <SourceIcon className="h-3 w-3" />
+              {sourceBadge.shortLabel}
+            </span>
+          ) : null}
+          <p className="font-body text-[14px] font-bold text-[#7A6A60]">{subLabel}</p>
+        </div>
+    </>
+  );
+
+  if (!sourceBadge) {
+    return (
+      <article className="flex min-h-[88px] items-center gap-3 px-4 py-3 sm:px-5">
+        {rowContent}
+      </article>
+    );
+  }
+
+  return (
+    <article className="px-4 sm:px-5">
+      <details className="group">
+        <summary className="vyva-tap flex min-h-[88px] cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+          {rowContent}
+          <ChevronDown className="h-5 w-5 flex-shrink-0 text-[#7C3AED] transition-transform group-open:rotate-180" aria-hidden="true" />
+          <span className="sr-only">Reading details</span>
+        </summary>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#F0E7F4] pb-3 pt-2 font-body text-[12px] text-[#6B5B72]">
+          <span className="font-bold">Source: {sourceBadge.fullLabel}</span>
+          {reading?.recorded_at ? <span>{relativeTime(reading.recorded_at, language)}</span> : null}
+        </div>
+      </details>
     </article>
   );
 }
