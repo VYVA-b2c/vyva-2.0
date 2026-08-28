@@ -47,6 +47,8 @@ import { selectTriageScanOffer } from "@/lib/triageScanOffers";
 import type { TriageScanResult, TriageScanType } from "../../shared/triageScans";
 import type { VitalsReadingSource } from "../../shared/vitalsEvidence";
 
+const TRIAGE_REQUEST_TIMEOUT_MS = 20_000;
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -655,7 +657,7 @@ export default function TriageChat({
       setLoading(true);
       onStageChange?.("checking");
       const requestController = new AbortController();
-      const requestTimeout = window.setTimeout(() => requestController.abort(), 15_000);
+      const requestTimeout = window.setTimeout(() => requestController.abort(), TRIAGE_REQUEST_TIMEOUT_MS);
       try {
         const wizardVitals = {
           ...acquiredVitals,

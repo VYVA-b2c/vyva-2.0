@@ -266,6 +266,39 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.queryByTestId("triage-request-error")).not.toBeInTheDocument();
   });
 
+  it("does not abort a slow but valid 16-second triage response", async () => {
+    vi.useFakeTimers();
+    let requestSignal: AbortSignal | undefined;
+    apiFetchMock.mockImplementationOnce((_url, init) => {
+      requestSignal = init?.signal as AbortSignal;
+      return new Promise<Response>((resolve) => {
+        window.setTimeout(() => resolve(triageResponse({
+          role: "assistant",
+          content: "The check completed safely.",
+          done: false,
+          quickReplies,
+          evidenceSources: [],
+        })), 16_000);
+      });
+    });
+
+    await renderTriageChat();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(requestSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(16_000);
+      await Promise.resolve();
+    });
+    expect(requestSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(4_000);
+      await Promise.resolve();
+    });
+    expect(requestSignal?.aborted).toBe(false);
+  });
+
   it("renders a compact accessible severity slider with one primary continuation", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
