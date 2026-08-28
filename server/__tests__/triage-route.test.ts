@@ -793,6 +793,34 @@ describe("triage route wizard questions", () => {
     expect(res.body.medicalFollowups).toEqual([]);
   });
 
+  it("returns the deterministic safety summary when the AI provider fails", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("MEDISEARCH_API_KEY", "");
+    openAiCreateMock.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "fr",
+        messages: [{ role: "user", content: "Je me sens étourdi" }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: completedAnswers([
+            { id: "dizzy", label: "Dizzy or weak", value: "I feel dizzy or close to fainting.", kind: "symptom" },
+            { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" },
+            { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
+            { id: "few_days", label: "Few days", value: "It has been going on for a few days.", kind: "duration" },
+            { id: "after_medicine_surgery_fall", label: "After medicine or care", value: "It started after medicine, surgery, a hospital stay, or a fall.", kind: "trend" },
+          ]),
+        },
+      })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ done: true, wizardStage: "complete" });
+    expect(res.body.summary).toBeDefined();
+    expect(res.body.quickReplies).toEqual([]);
+  });
+
   it("returns a refined report instead of a safety prompt when a post-report vital is added", async () => {
     const previousApiKey = process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_API_KEY;

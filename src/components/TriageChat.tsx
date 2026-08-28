@@ -489,6 +489,7 @@ export default function TriageChat({
   const [readingDisclosure, setReadingDisclosure] = useState("");
   const [requestError, setRequestError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const requestErrorRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recRef = useRef<BrowserSpeechRecognition | null>(null);
   const pendingResumeSentRef = useRef(false);
@@ -562,6 +563,14 @@ export default function TriageChat({
       }
     }, 80);
   }, [presentationStage]);
+
+  useEffect(() => {
+    if (!requestError) return;
+    const timeoutId = window.setTimeout(() => {
+      requestErrorRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [requestError]);
 
   const animateMessage = useCallback(
     (_msgIdx: number, _fullText: string, onDone?: () => void) => {
@@ -936,6 +945,16 @@ export default function TriageChat({
     duration: t("health.symptomCheck.chat.reviewOnset", "When it started"),
     trend: t("health.symptomCheck.chat.reviewRelatedDetail", "Related detail"),
   };
+  const reviewAnswerLabelById: Record<string, string> = {
+    today: t("health.symptomCheck.chat.reviewAnswerToday", "Started today"),
+    few_days: t("health.symptomCheck.chat.reviewAnswerFewDays", "Few days"),
+    week_plus: t("health.symptomCheck.chat.reviewAnswerWeekPlus", "Longer than a few days"),
+    not_sure: t("health.symptomCheck.chat.reviewAnswerNotSure", "I am not sure"),
+    after_medicine_surgery_fall: t(
+      "health.symptomCheck.chat.reviewAnswerAfterCare",
+      "It started after medicine, surgery, hospital, or a fall",
+    ),
+  };
   const canonicalReviewItems = [
     ...(symptomSummary
       ? [{ label: t("health.symptomCheck.chat.reviewSymptom", "Symptom"), value: symptomSummary }]
@@ -945,7 +964,7 @@ export default function TriageChat({
       .slice(-4)
       .map((answer) => ({
         label: reviewLabelByKind[answer.kind],
-        value: answer.label,
+        value: reviewAnswerLabelById[answer.id] ?? answer.label,
       })),
   ];
   const usesNumericSeverityScale = presentationStage === "severity"
@@ -983,6 +1002,11 @@ export default function TriageChat({
           const { id, label, value, Icon, accent } = quickAnswer;
           const isSafetyChoice = presentationStage === "safety_check";
           const isReviewAction = presentationStage === "review";
+          const reviewActionLabel = id === "edit_answers" || id === "change"
+            ? t("health.symptomCheck.chat.reviewEdit", "Edit")
+            : id === "confirm_review" || id === "confirm"
+              ? t("health.symptomCheck.chat.reviewShowGuidance", "Yes, show my guidance")
+              : label;
 
           if (isSafetyChoice) {
             return (
@@ -1016,7 +1040,7 @@ export default function TriageChat({
               onClick={() => void sendText(value, quickAnswer)}
               className={`vyva-tap flex min-h-[54px] items-center justify-center rounded-full border px-3 text-center text-[14px] font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8B5CF6]/30 ${isDark ? "border-white/[0.18] bg-[#352842] text-[#FFF8FF] hover:border-[#8B5CF6]/55 hover:bg-[#45325E]" : "border-[#D9CFE0] bg-white text-[#241238] hover:border-[#BFA2D8]"}`}
             >
-              <span>{label}</span>
+              <span>{reviewActionLabel}</span>
             </button>
           );
         })}
@@ -1046,7 +1070,11 @@ export default function TriageChat({
     <div className="symptom-canonical-triage flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className={presentationStage ? "pb-[calc(11rem+env(safe-area-inset-bottom))] pt-4" : "px-4 py-4"}
+        className={presentationStage
+          ? requestError
+            ? "pb-[calc(18rem+env(safe-area-inset-bottom))] pt-4"
+            : "pb-[calc(11rem+env(safe-area-inset-bottom))] pt-4"
+          : "px-4 py-4"}
       >
         <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5">
           {showProgressCard ? (
@@ -1232,6 +1260,8 @@ export default function TriageChat({
                 showHeader={false}
                 title={presentationStage === "symptom_selection" && hasRepeatedInitialSymptom
                   ? t("health.symptomCheck.chat.anythingElse", "Anything else?")
+                  : presentationStage === "review"
+                    ? t("health.symptomCheck.chat.reviewConfirmTitle", "Does this look right?")
                   : usesRuntimeQuestion
                     ? latestQuestion.trim() || undefined
                     : undefined}
@@ -1286,9 +1316,10 @@ export default function TriageChat({
 
           {requestError ? (
             <section
+              ref={requestErrorRef}
               role="alert"
               data-testid="triage-request-error"
-              className={`mx-auto w-full max-w-[520px] rounded-[20px] border px-4 py-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] ${isDark ? "border-[#F8AE1B]/35 bg-[#382D24] text-[#FFF1C8]" : "border-[#E8CF9D] bg-[#FFFCF5] text-[#5F3A00]"}`}
+              className={`mx-auto w-full max-w-[520px] scroll-mb-[calc(9rem+env(safe-area-inset-bottom))] rounded-[20px] border px-4 py-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] ${isDark ? "border-[#F8AE1B]/35 bg-[#382D24] text-[#FFF1C8]" : "border-[#E8CF9D] bg-[#FFFCF5] text-[#5F3A00]"}`}
             >
               <div className="flex items-start gap-3">
                 <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[12px] ${isDark ? "bg-[#52402A]" : "bg-[#FFF5DD]"}`}>
@@ -1298,7 +1329,7 @@ export default function TriageChat({
                   <p className="font-body text-[15px] font-black leading-snug">{requestError}</p>
                   <button
                     type="button"
-                    className={`vyva-tap mt-3 min-h-[46px] rounded-full border px-5 font-body text-[14px] font-black ${isDark ? "border-[#F8AE1B]/50 bg-[#2B211A] text-[#FFD98A]" : "border-[#D6AE5B] bg-white text-[#7A4A00]"}`}
+                    className={`vyva-tap mt-3 min-h-[46px] w-full rounded-full border px-5 font-body text-[14px] font-black sm:w-auto ${isDark ? "border-[#F8AE1B]/50 bg-[#2B211A] text-[#FFD98A]" : "border-[#D6AE5B] bg-white text-[#7A4A00]"}`}
                     onClick={() => {
                       const pending = lastRequestRef.current;
                       if (!pending) return;

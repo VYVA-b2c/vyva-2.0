@@ -255,6 +255,8 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     const alert = await screen.findByTestId("triage-request-error");
     expect(alert).toHaveTextContent(/try again/i);
+    expect(alert).toHaveClass("scroll-mb-[calc(9rem+env(safe-area-inset-bottom))]");
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveClass("w-full");
     expect(onStageChange).toHaveBeenNthCalledWith(1, "checking");
     expect(onStageChange).toHaveBeenLastCalledWith("red_flag");
 
@@ -367,6 +369,37 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(review).not.toHaveTextContent("Nothing else");
     expect(review).toHaveTextContent("When it started");
     expect(review).toHaveTextContent("Related detail");
+  });
+
+  it("localizes the French review chrome without changing the submitted answer values", async () => {
+    setLanguage("fr");
+
+    await renderTriageChat({
+      initialClue: "Je me sens étourdi ou proche du malaise",
+      presentationStage: "review",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Does this look right?" }],
+        selectedQuickAnswers: [
+          { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
+          { id: "few_days", label: "Few days", value: "It has been going on for a few days.", kind: "duration" },
+          { id: "after_medicine_surgery_fall", label: "It started after medicine, surgery, hospital, or a fall", value: "It started after medicine, surgery, a hospital stay, or a fall.", kind: "trend" },
+        ],
+        apiQuickReplies: [
+          { id: "edit_answers", label: "Edit", value: "I want to edit my answers.", icon: "activity", tone: "purple", kind: "support" },
+          { id: "confirm_review", label: "Yes, show my guidance", value: "These answers are correct. Show my guidance.", icon: "help", tone: "purple", kind: "support" },
+        ],
+      },
+    });
+
+    const review = await screen.findByTestId("symptom-scene-review");
+    expect(screen.getByRole("heading", { name: "Est-ce correct ?" })).toBeVisible();
+    expect(review).toHaveTextContent("Symptôme");
+    expect(review).toHaveTextContent("Intensité");
+    expect(review).toHaveTextContent("Quelques jours");
+    expect(review).toHaveTextContent("Cela a commencé après un médicament");
+    expect(screen.getByRole("button", { name: "Modifier" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Oui, afficher mes conseils" })).toBeVisible();
   });
 
   it("returns to severity when the user edits the review", async () => {
