@@ -30,19 +30,18 @@ function renderTracker() {
 }
 
 describe("VitalsTracker redesign", () => {
-  it("uses the real safety label, hides raw risk by default, and groups readings", () => {
+  it("uses the real safety label, shows a labelled risk score, and declutters untracked readings", () => {
     renderTracker();
 
     expect(screen.getByTestId("vitals-hero")).toHaveTextContent("Steady");
-    expect(screen.queryByText("Risk score: 16/100 — lower is better.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("vitals-hero-metrics")).toHaveTextContent("Pulse: 72 bpm");
+    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
+    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
+    expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Lower is better");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Heart");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Breathing");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
     expect(screen.getByLabelText("Device - High")).toHaveTextContent("Device");
-
-    fireEvent.click(screen.getByRole("button", { name: "See details" }));
-    expect(screen.getByTestId("vitals-risk-details")).toHaveTextContent("Risk score: 16/100 — lower is better.");
+    expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
   });
 
   it("opens a vital-first picker and keeps phone camera separate from device photo", () => {

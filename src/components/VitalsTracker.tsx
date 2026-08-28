@@ -779,6 +779,15 @@ const DISPLAY_GROUP_LABELS: Record<VitalsDisplayGroup, Record<Language, string>>
   labs: { en: "Labs", es: "Analisis", de: "Labor", fr: "Analyses", it: "Esami", pt: "Analises" },
 };
 
+const DASHBOARD_LABELS: Record<Language, { latest: string; more: string; risk: string; lower: string }> = {
+  en: { latest: "Latest readings", more: "More vitals", risk: "Risk score", lower: "Lower is better" },
+  es: { latest: "Últimas mediciones", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor" },
+  de: { latest: "Letzte Messwerte", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser" },
+  fr: { latest: "Dernières mesures", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux" },
+  it: { latest: "Ultime letture", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio" },
+  pt: { latest: "Leituras recentes", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor" },
+};
+
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
   const common = `h-8 w-8 ${className}`;
   if (type === "heart") return <HeartPulse className={common} />;
@@ -1033,7 +1042,6 @@ export default function VitalsTracker({
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>(previewData?.recent_readings ?? []);
   const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(previewData?.latest_alert ?? null);
   const [loading, setLoading] = useState(!previewData);
-  const [riskDetailsOpen, setRiskDetailsOpen] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1400,19 +1408,20 @@ export default function VitalsTracker({
   }
 
   const latestBySignal = latestReadingMap(recentReadings);
-  const heroReadings: RecentReading[] = [];
-  const heroSignals = new Set<string>();
-  for (const reading of recentReadings) {
-    if (!(reading.signal_type in SIGNAL_CONFIG) || heroSignals.has(reading.signal_type)) continue;
-    heroSignals.add(reading.signal_type);
-    heroReadings.push(reading);
-    if (heroReadings.length === 3) break;
-  }
   const visibleSignalEntries = visibleSignals.filter(([key]) => !VITALS_SIGNAL_CATALOG[key].futureReady);
   const readingGroups = DISPLAY_GROUP_ORDER.flatMap((group) => {
     const signals = visibleSignalEntries.filter(([key]) => VITALS_SIGNAL_CATALOG[key].displayGroup === group);
     return signals.length ? [{ group, signals }] : [];
   });
+  const trackedReadingGroups = readingGroups.flatMap(({ group, signals }) => {
+    const trackedSignals = signals.filter(([key]) => Boolean(latestBySignal[key]));
+    return trackedSignals.length ? [{ group, signals: trackedSignals }] : [];
+  });
+  const untrackedReadingGroups = readingGroups.flatMap(({ group, signals }) => {
+    const untrackedSignals = signals.filter(([key]) => !latestBySignal[key]);
+    return untrackedSignals.length ? [{ group, signals: untrackedSignals }] : [];
+  });
+  const dashboardLabels = DASHBOARD_LABELS[language];
   const safetyHeroAccent =
     safetyStatus === "steady"
       ? "border-l-[#047857]"
@@ -1440,42 +1449,29 @@ export default function VitalsTracker({
               body={analysis?.senior_message ?? copy.messageFallback}
               className={`border-l-[6px] md:p-6 ${safetyHeroAccent}`}
             >
-            {heroReadings.length ? (
-              <div className="flex flex-wrap gap-2" data-testid="vitals-hero-metrics">
-                {heroReadings.map((reading) => {
-                  const key = reading.signal_type as SignalKey;
-                  const meta = VITALS_SIGNAL_CATALOG[key];
-                  const value = numberValue(reading.value);
-                  return (
-                    <span key={reading.signal_type} className="rounded-full bg-white/90 px-4 py-2 font-body text-[14px] font-black text-[#3B2C42] shadow-[0_4px_12px_rgba(53,28,87,0.06)]">
-                      {meta.shortLabel}: {value ?? "--"}{meta.unit ? ` ${meta.unit}` : ""}
-                    </span>
-                  );
-                })}
+            <div className="grid gap-3 sm:grid-cols-[minmax(190px,240px)_1fr] sm:items-center">
+              <div
+                className="rounded-[22px] bg-[#F5F3FF] px-5 py-4 text-[#27152F]"
+                data-testid="vitals-risk-score"
+                aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
+              >
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">{dashboardLabels.risk}</p>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="font-display text-[44px] font-semibold leading-none">{riskScore}</span>
+                  <span className="font-body text-[18px] font-black text-[#6B5B72]">/100</span>
+                </div>
+                <p className="mt-1 font-body text-[13px] font-bold text-[#6B5B72]">{dashboardLabels.lower}</p>
               </div>
-            ) : null}
-
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={() => setScreen("add")}
-                className="vyva-tap flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 font-body text-[17px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)]"
+                className="vyva-tap flex min-h-[62px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 font-body text-[18px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)]"
                 data-testid="button-vitals-hero-add"
               >
                 <Plus className="h-5 w-5" />
                 {copy.add}
               </button>
-              <button type="button" onClick={() => setRiskDetailsOpen((open) => !open)} className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full bg-white/80 px-5 font-body text-[15px] font-black text-[#6B21A8]" aria-expanded={riskDetailsOpen}>
-                {riskDetailsOpen ? "Hide details" : "See details"}
-                <ChevronDown className={`h-4 w-4 transition ${riskDetailsOpen ? "rotate-180" : ""}`} />
-              </button>
             </div>
-            {riskDetailsOpen ? (
-              <div className="mt-3 rounded-[18px] bg-white/80 px-4 py-3 font-body text-[14px] font-bold text-[#5D4D64]" data-testid="vitals-risk-details">
-                <span className="font-black text-[#27152F]">Risk score: {riskScore}/100 — lower is better.</span>
-                <span className="ml-2">This score helps VYVA choose the right level of follow-up; it is not a percentage of health.</span>
-              </div>
-            ) : null}
             </HealthWizardHero>
           </div>
 
@@ -1525,30 +1521,66 @@ export default function VitalsTracker({
           </div>
           ) : null}
 
-          <div className="mt-6 space-y-6" data-testid="vitals-reading-groups">
-            {readingGroups.map(({ group, signals }) => (
-              <section key={group} aria-labelledby={`vitals-group-${group}`}>
-                <div className="mb-3 flex items-center gap-3">
-                  <h3 id={`vitals-group-${group}`} className="font-body text-[13px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
-                    {DISPLAY_GROUP_LABELS[group][language]}
-                  </h3>
-                  <div className="h-px flex-1 bg-[#E7DDF0]" />
-                </div>
-                <div className="divide-y divide-[#EFE7F3] overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
-                  {signals.map(([key]) => (
-                    <SignalCard
-                      key={key}
-                      signalKey={key}
-                      reading={latestBySignal[key]}
-                      language={language}
-                      normalLabel={copy.normal}
-                      todayLabel={copy.today}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+          {trackedReadingGroups.length ? (
+            <section className="mt-6" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
+              <h2 id="vitals-latest-readings" className="mb-3 font-body text-[13px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                {dashboardLabels.latest}
+              </h2>
+              <div className="overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
+                {trackedReadingGroups.map(({ group, signals }, groupIndex) => (
+                  <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? "border-t border-[#E1D6E7]" : ""}>
+                    <h3 id={`vitals-group-${group}`} className="bg-[#FFFCF8] px-5 py-2 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                      {DISPLAY_GROUP_LABELS[group][language]}
+                    </h3>
+                    <div className="divide-y divide-[#EFE7F3]">
+                      {signals.map(([key]) => (
+                        <SignalCard
+                          key={key}
+                          signalKey={key}
+                          reading={latestBySignal[key]}
+                          language={language}
+                          normalLabel={copy.normal}
+                          todayLabel={copy.today}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {untrackedReadingGroups.length ? (
+            <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-more-readings">
+              <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
+                  <Activity className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">{dashboardLabels.more}</span>
+                <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="border-t border-[#F0E7F4]">
+                {untrackedReadingGroups.map(({ group, signals }, groupIndex) => (
+                  <section key={group} aria-labelledby={`vitals-more-group-${group}`} className={groupIndex ? "border-t border-[#E1D6E7]" : ""}>
+                    <h3 id={`vitals-more-group-${group}`} className="bg-[#FFFCF8] px-5 py-2 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                      {DISPLAY_GROUP_LABELS[group][language]}
+                    </h3>
+                    <div className="divide-y divide-[#EFE7F3]">
+                      {signals.map(([key]) => (
+                        <SignalCard
+                          key={key}
+                          signalKey={key}
+                          language={language}
+                          normalLabel={copy.normal}
+                          todayLabel={copy.today}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </details>
+          ) : null}
 
           <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-evidence-guide">
             <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
