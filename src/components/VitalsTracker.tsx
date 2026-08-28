@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/components/VitalsAddReadingFlow";
+import { HealthWizardHero } from "@/components/health/HealthWizard";
 import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
 
 type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
@@ -82,7 +83,7 @@ const COPY = {
   es: {
     logo: "VYVA",
     add: "Añadir dato",
-    analyse: "Analizar ahora",
+    analyse: "Actualizar evaluación",
     analysing: "Analizando...",
     loading: "Preparando tus signos...",
     back: "Volver",
@@ -117,7 +118,7 @@ const COPY = {
     confidenceLow: "Baja",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Calidad de los datos",
+    evidenceTitle: "Cómo usa VYVA tus datos",
     evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
     evidencePhone: "Telefono: pulso y respiracion estimados",
     evidenceManual: "Manual: dolor, animo, energia, sueno y medicacion",
@@ -128,7 +129,7 @@ const COPY = {
   de: {
     logo: "VYVA",
     add: "Wert hinzufügen",
-    analyse: "Jetzt analysieren",
+    analyse: "Bewertung aktualisieren",
     analysing: "Analysiere...",
     loading: "Werte werden vorbereitet...",
     back: "Zurück",
@@ -163,7 +164,7 @@ const COPY = {
     confidenceLow: "Niedrig",
     confidenceMedium: "Mittel",
     confidenceHigh: "Hoch",
-    evidenceTitle: "Datenqualitat",
+    evidenceTitle: "Wie VYVA Ihre Werte nutzt",
     evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
     evidencePhone: "Telefon: geschatzter Puls und Atmung",
     evidenceManual: "Manuell: Schmerz, Stimmung, Energie, Schlaf und Medikamente",
@@ -174,7 +175,7 @@ const COPY = {
   en: {
     logo: "VYVA",
     add: "Add reading",
-    analyse: "Analyse now",
+    analyse: "Refresh assessment",
     analysing: "Analysing...",
     loading: "Preparing your vitals...",
     back: "Back",
@@ -209,7 +210,7 @@ const COPY = {
     confidenceLow: "Low",
     confidenceMedium: "Medium",
     confidenceHigh: "High",
-    evidenceTitle: "Reading quality",
+    evidenceTitle: "How VYVA uses your readings",
     evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
     evidencePhone: "Phone: estimated pulse and breathing",
     evidenceManual: "Manual: pain, mood, energy, sleep and medication",
@@ -275,7 +276,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   fr: {
     add: "Ajouter une mesure",
-    analyse: "Analyser maintenant",
+    analyse: "Actualiser l'evaluation",
     analysing: "Analyse...",
     loading: "Preparation de vos constantes...",
     back: "Retour",
@@ -301,7 +302,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Faible",
     confidenceMedium: "Moyenne",
     confidenceHigh: "Elevee",
-    evidenceTitle: "Qualite des donnees",
+    evidenceTitle: "Comment VYVA utilise vos mesures",
     evidenceBody: "VYVA combine les estimations du telephone avec les valeurs saisies depuis des appareils. Les estimations aident a voir les tendances; les appareils et mesures cliniques ont plus de poids.",
     evidencePhone: "Telephone : pouls et respiration estimes",
     evidenceManual: "Manuel : douleur, humeur, energie, sommeil et medication",
@@ -321,7 +322,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   it: {
     add: "Aggiungi lettura",
-    analyse: "Analizza ora",
+    analyse: "Aggiorna valutazione",
     analysing: "Analisi...",
     loading: "Preparazione dei parametri...",
     back: "Indietro",
@@ -347,7 +348,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Bassa",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Qualita dei dati",
+    evidenceTitle: "Come VYVA usa le tue letture",
     evidenceBody: "VYVA combina stime del telefono con valori inseriti da dispositivi. Le stime aiutano con i trend; dispositivi e letture cliniche hanno piu peso.",
     evidencePhone: "Telefono: polso e respirazione stimati",
     evidenceManual: "Manuale: dolore, umore, energia, sonno e farmaci",
@@ -367,7 +368,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   pt: {
     add: "Adicionar leitura",
-    analyse: "Analisar agora",
+    analyse: "Atualizar avaliação",
     analysing: "A analisar...",
     loading: "A preparar os seus sinais...",
     back: "Voltar",
@@ -393,7 +394,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Baixa",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Qualidade dos dados",
+    evidenceTitle: "Como a VYVA usa as suas leituras",
     evidenceBody: "A VYVA combina estimativas do telefone com valores introduzidos de dispositivos. As estimativas ajudam nas tendencias; dispositivos e leituras clinicas tem mais peso.",
     evidencePhone: "Telefone: pulso e respiracao estimados",
     evidenceManual: "Manual: dor, humor, energia, sono e medicacao",
@@ -1412,24 +1413,17 @@ export default function VitalsTracker({
     const signals = visibleSignalEntries.filter(([key]) => VITALS_SIGNAL_CATALOG[key].displayGroup === group);
     return signals.length ? [{ group, signals }] : [];
   });
+  const safetyHeroTone: "green" | "amber" | "red" =
+    safetyStatus === "steady"
+      ? "green"
+      : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver"
+        ? "amber"
+        : "red";
 
   return (
-    <section className="rounded-[28px] border border-[#E8DED4] bg-[#FAF9F6] p-5 shadow-[0_14px_34px_rgba(63,45,35,0.08)]" data-testid="vitals-engine-dashboard">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <div className="font-display text-[30px] italic leading-none text-[#6B21A8]">{copy.logo}</div>
-        <button
-          type="button"
-          onClick={triggerAnalysis}
-          disabled={analysing}
-          className="flex min-h-[64px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[18px] font-bold text-[#6B21A8]"
-        >
-          {analysing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-          {analysing ? copy.analysing : copy.analyse}
-        </button>
-      </div>
-
+    <section className="space-y-4" data-testid="vitals-engine-dashboard">
       {loading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-[26px] bg-white">
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
           <div className="text-center font-body text-[20px] font-bold text-[#6B5B52]">
             <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#6B21A8]" />
             {copy.loading}
@@ -1437,28 +1431,17 @@ export default function VitalsTracker({
         </div>
       ) : (
         <>
-          <div className="rounded-[30px] px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.10)]" style={{ background: safety.bg }} data-testid="vitals-hero">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: safety.color }}>{copy.safetyTitle}</p>
-                <h2 className="mt-2 font-display text-[38px] font-bold leading-none text-[#27152F]">{safetyLabel(safetyStatus, language)}</h2>
-                <p className="mt-3 max-w-[680px] font-body text-[18px] font-bold leading-relaxed text-[#493B50]">
-                  {analysis?.senior_message ?? copy.messageFallback}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setScreen("add")}
-                className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_10px_24px_rgba(107,33,168,0.25)]"
-                aria-label={copy.add}
-                data-testid="button-vitals-hero-add"
-              >
-                <Plus className="h-7 w-7" />
-              </button>
-            </div>
-
+          <div data-testid="vitals-hero">
+            <HealthWizardHero
+              tone={safetyHeroTone}
+              icon={<SafetyIcon className="h-7 w-7" />}
+              kicker={copy.safetyTitle}
+              title={safetyLabel(safetyStatus, language)}
+              body={analysis?.senior_message ?? copy.messageFallback}
+              className="md:p-6"
+            >
             {heroReadings.length ? (
-              <div className="mt-5 flex flex-wrap gap-2" data-testid="vitals-hero-metrics">
+              <div className="flex flex-wrap gap-2" data-testid="vitals-hero-metrics">
                 {heroReadings.map((reading) => {
                   const key = reading.signal_type as SignalKey;
                   const meta = VITALS_SIGNAL_CATALOG[key];
@@ -1472,37 +1455,50 @@ export default function VitalsTracker({
               </div>
             ) : null}
 
-            <button type="button" onClick={() => setRiskDetailsOpen((open) => !open)} className="mt-5 flex min-h-[44px] items-center gap-2 rounded-full bg-white/75 px-4 font-body text-[14px] font-black text-[#6B21A8]" aria-expanded={riskDetailsOpen}>
-              {riskDetailsOpen ? "Hide details" : "See details"}
-              <ChevronDown className={`h-4 w-4 transition ${riskDetailsOpen ? "rotate-180" : ""}`} />
-            </button>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={() => setScreen("add")}
+                className="vyva-tap flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 font-body text-[17px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)]"
+                data-testid="button-vitals-hero-add"
+              >
+                <Plus className="h-5 w-5" />
+                {copy.add}
+              </button>
+              <button type="button" onClick={() => setRiskDetailsOpen((open) => !open)} className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full bg-white/80 px-5 font-body text-[15px] font-black text-[#6B21A8]" aria-expanded={riskDetailsOpen}>
+                {riskDetailsOpen ? "Hide details" : "See details"}
+                <ChevronDown className={`h-4 w-4 transition ${riskDetailsOpen ? "rotate-180" : ""}`} />
+              </button>
+            </div>
             {riskDetailsOpen ? (
               <div className="mt-3 rounded-[18px] bg-white/80 px-4 py-3 font-body text-[14px] font-bold text-[#5D4D64]" data-testid="vitals-risk-details">
                 <span className="font-black text-[#27152F]">Risk score: {riskScore}/100 — lower is better.</span>
                 <span className="ml-2">This score helps VYVA choose the right level of follow-up; it is not a percentage of health.</span>
               </div>
             ) : null}
+            </HealthWizardHero>
           </div>
 
-          <div className="mt-4 rounded-[26px] border border-[#DDD6FE] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-evidence-guide">
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-                <ShieldCheck className="h-7 w-7" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">{copy.evidenceTitle}</p>
-                <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#3B2C25]">{copy.evidenceBody}</p>
+          <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-evidence-guide">
+            <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
+                <ShieldCheck className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
+              <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-[#F0E7F4] px-4 pb-4 pt-3">
+              <p className="font-body text-[16px] font-bold leading-relaxed text-[#5D4D64]">{copy.evidenceBody}</p>
+              <div className="mt-3 grid gap-2">
+                {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
+                  <div key={item} className="flex min-h-[48px] items-center gap-3 border-b border-[#F0E7F4] px-1 py-2 last:border-b-0 font-body text-[14px] font-bold text-[#6B5B52]">
+                    <Check className="h-4 w-4 flex-shrink-0 text-[#047857]" />
+                    <span>{item}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="mt-4 grid gap-2">
-              {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-[18px] bg-[#FAF9F6] px-4 py-3 font-body text-[15px] font-bold text-[#6B5B52]">
-                  <Check className="h-5 w-5 flex-shrink-0 text-[#047857]" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          </details>
 
           {(safetyStatus !== "steady" || latestAlert) ? (
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
@@ -1583,9 +1579,20 @@ export default function VitalsTracker({
 
           {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
 
-          <p className="mt-4 text-center font-body text-[18px] font-bold text-[#7A6A60]">
-            {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
-          </p>
+          <div className="mt-2 flex flex-col items-center justify-between gap-3 border-t border-[#E7DDF0] pt-4 sm:flex-row">
+            <p className="font-body text-[15px] font-bold text-[#7A6A60]">
+              {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
+            </p>
+            <button
+              type="button"
+              onClick={triggerAnalysis}
+              disabled={analysing}
+              className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[15px] font-black text-[#6B21A8] disabled:opacity-60"
+            >
+              {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {analysing ? copy.analysing : copy.analyse}
+            </button>
+          </div>
         </>
       )}
     </section>
