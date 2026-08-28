@@ -379,7 +379,7 @@ export function SymptomAssessmentPresentation({
             </p>
           </div>
         ) : displayHelper ? (
-          <p className={`mx-auto mt-3 max-w-[250px] text-[15px] font-semibold leading-[1.42] ${isDark ? "text-[#D8CDE4]" : "text-[#746A72]"}`}>
+          <p className={`mx-auto mt-3 max-w-[320px] text-[16px] font-semibold leading-[1.42] ${isDark ? "text-[#D8CDE4]" : "text-[#746A72]"}`}>
             {displayHelper}
           </p>
         ) : null}

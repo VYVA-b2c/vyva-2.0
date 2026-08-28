@@ -1430,12 +1430,15 @@ export async function runTriageStep(
       ...validMessages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o",
-      messages: openaiMessages,
-      temperature: 0.65,
-      max_tokens: 600,
-    });
+    const completion = await client.chat.completions.create(
+      {
+        model: "gpt-4o",
+        messages: openaiMessages,
+        temperature: 0.65,
+        max_tokens: 600,
+      },
+      { timeout: 10_000 },
+    );
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
     const { content, summary } = extractTriageJson(rawContent);
@@ -1478,7 +1481,25 @@ export async function runTriageStep(
     };
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
-    throw err;
+    const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
+    trackCompletedTriage(fallbackReport.telemetry);
+    return {
+      role: "assistant",
+      content: fallbackReport.content,
+      done: true,
+      summary: fallbackReport.summary,
+      quickReplies: [],
+      wizardStage: stage,
+      wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
+      wizardSymptomId: selectedSymptomId(effectiveWizard),
+      questionReason: null,
+      profileContextUsed: guidancePlan.profileContextUsed,
+      vitalsPrompt: null,
+      guidancePlan,
+      evidenceSources: [],
+      medicalFollowups: [],
+    };
   }
 }
 

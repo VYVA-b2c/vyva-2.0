@@ -427,9 +427,9 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
       quickReply("headache_fever_stiff", "An injury or other symptoms affected it", "trend"),
       quickReply("same", "Nothing clearly changed it", "trend"),
     ]),
-    triageStep("support", "Does this summary look right?", [
-      quickReply("confirm", "Yes, it is right", "review"),
-      quickReply("change", "Change something", "review"),
+    triageStep("support", "Does this look right?", [
+      quickReply("confirm", "Yes, show my guidance", "review"),
+      quickReply("change", "Edit", "review"),
     ]),
     {
       content: "Your assessment is complete.",
@@ -554,9 +554,9 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   await stage("related_details").getByRole("button", { name: "Nothing clearly changed it" }).click();
   await expect(stage("review")).toBeVisible();
   await expect(stage("review").getByTestId("symptom-scene-review")).toBeVisible();
-  await expect(stage("review").getByRole("heading", { name: "Does this summary look right?" })).toBeVisible();
-  await expect(stage("review").getByRole("button", { name: "Yes, it is right" })).toBeVisible();
-  await expect(stage("review").getByRole("button", { name: "Change something" })).toBeVisible();
+  await expect(stage("review").getByRole("heading", { name: "Does this look right?" })).toBeVisible();
+  await expect(stage("review").getByRole("button", { name: "Yes, show my guidance" })).toBeVisible();
+  await expect(stage("review").getByRole("button", { name: "Edit" })).toBeVisible();
   await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(250);
@@ -574,7 +574,7 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await stage("review").getByRole("button", { name: "Yes, it is right" }).click();
+  await stage("review").getByRole("button", { name: "Yes, show my guidance" }).click();
   await expect(stage("checking")).toBeVisible();
   const checkingProgress = stage("checking").getByTestId("symptom-scene-progress");
   await expect(checkingProgress).toBeVisible();
