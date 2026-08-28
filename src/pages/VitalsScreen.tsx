@@ -36,7 +36,7 @@ export default function VitalsScreen({
 
   return (
     <HealthWizardShell
-      contentClassName="max-w-[1180px] px-4 pb-40 sm:px-6 lg:px-8"
+      contentClassName="pb-40"
       testId="vitals-page"
     >
       <HealthWizardTopBar
@@ -44,7 +44,6 @@ export default function VitalsScreen({
         kicker={t("statusVitals.hub.pageKicker", "Health")}
         onBack={() => navigate(backPath)}
         backLabel={t("statusVitals.backToHealth", "Back to My Health")}
-        className="mb-3"
       />
       <VitalsTracker
         userId={previewData ? "preview-user" : user?.id ?? ""}

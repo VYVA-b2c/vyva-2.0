@@ -1447,7 +1447,7 @@ export default function VitalsTracker({
               kicker={copy.safetyTitle}
               title={safetyLabel(safetyStatus, language)}
               body={analysis?.senior_message ?? copy.messageFallback}
-              className={`border-l-[6px] md:p-6 ${safetyHeroAccent}`}
+              className={`border-l-[6px] ${safetyHeroAccent}`}
             >
             <div className="grid gap-3 sm:grid-cols-[minmax(190px,240px)_1fr] sm:items-center">
               <div
@@ -1465,7 +1465,7 @@ export default function VitalsTracker({
               <button
                 type="button"
                 onClick={() => setScreen("add")}
-                className="vyva-tap flex min-h-[62px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 font-body text-[18px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)]"
+                className="vyva-tap flex min-h-[62px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-8 font-body text-[18px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)] sm:min-w-[220px] sm:justify-self-start"
                 data-testid="button-vitals-hero-add"
               >
                 <Plus className="h-5 w-5" />
@@ -1529,7 +1529,7 @@ export default function VitalsTracker({
               <div className="overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
                 {trackedReadingGroups.map(({ group, signals }, groupIndex) => (
                   <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? "border-t border-[#E1D6E7]" : ""}>
-                    <h3 id={`vitals-group-${group}`} className="bg-[#FFFCF8] px-5 py-2 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                    <h3 id={`vitals-group-${group}`} className="px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
                       {DISPLAY_GROUP_LABELS[group][language]}
                     </h3>
                     <div className="divide-y divide-[#EFE7F3]">
@@ -1562,7 +1562,7 @@ export default function VitalsTracker({
               <div className="border-t border-[#F0E7F4]">
                 {untrackedReadingGroups.map(({ group, signals }, groupIndex) => (
                   <section key={group} aria-labelledby={`vitals-more-group-${group}`} className={groupIndex ? "border-t border-[#E1D6E7]" : ""}>
-                    <h3 id={`vitals-more-group-${group}`} className="bg-[#FFFCF8] px-5 py-2 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                    <h3 id={`vitals-more-group-${group}`} className="px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
                       {DISPLAY_GROUP_LABELS[group][language]}
                     </h3>
                     <div className="divide-y divide-[#EFE7F3]">
