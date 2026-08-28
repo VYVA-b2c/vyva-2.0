@@ -81,6 +81,18 @@ describe("HealthDevicesSettings", () => {
     expect(screen.getByTestId("device-settings-card-glucose_meter")).toHaveTextContent("Glucose meter / CGM");
     expect(screen.getByTestId("device-settings-card-weight_scale")).toHaveTextContent("Weight scale");
     expect(screen.getByTestId("device-settings-card-heart_monitor")).toHaveTextContent("Heart-rate strap / BLE monitor");
+    expect(screen.getByTestId("provider-settings-card-apple_health")).toHaveTextContent("Apple Health");
+    expect(screen.getByTestId("provider-settings-card-libreview")).toHaveTextContent("LibreView");
+    expect(screen.getByTestId("provider-settings-card-withings")).toHaveTextContent("Withings");
+  });
+
+  it("demonstrates the provider connected state without starting OAuth", () => {
+    renderHealthDevices();
+
+    expect(screen.getByTestId("provider-status-apple_health")).toHaveTextContent("Not connected");
+    fireEvent.click(screen.getByTestId("button-provider-preview-apple_health"));
+    expect(screen.getByTestId("provider-status-apple_health")).toHaveTextContent("Connected demo");
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("routes unsupported Bluetooth users back to Vitals fallbacks", async () => {

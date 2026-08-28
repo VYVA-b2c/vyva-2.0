@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Calendar, Car, Check, HeartPulse, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
+import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/components/VitalsAddReadingFlow";
+import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
 
 type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
 type Screen = "dashboard" | "add";
@@ -65,6 +67,9 @@ interface RecentReading {
   source_context_label?: string;
   deviation_pct: string | number | null;
   context_tag: string | null;
+  capture_method?: string | null;
+  unit?: string | null;
+  source_ref?: Record<string, unknown> | null;
 }
 
 export interface VitalsTrackerPreviewData {
@@ -761,7 +766,17 @@ function signalContextLabel(signalKey: SignalKey, context: { key: string; label:
   return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.contexts?.[context.key] ?? textFor(context.label, language);
 }
 
-const DASHBOARD_SIGNALS: SignalKey[] = ["resting_hr_bpm", "oxygen_saturation", "temperature_c", "glucose_mgdl", "mood_score", "sleep_quality_score"];
+const DISPLAY_GROUP_ORDER: VitalsDisplayGroup[] = ["heart", "breathing", "blood", "body", "wellbeing", "activity", "labs"];
+
+const DISPLAY_GROUP_LABELS: Record<VitalsDisplayGroup, Record<Language, string>> = {
+  heart: { en: "Heart", es: "Corazon", de: "Herz", fr: "Coeur", it: "Cuore", pt: "Coracao" },
+  breathing: { en: "Breathing", es: "Respiracion", de: "Atmung", fr: "Respiration", it: "Respirazione", pt: "Respiracao" },
+  blood: { en: "Blood", es: "Sangre", de: "Blut", fr: "Sang", it: "Sangue", pt: "Sangue" },
+  body: { en: "Body", es: "Cuerpo", de: "Korper", fr: "Corps", it: "Corpo", pt: "Corpo" },
+  wellbeing: { en: "Wellbeing", es: "Bienestar", de: "Wohlbefinden", fr: "Bien-etre", it: "Benessere", pt: "Bem-estar" },
+  activity: { en: "Activity", es: "Actividad", de: "Aktivitat", fr: "Activite", it: "Attivita", pt: "Atividade" },
+  labs: { en: "Labs", es: "Analisis", de: "Labor", fr: "Analyses", it: "Esami", pt: "Analises" },
+};
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
   const common = `h-8 w-8 ${className}`;
@@ -965,10 +980,10 @@ function readingSourceBadge(reading: RecentReading | undefined, language: Langua
       : confidence === "low"
         ? copy.confidenceLow
         : copy.confidenceMedium;
-  if (source === "phone_estimate") return { label: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
-  if (source === "connected_device") return { label: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
-  if (source === "clinical") return { label: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
-  return { label: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
+  if (source === "phone_estimate") return { shortLabel: copy.sourceEstimated, fullLabel: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
+  if (source === "connected_device") return { shortLabel: copy.sourceDevice, fullLabel: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
+  if (source === "clinical") return { shortLabel: copy.sourceClinical, fullLabel: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
+  return { shortLabel: copy.sourceManual, fullLabel: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
 }
 
 function relativeTime(iso: string | null | undefined, language: Language) {
@@ -1017,24 +1032,25 @@ export default function VitalsTracker({
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>(previewData?.recent_readings ?? []);
   const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(previewData?.latest_alert ?? null);
   const [loading, setLoading] = useState(!previewData);
+  const [riskDetailsOpen, setRiskDetailsOpen] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedSignal, setSelectedSignal] = useState<SignalKey>("resting_hr_bpm");
-  const [inputValue, setInputValue] = useState("");
-  const [selectedContext, setSelectedContext] = useState("general");
-  const [saving, setSaving] = useState(false);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
 
   const copy = useMemo(() => copyFor(language), [language]);
   const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
-  const selectedConfig = SIGNAL_CONFIG[selectedSignal];
   const riskScore = analysis?.risk_score ?? 0;
   const riskColor = getRiskColor(riskScore);
   const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
   const addSource = searchParams.get("source");
-  const openedFromGlucoseAction = (searchParams.get("add") === "glucose" || searchParams.get("add") === "glucose_mgdl") && selectedSignal === "glucose_mgdl";
+  const requestedAddSignal = searchParams.get("add");
+  const initialAddSignal = requestedAddSignal === "glucose"
+    ? "glucose_mgdl"
+    : requestedAddSignal && requestedAddSignal in SIGNAL_CONFIG
+      ? requestedAddSignal as SignalKey
+      : null;
   const safety = safetyTone(safetyStatus);
   const SafetyIcon = safety.Icon;
   const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
@@ -1058,13 +1074,8 @@ export default function VitalsTracker({
   });
 
   useEffect(() => {
-    const signalParam = searchParams.get("add");
-    if (signalParam === "glucose" || signalParam === "glucose_mgdl") {
-      setSelectedSignal("glucose_mgdl");
-      setSelectedContext("general");
-      setScreen("add");
-    }
-  }, [searchParams]);
+    if (initialAddSignal) setScreen("add");
+  }, [initialAddSignal]);
 
   const loadDashboard = useCallback(async () => {
     if (previewData) {
@@ -1091,39 +1102,6 @@ export default function VitalsTracker({
       setLoading(false);
     }
   }, [copy.loadError, previewData, userId]);
-
-  async function saveReading() {
-    const numeric = selectedConfig.isBinary ? Number(inputValue) : Number(inputValue);
-    if (!Number.isFinite(numeric)) return;
-
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await apiFetch("/api/vitals-engine/reading", {
-        method: "POST",
-        credentials: "include",
-        body: JSON.stringify({
-          signal_type: selectedSignal,
-          value: numeric,
-          source: "manual_entry",
-          context_tag: selectedContext,
-          condition_tags: userConditions,
-        }),
-      });
-      if (!response.ok) throw new Error("Save failed");
-      const data = await response.json() as { deviation_pct?: number | null };
-      setScreen("dashboard");
-      setInputValue("");
-      await loadDashboard();
-      if (data.deviation_pct != null && Math.abs(Number(data.deviation_pct)) > 25) {
-        await triggerAnalysis();
-      }
-    } catch {
-      setError(copy.saveError);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function triggerAnalysis() {
     if (previewData) return;
@@ -1223,12 +1201,6 @@ export default function VitalsTracker({
     }
   }
 
-  function selectSignal(key: SignalKey) {
-    setSelectedSignal(key);
-    setSelectedContext(SIGNAL_CONFIG[key].contexts[0]?.key ?? "general");
-    setInputValue("");
-  }
-
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
@@ -1237,12 +1209,6 @@ export default function VitalsTracker({
     window.addEventListener("vyva:vitals-updated", loadDashboard);
     return () => window.removeEventListener("vyva:vitals-updated", loadDashboard);
   }, [loadDashboard]);
-
-  useEffect(() => {
-    if (!visibleSignals.some(([key]) => key === selectedSignal)) {
-      selectSignal(visibleSignals[0]?.[0] ?? "resting_hr_bpm");
-    }
-  }, [visibleSignals, selectedSignal]);
 
   const safetyActionBaseClass = "flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-bold transition active:scale-[0.98] disabled:opacity-60";
 
@@ -1417,151 +1383,35 @@ export default function VitalsTracker({
   // TODO: Optional 40Hz gamma audio layer under daily check-in audio.
 
   if (screen === "add") {
-    const isBinary = selectedConfig.isBinary === true;
-    const canSave = isBinary ? inputValue === "1" || inputValue === "0" : inputValue.trim().length > 0 && Number.isFinite(Number(inputValue));
-
     return (
-      <section className="rounded-[28px] border border-[#E8DED4] bg-[#FAF9F6] p-5 shadow-[0_14px_34px_rgba(63,45,35,0.08)]" data-testid="vitals-engine-add">
-        <button
-          type="button"
-          onClick={() => setScreen("dashboard")}
-          className="mb-6 flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 font-body text-[18px] font-bold text-[#3B2C25] shadow-[0_6px_18px_rgba(63,45,35,0.07)]"
-        >
-          <ArrowLeft className="h-6 w-6" />
-          {copy.back}
-        </button>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {visibleSignals.map(([key, cfg]) => {
-            const active = key === selectedSignal;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => selectSignal(key)}
-                className="flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[24px] border px-3 text-center font-body text-[18px] font-bold transition active:scale-[0.98]"
-                style={{
-                  background: active ? "#6B21A8" : "#FFFFFF",
-                  borderColor: active ? "#6B21A8" : "#E8DED4",
-                  color: active ? "#FFFFFF" : "#3B2C25",
-                }}
-              >
-                <SignalIcon type={cfg.icon} className={active ? "text-white" : "text-[#6B21A8]"} />
-                {signalLabel(key, cfg, language)}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="my-7 h-px bg-[#E8DED4]" />
-
-        <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
-          {signalQuestion(selectedSignal, selectedConfig, language)}
-        </h2>
-        <p className="mt-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
-          {copy.addEvidenceNote}
-        </p>
-
-        {openedFromGlucoseAction ? (
-          <div className="mt-5 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-            <div className="flex items-start gap-3">
-              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
-                <Activity className="h-6 w-6" />
-              </span>
-              <div>
-                <p className="font-body text-[19px] font-black leading-tight text-[#2F241F]">
-                  {addSource === "connected" ? copy.checkConnectedSensor : copy.manualGlucoseEntry}
-                </p>
-                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
-                  {addSource === "connected" ? copy.connectedGlucoseHelp : copy.manualGlucoseHelp}
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {isBinary ? (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setInputValue("1")}
-              className="flex min-h-[96px] items-center justify-center gap-3 rounded-[24px] border px-5 font-body text-[22px] font-bold"
-              style={{
-                background: inputValue === "1" ? "#ECFDF5" : "#FFFFFF",
-                borderColor: inputValue === "1" ? "#22C55E" : "#E8DED4",
-                color: "#14532D",
-              }}
-            >
-              <Check className="h-7 w-7" />
-              {copy.yes}
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputValue("0")}
-              className="flex min-h-[96px] items-center justify-center rounded-[24px] border px-5 font-body text-[22px] font-bold"
-              style={{
-                background: inputValue === "0" ? "#FFF7ED" : "#FFFFFF",
-                borderColor: inputValue === "0" ? "#F59E0B" : "#E8DED4",
-                color: "#92400E",
-              }}
-            >
-              {copy.no}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-6 flex items-end gap-3 rounded-[28px] border-2 border-[#E8DED4] bg-white px-5 py-4">
-            <input
-              type="number"
-              inputMode="decimal"
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              placeholder={selectedConfig.placeholder}
-              className="min-w-0 flex-1 bg-transparent font-body text-[72px] font-bold leading-none text-[#2F241F] outline-none placeholder:text-[#D6C7BA]"
-            />
-            <span className="pb-3 font-body text-[22px] font-bold text-[#7A6A60]">{selectedConfig.unit}</span>
-          </div>
-        )}
-
-        <p className="mt-7 font-body text-[20px] font-bold text-[#3B2C25]">
-          {copy.whenReading}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {selectedConfig.contexts.map((context) => {
-            const active = selectedContext === context.key;
-            return (
-              <button
-                key={context.key}
-                type="button"
-                onClick={() => setSelectedContext(context.key)}
-                className="min-h-[64px] rounded-full border px-4 font-body text-[18px] font-bold"
-                style={{
-                  background: active ? "#F59E0B" : "#FFFFFF",
-                  borderColor: active ? "#F59E0B" : "#E8DED4",
-                  color: active ? "#2F241F" : "#6B5B52",
-                }}
-              >
-                {signalContextLabel(selectedSignal, context, language)}
-              </button>
-            );
-          })}
-        </div>
-
-        {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
-
-        <button
-          type="button"
-          onClick={saveReading}
-          disabled={!canSave || saving}
-          className="mt-7 flex min-h-[72px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B21A8] px-6 font-body text-[22px] font-bold text-white shadow-[0_12px_26px_rgba(107,33,168,0.24)] disabled:opacity-50"
-        >
-          {saving && <Loader2 className="h-6 w-6 animate-spin" />}
-          {saving ? copy.saving : copy.save}
-        </button>
-      </section>
+      <VitalsAddReadingFlow
+        previewMode={Boolean(previewData)}
+        previewContext={previewData ? previewAcquisitionContext(previewData.recent_readings) : undefined}
+        initialSignal={initialAddSignal}
+        onBack={() => setScreen("dashboard")}
+        onSaved={async () => {
+          setScreen("dashboard");
+          await loadDashboard();
+        }}
+      />
     );
+
   }
 
   const latestBySignal = latestReadingMap(recentReadings);
+  const heroReadings: RecentReading[] = [];
+  const heroSignals = new Set<string>();
+  for (const reading of recentReadings) {
+    if (!(reading.signal_type in SIGNAL_CONFIG) || heroSignals.has(reading.signal_type)) continue;
+    heroSignals.add(reading.signal_type);
+    heroReadings.push(reading);
+    if (heroReadings.length === 3) break;
+  }
+  const visibleSignalEntries = visibleSignals.filter(([key]) => !VITALS_SIGNAL_CATALOG[key].futureReady);
+  const readingGroups = DISPLAY_GROUP_ORDER.flatMap((group) => {
+    const signals = visibleSignalEntries.filter(([key]) => VITALS_SIGNAL_CATALOG[key].displayGroup === group);
+    return signals.length ? [{ group, signals }] : [];
+  });
 
   return (
     <section className="rounded-[28px] border border-[#E8DED4] bg-[#FAF9F6] p-5 shadow-[0_14px_34px_rgba(63,45,35,0.08)]" data-testid="vitals-engine-dashboard">
@@ -1587,20 +1437,51 @@ export default function VitalsTracker({
         </div>
       ) : (
         <>
-          <div className="flex flex-col items-center rounded-[28px] bg-white px-5 py-7 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
-            <div
-              className="flex h-[190px] w-[190px] items-center justify-center rounded-full"
-              style={{ background: `conic-gradient(${riskColor} ${riskScore * 3.6}deg, #EEE6DE 0deg)` }}
-              aria-label={`${riskScore}, ${getRiskLabel(riskScore, language)}`}
-            >
-              <div className="flex h-[142px] w-[142px] flex-col items-center justify-center rounded-full bg-[#FAF9F6] text-center">
-                <span className="font-body text-[50px] font-bold leading-none text-[#2F241F]">{riskScore}</span>
-                <span className="mt-2 font-body text-[18px] font-bold text-[#6B5B52]">/100</span>
+          <div className="rounded-[30px] px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.10)]" style={{ background: safety.bg }} data-testid="vitals-hero">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: safety.color }}>{copy.safetyTitle}</p>
+                <h2 className="mt-2 font-display text-[38px] font-bold leading-none text-[#27152F]">{safetyLabel(safetyStatus, language)}</h2>
+                <p className="mt-3 max-w-[680px] font-body text-[18px] font-bold leading-relaxed text-[#493B50]">
+                  {analysis?.senior_message ?? copy.messageFallback}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setScreen("add")}
+                className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_10px_24px_rgba(107,33,168,0.25)]"
+                aria-label={copy.add}
+                data-testid="button-vitals-hero-add"
+              >
+                <Plus className="h-7 w-7" />
+              </button>
             </div>
-            <p className="mt-4 font-display text-[30px] italic leading-tight text-[#2F241F]">
-              {getRiskLabel(riskScore, language)}
-            </p>
+
+            {heroReadings.length ? (
+              <div className="mt-5 flex flex-wrap gap-2" data-testid="vitals-hero-metrics">
+                {heroReadings.map((reading) => {
+                  const key = reading.signal_type as SignalKey;
+                  const meta = VITALS_SIGNAL_CATALOG[key];
+                  const value = numberValue(reading.value);
+                  return (
+                    <span key={reading.signal_type} className="rounded-full bg-white/90 px-4 py-2 font-body text-[14px] font-black text-[#3B2C42] shadow-[0_4px_12px_rgba(53,28,87,0.06)]">
+                      {meta.shortLabel}: {value ?? "--"}{meta.unit ? ` ${meta.unit}` : ""}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <button type="button" onClick={() => setRiskDetailsOpen((open) => !open)} className="mt-5 flex min-h-[44px] items-center gap-2 rounded-full bg-white/75 px-4 font-body text-[14px] font-black text-[#6B21A8]" aria-expanded={riskDetailsOpen}>
+              {riskDetailsOpen ? "Hide details" : "See details"}
+              <ChevronDown className={`h-4 w-4 transition ${riskDetailsOpen ? "rotate-180" : ""}`} />
+            </button>
+            {riskDetailsOpen ? (
+              <div className="mt-3 rounded-[18px] bg-white/80 px-4 py-3 font-body text-[14px] font-bold text-[#5D4D64]" data-testid="vitals-risk-details">
+                <span className="font-black text-[#27152F]">Risk score: {riskScore}/100 — lower is better.</span>
+                <span className="ml-2">This score helps VYVA choose the right level of follow-up; it is not a percentage of health.</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 rounded-[26px] border border-[#DDD6FE] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-evidence-guide">
@@ -1623,6 +1504,7 @@ export default function VitalsTracker({
             </div>
           </div>
 
+          {(safetyStatus !== "steady" || latestAlert) ? (
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
             <div className="flex items-start gap-4">
               <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
@@ -1666,17 +1548,30 @@ export default function VitalsTracker({
               </div>
             )}
           </div>
+          ) : null}
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {DASHBOARD_SIGNALS.map((key) => (
-              <SignalCard
-                key={key}
-                signalKey={key}
-                reading={latestBySignal[key]}
-                language={language}
-                normalLabel={copy.normal}
-                todayLabel={copy.today}
-              />
+          <div className="mt-6 space-y-6" data-testid="vitals-reading-groups">
+            {readingGroups.map(({ group, signals }) => (
+              <section key={group} aria-labelledby={`vitals-group-${group}`}>
+                <div className="mb-3 flex items-center gap-3">
+                  <h3 id={`vitals-group-${group}`} className="font-body text-[13px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                    {DISPLAY_GROUP_LABELS[group][language]}
+                  </h3>
+                  <div className="h-px flex-1 bg-[#E7DDF0]" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {signals.map(([key]) => (
+                    <SignalCard
+                      key={key}
+                      signalKey={key}
+                      reading={latestBySignal[key]}
+                      language={language}
+                      normalLabel={copy.normal}
+                      todayLabel={copy.today}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
 
@@ -1688,14 +1583,6 @@ export default function VitalsTracker({
 
           {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
 
-          <button
-            type="button"
-            onClick={() => setScreen("add")}
-            className="mt-6 flex min-h-[76px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#6B21A8] px-6 font-body text-[24px] font-bold text-white shadow-[0_12px_26px_rgba(107,33,168,0.24)]"
-          >
-            <Plus className="h-7 w-7" />
-            {copy.add}
-          </button>
           <p className="mt-4 text-center font-body text-[18px] font-bold text-[#7A6A60]">
             {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
           </p>
@@ -1722,6 +1609,38 @@ function latestReadingMap(readings: RecentReading[]): Partial<Record<SignalKey, 
   return map;
 }
 
+function previewAcquisitionContext(readings: RecentReading[]): VitalsAcquisitionContext {
+  const currentReadings = readings.flatMap((reading) => {
+    if (!(reading.signal_type in VITALS_SIGNAL_CATALOG)) return [];
+    if (reading.source !== "connected_device" && reading.source !== "clinical") return [];
+    const signalType = reading.signal_type as SignalKey;
+    return [{
+      signalType,
+      value: Number(reading.value),
+      unit: reading.unit || VITALS_SIGNAL_CATALOG[signalType].unit,
+      recordedAt: reading.recorded_at,
+      source: reading.source,
+      captureMethod: (reading.capture_method || (reading.source === "clinical" ? "clinical_import" : "web_bluetooth")) as VitalsCaptureMethod,
+      confidence: "high" as const,
+      qualityFlag: "clean",
+      sourceRef: reading.source_ref,
+      freshness: "current" as const,
+    }];
+  });
+  return {
+    readings: currentReadings,
+    signals: currentReadings.map((reading) => ({
+      signal_type: reading.signalType,
+      current_reading: reading,
+      compatible_methods: [],
+    })),
+    devices: currentReadings.map((reading) => ({
+      deviceName: typeof reading.sourceRef?.device_name === "string" ? reading.sourceRef.device_name : null,
+      capabilities: [reading.signalType],
+    })),
+  };
+}
+
 function SignalCard({
   signalKey,
   reading,
@@ -1736,6 +1655,7 @@ function SignalCard({
   todayLabel: string;
 }) {
   const cfg = SIGNAL_CONFIG[signalKey];
+  const meta = VITALS_SIGNAL_CATALOG[signalKey];
   const value = numberValue(reading?.value);
   const deviation = numberValue(reading?.deviation_pct);
   const display =
@@ -1747,7 +1667,7 @@ function SignalCard({
           : "--"
       : value == null
         ? "--"
-        : `${value}${cfg.unit ? ` ${cfg.unit}` : ""}`;
+        : `${value}${meta.unit ? ` ${meta.unit}` : ""}`;
   const subLabel =
     signalKey === "medication_confirmed"
       ? value === 1
@@ -1758,6 +1678,13 @@ function SignalCard({
         : `${deviation > 0 ? "+" : ""}${deviation}% ${deviation > 0 ? "↑" : "↓"}`;
 
   const sourceBadge = readingSourceBadge(reading, language);
+  const SourceIcon = reading?.source === "connected_device"
+    ? Bluetooth
+    : reading?.source === "clinical"
+      ? Stethoscope
+      : reading?.source === "phone_estimate"
+        ? Activity
+        : Keyboard;
 
   return (
     <article className="min-h-[152px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
@@ -1766,14 +1693,22 @@ function SignalCard({
           <SignalIcon type={cfg.icon} className="h-7 w-7" />
         </div>
         {sourceBadge && (
-          <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ background: sourceBadge.bg, color: sourceBadge.color }}>
-            {sourceBadge.label}
+          <span className="flex items-center gap-1 rounded-full px-2 py-1 font-body text-[10px] font-black" style={{ background: sourceBadge.bg, color: sourceBadge.color }} title={sourceBadge.fullLabel} aria-label={sourceBadge.fullLabel}>
+            <SourceIcon className="h-3 w-3" />
+            {sourceBadge.shortLabel}
           </span>
         )}
       </div>
       <p className="font-body text-[18px] font-bold text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
       <p className="mt-1 font-body text-[24px] font-bold leading-tight text-[#2F241F]">{display}</p>
       <p className="mt-2 font-body text-[18px] font-bold text-[#7A6A60]">{subLabel}</p>
+      {sourceBadge ? (
+        <details className="mt-3 border-t border-[#F0E7F4] pt-2">
+          <summary className="cursor-pointer font-body text-[11px] font-black text-[#7C3AED]">Reading details</summary>
+          <p className="mt-2 font-body text-[12px] font-bold text-[#6B5B72]">Source: {sourceBadge.fullLabel}</p>
+          {reading?.recorded_at ? <p className="mt-1 font-body text-[12px] text-[#7A6A80]">{relativeTime(reading.recorded_at, language)}</p> : null}
+        </details>
+      ) : null}
     </article>
   );
 }
