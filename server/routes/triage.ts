@@ -46,6 +46,8 @@ import { languageName, normalizeAppLanguage } from "../../shared/language.js";
 
 const router = Router();
 const transcribeAudioBody = raw({ type: ["audio/*", "application/octet-stream"], limit: "8mb" });
+const FINAL_MEDISEARCH_TIMEOUT_MS = 2_500;
+const FINAL_OPENAI_TIMEOUT_MS = 7_000;
 
 const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
   "audio/webm": "webm",
@@ -1420,6 +1422,7 @@ export async function runTriageStep(
           conversationId: medisearchConversationId,
           locale: normalizedLocale,
           wizard: effectiveWizard,
+          timeoutMs: FINAL_MEDISEARCH_TIMEOUT_MS,
         })
       : null;
 
@@ -1437,7 +1440,7 @@ export async function runTriageStep(
         temperature: 0.65,
         max_tokens: 600,
       },
-      { timeout: 10_000 },
+      { timeout: FINAL_OPENAI_TIMEOUT_MS },
     );
 
     const rawContent = completion.choices[0]?.message?.content?.trim() ?? "";
