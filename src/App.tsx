@@ -152,7 +152,7 @@ const SymptomCheckScreen = lazy(() => import("./pages/SymptomCheckScreen"));
 const CheckHowIFeelScreen = lazy(() => import("./pages/CheckHowIFeelScreen"));
 const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
-const SignosScreen = lazy(() => import("./pages/SignosScreen"));
+const VitalsScreen = lazy(() => import("./pages/VitalsScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
 const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
 const CompanionsScreen = lazy(() => import("./pages/CompanionsScreen"));
@@ -990,7 +990,7 @@ const App = () => (
                   <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
+                  <Route path="/health/vitals" element={<AppShell><VitalsScreen /></AppShell>} />
                   <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/informes/brain-coach" element={<AppShell><BrainCoachReportScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
