@@ -26,6 +26,7 @@ import {
 import {
   ensureVoiceSessionId,
   readVoiceSessionId,
+  requestDrAiScreenSync,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
   type VoiceTriageTouchAnswerDetail,
 } from "@/lib/voiceSessionBridge";
@@ -845,7 +846,7 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
-  if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
+  if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
   if (agentSlug === "safety" || agentSlug === "safe-home" || agentSlug === "sos") return "safety";
   if (agentSlug === "concierge") return "concierge";
@@ -914,6 +915,20 @@ function sessionOverridesForResolvedContext(
   resolvedDynamicVariables: Record<string, string | number | boolean>,
 ): PartialOptions["overrides"] {
   const existing = sessionOptions.overrides;
+  const drAiFirstMessage = dynamicString(resolvedDynamicVariables, "dr_ai_first_message");
+  if (resolvedDomain === "health" && drAiFirstMessage) {
+    const language = dynamicString(resolvedDynamicVariables, "language")
+      || dynamicString(resolvedDynamicVariables, "preferred_language")
+      || "en";
+    return {
+      ...existing,
+      agent: {
+        ...existing?.agent,
+        language,
+        firstMessage: drAiFirstMessage,
+      },
+    };
+  }
   if (resolvedDomain !== "onboarding_profile") return existing;
 
   const prompt = resolvedSystemPrompt?.trim();
@@ -1697,6 +1712,20 @@ function useVyvaVoiceController() {
           },
           clientTools: {
             ...(sessionOptions.clientTools ?? {}),
+            sync_dr_ai_screen: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const conversationId = toolString(params, "conversation_id") || readVoiceSessionId();
+              if (!conversationId) {
+                return JSON.stringify({ ok: false, rendered: false, reason: "missing_conversation_id" });
+              }
+              const rendered = await requestDrAiScreenSync(conversationId);
+              return JSON.stringify({
+                ok: rendered,
+                rendered,
+                conversation_id: conversationId,
+                ...(rendered ? {} : { reason: "screen_sync_timeout" }),
+              });
+            },
             open_app_action: async (parameters: unknown) => {
               const params = toolParameters(parameters);
               const homeSubflow = homeSubflowForVoiceToolCall(params);

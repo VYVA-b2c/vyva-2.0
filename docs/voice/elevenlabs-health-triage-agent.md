@@ -1,4 +1,6 @@
-# ElevenLabs Health Assistant Triage Agent
+# ElevenLabs Health Assistant Triage Agent (legacy)
+
+The dedicated implementation is now documented in [ElevenLabs VYVA Dr. AI Agent](./elevenlabs-dr-ai-agent.md). Keep this file only as historical reference for the earlier `health` agent setup.
 
 Configure the ElevenLabs Conversational AI agent resolved by `ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID`.
 

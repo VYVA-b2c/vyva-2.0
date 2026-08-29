@@ -7,4 +7,9 @@ describe("voice context domain resolution", () => {
     expect(resolveVoiceContextDomain({ agent_slug: "profile-onboarding" })).toBe("onboarding_profile");
     expect(resolveVoiceContextDomain({ domain: "onboarding_profile" })).toBe("onboarding_profile");
   });
+
+  it("maps both Dr. AI slugs to the existing health context contract", () => {
+    expect(resolveVoiceContextDomain({ agent_slug: "dr-ai" })).toBe("health");
+    expect(resolveVoiceContextDomain({ agent_slug: "ask-dr-ai" })).toBe("health");
+  });
 });

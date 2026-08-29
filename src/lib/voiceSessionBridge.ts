@@ -1,6 +1,8 @@
 export const VYVA_VOICE_SESSION_STORAGE_KEY = "vyva.voice.sessionId";
 export const VYVA_VOICE_SESSION_CHANGED_EVENT = "vyva:voice-session-changed";
 export const VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT = "vyva:voice-triage-touch-answer";
+export const VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT = "vyva:dr-ai-screen-sync-request";
+export const VYVA_DR_AI_SCREEN_SYNC_ACK_EVENT = "vyva:dr-ai-screen-sync-ack";
 
 export type VoiceSessionChangedDetail = {
   sessionId: string | null;
@@ -13,6 +15,15 @@ export type VoiceTriageTouchAnswerDetail = {
   vitalsText?: string | null;
   nextQuestion?: string | null;
   status?: string | null;
+};
+
+export type DrAiScreenSyncRequestDetail = {
+  requestId: string;
+  conversationId: string;
+};
+
+export type DrAiScreenSyncAckDetail = DrAiScreenSyncRequestDetail & {
+  rendered: boolean;
 };
 
 function hasWindow() {
@@ -94,4 +105,39 @@ export function emitVoiceTriageTouchAnswer(detail: VoiceTriageTouchAnswerDetail)
   window.dispatchEvent(new CustomEvent<VoiceTriageTouchAnswerDetail>(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, {
     detail,
   }));
+}
+
+export function acknowledgeDrAiScreenSync(detail: DrAiScreenSyncAckDetail) {
+  if (!hasWindow()) return;
+  window.dispatchEvent(new CustomEvent<DrAiScreenSyncAckDetail>(VYVA_DR_AI_SCREEN_SYNC_ACK_EVENT, {
+    detail,
+  }));
+}
+
+export function requestDrAiScreenSync(conversationId: string, timeoutMs = 2500) {
+  if (!hasWindow() || !conversationId) return Promise.resolve(false);
+  const requestId = createVoiceSessionId();
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (rendered: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      window.removeEventListener(VYVA_DR_AI_SCREEN_SYNC_ACK_EVENT, handleAck);
+      resolve(rendered);
+    };
+    const handleAck = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as DrAiScreenSyncAckDetail | undefined
+        : undefined;
+      if (detail?.requestId !== requestId || detail.conversationId !== conversationId) return;
+      finish(Boolean(detail.rendered));
+    };
+    const timeoutId = window.setTimeout(() => finish(false), timeoutMs);
+    window.addEventListener(VYVA_DR_AI_SCREEN_SYNC_ACK_EVENT, handleAck);
+    window.dispatchEvent(new CustomEvent<DrAiScreenSyncRequestDetail>(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, {
+      detail: { requestId, conversationId },
+    }));
+  });
 }

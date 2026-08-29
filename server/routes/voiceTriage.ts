@@ -14,6 +14,24 @@ import { logSymptomOutcomeForUser } from "./symptoms.js";
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type VoiceTriageStatus = "active" | "emergency" | "complete" | "abandoned" | "failed";
 
+const SAFE_FAILURE_COPY: Record<string, string> = {
+  en: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+  es: "Tengo problemas para comprobar esto de forma segura. Si parece urgente, llama ahora a emergencias. Si no, inténtalo de nuevo o pide ayuda a alguien cercano.",
+  fr: "J’ai du mal à vérifier cela en toute sécurité. Si la situation semble urgente, appelez les services d’urgence maintenant. Sinon, réessayez ou demandez de l’aide à une personne proche.",
+  de: "Ich kann dies gerade nicht sicher prüfen. Wenn es dringend wirkt, rufen Sie jetzt den Notdienst. Versuchen Sie es sonst erneut oder bitten Sie eine Person in Ihrer Nähe um Hilfe.",
+  it: "Non riesco a verificare la situazione in modo sicuro. Se sembra urgente, chiama subito i servizi di emergenza. Altrimenti, riprova o chiedi aiuto a una persona vicina.",
+  pt: "Estou com dificuldade para verificar isto com segurança. Se parecer urgente, ligue agora para os serviços de emergência. Caso contrário, tente novamente ou peça ajuda a alguém próximo.",
+};
+
+function safeFailureCopy(locale: string | undefined) {
+  const language = locale?.trim().toLowerCase().split(/[-_]/)[0] || "en";
+  return SAFE_FAILURE_COPY[language] ?? SAFE_FAILURE_COPY.en;
+}
+
+export function retainedMessagesForStatus(status: VoiceTriageStatus, messages: ChatMessage[]) {
+  return status === "active" ? messages : [];
+}
+
 const voiceTriageToolSchema = z.object({
   user_id: z.string().min(1),
   conversation_id: z.string().min(1),
@@ -387,7 +405,7 @@ async function upsertStartedSession(params: {
       title: "Voice triage started",
       sessionId: params.conversationId,
       domain: "health",
-      agentSlug: "health",
+      agentSlug: "dr-ai",
       route: "/health/symptom-check",
       payload: { channel: params.channel, locale: params.locale },
     }],
@@ -544,9 +562,9 @@ async function runVoiceTriageSessionTurn(input: {
     .set({
       status,
       locale: input.locale,
-      messages_json: nextMessages,
-      wizard_json: nextWizard,
-      health_memory_json: healthMemory,
+      messages_json: retainedMessagesForStatus(status, nextMessages),
+      wizard_json: status === "active" ? nextWizard : {},
+      health_memory_json: status === "active" ? healthMemory : {},
       latest_response_json: toolResponse,
       triage_report_id: completion.reportId,
       updated_at: sql`now()`,
@@ -569,7 +587,7 @@ async function runVoiceTriageSessionTurn(input: {
       severity: status === "emergency" ? "error" : status === "complete" ? "success" : "info",
       sessionId: input.conversationId,
       domain: "health",
-      agentSlug: "health",
+      agentSlug: "dr-ai",
       route: "/health/symptom-check",
       payload: {
         status,
@@ -618,16 +636,20 @@ export async function elevenLabsTriageStepToolHandler(req: Request, res: Respons
     return res.json(toolResponse);
   } catch (err) {
     console.error("[elevenlabs tool triage-step]", err);
+    const fallbackText = safeFailureCopy(parsed.data.locale);
     await ensureVoiceTriageSessionsTable().catch(() => undefined);
     await db
       .update(voiceTriageSessions)
       .set({
         status: "failed",
+        messages_json: [],
+        wizard_json: {},
+        health_memory_json: {},
         updated_at: sql`now()`,
         latest_response_json: {
           ok: false,
           status: "failed",
-          spoken_text: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+          spoken_text: fallbackText,
         },
       })
       .where(and(
@@ -647,7 +669,7 @@ export async function elevenLabsTriageStepToolHandler(req: Request, res: Respons
         severity: "error",
         sessionId: parsed.data.conversation_id,
         domain: "health",
-        agentSlug: "health",
+        agentSlug: "dr-ai",
         route: "/health/symptom-check",
       }],
     }).catch(() => undefined);
@@ -656,7 +678,7 @@ export async function elevenLabsTriageStepToolHandler(req: Request, res: Respons
       ok: false,
       status: "failed",
       safety_level: "fallback",
-      spoken_text: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+      spoken_text: fallbackText,
     });
   }
 }
@@ -710,11 +732,54 @@ export async function voiceTriageSessionAnswerHandler(req: Request, res: Respons
     return res.json(toolResponse);
   } catch (err) {
     console.error("[voice-triage/session answer]", err);
+    const fallbackText = safeFailureCopy(parsed.data.locale);
     return res.status(500).json({
       ok: false,
       status: "failed",
-      spoken_text: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+      spoken_text: fallbackText,
     });
+  }
+}
+
+export async function voiceTriageSessionEndHandler(req: Request, res: Response) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const conversationId = typeof req.params.conversation_id === "string"
+    ? req.params.conversation_id.trim()
+    : "";
+  if (!conversationId) return res.status(400).json({ error: "Missing conversation id" });
+
+  try {
+    await ensureVoiceTriageSessionsTable();
+    const [session] = await db
+      .select()
+      .from(voiceTriageSessions)
+      .where(and(
+        eq(voiceTriageSessions.user_id, userId),
+        eq(voiceTriageSessions.conversation_id, conversationId),
+      ))
+      .limit(1);
+    if (!session) return res.status(404).json({ error: "Voice triage session not found" });
+
+    if (session.status === "active" || session.status === "failed") {
+      await db
+        .update(voiceTriageSessions)
+        .set({
+          status: "abandoned",
+          messages_json: [],
+          wizard_json: {},
+          health_memory_json: {},
+          updated_at: sql`now()`,
+          completed_at: sql`now()`,
+        })
+        .where(eq(voiceTriageSessions.id, session.id));
+      return res.json({ ok: true, status: "abandoned" });
+    }
+
+    return res.json({ ok: true, status: session.status });
+  } catch (err) {
+    console.error("[voice-triage/session end]", err);
+    return res.status(500).json({ error: "Failed to end voice triage session" });
   }
 }
 

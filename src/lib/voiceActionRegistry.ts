@@ -596,7 +596,7 @@ export const VOICE_ACTION_REGISTRY = {
 
 export const VOICE_SPECIALIST_AGENT_SLUGS: Partial<Record<VoiceSpecialistTransferDomain, string>> = {
   meds: "meds",
-  health: "health",
+  health: "dr-ai",
   doctor: "doctor",
   safety: "safety",
   concierge: "concierge",

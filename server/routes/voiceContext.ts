@@ -34,7 +34,7 @@ export function resolveVoiceContextDomain(body: Record<string, unknown>): VoiceC
   const roomSlug = typeof body.room_slug === "string" ? normalizeSlug(body.room_slug) : "";
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
-  if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
+  if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
   if (
     agentSlug === "onboarding-profile" ||
@@ -53,6 +53,20 @@ function isMedicalContextDomain(domain: VoiceContextDomain) {
 
 function createConversationId() {
   return `voice-context-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+const DR_AI_FIRST_MESSAGES: Record<string, string> = {
+  en: "I'm here with you. Tell me what feels different today.",
+  es: "Estoy aquí contigo. Cuéntame qué notas diferente hoy.",
+  fr: "Je suis là avec vous. Dites-moi ce qui vous semble différent aujourd’hui.",
+  de: "Ich bin für Sie da. Sagen Sie mir, was sich heute anders anfühlt.",
+  it: "Sono qui con te. Dimmi cosa ti sembra diverso oggi.",
+  pt: "Estou aqui consigo. Diga-me o que sente de diferente hoje.",
+};
+
+function drAiFirstMessage(language: string) {
+  const key = language.trim().toLowerCase().split(/[-_]/)[0] || "en";
+  return DR_AI_FIRST_MESSAGES[key] ?? DR_AI_FIRST_MESSAGES.en;
 }
 
 export async function voiceContextHandler(req: Request, res: Response) {
@@ -107,7 +121,9 @@ export async function voiceContextHandler(req: Request, res: Response) {
       dynamicVariables.context_token = token;
       dynamicVariables.medical_profile_token = token;
       dynamicVariables.voice_triage_tool_token = voiceTriageToken;
+      dynamicVariables.secret__voice_triage_tool_token = voiceTriageToken;
       dynamicVariables.language = String(dynamicVariables.preferred_language || "en");
+      dynamicVariables.dr_ai_first_message = drAiFirstMessage(String(dynamicVariables.language));
     }
     return res.json({ domain, dynamic_variables: dynamicVariables });
   } catch (err) {

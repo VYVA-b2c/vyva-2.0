@@ -33,9 +33,12 @@ import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKi
 import { emitVoiceSpecialistTransfer, VOICE_SPECIALIST_AGENT_SLUGS } from "@/lib/voiceNavigation";
 import {
   clearVoiceSessionId,
+  acknowledgeDrAiScreenSync,
   emitVoiceTriageTouchAnswer,
   readVoiceSessionId,
+  VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT,
   VYVA_VOICE_SESSION_CHANGED_EVENT,
+  type DrAiScreenSyncRequestDetail,
 } from "@/lib/voiceSessionBridge";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 import type { ShoppingSupportPackageId } from "../../shared/shopping";
@@ -3984,15 +3987,28 @@ export default function SymptomCheckScreen() {
   );
   const voiceStartResetTimerRef = useRef<number | null>(null);
   const chatBackHandlerRef = useRef<(() => boolean) | null>(null);
+  const { data: drAiVoiceFeature } = useQuery<{ enabled: boolean; mode: "disabled" | "pilot" | "active" }>({
+    queryKey: ["/api/config/features/dr-ai-voice"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/config/features/dr-ai-voice");
+      if (!res.ok) return { enabled: false, mode: "disabled" };
+      return res.json();
+    },
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const fetchVoiceTriageSession = useCallback(async (conversationId: string) => {
+    const res = await apiFetch(`/api/voice-triage/session/${encodeURIComponent(conversationId)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`${res.status}`);
+    return res.json() as Promise<VoiceTriageSessionResponse>;
+  }, []);
   const { data: voiceTriageSession } = useQuery<VoiceTriageSessionResponse | null>({
     queryKey: ["/api/voice-triage/session", voiceTriageSessionId],
     enabled: Boolean(voiceTriageSessionId),
     queryFn: async () => {
       if (!voiceTriageSessionId) return null;
-      const res = await apiFetch(`/api/voice-triage/session/${encodeURIComponent(voiceTriageSessionId)}`);
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`${res.status}`);
-      return res.json() as Promise<VoiceTriageSessionResponse>;
+      return fetchVoiceTriageSession(voiceTriageSessionId);
     },
     retry: false,
     refetchInterval: voiceTriageSessionId ? 1000 : false,
@@ -4057,11 +4073,49 @@ export default function SymptomCheckScreen() {
     voiceTriageAnswerMutation.mutate(answer);
   }, [voiceTriageAnswerMutation]);
 
+  useEffect(() => {
+    const handleScreenSyncRequest = async (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as DrAiScreenSyncRequestDetail | undefined
+        : undefined;
+      if (!detail?.conversationId || !detail.requestId) return;
+
+      let rendered = false;
+      try {
+        setVoiceTriageSessionId(detail.conversationId);
+        const session = await queryClient.fetchQuery({
+          queryKey: ["/api/voice-triage/session", detail.conversationId],
+          queryFn: () => fetchVoiceTriageSession(detail.conversationId),
+          staleTime: 0,
+        });
+        rendered = Boolean(session);
+        if (rendered) {
+          await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+          await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+        }
+      } catch (error) {
+        console.warn("[Dr. AI] Could not synchronize the triage screen:", error);
+      }
+      acknowledgeDrAiScreenSync({ ...detail, rendered });
+    };
+
+    window.addEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleScreenSyncRequest);
+    return () => window.removeEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleScreenSyncRequest);
+  }, [fetchVoiceTriageSession]);
+
+  const endVoiceTriageSession = useCallback((conversationId: string | null) => {
+    if (!conversationId) return;
+    void apiFetch(`/api/voice-triage/session/${encodeURIComponent(conversationId)}/end`, {
+      method: "POST",
+    }).catch((error) => console.warn("[Dr. AI] Could not end the triage session:", error));
+  }, []);
+
   const resetSymptomCheck = useCallback(() => {
     if (voiceStartResetTimerRef.current !== null) {
       window.clearTimeout(voiceStartResetTimerRef.current);
       voiceStartResetTimerRef.current = null;
     }
+    endVoiceTriageSession(voiceTriageSessionId);
     clearSymptomCheckDraft();
     clearVoiceSessionId();
     setBpm(null);
@@ -4082,7 +4136,7 @@ export default function SymptomCheckScreen() {
     voiceTriageAnswerMutation.reset();
     setStep("intro");
     setTouchAssessmentStage("describe");
-  }, [voiceTriageAnswerMutation]);
+  }, [endVoiceTriageSession, voiceTriageAnswerMutation, voiceTriageSessionId]);
 
   useEffect(() => {
     if (step === "intro") return;
@@ -4205,6 +4259,13 @@ export default function SymptomCheckScreen() {
   }, []);
 
   const handleTalkToVyva = useCallback(() => {
+    if (drAiVoiceFeature?.enabled === false) {
+      toast({
+        title: t("health.symptomCheck.voiceUnavailableTitle", "Dr. AI voice is not available yet"),
+        description: t("health.symptomCheck.voiceUnavailableBody", "You can continue the same symptom check by touch."),
+      });
+      return;
+    }
     setSymptomInteractionMode("voice");
     setVoiceStartPending(true);
     writeSymptomCheckVisited();
@@ -4221,7 +4282,7 @@ export default function SymptomCheckScreen() {
     });
     refreshVoiceSessionIdSoon();
     scheduleVoiceStartReset();
-  }, [refreshVoiceSessionIdSoon, scheduleVoiceStartReset]);
+  }, [drAiVoiceFeature?.enabled, refreshVoiceSessionIdSoon, scheduleVoiceStartReset, t, toast]);
 
   useEffect(() => {
     if (voiceTriageSessionId) setSymptomInteractionMode("voice");
