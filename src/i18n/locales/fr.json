@@ -2275,6 +2275,10 @@
     "sendNow": "Envoyer l'alerte"
   },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Constantes"
+    },
+    "backToHealth": "Retour à Ma santé",
     "title": "Statut / Constantes",
     "online": "En ligne",
     "offline": "Hors ligne",

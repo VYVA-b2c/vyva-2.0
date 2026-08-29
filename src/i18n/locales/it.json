@@ -14,6 +14,10 @@
     "reports": "I miei report"
   },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Parametri vitali"
+    },
+    "backToHealth": "Torna a La mia salute",
     "title": "Stato / Parametri vitali",
     "online": "Online",
     "offline": "Offline",

@@ -2275,6 +2275,10 @@
     "sendNow": "Alarm jetzt senden"
   },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Vitalwerte"
+    },
+    "backToHealth": "Zurück zu Meine Gesundheit",
     "title": "Status / Vitalzeichen",
     "online": "Online",
     "offline": "Offline",

@@ -14,6 +14,10 @@
     "reports": "Mis informes"
   },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Signos vitales"
+    },
+    "backToHealth": "Volver a Mi salud",
     "title": "Estado / Signos vitales",
     "online": "En línea",
     "offline": "Sin conexión",

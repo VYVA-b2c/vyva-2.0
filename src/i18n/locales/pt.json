@@ -2275,6 +2275,10 @@
     "sendNow": "Enviar alerta agora"
   },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Sinais vitais"
+    },
+    "backToHealth": "Voltar para A minha saúde",
     "title": "Estado / Sinais vitais",
     "online": "Online",
     "offline": "Offline",

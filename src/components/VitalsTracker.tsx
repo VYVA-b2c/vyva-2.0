@@ -1406,6 +1406,7 @@ export default function VitalsTracker({
         previewMode={Boolean(previewData)}
         previewContext={previewData ? previewAcquisitionContext(previewData.recent_readings) : undefined}
         initialSignal={initialAddSignal}
+        language={language}
         onBack={showDashboard}
         onBackActionChange={onBackActionChange}
         onSaved={async () => {
@@ -1432,6 +1433,9 @@ export default function VitalsTracker({
     return untrackedSignals.length ? [{ group, signals: untrackedSignals }] : [];
   });
   const dashboardLabels = DASHBOARD_LABELS[language];
+  const seniorMessage = previewData && language !== "en"
+    ? copy.messageFallback
+    : analysis?.senior_message ?? copy.messageFallback;
   const safetyHeroAccent =
     safetyStatus === "steady"
       ? "border-l-[#047857]"
@@ -1500,7 +1504,7 @@ export default function VitalsTracker({
 
                 <div className="min-w-0">
                   <p className={`font-body text-[15px] font-semibold leading-[1.45] ${isDark ? "text-[#E4DAEC]" : "text-[#665A63]"}`}>
-                    {analysis?.senior_message ?? copy.messageFallback}
+                    {seniorMessage}
                   </p>
                   <div className={`mt-3 h-2 overflow-hidden rounded-full ${isDark ? "bg-white/[0.1]" : "bg-[#EDE5F1]"}`} aria-hidden="true">
                     <div
