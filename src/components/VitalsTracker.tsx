@@ -278,32 +278,40 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   fr: {
     add: "Ajouter une mesure",
-    analyse: "Actualiser l'evaluation",
-    analysing: "Analyse...",
-    loading: "Preparation de vos constantes...",
+    analyse: "Actualiser l’évaluation",
+    analysing: "Analyse en cours…",
+    loading: "Préparation de vos constantes…",
     back: "Retour",
     save: "Enregistrer la mesure",
-    saving: "Enregistrement...",
-    lastAnalysis: "Derniere analyse",
+    saving: "Enregistrement…",
+    lastAnalysis: "Dernière analyse",
     noAnalysis: "Aucune analyse encore",
     now: "Maintenant",
     normal: "Normal",
     today: "Aujourd'hui",
     yes: "Oui, pris",
     no: "Pas encore",
-    messageFallback: "Bonjour. VYVA est prete a revoir vos constantes avec vous.",
-    safetyTitle: "Controle quotidien",
-    safetyAck: "Enregistre",
-    recheck: "Verifier a nouveau",
+    messageFallback: "Bonjour. VYVA est prête à revoir vos constantes avec vous.",
+    safetyTitle: "Contrôle quotidien",
+    safetyAck: "Enregistré",
+    recheck: "Vérifier à nouveau",
     share: "Partager",
-    doctor: "Medecin",
+    doctor: "Médecin",
     urgent: "Urgent",
-    sourceEstimated: "Estime",
+    call: "Appeler",
+    callGp: "Appeler le médecin",
+    emailGp: "Envoyer un e-mail au médecin",
+    doctorHelp: "Aide médicale",
+    addDoctor: "Ajouter un médecin",
+    appointment: "Prendre rendez-vous",
+    ride: "Trouver un transport",
+    shareSummary: "Partager le résumé",
+    sourceEstimated: "Estimé",
     sourceManual: "Manuel",
     sourceDevice: "Appareil",
     confidenceLow: "Faible",
     confidenceMedium: "Moyenne",
-    confidenceHigh: "Elevee",
+    confidenceHigh: "Élevée",
     evidenceTitle: "Comment VYVA utilise vos mesures",
     evidenceBody: "VYVA combine les estimations du telephone avec les valeurs saisies depuis des appareils. Les estimations aident a voir les tendances; les appareils et mesures cliniques ont plus de poids.",
     evidencePhone: "Telephone : pouls et respiration estimes",
@@ -315,11 +323,11 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     saveError: "Impossible d'enregistrer cette mesure.",
     analysisError: "L'analyse n'a pas pu se terminer.",
     actionError: "Impossible d'enregistrer cette action.",
-    checkConnectedSensor: "Verifier le capteur connecte",
-    manualGlucoseEntry: "Saisie manuelle de glycemie",
-    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycemie.",
-    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycemie pour l'enregistrer avec vos constantes.",
-    whenReading: "Quand cette mesure a-t-elle ete prise?",
+    checkConnectedSensor: "Vérifier le capteur connecté",
+    manualGlucoseEntry: "Saisie manuelle de glycémie",
+    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycémie.",
+    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycémie pour l'enregistrer avec vos constantes.",
+    whenReading: "Quand cette mesure a-t-elle été prise ?",
     ok: "OK",
   },
   it: {
@@ -874,9 +882,9 @@ function safetyLabel(status: SafetyStatus, language: Language) {
     },
     fr: {
       steady: "Stable",
-      recheck: "Verifier a nouveau",
+      recheck: "Vérifier à nouveau",
       share_with_caregiver: "Partager avec l'aidant",
-      contact_doctor: "Contacter le medecin",
+      contact_doctor: "Contacter le médecin",
       urgent_help: "Aide urgente",
     },
     it: {
@@ -895,6 +903,35 @@ function safetyLabel(status: SafetyStatus, language: Language) {
     },
   };
   return labels[language][status];
+}
+
+const FRENCH_SAFETY_MESSAGES: Record<SafetyStatus, string> = {
+  steady: "Vos mesures récentes semblent stables. Gardez vos habitudes et vérifiez à nouveau si quelque chose change.",
+  recheck: "VYVA vous recommande de reprendre cette mesure afin de confirmer le changement.",
+  share_with_caregiver: "VYVA a détecté un changement. Il serait prudent d’en parler à votre aidant et de reprendre la mesure.",
+  contact_doctor: "VYVA a détecté un changement qui mérite un avis médical aujourd’hui. Partagez ce résumé si vous le pouvez.",
+  urgent_help: "VYVA a détecté un signal de sécurité important. Si cela se produit maintenant, demandez une aide urgente ou appelez les secours.",
+};
+
+function isKnownEnglishSafetyMessage(message: string) {
+  return /^(VYVA noticed|VYVA recommends|Complete today's check|Your recent check|Your latest readings|Please speak with your doctor|Your readings need urgent support)/i.test(message.trim());
+}
+
+function seniorMessageForDisplay(message: string | null | undefined, status: SafetyStatus, language: Language) {
+  if (!message?.trim()) return copyFor(language).messageFallback;
+  if (language === "fr" && isKnownEnglishSafetyMessage(message)) return FRENCH_SAFETY_MESSAGES[status];
+  return message.trim();
+}
+
+function alertMessageForDisplay(alert: LatestAlert, status: SafetyStatus, language: Language) {
+  if (language !== "fr") return alert.message;
+
+  const symptomMatch = alert.message.match(/(?:Symptom report|Rapport de symptômes)\s*:\s*([^\n]+)/i);
+  if (symptomMatch?.[1]?.trim()) return `Rapport de symptômes : ${symptomMatch[1].trim()}`;
+
+  if (status === "urgent_help") return "Un signal récent nécessite une aide urgente. Consultez immédiatement les recommandations enregistrées.";
+  if (status === "contact_doctor") return "Un signal récent mérite un avis médical aujourd’hui. Consultez le rapport enregistré.";
+  return "Un signal récent est disponible dans vos rapports.";
 }
 
 function sanitizePhoneHref(phone?: string | null): string {
@@ -971,10 +1008,21 @@ function buildVitalsContext({
   recentReadings: RecentReading[];
   language: Language;
 }) {
+  const status = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
+  const localizedMessage = seniorMessageForDisplay(analysis?.senior_message, status, language);
+  const contextLabels: Record<Language, { title: string; note: string; risk: string }> = {
+    en: { title: "VYVA vitals summary", note: "VYVA note", risk: "Risk score" },
+    es: { title: "Resumen de signos VYVA", note: "Nota VYVA", risk: "Nivel" },
+    de: { title: "VYVA Vitalwerte", note: "VYVA Hinweis", risk: "Risikowert" },
+    fr: { title: "Résumé des constantes VYVA", note: "Note VYVA", risk: "Score de risque" },
+    it: { title: "Riepilogo dei parametri VYVA", note: "Nota VYVA", risk: "Punteggio di rischio" },
+    pt: { title: "Resumo dos sinais VYVA", note: "Nota VYVA", risk: "Pontuação de risco" },
+  };
+  const labels = contextLabels[language];
   const lines = [
-    language === "de" ? "VYVA Vitalwerte" : language === "en" ? "VYVA vitals summary" : "Resumen de signos VYVA",
-    analysis?.senior_message ? `${language === "en" ? "VYVA note" : "Nota VYVA"}: ${analysis.senior_message}` : "",
-    analysis?.risk_score != null ? `${language === "en" ? "Risk score" : "Nivel"}: ${analysis.risk_score}/100` : "",
+    labels.title,
+    analysis?.senior_message ? `${labels.note}: ${localizedMessage}` : "",
+    analysis?.risk_score != null ? `${labels.risk}: ${analysis.risk_score}/100` : "",
     ...recentReadings.slice(0, 5).map((reading) => `${reading.signal_type}: ${reading.value}${reading.context_tag ? ` (${reading.context_tag})` : ""}`),
   ];
   return lines.filter(Boolean).join("\n");
@@ -1185,12 +1233,16 @@ export default function VitalsTracker({
         ? "Bitte hilf mir, eine sichere Fahrt wegen meiner VYVA Vitalwerte zu organisieren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
           ? "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before contacting anyone."
-          : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
+          : language === "fr"
+            ? "Aidez-moi à trouver un transport sûr en fonction de mes constantes VYVA. Demandez ma confirmation avant de contacter qui que ce soit."
+            : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
       : language === "de"
         ? "Bitte hilf mir, einen Arzttermin wegen meiner VYVA Vitalwerte zu vereinbaren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
           ? "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."
-          : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
+          : language === "fr"
+            ? "Aidez-moi à prendre rendez-vous avec un médecin en fonction de mes constantes VYVA. Demandez ma confirmation avant de réserver."
+            : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
 
     void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
     navigate("/concierge", {
@@ -1433,9 +1485,9 @@ export default function VitalsTracker({
     return untrackedSignals.length ? [{ group, signals: untrackedSignals }] : [];
   });
   const dashboardLabels = DASHBOARD_LABELS[language];
-  const seniorMessage = previewData && language !== "en"
+  const seniorMessage = previewData && language !== "en" && language !== "fr"
     ? copy.messageFallback
-    : analysis?.senior_message ?? copy.messageFallback;
+    : seniorMessageForDisplay(analysis?.senior_message, safetyStatus, language);
   const safetyHeroAccent =
     safetyStatus === "steady"
       ? "border-l-[#047857]"
@@ -1536,11 +1588,11 @@ export default function VitalsTracker({
                   )}
                 </div>
                 <p className="mt-3 font-body text-[20px] font-bold leading-relaxed text-[#2F241F]">
-                  {analysis?.senior_message ?? copy.messageFallback}
+                  {seniorMessage}
                 </p>
                 {latestAlert && !latestAlert.resolved_at && (
                   <p className="mt-3 rounded-[18px] bg-[#FFF7ED] p-3 font-body text-[15px] font-bold text-[#92400E]">
-                    {latestAlert.message}
+                    {alertMessageForDisplay(latestAlert, safetyStatus, language)}
                   </p>
                 )}
               </div>
@@ -1556,7 +1608,7 @@ export default function VitalsTracker({
                   className="min-h-[58px] rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 font-body text-[17px] font-bold text-[#6B5B52] disabled:opacity-60"
                   data-testid="button-safety-dismiss"
                 >
-                  {acknowledging === "dismissed" ? copy.safetyAck : "OK"}
+                  {acknowledging === "dismissed" ? copy.safetyAck : copy.ok}
                 </button>
               </div>
             )}
