@@ -273,7 +273,7 @@ describe("SymptomAssessmentPresentation", () => {
     );
     expect(screen.getByText("It is mild, usual for me, and improving")).toHaveClass(
       "text-[17px]",
-      "leading-[1.32]",
+      "leading-[1.42]",
     );
   });
 
