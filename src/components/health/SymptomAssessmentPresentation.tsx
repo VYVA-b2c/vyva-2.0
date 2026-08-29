@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   HeartPulse,
   Search,
@@ -148,6 +149,7 @@ const CHECKING_INSIGHTS: readonly CheckingInsight[] = [
 
 function SymptomCheckingProgress() {
   const { isDark } = useHomeMasterTheme();
+  const { t } = useTranslation();
   const [activeInsight, setActiveInsight] = useState(0);
 
   useEffect(() => {
@@ -162,6 +164,12 @@ function SymptomCheckingProgress() {
     return () => window.clearInterval(timer);
   }, []);
 
+  const localizedInsightTitles = [
+    t("health.symptomCheck.chat.checkingSymptoms", "Reviewing your symptoms"),
+    t("health.symptomCheck.chat.checkingProfile", "Reviewing your health profile"),
+    t("health.symptomCheck.chat.checkingSources", "Searching 40M+ peer-reviewed sources"),
+    t("health.symptomCheck.chat.checkingSafety", "Checking safety signals"),
+  ];
   const activeCopy = CHECKING_INSIGHTS[activeInsight];
   return (
     <div
@@ -174,9 +182,15 @@ function SymptomCheckingProgress() {
         <VyvaIcon icon={activeCopy.Icon} accent={activeCopy.accent} size={34} strokeWidth={2.35} />
       </span>
       <h2 className="mt-7 max-w-[300px] font-body text-[28px] font-extrabold leading-[1.08] tracking-[-0.025em] text-white">
-        {activeCopy.title}
+        {localizedInsightTitles[activeInsight]}
       </h2>
-      <div className="mt-7 flex items-center justify-center gap-2" aria-label={`Step ${activeInsight + 1} of ${CHECKING_INSIGHTS.length}`}>
+      <div
+        className="mt-7 flex items-center justify-center gap-2"
+        aria-label={t("health.symptomCheck.chat.checkingStep", "Step {{current}} of {{total}}", {
+          current: activeInsight + 1,
+          total: CHECKING_INSIGHTS.length,
+        })}
+      >
         {CHECKING_INSIGHTS.map(({ title }, index) => (
           <span
             key={title}
@@ -224,11 +238,13 @@ export function SymptomAssessmentPresentation({
   className = "",
 }: SymptomAssessmentPresentationProps) {
   const { isDark } = useHomeMasterTheme();
+  const { t } = useTranslation();
   const scene = stagePresentation[stageId];
   const presentation = resolveSymptomAssessmentPresentation(stageId);
   const urgent = scene.layout === "alert";
   const loading = scene.layout === "progress";
-  const displayHelper = helper ?? scene.helper;
+  const displayTitle = title ?? t(`health.symptomCheck.presentation.${stageId}.title`, scene.title);
+  const displayHelper = helper ?? t(`health.symptomCheck.presentation.${stageId}.helper`, scene.helper);
   const presentationId =
     modality === "voice" ? presentation.voiceSceneId : presentation.touchSceneId;
   const showsVoiceOrb =
@@ -322,7 +338,7 @@ export function SymptomAssessmentPresentation({
           {showsSceneIntro ? <div className={`px-[22px] text-center ${showHeader ? "pt-[38px]" : usesResultFrame ? "pt-6 md:pt-8" : "pt-[34px]"}`}>
           {showTitle && scene.layout !== "progress" ? (
             <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesResultFrame ? "text-[28px] md:text-[31px]" : "text-[31px]"}`}>
-              {title || scene.title}
+              {displayTitle}
             </h2>
           ) : null}
             {displayHelper ? (
@@ -330,7 +346,9 @@ export function SymptomAssessmentPresentation({
                 {usesResultFrame ? (
                   <>
                     <span className="md:hidden">
-                      {stageId === "safest_next_step" ? "Follow this guidance." : displayHelper}
+                      {stageId === "safest_next_step"
+                        ? t("health.symptomCheck.chat.followGuidanceShort", "Follow this guidance.")
+                        : displayHelper}
                     </span>
                     <span className="hidden md:inline">{displayHelper}</span>
                   </>
@@ -351,7 +369,7 @@ export function SymptomAssessmentPresentation({
         <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
           {showTitle && scene.layout !== "progress" ? (
             <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesCompactProductionDescribeFrame || stageId === "safety_check" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
-              {title || scene.title}
+              {displayTitle}
             </h2>
           ) : null}
 
@@ -361,7 +379,7 @@ export function SymptomAssessmentPresentation({
             data-testid="symptom-scene-alert"
           >
             <p className="text-[15px] font-black leading-snug text-[#8C2724]">
-              VYVA will stay with you.
+              {t("health.symptomCheck.chat.urgentStay", "VYVA will stay with you.")}
             </p>
             <p className="mt-1 text-[14px] font-semibold leading-snug text-[#8C2724]">
               {displayHelper}

@@ -26,6 +26,10 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
+import {
+  localizeTriageAnswerLabel,
+  localizeTriageQuestion,
+} from "../../shared/triageDisplayLocalization";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
@@ -193,6 +197,7 @@ interface TriageChatProps {
   composerVisibility?: SymptomAssessmentComposerVisibility;
   onStageChange?: (stage: string, urgent?: boolean) => void;
   onDraftChange?: (draft: TriageChatDraft) => void;
+  onBackHandlerChange?: (handler: (() => boolean) | null) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
   onVoiceAutoStarted?: () => void;
   onComplete: (summary: TriageSummary) => void;
@@ -274,8 +279,7 @@ function safetyToneForQuickAnswer(answer: QuickAnswer): SymptomSafetyChoiceTone 
   return "warning";
 }
 
-export type TriageChatDraft = {
-  assessmentSessionId?: string;
+export type TriageChatTurnSnapshot = {
   messages: ChatMessage[];
   selectedQuickAnswers: SelectedQuickAnswer[];
   apiQuickReplies?: ApiQuickReply[] | null;
@@ -292,8 +296,36 @@ export type TriageChatDraft = {
   guidancePlan?: TriageGuidancePlan | null;
   scanResults?: TriageScanResult[];
   declinedScanTypes?: TriageScanType[];
+  acquiredVitals?: TriageVitalValues;
+  acquiredVitalEvidence?: AcquiredVitalEvidence;
+  readingDisclosure?: string;
+  presentationStage?: SymptomAssessmentStageId;
+};
+
+export type TriageChatDraft = TriageChatTurnSnapshot & {
+  assessmentSessionId?: string;
+  backStack?: TriageChatTurnSnapshot[];
   pendingRequest?: boolean;
 };
+
+export function stepBackTriageDraft(draft: TriageChatDraft | null): {
+  draft: TriageChatDraft;
+  presentationStage?: SymptomAssessmentStageId;
+} | null {
+  const backStack = draft?.backStack ?? [];
+  const previous = backStack.at(-1);
+  if (!draft || !previous) return null;
+
+  return {
+    draft: {
+      assessmentSessionId: draft.assessmentSessionId,
+      ...previous,
+      backStack: backStack.slice(0, -1),
+      pendingRequest: false,
+    },
+    presentationStage: previous.presentationStage,
+  };
+}
 
 const iconTreatmentByKey: Record<QuickAnswerIcon, { Icon: typeof HeartPulse; accent: VyvaIconAccent }> = {
   heart: { Icon: HeartPulse, accent: "pulse" },
@@ -453,6 +485,7 @@ export default function TriageChat({
   composerVisibility,
   onStageChange,
   onDraftChange,
+  onBackHandlerChange,
   onVitalsScanned,
   onVoiceAutoStarted,
   onComplete,
@@ -486,9 +519,10 @@ export default function TriageChat({
   const [guidancePlan, setGuidancePlan] = useState<TriageGuidancePlan | null>(() => initialDraft?.guidancePlan ?? null);
   const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
   const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
-  const [acquiredVitals, setAcquiredVitals] = useState<TriageVitalValues>({});
-  const [acquiredVitalEvidence, setAcquiredVitalEvidence] = useState<AcquiredVitalEvidence>({});
-  const [readingDisclosure, setReadingDisclosure] = useState("");
+  const [acquiredVitals, setAcquiredVitals] = useState<TriageVitalValues>(() => initialDraft?.acquiredVitals ?? {});
+  const [acquiredVitalEvidence, setAcquiredVitalEvidence] = useState<AcquiredVitalEvidence>(() => initialDraft?.acquiredVitalEvidence ?? {});
+  const [readingDisclosure, setReadingDisclosure] = useState(() => initialDraft?.readingDisclosure ?? "");
+  const [backStack, setBackStack] = useState<TriageChatTurnSnapshot[]>(() => initialDraft?.backStack ?? []);
   const [requestError, setRequestError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const requestErrorRef = useRef<HTMLElement>(null);
@@ -496,6 +530,8 @@ export default function TriageChat({
   const recRef = useRef<BrowserSpeechRecognition | null>(null);
   const pendingResumeSentRef = useRef(false);
   const lastRequestRef = useRef<PendingTriageRequest | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const backStackRef = useRef(backStack);
   const userMessageCount = messages.filter((msg) => msg.role === "user").length;
   const fallbackQuickAnswers: QuickAnswer[] = userMessageCount === 0
     ? [
@@ -523,7 +559,7 @@ export default function TriageChat({
         const treatment = iconTreatmentByKey[reply.icon] ?? iconTreatmentByKey.help;
         return {
           id: reply.id,
-          label: reply.label,
+          label: localizeTriageAnswerLabel(activeLanguage, reply.label),
           value: reply.value,
           Icon: treatment.Icon,
           accent: treatment.accent,
@@ -656,7 +692,9 @@ export default function TriageChat({
       setRequestError(null);
       setLoading(true);
       onStageChange?.("checking");
+      requestAbortRef.current?.abort();
       const requestController = new AbortController();
+      requestAbortRef.current = requestController;
       const requestTimeout = window.setTimeout(() => requestController.abort(), TRIAGE_REQUEST_TIMEOUT_MS);
       try {
         const wizardVitals = {
@@ -743,12 +781,16 @@ export default function TriageChat({
           }
         });
       } catch {
+        if (requestController.signal.aborted && requestAbortRef.current !== requestController) return;
         setMedicalFollowups([]);
         setRequestError(t("health.symptomCheck.chat.errorMsg", "We could not complete that check. Your answers are saved—please try again."));
         onStageChange?.(runtimeStageForPresentation(recoverPresentationStage));
       } finally {
         window.clearTimeout(requestTimeout);
-        setLoading(false);
+        if (requestAbortRef.current === requestController) {
+          requestAbortRef.current = null;
+          setLoading(false);
+        }
       }
     },
     [acquiredVitalEvidence, acquiredVitals, activeLanguage, animateMessage, bpm, declinedScanTypes, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, onComplete, onStageChange, presentationStage, respiratoryRate, scanResults, selectedQuickAnswers, t]
@@ -765,6 +807,85 @@ export default function TriageChat({
       return next;
     });
   }, []);
+
+  const createTurnSnapshot = useCallback((): TriageChatTurnSnapshot => ({
+    messages,
+    selectedQuickAnswers,
+    apiQuickReplies,
+    evidenceSources,
+    safetyAlert,
+    emergencyContact,
+    wizardStageLabel,
+    wizardSymptomId,
+    medisearchConversationId,
+    medicalFollowups,
+    questionReason,
+    profileContextUsed,
+    vitalsPrompt,
+    guidancePlan,
+    scanResults,
+    declinedScanTypes,
+    acquiredVitals,
+    acquiredVitalEvidence,
+    readingDisclosure,
+    presentationStage,
+  }), [acquiredVitalEvidence, acquiredVitals, apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, medicalFollowups, medisearchConversationId, messages, presentationStage, profileContextUsed, questionReason, readingDisclosure, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
+
+  const replaceBackStack = useCallback((nextBackStack: TriageChatTurnSnapshot[]) => {
+    backStackRef.current = nextBackStack;
+    setBackStack(nextBackStack);
+  }, []);
+
+  const restoreTurnSnapshot = useCallback((snapshot: TriageChatTurnSnapshot) => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    lastRequestRef.current = null;
+    setLoading(false);
+    setRequestError(null);
+    setInput("");
+    setMessages(snapshot.messages);
+    setSelectedQuickAnswers(snapshot.selectedQuickAnswers);
+    setApiQuickReplies(snapshot.apiQuickReplies ?? null);
+    setEvidenceSources(snapshot.evidenceSources ?? []);
+    setSafetyAlert(snapshot.safetyAlert ?? null);
+    setEmergencyContact(snapshot.emergencyContact ?? snapshot.safetyAlert?.emergencyContact ?? null);
+    setWizardStageLabel(snapshot.wizardStageLabel ?? "");
+    setWizardSymptomId(snapshot.wizardSymptomId ?? "");
+    setMedisearchConversationId(snapshot.medisearchConversationId ?? null);
+    setMedicalFollowups(snapshot.medicalFollowups ?? []);
+    setQuestionReason(snapshot.questionReason ?? null);
+    setProfileContextUsed(Boolean(snapshot.profileContextUsed));
+    setVitalsPrompt(snapshot.vitalsPrompt ?? null);
+    setGuidancePlan(snapshot.guidancePlan ?? null);
+    setScanResults(snapshot.scanResults ?? []);
+    setDeclinedScanTypes(snapshot.declinedScanTypes ?? []);
+    setAcquiredVitals(snapshot.acquiredVitals ?? {});
+    setAcquiredVitalEvidence(snapshot.acquiredVitalEvidence ?? {});
+    setReadingDisclosure(snapshot.readingDisclosure ?? "");
+    onStageChange?.(
+      runtimeStageForPresentation(snapshot.presentationStage),
+      Boolean(snapshot.safetyAlert),
+    );
+    scrollToBottom();
+  }, [onStageChange, scrollToBottom]);
+
+  const stepBack = useCallback(() => {
+    const previous = backStackRef.current.at(-1);
+    if (!previous) return false;
+
+    replaceBackStack(backStackRef.current.slice(0, -1));
+    restoreTurnSnapshot(previous);
+    return true;
+  }, [replaceBackStack, restoreTurnSnapshot]);
+
+  useEffect(() => {
+    backStackRef.current = backStack;
+  }, [backStack]);
+
+  useEffect(() => {
+    onBackHandlerChange?.(stepBack);
+    return () => onBackHandlerChange?.(null);
+  }, [onBackHandlerChange, stepBack]);
 
   useEffect(() => {
     if (!languageReady) return;
@@ -807,9 +928,14 @@ export default function TriageChat({
       guidancePlan,
       scanResults,
       declinedScanTypes,
+      acquiredVitals,
+      acquiredVitalEvidence,
+      readingDisclosure,
+      presentationStage,
+      backStack,
       pendingRequest: loading || (!languageReady && !initiated),
     });
-  }, [apiQuickReplies, assessmentSessionId, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, profileContextUsed, questionReason, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
+  }, [acquiredVitalEvidence, acquiredVitals, apiQuickReplies, assessmentSessionId, backStack, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, presentationStage, profileContextUsed, questionReason, readingDisclosure, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -818,6 +944,9 @@ export default function TriageChat({
   useEffect(() => {
     return () => {
       recRef.current?.stop();
+      const activeRequest = requestAbortRef.current;
+      requestAbortRef.current = null;
+      activeRequest?.abort();
     };
   }, []);
 
@@ -834,6 +963,10 @@ export default function TriageChat({
     const text = rawText.trim();
     if (!text || !languageReady || loading) return;
     setInput("");
+
+    if (messages.some((message) => message.role === "assistant")) {
+      replaceBackStack([...backStackRef.current, createTurnSnapshot()]);
+    }
 
     const userMsg: ChatMessage = { role: "user", content: text };
     const newHistory = [...messages, userMsg];
@@ -874,9 +1007,12 @@ export default function TriageChat({
     .map((msg, index) => ({ msg, index }))
     .reverse()
     .find(({ msg }) => msg.role === "assistant");
-  const latestQuestion = latestAssistantEntry
-    ? latestAssistantEntry.msg.content
-    : t("health.symptomCheck.chat.reviewTitle", "Checking your next step");
+  const latestQuestion = localizeTriageQuestion(
+    activeLanguage,
+    latestAssistantEntry
+      ? latestAssistantEntry.msg.content
+      : t("health.symptomCheck.chat.reviewTitle", "Checking your next step"),
+  );
   const showQuestion = Boolean(latestAssistantEntry || !loading || presentationStage === "checking");
   const waitingForLanguage = !languageReady && !initiated;
   const canAnswer = languageReady && !loading && messages.length > 0;
@@ -966,7 +1102,8 @@ export default function TriageChat({
       .slice(-4)
       .map((answer) => ({
         label: reviewLabelByKind[answer.kind],
-        value: reviewAnswerLabelById[answer.id] ?? answer.label,
+        value: reviewAnswerLabelById[answer.id]
+          ?? localizeTriageAnswerLabel(activeLanguage, answer.label),
       })),
   ];
   const usesNumericSeverityScale = presentationStage === "severity"
@@ -1209,6 +1346,11 @@ export default function TriageChat({
               stageId="urgent_escalation"
               modality="touch"
               showHeader={false}
+              title={t("health.symptomCheck.chat.urgentTitle", "Get urgent help now")}
+              helper={t(
+                "health.symptomCheck.chat.urgentHelper",
+                "Call emergency services now. Do not wait for an online assessment.",
+              )}
             >
               <button
                 type="button"
@@ -1264,10 +1406,16 @@ export default function TriageChat({
                   ? t("health.symptomCheck.chat.anythingElse", "Anything else?")
                   : presentationStage === "review"
                     ? t("health.symptomCheck.chat.reviewConfirmTitle", "Does this look right?")
+                    : presentationStage === "related_details"
+                      ? t("health.symptomCheck.chat.relatedDetailsTitle", "One more detail")
                   : usesRuntimeQuestion
                     ? latestQuestion.trim() || undefined
                     : undefined}
-                helper={usesRuntimeQuestion && !usesNumericSeverityScale ? "" : undefined}
+                helper={presentationStage === "related_details"
+                  ? t("health.symptomCheck.chat.relatedDetailsHelper", "Choose the pattern that fits best.")
+                  : usesRuntimeQuestion && !usesNumericSeverityScale
+                    ? ""
+                    : undefined}
                 reviewItems={canonicalReviewItems}
               >
                 {canonicalSceneControls}

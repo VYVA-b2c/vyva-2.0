@@ -28,7 +28,10 @@ vi.mock("@/contexts/ProfileContext", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
-  useLanguage: () => ({ language: "en" }),
+  useLanguage: () => ({
+    language: "en",
+    t: (_key: string, fallback: string) => fallback,
+  }),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({

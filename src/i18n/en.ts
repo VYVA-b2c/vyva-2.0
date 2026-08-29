@@ -917,6 +917,7 @@
       bookRide: "Find transport",
     },
     symptomCheck: {
+      title: "Ask Dr. AI",
       intro: {
         clueSub: "Say or type a few words.",
         simpleTitle: "Tell me how you feel, right now",

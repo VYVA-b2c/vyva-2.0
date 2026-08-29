@@ -42,6 +42,7 @@ import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import type { SymptomAssessmentShellContract } from "@/design/screenPresentation";
+import { useLanguage } from "@/i18n";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
@@ -417,6 +418,7 @@ export function PrototypeSymptomAssessmentShell({
   inlineVoiceControl?: boolean;
 }) {
   const { isDark } = useHomeMasterTheme();
+  const { t } = useLanguage();
   const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
 
   return (
@@ -435,7 +437,7 @@ export function PrototypeSymptomAssessmentShell({
       >
         <PrototypeTopbar
           kind="detail"
-          title={shellContract.headerTitle}
+          title={t("health.symptomCheck.title", shellContract.headerTitle)}
           compactVoice={usesVoiceTouchHeader && !inlineVoiceControl}
           interactionMode={interactionMode}
           onInteractionModeChange={onInteractionModeChange}

@@ -455,6 +455,44 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps every French Ask Dr. AI surface shown in the canonical flow localized", () => {
+    const expected = {
+      "health.symptomCheck.intro.emergencyTitle": "N’attendez pas en cas d’urgence",
+      "health.symptomCheck.intro.emergencyCall": "Appeler les services d’urgence",
+      "health.symptomCheck.intro.emergencyContinue": "Continuer avec Dr AI",
+      "health.symptomCheck.presentation.severity.helper": "0 signifie aucune gêne. 10 correspond à l’intensité maximale imaginable.",
+      "health.symptomCheck.chat.continue": "Continuer",
+      "health.symptomCheck.chat.severityNone": "Aucune",
+      "health.symptomCheck.chat.severityWorst": "Intensité maximale imaginable",
+      "health.symptomCheck.chat.addQuickReading": "Ajouter une mesure rapide",
+      "health.symptomCheck.chat.optional": "Facultatif",
+      "health.symptomCheck.report.watchFor": "À surveiller",
+      "health.symptomCheck.report.resultDetails": "Détails du résultat",
+      "health.symptomCheck.report.resultDetailsSubCompact": "Raisons, contexte et partage",
+      "health.symptomCheck.report.returnToHealth": "Retour à Ma santé",
+      "health.symptomCheck.report.shareShort": "Partager",
+    } as const;
+
+    for (const [key, label] of Object.entries(expected)) {
+      expect(translate("fr", key)).toBe(label);
+    }
+  });
+
+  it("localizes the Ask Dr. AI flow title for every supported account language", () => {
+    const expected = {
+      en: "Ask Dr. AI",
+      es: "Pregunta al Dr. IA",
+      fr: "Demandez au Dr IA",
+      de: "Dr. KI fragen",
+      it: "Chiedi al Dr. IA",
+      pt: "Pergunte ao Dr. IA",
+    } as const;
+
+    for (const [language, label] of Object.entries(expected)) {
+      expect(translate(language as keyof typeof expected, "health.symptomCheck.title")).toBe(label);
+    }
+  });
+
   it("keeps symptom doctor contact action localized for supported account languages", () => {
     const expected = {
       en: "Add doctor contact",

@@ -32,7 +32,7 @@ export function SymptomChoiceCard({
       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[12px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}>
         <VyvaIcon icon={Icon} accent={accent} size={21} strokeWidth={2.45} />
       </span>
-      <span className="min-w-0 flex-1 font-body text-[17px] font-black leading-[1.32]">
+      <span className="min-w-0 flex-1 font-body text-[17px] font-semibold leading-[1.42] tracking-[-0.005em]">
         {label}
       </span>
       <VyvaIcon
