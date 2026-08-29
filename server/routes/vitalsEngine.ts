@@ -693,6 +693,7 @@ async function saveSignalReading(params: {
     WHERE user_id = ${params.userId}
       AND signal_type = ${params.signalType}
       AND context_tag = ${params.contextTag}
+      AND is_established = true
     LIMIT 1
   `);
   const baseline = queryRows<{ baseline_mean: string | number }>(baselineResult)[0];
@@ -738,11 +739,125 @@ async function saveSignalReading(params: {
   };
 }
 
+type BaselineRefreshResult = {
+  updated: number;
+  meansBySignalContext: Map<string, number>;
+};
+
+async function refreshVitalsBaselines(profileId: string): Promise<BaselineRefreshResult> {
+  const combosResult = await db.execute(sql`
+    SELECT DISTINCT signal_type, context_tag
+    FROM vyva_signal_readings
+    WHERE user_id = ${profileId}
+      AND quality_flag = 'clean'
+      AND source <> 'phone_estimate'
+      AND recorded_at >= ${daysAgo(14 * 24)}
+  `);
+  const combos = queryRows<{ signal_type: string; context_tag: string | null }>(combosResult);
+  let updated = 0;
+  const meansBySignalContext = new Map<string, number>();
+
+  for (const combo of combos) {
+    const contextTag = combo.context_tag ?? "general";
+    const readingsResult = await db.execute(sql`
+      SELECT value
+      FROM vyva_signal_readings
+      WHERE user_id = ${profileId}
+        AND signal_type = ${combo.signal_type}
+        AND COALESCE(context_tag, 'general') = ${contextTag}
+        AND quality_flag = 'clean'
+        AND source <> 'phone_estimate'
+        AND recorded_at >= ${daysAgo(14 * 24)}
+    `);
+
+    const values = queryRows<{ value: string | number }>(readingsResult)
+      .map((reading) => numberOrNull(reading.value))
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+
+    if (values.length < 3) continue;
+
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+    const stddev = Math.sqrt(variance);
+    const p25 = values[Math.floor((values.length - 1) * 0.25)];
+    const p75 = values[Math.floor((values.length - 1) * 0.75)];
+    const roundedMean = roundOne(mean);
+    const isEstablished = values.length >= 10;
+    if (isEstablished) {
+      meansBySignalContext.set(`${combo.signal_type}|${contextTag}`, roundedMean);
+    }
+
+    await db.execute(sql`
+      INSERT INTO vyva_user_baselines (
+        user_id,
+        signal_type,
+        context_tag,
+        baseline_mean,
+        baseline_stddev,
+        baseline_p25,
+        baseline_p75,
+        sample_count,
+        is_established,
+        computed_at
+      )
+      VALUES (
+        ${profileId},
+        ${combo.signal_type},
+        ${contextTag},
+        ${roundedMean},
+        ${roundOne(stddev)},
+        ${roundOne(p25)},
+        ${roundOne(p75)},
+        ${values.length},
+        ${isEstablished},
+        NOW()
+      )
+      ON CONFLICT (user_id, signal_type, context_tag)
+      DO UPDATE SET
+        baseline_mean = EXCLUDED.baseline_mean,
+        baseline_stddev = EXCLUDED.baseline_stddev,
+        baseline_p25 = EXCLUDED.baseline_p25,
+        baseline_p75 = EXCLUDED.baseline_p75,
+        sample_count = EXCLUDED.sample_count,
+        is_established = EXCLUDED.is_established,
+        computed_at = NOW()
+    `);
+
+    if (isEstablished) {
+      await db.execute(sql`
+        UPDATE vyva_signal_readings
+        SET baseline_ref = ${roundedMean},
+            deviation_pct = CASE
+              WHEN ${roundedMean} = 0 THEN NULL
+              ELSE ROUND((((value - ${roundedMean}) / ABS(${roundedMean})) * 100)::numeric, 1)
+            END
+        WHERE user_id = ${profileId}
+          AND signal_type = ${combo.signal_type}
+          AND COALESCE(context_tag, 'general') = ${contextTag}
+          AND baseline_ref IS NULL
+          AND quality_flag = 'clean'
+          AND source <> 'phone_estimate'
+          AND recorded_at >= ${daysAgo(14 * 24)}
+      `);
+    }
+    updated += 1;
+  }
+
+  return { updated, meansBySignalContext };
+}
+
 async function saveValidatedReadings(
   profileId: string,
   readings: z.infer<typeof signalReadingSchema>[],
 ) {
   const saved: Array<{ reading: Record<string, unknown>; deviation_pct: number | null }> = [];
+  const savedSignalContexts: Array<{
+    signalType: VitalsSignalKey;
+    contextTag: string;
+    source: VitalsReadingSource;
+    value: number;
+  }> = [];
   let shouldAnalyse = false;
 
   for (const reading of readings) {
@@ -753,13 +868,15 @@ async function saveValidatedReadings(
       throw err;
     }
 
+    const source = normalizedSource(reading.source);
+    const contextTag = reading.context_tag || defaultContextForSignal(signalType);
     const result = await saveSignalReading({
       userId: profileId,
       signalType,
       value: reading.value,
-      source: normalizedSource(reading.source),
+      source,
       captureMethod: normalizedCaptureMethod(reading.capture_method),
-      contextTag: reading.context_tag || defaultContextForSignal(signalType),
+      contextTag,
       unit: reading.unit ?? unitForSignal(signalType),
       sourceRef: reading.source_ref,
       recordedAt: reading.recorded_at,
@@ -767,13 +884,26 @@ async function saveValidatedReadings(
       assessmentSessionId: reading.assessment_session_id,
     });
     saved.push(result);
-    if (result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
+    savedSignalContexts.push({ signalType, contextTag, source, value: reading.value });
+    if (source !== "phone_estimate" && result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
       shouldAnalyse = true;
     }
   }
 
+  const baselineRefresh = await refreshVitalsBaselines(profileId).catch((err) => {
+    console.error("[vitals-engine baseline refresh after save]", err);
+    return { updated: 0, meansBySignalContext: new Map<string, number>() };
+  });
+  if (!shouldAnalyse) {
+    shouldAnalyse = savedSignalContexts.some(({ signalType, contextTag, source, value }) => {
+      if (source === "phone_estimate") return false;
+      const mean = baselineRefresh.meansBySignalContext.get(`${signalType}|${contextTag}`);
+      return mean !== undefined && mean !== 0 && Math.abs(((value - mean) / Math.abs(mean)) * 100) > 25;
+    });
+  }
+
   if (shouldAnalyse) {
-    runAnalysis(profileId).catch((err) => console.error("[vitals-engine analysis trigger]", err));
+    runAnalysis(profileId, { refreshBaselines: false }).catch((err) => console.error("[vitals-engine analysis trigger]", err));
   }
 
   return saved;
@@ -1177,87 +1307,20 @@ router.post("/baseline/update", async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req);
 
   try {
-    const combosResult = await db.execute(sql`
-      SELECT DISTINCT signal_type, context_tag
-      FROM vyva_signal_readings
-      WHERE user_id = ${profileId}
-        AND quality_flag = 'clean'
-        AND recorded_at >= ${daysAgo(14 * 24)}
-    `);
-    const combos = queryRows<{ signal_type: string; context_tag: string | null }>(combosResult);
-    let updated = 0;
-
-    for (const combo of combos) {
-      const contextTag = combo.context_tag ?? "general";
-      const readingsResult = await db.execute(sql`
-        SELECT value
-        FROM vyva_signal_readings
-        WHERE user_id = ${profileId}
-          AND signal_type = ${combo.signal_type}
-          AND context_tag = ${contextTag}
-          AND quality_flag = 'clean'
-          AND recorded_at >= ${daysAgo(14 * 24)}
-      `);
-
-      const values = queryRows<{ value: string | number }>(readingsResult)
-        .map((reading) => numberOrNull(reading.value))
-        .filter((value): value is number => value !== null)
-        .sort((a, b) => a - b);
-
-      if (values.length < 3) continue;
-
-      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-      const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
-      const stddev = Math.sqrt(variance);
-      const p25 = values[Math.floor((values.length - 1) * 0.25)];
-      const p75 = values[Math.floor((values.length - 1) * 0.75)];
-
-      await db.execute(sql`
-        INSERT INTO vyva_user_baselines (
-          user_id,
-          signal_type,
-          context_tag,
-          baseline_mean,
-          baseline_stddev,
-          baseline_p25,
-          baseline_p75,
-          sample_count,
-          is_established,
-          computed_at
-        )
-        VALUES (
-          ${profileId},
-          ${combo.signal_type},
-          ${contextTag},
-          ${roundOne(mean)},
-          ${roundOne(stddev)},
-          ${roundOne(p25)},
-          ${roundOne(p75)},
-          ${values.length},
-          ${values.length >= 10},
-          NOW()
-        )
-        ON CONFLICT (user_id, signal_type, context_tag)
-        DO UPDATE SET
-          baseline_mean = EXCLUDED.baseline_mean,
-          baseline_stddev = EXCLUDED.baseline_stddev,
-          baseline_p25 = EXCLUDED.baseline_p25,
-          baseline_p75 = EXCLUDED.baseline_p75,
-          sample_count = EXCLUDED.sample_count,
-          is_established = EXCLUDED.is_established,
-          computed_at = NOW()
-      `);
-      updated += 1;
-    }
-
-    return res.json({ updated });
+    const result = await refreshVitalsBaselines(profileId);
+    return res.json({ updated: result.updated });
   } catch (err) {
     console.error("[vitals-engine baseline]", err);
     return res.status(500).json({ error: "Failed to update vitals baselines" });
   }
 });
 
-export async function runAnalysis(userId: string) {
+export async function runAnalysis(userId: string, options: { refreshBaselines?: boolean } = {}) {
+  if (options.refreshBaselines !== false) {
+    await refreshVitalsBaselines(userId).catch((err) => {
+      console.error("[vitals-engine baseline refresh before analysis]", err);
+    });
+  }
   const context = await loadAnalysisContext(userId);
   const deterministic = buildDailySafetyCheck({
     signalSummary: context.signalSummary,
