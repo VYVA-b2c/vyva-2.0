@@ -1459,44 +1459,56 @@ export default function VitalsTracker({
       ) : (
         <>
           <div data-testid="vitals-hero">
-            <section className={`overflow-hidden rounded-[30px] border border-l-[6px] px-[22px] pb-6 pt-5 ${dashboardPanel} ${safetyHeroAccent}`}>
-              <div className="flex items-start gap-3.5">
-                <span className={`grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[18px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                  <SafetyIcon className="h-6 w-6" style={{ color: safety.color }} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className={`font-body text-[11px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
-                  <h2 className={`mt-1 font-body text-[31px] font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
-                    {safetyLabel(safetyStatus, language)}
-                  </h2>
-                  <p className={`mt-2 max-w-[560px] font-body text-[16px] font-semibold leading-[1.42] ${isDark ? "text-[#D8CDE4]" : "text-[#746A72]"}`}>
-                    {analysis?.senior_message ?? copy.messageFallback}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(180px,220px)_auto] sm:items-center">
-                <div
-                  className={`rounded-[18px] border px-4 py-3 ${isDark ? "border-white/[0.12] bg-[#352842] text-[#FFF8FF]" : "border-[#E7DDEB] bg-[#FBF6FF] text-[#241238]"}`}
-                  data-testid="vitals-risk-score"
-                  aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
-                >
-                  <p className={`font-body text-[11px] font-black uppercase tracking-[0.1em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.04em]">{riskScore}</span>
-                    <span className={`font-body text-[17px] font-black ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
+            <section className={`overflow-hidden rounded-[30px] border border-l-[6px] px-[22px] py-5 ${dashboardPanel} ${safetyHeroAccent}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                    <SafetyIcon className="h-[22px] w-[22px]" style={{ color: safety.color }} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className={`font-body text-[10px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
+                    <h2 className={`mt-0.5 font-body text-[27px] font-extrabold leading-none tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                      {safetyLabel(safetyStatus, language)}
+                    </h2>
                   </div>
-                  <p className={`mt-1 font-body text-[12px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</p>
                 </div>
                 <button
                   type="button"
                   onClick={showAddReading}
-                  className="vyva-tap flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#7024C4] px-6 font-body text-[16px] font-black text-white shadow-[0_10px_22px_rgba(112,36,196,0.2)] sm:min-w-[210px]"
+                  className="vyva-tap flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#7024C4] px-4 font-body text-[14px] font-black text-white shadow-[0_7px_18px_rgba(112,36,196,0.24)] transition hover:bg-[#5E1DA8] active:scale-[0.98]"
                   data-testid="button-vitals-hero-add"
                 >
-                  <Plus className="h-5 w-5" />
+                  <Plus className="h-[18px] w-[18px]" />
                   {copy.add}
                 </button>
+              </div>
+
+              <div className={`mt-4 grid gap-4 rounded-[22px] border p-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center ${isDark ? "border-white/[0.12] bg-[#24192E]" : "border-[#E7DDEB] bg-[#FBF8FD]"}`}>
+                <div
+                  className="sm:border-r sm:border-current sm:pr-4"
+                  style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : "#E7DDEB" }}
+                  data-testid="vitals-risk-score"
+                  aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
+                >
+                  <p className={`font-body text-[10px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
+                  <div className="mt-1 flex items-baseline gap-1">
+                    <span className="font-body text-[44px] font-extrabold leading-none tracking-[-0.05em]" style={{ color: riskColor }}>{riskScore}</span>
+                    <span className={`font-body text-[15px] font-black ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
+                  </div>
+                  <p className={`mt-1 font-body text-[11px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</p>
+                </div>
+
+                <div className="min-w-0">
+                  <p className={`font-body text-[15px] font-semibold leading-[1.45] ${isDark ? "text-[#E4DAEC]" : "text-[#665A63]"}`}>
+                    {analysis?.senior_message ?? copy.messageFallback}
+                  </p>
+                  <div className={`mt-3 h-2 overflow-hidden rounded-full ${isDark ? "bg-white/[0.1]" : "bg-[#EDE5F1]"}`} aria-hidden="true">
+                    <div
+                      className="h-full rounded-full transition-[width] duration-500"
+                      style={{ width: `${Math.max(4, Math.min(100, riskScore))}%`, backgroundColor: riskColor }}
+                    />
+                  </div>
+                </div>
               </div>
             </section>
           </div>
