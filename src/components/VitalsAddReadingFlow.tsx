@@ -365,15 +365,16 @@ export default function VitalsAddReadingFlow({
         loadingContext ? (
           <div className="flex min-h-[220px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#7C3AED]" /></div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {groupedSignals.map(({ group, signals }) => (
               <div key={group}>
                 <p className={`mb-2 font-body text-[12px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{GROUP_LABELS[group]}</p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {signals.map((signal) => {
+                  {signals.map((signal, index) => {
                     const meta = VITALS_SIGNAL_CATALOG[signal];
+                    const balancesOddGroup = signals.length % 2 === 1 && index === 0;
                     return (
-                      <button key={signal} type="button" onClick={() => chooseSignal(signal)} className={`flex min-h-[68px] items-center gap-3 rounded-[20px] border px-4 text-left ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "border-[#E7DDF0] bg-white shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`} data-testid={`button-vital-${signal}`}>
+                      <button key={signal} type="button" onClick={() => chooseSignal(signal)} className={`flex min-h-[64px] items-center gap-3 rounded-[20px] border px-4 text-left sm:min-h-[66px] ${balancesOddGroup ? "sm:col-span-2" : ""} ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "border-[#E7DDF0] bg-white shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`} data-testid={`button-vital-${signal}`}>
                         <span className={`flex h-10 w-10 items-center justify-center rounded-[14px] ${isDark ? "bg-[#49355E] text-[#C4A7FF]" : "bg-[#F3E8FF] text-[#7C3AED]"}`}><HeartPulse className="h-5 w-5" /></span>
                         <span className="min-w-0 flex-1">
                           <span className={`block font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{meta.label}</span>
