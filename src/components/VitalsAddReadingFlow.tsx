@@ -17,8 +17,8 @@ import { apiFetch } from "@/lib/queryClient";
 import VitalsScan from "@/components/VitalsScan";
 import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
-import { VITALS_DEVICE_CATALOG } from "@/lib/vitalsDeviceCatalog";
-import { isWebBluetoothSupported, readStandardBluetoothDevice } from "@/lib/vitalsBluetooth";
+import { VITALS_DEVICE_CATALOG, vitalsDeviceModelById } from "@/lib/vitalsDeviceCatalog";
+import { bluetoothReadErrorCode, isWebBluetoothSupported, readStandardBluetoothDevice } from "@/lib/vitalsBluetooth";
 import {
   VITALS_SIGNAL_CATALOG,
   VITALS_SIGNAL_KEYS,
@@ -103,6 +103,7 @@ const FLOW_COPY = {
     photoHint: "Keep the full number and unit clearly visible.",
     lookingDevice: "Looking for your device…",
     bluetoothDevice: "Bluetooth device",
+    configuredDevice: "Configured device",
     tryAgain: "Try again",
     listening: "Listening…",
     startSpeaking: "Start speaking",
@@ -128,6 +129,12 @@ const FLOW_COPY = {
       bluetoothUnavailable: "Bluetooth is not available in this browser. Choose photo, voice, or manual entry instead.",
       bluetoothValue: "The device did not return this vital.",
       bluetoothRead: "Could not read the Bluetooth device.",
+      bluetoothCancelled: "No device was selected. Try again when you are ready.",
+      bluetoothConnection: "Could not connect. Keep the device awake and nearby, then try again.",
+      bluetoothService: "This device does not expose the expected standard measurement service.",
+      bluetoothTimeout: "No measurement arrived. Take a fresh reading while the device stays nearby.",
+      bluetoothEmpty: "The device connected but did not send a measurement.",
+      bluetoothParse: "VYVA does not yet support the measurement format sent by this device.",
       save: "Could not save the reading.",
       retry: "Please try again.",
     },
@@ -146,6 +153,7 @@ const FLOW_COPY = {
     photoHint: "Veillez à ce que le nombre complet et l’unité soient clairement visibles.",
     lookingDevice: "Recherche de votre appareil…",
     bluetoothDevice: "Appareil Bluetooth",
+    configuredDevice: "Appareil configuré",
     tryAgain: "Réessayer",
     listening: "Écoute en cours…",
     startSpeaking: "Commencer à parler",
@@ -171,6 +179,12 @@ const FLOW_COPY = {
       bluetoothUnavailable: "Bluetooth n’est pas disponible dans ce navigateur. Choisissez la photo, la voix ou la saisie manuelle.",
       bluetoothValue: "L’appareil n’a pas transmis cette constante.",
       bluetoothRead: "Impossible de lire l’appareil Bluetooth.",
+      bluetoothCancelled: "Aucun appareil n’a été sélectionné. Réessayez lorsque vous êtes prêt.",
+      bluetoothConnection: "Connexion impossible. Gardez l’appareil allumé et à proximité, puis réessayez.",
+      bluetoothService: "Cet appareil n’expose pas le service de mesure Bluetooth standard attendu.",
+      bluetoothTimeout: "Aucune mesure reçue. Effectuez une nouvelle mesure en gardant l’appareil à proximité.",
+      bluetoothEmpty: "L’appareil est connecté mais n’a transmis aucune mesure.",
+      bluetoothParse: "VYVA ne prend pas encore en charge le format de mesure transmis par cet appareil.",
       save: "Impossible d’enregistrer la mesure.",
       retry: "Veuillez réessayer.",
     },
@@ -196,7 +210,12 @@ type AcquisitionSignal = {
 export type VitalsAcquisitionContext = {
   readings: VitalsMeasurementEnvelope[];
   signals: AcquisitionSignal[];
-  devices: Array<{ id?: string | null; deviceName?: string | null; capabilities?: VitalsSignalKey[] }>;
+  devices: Array<{
+    id?: string | null;
+    deviceName?: string | null;
+    capabilities?: VitalsSignalKey[];
+    metadata?: Record<string, unknown>;
+  }>;
 };
 
 type Stage = "vital" | "tracked" | "method" | "capture" | "confirm";
@@ -232,6 +251,11 @@ function sourceDeviceName(
   if (explicitName) return explicitName;
   const registered = context?.devices.find((device) => device.capabilities?.includes(reading.signalType));
   return registered?.deviceName || (reading.source === "clinical" ? copy.clinicalRecord : copy.connectedDevice);
+}
+
+function configuredDeviceForSignal(context: VitalsAcquisitionContext | null, signal: VitalsSignalKey | null) {
+  if (!signal) return undefined;
+  return context?.devices.find((device) => device.capabilities?.includes(signal));
 }
 
 function fileToDataUrl(file: File) {
@@ -435,14 +459,28 @@ export default function VitalsAddReadingFlow({
       return;
     }
     setBusy(true);
+    setError("");
     try {
-      const result = await readStandardBluetoothDevice(device, () => undefined);
+      const configuredDevice = context?.devices.find((item) => item.id === device.id) ?? configuredDeviceForSignal(context, selectedSignal);
+      const modelId = typeof configuredDevice?.metadata?.model_id === "string" ? configuredDevice.metadata.model_id : null;
+      const configuredModel = vitalsDeviceModelById(modelId);
+      const result = await readStandardBluetoothDevice(device, () => undefined, configuredModel ?? undefined);
       const matches = result.readings.filter((reading) => reading.signal_type === selectedSignal);
       if (!matches.length) throw new Error(flowCopy.errors.bluetoothValue);
       setProposed(matches);
       setStage("confirm");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : flowCopy.errors.bluetoothRead);
+      const code = bluetoothReadErrorCode(cause);
+      const messages = {
+        unsupported: flowCopy.errors.bluetoothUnavailable,
+        user_cancelled: flowCopy.errors.bluetoothCancelled,
+        connection_failed: flowCopy.errors.bluetoothConnection,
+        service_unavailable: flowCopy.errors.bluetoothService,
+        measurement_timeout: flowCopy.errors.bluetoothTimeout,
+        empty_measurement: flowCopy.errors.bluetoothEmpty,
+        parse_failed: flowCopy.errors.bluetoothParse,
+      } as const;
+      setError(code ? messages[code] : flowCopy.errors.bluetoothRead);
     } finally {
       setBusy(false);
     }
@@ -500,6 +538,7 @@ export default function VitalsAddReadingFlow({
   const selectedLabel = selectedSignal && isFrench
     ? FRENCH_SIGNAL_LABELS[selectedSignal] ?? selectedMeta?.label
     : selectedMeta?.label;
+  const configuredBluetoothDevice = configuredDeviceForSignal(context, selectedSignal);
 
   return (
     <section className={`rounded-[30px] border p-5 ${isDark ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_22px_48px_rgba(0,0,0,0.22)]" : "border-[#E6DCEB] bg-[#FFFCF8] text-[#241238] shadow-[0_16px_40px_rgba(63,45,75,0.08)]"}`} data-testid="vitals-add-flow">
@@ -606,6 +645,9 @@ export default function VitalsAddReadingFlow({
         <div className="rounded-[24px] border border-[#D6E4F5] bg-[#EFF6FF] p-5 text-center">
           {busy ? <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#1D4ED8]" /> : <Bluetooth className="mx-auto h-8 w-8 text-[#1D4ED8]" />}
           <p className="mt-3 font-display text-[22px] font-bold text-[#17345C]">{busy ? flowCopy.lookingDevice : flowCopy.bluetoothDevice}</p>
+          {!busy && configuredBluetoothDevice?.deviceName
+            ? <p className="mt-2 font-body text-[13px] font-bold text-[#365B86]">{flowCopy.configuredDevice}: {configuredBluetoothDevice.deviceName}</p>
+            : null}
           {!busy ? <button type="button" onClick={() => void startBluetooth()} className="mt-4 min-h-[52px] rounded-[17px] bg-[#1D4ED8] px-6 font-body text-[15px] font-black text-white">{flowCopy.tryAgain}</button> : null}
         </div>
       ) : null}
