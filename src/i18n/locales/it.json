@@ -13,7 +13,24 @@
     "concierge": "Concierge",
     "reports": "I miei report"
   },
+  "healthHub": {
+    "title": "La mia salute",
+    "askTitle": "Chiedi al Dr. AI",
+    "askSubtitle": "Dolori o cambiamenti",
+    "start": "Inizia",
+    "longevityTitle": "Longevità",
+    "longevitySubtitle": "Prevenire è la cura migliore",
+    "today": "Oggi",
+    "vitalsTitle": "I miei parametri vitali",
+    "vitalsSubtitle": "Misure e tendenze",
+    "medicationTitle": "Farmaci",
+    "medicationSubtitle": "Dosi e promemoria"
+  },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Parametri vitali"
+    },
+    "backToHealth": "Torna a La mia salute",
     "title": "Stato / Parametri vitali",
     "online": "Online",
     "offline": "Offline",

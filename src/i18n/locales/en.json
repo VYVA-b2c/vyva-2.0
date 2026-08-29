@@ -13,7 +13,24 @@
     "concierge": "Concierge",
     "reports": "My Reports"
   },
+  "healthHub": {
+    "title": "My Health",
+    "askTitle": "Ask Dr. AI",
+    "askSubtitle": "Aches or changes",
+    "start": "Start",
+    "longevityTitle": "Longevity",
+    "longevitySubtitle": "Prevention is the best cure",
+    "today": "Today",
+    "vitalsTitle": "My Vitals",
+    "vitalsSubtitle": "Readings and trends",
+    "medicationTitle": "Medication",
+    "medicationSubtitle": "Doses and reminders"
+  },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Vitals"
+    },
+    "backToHealth": "Back to My Health",
     "title": "Status / Vitals",
     "online": "Online",
     "offline": "Offline",

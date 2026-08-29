@@ -895,16 +895,17 @@ export function PrototypeHealthScreen({
   backPath?: string;
   contained?: boolean;
 }) {
+  const { t } = useLanguage();
   const healthRows: RowItem[] = [
-    { icon: Stethoscope, brandIcon: "doctor", title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: ShieldCheck, brandIcon: "longevity", title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: HeartPulse, brandIcon: "vitals", title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, brandIcon: "medication", title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: t("healthHub.start", "Start"), tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: t("healthHub.today", "Today"), tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: HeartPulse, brandIcon: "vitals", title: t("healthHub.vitalsTitle", "My Vitals"), subtitle: t("healthHub.vitalsSubtitle", "Readings and trends"), meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, brandIcon: "medication", title: t("healthHub.medicationTitle", "Medication"), subtitle: t("healthHub.medicationSubtitle", "Doses and reminders"), meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
     <PrototypeShell testId="prototype-health-screen" width="hub" contained={contained}>
-      <PrototypeTopbar kind="hub" title="My Health" backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
+      <PrototypeTopbar kind="hub" title={t("healthHub.title", "My Health")} backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
       <HealthHubActionGrid items={healthRows} />
     </PrototypeShell>
   );

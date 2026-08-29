@@ -1,8 +1,9 @@
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import VitalsTracker, { type VitalsTrackerPreviewData } from "@/components/VitalsTracker";
-import { HealthWizardShell, HealthWizardTopBar } from "@/components/health/HealthWizard";
+import { HomeMasterDetailShell } from "@/components/health/HomeMasterDetailShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
@@ -27,6 +28,10 @@ export default function VitalsScreen({
   const { user } = useAuth();
   const { profile } = useProfile();
   const { language } = useLanguage();
+  const [flowBackAction, setFlowBackAction] = useState<(() => void) | null>(null);
+  const handleBackActionChange = useCallback((handler: (() => void) | null) => {
+    setFlowBackAction(() => handler);
+  }, []);
   const { data: personalisation } = useQuery<PersonalisationProfile>({
     queryKey: ["/api/profile/personalisation"],
     enabled: !previewData,
@@ -35,17 +40,12 @@ export default function VitalsScreen({
   });
 
   return (
-    <HealthWizardShell
-      contentClassName="max-w-[1180px] px-4 pb-40 sm:px-6 lg:px-8"
+    <HomeMasterDetailShell
+      title={t("statusVitals.hub.pageTitle", "Vitals")}
+      onBack={flowBackAction ?? (() => navigate(backPath))}
+      backLabel={t("statusVitals.backToHealth", "Back to My Health")}
       testId="vitals-page"
     >
-      <HealthWizardTopBar
-        title={t("statusVitals.hub.pageTitle", "Vitals")}
-        kicker={t("statusVitals.hub.pageKicker", "Health")}
-        onBack={() => navigate(backPath)}
-        backLabel={t("statusVitals.backToHealth", "Back to My Health")}
-        className="mb-3"
-      />
       <VitalsTracker
         userId={previewData ? "preview-user" : user?.id ?? ""}
         userConditions={previewData ? previewConditions : personalisation?.conditions ?? []}
@@ -56,7 +56,8 @@ export default function VitalsScreen({
         gpPhone={profile?.gpPhone}
         gpEmail={profile?.gpEmail}
         caregiverContact={profile?.caregiverContact}
+        onBackActionChange={handleBackActionChange}
       />
-    </HealthWizardShell>
+    </HomeMasterDetailShell>
   );
 }

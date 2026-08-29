@@ -4,15 +4,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
+  Apple,
   Bluetooth,
   Check,
   ChevronRight,
+  Droplets,
   Heart,
   Loader2,
   Scale,
   Stethoscope,
   Thermometer,
   Wind,
+  Watch,
   type LucideIcon,
 } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
@@ -27,6 +30,7 @@ import {
 } from "@/lib/vitalsBluetooth";
 import { VITALS_SIGNAL_CATALOG } from "../../../shared/vitalsSignalCatalog";
 import { formatVitalsReadingDisplay, type ProposedVitalsReading } from "../../../shared/vitalsParsing";
+import { VITALS_PROVIDER_CATALOG, type VitalsProviderId } from "@/lib/vitalsProviderCatalog";
 
 type StoredHealthDevice = {
   id: VitalsDeviceKind;
@@ -44,6 +48,12 @@ const DEVICE_ICON_BY_ID: Record<VitalsDeviceKind, LucideIcon> = {
   glucose_meter: Stethoscope,
   weight_scale: Scale,
   heart_monitor: Heart,
+};
+
+const PROVIDER_ICON_BY_ID: Record<VitalsProviderId, LucideIcon> = {
+  apple_health: Apple,
+  libreview: Droplets,
+  withings: Watch,
 };
 
 function signalLabel(signal: string) {
@@ -210,6 +220,7 @@ export default function HealthDevicesSettings() {
   const queryClient = useQueryClient();
   const [selectedDevice, setSelectedDevice] = useState<VitalsDeviceCatalogItem | null>(null);
   const [deviceActionError, setDeviceActionError] = useState("");
+  const [connectedProviderIds, setConnectedProviderIds] = useState<Set<VitalsProviderId>>(() => new Set());
   const { data, isLoading } = useQuery<{ devices: StoredHealthDevice[] }>({
     queryKey: ["/api/settings/health-devices"],
     retry: false,
@@ -246,6 +257,22 @@ export default function HealthDevicesSettings() {
       return;
     }
     updateDeviceCache(payload as { devices: StoredHealthDevice[] });
+  };
+
+  const previewProviderConnection = (providerId: VitalsProviderId) => {
+    if (providerId === "apple_health") {
+      // TODO: real OAuth for Apple Health.
+    } else if (providerId === "libreview") {
+      // TODO: real OAuth for LibreView.
+    } else {
+      // TODO: real OAuth for Withings.
+    }
+    setConnectedProviderIds((current) => {
+      const next = new Set(current);
+      if (next.has(providerId)) next.delete(providerId);
+      else next.add(providerId);
+      return next;
+    });
   };
 
   return (
@@ -347,6 +374,49 @@ export default function HealthDevicesSettings() {
                       </button>
                     )}
                   </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-[#EFE4D5] bg-white p-4 shadow-[0_10px_26px_rgba(53,28,87,0.055)]" data-testid="wearables-apps-section">
+          <div className="mb-3">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-2">
+              {t("settings.healthDevices.providersSection", "Wearables & apps")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+              {t("settings.healthDevices.providersFixture", "Preview only — live provider connections require approved API access.")}
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            {VITALS_PROVIDER_CATALOG.map((provider) => {
+              const Icon = PROVIDER_ICON_BY_ID[provider.id];
+              const connected = connectedProviderIds.has(provider.id);
+              return (
+                <article key={provider.id} className="rounded-[20px] border border-[#F0E7DE] bg-[#FFFCF8] p-3 shadow-[0_5px_14px_rgba(63,45,35,0.035)]" data-testid={`provider-settings-card-${provider.id}`}>
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color: provider.accent, background: provider.bg }}>
+                      <Icon size={19} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-body text-[15px] font-black text-vyva-text-1">{provider.label}</p>
+                        <span className={`rounded-full px-2 py-0.5 font-body text-[10px] font-black ${connected ? "bg-[#ECFDF5] text-[#047857]" : "bg-[#F7F1E9] text-vyva-text-2"}`} data-testid={`provider-status-${provider.id}`}>
+                          {connected ? t("settings.healthDevices.connectedPreview", "Connected demo") : t("settings.healthDevices.notConnected", "Not connected")}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">{provider.helper}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {provider.signals.map((signal) => <span key={signal} className="rounded-full px-2 py-0.5 font-body text-[10px] font-black" style={{ color: provider.accent, background: provider.bg }}>{signalLabel(signal)}</span>)}
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => previewProviderConnection(provider.id)} className="mt-3 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-[15px] bg-white font-body text-[13px] font-black text-[#6B21A8] shadow-[inset_0_0_0_1px_#DDD6FE]" data-testid={`button-provider-preview-${provider.id}`}>
+                    {connected ? <Check size={15} /> : <ChevronRight size={15} />}
+                    {connected ? t("settings.healthDevices.disconnectDemo", "Reset demo") : t("settings.healthDevices.previewConnected", "Preview connected state")}
+                  </button>
                 </article>
               );
             })}
