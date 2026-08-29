@@ -21,8 +21,8 @@ const BottomNav = ({ onSosClick, wide = false }: { onSosClick: () => void; wide?
   const usesHomeDockSurface = isHomeNavPrototypeDockRoute(location.pathname);
   const isDevHomeMasterRoute = location.pathname === "/dev/home-master" || location.pathname.startsWith("/dev/home-master/");
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
-  const homeLabel = isDevHomeMasterRoute ? "Home" : t("nav.home", "Home");
-  const reportsLabel = isDevHomeMasterRoute ? "My Reports" : t("nav.reports", "My Reports");
+  const homeLabel = t("nav.home", "Home");
+  const reportsLabel = t("nav.reports", "My Reports");
 
   const tabs: BottomNavTab[] = [
     {

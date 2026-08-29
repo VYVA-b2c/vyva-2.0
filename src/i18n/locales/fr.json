@@ -2274,6 +2274,19 @@
     "cancel": "Annuler",
     "sendNow": "Envoyer l'alerte"
   },
+  "healthHub": {
+    "title": "Ma santé",
+    "askTitle": "Demander au Dr AI",
+    "askSubtitle": "Douleurs ou changements",
+    "start": "Commencer",
+    "longevityTitle": "Longévité",
+    "longevitySubtitle": "Mieux vaut prévenir que guérir",
+    "today": "Aujourd’hui",
+    "vitalsTitle": "Mes constantes",
+    "vitalsSubtitle": "Mesures et tendances",
+    "medicationTitle": "Médicaments",
+    "medicationSubtitle": "Doses et rappels"
+  },
   "statusVitals": {
     "hub": {
       "pageTitle": "Constantes"

@@ -13,6 +13,19 @@
     "concierge": "Conserje",
     "reports": "Mis informes"
   },
+  "healthHub": {
+    "title": "Mi salud",
+    "askTitle": "Pregunta al Dr. AI",
+    "askSubtitle": "Dolores o cambios",
+    "start": "Empezar",
+    "longevityTitle": "Longevidad",
+    "longevitySubtitle": "Prevenir es la mejor cura",
+    "today": "Hoy",
+    "vitalsTitle": "Mis signos vitales",
+    "vitalsSubtitle": "Mediciones y tendencias",
+    "medicationTitle": "Medicación",
+    "medicationSubtitle": "Dosis y recordatorios"
+  },
   "statusVitals": {
     "hub": {
       "pageTitle": "Signos vitales"

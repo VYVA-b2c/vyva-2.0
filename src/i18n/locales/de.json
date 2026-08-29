@@ -2274,6 +2274,19 @@
     "cancel": "Abbrechen",
     "sendNow": "Alarm jetzt senden"
   },
+  "healthHub": {
+    "title": "Meine Gesundheit",
+    "askTitle": "Dr. AI fragen",
+    "askSubtitle": "Beschwerden oder Veränderungen",
+    "start": "Start",
+    "longevityTitle": "Langlebigkeit",
+    "longevitySubtitle": "Vorsorge ist die beste Medizin",
+    "today": "Heute",
+    "vitalsTitle": "Meine Vitalwerte",
+    "vitalsSubtitle": "Messwerte und Trends",
+    "medicationTitle": "Medikamente",
+    "medicationSubtitle": "Dosierungen und Erinnerungen"
+  },
   "statusVitals": {
     "hub": {
       "pageTitle": "Vitalwerte"

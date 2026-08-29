@@ -2274,6 +2274,19 @@
     "cancel": "Cancelar",
     "sendNow": "Enviar alerta agora"
   },
+  "healthHub": {
+    "title": "A minha saúde",
+    "askTitle": "Perguntar ao Dr. AI",
+    "askSubtitle": "Dores ou alterações",
+    "start": "Começar",
+    "longevityTitle": "Longevidade",
+    "longevitySubtitle": "Prevenir é o melhor remédio",
+    "today": "Hoje",
+    "vitalsTitle": "Os meus sinais vitais",
+    "vitalsSubtitle": "Medições e tendências",
+    "medicationTitle": "Medicação",
+    "medicationSubtitle": "Doses e lembretes"
+  },
   "statusVitals": {
     "hub": {
       "pageTitle": "Sinais vitais"
