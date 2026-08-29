@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import TriageChat from "./TriageChat";
+import TriageChat, { stepBackTriageDraft, type TriageChatDraft } from "./TriageChat";
 import { apiFetch } from "@/lib/queryClient";
 import { setLanguage } from "@/i18n";
 
@@ -416,7 +416,7 @@ describe("TriageChat MediSearch follow-ups", () => {
         selectedQuickAnswers: [
           { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
           { id: "few_days", label: "Few days", value: "It has been going on for a few days.", kind: "duration" },
-          { id: "after_medicine_surgery_fall", label: "It started after medicine, surgery, hospital, or a fall", value: "It started after medicine, surgery, a hospital stay, or a fall.", kind: "trend" },
+          { id: "ongoing_not_improving", label: "It is ongoing and not improving", value: "It is ongoing and not improving.", kind: "trend" },
         ],
         apiQuickReplies: [
           { id: "edit_answers", label: "Edit", value: "I want to edit my answers.", icon: "activity", tone: "purple", kind: "support" },
@@ -430,9 +430,46 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(review).toHaveTextContent("Symptôme");
     expect(review).toHaveTextContent("Intensité");
     expect(review).toHaveTextContent("Quelques jours");
-    expect(review).toHaveTextContent("Cela a commencé après un médicament");
+    expect(review).toHaveTextContent("Cela persiste sans s’améliorer");
     expect(screen.getByRole("button", { name: "Modifier" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Oui, afficher mes conseils" })).toBeVisible();
+  });
+
+  it("localizes French protocol questions and choices but submits the original clinical value", async () => {
+    setLanguage("fr");
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "When did the breathing change start?",
+      done: false,
+      wizardStage: "duration",
+      quickReplies: [],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      initialClue: "Je suis essoufflé",
+      presentationStage: "safety_check",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "How is your breathing right now?" }],
+        selectedQuickAnswers: [{ id: "breathing", label: "Breathing", value: "I feel short of breath.", kind: "symptom" }],
+        apiQuickReplies: [
+          { id: "worse_but_speaking", label: "Worse than usual, but I can speak", value: "My breathing is worse than usual, but I can speak.", icon: "wind", tone: "amber", kind: "red_flag" },
+        ],
+      },
+    });
+
+    expect(screen.getByRole("heading", { name: "Comment respirez-vous en ce moment ?" })).toBeVisible();
+    const answer = screen.getByRole("button", { name: "Pire que d’habitude, mais je peux parler" });
+    fireEvent.click(answer);
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const requestBody = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(requestBody.messages.at(-1).content).toBe("My breathing is worse than usual, but I can speak.");
+    expect(requestBody.wizard.quickAnswers.at(-1)).toEqual(expect.objectContaining({
+      id: "worse_but_speaking",
+      value: "My breathing is worse than usual, but I can speak.",
+    }));
   });
 
   it("returns to severity when the user edits the review", async () => {
@@ -675,6 +712,119 @@ describe("TriageChat MediSearch follow-ups", () => {
     });
     expect(secondBody.wizard.quickAnswers).toEqual([]);
     expect(secondBody.medisearchConversationId).toBe("conversation-1");
+  });
+
+  it("restores the previous question without sending another triage request", async () => {
+    let backHandler: (() => boolean) | null = null;
+    apiFetchMock
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Do any warning signs apply?",
+        done: false,
+        quickReplies,
+        wizardStage: "red_flag",
+        wizardStageLabel: "Safety check",
+      }))
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "When did this begin?",
+        done: false,
+        quickReplies: [
+          { id: "today", label: "Today", value: "It started today.", icon: "calendar", tone: "purple", kind: "duration" },
+        ],
+        wizardStage: "duration",
+        wizardStageLabel: "When it started",
+      }));
+
+    await renderTriageChat({
+      onBackHandlerChange: (handler) => {
+        backHandler = handler;
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "No warning signs" }));
+    await screen.findByText("When did this begin?");
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      expect(backHandler).not.toBeNull();
+      expect(backHandler!()).toBe(true);
+    });
+
+    expect(await screen.findByText("Do any warning signs apply?")).toBeVisible();
+    expect(screen.getByRole("button", { name: "No warning signs" })).toBeVisible();
+    expect(screen.queryByText("When did this begin?")).not.toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      expect(backHandler!()).toBe(false);
+    });
+  });
+
+  it("cancels an in-flight next question when returning to the previous turn", async () => {
+    let backHandler: (() => boolean) | null = null;
+    let pendingSignal: AbortSignal | undefined;
+    apiFetchMock
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Do any warning signs apply?",
+        done: false,
+        quickReplies,
+        wizardStage: "red_flag",
+        wizardStageLabel: "Safety check",
+      }))
+      .mockImplementationOnce((_url, init) => {
+        pendingSignal = init?.signal as AbortSignal;
+        return new Promise<Response>((_resolve, reject) => {
+          pendingSignal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      });
+
+    await renderTriageChat({
+      onBackHandlerChange: (handler) => {
+        backHandler = handler;
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "No warning signs" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      expect(backHandler!()).toBe(true);
+      await Promise.resolve();
+    });
+
+    expect(pendingSignal?.aborted).toBe(true);
+    expect(await screen.findByText("Do any warning signs apply?")).toBeVisible();
+    expect(screen.getByRole("button", { name: "No warning signs" })).toBeEnabled();
+    expect(screen.queryByTestId("triage-request-error")).not.toBeInTheDocument();
+  });
+
+  it("restores the final review turn from a completed draft", () => {
+    const reviewTurn: NonNullable<TriageChatDraft["backStack"]>[number] = {
+      messages: [{ role: "assistant", content: "Does this look right?" }],
+      selectedQuickAnswers: [{ id: "today", label: "Today", value: "Today", kind: "duration" }],
+      presentationStage: "review",
+    };
+    const result = stepBackTriageDraft({
+      assessmentSessionId: "assessment-1",
+      messages: [...reviewTurn.messages, { role: "user", content: "Show my guidance" }],
+      selectedQuickAnswers: reviewTurn.selectedQuickAnswers,
+      backStack: [reviewTurn],
+      pendingRequest: false,
+    });
+
+    expect(result).toEqual({
+      draft: {
+        assessmentSessionId: "assessment-1",
+        ...reviewTurn,
+        backStack: [],
+        pendingRequest: false,
+      },
+      presentationStage: "review",
+    });
   });
 
   it("does not show MediSearch follow-up chips during a safety alert", async () => {

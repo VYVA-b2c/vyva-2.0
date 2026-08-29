@@ -1028,6 +1028,47 @@
   color: #b9acc5;
 }
 
+/* Light-mode purple is too dark against the canonical aubergine surfaces.
+   Keep every purple label, link, and icon legible when the user selects dark mode. */
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-vyva-purple"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-vyva-purple"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-vyva-purple"],
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-[#6B21A8]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-[#6B21A8]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#6B21A8]"],
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-[#7024C4]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-[#7024C4]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#7024C4]"],
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-[#4C168C]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-[#4C168C]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#4C168C]"] {
+  color: #d8b4fe;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-[#241238]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-[#241238]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#241238]"] {
+  color: #fff8ff;
+}
+
+[data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-[#765C83]"],
+[data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-[#765C83]"],
+[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#765C83]"] {
+  color: #b9acc5;
+}
+
+/* Interactive copy uses the softer canonical UI weight throughout the flow. */
+.symptom-canonical-intro :is(button, a)[class*="font-black"],
+.symptom-canonical-triage :is(button, a)[class*="font-black"],
+.symptom-canonical-report :is(button, a)[class*="font-black"],
+.symptom-canonical-intro :is(button, a) [class*="font-black"],
+.symptom-canonical-triage :is(button, a) [class*="font-black"],
+.symptom-canonical-report :is(button, a) [class*="font-black"] {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.4;
+}
+
 [data-home-master-theme="dark"] .symptom-canonical-intro [class*="border-[#E"],
 [data-home-master-theme="dark"] .symptom-canonical-triage [class*="border-[#E"],
 [data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#E"] {

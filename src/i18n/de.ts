@@ -640,6 +640,7 @@ const de = {
       bookRide: "Transport finden",
     },
     symptomCheck: {
+      title: "Dr. KI fragen",
       intro: {
         clueSub: "Sag oder schreibe ein paar Worte.",
         oneQuestionTitle: "Eine Frage nach der anderen",

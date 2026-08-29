@@ -638,6 +638,7 @@ const pt = {
       bookRide: "Encontrar transporte",
     },
     symptomCheck: {
+      title: "Pergunte ao Dr. IA",
       intro: {
         clueSub: "Diga ou escreva algumas palavras.",
         oneQuestionTitle: "Uma pergunta de cada vez",

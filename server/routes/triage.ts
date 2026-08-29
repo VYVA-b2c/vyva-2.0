@@ -43,6 +43,10 @@ import {
   type TriageWizardMatrixStage,
 } from "../lib/triageWizardMatrix.js";
 import { languageName, normalizeAppLanguage } from "../../shared/language.js";
+import {
+  localizeTriageAnswerLabel,
+  localizeTriageQuestion,
+} from "../../shared/triageDisplayLocalization.js";
 
 const router = Router();
 const transcribeAudioBody = raw({ type: ["audio/*", "application/octet-stream"], limit: "8mb" });
@@ -334,7 +338,38 @@ function isSpanishLocale(locale: string) {
   return locale.split("-")[0].toLowerCase() === "es";
 }
 
+function isFrenchLocale(locale: string) {
+  return locale.split("-")[0].toLowerCase() === "fr";
+}
+
+const FRENCH_SERVER_TEXT: Record<string, string> = {
+  "Choose symptom": "Choix du symptôme",
+  "Pain location": "Localisation de la douleur",
+  "Safety check": "Vérification de sécurité",
+  "When it started": "Début du symptôme",
+  "More details": "Plus de détails",
+  "What changed": "Évolution",
+  "Review answers": "Vérification des réponses",
+  "Summary": "Résumé",
+  "I am checking safety first because your support or check-in context may matter if this gets worse.": "Je vérifie d’abord la sécurité, car votre accompagnement ou vos suivis peuvent être importants si la situation s’aggrave.",
+  "I am checking urgent warning signs first because a similar symptom was recorded recently.": "Je vérifie d’abord les signes d’alerte urgents, car un symptôme similaire a été enregistré récemment.",
+  "I am asking this because medication timing or missed doses can sometimes change how symptoms feel.": "Je pose cette question, car l’horaire d’un médicament ou une dose oubliée peut modifier les symptômes.",
+  "I am asking this because your recent readings or health devices may help decide whether to monitor or get support.": "Je pose cette question, car vos mesures récentes ou appareils de santé peuvent aider à décider s’il faut surveiller ou demander de l’aide.",
+  "I am checking timing because VYVA has a recent report that may be related.": "Je vérifie le moment d’apparition, car VYVA dispose d’un rapport récent qui pourrait être lié.",
+  "I am asking about support so this can fit with the care or appointment already recorded.": "Je vérifie votre accompagnement afin de tenir compte des soins ou rendez-vous déjà enregistrés.",
+  "I am checking this because your health profile can make this symptom more important.": "Je vérifie ce point, car votre profil de santé peut rendre ce symptôme plus important.",
+  "If you can, one reading may help": "Si vous le pouvez, une mesure peut aider",
+  "Only do this if it is easy and safe. You can keep answering without it.": "Ne le faites que si c’est simple et sans danger. Vous pouvez continuer sans cette mesure.",
+  "Oxygen": "Oxygène",
+  "Pulse": "Pouls",
+  "Blood pressure": "Tension artérielle",
+  "Temperature": "Température",
+  "Blood sugar": "Glycémie",
+  "This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious.": "Cette évaluation est fournie à titre informatif et ne constitue pas un avis médical. Consultez toujours votre médecin ou appelez les urgences si la situation vous paraît grave.",
+};
+
 function text(locale: string, english: string, spanish: string) {
+  if (isFrenchLocale(locale)) return FRENCH_SERVER_TEXT[english] ?? english;
   return isSpanishLocale(locale) ? spanish : english;
 }
 
@@ -349,7 +384,15 @@ function reply(
   icon: TriageQuickReply["icon"],
   tone: TriageQuickReply["tone"],
 ): TriageQuickReply {
-  return { id, kind, label: text(locale, labelEn, labelEs), value: text(locale, valueEn, valueEs), icon, tone };
+  const label = text(locale, labelEn, labelEs);
+  return {
+    id,
+    kind,
+    label: localizeTriageAnswerLabel(locale, label),
+    value: text(locale, valueEn, valueEs),
+    icon,
+    tone,
+  };
 }
 
 function normalizeClue(raw: string) {
@@ -554,17 +597,17 @@ function wizardQuestionText(
 ): string {
   const symptomId = selectedSymptomId(wizard);
   if (stage === "support") {
-    return text(locale, "Does this look right?", "Esto parece correcto?");
+    return localizeTriageQuestion(locale, text(locale, "Does this look right?", "Esto parece correcto?"));
   }
   if (stage === "severity") {
-    return text(locale, "How strong is it?", "Que intensidad tiene?");
+    return localizeTriageQuestion(locale, text(locale, "How strong is it?", "Que intensidad tiene?"));
   }
   if (!["symptom", "location", "red_flag", "duration", "severity", "trend"].includes(stage)) {
-    return text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer.");
+    return localizeTriageQuestion(locale, text(locale, "Here is what to do next.", "Esto es lo siguiente que puedes hacer."));
   }
   const answerIds = new Set(selectedAnswers(wizard).map((answer) => answer.id));
   const node = triageWizardNodeFor(stage as TriageWizardMatrixStage, symptomId, answerIds);
-  return text(locale, node.question.en, node.question.es);
+  return localizeTriageQuestion(locale, text(locale, node.question.en, node.question.es));
 }
 
 function uniqueReplies(replies: TriageQuickReply[]) {
@@ -1033,13 +1076,18 @@ function quickRepliesFor(wizard: TriageWizardContext | undefined, locale: string
 
 function emergencyPhrase(locale: string, emergencyContact: EmergencyContact) {
   if (!emergencyContact.telHref) {
+    if (isFrenchLocale(locale)) return "les services d’urgence locaux";
     return text(locale, "local emergency services", "emergencias locales");
   }
+  if (isFrenchLocale(locale)) return `les services d’urgence (${emergencyContact.label})`;
   return text(locale, `emergency services (${emergencyContact.label})`, `emergencias (${emergencyContact.label})`);
 }
 
 function safetyMessage(locale: string, warningLabel: string, emergencyContact: EmergencyContact) {
   const emergency = emergencyPhrase(locale, emergencyContact);
+  if (isFrenchLocale(locale)) {
+    return `${warningLabel} peut être un signe d’urgence. Si cela se produit maintenant, appelez ${emergency} immédiatement ou demandez de l’aide à une personne proche. Ne conduisez pas vous-même.`;
+  }
   return text(
     locale,
     `${warningLabel} can be an emergency warning sign. If this is happening now, call ${emergency} now or ask someone nearby to help you. Do not drive yourself.`,
@@ -1049,6 +1097,9 @@ function safetyMessage(locale: string, warningLabel: string, emergencyContact: E
 
 function safetyRecommendation(locale: string, emergencyContact: EmergencyContact) {
   const emergency = emergencyPhrase(locale, emergencyContact);
+  if (isFrenchLocale(locale)) {
+    return `Appelez ${emergency} immédiatement si cela se produit maintenant. Demandez à une personne proche de rester avec vous et ne conduisez pas vous-même.`;
+  }
   return text(
     locale,
     `Call ${emergency} now if this is happening now. Ask someone nearby to stay with you and do not drive yourself.`,
@@ -1057,7 +1108,13 @@ function safetyRecommendation(locale: string, emergencyContact: EmergencyContact
 }
 
 function safetyQuickReplies(locale: string, emergencyContact: EmergencyContact): TriageQuickReply[] {
-  const callLabelEn = emergencyContact.telHref ? `Call ${emergencyContact.label}` : "Call emergency";
+  const callLabelEn = isFrenchLocale(locale)
+    ? emergencyContact.telHref
+      ? `Appeler le ${emergencyContact.label}`
+      : "Appeler les urgences"
+    : emergencyContact.telHref
+      ? `Call ${emergencyContact.label}`
+      : "Call emergency";
   const callLabelEs = emergencyContact.telHref ? `Llamar ${emergencyContact.label}` : "Llamar emergencias";
   const callValueEn = emergencyContact.telHref ? `I will call ${emergencyContact.label} now.` : "I will call local emergency services now.";
   const callValueEs = emergencyContact.telHref ? `Llamare al ${emergencyContact.label} ahora.` : "Llamare a emergencias locales ahora.";

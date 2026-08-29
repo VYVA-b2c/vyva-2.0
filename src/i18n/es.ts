@@ -711,6 +711,7 @@ const es = {
       bookRide: "Buscar transporte",
     },
     symptomCheck: {
+      title: "Pregunta al Dr. IA",
       intro: {
         clueSub: "Di o escribe unas palabras.",
         simpleTitle: "Cuenta a VYVA que notas",

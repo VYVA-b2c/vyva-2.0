@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import HomeFastHelpSyncBridge from "@/components/HomeFastHelpSyncBridge";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
+import { LanguageControllerProvider, LanguageFrameBoundary, setLanguage, useLanguage } from "@/i18n";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
@@ -948,6 +948,21 @@ function PwaInstallPromptGate() {
 
 const showDevelopmentPreviewRoutes = import.meta.env.DEV || import.meta.env.MODE === "development";
 
+function HomeMasterPreviewLanguageSync() {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (!location.pathname.startsWith("/dev/home-master")) return;
+
+    const requestedLanguage = new URLSearchParams(location.search).get("lang");
+    if (!requestedLanguage || !["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) return;
+
+    setLanguage(requestedLanguage);
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageControllerProvider>
@@ -959,6 +974,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter future={routerFutureFlags}>
               <LanguageFrameBoundary>
+                {showDevelopmentPreviewRoutes ? <HomeMasterPreviewLanguageSync /> : null}
                 <VyvaVoiceProvider>
                   <VoiceActionProvider>
                     <VoiceCanvasProvider>

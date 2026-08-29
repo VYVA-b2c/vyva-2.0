@@ -64,6 +64,7 @@ function homeMasterPreviewPlan(stage: string, focus: string) {
 }
 
 function homeMasterPreviewTriageResponse(payload: Record<string, unknown>) {
+  const isFrench = String(payload.locale ?? "en").split("-")[0].toLowerCase() === "fr";
   const wizard = payload.wizard && typeof payload.wizard === "object"
     ? payload.wizard as Record<string, unknown>
     : {};
@@ -73,9 +74,12 @@ function homeMasterPreviewTriageResponse(payload: Record<string, unknown>) {
   const hasKind = (kind: string) => answers.some((answer) => answer.kind === kind);
 
   if (hasKind("support")) {
+    const summaryContent = isFrench
+      ? "Vos réponses permettent une surveillance à domicile pour le moment, avec des signes précis qui doivent faire changer le plan."
+      : "Your answers fit home monitoring for now, with clear signs that should change the plan.";
     return {
       role: "assistant",
-      content: "Your answers fit home monitoring for now, with clear signs that should change the plan.",
+      content: summaryContent,
       done: true,
       quickReplies: [],
       wizardStage: "complete",
@@ -84,20 +88,34 @@ function homeMasterPreviewTriageResponse(payload: Record<string, unknown>) {
       guidancePlan: homeMasterPreviewPlan("complete", "A clear home-monitoring plan."),
       evidenceSources: [],
       summary: {
-        chiefComplaint: "Breathing feels different",
-        symptoms: ["Breathing feels different"],
+        chiefComplaint: isFrench ? "Ma respiration est différente" : "Breathing feels different",
+        symptoms: [isFrench ? "Respiration différente" : "Breathing feels different"],
         urgency: "monitor",
-        recommendations: [
-          "Monitor at home and keep doctor access ready.",
-          "Check your vitals if a reliable device is available.",
-          "Seek urgent help if breathing becomes difficult at rest.",
-        ],
-        disclaimer: "This report is for informational purposes only and does not replace medical diagnosis or treatment.",
-        aiSummary: "Your answers fit home monitoring for now, with clear signs that should change the plan.",
-        nextStepLabel: "Monitor at home, with doctor access ready",
+        recommendations: isFrench
+          ? [
+              "Surveillez votre état à domicile et gardez un moyen de contacter un médecin.",
+              "Vérifiez vos constantes si vous disposez d’un appareil fiable.",
+              "Demandez une aide urgente si vous avez du mal à respirer au repos.",
+            ]
+          : [
+              "Monitor at home and keep doctor access ready.",
+              "Check your vitals if a reliable device is available.",
+              "Seek urgent help if breathing becomes difficult at rest.",
+            ],
+        disclaimer: isFrench
+          ? "Ce rapport est fourni à titre informatif et ne remplace pas un diagnostic ou un avis médical."
+          : "This report is for informational purposes only and does not replace medical diagnosis or treatment.",
+        aiSummary: summaryContent,
+        nextStepLabel: isFrench
+          ? "Surveillez votre état à domicile et gardez un accès à un médecin"
+          : "Monitor at home, with doctor access ready",
         nextStepLevel: "monitor",
-        triageReasons: ["No emergency warning sign was selected and the symptom is mild."],
-        watchSigns: ["Breathing becomes difficult at rest."],
+        triageReasons: [isFrench
+          ? "Aucun signe d’alerte urgent n’a été sélectionné et le symptôme est léger."
+          : "No emergency warning sign was selected and the symptom is mild."],
+        watchSigns: [isFrench
+          ? "La respiration devient difficile au repos."
+          : "Breathing becomes difficult at rest."],
         profileConsiderations: [],
         vitalsNotes: [],
         scanResults: [],
@@ -113,7 +131,7 @@ function homeMasterPreviewTriageResponse(payload: Record<string, unknown>) {
       done: false,
       quickReplies: [
         previewAnswer("edit_answers", "Edit", "Edit my answers.", "help", "purple", "action"),
-        previewAnswer("confirm_answers", "Yes, show my guidance", "Yes, show my guidance.", "check", "green", "support"),
+        previewAnswer("confirm_review", "Yes, show my guidance", "Yes, show my guidance.", "check", "green", "support"),
       ],
       wizardStage: "support",
       wizardStageLabel: "Review answers",

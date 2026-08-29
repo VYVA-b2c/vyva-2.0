@@ -1,11 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import BottomNav from "./BottomNav";
+
+const mocks = vi.hoisted(() => ({
+  translations: {} as Record<string, string>,
+}));
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({
-    t: (_key: string, fallback: string) => fallback,
+    t: (key: string, fallback: string) => mocks.translations[key] ?? fallback,
   }),
 }));
 
@@ -31,6 +35,10 @@ function renderBottomNav(initialPath = "/") {
 }
 
 describe("BottomNav", () => {
+  beforeEach(() => {
+    mocks.translations = {};
+  });
+
   it("renders exactly Home, SOS and My Reports", () => {
     renderBottomNav();
 
@@ -95,5 +103,18 @@ describe("BottomNav", () => {
     const dock = screen.getByRole("navigation");
     expect(dock).toHaveClass("bottom-[18px]", "rounded-[22px]");
     expect(dock).toHaveClass("md:max-w-[560px]", "lg:max-w-[620px]");
+  });
+
+  it("localizes the shared dock on development preview routes", () => {
+    mocks.translations = {
+      "nav.home": "Accueil",
+      "nav.reports": "Mes rapports",
+    };
+
+    renderBottomNav("/dev/home-master/ask-dr-ai");
+
+    expect(screen.getByTestId("nav-tab-home")).toHaveTextContent("Accueil");
+    expect(screen.getByTestId("nav-tab-sos")).toHaveTextContent("SOS");
+    expect(screen.getByTestId("nav-tab-reports")).toHaveTextContent("Mes rapports");
   });
 });
