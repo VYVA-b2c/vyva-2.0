@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import VitalsScan from "@/components/VitalsScan";
+import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { VITALS_DEVICE_CATALOG } from "@/lib/vitalsDeviceCatalog";
 import { isWebBluetoothSupported, readStandardBluetoothDevice } from "@/lib/vitalsBluetooth";
@@ -47,6 +48,16 @@ const METHOD_DETAILS: Record<VitalsCaptureMethod, { label: string; hint: string;
   manual: { label: "Type the reading", hint: "Enter the number or a short phrase", Icon: Keyboard },
   oauth_import: { label: "Wearable or app", hint: "Use a connected health service", Icon: RefreshCw },
   clinical_import: { label: "Clinical record", hint: "Use a reading shared by your care team", Icon: ShieldCheck },
+};
+
+const METHOD_ACCENTS: Record<VitalsCaptureMethod, VyvaIconAccent> = {
+  web_bluetooth: "link",
+  phone_camera: "pulse",
+  device_photo: "spark",
+  voice: "signal",
+  manual: "dot",
+  oauth_import: "link",
+  clinical_import: "check",
 };
 
 type AcquisitionSignal = {
@@ -375,7 +386,7 @@ export default function VitalsAddReadingFlow({
                     const balancesOddGroup = signals.length % 2 === 1 && index === 0;
                     return (
                       <button key={signal} type="button" onClick={() => chooseSignal(signal)} className={`flex min-h-[64px] items-center gap-3 rounded-[20px] border px-4 text-left sm:min-h-[66px] ${balancesOddGroup ? "sm:col-span-2" : ""} ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "border-[#E7DDF0] bg-white shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`} data-testid={`button-vital-${signal}`}>
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-[14px] ${isDark ? "bg-[#49355E] text-[#C4A7FF]" : "bg-[#F3E8FF] text-[#7C3AED]"}`}><HeartPulse className="h-5 w-5" /></span>
+                        <span className={`flex h-10 w-10 items-center justify-center rounded-[14px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={HeartPulse} accent="pulse" size={21} /></span>
                         <span className="min-w-0 flex-1">
                           <span className={`block font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{meta.label}</span>
                           <span className={`block font-body text-[12px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{meta.unit || "Yes or no"}</span>
@@ -393,7 +404,7 @@ export default function VitalsAddReadingFlow({
 
       {stage === "tracked" && alreadyTracked ? (
         <div className="rounded-[24px] border border-[#B7E4D3] bg-[#ECFDF5] p-5" data-testid="vitals-already-tracked">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white text-[#047857]"><Check className="h-6 w-6" /></div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-white"><VyvaIcon icon={Check} accent="check" tone="success" size={24} /></div>
           <h3 className="mt-4 font-display text-[24px] font-bold text-[#173F35]">Already being tracked</h3>
           <p className="mt-2 font-body text-[16px] font-bold leading-relaxed text-[#2B5C4D]">
             {selectedMeta?.label} is already being tracked via {sourceDeviceName(alreadyTracked, context)}.
@@ -415,7 +426,7 @@ export default function VitalsAddReadingFlow({
               const Icon = detail.Icon;
               return (
                 <button key={method} type="button" onClick={() => chooseMethod(method)} className={`flex min-h-[88px] items-center gap-4 rounded-[22px] border p-4 text-left ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "border-[#E0D1EC] bg-white shadow-[0_7px_20px_rgba(53,28,87,0.05)]"}`} data-testid={`button-method-${method}`}>
-                  <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#49355E] text-[#C4A7FF]" : "bg-[#F3E8FF] text-[#7C3AED]"}`}><Icon className="h-6 w-6" /></span>
+                  <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={Icon} accent={METHOD_ACCENTS[method]} size={25} /></span>
                   <span className="min-w-0">
                     <span className={`block font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{detail.label}</span>
                     <span className={`mt-1 block font-body text-[12px] font-bold leading-snug ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{detail.hint}</span>

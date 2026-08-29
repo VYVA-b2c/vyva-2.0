@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/components/VitalsAddReadingFlow";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
 
@@ -790,18 +791,17 @@ const DASHBOARD_LABELS: Record<Language, { latest: string; more: string; risk: s
 };
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
-  const common = `h-8 w-8 ${className}`;
-  if (type === "heart") return <HeartPulse className={common} />;
-  if (type === "wind") return <Wind className={common} />;
-  if (type === "oxygen") return <Activity className={common} />;
-  if (type === "thermometer") return <Thermometer className={common} />;
-  if (type === "scale") return <Scale className={common} />;
-  if (type === "energy") return <Zap className={common} />;
-  if (type === "stethoscope") return <Stethoscope className={common} />;
-  if (type === "moon") return <Moon className={common} />;
-  if (type === "pill") return <Pill className={common} />;
-  if (type === "smile") return <Smile className={common} />;
-  return <Activity className={common} />;
+  if (type === "heart") return <VyvaIcon icon={HeartPulse} accent="pulse" size={28} className={className} />;
+  if (type === "wind") return <VyvaIcon icon={Wind} accent="signal" size={28} className={className} />;
+  if (type === "oxygen") return <VyvaIcon icon={Activity} accent="pulse" size={28} className={className} />;
+  if (type === "thermometer") return <VyvaIcon icon={Thermometer} accent="dot" size={28} className={className} />;
+  if (type === "scale") return <VyvaIcon icon={Scale} accent="divider" size={28} className={className} />;
+  if (type === "energy") return <VyvaIcon icon={Zap} accent="spark" size={28} className={className} />;
+  if (type === "stethoscope") return <VyvaIcon icon={Stethoscope} accent="scope" size={28} className={className} />;
+  if (type === "moon") return <VyvaIcon icon={Moon} accent="spark" size={28} className={className} />;
+  if (type === "pill") return <VyvaIcon icon={Pill} accent="divider" size={28} className={className} />;
+  if (type === "smile") return <VyvaIcon icon={Smile} accent="smile" size={28} className={className} />;
+  return <VyvaIcon icon={Activity} accent="pulse" size={28} className={className} />;
 }
 
 function numberValue(value: unknown): number | null {
@@ -1463,7 +1463,7 @@ export default function VitalsTracker({
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                    <SafetyIcon className="h-[22px] w-[22px]" style={{ color: safety.color }} />
+                    <VyvaIcon icon={SafetyIcon} accent="check" tone={safetyStatus === "steady" ? "success" : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver" ? "warning" : "danger"} size={22} />
                   </span>
                   <div className="min-w-0">
                     <p className={`font-body text-[10px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
@@ -1478,7 +1478,7 @@ export default function VitalsTracker({
                   className="vyva-tap flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#7024C4] px-4 font-body text-[14px] font-black text-white shadow-[0_7px_18px_rgba(112,36,196,0.24)] transition hover:bg-[#5E1DA8] active:scale-[0.98]"
                   data-testid="button-vitals-hero-add"
                 >
-                  <Plus className="h-[18px] w-[18px]" />
+                  <Plus className="h-[18px] w-[18px] text-[#F8AE1B]" />
                   {copy.add}
                 </button>
               </div>
@@ -1592,8 +1592,8 @@ export default function VitalsTracker({
           {untrackedReadingGroups.length ? (
             <details className={`group rounded-[24px] border ${dashboardDisclosure}`} data-testid="vitals-more-readings">
               <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black [&::-webkit-details-marker]:hidden">
-                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A] text-[#C4A7FF]" : "bg-[#F5F3FF] text-[#6B21A8]"}`}>
-                  <Activity className="h-5 w-5" />
+                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+                  <VyvaIcon icon={Activity} accent="signal" size={21} />
                 </span>
                 <span className="min-w-0 flex-1">{dashboardLabels.more}</span>
                 <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
@@ -1624,8 +1624,8 @@ export default function VitalsTracker({
 
           <details className={`group rounded-[24px] border ${dashboardDisclosure}`} data-testid="vitals-evidence-guide">
             <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black [&::-webkit-details-marker]:hidden">
-              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A] text-[#C4A7FF]" : "bg-[#F5F3FF] text-[#6B21A8]"}`}>
-                <ShieldCheck className="h-5 w-5" />
+              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+                <VyvaIcon icon={ShieldCheck} accent="check" size={21} />
               </span>
               <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
               <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
@@ -1769,7 +1769,7 @@ function SignalCard({
 
   const rowContent = (
     <>
-        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#3A2D4A] text-[#C4A7FF]" : "bg-[#F5F3FF] text-[#6B21A8]"}`}>
+        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
           <SignalIcon type={cfg.icon} className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
