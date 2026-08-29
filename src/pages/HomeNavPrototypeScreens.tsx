@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -43,6 +42,7 @@ import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import type { SymptomAssessmentShellContract } from "@/design/screenPresentation";
+import { useLanguage } from "@/i18n";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
@@ -894,7 +894,7 @@ export function PrototypeHealthScreen({
   backPath?: string;
   contained?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t } = useLanguage();
   const healthRows: RowItem[] = [
     { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: t("healthHub.start", "Start"), tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
     { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: t("healthHub.today", "Today"), tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
