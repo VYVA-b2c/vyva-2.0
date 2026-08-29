@@ -46,7 +46,7 @@ describe("VitalsTracker redesign", () => {
     fireEvent.click(screen.getByText("How VYVA connects your health signals"));
     expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");
     expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("signals that move together");
-    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("detects emerging patterns and flags possible risks");
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("anticipate possible outcomes and flag risks");
   });
 
   it("opens a vital-first picker and keeps phone camera separate from device photo", () => {
