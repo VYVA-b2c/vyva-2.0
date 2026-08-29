@@ -175,6 +175,51 @@ describe("Health devices settings API", () => {
     expect(removed.body.devices).toEqual([]);
   });
 
+  it("persists pilot compatibility metadata and discards browser-scoped device ids", async () => {
+    const profileId = createProfile();
+
+    const saved = await request(app)
+      .post("/api/settings/health-devices")
+      .set("x-user-id", profileId)
+      .send({
+        device: {
+          id: "bp_cuff",
+          deviceName: "A&D UA-651BLE",
+          method: "web_bluetooth",
+          status: "ready",
+          sourceRef: {
+            provider: "web_bluetooth",
+            device_type: "bp_cuff",
+            device_name: "A&D UA-651BLE",
+            device_id: "browser-origin-scoped-id",
+            model_id: "and_ua_651ble",
+            model_label: "A&D UA-651BLE",
+            support_level: "pilot_candidate",
+            service_uuid: "0x1810",
+            characteristic_uuid: "0x2a35",
+            parser_version: "vyva-ble-standard-gatt-v1",
+          },
+        },
+      })
+      .expect(201);
+
+    expect(saved.body.devices[0].sourceRef).toEqual(expect.objectContaining({
+      model_id: "and_ua_651ble",
+      support_level: "pilot_candidate",
+      service_uuid: "0x1810",
+      characteristic_uuid: "0x2a35",
+      parser_version: "vyva-ble-standard-gatt-v1",
+    }));
+    expect(saved.body.devices[0].sourceRef).not.toHaveProperty("device_id");
+    expect(deviceStore.get("bp_cuff")?.metadata).not.toHaveProperty("device_id");
+
+    const loaded = await request(app)
+      .get("/api/settings/health-devices")
+      .set("x-user-id", profileId)
+      .expect(200);
+    expect(loaded.body.devices[0].sourceRef.model_id).toBe("and_ua_651ble");
+  });
+
   it("rejects unknown device types", async () => {
     const profileId = createProfile();
 

@@ -23,8 +23,12 @@ vi.mock("@/components/onboarding/ProfileSectionHero", () => ({
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({
-    t: (_key: string, fallback?: string | Record<string, unknown>) => {
-      if (typeof fallback === "string") return fallback;
+    t: (_key: string, fallback?: string | Record<string, unknown>, params?: Record<string, unknown>) => {
+      if (typeof fallback === "string") {
+        let value = fallback;
+        for (const [key, replacement] of Object.entries(params ?? {})) value = value.replace(`{{${key}}}`, String(replacement));
+        return value;
+      }
       if (fallback && typeof fallback.defaultValue === "string") {
         let value = fallback.defaultValue;
         for (const [key, replacement] of Object.entries(fallback)) {
@@ -84,6 +88,11 @@ describe("HealthDevicesSettings", () => {
     expect(screen.getByTestId("provider-settings-card-apple_health")).toHaveTextContent("Apple Health");
     expect(screen.getByTestId("provider-settings-card-libreview")).toHaveTextContent("LibreView");
     expect(screen.getByTestId("provider-settings-card-withings")).toHaveTextContent("Withings");
+    expect(screen.getByTestId("device-model-card-and_ua_651ble")).toHaveTextContent("A&D UA-651BLE");
+    expect(screen.getByTestId("device-model-card-nonin_3230")).toHaveTextContent("Nonin 3230");
+    expect(screen.getByTestId("device-model-card-and_ut_201ble_a")).toHaveTextContent("A&D UT-201BLE-A");
+    expect(screen.getAllByText("Pilot candidate")).toHaveLength(3);
+    expect(screen.getByTestId("bluetooth-experimental-devices-section")).toHaveTextContent("Experimental");
   });
 
   it("demonstrates the provider connected state without starting OAuth", () => {
@@ -151,5 +160,51 @@ describe("HealthDevicesSettings", () => {
         body: expect.stringContaining('"id":"heart_monitor"'),
       }));
     });
+  });
+
+  it("saves model, support, service and parser metadata for a pilot candidate", async () => {
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
+      devices: [{
+        id: "bp_cuff",
+        deviceName: "A&D UA-651BLE",
+        connectedAt: "2026-08-29T10:00:00.000Z",
+        method: "web_bluetooth",
+        status: "ready",
+        sourceRef: { model_id: "and_ua_651ble" },
+      }],
+    }), { status: 201, headers: { "Content-Type": "application/json" } }));
+    const value = new DataView(Uint8Array.from([0x00, 0x80, 0x00, 0x4c, 0x00, 0x00, 0x00]).buffer);
+    Object.defineProperty(navigator, "bluetooth", {
+      configurable: true,
+      value: {
+        requestDevice: vi.fn(async () => ({
+          id: "must-not-be-saved",
+          name: "A&D UA-651BLE",
+          gatt: { connect: vi.fn(async () => ({
+            getPrimaryService: vi.fn(async () => ({
+              getCharacteristic: vi.fn(async () => ({ readValue: vi.fn(async () => value) })),
+            })),
+          })) },
+        })),
+      },
+    });
+
+    renderHealthDevices();
+    fireEvent.click(screen.getByTestId("button-health-device-model-setup-and_ua_651ble"));
+    expect(await screen.findByText("Not yet labelled Tested with VYVA — physical bench testing is still required.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-health-device-start-bluetooth"));
+    fireEvent.click(await screen.findByTestId("button-health-device-mark-ready"));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    const call = apiFetchMock.mock.calls.at(-1);
+    const body = JSON.parse(String((call?.[1] as RequestInit)?.body));
+    expect(body.device.sourceRef).toEqual(expect.objectContaining({
+      model_id: "and_ua_651ble",
+      support_level: "pilot_candidate",
+      service_uuid: "0x1810",
+      characteristic_uuid: "0x2a35",
+      parser_version: "vyva-ble-standard-gatt-v1",
+    }));
+    expect(body.device.sourceRef).not.toHaveProperty("device_id");
   });
 });

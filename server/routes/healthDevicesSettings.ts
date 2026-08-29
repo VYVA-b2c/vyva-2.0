@@ -20,13 +20,30 @@ const deviceKindSchema = z.enum([
   "heart_monitor",
 ]);
 
+const healthDeviceSourceRefSchema = z.object({
+  provider: z.literal("web_bluetooth").optional(),
+  device_type: deviceKindSchema.optional(),
+  device_name: z.string().trim().min(1).max(140).optional(),
+  model_id: z.string().trim().min(1).max(80).optional(),
+  model_label: z.string().trim().min(1).max(140).optional(),
+  support_level: z.enum(["pilot_candidate", "tested", "experimental"]).optional(),
+  service_uuid: z.string().trim().max(24).optional(),
+  characteristic_uuid: z.string().trim().max(24).optional(),
+  parser_version: z.string().trim().max(80).optional(),
+}).passthrough().transform((sourceRef) => {
+  // Web Bluetooth device IDs are browser/origin-scoped identifiers. They are
+  // unnecessary for a foreground read and must not be persisted server-side.
+  const { device_id: _discardedDeviceId, ...safeSourceRef } = sourceRef;
+  return safeSourceRef;
+});
+
 const healthDeviceSchema = z.object({
   id: deviceKindSchema,
   deviceName: z.string().trim().min(1).max(140).optional(),
   connectedAt: z.string().datetime().optional(),
   method: z.enum(["web_bluetooth"]).default("web_bluetooth"),
   status: z.enum(["ready", "not_set", "failed"]).default("ready"),
-  sourceRef: z.record(z.unknown()).optional(),
+  sourceRef: healthDeviceSourceRefSchema.optional(),
 });
 
 const upsertDeviceSchema = z.object({
