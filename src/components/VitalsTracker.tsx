@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/components/VitalsAddReadingFlow";
-import { HealthWizardHero } from "@/components/health/HealthWizard";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
 
 type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
@@ -20,6 +20,7 @@ interface Props {
   gpPhone?: string | null;
   gpEmail?: string | null;
   caregiverContact?: string | null;
+  onBackActionChange?: (handler: (() => void) | null) => void;
 }
 
 interface LatestAnalysis {
@@ -1034,8 +1035,10 @@ export default function VitalsTracker({
   gpPhone,
   gpEmail,
   caregiverContact,
+  onBackActionChange,
 }: Props) {
   const navigate = useNavigate();
+  const { isDark } = useHomeMasterTheme();
   const [searchParams] = useSearchParams();
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<LatestAnalysis | null>(previewData?.analysis ?? null);
@@ -1046,6 +1049,8 @@ export default function VitalsTracker({
   const [error, setError] = useState<string | null>(null);
 
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
+  const showDashboard = useCallback(() => setScreen("dashboard"), []);
+  const showAddReading = useCallback(() => setScreen("add"), []);
 
   const copy = useMemo(() => copyFor(language), [language]);
   const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
@@ -1085,6 +1090,10 @@ export default function VitalsTracker({
   useEffect(() => {
     if (initialAddSignal) setScreen("add");
   }, [initialAddSignal]);
+
+  useEffect(() => {
+    if (screen === "dashboard") onBackActionChange?.(null);
+  }, [onBackActionChange, screen]);
 
   const loadDashboard = useCallback(async () => {
     if (previewData) {
@@ -1370,7 +1379,7 @@ export default function VitalsTracker({
           type="button"
           onClick={() => {
             void acknowledgeSafety("recheck");
-            setScreen("add");
+            showAddReading();
           }}
           disabled={acknowledging !== null}
           className={`${safetyActionBaseClass} bg-[#0369A1] text-white`}
@@ -1397,9 +1406,10 @@ export default function VitalsTracker({
         previewMode={Boolean(previewData)}
         previewContext={previewData ? previewAcquisitionContext(previewData.recent_readings) : undefined}
         initialSignal={initialAddSignal}
-        onBack={() => setScreen("dashboard")}
+        onBack={showDashboard}
+        onBackActionChange={onBackActionChange}
         onSaved={async () => {
-          setScreen("dashboard");
+          showDashboard();
           await loadDashboard();
         }}
       />
@@ -1428,12 +1438,20 @@ export default function VitalsTracker({
       : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver"
         ? "border-l-[#D97706]"
         : "border-l-[#B91C1C]";
+  const dashboardPanel = isDark
+    ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_18px_38px_rgba(0,0,0,0.2)]"
+    : "border-[#E6DCEB] bg-white text-[#241238] shadow-[0_16px_40px_rgba(63,45,75,0.08)]";
+  const dashboardDisclosure = isDark
+    ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_14px_30px_rgba(0,0,0,0.18)]"
+    : "border-[#E8DED4] bg-white text-[#3B2C25] shadow-[0_8px_20px_rgba(63,45,35,0.05)]";
+  const groupDivider = isDark ? "border-white/[0.12]" : "border-[#E1D6E7]";
+  const rowDivider = isDark ? "divide-white/[0.1]" : "divide-[#EFE7F3]";
 
   return (
-    <section className="space-y-4" data-testid="vitals-engine-dashboard">
+    <section className="mx-auto w-full max-w-[760px] space-y-4" data-testid="vitals-engine-dashboard">
       {loading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
-          <div className="text-center font-body text-[20px] font-bold text-[#6B5B52]">
+        <div className={`flex min-h-[260px] items-center justify-center rounded-[30px] border ${dashboardPanel}`}>
+          <div className={`text-center font-body text-[20px] font-bold ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>
             <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#6B21A8]" />
             {copy.loading}
           </div>
@@ -1441,38 +1459,46 @@ export default function VitalsTracker({
       ) : (
         <>
           <div data-testid="vitals-hero">
-            <HealthWizardHero
-              tone="light"
-              icon={<SafetyIcon className="h-7 w-7" style={{ color: safety.color }} />}
-              kicker={copy.safetyTitle}
-              title={safetyLabel(safetyStatus, language)}
-              body={analysis?.senior_message ?? copy.messageFallback}
-              className={`border-l-[6px] ${safetyHeroAccent}`}
-            >
-            <div className="grid gap-3 sm:grid-cols-[minmax(190px,240px)_1fr] sm:items-center">
-              <div
-                className="rounded-[22px] bg-[#F5F3FF] px-5 py-4 text-[#27152F]"
-                data-testid="vitals-risk-score"
-                aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
-              >
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">{dashboardLabels.risk}</p>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="font-display text-[44px] font-semibold leading-none">{riskScore}</span>
-                  <span className="font-body text-[18px] font-black text-[#6B5B72]">/100</span>
+            <section className={`overflow-hidden rounded-[30px] border border-l-[6px] px-[22px] pb-6 pt-5 ${dashboardPanel} ${safetyHeroAccent}`}>
+              <div className="flex items-start gap-3.5">
+                <span className={`grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[18px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                  <SafetyIcon className="h-6 w-6" style={{ color: safety.color }} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={`font-body text-[11px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
+                  <h2 className={`mt-1 font-body text-[31px] font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                    {safetyLabel(safetyStatus, language)}
+                  </h2>
+                  <p className={`mt-2 max-w-[560px] font-body text-[16px] font-semibold leading-[1.42] ${isDark ? "text-[#D8CDE4]" : "text-[#746A72]"}`}>
+                    {analysis?.senior_message ?? copy.messageFallback}
+                  </p>
                 </div>
-                <p className="mt-1 font-body text-[13px] font-bold text-[#6B5B72]">{dashboardLabels.lower}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setScreen("add")}
-                className="vyva-tap flex min-h-[62px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-8 font-body text-[18px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.22)] sm:min-w-[220px] sm:justify-self-start"
-                data-testid="button-vitals-hero-add"
-              >
-                <Plus className="h-5 w-5" />
-                {copy.add}
-              </button>
-            </div>
-            </HealthWizardHero>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(180px,220px)_auto] sm:items-center">
+                <div
+                  className={`rounded-[18px] border px-4 py-3 ${isDark ? "border-white/[0.12] bg-[#352842] text-[#FFF8FF]" : "border-[#E7DDEB] bg-[#FBF6FF] text-[#241238]"}`}
+                  data-testid="vitals-risk-score"
+                  aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
+                >
+                  <p className={`font-body text-[11px] font-black uppercase tracking-[0.1em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
+                  <div className="mt-1 flex items-baseline gap-1">
+                    <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.04em]">{riskScore}</span>
+                    <span className={`font-body text-[17px] font-black ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
+                  </div>
+                  <p className={`mt-1 font-body text-[12px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={showAddReading}
+                  className="vyva-tap flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] bg-[#7024C4] px-6 font-body text-[16px] font-black text-white shadow-[0_10px_22px_rgba(112,36,196,0.2)] sm:min-w-[210px]"
+                  data-testid="button-vitals-hero-add"
+                >
+                  <Plus className="h-5 w-5" />
+                  {copy.add}
+                </button>
+              </div>
+            </section>
           </div>
 
           {(safetyStatus !== "steady" || latestAlert) ? (
@@ -1522,17 +1548,17 @@ export default function VitalsTracker({
           ) : null}
 
           {trackedReadingGroups.length ? (
-            <section className="mt-6" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
-              <h2 id="vitals-latest-readings" className="mb-3 font-body text-[13px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+            <section className="mt-7" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
+              <h2 id="vitals-latest-readings" className={`mb-3 font-body text-[13px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
                 {dashboardLabels.latest}
               </h2>
-              <div className="overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_12px_30px_rgba(63,45,35,0.07)]">
+              <div className={`overflow-hidden rounded-[30px] border ${dashboardPanel}`}>
                 {trackedReadingGroups.map(({ group, signals }, groupIndex) => (
-                  <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? "border-t border-[#E1D6E7]" : ""}>
-                    <h3 id={`vitals-group-${group}`} className="px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                  <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
+                    <h3 id={`vitals-group-${group}`} className={`px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
                       {DISPLAY_GROUP_LABELS[group][language]}
                     </h3>
-                    <div className="divide-y divide-[#EFE7F3]">
+                    <div className={`divide-y ${rowDivider}`}>
                       {signals.map(([key]) => (
                         <SignalCard
                           key={key}
@@ -1541,6 +1567,7 @@ export default function VitalsTracker({
                           language={language}
                           normalLabel={copy.normal}
                           todayLabel={copy.today}
+                          isDark={isDark}
                         />
                       ))}
                     </div>
@@ -1551,21 +1578,21 @@ export default function VitalsTracker({
           ) : null}
 
           {untrackedReadingGroups.length ? (
-            <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-more-readings">
-              <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
+            <details className={`group rounded-[24px] border ${dashboardDisclosure}`} data-testid="vitals-more-readings">
+              <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black [&::-webkit-details-marker]:hidden">
+                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A] text-[#C4A7FF]" : "bg-[#F5F3FF] text-[#6B21A8]"}`}>
                   <Activity className="h-5 w-5" />
                 </span>
                 <span className="min-w-0 flex-1">{dashboardLabels.more}</span>
                 <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
               </summary>
-              <div className="border-t border-[#F0E7F4]">
+              <div className={`border-t ${groupDivider}`}>
                 {untrackedReadingGroups.map(({ group, signals }, groupIndex) => (
-                  <section key={group} aria-labelledby={`vitals-more-group-${group}`} className={groupIndex ? "border-t border-[#E1D6E7]" : ""}>
-                    <h3 id={`vitals-more-group-${group}`} className="px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] text-[#6B5B72]">
+                  <section key={group} aria-labelledby={`vitals-more-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
+                    <h3 id={`vitals-more-group-${group}`} className={`px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
                       {DISPLAY_GROUP_LABELS[group][language]}
                     </h3>
-                    <div className="divide-y divide-[#EFE7F3]">
+                    <div className={`divide-y ${rowDivider}`}>
                       {signals.map(([key]) => (
                         <SignalCard
                           key={key}
@@ -1573,6 +1600,7 @@ export default function VitalsTracker({
                           language={language}
                           normalLabel={copy.normal}
                           todayLabel={copy.today}
+                          isDark={isDark}
                         />
                       ))}
                     </div>
@@ -1582,19 +1610,19 @@ export default function VitalsTracker({
             </details>
           ) : null}
 
-          <details className="group rounded-[24px] border border-[#E8DED4] bg-white shadow-[0_8px_20px_rgba(63,45,35,0.05)]" data-testid="vitals-evidence-guide">
-            <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black text-[#3B2C25] [&::-webkit-details-marker]:hidden">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-[#6B21A8]">
+          <details className={`group rounded-[24px] border ${dashboardDisclosure}`} data-testid="vitals-evidence-guide">
+            <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black [&::-webkit-details-marker]:hidden">
+              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A] text-[#C4A7FF]" : "bg-[#F5F3FF] text-[#6B21A8]"}`}>
                 <ShieldCheck className="h-5 w-5" />
               </span>
               <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
               <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
             </summary>
-            <div className="border-t border-[#F0E7F4] px-4 pb-4 pt-3">
-              <p className="font-body text-[16px] font-bold leading-relaxed text-[#5D4D64]">{copy.evidenceBody}</p>
+            <div className={`border-t px-4 pb-4 pt-3 ${groupDivider}`}>
+              <p className={`font-body text-[16px] font-bold leading-relaxed ${isDark ? "text-[#D8CDE4]" : "text-[#5D4D64]"}`}>{copy.evidenceBody}</p>
               <div className="mt-3 grid gap-2">
                 {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
-                  <div key={item} className="flex min-h-[48px] items-center gap-3 border-b border-[#F0E7F4] px-1 py-2 last:border-b-0 font-body text-[14px] font-bold text-[#6B5B52]">
+                  <div key={item} className={`flex min-h-[48px] items-center gap-3 border-b px-1 py-2 last:border-b-0 font-body text-[14px] font-bold ${isDark ? "border-white/[0.1] text-[#D8CDE4]" : "border-[#F0E7F4] text-[#6B5B52]"}`}>
                     <Check className="h-4 w-4 flex-shrink-0 text-[#047857]" />
                     <span>{item}</span>
                   </div>
@@ -1604,22 +1632,22 @@ export default function VitalsTracker({
           </details>
 
           {!analysis?.senior_message && recentReadings.length === 0 && (
-            <div className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-5">
-              <p className="font-body text-[20px] font-bold leading-relaxed text-[#6B5B52]">{copy.messageFallback}</p>
+            <div className={`mt-5 rounded-[26px] border p-5 ${dashboardPanel}`}>
+              <p className={`font-body text-[20px] font-bold leading-relaxed ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{copy.messageFallback}</p>
             </div>
           )}
 
           {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
 
-          <div className="mt-2 flex flex-col items-center justify-between gap-3 border-t border-[#E7DDF0] pt-4 sm:flex-row">
-            <p className="font-body text-[15px] font-bold text-[#7A6A60]">
+          <div className={`mt-2 flex flex-col items-center justify-between gap-3 border-t pt-4 sm:flex-row ${isDark ? "border-white/[0.12]" : "border-[#E7DDF0]"}`}>
+            <p className={`font-body text-[15px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>
               {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
             </p>
             <button
               type="button"
               onClick={triggerAnalysis}
               disabled={analysing}
-              className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[15px] font-black text-[#6B21A8] disabled:opacity-60"
+              className={`vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border px-5 font-body text-[15px] font-black disabled:opacity-60 ${isDark ? "border-white/[0.14] bg-white/[0.07] text-[#C4A7FF]" : "border-[#DDD6FE] bg-white text-[#6B21A8]"}`}
             >
               {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {analysing ? copy.analysing : copy.analyse}
@@ -1686,12 +1714,14 @@ function SignalCard({
   language,
   normalLabel,
   todayLabel,
+  isDark,
 }: {
   signalKey: SignalKey;
   reading?: RecentReading;
   language: Language;
   normalLabel: string;
   todayLabel: string;
+  isDark: boolean;
 }) {
   const cfg = SIGNAL_CONFIG[signalKey];
   const meta = VITALS_SIGNAL_CATALOG[signalKey];
@@ -1727,12 +1757,12 @@ function SignalCard({
 
   const rowContent = (
     <>
-        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
+        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#3A2D4A] text-[#C4A7FF]" : "bg-[#F5F3FF] text-[#6B21A8]"}`}>
           <SignalIcon type={cfg.icon} className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-body text-[16px] font-bold leading-tight text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
-          <p className="mt-1 font-body text-[22px] font-black leading-tight text-[#2F241F]">{display}</p>
+          <p className={`font-body text-[16px] font-bold leading-tight ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{signalLabel(signalKey, cfg, language)}</p>
+          <p className={`mt-1 font-body text-[22px] font-black leading-tight ${isDark ? "text-[#FFF8FF]" : "text-[#2F241F]"}`}>{display}</p>
         </div>
         <div className="flex flex-shrink-0 flex-col items-end gap-2 text-right">
           {sourceBadge ? (
@@ -1741,7 +1771,7 @@ function SignalCard({
               {sourceBadge.shortLabel}
             </span>
           ) : null}
-          <p className="font-body text-[14px] font-bold text-[#7A6A60]">{subLabel}</p>
+          <p className={`font-body text-[14px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>{subLabel}</p>
         </div>
     </>
   );
@@ -1762,7 +1792,7 @@ function SignalCard({
           <ChevronDown className="h-5 w-5 flex-shrink-0 text-[#7C3AED] transition-transform group-open:rotate-180" aria-hidden="true" />
           <span className="sr-only">Reading details</span>
         </summary>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#F0E7F4] pb-3 pt-2 font-body text-[12px] text-[#6B5B72]">
+        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 border-t pb-3 pt-2 font-body text-[12px] ${isDark ? "border-white/[0.1] text-[#C9BDD6]" : "border-[#F0E7F4] text-[#6B5B72]"}`}>
           <span className="font-bold">Source: {sourceBadge.fullLabel}</span>
           {reading?.recorded_at ? <span>{relativeTime(reading.recorded_at, language)}</span> : null}
         </div>
