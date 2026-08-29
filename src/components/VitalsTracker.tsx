@@ -1447,7 +1447,6 @@ export default function VitalsTracker({
   }
 
   // TODO: Device connection settings screen for Apple Health / LibreView / Withings.
-  // TODO: Nightly cron job should call POST /api/vitals/baseline/update for active users.
   // TODO: Caregiver dashboard can read vyva_pattern_windows.caregiver_note.
   // TODO: VYVA voice can read senior_message aloud after analysis.
   // TODO: Optional 40Hz gamma audio layer under daily check-in audio.
