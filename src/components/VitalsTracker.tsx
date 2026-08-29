@@ -120,11 +120,11 @@ const COPY = {
     confidenceLow: "Baja",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Cómo usa VYVA tus datos",
-    evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
-    evidencePhone: "Telefono: pulso y respiracion estimados",
-    evidenceManual: "Manual: dolor, animo, energia, sueno y medicacion",
-    evidenceDevice: "Dispositivo: oxigeno, temperatura, tension, glucosa y peso",
+    evidenceTitle: "Cómo conecta VYVA tus datos",
+    evidenceBody: "VYVA reúne tus constantes y las compara con tu referencia personal: lo que es habitual para ti. Analiza cómo cambian con el tiempo y qué señales se mueven juntas para detectar tendencias, patrones y posibles riesgos antes de que resulten evidentes.",
+    evidencePhone: "Aprende tu referencia: reconoce lo que es habitual para ti",
+    evidenceManual: "Conecta las señales: constantes, síntomas, sueño, ánimo y medicación",
+    evidenceDevice: "Se anticipa: usa patrones emergentes para prever posibles resultados y señalar riesgos",
     addEvidenceNote: "Introduce el numero tal como aparece en tu dispositivo, o registra como te sientes. Esto ayuda a VYVA a refinar la evaluacion.",
     sourceClinical: "ClÃ­nico",
   },
@@ -166,11 +166,11 @@ const COPY = {
     confidenceLow: "Niedrig",
     confidenceMedium: "Mittel",
     confidenceHigh: "Hoch",
-    evidenceTitle: "Wie VYVA Ihre Werte nutzt",
-    evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
-    evidencePhone: "Telefon: geschatzter Puls und Atmung",
-    evidenceManual: "Manuell: Schmerz, Stimmung, Energie, Schlaf und Medikamente",
-    evidenceDevice: "Gerat: Sauerstoff, Temperatur, Blutdruck, Glukose und Gewicht",
+    evidenceTitle: "Wie VYVA Ihre Daten verbindet",
+    evidenceBody: "VYVA führt Ihre Vitalwerte zusammen und vergleicht sie mit Ihrem persönlichen Ausgangswert – also mit dem, was für Sie üblich ist. Es analysiert Veränderungen im Zeitverlauf und gemeinsam auftretende Signale, um Trends, Muster und mögliche Risiken frühzeitig zu erkennen.",
+    evidencePhone: "Lernt Ihren Ausgangswert: erkennt, was für Sie üblich ist",
+    evidenceManual: "Verbindet die Signale: Vitalwerte, Symptome, Schlaf, Stimmung und Medikamente",
+    evidenceDevice: "Blickt voraus: nutzt neue Muster, um mögliche Entwicklungen vorherzusehen und Risiken zu melden",
     addEvidenceNote: "Geben Sie den Wert so ein, wie er auf dem Gerat steht, oder erfassen Sie, wie Sie sich fuhlen. Das hilft VYVA, die Einschatzung zu verfeinern.",
     sourceClinical: "Klinisch",
   },
@@ -212,11 +212,11 @@ const COPY = {
     confidenceLow: "Low",
     confidenceMedium: "Medium",
     confidenceHigh: "High",
-    evidenceTitle: "How VYVA uses your readings",
-    evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
-    evidencePhone: "Phone: estimated pulse and breathing",
-    evidenceManual: "Manual: pain, mood, energy, sleep and medication",
-    evidenceDevice: "Device: oxygen, temperature, blood pressure, glucose and weight",
+    evidenceTitle: "How VYVA connects your health signals",
+    evidenceBody: "VYVA brings your readings together and compares them with your personal baseline—what is usual for you. It analyses changes over time and signals that move together to identify trends, patterns and possible risks before they become obvious.",
+    evidencePhone: "Learns your baseline: understands what is usual for you",
+    evidenceManual: "Connects the signals: vitals, symptoms, sleep, mood and medication",
+    evidenceDevice: "Looks ahead: uses emerging patterns to anticipate possible outcomes and flag risks",
     addEvidenceNote: "Enter the number exactly as it appears on your device, or record how you feel. This helps VYVA refine the assessment.",
     sourceClinical: "Clinical",
   },
@@ -278,48 +278,56 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   fr: {
     add: "Ajouter une mesure",
-    analyse: "Actualiser l'evaluation",
-    analysing: "Analyse...",
-    loading: "Preparation de vos constantes...",
+    analyse: "Actualiser l’évaluation",
+    analysing: "Analyse en cours…",
+    loading: "Préparation de vos constantes…",
     back: "Retour",
     save: "Enregistrer la mesure",
-    saving: "Enregistrement...",
-    lastAnalysis: "Derniere analyse",
+    saving: "Enregistrement…",
+    lastAnalysis: "Dernière analyse",
     noAnalysis: "Aucune analyse encore",
     now: "Maintenant",
     normal: "Normal",
     today: "Aujourd'hui",
     yes: "Oui, pris",
     no: "Pas encore",
-    messageFallback: "Bonjour. VYVA est prete a revoir vos constantes avec vous.",
-    safetyTitle: "Controle quotidien",
-    safetyAck: "Enregistre",
-    recheck: "Verifier a nouveau",
+    messageFallback: "Bonjour. VYVA est prête à revoir vos constantes avec vous.",
+    safetyTitle: "Contrôle quotidien",
+    safetyAck: "Enregistré",
+    recheck: "Vérifier à nouveau",
     share: "Partager",
-    doctor: "Medecin",
+    doctor: "Médecin",
     urgent: "Urgent",
-    sourceEstimated: "Estime",
+    call: "Appeler",
+    callGp: "Appeler le médecin",
+    emailGp: "Envoyer un e-mail au médecin",
+    doctorHelp: "Aide médicale",
+    addDoctor: "Ajouter un médecin",
+    appointment: "Prendre rendez-vous",
+    ride: "Trouver un transport",
+    shareSummary: "Partager le résumé",
+    sourceEstimated: "Estimé",
     sourceManual: "Manuel",
     sourceDevice: "Appareil",
     confidenceLow: "Faible",
     confidenceMedium: "Moyenne",
-    confidenceHigh: "Elevee",
-    evidenceTitle: "Comment VYVA utilise vos mesures",
-    evidenceBody: "VYVA combine les estimations du telephone avec les valeurs saisies depuis des appareils. Les estimations aident a voir les tendances; les appareils et mesures cliniques ont plus de poids.",
-    evidencePhone: "Telephone : pouls et respiration estimes",
-    evidenceManual: "Manuel : douleur, humeur, energie, sommeil et medication",
-    evidenceDevice: "Appareil : oxygene, temperature, tension, glycemie et poids",
+    confidenceHigh: "Élevée",
+    evidenceTitle: "Comment VYVA relie vos données de santé",
+    evidenceBody: "VYVA rassemble vos mesures et les compare à votre référence personnelle : ce qui est habituel pour vous. Elle analyse leur évolution et les signaux qui changent ensemble afin de repérer les tendances, les schémas et les risques possibles avant qu’ils ne deviennent évidents.",
+    evidencePhone: "Apprend votre référence : comprend ce qui est habituel pour vous",
+    evidenceManual: "Relie les signaux : constantes, symptômes, sommeil, humeur et médicaments",
+    evidenceDevice: "Anticipe : utilise les schémas émergents pour prévoir les évolutions possibles et signaler les risques",
     addEvidenceNote: "Saisissez le nombre tel qu'il apparait sur votre appareil, ou notez comment vous vous sentez. Cela aide VYVA a affiner l'evaluation.",
     sourceClinical: "Clinique",
     loadError: "Impossible de charger vos constantes maintenant.",
     saveError: "Impossible d'enregistrer cette mesure.",
     analysisError: "L'analyse n'a pas pu se terminer.",
     actionError: "Impossible d'enregistrer cette action.",
-    checkConnectedSensor: "Verifier le capteur connecte",
-    manualGlucoseEntry: "Saisie manuelle de glycemie",
-    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycemie.",
-    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycemie pour l'enregistrer avec vos constantes.",
-    whenReading: "Quand cette mesure a-t-elle ete prise?",
+    checkConnectedSensor: "Vérifier le capteur connecté",
+    manualGlucoseEntry: "Saisie manuelle de glycémie",
+    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycémie.",
+    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycémie pour l'enregistrer avec vos constantes.",
+    whenReading: "Quand cette mesure a-t-elle été prise ?",
     ok: "OK",
   },
   it: {
@@ -350,11 +358,11 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Bassa",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Come VYVA usa le tue letture",
-    evidenceBody: "VYVA combina stime del telefono con valori inseriti da dispositivi. Le stime aiutano con i trend; dispositivi e letture cliniche hanno piu peso.",
-    evidencePhone: "Telefono: polso e respirazione stimati",
-    evidenceManual: "Manuale: dolore, umore, energia, sonno e farmaci",
-    evidenceDevice: "Dispositivo: ossigeno, temperatura, pressione, glucosio e peso",
+    evidenceTitle: "Come VYVA collega i tuoi dati di salute",
+    evidenceBody: "VYVA riunisce le tue misurazioni e le confronta con il tuo riferimento personale: ciò che è abituale per te. Analizza i cambiamenti nel tempo e i segnali che variano insieme per individuare tendenze, schemi e possibili rischi prima che diventino evidenti.",
+    evidencePhone: "Impara il tuo riferimento: comprende ciò che è abituale per te",
+    evidenceManual: "Collega i segnali: parametri vitali, sintomi, sonno, umore e farmaci",
+    evidenceDevice: "Guarda avanti: usa gli schemi emergenti per anticipare possibili esiti e segnalare i rischi",
     addEvidenceNote: "Inserisci il numero esattamente come appare sul dispositivo, o registra come ti senti. Questo aiuta VYVA a perfezionare la valutazione.",
     sourceClinical: "Clinico",
     loadError: "Impossibile caricare i parametri ora.",
@@ -396,11 +404,11 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Baixa",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Como a VYVA usa as suas leituras",
-    evidenceBody: "A VYVA combina estimativas do telefone com valores introduzidos de dispositivos. As estimativas ajudam nas tendencias; dispositivos e leituras clinicas tem mais peso.",
-    evidencePhone: "Telefone: pulso e respiracao estimados",
-    evidenceManual: "Manual: dor, humor, energia, sono e medicacao",
-    evidenceDevice: "Dispositivo: oxigenio, temperatura, tensao, glicose e peso",
+    evidenceTitle: "Como a VYVA liga os seus dados de saúde",
+    evidenceBody: "A VYVA reúne as suas medições e compara-as com a sua referência pessoal: aquilo que é habitual para si. Analisa alterações ao longo do tempo e sinais que mudam em conjunto para identificar tendências, padrões e possíveis riscos antes de se tornarem evidentes.",
+    evidencePhone: "Aprende a sua referência: compreende o que é habitual para si",
+    evidenceManual: "Liga os sinais: sinais vitais, sintomas, sono, humor e medicação",
+    evidenceDevice: "Antecipa: usa padrões emergentes para prever possíveis resultados e sinalizar riscos",
     addEvidenceNote: "Introduza o numero exatamente como aparece no dispositivo, ou registe como se sente. Isto ajuda a VYVA a refinar a avaliacao.",
     sourceClinical: "Clinico",
     loadError: "Nao foi possivel carregar os seus sinais agora.",
@@ -874,9 +882,9 @@ function safetyLabel(status: SafetyStatus, language: Language) {
     },
     fr: {
       steady: "Stable",
-      recheck: "Verifier a nouveau",
+      recheck: "Vérifier à nouveau",
       share_with_caregiver: "Partager avec l'aidant",
-      contact_doctor: "Contacter le medecin",
+      contact_doctor: "Contacter le médecin",
       urgent_help: "Aide urgente",
     },
     it: {
@@ -895,6 +903,35 @@ function safetyLabel(status: SafetyStatus, language: Language) {
     },
   };
   return labels[language][status];
+}
+
+const FRENCH_SAFETY_MESSAGES: Record<SafetyStatus, string> = {
+  steady: "Vos mesures récentes semblent stables. Gardez vos habitudes et vérifiez à nouveau si quelque chose change.",
+  recheck: "VYVA vous recommande de reprendre cette mesure afin de confirmer le changement.",
+  share_with_caregiver: "VYVA a détecté un changement. Il serait prudent d’en parler à votre aidant et de reprendre la mesure.",
+  contact_doctor: "VYVA a détecté un changement qui mérite un avis médical aujourd’hui. Partagez ce résumé si vous le pouvez.",
+  urgent_help: "VYVA a détecté un signal de sécurité important. Si cela se produit maintenant, demandez une aide urgente ou appelez les secours.",
+};
+
+function isKnownEnglishSafetyMessage(message: string) {
+  return /^(VYVA noticed|VYVA recommends|Complete today's check|Your recent check|Your latest readings|Please speak with your doctor|Your readings need urgent support)/i.test(message.trim());
+}
+
+function seniorMessageForDisplay(message: string | null | undefined, status: SafetyStatus, language: Language) {
+  if (!message?.trim()) return copyFor(language).messageFallback;
+  if (language === "fr" && isKnownEnglishSafetyMessage(message)) return FRENCH_SAFETY_MESSAGES[status];
+  return message.trim();
+}
+
+function alertMessageForDisplay(alert: LatestAlert, status: SafetyStatus, language: Language) {
+  if (language !== "fr") return alert.message;
+
+  const symptomMatch = alert.message.match(/(?:Symptom report|Rapport de symptômes)\s*:\s*([^\n]+)/i);
+  if (symptomMatch?.[1]?.trim()) return `Rapport de symptômes : ${symptomMatch[1].trim()}`;
+
+  if (status === "urgent_help") return "Un signal récent nécessite une aide urgente. Consultez immédiatement les recommandations enregistrées.";
+  if (status === "contact_doctor") return "Un signal récent mérite un avis médical aujourd’hui. Consultez le rapport enregistré.";
+  return "Un signal récent est disponible dans vos rapports.";
 }
 
 function sanitizePhoneHref(phone?: string | null): string {
@@ -971,10 +1008,21 @@ function buildVitalsContext({
   recentReadings: RecentReading[];
   language: Language;
 }) {
+  const status = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
+  const localizedMessage = seniorMessageForDisplay(analysis?.senior_message, status, language);
+  const contextLabels: Record<Language, { title: string; note: string; risk: string }> = {
+    en: { title: "VYVA vitals summary", note: "VYVA note", risk: "Risk score" },
+    es: { title: "Resumen de signos VYVA", note: "Nota VYVA", risk: "Nivel" },
+    de: { title: "VYVA Vitalwerte", note: "VYVA Hinweis", risk: "Risikowert" },
+    fr: { title: "Résumé des constantes VYVA", note: "Note VYVA", risk: "Score de risque" },
+    it: { title: "Riepilogo dei parametri VYVA", note: "Nota VYVA", risk: "Punteggio di rischio" },
+    pt: { title: "Resumo dos sinais VYVA", note: "Nota VYVA", risk: "Pontuação de risco" },
+  };
+  const labels = contextLabels[language];
   const lines = [
-    language === "de" ? "VYVA Vitalwerte" : language === "en" ? "VYVA vitals summary" : "Resumen de signos VYVA",
-    analysis?.senior_message ? `${language === "en" ? "VYVA note" : "Nota VYVA"}: ${analysis.senior_message}` : "",
-    analysis?.risk_score != null ? `${language === "en" ? "Risk score" : "Nivel"}: ${analysis.risk_score}/100` : "",
+    labels.title,
+    analysis?.senior_message ? `${labels.note}: ${localizedMessage}` : "",
+    analysis?.risk_score != null ? `${labels.risk}: ${analysis.risk_score}/100` : "",
     ...recentReadings.slice(0, 5).map((reading) => `${reading.signal_type}: ${reading.value}${reading.context_tag ? ` (${reading.context_tag})` : ""}`),
   ];
   return lines.filter(Boolean).join("\n");
@@ -1185,12 +1233,16 @@ export default function VitalsTracker({
         ? "Bitte hilf mir, eine sichere Fahrt wegen meiner VYVA Vitalwerte zu organisieren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
           ? "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before contacting anyone."
-          : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
+          : language === "fr"
+            ? "Aidez-moi à trouver un transport sûr en fonction de mes constantes VYVA. Demandez ma confirmation avant de contacter qui que ce soit."
+            : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
       : language === "de"
         ? "Bitte hilf mir, einen Arzttermin wegen meiner VYVA Vitalwerte zu vereinbaren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
           ? "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."
-          : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
+          : language === "fr"
+            ? "Aidez-moi à prendre rendez-vous avec un médecin en fonction de mes constantes VYVA. Demandez ma confirmation avant de réserver."
+            : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
 
     void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
     navigate("/concierge", {
@@ -1433,9 +1485,9 @@ export default function VitalsTracker({
     return untrackedSignals.length ? [{ group, signals: untrackedSignals }] : [];
   });
   const dashboardLabels = DASHBOARD_LABELS[language];
-  const seniorMessage = previewData && language !== "en"
+  const seniorMessage = previewData && language !== "en" && language !== "fr"
     ? copy.messageFallback
-    : analysis?.senior_message ?? copy.messageFallback;
+    : seniorMessageForDisplay(analysis?.senior_message, safetyStatus, language);
   const safetyHeroAccent =
     safetyStatus === "steady"
       ? "border-l-[#047857]"
@@ -1536,11 +1588,11 @@ export default function VitalsTracker({
                   )}
                 </div>
                 <p className="mt-3 font-body text-[20px] font-bold leading-relaxed text-[#2F241F]">
-                  {analysis?.senior_message ?? copy.messageFallback}
+                  {seniorMessage}
                 </p>
                 {latestAlert && !latestAlert.resolved_at && (
                   <p className="mt-3 rounded-[18px] bg-[#FFF7ED] p-3 font-body text-[15px] font-bold text-[#92400E]">
-                    {latestAlert.message}
+                    {alertMessageForDisplay(latestAlert, safetyStatus, language)}
                   </p>
                 )}
               </div>
@@ -1556,7 +1608,7 @@ export default function VitalsTracker({
                   className="min-h-[58px] rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 font-body text-[17px] font-bold text-[#6B5B52] disabled:opacity-60"
                   data-testid="button-safety-dismiss"
                 >
-                  {acknowledging === "dismissed" ? copy.safetyAck : "OK"}
+                  {acknowledging === "dismissed" ? copy.safetyAck : copy.ok}
                 </button>
               </div>
             )}

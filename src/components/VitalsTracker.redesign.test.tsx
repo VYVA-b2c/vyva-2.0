@@ -42,6 +42,11 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
     expect(screen.getByLabelText("Device - High")).toHaveTextContent("Device");
     expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
+
+    fireEvent.click(screen.getByText("How VYVA connects your health signals"));
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("signals that move together");
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("anticipate possible outcomes and flag risks");
   });
 
   it("opens a vital-first picker and keeps phone camera separate from device photo", () => {
@@ -57,6 +62,46 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("button-method-phone_camera")).toHaveTextContent("Phone camera");
     expect(screen.getByTestId("button-method-device_photo")).toHaveTextContent("Device photo");
     expect(screen.getByTestId("button-method-web_bluetooth")).toBeVisible();
+  });
+
+  it("localizes saved English safety and alert copy when the account language is French", () => {
+    const frenchPreview: VitalsTrackerPreviewData = {
+      analysis: {
+        safety_status: "contact_doctor",
+        recommended_action: "contact_doctor",
+        risk_score: 62,
+        senior_message: "VYVA noticed a change worth same-day medical advice. Share this summary if you can.",
+      },
+      recent_readings: [],
+      latest_alert: {
+        id: "alert-1",
+        severity: "warning",
+        message: "Symptom report: Douleur à la tête ou au cou\nNext: Rest the painful area.",
+      },
+    };
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <VitalsTracker
+          userId="preview-user"
+          userConditions={[]}
+          language="fr"
+          gpName="Quiron"
+          gpPhone="+34 612 345 678"
+          gpEmail="gp@example.com"
+          previewData={frenchPreview}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("vitals-hero")).toHaveTextContent("VYVA a détecté un changement qui mérite un avis médical aujourd’hui.");
+    expect(screen.getByTestId("daily-safety-check")).toHaveTextContent("Rapport de symptômes : Douleur à la tête ou au cou");
+    expect(screen.getByTestId("button-safety-call-gp")).toHaveTextContent("Appeler Quiron");
+    expect(screen.getByTestId("button-safety-email-gp")).toHaveTextContent("Envoyer un e-mail au médecin");
+    expect(screen.getByTestId("button-safety-doctor-help")).toHaveTextContent("Aide médicale");
+    expect(screen.getByTestId("button-safety-schedule-appointment")).toHaveTextContent("Prendre rendez-vous");
+    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Trouver un transport");
+    expect(screen.queryByText(/VYVA noticed|Symptom report|Next:|Doctor help|Book appointment|Find transport/i)).not.toBeInTheDocument();
   });
 });
 

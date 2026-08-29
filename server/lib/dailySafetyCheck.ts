@@ -222,7 +222,9 @@ function triageStatus(latestTriage?: TriageSafetyContext | null): { status: Safe
 }
 
 function seniorMessage(status: SafetyStatus, reasons: string[], language?: string | null): string {
-  const spanish = String(language ?? "").startsWith("es");
+  const normalizedLanguage = String(language ?? "").trim().toLowerCase().split(/[-_]/)[0];
+  const spanish = normalizedLanguage === "es";
+  const french = normalizedLanguage === "fr";
   const firstReason = reasons[0] ?? "";
   if (spanish) {
     if (status === "urgent_help") return "VYVA ha visto una senal importante. Si esto esta pasando ahora, busca ayuda urgente o llama a emergencias.";
@@ -231,6 +233,14 @@ function seniorMessage(status: SafetyStatus, reasons: string[], language?: strin
     if (firstReason.toLowerCase().startsWith("no recent")) return "Completa el chequeo de hoy para que VYVA pueda ver tu patron.";
     if (status === "recheck") return firstReason ? `VYVA recomienda repetir la medicion: ${firstReason}` : "Completa el chequeo de hoy para que VYVA pueda ver tu patron.";
     return "Tus datos recientes parecen estables. Sigue con tu rutina normal y vuelve a comprobar si algo cambia.";
+  }
+  if (french) {
+    if (status === "urgent_help") return "VYVA a détecté un signal de sécurité important. Si cela se produit maintenant, demandez une aide urgente ou appelez les secours.";
+    if (status === "contact_doctor") return "VYVA a détecté un changement qui mérite un avis médical aujourd’hui. Partagez ce résumé si vous le pouvez.";
+    if (status === "share_with_caregiver") return "VYVA a détecté un changement. Il serait prudent d’en parler à votre aidant et de reprendre la mesure.";
+    if (firstReason.toLowerCase().startsWith("no recent")) return "Effectuez le contrôle d’aujourd’hui afin que VYVA puisse comprendre votre évolution.";
+    if (status === "recheck") return "VYVA vous recommande de reprendre cette mesure afin de confirmer le changement.";
+    return "Vos mesures récentes semblent stables. Gardez vos habitudes et vérifiez à nouveau si quelque chose change.";
   }
   if (status === "urgent_help") return "VYVA noticed an important safety signal. If this is happening now, seek urgent help or call emergency services.";
   if (status === "contact_doctor") return "VYVA noticed a change worth same-day medical advice. Share this summary if you can.";

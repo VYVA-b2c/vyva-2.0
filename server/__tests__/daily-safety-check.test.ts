@@ -27,6 +27,17 @@ describe("daily safety check rules", () => {
     expect(result.senior_message).toMatch(/complete today's check/i);
   });
 
+  it("returns deterministic safety guidance in French", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "bp_diastolic", recent_values: [104] })],
+      language: "fr",
+    });
+
+    expect(result.safety_status).toBe("contact_doctor");
+    expect(result.senior_message).toBe("VYVA a détecté un changement qui mérite un avis médical aujourd’hui. Partagez ce résumé si vous le pouvez.");
+    expect(result.senior_message).not.toMatch(/noticed|medical advice|share this summary/i);
+  });
+
   it("keeps a single mild abnormal value at recheck", () => {
     const result = buildDailySafetyCheck({
       signalSummary: [signal({ signal: "bp_systolic", recent_values: [145] })],
