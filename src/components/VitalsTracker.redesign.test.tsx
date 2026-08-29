@@ -42,6 +42,11 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
     expect(screen.getByLabelText("Device - High")).toHaveTextContent("Device");
     expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
+
+    fireEvent.click(screen.getByText("How VYVA connects your health signals"));
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("signals that move together");
+    expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("detects emerging patterns and flags possible risks");
   });
 
   it("opens a vital-first picker and keeps phone camera separate from device photo", () => {
