@@ -68,6 +68,7 @@ All initial definitions are version `1.0.0`. `health.preventive_check` is
 | Medication | `medication.reminder`, `medication.dose_confirmation`, `medication.dose_deferred`, `medication.missed_dose`, `medication.refill_check`, `medication.supply_check`, `medication.side_effect_report`, `medication.adherence_followup` |
 | Mental wellbeing | `wellbeing.mood_check`, `wellbeing.loneliness_check`, `wellbeing.distress_check`, `wellbeing.cognitive_concern`, `wellbeing.support`, `wellbeing.followup` |
 | Social | `social.daily_checkin`, `social.general_conversation`, `social.reminiscence`, `social.activity`, `social.community_connection`, `social.family_contact_suggestion`, `social.loneliness_followup` |
+| Cognitive Engagement | `brain_coach.activity_session` |
 | Concierge | `concierge.appointment_support`, `concierge.transportation_support`, `concierge.local_service_request`, `concierge.shopping_support`, `concierge.meal_support`, `concierge.administrative_support`, `concierge.community_resource_discovery`, `concierge.operator_handoff` |
 | Trust and Safety | `trust.scam_assessment`, `trust.suspicious_phone_call`, `trust.suspicious_message`, `trust.suspicious_email`, `trust.impersonation_scam`, `trust.payment_risk`, `trust.remote_access_request`, `trust.account_compromise`, `trust.fraud_exposure_followup` |
 | Caregiver | `caregiver.request_checkin`, `caregiver.review_approved_summary`, `caregiver.respond_to_escalation`, `caregiver.update_preferences`, `caregiver.request_followup` |
