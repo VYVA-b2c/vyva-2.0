@@ -1,9 +1,13 @@
 import {
   clearVoiceSessionId,
   ensureVoiceSessionId,
+  requestDrAiScreenSync,
+  acknowledgeDrAiScreenSync,
   readVoiceSessionId,
   VYVA_VOICE_SESSION_CHANGED_EVENT,
   VYVA_VOICE_SESSION_STORAGE_KEY,
+  VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT,
+  type DrAiScreenSyncRequestDetail,
   writeVoiceSessionId,
 } from "./voiceSessionBridge";
 
@@ -41,5 +45,21 @@ describe("voiceSessionBridge", () => {
     expect(sessionStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY)).toBeNull();
     expect(readVoiceSessionId()).toBeNull();
+  });
+
+  it("waits until the canonical Dr. AI screen acknowledges rendering", async () => {
+    const handleRequest = (event: Event) => {
+      const detail = (event as CustomEvent<DrAiScreenSyncRequestDetail>).detail;
+      window.setTimeout(() => acknowledgeDrAiScreenSync({ ...detail, rendered: true }), 5);
+    };
+    window.addEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleRequest);
+
+    await expect(requestDrAiScreenSync("voice-screen-1", 100)).resolves.toBe(true);
+
+    window.removeEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleRequest);
+  });
+
+  it("fails safely when no screen is mounted to acknowledge synchronization", async () => {
+    await expect(requestDrAiScreenSync("voice-screen-missing", 5)).resolves.toBe(false);
   });
 });

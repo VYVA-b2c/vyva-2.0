@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "name": "VYVA Dr. AI",
+  "slug": "dr-ai",
+  "tags": ["vyva", "health", "triage", "pilot"],
+  "supported_languages": ["en", "es", "fr", "de", "it", "pt"],
+  "privacy": {
+    "record_voice": false,
+    "retention_days": 0,
+    "delete_transcript_and_pii": true,
+    "delete_audio": true,
+    "apply_to_existing_conversations": false,
+    "zero_retention_mode": true
+  },
+  "tools": [
+    {
+      "tool_config": {
+        "type": "webhook",
+        "name": "vyva_triage_step",
+        "description": "Required medical-safety step. Call this for every symptom answer or new health detail before speaking guidance. VYVA's backend is the sole triage authority.",
+        "response_timeout_secs": 20,
+        "interruption_mode": "disable_during_tool",
+        "pre_tool_speech": "off",
+        "execution_mode": "immediate",
+        "tool_error_handling_mode": "passthrough",
+        "api_schema": {
+          "url": "$VYVA_PUBLIC_URL/api/elevenlabs/tools/triage-step",
+          "method": "POST",
+          "content_type": "application/json",
+          "request_headers": {
+            "X-VYVA-Voice-Triage-Token": { "variable_name": "secret__voice_triage_tool_token" }
+          },
+          "request_body_schema": {
+            "type": "object",
+            "property_kind": "object",
+            "required": ["user_id", "conversation_id", "locale", "utterance", "channel"],
+            "properties": {
+              "user_id": { "type": "string", "dynamic_variable": "user_id" },
+              "conversation_id": { "type": "string", "dynamic_variable": "conversation_id" },
+              "locale": { "type": "string", "dynamic_variable": "language" },
+              "utterance": { "type": "string", "description": "The user's latest answer or new health detail, preserving its exact spoken meaning." },
+              "choice_id": { "type": ["string", "null"], "description": "The matching choice id from the most recent VYVA response, when confidently known." },
+              "vitals_text": { "type": ["string", "null"], "description": "Any vitals the user just stated, otherwise null." },
+              "channel": { "type": "string", "constant_value": "voice_app" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "tool_config": {
+        "type": "client",
+        "name": "sync_dr_ai_screen",
+        "description": "After each successful vyva_triage_step call, wait for the VYVA app to render the corresponding canonical Ask Dr. AI screen before speaking the next question or guidance.",
+        "response_timeout_secs": 5,
+        "expects_response": true,
+        "execution_mode": "immediate",
+        "interruption_mode": "disable_during_tool",
+        "pre_tool_speech": "off",
+        "parameters": {
+          "type": "object",
+          "property_kind": "object",
+          "required": ["conversation_id"],
+          "properties": {
+            "conversation_id": { "type": "string", "dynamic_variable": "conversation_id" }
+          }
+        }
+      }
+    }
+  ],
+  "conversation_config": {
+    "turn": {
+      "turn_timeout": 12,
+      "initial_wait_time": 12,
+      "silence_end_call_timeout": 90,
+      "turn_eagerness": "patient",
+      "speculative_turn": false
+    },
+    "conversation": {
+      "max_duration_seconds": 900,
+      "client_events": ["interruption", "agent_response", "user_transcript"]
+    },
+    "tts": {
+      "model_id": "eleven_flash_v2_5",
+      "voice_id": "$ELEVENLABS_DR_AI_VOICE_ID",
+      "speed": 0.9,
+      "stability": 0.62,
+      "similarity_boost": 0.78
+    },
+    "agent": {
+      "first_message": "I'm here with you. Tell me what feels different today.",
+      "language": "en",
+      "disable_first_message_interruptions": false,
+      "prompt": {
+        "llm": "gemini-2.5-flash",
+        "temperature": 0,
+        "max_tokens": 650,
+        "prompt": "You are VYVA Dr. AI, an AI voice guide—not a doctor or emergency service. Speak in {{language}} using short, warm sentences suitable for an older adult. VYVA's backend is the sole medical-safety authority. Never diagnose, prescribe, suggest treatment, invent questions, downgrade urgency, or add medical guidance. For every symptom answer, correction, interruption, new health detail, vital reading, or uncertainty, call vyva_triage_step before giving health guidance. After a successful triage call, call sync_dr_ai_screen with {{conversation_id}} and wait for its response. Only then speak the returned spoken_text and ask only the returned question.text. Offer only returned choices, at most three at a time. If safety_level is emergency, speak returned spoken_text exactly and do not soften it. If the tool returns complete, gently confirm the saved next step. Accept 'I don't know', unclear speech, and silence as uncertainty and send that uncertainty to the tool. If the triage tool fails, speak its localized spoken_text exactly. Always ask one question at a time. Do not claim to have seen a screen unless sync_dr_ai_screen returned rendered=true."
+      }
+    }
+  }
+}

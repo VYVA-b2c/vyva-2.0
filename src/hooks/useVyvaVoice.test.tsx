@@ -4,6 +4,9 @@ import { useVyvaVoice, VyvaVoiceProvider } from "./useVyvaVoice";
 import {
   VYVA_VOICE_SESSION_STORAGE_KEY,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
+  VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT,
+  acknowledgeDrAiScreenSync,
+  type DrAiScreenSyncRequestDetail,
 } from "@/lib/voiceSessionBridge";
 import {
   VYVA_VOICE_HOME_INTENT_EVENT,
@@ -584,6 +587,24 @@ describe("useVyvaVoice", () => {
     const sessionId = sessionStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY);
     expect(sessionId).toBeTruthy();
     expect(localStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY)).toBe(sessionId);
+  });
+
+  it("blocks the Dr. AI screen-sync tool until the canonical screen acknowledges rendering", async () => {
+    const sessionOptions = await renderStartedVoice();
+    const handleRequest = (event: Event) => {
+      const detail = (event as CustomEvent<DrAiScreenSyncRequestDetail>).detail;
+      acknowledgeDrAiScreenSync({ ...detail, rendered: true });
+    };
+    window.addEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleRequest);
+
+    const result = await sessionOptions?.clientTools?.sync_dr_ai_screen?.({ conversation_id: "voice-screen-sync" });
+
+    expect(JSON.parse(result || "{}")).toMatchObject({
+      ok: true,
+      rendered: true,
+      conversation_id: "voice-screen-sync",
+    });
+    window.removeEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleRequest);
   });
 
   it("syncs tapped symptom-check answers into the active ElevenLabs session", async () => {

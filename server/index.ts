@@ -28,8 +28,10 @@ import {
 import {
   elevenLabsTriageStepToolHandler,
   voiceTriageSessionAnswerHandler,
+  voiceTriageSessionEndHandler,
   voiceTriageSessionHandler,
 } from "./routes/voiceTriage.js";
+import { drAiVoiceFeatureHandler } from "./routes/drAiVoiceFeature.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import callbackOnboardingRouter from "./routes/callbackOnboarding.js";
 import billingRouter from "./routes/billing.js";
@@ -205,11 +207,13 @@ app.get("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitl
 app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), recordVoiceTimelineEventsHandler);
 app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationReadinessHandler);
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
+app.get("/api/config/features/dr-ai-voice", authMiddleware, requireUser, requireEntitlement("voice_assistant"), drAiVoiceFeatureHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
 app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
 app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
 app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
+app.post("/api/voice-triage/session/:conversation_id/end", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionEndHandler);
 app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);

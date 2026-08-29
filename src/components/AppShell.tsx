@@ -864,35 +864,60 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
       if (request.autoStart === false || !request.agentSlug) return;
 
-      const transferContext = request.contextHint || request.reason || `Transfer to ${request.domain}`;
-      recordVoiceTimelineEvent({
-        kind: "transfer_requested",
-        title: `Transfer to ${request.domain}`,
-        detail: request.reason,
-        domain: request.domain,
-        ...(request.route ? { route: request.route } : {}),
-        ...(request.agentSlug ? { agentSlug: request.agentSlug } : {}),
-      });
-      beginVoiceTransfer();
-      window.setTimeout(() => {
-        stopVoice();
+      void (async () => {
+        if (request.agentSlug === "dr-ai" || request.agentSlug === "ask-dr-ai") {
+          try {
+            const response = await apiFetch("/api/config/features/dr-ai-voice");
+            const access = response.ok ? await response.json() as { enabled?: boolean } : null;
+            if (!access?.enabled) {
+              recordVoiceTimelineEvent({
+                kind: "transfer_blocked",
+                title: "Dr. AI voice transfer unavailable",
+                detail: "The canonical touch flow remains available.",
+                domain: request.domain,
+                ...(request.route ? { route: request.route } : {}),
+                agentSlug: request.agentSlug,
+              });
+              sendContextUpdate("Dr. AI voice is not enabled for this account. The Ask Dr. AI touch screen is open, so invite the user to continue there.");
+              return;
+            }
+          } catch (error) {
+            console.warn("[VYVA] Could not verify Dr. AI voice access:", error);
+            sendContextUpdate("Dr. AI voice could not be opened. The Ask Dr. AI touch screen is still available.");
+            return;
+          }
+        }
+
+        const transferContext = request.contextHint || request.reason || `Transfer to ${request.domain}`;
+        recordVoiceTimelineEvent({
+          kind: "transfer_requested",
+          title: `Transfer to ${request.domain}`,
+          detail: request.reason,
+          domain: request.domain,
+          ...(request.route ? { route: request.route } : {}),
+          ...(request.agentSlug ? { agentSlug: request.agentSlug } : {}),
+        });
+        beginVoiceTransfer();
         window.setTimeout(() => {
-          void startVoice(transferContext, undefined, {
-            agentSlug: request.agentSlug,
-            autoStartListening: true,
-            dynamicVariables: {
-              app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
-              transfer_domain: request.domain,
-              transfer_reason: request.reason,
-            },
-          });
-        }, 650);
-      }, 80);
+          stopVoice();
+          window.setTimeout(() => {
+            void startVoice(transferContext, undefined, {
+              agentSlug: request.agentSlug,
+              autoStartListening: true,
+              dynamicVariables: {
+                app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
+                transfer_domain: request.domain,
+                transfer_reason: request.reason,
+              },
+            });
+          }, 650);
+        }, 80);
+      })();
     };
 
     window.addEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
     return () => window.removeEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
-  }, [beginVoiceTransfer, startVoice, stopVoice]);
+  }, [beginVoiceTransfer, sendContextUpdate, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!activeVoiceAction) return;
