@@ -869,7 +869,7 @@ const pt = {
     nextVisualLevelLabel: "Nível seguinte {level}",
     nextVisualLevel: "Nível seguinte",
     nextRound: "Ronda seguinte",
-    levelProgress: "Progresso do nível",
+    gameProgress: "Progresso do jogo",
     visualLevelReady: "Nível concluído. Avance para o nível seguinte ou jogue outro tabuleiro.",
     visualRoundComplete: "Ronda concluída. Pronto para um novo tabuleiro?",
     visualRoundCounted: "Ronda contabilizada. Continue com um novo tabuleiro neste nível.",

@@ -869,7 +869,7 @@ const it = {
     nextVisualLevelLabel: "Livello successivo {level}",
     nextVisualLevel: "Livello successivo",
     nextRound: "Round successivo",
-    levelProgress: "Progresso del livello",
+    gameProgress: "Progresso del gioco",
     visualLevelReady: "Livello completato. Passa al livello successivo o gioca un’altra griglia.",
     visualRoundComplete: "Round completato. Pronto per una nuova griglia?",
     visualRoundCounted: "Round conteggiato. Continua con una nuova griglia a questo livello.",

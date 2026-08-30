@@ -831,7 +831,7 @@ const de = {
     nextVisualLevelLabel: "Nächstes Level {level}",
     nextVisualLevel: "Nächstes Level",
     nextRound: "Nächste Runde",
-    levelProgress: "Levelfortschritt",
+    gameProgress: "Spielfortschritt",
     visualLevelReady: "Level geschafft. Gehen Sie zum nächsten Level oder spielen Sie ein neues Feld.",
     visualRoundComplete: "Runde geschafft. Bereit für ein neues Feld?",
     visualRoundCounted: "Runde gezählt. Spielen Sie auf diesem Level mit einem neuen Feld weiter.",

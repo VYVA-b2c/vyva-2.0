@@ -1074,7 +1074,7 @@ const fr = {
     nextVisualLevelLabel: "Niveau suivant {level}",
     nextVisualLevel: "Niveau suivant",
     nextRound: "Manche suivante",
-    levelProgress: "Progression du niveau",
+    gameProgress: "Progression du jeu",
     visualLevelReady: "Niveau terminé. Passez au niveau suivant ou jouez un autre plateau.",
     visualRoundComplete: "Manche terminée. Prêt pour un nouveau plateau ?",
     visualRoundCounted: "Manche comptabilisée. Continuez avec un nouveau plateau à ce niveau.",

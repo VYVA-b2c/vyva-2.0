@@ -1221,7 +1221,7 @@
     nextVisualLevelLabel: "Next Level {level}",
     nextVisualLevel: "Next Level",
     nextRound: "Next round",
-    levelProgress: "Level progress",
+    gameProgress: "Game progress",
     visualLevelReady: "Level complete. Move to the next level or play another board.",
     visualRoundComplete: "Round complete. Ready for a new board?",
     visualRoundCounted: "Round counted. Continue with a new board at this level.",

@@ -232,7 +232,7 @@ describe("MemoryGameRunner word recall", () => {
 
     await completeLevelOneVisualMemoryBoard();
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("1/1");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("1/20");
     expect(mocks.speakSequence).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
@@ -246,7 +246,7 @@ describe("MemoryGameRunner word recall", () => {
 
     await completeLevelOneVisualMemoryBoard();
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("1/1");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("1/20");
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
