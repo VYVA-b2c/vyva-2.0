@@ -106,8 +106,10 @@ type CaregiverMedsResponse = {
   };
 };
 
-type CaregiverRefillsResponse = MedicationRefillAlertResponse & {
-  medicines: Array<{
+type CaregiverRefillsResponse = {
+  permissions?: MedicationRefillAlertResponse["permissions"];
+  alerts?: MedicationRefillAlertResponse["alerts"];
+  medicines?: Array<{
     medicineId: string;
     medicineName: string;
     daysRemaining: number | null;
@@ -536,9 +538,16 @@ export default function CaregiverDashboardPage() {
   const refillUrl = `/api/meds/refills/${encodeURIComponent(caregiverProfileId)}`;
   const { data: refillData } = useQuery<CaregiverRefillsResponse>({
     queryKey: [refillUrl],
+    queryFn: async () => {
+      const response = await apiFetch(refillUrl);
+      if (!response.ok) throw new Error(`refill-summary ${response.status}`);
+      return response.json();
+    },
     enabled: caregiverProfileReady,
     retry: false,
   });
+  const canManageRefills = refillData?.permissions?.manage_inventory === true;
+  const canReceiveRefillAlerts = refillData?.permissions?.receive_refill_alerts === true;
   const { data: vitalsData, isError: vitalsIsError } = useQuery<CaregiverVitalsResponse>({
     queryKey: ["/api/vitals/caregiver", caregiverProfileId],
     queryFn: async () => {
@@ -975,19 +984,19 @@ export default function CaregiverDashboardPage() {
                       </div>
                     </div>
                   ) : null}
-                  {refillData && (refillData.permissions.manage_inventory || refillData.permissions.receive_refill_alerts) ? (
+                  {refillData && (canManageRefills || canReceiveRefillAlerts) ? (
                     <div className="mt-4 border-t border-vyva-border pt-4" data-testid="caregiver-refill-access">
                       {refillData.alerts?.[0] ? (
                         <div className="mb-3">
                           <MedicationRefillAlertCard
                             alert={refillData.alerts[0]}
-                            canManage={Boolean(refillData.permissions.manage_inventory)}
+                            canManage={canManageRefills}
                             onOpen={() => navigate(`/meds/refills?profileId=${encodeURIComponent(caregiverProfileId)}&returnTo=${encodeURIComponent("/caregiver")}`)}
                             testId="caregiver-refill-alert"
                           />
                         </div>
                       ) : null}
-                      {refillData.medicines.length ? (
+                      {refillData.medicines?.length ? (
                         <div className="mb-3 grid gap-2 sm:grid-cols-2">
                           {refillData.medicines.slice(0, 2).map((medicine) => (
                             <div key={medicine.medicineId} className="rounded-[16px] bg-[#FFF9E9] p-3">
@@ -1007,7 +1016,7 @@ export default function CaregiverDashboardPage() {
                         data-testid="button-caregiver-manage-refills"
                       >
                         <PackageOpen className="h-4 w-4" />
-                        {refillData.permissions.manage_inventory ? "Manage refill stock" : "View refill status"}
+                        {canManageRefills ? "Manage refill stock" : "View refill status"}
                       </button>
                     </div>
                   ) : null}
