@@ -379,6 +379,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     location.pathname === "/dev/home-master/reports";
   const usesDevHomeMasterPrototypeSurface = location.pathname.startsWith("/dev/home-master");
   const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
+  const usesCompactVoiceSessionSurface = usesCompactVoiceSurface && !location.pathname.startsWith("/meds");
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const homeMasterPrototypeSurfaceClass = isHomeMasterDark
@@ -438,7 +439,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const activeCanvasKey = activeCanvasScene
     ? `${activeCanvasScene.viewModel.sceneId}:${activeCanvasScene.revision}`
     : null;
-  const showDockVoiceOverlay = !usesCompactVoiceSurface && !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
+  const showDockVoiceOverlay = !usesCompactVoiceSessionSurface && !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
   const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
     !isFullScreen &&
@@ -856,8 +857,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               setMinimizedCanvasKey(null);
               setDockVoiceOverlayOpen(true);
             }}
-            compact={usesCompactVoiceSurface}
-            compactDark={usesCompactVoiceSurface && isHomeMasterDark}
+            compact={usesCompactVoiceSessionSurface}
+            compactDark={usesCompactVoiceSessionSurface && isHomeMasterDark}
           />
         )}
         <CrossPillarHandoffRecovery />
