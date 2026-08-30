@@ -165,7 +165,7 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
 }
 
 function buildMemoryMatchLevels(sets: MemoryMatchSet[]): MemoryGameLevel[] {
-  const pairCounts = [2, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
+  const pairCounts = [3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
   const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
     level,
     pairs: pairCounts[level - 1] ?? 8,
@@ -874,7 +874,7 @@ const memoryMatchSets: MemoryMatchSet[] = [
     items: [
       { emoji: "🛋️", labels: { es: "sofá", en: "sofa", fr: "canapé", de: "Sofa", it: "divano", pt: "sofá" } },
       { emoji: "💡", labels: { es: "lámpara", en: "lamp", fr: "lampe", de: "Lampe", it: "lampada", pt: "lâmpada" } },
-      { emoji: "🪑", labels: { es: "mesa", en: "table", fr: "table", de: "Tisch", it: "tavolo", pt: "mesa" } },
+      { emoji: "🪴", labels: { es: "planta", en: "plant", fr: "plante", de: "Pflanze", it: "pianta", pt: "planta" } },
       { emoji: "🪑", labels: { es: "silla", en: "chair", fr: "chaise", de: "Stuhl", it: "sedia", pt: "cadeira" } },
       { emoji: "🧶", labels: { es: "alfombra", en: "rug", fr: "tapis", de: "Teppich", it: "tappeto", pt: "tapete" } },
       { emoji: "🛏️", labels: { es: "cojín", en: "cushion", fr: "coussin", de: "Kissen", it: "cuscino", pt: "almofada" } },
@@ -915,11 +915,11 @@ const memoryMatchSets: MemoryMatchSet[] = [
     },
     items: [
       { emoji: "🧼", labels: { es: "jabón", en: "soap", fr: "savon", de: "Seife", it: "sapone", pt: "sabão" } },
-      { emoji: "🧴", labels: { es: "toalla", en: "towel", fr: "serviette", de: "Handtuch", it: "asciugamano", pt: "toalha" } },
+      { emoji: "🧺", labels: { es: "toalla", en: "towel", fr: "serviette", de: "Handtuch", it: "asciugamano", pt: "toalha" } },
       { emoji: "🪮", labels: { es: "peine", en: "comb", fr: "peigne", de: "Kamm", it: "pettine", pt: "pente" } },
       { emoji: "🪥", labels: { es: "cepillo", en: "brush", fr: "brosse", de: "Bürste", it: "spazzola", pt: "escova" } },
       { emoji: "🧴", labels: { es: "champú", en: "shampoo", fr: "shampooing", de: "Shampoo", it: "shampoo", pt: "champô" } },
-      { emoji: "🧴", labels: { es: "crema", en: "cream", fr: "crème", de: "Creme", it: "crema", pt: "creme" } },
+      { emoji: "🫙", labels: { es: "crema", en: "cream", fr: "crème", de: "Creme", it: "crema", pt: "creme" } },
       { emoji: "🧻", labels: { es: "pañuelo", en: "tissue", fr: "mouchoir", de: "Taschentuch", it: "fazzoletto", pt: "lenço" } },
       { emoji: "🧽", labels: { es: "esponja", en: "sponge", fr: "éponge", de: "Schwamm", it: "spugna", pt: "esponja" } },
     ],

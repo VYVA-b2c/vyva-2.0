@@ -26,12 +26,14 @@ export default function BrainGameCompletionDialog({
   continueHint,
   nextLevelLabel,
   nextLevelDisplayLabel,
+  stayLabel,
   replayLabel,
   anotherLabel,
   assessmentReturnLabel,
   assessmentReturnHint,
   onContinue,
   onNextLevel,
+  onStay,
   onReplay,
   onAnother,
   onAssessmentReturn,
@@ -55,6 +57,15 @@ export default function BrainGameCompletionDialog({
           onClick: primaryAction,
           className:
             "bg-vyva-purple text-white shadow-vyva-card",
+        }
+      : null,
+    onStay && stayLabel
+      ? {
+          id: "stay",
+          label: stayLabel,
+          onClick: onStay,
+          className:
+            "border-2 border-[#D8C7F3] bg-white text-vyva-purple shadow-vyva-card",
         }
       : null,
     onReplay && replayLabel

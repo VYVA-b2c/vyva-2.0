@@ -1,5 +1,5 @@
 import { translate } from "@/i18n";
-import { clampBrainCoachLevel } from "../shared/brainCoachProgression";
+import { BRAIN_COACH_MAX_LEVEL, clampBrainCoachLevel } from "../shared/brainCoachProgression";
 import type { LanguageCode } from "@/i18n/languages";
 import { getGameHistory, getRecentGameHistory } from "./gameStorage";
 import { getGameDefinition, getGameLevel, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
@@ -13,9 +13,52 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
 ];
 
 export const MEMORY_LEVEL_UP_ACCURACY = 80;
+export const VISUAL_MEMORY_ROUNDS_TO_ADVANCE = 3;
+
+export type VisualMemoryLevelProgress = {
+  successfulRounds: number;
+  roundsRequired: number;
+  levelCompleted: boolean;
+  advanced: boolean;
+  nextLevel: number;
+};
 
 export function getRepeatLevelForResult(currentLevel: number, accuracy: number) {
   return clampBrainCoachLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel);
+}
+
+function getConsecutiveVisualMemoryWins(history: GameResult[], level: number) {
+  let wins = 0;
+  const visualMemoryHistory = sortNewestFirst(history).filter((entry) => entry.gameType === "memory_match");
+
+  for (const entry of visualMemoryHistory) {
+    if (entry.level !== level || entry.accuracy < MEMORY_LEVEL_UP_ACCURACY) break;
+    wins += 1;
+    if (wins >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE) break;
+  }
+
+  return wins;
+}
+
+export function getVisualMemoryLevelProgress(
+  history: GameResult[],
+  currentLevel: number,
+  currentAccuracy: number,
+): VisualMemoryLevelProgress {
+  const level = clampBrainCoachLevel(currentLevel);
+  const successfulRounds = currentAccuracy >= MEMORY_LEVEL_UP_ACCURACY
+    ? Math.min(VISUAL_MEMORY_ROUNDS_TO_ADVANCE, getConsecutiveVisualMemoryWins(history, level) + 1)
+    : 0;
+  const levelCompleted = successfulRounds >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE;
+  const advanced = levelCompleted && level < BRAIN_COACH_MAX_LEVEL;
+
+  return {
+    successfulRounds,
+    roundsRequired: VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
+    levelCompleted,
+    advanced,
+    nextLevel: advanced ? clampBrainCoachLevel(level + 1) : level,
+  };
 }
 
 function sortNewestFirst(results: GameResult[]) {
@@ -25,6 +68,12 @@ function sortNewestFirst(results: GameResult[]) {
 export function getRecommendedLevelForGame(history: GameResult[], gameType: MemoryGameType): number {
   const gameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
   if (gameHistory.length === 0) return 1;
+
+  if (gameType === "memory_match") {
+    const latestLevel = gameHistory[0].level;
+    const completedLevel = getConsecutiveVisualMemoryWins(history, latestLevel) >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE;
+    return clampBrainCoachLevel(completedLevel ? latestLevel + 1 : latestLevel);
+  }
 
   const recent = gameHistory.slice(0, 3);
   const latestLevel = gameHistory[0].level;

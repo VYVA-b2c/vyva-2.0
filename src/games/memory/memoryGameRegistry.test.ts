@@ -38,6 +38,25 @@ describe("memory game registry", () => {
     expect(getPairSignature(repeatedThemeVariant!)).not.toEqual(getPairSignature(firstVariant));
   });
 
+  it("starts Foundation with a real three-pair board and ramps steadily", () => {
+    const pairCounts = memoryGameRegistry.memory_match.levels.slice(0, 5).map((level) => {
+      const content = level.variants[0].content.en ?? level.variants[0].content.es;
+      return ((content.payload.pairItems as unknown[]) ?? []).length;
+    });
+
+    expect(pairCounts).toEqual([3, 4, 4, 5, 5]);
+  });
+
+  it("gives each required Visual Memory round a distinct board at every level", () => {
+    memoryGameRegistry.memory_match.levels.forEach((level) => {
+      const requiredRoundBoards = level.variants.slice(0, 3);
+      const signatures = requiredRoundBoards.map(getPairSignature);
+
+      expect(requiredRoundBoards).toHaveLength(3);
+      expect(new Set(signatures).size).toBe(3);
+    });
+  });
+
   it("avoids duplicate full-deck rotations on mastery visual memory levels", () => {
     const masteryLevel = memoryGameRegistry.memory_match.levels.find((level) => level.level === BRAIN_COACH_MAX_LEVEL);
     expect(masteryLevel).toBeDefined();
