@@ -1077,7 +1077,7 @@ const fr = {
     levelProgress: "Progression du niveau",
     visualLevelReady: "Niveau terminé. Passez au niveau suivant ou jouez un autre plateau.",
     visualRoundComplete: "Manche terminée. Prêt pour un nouveau plateau ?",
-    visualRoundCounted: "Bonne manche. Continuez avec un nouveau plateau à ce niveau.",
+    visualRoundCounted: "Manche comptabilisée. Continuez avec un nouveau plateau à ce niveau.",
     visualStaySupport: "Essayez un nouveau plateau à ce niveau. Trois bonnes manches débloquent le suivant.",
     visualMasteryComplete: "Maîtrise terminée. Jouez un autre plateau quand vous le souhaitez.",
     hiddenCard: "Carte cachée {number}",

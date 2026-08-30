@@ -834,7 +834,7 @@ const de = {
     levelProgress: "Levelfortschritt",
     visualLevelReady: "Level geschafft. Gehen Sie zum nächsten Level oder spielen Sie ein neues Feld.",
     visualRoundComplete: "Runde geschafft. Bereit für ein neues Feld?",
-    visualRoundCounted: "Gute Runde. Spielen Sie auf diesem Level mit einem neuen Feld weiter.",
+    visualRoundCounted: "Runde gezählt. Spielen Sie auf diesem Level mit einem neuen Feld weiter.",
     visualStaySupport: "Probieren Sie auf diesem Level ein neues Feld. Drei gute Runden schalten das nächste frei.",
     visualMasteryComplete: "Mastery abgeschlossen. Spielen Sie ein weiteres Feld, wann immer Sie möchten.",
     hiddenCard: "Verdeckte Karte {number}",

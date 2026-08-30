@@ -969,7 +969,7 @@ const es = {
     levelProgress: "Progreso del nivel",
     visualLevelReady: "Nivel completado. Avanza al siguiente nivel o juega otro tablero.",
     visualRoundComplete: "Ronda completada. ¿Listo para un tablero nuevo?",
-    visualRoundCounted: "Buena ronda. Sigue con un tablero nuevo en este nivel.",
+    visualRoundCounted: "Ronda contabilizada. Continúa con un tablero nuevo en este nivel.",
     visualStaySupport: "Prueba un tablero nuevo en este nivel. Tres rondas buenas desbloquean el siguiente.",
     visualMasteryComplete: "Maestría completada. Juega otro tablero cuando quieras.",
     hiddenCard: "Carta oculta {number}",

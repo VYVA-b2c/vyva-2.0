@@ -872,7 +872,7 @@ const pt = {
     levelProgress: "Progresso do nível",
     visualLevelReady: "Nível concluído. Avance para o nível seguinte ou jogue outro tabuleiro.",
     visualRoundComplete: "Ronda concluída. Pronto para um novo tabuleiro?",
-    visualRoundCounted: "Boa ronda. Continue com um novo tabuleiro neste nível.",
+    visualRoundCounted: "Ronda contabilizada. Continue com um novo tabuleiro neste nível.",
     visualStaySupport: "Experimente um novo tabuleiro neste nível. Três boas rondas desbloqueiam o seguinte.",
     visualMasteryComplete: "Domínio concluído. Jogue outro tabuleiro quando quiser.",
     hiddenCard: "Carta tapada {number}",

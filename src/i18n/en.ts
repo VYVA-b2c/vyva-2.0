@@ -1224,7 +1224,7 @@
     levelProgress: "Level progress",
     visualLevelReady: "Level complete. Move to the next level or play another board.",
     visualRoundComplete: "Round complete. Ready for a new board?",
-    visualRoundCounted: "Strong round. Keep going with a new board at this level.",
+    visualRoundCounted: "Round counted. Continue with a new board at this level.",
     visualStaySupport: "Try a new board at this level. Three strong rounds unlock the next level.",
     visualMasteryComplete: "Mastery complete. Play another board whenever you are ready.",
     hiddenCard: "Hidden card {number}",

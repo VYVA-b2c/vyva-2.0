@@ -872,7 +872,7 @@ const it = {
     levelProgress: "Progresso del livello",
     visualLevelReady: "Livello completato. Passa al livello successivo o gioca un’altra griglia.",
     visualRoundComplete: "Round completato. Pronto per una nuova griglia?",
-    visualRoundCounted: "Buon round. Continua con una nuova griglia a questo livello.",
+    visualRoundCounted: "Round conteggiato. Continua con una nuova griglia a questo livello.",
     visualStaySupport: "Prova una nuova griglia a questo livello. Tre buoni round sbloccano il successivo.",
     visualMasteryComplete: "Maestria completata. Gioca un’altra griglia quando vuoi.",
     hiddenCard: "Carta coperta {number}",

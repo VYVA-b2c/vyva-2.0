@@ -211,6 +211,8 @@ describe("MemoryGameRunner word recall", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Level 1" }));
 
     expect(window.localStorage.getItem("visualMemory:tutorialSeen:v1:user-1")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Pause VYVA's voice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Let VYVA encourage me" })).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Instructions" }));
     expect(await screen.findByRole("heading", { name: "Find the pairs" })).toBeInTheDocument();
   });
@@ -231,6 +233,7 @@ describe("MemoryGameRunner word recall", () => {
     await completeLevelOneVisualMemoryBoard();
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("1/3");
+    expect(mocks.speakSequence).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Next Level/i })).not.toBeInTheDocument();
