@@ -546,8 +546,12 @@ export default function CaregiverDashboardPage() {
     enabled: caregiverProfileReady,
     retry: false,
   });
-  const canManageRefills = refillData?.permissions?.manage_inventory === true;
-  const canReceiveRefillAlerts = refillData?.permissions?.receive_refill_alerts === true;
+  const refillPermissions = refillData?.permissions ?? {};
+  const refillAlerts = Array.isArray(refillData?.alerts) ? refillData.alerts : [];
+  const refillMedicines = Array.isArray(refillData?.medicines) ? refillData.medicines : [];
+  const canManageRefills = refillPermissions.manage_inventory === true;
+  const canReceiveRefillAlerts = refillPermissions.receive_refill_alerts === true;
+  const canViewRefills = canManageRefills || canReceiveRefillAlerts;
   const { data: vitalsData, isError: vitalsIsError } = useQuery<CaregiverVitalsResponse>({
     queryKey: ["/api/vitals/caregiver", caregiverProfileId],
     queryFn: async () => {
@@ -984,21 +988,21 @@ export default function CaregiverDashboardPage() {
                       </div>
                     </div>
                   ) : null}
-                  {refillData && (canManageRefills || canReceiveRefillAlerts) ? (
+                  {refillData && canViewRefills ? (
                     <div className="mt-4 border-t border-vyva-border pt-4" data-testid="caregiver-refill-access">
-                      {refillData.alerts?.[0] ? (
+                      {refillAlerts[0] ? (
                         <div className="mb-3">
                           <MedicationRefillAlertCard
-                            alert={refillData.alerts[0]}
+                            alert={refillAlerts[0]}
                             canManage={canManageRefills}
                             onOpen={() => navigate(`/meds/refills?profileId=${encodeURIComponent(caregiverProfileId)}&returnTo=${encodeURIComponent("/caregiver")}`)}
                             testId="caregiver-refill-alert"
                           />
                         </div>
                       ) : null}
-                      {refillData.medicines?.length ? (
+                      {refillMedicines.length ? (
                         <div className="mb-3 grid gap-2 sm:grid-cols-2">
-                          {refillData.medicines.slice(0, 2).map((medicine) => (
+                          {refillMedicines.slice(0, 2).map((medicine) => (
                             <div key={medicine.medicineId} className="rounded-[16px] bg-[#FFF9E9] p-3">
                               <p className="font-body text-[14px] font-black text-vyva-text-1">{medicine.medicineName}</p>
                               <p className="mt-1 font-body text-[12px] font-semibold text-vyva-text-2">
