@@ -33,15 +33,31 @@ describe("VitalsTracker redesign", () => {
   it("uses the real safety label, shows a labelled risk score, and declutters untracked readings", () => {
     renderTracker();
 
-    expect(screen.getByTestId("vitals-hero")).toHaveTextContent("Steady");
+    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Steady");
+    expect(screen.getByTestId("vitals-hero")).toHaveClass("-mx-2", "sm:-mx-4", "lg:-mx-14");
+    expect(screen.getByLabelText("Steady")).toBeVisible();
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Lower is better");
+    expect(screen.getByTestId("vitals-risk-score")).toHaveClass("sm:mx-auto", "sm:w-[380px]");
+    expect(screen.queryByTestId("vitals-hero-marker")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Latest readings 1" }));
+    expect(screen.queryByTestId("vitals-risk-score")).not.toBeInTheDocument();
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Heart rate");
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("72 bpm");
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveClass("sm:mx-auto", "sm:w-[380px]");
+    fireEvent.click(screen.getByRole("button", { name: "Latest readings 2" }));
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Oxygen");
+    expect(screen.getByTestId("vitals-hero-marker")).not.toHaveTextContent("0%");
+    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Your latest readings look steady.");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Heart");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Breathing");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
     expect(screen.getByLabelText("Device - High")).toHaveTextContent("Device");
     expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
+    expect(screen.getByTestId("button-vitals-hero-add")).toHaveAccessibleName("Add reading");
+    expect(screen.getByTestId("button-vitals-hero-add")).not.toHaveTextContent("Add reading");
+    expect(screen.getByTestId("button-vitals-hero-add")).toHaveClass("right-6", "top-[26px]", "sm:right-8");
 
     fireEvent.click(screen.getByText("How VYVA connects your health signals"));
     expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");
@@ -56,6 +72,11 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
     expect(screen.queryByText("Heart rate variability")).not.toBeInTheDocument();
     expect(screen.queryByText("Steps")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Blood pressure")).toHaveLength(2);
+    expect(screen.queryByText("Blood pressure top number")).not.toBeInTheDocument();
+    expect(screen.queryByText("Blood pressure bottom number")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Systolic blood pressure mmHg" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Diastolic blood pressure mmHg" })).toBeVisible();
 
     fireEvent.click(screen.getByTestId("button-vital-resting_hr_bpm"));
     expect(screen.getByTestId("vitals-method-picker")).toBeVisible();
@@ -94,7 +115,7 @@ describe("VitalsTracker redesign", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("vitals-hero")).toHaveTextContent("VYVA a détecté un changement qui mérite un avis médical aujourd’hui.");
+    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("VYVA noticed a change worth same-day medical advice.");
     expect(screen.getByTestId("daily-safety-check")).toHaveTextContent("Rapport de symptômes : Douleur à la tête ou au cou");
     expect(screen.getByTestId("button-safety-call-gp")).toHaveTextContent("Appeler Quiron");
     expect(screen.getByTestId("button-safety-email-gp")).toHaveTextContent("Envoyer un e-mail au médecin");
