@@ -75,6 +75,13 @@ const STATUS: Record<PreventionPillarStatus, { label: string; tone: "success" | 
   priority_focus: { label: "This month", tone: "warning" },
 };
 
+const PRIORITY_STATUS_RANK: Record<PreventionPillarStatus, number> = {
+  priority_focus: 4,
+  needs_attention: 3,
+  steady: 2,
+  thriving: 1,
+};
+
 const TRAJECTORY_LABELS: Record<PreventionPlanData["trajectory"], string> = {
   improving: "Building momentum",
   stable: "Holding steady",
@@ -113,6 +120,19 @@ function formatPlanDate(value: string | null): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function pillarStatus(plan: PreventionPlanData, pillarId: PreventionPillar): PreventionPillarStatus {
+  const key = ("pillar_" + pillarId) as keyof PreventionPlanData;
+  return plan[key] as PreventionPillarStatus;
+}
+
+function resolvePriorityDefinition(plan: PreventionPlanData): PillarDefinition | null {
+  const apiPriority = plan.priority_pillar
+    ? PILLARS.find((pillar) => pillar.id === plan.priority_pillar) ?? null
+    : null;
+  if (apiPriority) return apiPriority;
+  return [...PILLARS].sort((a, b) => PRIORITY_STATUS_RANK[pillarStatus(plan, b.id)] - PRIORITY_STATUS_RANK[pillarStatus(plan, a.id)])[0] ?? null;
 }
 
 function usePreventionPlan(userId: string) {
@@ -160,7 +180,7 @@ function PreventionPlanSkeleton({ isDark }: { isDark: boolean }) {
       <div className="mx-auto max-w-[900px] animate-pulse space-y-5">
         <div className={["h-12 rounded-2xl", isDark ? "bg-white/[0.08]" : "bg-white/80"].join(" ")} />
         <div className={["h-[290px] rounded-[32px]", isDark ? "bg-[#2B1E35]" : "bg-white"].join(" ")} />
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4">
           {PILLARS.map((pillar) => (
             <div key={pillar.id} className={["h-[230px] rounded-[28px]", isDark ? "bg-[#2B1E35]" : "bg-white"].join(" ")} />
           ))}
@@ -221,9 +241,10 @@ export default function PreventionPlan({
     symptoms: "Symptoms you recently shared",
   };
 
-  const priorityDefinition = plan.priority_pillar ? PILLARS.find((item) => item.id === plan.priority_pillar) ?? null : null;
+  const priorityDefinition = resolvePriorityDefinition(plan);
+  const priorityPillarId = priorityDefinition?.id ?? null;
   const priorityLabel = priorityDefinition?.label ?? plan.priority_pillar;
-  const priorityActions = plan.priority_pillar ? plan.recommendations?.[plan.priority_pillar] ?? [] : [];
+  const priorityActions = priorityPillarId ? plan.recommendations?.[priorityPillarId] ?? [] : [];
   const orderedPillars = priorityDefinition
     ? [priorityDefinition, ...PILLARS.filter((pillar) => pillar.id !== priorityDefinition.id)]
     : PILLARS;
@@ -287,24 +308,22 @@ export default function PreventionPlan({
           </button>
         </header>
 
-        <section className="relative mt-7 overflow-hidden rounded-[32px] border border-[#8E52E5]/50 bg-[linear-gradient(135deg,#5422B5_0%,#7C2BE8_55%,#8D3CF0_100%)] px-6 py-7 text-white shadow-[0_24px_64px_rgba(94,34,181,0.28)] sm:px-8 sm:py-9">
-          <div className="pointer-events-none absolute -right-14 -top-16 h-48 w-48 rounded-full bg-white/[0.11] blur-2xl" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-20 left-1/3 h-44 w-44 rounded-full bg-[#F8AE1B]/[0.13] blur-3xl" aria-hidden="true" />
+        <section className="relative mt-7 overflow-hidden rounded-[16px] border-[0.5px] border-[#E8E0D0] border-l-4 border-l-[#F59E0B] bg-[#FFFFFF] px-5 py-6 shadow-[0_18px_42px_rgba(80,52,109,0.08)] sm:px-7 sm:py-7">
           <div className="relative">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <span className="grid h-[70px] w-[70px] shrink-0 place-items-center rounded-[22px] bg-[#301665]/65 ring-1 ring-inset ring-white/15"><VyvaIcon glyph="longevity" size={52} /></span>
+                <span className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[18px] bg-[#FFF7E8] ring-1 ring-inset ring-[#F6D7A4]"><VyvaIcon glyph="longevity" size={44} /></span>
                 <div>
-                  <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD36F]">Your monthly plan</p>
-                  <p className="mt-1 font-body text-[14px] font-bold text-white/75">{[planDate, TRAJECTORY_LABELS[plan.trajectory]].filter(Boolean).join(" · ")}</p>
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#854F0B]">Your monthly plan</p>
+                  <p className="mt-1 font-body text-[14px] font-bold" style={{ color: "var(--text-secondary, #766C80)" }}>{[planDate, TRAJECTORY_LABELS[plan.trajectory]].filter(Boolean).join(" · ")}</p>
                 </div>
               </div>
-              {priorityDefinition ? <span className="rounded-full bg-[#F8AE1B] px-4 py-2 font-body text-[12px] font-black text-[#382100]">{priorityDefinition.shortLabel} focus</span> : null}
+              {priorityDefinition ? <span className="rounded-full bg-[#FAEEDA] px-4 py-2 font-body text-[12px] font-black text-[#854F0B]">{priorityDefinition.shortLabel} focus</span> : null}
             </div>
-            <h2 className="mt-7 max-w-[700px] font-display text-[31px] font-semibold leading-[1.08] tracking-[-0.035em] sm:text-[38px]">{heroHeadline}</h2>
-            {seniorNarrative ? <p className="mt-4 max-w-[720px] font-body text-[16px] font-semibold leading-7 text-white/82 sm:text-[17px]">{seniorNarrative}</p> : null}
-            <button type="button" onClick={() => navigate("/chat?mode=voice&q=" + encodeURIComponent(vyvaPrompt))} className="mt-7 inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[19px] bg-white px-6 font-body text-[16px] font-black text-[#5B22B4] shadow-[0_12px_28px_rgba(36,12,72,0.2)]">
-              <VyvaIcon icon={Mic} accent="dot" size={22} strokeWidth={2.5} tone="brand" />Ask VYVA about my plan
+            <h2 className="mt-6 max-w-[700px] font-display text-[22px] font-medium leading-[1.16]" style={{ color: "var(--text-primary, #241C30)" }}>{heroHeadline}</h2>
+            {seniorNarrative ? <p className="mt-3 max-w-[720px] font-body text-[16px] font-semibold leading-6" style={{ color: "var(--text-secondary, #766C80)" }}>{seniorNarrative}</p> : null}
+            <button type="button" onClick={() => navigate("/chat?mode=voice&q=" + encodeURIComponent(vyvaPrompt))} className="mt-6 inline-flex h-14 min-h-14 w-full items-center justify-center gap-3 rounded-[18px] bg-[#6B21A8] px-6 font-body text-[16px] font-black text-white shadow-[0_12px_28px_rgba(107,33,168,0.18)]">
+              <VyvaIcon icon={Mic} accent="dot" size={22} strokeWidth={2.5} tone="inverse" />Ask VYVA about my plan
             </button>
           </div>
         </section>
@@ -318,16 +337,19 @@ export default function PreventionPlan({
             <p className={["max-w-[350px] font-body text-[14px] font-semibold leading-6", mutedTextClass].join(" ")}>Your real plan, organised around the five areas VYVA already reviews.</p>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="mt-5 grid grid-cols-1 gap-4">
             {orderedPillars.map((pillar) => {
-              const status = plan["pillar_" + pillar.id] as PreventionPillarStatus;
-              const isPriority = plan.priority_pillar === pillar.id;
-              const statusDisplay = isPriority ? { label: "This month", tone: "warning" as const } : STATUS[status];
+              const status = pillarStatus(plan, pillar.id);
+              const isPriority = priorityPillarId === pillar.id;
+              const statusDisplay = isPriority ? { label: "← This month", tone: "warning" as const } : STATUS[status];
               const recommendations = plan.recommendations?.[pillar.id] ?? [];
               const Icon = pillar.icon;
               return (
-                <article key={pillar.id} className={["relative rounded-[28px] border p-5 sm:p-6", cardClass, isPriority ? "md:col-span-2" : "", isPriority && isDark ? "border-[#D89225]/70" : "", isPriority && !isDark ? "border-[#E7B553]" : ""].join(" ")}>
-                  {isPriority ? <div className="absolute inset-y-5 left-0 w-1 rounded-r-full bg-[#F8AE1B]" aria-hidden="true" /> : null}
+                <article
+                  key={pillar.id}
+                  className={["relative rounded-[28px] border p-5 sm:p-6", cardClass, isPriority && isDark ? "border-[#D89225]/70" : "", isPriority && !isDark ? "border-[#E7B553]" : ""].join(" ")}
+                  style={isPriority ? { borderLeft: "4px solid #F59E0B" } : undefined}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-center gap-4">
                       <span className={["grid h-14 w-14 shrink-0 place-items-center rounded-[19px]", isDark ? "bg-[#3C2956]" : "bg-[#F1E8FF]"].join(" ")}><VyvaIcon icon={Icon} accent={pillar.accent} size={29} strokeWidth={2.45} tone="brand" /></span>
@@ -336,7 +358,7 @@ export default function PreventionPlan({
                         <h3 className="mt-0.5 font-display text-[22px] font-semibold tracking-[-0.025em]">{pillar.label}</h3>
                       </div>
                     </div>
-                    <span className={["rounded-full px-3.5 py-2 font-body text-[12px] font-black", statusClass(statusDisplay.tone, isDark)].join(" ")}>{statusDisplay.label}</span>
+                    <span className={["rounded-full px-3.5 py-2 font-body text-[12px] font-black", isPriority ? "bg-[#FAEEDA] text-[#854F0B]" : statusClass(statusDisplay.tone, isDark)].join(" ")}>{statusDisplay.label}</span>
                   </div>
                   <div className={["mt-5 border-t pt-3", dividerClass].join(" ")}>
                     {recommendations.length > 0 ? (
@@ -356,9 +378,9 @@ export default function PreventionPlan({
                     ) : <p className={["py-3 font-body text-[15px] font-semibold leading-6", mutedTextClass].join(" ")}>Your next actions will appear after the plan has enough information.</p>}
                   </div>
                   {isPriority && plan.priority_why ? (
-                    <div className={["mt-4 rounded-[18px] border px-4 py-4", isDark ? "border-[#6D4A1A] bg-[#3D2C16]" : "border-[#F2D08E] bg-[#FFF5E1]"].join(" ")}>
-                      <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#D89225]">Why this matters</p>
-                      <p className={["mt-1.5 font-body text-[14px] font-bold leading-6", isDark ? "text-[#FFE0A3]" : "text-[#6D4105]"].join(" ")}>{plan.priority_why}</p>
+                    <div className="mt-4 rounded-[18px] bg-[#FAEEDA] px-4 py-4">
+                      <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#854F0B]">Why this matters</p>
+                      <p className="mt-1.5 font-body text-[14px] font-bold leading-6 text-[#633806]">{plan.priority_why}</p>
                     </div>
                   ) : null}
                 </article>
