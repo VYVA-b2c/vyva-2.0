@@ -13,7 +13,7 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
 ];
 
 export const MEMORY_LEVEL_UP_ACCURACY = 80;
-export const VISUAL_MEMORY_ROUNDS_TO_ADVANCE = 3;
+export const VISUAL_MEMORY_ROUNDS_TO_ADVANCE = 1;
 
 export type VisualMemoryLevelProgress = {
   completedRounds: number;

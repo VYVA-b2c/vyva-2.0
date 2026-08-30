@@ -2812,12 +2812,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               <div className={`rounded-[20px] border px-4 py-4 ${visualLevelCompleted ? "border-[#A7F3D0] bg-[#ECFDF5]" : "border-[#EADFF8] bg-[#FAF7FF]"}`}>
                 <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
                   <span>{t("memory.levelProgress", "Level progress")}</span>
-                  <span>{visualMemoryProgress?.completedRounds ?? 0}/{visualMemoryProgress?.roundsRequired ?? 3}</span>
+                  <span>{visualMemoryProgress?.completedRounds ?? 0}/{visualMemoryProgress?.roundsRequired ?? 1}</span>
                 </div>
                 <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/80">
                   <div
                     className="h-full rounded-full bg-vyva-purple transition-[width] duration-500"
-                    style={{ width: `${((visualMemoryProgress?.completedRounds ?? 0) / (visualMemoryProgress?.roundsRequired ?? 3)) * 100}%` }}
+                    style={{ width: `${((visualMemoryProgress?.completedRounds ?? 0) / (visualMemoryProgress?.roundsRequired ?? 1)) * 100}%` }}
                   />
                 </div>
                 <p className="mt-2 text-[14px] font-bold leading-snug text-vyva-text-2">

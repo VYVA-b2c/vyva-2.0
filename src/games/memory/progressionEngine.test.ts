@@ -45,50 +45,27 @@ describe("memory game progression", () => {
     expect(nextVariant.level).toBe(1);
   });
 
-  it("advances Visual Memory after three completed boards without trapping lower scores", () => {
-    const history = [visualResult(4, 55, 1), visualResult(4, 85, 2)];
-
-    expect(getVisualMemoryLevelProgress(history.slice(0, 1), 4)).toMatchObject({
-      completedRounds: 2,
+  it("advances Visual Memory after one completed board without trapping lower scores", () => {
+    expect(getVisualMemoryLevelProgress([], 4)).toMatchObject({
+      completedRounds: 1,
       roundsRequired: VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
-      levelCompleted: false,
-      advanced: false,
-      nextLevel: 4,
-    });
-    expect(getVisualMemoryLevelProgress(history, 4)).toMatchObject({
-      completedRounds: 3,
       levelCompleted: true,
       advanced: true,
       nextLevel: 5,
     });
   });
 
-  it("counts a lower-score Visual Memory board without resetting progress", () => {
-    const history = [visualResult(7, 92, 1)];
-
-    expect(getVisualMemoryLevelProgress(history, 7)).toEqual({
-      completedRounds: 2,
-      roundsRequired: VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
-      levelCompleted: false,
-      advanced: false,
-      nextLevel: 7,
-    });
-    expect(getRecommendedLevelForGame([visualResult(7, 45, 0), ...history], "memory_match")).toBe(7);
+  it("uses a completed lower-score Visual Memory board to recommend the next level", () => {
+    expect(getRecommendedLevelForGame([visualResult(7, 45, 0)], "memory_match")).toBe(8);
   });
 
-  it("opens the next recommended Visual Memory level after three completed boards", () => {
-    const twoCompletedRounds = [visualResult(9, 91, 0), visualResult(9, 46, 1)];
-    const threeCompletedRounds = [...twoCompletedRounds, visualResult(9, 72, 2)];
-
-    expect(getRecommendedLevelForGame(twoCompletedRounds, "memory_match")).toBe(9);
-    expect(getRecommendedLevelForGame(threeCompletedRounds, "memory_match")).toBe(10);
+  it("opens the next recommended Visual Memory level after one completed board", () => {
+    expect(getRecommendedLevelForGame([visualResult(9, 46, 0)], "memory_match")).toBe(10);
   });
 
   it("completes Mastery at Level 20 without inventing a Level 21", () => {
-    const history = [visualResult(20, 94, 1), visualResult(20, 90, 2)];
-
-    expect(getVisualMemoryLevelProgress(history, 20)).toMatchObject({
-      completedRounds: 3,
+    expect(getVisualMemoryLevelProgress([], 20)).toMatchObject({
+      completedRounds: 1,
       levelCompleted: true,
       advanced: false,
       nextLevel: 20,
