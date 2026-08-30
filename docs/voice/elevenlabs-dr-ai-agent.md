@@ -62,6 +62,22 @@ The apply command is idempotent by exact tool and agent name. It prints the resu
 
 Zero Retention Mode and processing health data still require the appropriate ElevenLabs commercial and legal configuration, including a BAA where applicable. Do not enable the production pilot until this has been confirmed.
 
+## Optional audited admin review
+
+VYVA includes an admin review path for deployments that deliberately retain Dr. AI recordings. It is disabled at the provider while the maximum-privacy manifest above remains active. Enabling it is a policy decision and must not happen until recording consent, the applicable agreement with ElevenLabs, and the production retention policy are approved.
+
+When enabled, use the hybrid storage model:
+
+1. Configure the ElevenLabs **post-call transcription** webhook as `https://<vyva-origin>/api/webhooks/elevenlabs/post-call` and copy its signing secret into `ELEVENLABS_POST_CALL_WEBHOOK_SECRET`.
+2. Set `ELEVENLABS_ADMIN_REVIEW_AGENT_IDS` to the comma-separated agent IDs that may be indexed. If omitted, VYVA permits only `ELEVENLABS_DR_AI_AGENT_ID`.
+3. Set `ELEVENLABS_CONVERSATION_RETENTION_DAYS` to the approved retrieval window (30 days by default, capped at 365), and configure the same or shorter retention in ElevenLabs.
+4. Apply migration `0088_elevenlabs_conversation_reviews.sql`.
+5. Open **Admin → Voice readiness → Audited conversation playback**.
+
+The signed webhook stores only provider/session IDs, timing, availability, consent markers, and review metadata. It does not copy transcript text or recording bytes into VYVA. An admin must enter a reason before VYVA retrieves either item from ElevenLabs. Every successful or failed content request is written to `elevenlabs_conversation_access_events`; audio responses are delivered with browser caching disabled. VYVA refuses provider retrieval after its local retention deadline even if content still exists at ElevenLabs.
+
+The voice session should pass `recording_consent`, `recording_consent_version`, and `recording_consent_at` as dynamic variables after explicit consent. Conversations lacking those markers remain visible as `not_captured` so reviewers can identify and escalate policy gaps.
+
 ## Pilot checklist
 
 1. Provision and verify the agent.

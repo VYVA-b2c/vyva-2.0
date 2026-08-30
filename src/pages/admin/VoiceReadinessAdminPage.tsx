@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
+import ElevenLabsConversationReviewPanel from "./ElevenLabsConversationReviewPanel";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { useVyvaVoice, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import {
@@ -542,6 +543,8 @@ export default function VoiceReadinessAdminPage() {
         </AdminPageHeader>
 
         <AdminMenu />
+
+        <ElevenLabsConversationReviewPanel />
 
         <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricTile
