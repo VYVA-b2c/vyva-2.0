@@ -90,6 +90,7 @@ describe("Profile channel preferences", () => {
       max_outbound_calls_per_day: 1,
       max_whatsapp_messages_per_day: 5,
       concierge_task_notifications_enabled: true,
+      medication_refill_push_enabled: false,
       preventive_web_push_enabled: false,
     });
   });

@@ -56,7 +56,7 @@ describe("readLocalConciergeCanvasTaskItems", () => {
     expect(items[1]).toMatchObject({
       id: "local-canvas-refill-active",
       title: "Medication refill",
-      resumePath: "/meds/adherence-report",
+      resumePath: "/meds/refills",
       group: "needs_you",
       continuation: {
         flow: "refill",
@@ -65,7 +65,6 @@ describe("readLocalConciergeCanvasTaskItems", () => {
       },
       actionPayload: {
         local_canvas_resume: true,
-        resume_canvas: "refill",
       },
     });
   });

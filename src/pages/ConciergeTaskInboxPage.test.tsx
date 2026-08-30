@@ -182,7 +182,7 @@ describe("ConciergeTaskInboxPage", () => {
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
-  it("shows a local refill Canvas draft and resumes it on the medication report", async () => {
+  it("shows a legacy local refill draft and routes it into the inventory tracker", async () => {
     sessionStorage.setItem("vyva.refillCanvas.adherence.active", JSON.stringify({
       step: "quantity",
       draft: {
@@ -204,8 +204,8 @@ describe("ConciergeTaskInboxPage", () => {
     apiFetchMock.mockClear();
     fireEvent.click(screen.getByTestId("button-concierge-task-primary-action"));
 
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/adherence-report");
-    expect(screen.getByTestId("location-state")).toHaveTextContent('"resumeCanvas":"refill"');
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/refills");
+    expect(screen.getByTestId("location-state")).toHaveTextContent("{}");
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 

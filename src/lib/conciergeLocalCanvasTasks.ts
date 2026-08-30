@@ -158,8 +158,7 @@ function refillItem(key: string, state: RefillCanvasState, isSpanish: boolean): 
     summary: refillSummary(state, isSpanish),
     flow: "refill",
     step: state.step,
-    resumePath: "/meds/adherence-report",
-    resumeCanvas: "refill",
+    resumePath: "/meds/refills",
     isSpanish,
     details: [{
       label: isSpanish ? "Origen" : "Source",

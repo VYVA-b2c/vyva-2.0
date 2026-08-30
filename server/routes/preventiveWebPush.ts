@@ -18,6 +18,9 @@ import {
   parsePreventiveWebPushEntryToken,
   PREVENTIVE_WEB_PUSH_ALLOWED_ROUTE,
 } from "../engagement/preventiveWebPushSecurity.js";
+import { db } from "../db.js";
+import { userChannelPreferences } from "../../shared/schema.js";
+import { eq } from "drizzle-orm";
 
 const subscribeBodySchema = z.object({
   subscription: z.unknown().refine((value) => value !== undefined),
@@ -36,7 +39,20 @@ export type PreventiveWebPushRouterDependencies = Readonly<{
   env?: PreventiveWebPushEnvironmentMap;
   currentTime?: () => Date;
   resolveProfileId?: (req: Request) => Promise<string | null>;
+  retainSharedSubscription?: (userId: string) => Promise<boolean>;
 }>;
+
+async function refillPushUsesSharedSubscription(userId: string) {
+  try {
+    const [preference] = await db.select({ enabled: userChannelPreferences.medication_refill_push_enabled })
+      .from(userChannelPreferences)
+      .where(eq(userChannelPreferences.user_id, userId))
+      .limit(1);
+    return preference?.enabled === true;
+  } catch {
+    return false;
+  }
+}
 
 async function defaultResolveProfileId(req: Request): Promise<string | null> {
   if (!req.user?.id) return null;
@@ -74,6 +90,8 @@ export function createPreventiveWebPushRouter(
   const env = dependencies.env ?? process.env;
   const currentTime = dependencies.currentTime ?? (() => new Date());
   const resolveProfileId = dependencies.resolveProfileId ?? defaultResolveProfileId;
+  const retainSharedSubscription = dependencies.retainSharedSubscription
+    ?? (dependencies.store ? async () => false : refillPushUsesSharedSubscription);
 
   router.get("/config", async (req, res) => {
     const userId = await resolveProfileId(req);
@@ -134,11 +152,14 @@ export function createPreventiveWebPushRouter(
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
     const now = safeNow(currentTime);
     await store.setConsent({ userId, enabled: false, now });
-    const revoked = await store.revokeSubscriptions({ userId, now });
-    if (revoked.outcome === "unavailable") {
-      return res.status(503).json({ error: "Unable to revoke push subscription" });
+    const retainedForRefills = await retainSharedSubscription(userId);
+    if (!retainedForRefills) {
+      const revoked = await store.revokeSubscriptions({ userId, now });
+      if (revoked.outcome === "unavailable") {
+        return res.status(503).json({ error: "Unable to revoke push subscription" });
+      }
     }
-    return res.json({ ok: true, consentEnabled: false, subscribed: false });
+    return res.json({ ok: true, consentEnabled: false, subscribed: retainedForRefills });
   });
 
   router.post("/entry/redeem", async (req, res) => {

@@ -791,7 +791,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
-        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard

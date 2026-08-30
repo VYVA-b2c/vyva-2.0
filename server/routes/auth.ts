@@ -568,6 +568,12 @@ function careTeamMembershipPermissions(invitation: CareTeamInviteRow) {
       vitalSigns: invitation.can_view_vital_signs,
       journalSummaries: invitation.can_view_journal_summaries,
     },
+      meds: {
+        view_adherence: false,
+        receive_missed_dose_alerts: invitation.can_receive_medication_alerts,
+        receive_refill_alerts: invitation.can_receive_medication_alerts,
+        manage_inventory: false,
+      },
   };
 }
 

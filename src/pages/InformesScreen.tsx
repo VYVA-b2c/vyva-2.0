@@ -870,19 +870,7 @@ export function InformesMain() {
 
   const openMedicationRefill = () => {
     if (!medicationContext) return;
-    navigate("/concierge/shopping", {
-      state: {
-        shoppingPrefill: {
-          needText: t(
-            "informes.actions.medsRefillPrefill",
-            "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
-            { context: medicationContext },
-          ),
-          category: "pharmacy_basics",
-          priorities: ["safety", "delivery", "simplicity"],
-        },
-      },
-    });
+    navigate("/meds/refills");
   };
 
   const openMedicationDoctorHelp = () => {
@@ -1343,7 +1331,7 @@ export function InformesMain() {
                             className={overviewActionClass}
                           >
                             <ShoppingBasket size={18} />
-                            <span>{t("informes.actions.prepareRefill", "Prepare refill")}</span>
+                            <span>{t("informes.actions.prepareRefill", "Check refill need")}</span>
                           </button>
                           {telHref ? (
                             <a

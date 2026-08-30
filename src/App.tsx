@@ -63,10 +63,11 @@ const SymptomCheckingPreviewScreen = lazy(() => import("./pages/SymptomCheckScre
 const SymptomSeverityPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomSeverityPreviewScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
-const PreventionPlan = lazy(() => import("./pages/PreventionPlan"));
 const LongevityScreen = lazy(() => import("./pages/LongevityScreen"));
+const PreventionPlan = lazy(() => import("./pages/PreventionPlan"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
+const MedicationRefillsScreen = lazy(() => import("./pages/MedicationRefillsScreen"));
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
 const CognitiveAssessmentHubPage = lazy(() => import("./pages/CognitiveAssessmentHubPage"));
 const CognitiveAssessmentReportPage = lazy(() => import("./pages/CognitiveAssessmentReportPage"));
@@ -861,6 +862,14 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
     );
   }
 
+  if (kind === "plan") {
+    return (
+      <AppShell>
+        <LongevityScreen backPath="/dev/home-master/health" />
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <PrototypeHealthActionPreviewScreen kind={kind} />
@@ -1129,6 +1138,7 @@ const App = () => (
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/my-medicines" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/interactions" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/refills" element={<AppShell><ServiceGateRoute service="medications"><MedicationRefillsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />

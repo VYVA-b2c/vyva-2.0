@@ -545,6 +545,11 @@ export const myMedicines = pgTable("my_medicines", {
   photo_url:         text("photo_url"),
   prescriber_name:   text("prescriber_name"),
   refill_due_date:   date("refill_due_date"),
+  dose_unit:         text("dose_unit"),
+  units_per_dose:    numeric("units_per_dose", { precision: 10, scale: 2 }),
+  daily_frequency:   numeric("daily_frequency", { precision: 6, scale: 2 }),
+  inventory_tracking_enabled: boolean("inventory_tracking_enabled").notNull().default(false),
+  refill_alert_days: integer("refill_alert_days").notNull().default(7),
   schedule_times:    text("schedule_times").array(),
   status:            text("status").notNull().default("active"),
   status_changed_at: timestamp("status_changed_at", { withTimezone: true }),
@@ -560,6 +565,81 @@ export const myMedicines = pgTable("my_medicines", {
 export const insertMyMedicineSchema = createInsertSchema(myMedicines).omit({ id: true, created_at: true, updated_at: true });
 export type InsertMyMedicine = z.infer<typeof insertMyMedicineSchema>;
 export type MyMedicine = typeof myMedicines.$inferSelect;
+
+export const medicationInventoryEvents = pgTable("medication_inventory_events", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull(),
+  medicine_id:     uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
+  event_type:      text("event_type").notNull(),
+  quantity:        numeric("quantity", { precision: 12, scale: 2 }).notNull(),
+  unit:            text("unit").notNull(),
+  occurred_on:     date("occurred_on").notNull(),
+  source:          text("source").notNull().default("manual"),
+  actor_user_id:   text("actor_user_id").notNull(),
+  actor_role:      text("actor_role").notNull().default("user"),
+  actor_name:      text("actor_name"),
+  metadata:        jsonb("metadata").notNull().default({}),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_inventory_events_user_medicine_date_idx").on(t.user_id, t.medicine_id, t.occurred_on.desc()),
+]);
+
+export const insertMedicationInventoryEventSchema = createInsertSchema(medicationInventoryEvents).omit({ id: true, created_at: true });
+export type InsertMedicationInventoryEvent = z.infer<typeof insertMedicationInventoryEventSchema>;
+export type MedicationInventoryEvent = typeof medicationInventoryEvents.$inferSelect;
+
+export const medicationRefillAlerts = pgTable("medication_refill_alerts", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               text("user_id").notNull(),
+  medicine_id:           uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
+  status:                text("status").notNull(),
+  cycle_key:             text("cycle_key").notNull(),
+  title:                 text("title").notNull(),
+  message:               text("message").notNull(),
+  days_remaining:        integer("days_remaining"),
+  projected_run_out_date: date("projected_run_out_date"),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  resolved_at:           timestamp("resolved_at", { withTimezone: true }),
+  resolved_reason:       text("resolved_reason"),
+}, (t) => [
+  uniqueIndex("medication_refill_alerts_cycle_status_unique").on(t.user_id, t.medicine_id, t.cycle_key, t.status),
+  index("medication_refill_alerts_user_open_idx").on(t.user_id, t.resolved_at, t.created_at.desc()),
+]);
+
+export const insertMedicationRefillAlertSchema = createInsertSchema(medicationRefillAlerts).omit({ id: true, created_at: true });
+export type InsertMedicationRefillAlert = z.infer<typeof insertMedicationRefillAlertSchema>;
+export type MedicationRefillAlert = typeof medicationRefillAlerts.$inferSelect;
+
+export const medicationRefillPushDeliveries = pgTable("medication_refill_push_deliveries", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  delivery_key:      text("delivery_key").notNull().unique(),
+  alert_id:          uuid("alert_id").notNull().references(() => medicationRefillAlerts.id, { onDelete: "cascade" }),
+  profile_id:        text("profile_id").notNull(),
+  medicine_id:       uuid("medicine_id").notNull().references(() => myMedicines.id, { onDelete: "cascade" }),
+  cycle_key:         text("cycle_key").notNull(),
+  recipient_user_id: text("recipient_user_id").notNull(),
+  recipient_role:    text("recipient_role").notNull(),
+  subscription_id:   uuid("subscription_id").notNull(),
+  status:            text("status").notNull().default("sending"),
+  provider_status:   integer("provider_status"),
+  failure_reason:    text("failure_reason"),
+  requested_at:      timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  sent_at:           timestamp("sent_at", { withTimezone: true }),
+  failed_at:         timestamp("failed_at", { withTimezone: true }),
+  opened_at:         timestamp("opened_at", { withTimezone: true }),
+  resolved_at:       timestamp("resolved_at", { withTimezone: true }),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_refill_push_deliveries_recipient_idx").on(t.recipient_user_id, t.created_at.desc()),
+  index("medication_refill_push_deliveries_alert_idx").on(t.alert_id),
+  check("medication_refill_push_deliveries_status_chk", sql`${t.status} in ('sending', 'sent', 'failed_retryable', 'failed_permanent')`),
+  check("medication_refill_push_deliveries_role_chk", sql`${t.recipient_role} in ('elder', 'caregiver', 'family')`),
+]);
+
+export const insertMedicationRefillPushDeliverySchema = createInsertSchema(medicationRefillPushDeliveries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMedicationRefillPushDelivery = z.infer<typeof insertMedicationRefillPushDeliverySchema>;
+export type MedicationRefillPushDelivery = typeof medicationRefillPushDeliveries.$inferSelect;
 
 export const myMedicinesChangeLog = pgTable("my_medicines_change_log", {
   id:             uuid("id").primaryKey().defaultRandom(),
@@ -919,6 +999,7 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
   max_outbound_calls_per_day:    integer("max_outbound_calls_per_day").default(1),
   max_whatsapp_messages_per_day: integer("max_whatsapp_messages_per_day").default(5),
   concierge_task_notifications_enabled: boolean("concierge_task_notifications_enabled").notNull().default(true),
+  medication_refill_push_enabled: boolean("medication_refill_push_enabled").notNull().default(false),
   preventive_web_push_enabled: boolean("preventive_web_push_enabled").notNull().default(false),
   preventive_web_push_consent_revision: integer("preventive_web_push_consent_revision").notNull().default(0),
   preventive_web_push_consent_updated_at: timestamp("preventive_web_push_consent_updated_at", { withTimezone: true }),
@@ -4294,6 +4375,8 @@ export const schema = {
   checkinTrendState,
   userMedications,
   myMedicines,
+  medicationInventoryEvents,
+  medicationRefillAlerts,
   myMedicinesChangeLog,
   interactionFlagRules,
   interactionFlagDismissals,

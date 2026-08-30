@@ -2,6 +2,11 @@ import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
 
 const SYMPTOM_ASSESSMENT_ROUTE = "/health/symptom-check";
 
+/** Canonical Longevity routes; legacy aliases remain available during migration. */
+export const LONGEVITY_ROUTE = "/health/longevity";
+export const LEGACY_PREVENTION_ROUTE = "/health/prevention";
+export const LONGEVITY_FOCUS_API_ROUTE = "/api/health/longevity";
+
 const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/",
   "/dev/home-master",
@@ -19,12 +24,18 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/symptom-report",
   "/menu",
   "/health",
+  "/health/longevity",
   "/health/prevention",
   "/health/prevention-plan",
   "/mind-memory",
   "/social-rooms",
   "/concierge",
   "/informes",
+  "/meds",
+  "/meds/my-medicines",
+  "/meds/interactions",
+  "/meds/adherence-report",
+  "/meds/refills",
   ...(SYMPTOM_ASSESSMENT_SHELL_CONTRACT.bottomNavId === "home-sos-reports"
     ? [SYMPTOM_ASSESSMENT_ROUTE]
     : []),
@@ -48,6 +59,10 @@ const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([
   "/dev/home-master/medicines",
   "/settings/account",
   "/health/check-in",
+  "/meds",
+  "/meds/my-medicines",
+  "/meds/interactions",
+  "/meds/adherence-report",
 ]);
 
 export function isHomeNavPrototypeTopbarRoute(pathname: string) {
