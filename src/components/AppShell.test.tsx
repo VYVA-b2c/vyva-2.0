@@ -441,7 +441,7 @@ describe("app shell voice dock", () => {
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
-    renderShell("/meds");
+    renderShell("/settings");
 
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
@@ -504,17 +504,20 @@ describe("app shell voice dock", () => {
     expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
   });
 
-  it("uses compact copy when VYVA is speaking from the dock", () => {
+  it("uses compact active voice copy on prototype dock routes", () => {
     voiceState.isSpeaking = true;
     voiceState.voiceSessionPhase = "speaking";
     voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
 
-    renderShell("/meds");
+    renderShell("/mind-memory");
 
     const dock = screen.getByTestId("voice-session-dock");
-    expect(dock).toHaveTextContent("Speaking");
+    expect(dock).toHaveAttribute("data-variant", "home-stop");
+    expect(dock).toHaveTextContent("Voice on");
+    expect(dock).not.toHaveTextContent("Speaking");
     expect(dock).not.toHaveTextContent("VYVA speaking");
-    expect(dock).toHaveTextContent("Try naming three things");
+    expect(dock).not.toHaveTextContent("Try naming three things");
+    expect(screen.getByTestId("button-dock-end-call")).toBeInTheDocument();
   });
 
   it("ignores punctuation-only voice transcript events", () => {
