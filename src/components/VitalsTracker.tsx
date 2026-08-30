@@ -1503,7 +1503,7 @@ export default function VitalsTracker({
   const rowDivider = isDark ? "divide-white/[0.1]" : "divide-[#EFE7F3]";
 
   return (
-    <section className="mx-auto w-full max-w-[760px] space-y-4" data-testid="vitals-engine-dashboard">
+    <section className="-mx-2 w-[calc(100%+1rem)] max-w-[760px] space-y-3 sm:mx-auto sm:w-full sm:space-y-4" data-testid="vitals-engine-dashboard">
       {loading ? (
         <div className={`flex min-h-[260px] items-center justify-center rounded-[30px] border ${dashboardPanel}`}>
           <div className={`text-center font-body text-[20px] font-bold ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>
@@ -1514,50 +1514,39 @@ export default function VitalsTracker({
       ) : (
         <>
           <div data-testid="vitals-hero">
-            <section className={`overflow-hidden rounded-[30px] border border-l-[6px] px-[22px] py-5 ${dashboardPanel} ${safetyHeroAccent}`}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                    <VyvaIcon icon={SafetyIcon} accent="check" tone={safetyStatus === "steady" ? "success" : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver" ? "warning" : "danger"} size={22} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className={`font-body text-[10px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
-                    <h2 className={`mt-0.5 font-body text-[27px] font-extrabold leading-none tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
-                      {safetyLabel(safetyStatus, language)}
-                    </h2>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={showAddReading}
-                  className="vyva-tap flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#7024C4] px-4 font-body text-[14px] font-black text-white shadow-[0_7px_18px_rgba(112,36,196,0.24)] transition hover:bg-[#5E1DA8] active:scale-[0.98]"
-                  data-testid="button-vitals-hero-add"
-                >
-                  <Plus className="h-[18px] w-[18px] text-[#F8AE1B]" />
-                  {copy.add}
-                </button>
+            <section className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 ${dashboardPanel} ${safetyHeroAccent}`}>
+              <div className="flex min-w-0 items-center gap-3 sm:pr-40">
+                   <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                     <VyvaIcon icon={SafetyIcon} accent="check" tone={safetyStatus === "steady" ? "success" : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver" ? "warning" : "danger"} size={22} />
+                   </span>
+                   <div className="min-w-0">
+                     <p className={`font-body text-[10px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
+                    <h2 className={`mt-0.5 font-body text-[29px] font-extrabold leading-none tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                       {safetyLabel(safetyStatus, language)}
+                     </h2>
+                   </div>
               </div>
 
-              <div className={`mt-4 grid gap-4 rounded-[22px] border p-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center ${isDark ? "border-white/[0.12] bg-[#24192E]" : "border-[#E7DDEB] bg-[#FBF8FD]"}`}>
+              <div className={`mt-4 grid grid-cols-[96px_minmax(0,1fr)] items-center gap-3 border-t pt-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4 ${isDark ? "border-white/[0.12]" : "border-[#E7DDEB]"}`}>
                 <div
-                  className="sm:border-r sm:border-current sm:pr-4"
+                  className="border-r border-current pr-3 sm:pr-4"
                   style={{ borderColor: isDark ? "rgba(255,255,255,0.12)" : "#E7DDEB" }}
                   data-testid="vitals-risk-score"
                   aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
                 >
                   <p className={`font-body text-[10px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
                   <div className="mt-1 flex items-baseline gap-1">
-                    <span className="font-body text-[44px] font-extrabold leading-none tracking-[-0.05em]" style={{ color: riskColor }}>{riskScore}</span>
-                    <span className={`font-body text-[15px] font-black ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
+                    <span className="font-body text-[40px] font-extrabold leading-none tracking-[-0.05em] sm:text-[44px]" style={{ color: riskColor }}>{riskScore}</span>
+                    <span className={`font-body text-[13px] font-black sm:text-[15px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
                   </div>
-                  <p className={`mt-1 font-body text-[11px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</p>
+                  <p className={`mt-1 font-body text-[10px] font-bold sm:text-[11px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className={`font-body text-[15px] font-semibold leading-[1.45] ${isDark ? "text-[#E4DAEC]" : "text-[#665A63]"}`}>
+                  <p className={`font-body text-[14px] font-semibold leading-[1.45] sm:text-[15px] ${isDark ? "text-[#E4DAEC]" : "text-[#665A63]"}`}>
                     {seniorMessage}
                   </p>
-                  <div className={`mt-3 h-2 overflow-hidden rounded-full ${isDark ? "bg-white/[0.1]" : "bg-[#EDE5F1]"}`} aria-hidden="true">
+                  <div className={`mt-3 h-1.5 overflow-hidden rounded-full sm:h-2 ${isDark ? "bg-white/[0.1]" : "bg-[#EDE5F1]"}`} aria-hidden="true">
                     <div
                       className="h-full rounded-full transition-[width] duration-500"
                       style={{ width: `${Math.max(4, Math.min(100, riskScore))}%`, backgroundColor: riskColor }}
@@ -1565,6 +1554,16 @@ export default function VitalsTracker({
                   </div>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={showAddReading}
+                className="vyva-tap mt-4 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#7024C4] px-4 font-body text-[15px] font-black text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.98] sm:absolute sm:right-[22px] sm:top-5 sm:mt-0 sm:min-h-11 sm:w-auto sm:rounded-full sm:text-[14px]"
+                data-testid="button-vitals-hero-add"
+              >
+                <Plus className="h-[18px] w-[18px] text-[#F8AE1B]" />
+                {copy.add}
+              </button>
             </section>
           </div>
 
@@ -1615,14 +1614,14 @@ export default function VitalsTracker({
           ) : null}
 
           {trackedReadingGroups.length ? (
-            <section className="mt-7" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
+            <section className="mt-5 sm:mt-7" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
               <h2 id="vitals-latest-readings" className={`mb-3 font-body text-[13px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
                 {dashboardLabels.latest}
               </h2>
-              <div className={`overflow-hidden rounded-[30px] border ${dashboardPanel}`}>
+              <div className={`overflow-hidden rounded-[24px] border sm:rounded-[30px] ${dashboardPanel}`}>
                 {trackedReadingGroups.map(({ group, signals }, groupIndex) => (
                   <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
-                    <h3 id={`vitals-group-${group}`} className={`px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
+                    <h3 id={`vitals-group-${group}`} className={`px-4 pb-0 pt-2 font-body text-[9px] font-black uppercase tracking-[0.14em] sm:px-5 sm:pb-1 sm:pt-3 sm:text-[11px] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
                       {DISPLAY_GROUP_LABELS[group][language]}
                     </h3>
                     <div className={`divide-y ${rowDivider}`}>
@@ -1645,9 +1644,9 @@ export default function VitalsTracker({
           ) : null}
 
           {untrackedReadingGroups.length ? (
-            <details className={`group rounded-[24px] border ${dashboardDisclosure}`} data-testid="vitals-more-readings">
-              <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black [&::-webkit-details-marker]:hidden">
-                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+            <details className={`group rounded-[20px] border sm:rounded-[24px] ${dashboardDisclosure}`} data-testid="vitals-more-readings">
+              <summary className="vyva-tap flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-3 font-body text-[15px] font-black sm:min-h-[64px] sm:px-4 sm:text-[16px] [&::-webkit-details-marker]:hidden">
+                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
                   <VyvaIcon icon={Activity} accent="signal" size={21} />
                 </span>
                 <span className="min-w-0 flex-1">{dashboardLabels.more}</span>
@@ -1677,9 +1676,9 @@ export default function VitalsTracker({
             </details>
           ) : null}
 
-          <details className={`group rounded-[24px] border ${dashboardDisclosure}`} data-testid="vitals-evidence-guide">
-            <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 font-body text-[16px] font-black [&::-webkit-details-marker]:hidden">
-              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+          <details className={`group rounded-[20px] border sm:rounded-[24px] ${dashboardDisclosure}`} data-testid="vitals-evidence-guide">
+            <summary className="vyva-tap flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-3 font-body text-[15px] font-black sm:min-h-[64px] sm:px-4 sm:text-[16px] [&::-webkit-details-marker]:hidden">
+              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
                 <VyvaIcon icon={ShieldCheck} accent="check" size={21} />
               </span>
               <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
@@ -1706,7 +1705,7 @@ export default function VitalsTracker({
 
           {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
 
-          <div className={`mt-2 flex flex-col items-center justify-between gap-3 border-t pt-4 sm:flex-row ${isDark ? "border-white/[0.12]" : "border-[#E7DDF0]"}`}>
+          <div className={`mt-2 flex flex-col items-stretch justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center ${isDark ? "border-white/[0.12]" : "border-[#E7DDF0]"}`}>
             <p className={`font-body text-[15px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>
               {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
             </p>
@@ -1714,7 +1713,7 @@ export default function VitalsTracker({
               type="button"
               onClick={triggerAnalysis}
               disabled={analysing}
-              className={`vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border px-5 font-body text-[15px] font-black disabled:opacity-60 ${isDark ? "border-white/[0.14] bg-white/[0.07] text-[#C4A7FF]" : "border-[#DDD6FE] bg-white text-[#6B21A8]"}`}
+              className={`vyva-tap flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] border px-5 font-body text-[15px] font-black disabled:opacity-60 sm:w-auto ${isDark ? "border-white/[0.14] bg-white/[0.07] text-[#C4A7FF]" : "border-[#DDD6FE] bg-white text-[#6B21A8]"}`}
             >
               {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {analysing ? copy.analysing : copy.analyse}
@@ -1824,39 +1823,39 @@ function SignalCard({
 
   const rowContent = (
     <>
-        <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
-          <SignalIcon type={cfg.icon} className="h-6 w-6" />
+        <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-12 sm:w-12 sm:rounded-[16px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+          <SignalIcon type={cfg.icon} className="h-[21px] w-[21px] sm:h-6 sm:w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className={`font-body text-[16px] font-bold leading-tight ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{signalLabel(signalKey, cfg, language)}</p>
-          <p className={`mt-1 font-body text-[22px] font-black leading-tight ${isDark ? "text-[#FFF8FF]" : "text-[#2F241F]"}`}>{display}</p>
+          <p className={`font-body text-[14px] font-bold leading-tight sm:text-[16px] ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{signalLabel(signalKey, cfg, language)}</p>
+          <p className={`mt-0.5 font-body text-[20px] font-black leading-tight sm:mt-1 sm:text-[22px] ${isDark ? "text-[#FFF8FF]" : "text-[#2F241F]"}`}>{display}</p>
         </div>
-        <div className="flex flex-shrink-0 flex-col items-end gap-2 text-right">
+        <div className="flex flex-shrink-0 flex-col items-end gap-1.5 text-right sm:gap-2">
           {sourceBadge ? (
-            <span className="flex items-center gap-1 rounded-full px-2 py-1 font-body text-[10px] font-black" style={{ background: sourceBadge.bg, color: sourceBadge.color }} title={sourceBadge.fullLabel} aria-label={sourceBadge.fullLabel}>
-              <SourceIcon className="h-3 w-3" />
-              {sourceBadge.shortLabel}
+            <span className="flex h-7 min-w-7 items-center justify-center gap-1 rounded-full px-1.5 font-body text-[10px] font-black sm:h-auto sm:min-w-0 sm:px-2 sm:py-1" style={{ background: sourceBadge.bg, color: sourceBadge.color }} title={sourceBadge.fullLabel} aria-label={sourceBadge.fullLabel}>
+              <SourceIcon className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">{sourceBadge.shortLabel}</span>
             </span>
           ) : null}
-          <p className={`font-body text-[14px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>{subLabel}</p>
+          <p className={`font-body text-[12px] font-bold sm:text-[14px] ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>{subLabel}</p>
         </div>
     </>
   );
 
   if (!sourceBadge) {
     return (
-      <article className="flex min-h-[88px] items-center gap-3 px-4 py-3 sm:px-5">
+      <article className="flex min-h-[76px] items-center gap-3 px-3 py-2.5 sm:min-h-[88px] sm:px-5 sm:py-3">
         {rowContent}
       </article>
     );
   }
 
   return (
-    <article className="px-4 sm:px-5">
+    <article className="px-3 sm:px-5">
       <details className="group">
-        <summary className="vyva-tap flex min-h-[88px] cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+        <summary className="vyva-tap flex min-h-[76px] cursor-pointer list-none items-center gap-3 py-2.5 sm:min-h-[88px] sm:py-3 [&::-webkit-details-marker]:hidden">
           {rowContent}
-          <ChevronDown className="h-5 w-5 flex-shrink-0 text-[#7C3AED] transition-transform group-open:rotate-180" aria-hidden="true" />
+          <ChevronDown className="h-[18px] w-[18px] flex-shrink-0 text-[#7C3AED] transition-transform group-open:rotate-180 sm:h-5 sm:w-5" aria-hidden="true" />
           <span className="sr-only">Reading details</span>
         </summary>
         <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 border-t pb-3 pt-2 font-body text-[12px] ${isDark ? "border-white/[0.1] text-[#C9BDD6]" : "border-[#F0E7F4] text-[#6B5B72]"}`}>

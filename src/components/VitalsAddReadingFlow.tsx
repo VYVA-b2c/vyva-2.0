@@ -541,10 +541,10 @@ export default function VitalsAddReadingFlow({
   const configuredBluetoothDevice = configuredDeviceForSignal(context, selectedSignal);
 
   return (
-    <section className={`rounded-[30px] border p-5 ${isDark ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_22px_48px_rgba(0,0,0,0.22)]" : "border-[#E6DCEB] bg-[#FFFCF8] text-[#241238] shadow-[0_16px_40px_rgba(63,45,75,0.08)]"}`} data-testid="vitals-add-flow">
-      <header className="mb-6">
+    <section className={`-mx-2 w-[calc(100%+1rem)] sm:mx-0 sm:w-auto sm:rounded-[30px] sm:border sm:p-5 ${isDark ? "text-[#FFF8FF] sm:border-white/[0.14] sm:bg-[#2B2035] sm:shadow-[0_22px_48px_rgba(0,0,0,0.22)]" : "text-[#241238] sm:border-[#E6DCEB] sm:bg-[#FFFCF8] sm:shadow-[0_16px_40px_rgba(63,45,75,0.08)]"}`} data-testid="vitals-add-flow">
+      <header className="mb-4 px-1 sm:mb-6 sm:px-0">
         <p className={`font-body text-[11px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{flowCopy.addReading}</p>
-        <h2 className={`mt-1 font-body text-[28px] font-extrabold leading-[1.08] tracking-[-0.025em] sm:text-[31px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+        <h2 className={`mt-1 max-w-[310px] font-body text-[27px] font-extrabold leading-[1.08] tracking-[-0.025em] sm:max-w-none sm:text-[31px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
           {stage === "vital" ? flowCopy.pickerTitle : selectedLabel}
         </h2>
       </header>
@@ -553,19 +553,19 @@ export default function VitalsAddReadingFlow({
         loadingContext ? (
           <div className="flex min-h-[220px] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-[#7C3AED]" /></div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5">
             {groupedSignals.map(({ group, signals }) => (
               <div key={group}>
-                <p className={`mb-2 font-body text-[12px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{isFrench ? FRENCH_GROUP_LABELS[group] : GROUP_LABELS[group]}</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <p className={`mb-2 px-1 font-body text-[11px] font-black uppercase tracking-[0.13em] sm:px-0 sm:text-[12px] ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{isFrench ? FRENCH_GROUP_LABELS[group] : GROUP_LABELS[group]}</p>
+                <div className={`grid grid-cols-1 divide-y overflow-hidden rounded-[20px] border sm:grid-cols-2 sm:gap-2 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 ${isDark ? "divide-white/[0.1] border-white/[0.12] bg-[#2B2035]" : "divide-[#EEE5F2] border-[#E5D9EA] bg-white"}`}>
                   {signals.map((signal, index) => {
                     const meta = VITALS_SIGNAL_CATALOG[signal];
                     const balancesOddGroup = signals.length % 2 === 1 && index === 0;
                     return (
-                      <button key={signal} type="button" onClick={() => chooseSignal(signal)} className={`flex min-h-[64px] items-center gap-3 rounded-[20px] border px-4 text-left sm:min-h-[66px] ${balancesOddGroup ? "sm:col-span-2" : ""} ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "border-[#E7DDF0] bg-white shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`} data-testid={`button-vital-${signal}`}>
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-[14px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={HeartPulse} accent="pulse" size={21} /></span>
+                      <button key={signal} type="button" onClick={() => chooseSignal(signal)} className={`flex min-h-[60px] items-center gap-3 px-3 text-left transition-colors sm:min-h-[66px] sm:rounded-[20px] sm:border sm:px-4 ${balancesOddGroup ? "sm:col-span-2" : ""} ${isDark ? "hover:bg-white/[0.04] sm:border-white/[0.13] sm:bg-[#352842] sm:shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "hover:bg-[#FCF9FD] sm:border-[#E7DDF0] sm:bg-white sm:shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`} data-testid={`button-vital-${signal}`}>
+                        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={HeartPulse} accent="pulse" size={20} /></span>
                         <span className="min-w-0 flex-1">
-                          <span className={`block font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{isFrench ? FRENCH_SIGNAL_LABELS[signal] ?? meta.label : meta.label}</span>
+                          <span className={`block font-body text-[15px] font-black leading-tight sm:text-[16px] ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{isFrench ? FRENCH_SIGNAL_LABELS[signal] ?? meta.label : meta.label}</span>
                           <span className={`block font-body text-[12px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{meta.unit || flowCopy.yesNo}</span>
                         </span>
                         <ChevronRight className={`h-5 w-5 ${isDark ? "text-[#C4A7FF]" : "text-[#A78BBA]"}`} />
@@ -597,14 +597,14 @@ export default function VitalsAddReadingFlow({
       {stage === "method" ? (
         <div>
           <p className={`mb-4 font-body text-[16px] font-bold ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B72]"}`}>{flowCopy.chooseMethod}</p>
-          <div className="grid gap-3 sm:grid-cols-2" data-testid="vitals-method-picker">
+          <div className={`grid divide-y overflow-hidden rounded-[22px] border sm:grid-cols-2 sm:gap-3 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 ${isDark ? "divide-white/[0.1] border-white/[0.12] bg-[#2B2035]" : "divide-[#EEE5F2] border-[#E5D9EA] bg-white"}`} data-testid="vitals-method-picker">
             {methods.map((method) => {
               const detail = METHOD_DETAILS[method];
               const methodCopy = isFrench ? FRENCH_METHOD_DETAILS[method] : detail;
               const Icon = detail.Icon;
               return (
-                <button key={method} type="button" onClick={() => chooseMethod(method)} className={`flex min-h-[88px] items-center gap-4 rounded-[22px] border p-4 text-left ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "border-[#E0D1EC] bg-white shadow-[0_7px_20px_rgba(53,28,87,0.05)]"}`} data-testid={`button-method-${method}`}>
-                  <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={Icon} accent={METHOD_ACCENTS[method]} size={25} /></span>
+                <button key={method} type="button" onClick={() => chooseMethod(method)} className={`flex min-h-[74px] items-center gap-3 px-3 py-3 text-left transition-colors sm:min-h-[88px] sm:gap-4 sm:rounded-[22px] sm:border sm:p-4 ${isDark ? "hover:bg-white/[0.04] sm:border-white/[0.13] sm:bg-[#352842] sm:shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "hover:bg-[#FCF9FD] sm:border-[#E0D1EC] sm:bg-white sm:shadow-[0_7px_20px_rgba(53,28,87,0.05)]"}`} data-testid={`button-method-${method}`}>
+                  <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-12 sm:w-12 sm:rounded-[16px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={Icon} accent={METHOD_ACCENTS[method]} size={23} /></span>
                   <span className="min-w-0">
                     <span className={`block font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{methodCopy.label}</span>
                     <span className={`mt-1 block font-body text-[12px] font-bold leading-snug ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{methodCopy.hint}</span>
