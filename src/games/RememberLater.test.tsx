@@ -6,6 +6,7 @@ import RememberLater, {
   computeRememberLaterScore,
   getDefaultRememberLaterUserState,
   getRememberLaterLevelRequirements,
+  getRememberLaterResultMessage,
   getNextRememberLaterStateAfterSession,
   isRememberLaterCountedRound,
   normalizeRememberLaterRound,
@@ -97,6 +98,27 @@ const levelOneComponentRound = {
   intentions: [{ type: "event", cue_icon: "bell", cue_position_index: 0, response_window_items: 1 }],
 };
 
+const colorBlueComponentRound = {
+  ...levelOneComponentRound,
+  ongoing_task_rule: "color_blue",
+  filler_stream: [
+    { type: "color", value: "red", matches_rule: false },
+    { type: "icon", value: "cue", icon: "cue", matches_rule: false, cue: true },
+    { type: "color", value: "blue", matches_rule: true },
+  ],
+  filler_item_count: 3,
+  intentions: [{ type: "event", cue_icon: "bell", cue_position_index: 1, response_window_items: 1 }],
+};
+
+const TEST_COUNTDOWN_STEP_MS = 10;
+
+function translateFallback(_key: string, fallback: string, params?: Record<string, unknown>) {
+  return Object.entries(params ?? {}).reduce(
+    (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+    fallback,
+  );
+}
+
 describe("RememberLater helpers", () => {
   it("starts new practice at level one", () => {
     expect(getDefaultRememberLaterUserState("user-1").current_tier).toBe(1);
@@ -132,6 +154,62 @@ describe("RememberLater helpers", () => {
     expect(result.pm_accuracy_pct).toBe(100);
     expect(result.score).toBe(800);
     expect(result.combined_accuracy_pct).toBe(80);
+  });
+
+  it("keeps the point score aligned with the overall weighted percentage", () => {
+    const result = computeRememberLaterScore({
+      round: {
+        ...testRound,
+        filler_stream: [
+          { type: "shape", value: "circle", matches_rule: true },
+          { type: "shape", value: "circle", matches_rule: true },
+          { type: "shape", value: "circle", matches_rule: true },
+          { type: "shape", value: "circle", matches_rule: true },
+          { type: "shape", value: "circle", matches_rule: true },
+          { type: "icon", value: "cue", icon: "cue", matches_rule: false, cue: true },
+        ],
+        filler_item_count: 6,
+      },
+      ongoingTappedIndices: [0, 1],
+      ongoingFalseAlarms: 0,
+      intentionStates: [{ intention: testRound.intentions[0], hit: false, response_delay_items: null }],
+      pmFalseAlarms: 0,
+      seenItemCount: 6,
+      durationSeconds: 1,
+    });
+
+    expect(result.ongoing_accuracy_pct).toBe(40);
+    expect(result.pm_accuracy_pct).toBe(0);
+    expect(result.combined_accuracy_pct).toBe(16);
+    expect(result.score).toBe(160);
+  });
+
+  it("varies completion messages across finished rounds", () => {
+    const common = {
+      resultCountsForLevel: true,
+      resultToneHit: true,
+      promotedThisRound: false,
+      progressWins: 1,
+      progressWinsNeeded: 2,
+      nextTier: 2,
+      nextTierBand: { label: "Foundation" },
+      completedMilestone: null,
+    };
+    const titles = ["round-a", "round-b", "round-c"].map((roundId) =>
+      getRememberLaterResultMessage({
+        ...common,
+        t: translateFallback,
+        result: {
+          round_id: roundId,
+          difficulty_tier: 2,
+          score: 840,
+          pm_hits: 1,
+          ongoing_correct: 2,
+          ongoing_total: 2,
+        },
+      }).title);
+
+    expect(new Set(titles).size).toBeGreaterThan(1);
   });
 
   it("keeps early tiers approachable without making them feel trivial", () => {
@@ -294,6 +372,7 @@ describe("RememberLater helpers", () => {
 describe("RememberLater component", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    document.cookie = "remember_later_tutorial_seen_v1=; Max-Age=0; Path=/";
     setLanguage("en");
     gameDataMock.calls.length = 0;
     gameDataMock.queue.length = 0;
@@ -315,7 +394,7 @@ describe("RememberLater component", () => {
       { data: { ...userState, has_seen_tutorial: true }, error: null },
     );
 
-    render(<RememberLater userId="user-1" onExit={vi.fn()} />);
+    render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
 
     expect(await screen.findByRole("heading", { name: "Remember Later" })).toBeInTheDocument();
     expect(screen.getByText("Watch for two things.")).toBeInTheDocument();
@@ -325,13 +404,21 @@ describe("RememberLater component", () => {
     expect(screen.getByText(/First round only/i)).toBeInTheDocument();
     expect(screen.getByText(/3 good rounds/i)).toBeInTheDocument();
     expect(screen.getByText("Tap purple")).toBeInTheDocument();
-    expect(screen.getByText("Tap gold star")).toBeInTheDocument();
+    expect(screen.getByText("Touch this button")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Do not show these instructions again." })).toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "Start round" }));
+    expect(window.localStorage.getItem("rememberLater:tutorialSeen:v1")).toBe("true");
+    expect(screen.getByText("Get ready")).toBeInTheDocument();
+    expect(screen.getByLabelText("Round starts in 3")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
-    expect(screen.getByText(/No circle\? Wait/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Tap when you see a circle")).toHaveLength(1);
+    expect(screen.getAllByText("Bell? Touch this button")).toHaveLength(1);
+    const reminderButton = screen.getByRole("button", { name: "Bell? Touch this button" });
+    expect(reminderButton.querySelector(".lucide-bell")).toBeInTheDocument();
+    expect(reminderButton.querySelector(".lucide-star")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Gold star" }));
+    fireEvent.click(screen.getByRole("button", { name: /Touch this button/i }));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 1800));
     });
@@ -340,10 +427,15 @@ describe("RememberLater component", () => {
       await new Promise((resolve) => window.setTimeout(resolve, 2500));
     });
 
-    expect(await screen.findByText(/You remembered without anyone reminding you/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Good round|Nice work|Solid round/i })).toBeInTheDocument();
     expect(screen.getByText("Good round")).toBeInTheDocument();
-    expect(screen.getByText(/used both buttons at the right time/i)).toBeInTheDocument();
-    expect(screen.getByText(/Good round\. 2 more to move up/i)).toBeInTheDocument();
+    expect(screen.getByText(/used both buttons|balanced the matching task|both parts landed/i)).toBeInTheDocument();
+    expect(screen.getByText("Overall")).toBeInTheDocument();
+    expect(screen.getByText("Points")).toBeInTheDocument();
+    expect(screen.getByText("1000/1000")).toBeInTheDocument();
+    expect(screen.queryByText("Score")).not.toBeInTheDocument();
+    expect(screen.queryByText("Streak")).not.toBeInTheDocument();
+    expect(screen.getByText(/2 to go|2 more before|2 more like this/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Play again" })).not.toBeInTheDocument();
 
@@ -365,15 +457,90 @@ describe("RememberLater component", () => {
     }));
   }, 10_000);
 
+  it("lets people choose whether starting level one hides future instructions", async () => {
+    const { unmount } = render(<RememberLater onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
+
+    const hideInstructions = await screen.findByRole("checkbox", { name: "Do not show these instructions again." });
+    expect(hideInstructions).toBeChecked();
+
+    fireEvent.click(hideInstructions);
+    expect(hideInstructions).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start round" }));
+
+    expect(window.localStorage.getItem("rememberLater:tutorialSeen:v1")).toBeNull();
+    unmount();
+  });
+
   it("does not repeat the intro once the merged example has been seen", async () => {
     window.localStorage.setItem("rememberLater:tutorialSeen:v1", "true");
 
-    render(<RememberLater onExit={vi.fn()} />);
+    render(<RememberLater onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
 
     expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
     expect(screen.queryByText("Watch for two things.")).not.toBeInTheDocument();
     expect(screen.queryByText("Anything else: wait.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start round" })).not.toBeInTheDocument();
+  });
+
+  it("does not repeat the intro when the cookie fallback marks it seen", async () => {
+    document.cookie = "remember_later_tutorial_seen_v1=true; Path=/";
+
+    render(<RememberLater onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
+
+    expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
+    expect(screen.queryByText("Watch for two things.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start round" })).not.toBeInTheDocument();
+  });
+
+  it("uses the local tutorial flag when server progress is stale", async () => {
+    window.localStorage.setItem("rememberLater:tutorialSeen:v1", "true");
+    gameDataMock.queue.push(
+      {
+        data: {
+          ...getDefaultRememberLaterUserState("user-1"),
+          current_tier: 1,
+          has_seen_tutorial: false,
+        },
+        error: null,
+      },
+      { data: [], error: null },
+      { data: [levelOneComponentRound], error: null },
+    );
+
+    render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
+
+    expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
+    expect(screen.queryByText("Watch for two things.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start round" })).not.toBeInTheDocument();
+  });
+
+  it("uses the local tutorial flag when creating missing server progress", async () => {
+    window.localStorage.setItem("rememberLater:tutorialSeen:v1", "true");
+    gameDataMock.queue.push(
+      { data: null, error: null },
+      {
+        data: {
+          ...getDefaultRememberLaterUserState("user-1"),
+          current_tier: 1,
+          has_seen_tutorial: false,
+        },
+        error: null,
+      },
+      { data: [], error: null },
+      { data: [levelOneComponentRound], error: null },
+    );
+
+    render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
+
+    expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
+    expect(screen.queryByText("Watch for two things.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start round" })).not.toBeInTheDocument();
+
+    const savedState = gameDataMock.calls.find((call) => call.table === "remember_later_user_state" && call.type === "upsert");
+    expect(savedState?.payload).toEqual(expect.objectContaining({
+      has_seen_tutorial: true,
+    }));
   });
 
   it("opens the next local variant when a level round has already been played today", async () => {
@@ -383,10 +550,28 @@ describe("RememberLater component", () => {
       { round_id: rounds[0].id, played_at: new Date().toISOString() },
     ]));
 
-    render(<RememberLater onExit={vi.fn()} />);
+    render(<RememberLater onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
 
     expect(await screen.findByRole("button", { name: "Tap when you see a square" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tap when you see a circle" })).not.toBeInTheDocument();
+  });
+
+  it("describes color rules as colors instead of shapes", async () => {
+    const userState = {
+      ...getDefaultRememberLaterUserState("user-1"),
+      has_seen_tutorial: true,
+    };
+    gameDataMock.queue.push(
+      { data: userState, error: null },
+      { data: [], error: null },
+      { data: [colorBlueComponentRound], error: null },
+    );
+
+    render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
+
+    expect(await screen.findByRole("button", { name: "Tap when the color is blue" })).toBeInTheDocument();
+    expect(screen.getAllByText("Tap when the color is blue")).toHaveLength(1);
+    expect(screen.queryByText("Tap when you see blue")).not.toBeInTheDocument();
   });
 
   it("skips instructions by default from level two onward", async () => {
@@ -401,7 +586,7 @@ describe("RememberLater component", () => {
       { data: [{ ...componentRound, difficulty_tier: 2 }], error: null },
     );
 
-    render(<RememberLater userId="user-1" onExit={vi.fn()} />);
+    render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
 
     expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
     expect(screen.queryByText("Watch for two things.")).not.toBeInTheDocument();
@@ -423,7 +608,7 @@ describe("RememberLater component", () => {
       { data: userState, error: null },
     );
 
-    render(<RememberLater userId="user-1" onExit={vi.fn()} />);
+    render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
 
     expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start round" })).not.toBeInTheDocument();
@@ -431,16 +616,16 @@ describe("RememberLater component", () => {
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 1250));
     });
-    fireEvent.click(screen.getByRole("button", { name: "Gold star" }));
+    fireEvent.click(screen.getByRole("button", { name: /Touch this button/i }));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 2600));
     });
 
-    expect(await screen.findByText(/You remembered without anyone reminding you/i)).toBeInTheDocument();
-    expect(screen.getByText(/Gold star remembered/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /caught the reminder|Good recall|reminder stayed/i })).toBeInTheDocument();
+    expect(screen.getByText(/Reminder button remembered/i)).toBeInTheDocument();
     expect(screen.getByText("Matching task")).toBeInTheDocument();
-    expect(screen.getByText(/0%/i)).toBeInTheDocument();
-    expect(screen.getByText(/Stay here and strengthen the target taps too/i)).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument();
+    expect(screen.getByText(/strengthen the target taps|matching improves|purple target rule/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
   }, 10_000);
 });
