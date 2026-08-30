@@ -1550,7 +1550,7 @@ export default function VitalsTracker({
         </div>
       ) : (
         <>
-          <div data-testid="vitals-hero">
+          <div className="-mx-2 sm:-mx-4 lg:-mx-14" data-testid="vitals-hero">
             <section
               aria-label={safetyLabel(safetyStatus, language)}
               className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 pr-[76px] sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 sm:pr-[88px] ${dashboardPanel} ${safetyHeroAccent}`}
@@ -1558,7 +1558,7 @@ export default function VitalsTracker({
               <div data-testid="vitals-hero-metric">
                 {activeHeroMetricIndex === 0 ? (
                   <div
-                    className="flex min-h-[68px] items-center gap-3"
+                    className="flex min-h-[68px] items-center gap-3 sm:justify-center"
                     data-testid="vitals-risk-score"
                     aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
                   >
@@ -1576,7 +1576,7 @@ export default function VitalsTracker({
                   </div>
                 ) : activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
                   <div className="min-w-0" data-testid="vitals-hero-marker">
-                    <div className="flex min-h-[68px] min-w-0 items-center gap-3">
+                    <div className="flex min-h-[68px] min-w-0 items-center gap-3 sm:justify-center">
                       <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
                         <SignalIcon type={activeHeroConfig.icon} className="h-[25px] w-[25px]" />
                       </span>
@@ -1599,7 +1599,7 @@ export default function VitalsTracker({
                   </div>
                 ) : null}
                 {heroMetricCount > 1 ? (
-                  <div className="mt-2 flex items-center gap-1" aria-label={dashboardLabels.latest}>
+                  <div className="mt-2 flex items-center gap-1 sm:justify-center" aria-label={dashboardLabels.latest}>
                     {["risk", ...heroMarkers.map((marker) => marker.signal_type)].map((metricKey, index) => (
                       <button
                         key={metricKey}

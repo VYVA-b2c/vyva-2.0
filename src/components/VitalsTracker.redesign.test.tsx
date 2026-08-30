@@ -34,6 +34,7 @@ describe("VitalsTracker redesign", () => {
     renderTracker();
 
     expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Steady");
+    expect(screen.getByTestId("vitals-hero")).toHaveClass("-mx-2", "sm:-mx-4", "lg:-mx-14");
     expect(screen.getByLabelText("Steady")).toBeVisible();
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
