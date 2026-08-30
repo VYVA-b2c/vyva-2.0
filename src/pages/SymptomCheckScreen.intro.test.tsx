@@ -396,6 +396,48 @@ describe("SymptomCheck intro chips", () => {
     expect(onAnswer).toHaveBeenCalledWith({ utterance: "Breathing feels different" });
   });
 
+  it("shows the canonical answer summary on the voice review screen", () => {
+    render(
+      <MemoryRouter>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-review",
+            status: "active",
+            latest_response: {
+              ok: true,
+              status: "active",
+              spoken_text: "Does this look right?",
+              question: {
+                stage: "support",
+                text: "Does this look right?",
+                reason: "Review before guidance.",
+                choices: [
+                  { id: "edit_answers", spoken_label: "Edit", value: "Edit my answers." },
+                  { id: "confirm_review", spoken_label: "Yes, show my guidance", value: "Show my guidance." },
+                ],
+              },
+              review_answers: [
+                { id: "breathing", label: "Breathing feels different", value: "Breathing feels different", kind: "symptom" },
+                { id: "severity_5", label: "5", value: "5 out of 10", kind: "severity" },
+                { id: "few_days", label: "Few days", value: "It started a few days ago", kind: "duration" },
+                { id: "mild_improving", label: "Mild and improving", value: "It is mild and improving", kind: "trend" },
+              ],
+            },
+          }}
+          stageId="review"
+          modality="voice"
+          onAnswer={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Breathing feels different");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("5 / 10");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Few days");
+    expect(screen.queryByPlaceholderText("Or type your answer...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Why VYVA is asking this")).not.toBeInTheDocument();
+  });
+
   it("leaves the single voice entry point to the shared Home header", () => {
     const onTalkToVyva = vi.fn();
     render(<IntroScreen onStart={vi.fn()} onTalkToVyva={onTalkToVyva} />);

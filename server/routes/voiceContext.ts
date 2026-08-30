@@ -64,9 +64,21 @@ const DR_AI_FIRST_MESSAGES: Record<string, string> = {
   pt: "Estou aqui consigo. Diga-me o que sente de diferente hoje.",
 };
 
-function drAiFirstMessage(language: string) {
+export function drAiFirstMessage(language: string, name = "") {
   const key = language.trim().toLowerCase().split(/[-_]/)[0] || "en";
-  return DR_AI_FIRST_MESSAGES[key] ?? DR_AI_FIRST_MESSAGES.en;
+  const greeting = DR_AI_FIRST_MESSAGES[key] ?? DR_AI_FIRST_MESSAGES.en;
+  const safeName = name.trim();
+  if (!safeName) return greeting;
+
+  const personalized: Record<string, string> = {
+    en: `I'm here with you, ${safeName}. Take your time, and tell me what feels different today.`,
+    es: `Estoy aquí contigo, ${safeName}. Tómate tu tiempo y cuéntame qué notas diferente hoy.`,
+    fr: `Je suis là avec vous, ${safeName}. Prenez votre temps et dites-moi ce qui vous semble différent aujourd’hui.`,
+    de: `Ich bin für Sie da, ${safeName}. Lassen Sie sich Zeit und sagen Sie mir, was sich heute anders anfühlt.`,
+    it: `Sono qui con te, ${safeName}. Prenditi il tuo tempo e dimmi cosa ti sembra diverso oggi.`,
+    pt: `Estou aqui consigo, ${safeName}. Não tenha pressa e diga-me o que sente de diferente hoje.`,
+  };
+  return personalized[key] ?? personalized.en;
 }
 
 export async function voiceContextHandler(req: Request, res: Response) {
@@ -123,7 +135,10 @@ export async function voiceContextHandler(req: Request, res: Response) {
       dynamicVariables.voice_triage_tool_token = voiceTriageToken;
       dynamicVariables.secret__voice_triage_tool_token = voiceTriageToken;
       dynamicVariables.language = String(dynamicVariables.preferred_language || "en");
-      dynamicVariables.dr_ai_first_message = drAiFirstMessage(String(dynamicVariables.language));
+      dynamicVariables.dr_ai_first_message = drAiFirstMessage(
+        String(dynamicVariables.language),
+        String(dynamicVariables.preferred_name || dynamicVariables.first_name || ""),
+      );
     }
     return res.json({ domain, dynamic_variables: dynamicVariables });
   } catch (err) {

@@ -32,6 +32,15 @@ export function retainedMessagesForStatus(status: VoiceTriageStatus, messages: C
   return status === "active" ? messages : [];
 }
 
+export function terminalVoiceTriageResponse(session: {
+  status?: unknown;
+  latest_response_json?: unknown;
+}) {
+  if (session.status !== "complete" && session.status !== "emergency") return null;
+  const latestResponse = safeObject(session.latest_response_json);
+  return Object.keys(latestResponse).length ? latestResponse : null;
+}
+
 const voiceTriageToolSchema = z.object({
   user_id: z.string().min(1),
   conversation_id: z.string().min(1),
@@ -303,6 +312,21 @@ export function voiceQuestionFor(response: TriageStepResponse) {
     };
 }
 
+const REVIEW_ANSWER_KINDS = new Set(["symptom", "location", "severity", "duration", "trend"]);
+
+export function voiceReviewAnswers(wizard: TriageWizardContext | undefined) {
+  const answers = wizard?.quickAnswers ?? [];
+  const latestByKind = new Map<string, TriageWizardAnswer>();
+  answers.forEach((answer) => {
+    if (answer.kind && REVIEW_ANSWER_KINDS.has(answer.kind)) {
+      latestByKind.set(answer.kind, answer);
+    }
+  });
+  return ["symptom", "location", "severity", "duration", "trend"]
+    .map((kind) => latestByKind.get(kind))
+    .filter((answer): answer is TriageWizardAnswer => Boolean(answer));
+}
+
 function actionOptionsFor(input: {
   response: TriageStepResponse;
   status: VoiceTriageStatus;
@@ -347,6 +371,7 @@ function actionOptionsFor(input: {
 function toolResponseFor(input: {
   response: TriageStepResponse;
   status: VoiceTriageStatus;
+  wizard?: TriageWizardContext;
   reportId?: string | null;
   sentTo?: string[];
   staffReviewRequested?: boolean;
@@ -366,6 +391,9 @@ function toolResponseFor(input: {
       route: "/health/symptom-check",
       show_live_voice_check: true,
     },
+    ...(input.response.wizardStage === "support" ? {
+      review_answers: voiceReviewAnswers(input.wizard),
+    } : {}),
     ...(input.response.summary ? {
       report: {
         triage_report_id: input.reportId ?? null,
@@ -582,6 +610,8 @@ async function runVoiceTriageSessionTurnUnlocked(input: VoiceTriageSessionTurnIn
     locale: input.locale,
     healthMemory,
   });
+  const terminalResponse = terminalVoiceTriageResponse(session);
+  if (terminalResponse) return terminalResponse;
 
   const priorMessages = safeMessages(session.messages_json);
   const priorWizard = safeWizard(session.wizard_json);
@@ -632,6 +662,7 @@ async function runVoiceTriageSessionTurnUnlocked(input: VoiceTriageSessionTurnIn
   const toolResponse = toolResponseFor({
     response,
     status,
+    wizard: nextWizard,
     reportId: completion.reportId,
     sentTo,
     staffReviewRequested,
