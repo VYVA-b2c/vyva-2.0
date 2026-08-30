@@ -2,7 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import AppShell, { SosSheet } from "./AppShell";
+import {
+  buildVoiceActionRouteState,
+  emergencyProfileContactFromState,
+  getAppShellLayout,
+  isBrainCoachAppRoute,
+  usesBrainCoachDocklessRoute,
+} from "./appShellUtils";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
@@ -205,10 +212,72 @@ describe("app shell route layout", () => {
     ["/activities/relax-breathe", "fullscreen"],
     ["/memory-games/word_recall", "fullscreen"],
     ["/attention-boosters/rhythm-tap", "fullscreen"],
+    ["/dual-task-walk", "fullscreen"],
     ["/profiles/select", "compact"],
     ["/onboarding/profile/health", "compact"],
   ] as const)("classifies %s as %s", (pathname, layout) => {
     expect(getAppShellLayout(pathname)).toBe(layout);
+  });
+
+  it.each([
+    "/mind-memory",
+    "/mind-memory/cognitive-assessment",
+    "/memory-games",
+    "/memory-games/remember-later",
+    "/attention-boosters",
+    "/executive-function",
+    "/senses",
+    "/senses/listen-closely",
+    "/spatial-navigator",
+    "/face-name-match",
+    "/dual-task-walk",
+  ])("treats %s as a Brain Coach route", (pathname) => {
+    expect(isBrainCoachAppRoute(pathname)).toBe(true);
+  });
+
+  it.each([
+    "/memory-games",
+    "/memory-games/remember-later",
+    "/attention-boosters",
+    "/executive-function",
+    "/senses",
+    "/senses/listen-closely",
+    "/spatial-navigator",
+    "/face-name-match",
+    "/dual-task-walk",
+  ])("removes the global bottom dock on Brain Coach module route %s", (pathname) => {
+    expect(usesBrainCoachDocklessRoute(pathname)).toBe(true);
+  });
+
+  it.each([
+    "/mind-memory",
+    "/mind-memory/cognitive-assessment",
+  ])("keeps the global bottom dock available on Brain Coach entry route %s", (pathname) => {
+    expect(usesBrainCoachDocklessRoute(pathname)).toBe(false);
+  });
+
+  it("renders the bottom dock on the Brain Coach main menu", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
+        <AppShell>
+          <div>Brain menu</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
+
+  it("hides the bottom dock inside Brain Coach module hubs", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games"]}>
+        <AppShell>
+          <div>Memory module</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
   });
 
   it.each([

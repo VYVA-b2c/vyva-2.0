@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
+import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
@@ -9,6 +10,7 @@ import { normalizeGameLanguage } from "./shared/language";
 const PURPLE = "#6B21A8";
 const GOLD = "#F59E0B";
 const BACKGROUND = "#FAF9F6";
+const SPATIAL_NAVIGATOR_SCENE_ID = "brain_coach.activity_session.memory.spatial_navigator";
 
 const CELL_COLORS = {
   empty: "#FAF9F6",
@@ -820,17 +822,28 @@ export default function SpatialNavigator({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <div className="spatial-screen spatial-center">
-        <style>{spatialStyles}</style>
-        <div className="spatial-spinner" />
-        <p className="spatial-loading">{text.loading}</p>
-      </div>
+      <BrainCoachLoadingState
+        title={text.title}
+        label={text.loading}
+        testId="spatial-navigator-flow-shell"
+        presentationId={`${SPATIAL_NAVIGATOR_SCENE_ID}.loading.touch`}
+        sceneId={SPATIAL_NAVIGATOR_SCENE_ID}
+      />
     );
   }
 
   return (
-    <div className={`spatial-screen ${screen === "result" ? "spatial-result-screen" : ""}`}>
-      <style>{spatialStyles}</style>
+    <BrainCoachFullscreenActivity
+      title={text.title}
+      testId="spatial-navigator-flow-shell"
+      presentationId={`${SPATIAL_NAVIGATOR_SCENE_ID}.${screen}.touch`}
+      sceneId={SPATIAL_NAVIGATOR_SCENE_ID}
+      sceneKind={screen === "result" ? "completion" : screen === "intro" ? "intro" : "playing"}
+      sceneLayout={screen === "draw" ? "route_draw" : screen === "memorise" ? "route_memorise" : screen === "result" ? "modal_actions" : "route_preview"}
+      state={screen === "result" ? "complete" : "default"}
+    >
+      <div className={`spatial-screen ${screen === "result" ? "spatial-result-screen" : ""}`}>
+        <style>{spatialStyles}</style>
 
       {screen === "intro" && (
         <section className="spatial-panel spatial-intro">
@@ -905,57 +918,36 @@ export default function SpatialNavigator({ userId, onExit }) {
       )}
 
       {screen === "result" && (
-        <section className="spatial-panel spatial-result">
-          <div className="spatial-result-icon" aria-hidden="true">{resultAccuracy >= 60 ? "🎉" : "😊"}</div>
-          <h1 className="spatial-title">{resultAccuracy >= 60 ? text.resultGreat : text.resultTry}</h1>
-
-          <div className="spatial-canvas-wrap spatial-canvas-result">
-            <canvas ref={canvasRef} className="spatial-canvas" aria-label={text.readySoon} />
-          </div>
-
-          <div className="spatial-stats">
-            <div>
-              <span>{text.accuracy}</span>
-              <strong>{resultAccuracy}%</strong>
+        <BrainGameCompletionDialog
+          title={resultAccuracy >= 60 ? text.resultGreat : text.resultTry}
+          summary={`${text.accuracy}: ${resultAccuracy}% | ${text.score}: ${sessionResult?.score ?? 0}`}
+          metrics={[
+            { label: text.accuracy, value: `${resultAccuracy}%` },
+            { label: text.streak, value: `${userState?.streak_days ?? 1} ${text.days}` },
+            { label: text.score, value: sessionResult?.score ?? 0 },
+            { label: text.level, value: `${text.level} ${resultTier}` },
+          ]}
+          continueLabel={continueLabel}
+          replayLabel={text.playAgain}
+          anotherLabel={text.playAnotherGame}
+          onContinue={loadGame}
+          onReplay={loadSameLevelGame}
+          onAnother={handleExit}
+          details={
+            <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
+              <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                <span>{text.progressNext} {nextTier}</span>
+                <span>{winProgress}/3</span>
+              </div>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${(winProgress / 3) * 100}%` }} />
+              </div>
             </div>
-            <div>
-              <span>{text.streak}</span>
-              <strong>{userState?.streak_days ?? 1} {text.days}</strong>
-            </div>
-            <div>
-              <span>{text.score}</span>
-              <strong>{sessionResult?.score ?? 0}</strong>
-            </div>
-            <div>
-              <span>{text.level}</span>
-              <strong>{text.level} {resultTier}</strong>
-            </div>
-          </div>
-
-          <div className="spatial-progress-track" aria-hidden="true">
-            <div className="spatial-progress-fill" style={{ width: `${(winProgress / 3) * 100}%` }} />
-          </div>
-          <p className="spatial-hint">{text.progressNext} {nextTier}</p>
-
-          <BrainGameCompletionDialog
-            title={resultAccuracy >= 60 ? text.resultGreat : text.resultTry}
-            summary={`${text.accuracy}: ${resultAccuracy}% | ${text.score}: ${sessionResult?.score ?? 0}`}
-            metrics={[
-              { label: text.accuracy, value: `${resultAccuracy}%` },
-              { label: text.streak, value: `${userState?.streak_days ?? 1} ${text.days}` },
-              { label: text.score, value: sessionResult?.score ?? 0 },
-              { label: text.level, value: `${text.level} ${resultTier}` },
-            ]}
-            continueLabel={continueLabel}
-            replayLabel={text.playAgain}
-            anotherLabel={text.playAnotherGame}
-            onContinue={loadGame}
-            onReplay={loadSameLevelGame}
-            onAnother={handleExit}
-          />
-        </section>
+          }
+        />
       )}
-    </div>
+      </div>
+    </BrainCoachFullscreenActivity>
   );
 }
 

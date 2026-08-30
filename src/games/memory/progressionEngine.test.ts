@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRepeatLevelForResult, MEMORY_LEVEL_UP_ACCURACY } from "./progressionEngine";
+import { getRepeatLevelForResult, MEMORY_LEVEL_UP_ACCURACY, pickNextVariantForSameGame } from "./progressionEngine";
 
 describe("memory game progression", () => {
   it("keeps repeat on the current level below the level-up threshold", () => {
@@ -11,6 +11,13 @@ describe("memory game progression", () => {
   });
 
   it("does not move beyond the maximum level", () => {
-    expect(getRepeatLevelForResult(5, 100)).toBe(5);
+    expect(getRepeatLevelForResult(20, 100)).toBe(20);
+  });
+
+  it("can exclude the just-played variant before storage history catches up", () => {
+    const nextVariant = pickNextVariantForSameGame([], "memory_match", 1, "memory_match-l1-v1");
+
+    expect(nextVariant.id).not.toBe("memory_match-l1-v1");
+    expect(nextVariant.level).toBe(1);
   });
 });

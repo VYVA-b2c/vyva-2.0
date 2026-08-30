@@ -24,7 +24,13 @@ describe("SensesPage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Listen Closely/i }));
+    expect(screen.getByTestId("senses-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
+    expect(screen.getByTestId("senses-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.sharpen_senses");
+    expect(screen.getByTestId("senses-flow-shell").querySelector('[data-vyva-icon-tile="signal"]')).toBeInTheDocument();
+    const listenButton = screen.getByRole("button", { name: /Listen Closely/i });
+    expect(listenButton.querySelector('[data-vyva-accent="signal"]')).toBeInTheDocument();
+
+    fireEvent.click(listenButton);
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/listen-closely");
   });

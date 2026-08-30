@@ -20,7 +20,13 @@ describe("ExecutiveFunctionPage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Number Trails/i }));
+    expect(screen.getByTestId("executive-function-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
+    expect(screen.getByTestId("executive-function-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.improve_thinking");
+    expect(screen.getByTestId("executive-function-flow-shell").querySelector('[data-vyva-icon-tile="knobs"]')).toBeInTheDocument();
+    const numberTrailsButton = screen.getByRole("button", { name: /Number Trails/i });
+    expect(numberTrailsButton.querySelector('[data-vyva-accent="path"]')).toBeInTheDocument();
+
+    fireEvent.click(numberTrailsButton);
 
     expect(screen.getByRole("heading", { name: "Number Trails page" })).toBeInTheDocument();
   });

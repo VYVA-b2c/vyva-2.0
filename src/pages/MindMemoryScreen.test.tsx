@@ -88,18 +88,30 @@ describe("MindMemoryScreen", () => {
   it("renders the approved pillar layout", () => {
     renderMindMemory();
 
-    expect(screen.getByTestId("mind-memory-master-hero")).toHaveTextContent("Mind check ready");
+    expect(screen.getByTestId("mind-memory-master-hero")).toHaveAttribute("data-hero-layout", "canonical-menu");
+    expect(screen.getByTestId("mind-memory-master-hero")).toHaveTextContent("Brain Coach");
+    expect(screen.getByTestId("mind-memory-master-hero")).toHaveTextContent("Memory, focus, thinking, and senses.");
+    expect(screen.getByTestId("mind-memory-master-layout")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
+    expect(screen.getByTestId("mind-memory-master-layout")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.main");
     expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("card-mind-memory-train-reflexes")).toHaveTextContent("Train Reflexes");
-    expect(screen.getByTestId("card-mind-memory-boost-focus")).toHaveTextContent("Boost Focus");
+    expect(screen.getByTestId("card-mind-memory-boost-focus")).toHaveTextContent("Improve Thinking");
     expect(screen.getByTestId("card-mind-memory-sharpen-senses")).toHaveTextContent("Sharpen Senses");
     expect(screen.queryByTestId("card-mind-memory-sleep")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mind-memory-cards").querySelector('[data-card-layout="canonical-action-grid"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory-detail")).toHaveTextContent("Recall and remembering");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveAccessibleName("Strengthen Memory. Remember information now, later, or after distraction.");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory").querySelector('[data-vyva-icon-tile="bridge"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-mind-memory-train-reflexes").querySelector('[data-vyva-accent="pulse"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-mind-memory-boost-focus").querySelector('[data-vyva-accent="knobs"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-mind-memory-sharpen-senses").querySelector('[data-vyva-accent="signal"]')).toBeInTheDocument();
 
     const fastHelp = screen.getByTestId("mind-memory-fast-help");
-    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
-    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
+    expect(fastHelp).toHaveAttribute("data-fast-help-layout", "canonical-action-grid");
+    expect(within(fastHelp).getAllByRole("button")).toHaveLength(1);
     expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Cognitive Assessment");
+    expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment").querySelector('[data-vyva-accent="check"]')).toBeInTheDocument();
   });
 
   it("uses existing cognitive routes", () => {
@@ -131,7 +143,12 @@ describe("MindMemoryScreen", () => {
   });
 
   it("routes calm breathing from fast help", () => {
+    vi.useFakeTimers();
     renderMindMemory();
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
 
     fireEvent.click(screen.getByTestId("button-mind-memory-fast-relax-breathe"));
 
@@ -171,16 +188,36 @@ describe("MindMemoryScreen", () => {
     vi.useFakeTimers();
     renderMindMemory();
 
-    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
-    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
     expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Cognitive Assessment");
 
     act(() => {
       vi.advanceTimersByTime(9000);
     });
 
+    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
+    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
     expect(screen.getByTestId("button-mind-memory-fast-play-game")).toHaveTextContent("Play Game");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
     expect(screen.getByTestId("button-mind-memory-fast-listen-closely")).toHaveTextContent("Listen Closely");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
     expect(screen.getByTestId("button-mind-memory-fast-calm-focus")).toHaveTextContent("Calm Focus");
   });
 });

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ALargeSmall, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, type LucideIcon } from "lucide-react";
+import { Activity, ALargeSmall, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -1337,6 +1337,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "health",
       icon: Heart,
+      iconAccent: "pulse",
       title: t("home.master.cards.healthShortTitle", "My Health"),
       detail: t("home.master.cards.healthDetailShort", "Check-ins, vitals, medicines"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
@@ -1349,6 +1350,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-memory",
       icon: Brain,
+      iconAccent: "bridge",
       title: t("home.master.cards.mindMemoryShortTitle", "My Brain"),
       detail: t("home.master.cards.mindMemoryDetailShort", "Memory, focus, calm"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
@@ -1361,6 +1363,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "social",
       icon: Users,
+      iconAccent: "link",
       title: t("home.master.cards.communityShortTitle", "Community"),
       detail: t("home.master.cards.communityDetailShort", "Rooms and support"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
@@ -1373,6 +1376,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "concierge",
       icon: ConciergeBell,
+      iconAccent: "clapper",
       title: t("home.master.cards.conciergeShortTitle", "Concierge"),
       detail: t("home.master.cards.conciergeDetailShort", "Everyday help"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
@@ -1458,7 +1462,8 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
   const homeMasterMindCards: MasterDashboardCard[] = [
     {
       id: "mind-memory",
-      icon: BrainCircuit,
+      icon: Brain,
+      iconAccent: "bridge",
       title: t("mindMemory.cards.strengthenMemory", "Strengthen Memory"),
       detail: t("mindMemory.cards.strengthenMemoryDetail", "Practice recall, matching, and daily routines."),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
@@ -1468,6 +1473,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-reflexes",
       icon: Zap,
+      iconAccent: "pulse",
       title: t("mindMemory.cards.trainReflexes", "Train Reflexes"),
       detail: t("mindMemory.cards.trainReflexesDetail", "Build faster focus and response."),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
@@ -1477,8 +1483,9 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-focus",
       icon: Puzzle,
-      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
-      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
+      iconAccent: "knobs",
+      title: t("mindMemory.cards.improveThinking", "Improve Thinking"),
+      detail: t("mindMemory.cards.improveThinkingDetail", "Challenge logic, planning, and problem solving."),
       tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/executive-function"),
       testId: "card-home-mind-focus",
@@ -1486,6 +1493,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-senses",
       icon: Headphones,
+      iconAccent: "signal",
       title: t("mindMemory.cards.sharpenSenses", "Sharpen Senses"),
       detail: t("mindMemory.cards.sharpenSensesDetail", "Practice sound, breath, and sensory recall."),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },

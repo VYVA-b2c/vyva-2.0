@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, CircleHelp, Layers, Loader2, Palette, Ruler, Shapes, Square } from "lucide-react";
+import { ArrowLeft, Check, CircleHelp, Layers, Palette, Ruler, Shapes, Square } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -28,7 +34,7 @@ const COLOR_HEX = {
 const COLOR_ORDER = ["red", "blue", "yellow", "green", "purple", "orange"];
 const SHAPE_ORDER = ["circle", "square", "triangle", "star", "diamond", "cross"];
 const SIZE_ORDER = ["small", "medium", "large"];
-const MAX_CATEGORY_SORT_TIER = 10;
+const MAX_CATEGORY_SORT_TIER = BRAIN_COACH_MAX_LEVEL;
 const LEVEL_UP_ACCURACY_PCT = 75;
 const LEVEL_DOWN_ACCURACY_PCT = 45;
 const LOCAL_STATE_PREFIX = "vyva_category_sort_user_state";
@@ -1002,6 +1008,7 @@ export default function CategorySort({
   const currentSequence = sequence ?? FALLBACK_SEQUENCE;
   const currentCard = cards[currentCardIndex];
   const currentRule = currentSequence.rules[currentRuleIndex] ?? currentSequence.rules[0];
+  const currentBand = getBrainCoachLevelBand(currentSequence.difficulty_tier ?? 1);
   const categories = getCategoriesForRule(currentRule, cards);
   const progress = cards.length ? ((currentCardIndex + 1) / cards.length) * 100 : 0;
   const RuleIcon = iconForRule(currentRule);
@@ -1009,8 +1016,14 @@ export default function CategorySort({
   const result = sessionResult ?? computeScore(sessionLog, false);
   const progressToPromotion = clamp((result.combined_accuracy_pct / LEVEL_UP_ACCURACY_PCT) * 100, 0, 100);
   const resultTier = Number(userState?.current_tier ?? currentSequence.difficulty_tier ?? 1);
+  const resultBand = getBrainCoachLevelBand(resultTier);
   const completedTier = Number(currentSequence.difficulty_tier ?? 1);
   const resultWasPromoted = resultTier > completedTier;
+  const resultSummary = resultWasPromoted
+    ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: completedTier })
+    : result.combined_accuracy_pct >= LEVEL_UP_ACCURACY_PCT
+      ? `${text.score}: ${result.score} | ${text.accuracy}: ${Math.round(result.accuracy_pct)}%`
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.continueAction;
@@ -1031,18 +1044,27 @@ export default function CategorySort({
 
   if (screen === "loading") {
     return (
-      <div className="flex h-[100dvh] items-center justify-center overflow-hidden px-8" style={shellStyle}>
-        <div className="text-center">
-          <Loader2 className="mx-auto h-20 w-20 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-8 text-[28px] font-semibold">{text.loading}</p>
-        </div>
-      </div>
+      <BrainCoachLoadingState
+        title={text.title}
+        label={text.loading}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.loading.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+      />
     );
   }
 
   if (screen === "intro") {
     return (
-      <div className="min-h-[100dvh] overflow-y-auto px-4 sm:px-6 md:px-8" style={shellStyle} data-testid="category-sort-intro">
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.intro.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+        sceneKind="intro"
+        sceneLayout="rule_preview"
+      >
+        <div className="min-h-[100dvh] overflow-y-auto px-4 sm:px-6 md:px-8" style={shellStyle} data-testid="category-sort-intro">
         <div className="mx-auto grid min-h-[100dvh] w-full max-w-[760px] grid-rows-[auto_1fr_auto] gap-3 py-3 sm:gap-5 sm:py-5">
           <header className="flex shrink-0 items-center justify-between gap-3">
             <button
@@ -1054,7 +1076,7 @@ export default function CategorySort({
               {text.back}
             </button>
             <div className="flex min-h-[48px] shrink-0 items-center rounded-full px-4 text-[18px] font-bold text-white shadow-vyva-card sm:min-h-[58px] sm:px-5 sm:text-[21px]" style={{ background: BRAND.gold }}>
-              {text.level} {currentSequence.difficulty_tier}
+              {text.level} {currentSequence.difficulty_tier} - {currentBand.label}
             </div>
           </header>
 
@@ -1109,7 +1131,8 @@ export default function CategorySort({
             </button>
           </footer>
         </div>
-      </div>
+        </div>
+      </BrainCoachFullscreenActivity>
     );
   }
 
@@ -1122,7 +1145,15 @@ export default function CategorySort({
     const TutorialRuleIcon = iconForRule(tutorialRule);
 
     return (
-      <div className="relative h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={shellStyle}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.tutorial.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+        sceneKind="tutorial"
+        sceneLayout="rule_example"
+      >
+        <div className="relative h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={shellStyle}>
         {tutorialOverlay && (
           <div className="absolute inset-0 z-30 flex items-center justify-center px-6 text-center" style={{ background: BRAND.gold }}>
             <div>
@@ -1186,7 +1217,8 @@ export default function CategorySort({
             {text.start}
           </button>
         </div>
-      </div>
+        </div>
+      </BrainCoachFullscreenActivity>
     );
   }
 
@@ -1194,7 +1226,15 @@ export default function CategorySort({
     const showSemanticLabel = Number(currentSequence.difficulty_tier ?? 1) >= 6;
 
     return (
-      <div className="relative h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={shellStyle}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="category-sort-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.category_sort.playing.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+        sceneKind="playing"
+        sceneLayout="sorting_board"
+      >
+        <div className="relative h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={shellStyle}>
         {showRuleChange && ruleChangeRule && (
           <div className="absolute inset-0 z-40 flex items-center justify-center px-6 text-center" style={{ background: BRAND.gold }}>
             <div>
@@ -1272,57 +1312,25 @@ export default function CategorySort({
             {text.streak}: {consecutiveCorrect}
           </footer>
         </div>
-      </div>
+        </div>
+      </BrainCoachFullscreenActivity>
     );
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={shellStyle}>
-      <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="text-center text-[64px] leading-none sm:text-[82px]">{result.score >= 600 ? "🎉" : "😊"}</div>
-          <h1 className="mt-3 text-center font-display text-[38px] font-bold leading-[1.1] sm:mt-5 sm:text-[44px]">
-            {result.score >= 600 ? text.resultGreat : text.resultGood}
-          </h1>
-
-          <section className="mt-5 rounded-[8px] border-2 bg-white p-4 shadow-vyva-card sm:mt-7 sm:p-6" style={{ borderColor: BRAND.border }}>
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <Metric label={text.accuracy} value={`${Math.round(result.accuracy_pct)}%`} />
-              <Metric
-                label={text.flexibility}
-                value={`${Math.round(result.flexibility_pct)}%`}
-                hint={text.flexibilityHint}
-              />
-              <Metric label={text.score} value={String(result.score)} accent />
-              <Metric label={text.streak} value={`${userState?.streak_days ?? 1} ${text.days}`} accent />
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-[8px] border-2 bg-white p-4 sm:mt-5 sm:p-5" style={{ borderColor: BRAND.border }}>
-            <p className="text-[24px] font-black leading-[1.15]">{text.ruleBreakdown}</p>
-            <div className="mt-3 grid gap-2">
-              {groupedResults.length ? groupedResults.map((group) => (
-                <div key={group.label} className="flex items-center justify-between gap-3 rounded-[8px] bg-[#FFF9F1] px-4 py-3">
-                  <span className="text-[22px] font-bold leading-[1.1]" style={{ color: BRAND.muted }}>{group.label}</span>
-                  <span className="text-[28px] font-black tracking-[0.08em]" style={{ color: BRAND.purple }}>{group.marks.join(" ")}</span>
-                </div>
-              )) : (
-                <p className="text-[22px] font-bold" style={{ color: BRAND.muted }}>-</p>
-              )}
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-[8px] border-2 bg-white p-4 sm:mt-5 sm:p-5" style={{ borderColor: BRAND.border }}>
-            <p className="text-[24px] font-bold">{text.progressNext} {nextTier}</p>
-            <div className="mt-4 h-5 overflow-hidden rounded-full bg-[#EDE6F4]">
-              <div className="h-full" style={{ width: `${progressToPromotion}%`, background: BRAND.purple }} />
-            </div>
-          </section>
-        </div>
-
+    <BrainCoachFullscreenActivity
+      title={text.title}
+      testId="category-sort-flow-shell"
+      presentationId="brain_coach.activity_session.improve_thinking.category_sort.result.touch"
+      sceneId="brain_coach.activity_session.improve_thinking.category_sort"
+      sceneKind="completion"
+      sceneLayout="modal_actions"
+      state="complete"
+    >
+      <div className="min-h-[100dvh]" style={shellStyle}>
         <BrainGameCompletionDialog
           title={result.score >= 600 ? text.resultGreat : text.resultGood}
-          summary={`${text.score}: ${result.score} | ${text.accuracy}: ${Math.round(result.accuracy_pct)}%`}
+          summary={resultSummary}
           metrics={[
             { label: text.accuracy, value: `${Math.round(result.accuracy_pct)}%` },
             { label: text.flexibility, value: `${Math.round(result.flexibility_pct)}%` },
@@ -1342,9 +1350,38 @@ export default function CategorySort({
           onReplay={handleReplay}
           onAnother={handleExit}
           onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+          details={
+            <div className="grid gap-3">
+              <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">
+                <p className="text-[14px] font-black uppercase text-vyva-text-2">{text.ruleBreakdown}</p>
+                <div className="mt-2 grid gap-2">
+                  {groupedResults.length ? groupedResults.map((group) => (
+                    <div key={group.label} className="flex items-center justify-between gap-3 rounded-[14px] bg-white px-3 py-2">
+                      <span className="text-[15px] font-bold text-vyva-text-2">{group.label}</span>
+                      <span className="text-[18px] font-black tracking-[0.08em] text-vyva-purple">{group.marks.join(" ")}</span>
+                    </div>
+                  )) : (
+                    <p className="text-[15px] font-bold text-vyva-text-2">-</p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                  <span>{text.progressNext} {nextTier}</span>
+                  <span>{Math.round(progressToPromotion)}%</span>
+                </div>
+                <p className="mt-1 text-[14px] font-bold text-vyva-text-2">
+                  {text.level} {resultTier} - {resultBand.label}
+                </p>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                  <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${progressToPromotion}%` }} />
+                </div>
+              </div>
+            </div>
+          }
         />
       </div>
-    </div>
+    </BrainCoachFullscreenActivity>
   );
 }
 

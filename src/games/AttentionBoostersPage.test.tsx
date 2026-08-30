@@ -19,7 +19,13 @@ describe("AttentionBoostersPage", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Curious Minds/i }));
+    expect(screen.getByTestId("attention-boosters-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
+    expect(screen.getByTestId("attention-boosters-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.train_reflexes");
+    expect(screen.getByTestId("attention-boosters-flow-shell").querySelector('[data-vyva-icon-tile="pulse"]')).toBeInTheDocument();
+    const curiousMindsButton = screen.getByRole("button", { name: /Curious Minds/i });
+    expect(curiousMindsButton.querySelector('[data-vyva-accent="spark"]')).toBeInTheDocument();
+
+    fireEvent.click(curiousMindsButton);
 
     expect(screen.getByRole("heading", { name: "Curious Minds game" })).toBeInTheDocument();
   });

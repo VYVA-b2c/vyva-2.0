@@ -1,4 +1,5 @@
 import { translate } from "@/i18n";
+import { clampBrainCoachLevel } from "../shared/brainCoachProgression";
 import type { LanguageCode } from "@/i18n/languages";
 import { getGameHistory, getRecentGameHistory } from "./gameStorage";
 import { getGameDefinition, getGameLevel, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
@@ -13,12 +14,8 @@ const DOMAIN_ROTATION: CognitiveDomain[] = [
 
 export const MEMORY_LEVEL_UP_ACCURACY = 80;
 
-function clampLevel(level: number) {
-  return Math.min(5, Math.max(1, level));
-}
-
 export function getRepeatLevelForResult(currentLevel: number, accuracy: number) {
-  return clampLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel);
+  return clampBrainCoachLevel(accuracy >= MEMORY_LEVEL_UP_ACCURACY ? currentLevel + 1 : currentLevel);
 }
 
 function sortNewestFirst(results: GameResult[]) {
@@ -33,9 +30,9 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
   const latestLevel = gameHistory[0].level;
   const averageAccuracy = recent.reduce((sum, entry) => sum + entry.accuracy, 0) / recent.length;
 
-  if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampLevel(latestLevel + 1);
-  if (averageAccuracy < 50) return clampLevel(latestLevel - 1);
-  return clampLevel(latestLevel);
+  if (averageAccuracy >= MEMORY_LEVEL_UP_ACCURACY) return clampBrainCoachLevel(latestLevel + 1);
+  if (averageAccuracy < 50) return clampBrainCoachLevel(latestLevel - 1);
+  return clampBrainCoachLevel(latestLevel);
 }
 
 export function pickVariantForGame(history: GameResult[], gameType: MemoryGameType, level: number) {
@@ -51,7 +48,7 @@ export function pickVariantForGame(history: GameResult[], gameType: MemoryGameTy
   return levelConfig.variants.find((variant) => !recentVariantIds.has(variant.id)) ?? levelConfig.variants[0];
 }
 
-function pickNextVariantForSameGame(history: GameResult[], gameType: MemoryGameType, level: number, excludeVariantId?: string) {
+export function pickNextVariantForSameGame(history: GameResult[], gameType: MemoryGameType, level: number, excludeVariantId?: string) {
   const levelConfig = getGameLevel(gameType, level);
   const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const sameGameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
@@ -120,11 +117,12 @@ export async function selectNextVariantForSameGame(
   gameType: MemoryGameType,
   language: LanguageCode,
   levelOverride?: number,
+  excludeVariantId?: string,
 ): Promise<Recommendation> {
   const history = await getGameHistory(userId);
   const gameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
   const level = levelOverride ?? getRecommendedLevelForGame(history, gameType);
-  const latestVariantId = gameHistory[0]?.variantId;
+  const latestVariantId = excludeVariantId ?? gameHistory[0]?.variantId;
   const variant = pickNextVariantForSameGame(history, gameType, level, latestVariantId);
 
   return {
