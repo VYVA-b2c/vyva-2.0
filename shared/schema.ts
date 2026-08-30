@@ -3524,6 +3524,59 @@ export const insertVoiceQaSessionReviewSchema = createInsertSchema(voiceQaSessio
 export type InsertVoiceQaSessionReview = z.infer<typeof insertVoiceQaSessionReviewSchema>;
 export type VoiceQaSessionReviewRow = typeof voiceQaSessionReviews.$inferSelect;
 
+export const elevenlabsConversations = pgTable("elevenlabs_conversations", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  provider_conversation_id: text("provider_conversation_id").notNull().unique(),
+  vyva_session_id:          text("vyva_session_id"),
+  user_id:                  text("user_id"),
+  agent_id:                 text("agent_id"),
+  agent_name:               text("agent_name"),
+  branch_id:                text("branch_id"),
+  version_id:               text("version_id"),
+  status:                   text("status").notNull().default("done"),
+  locale:                   text("locale"),
+  call_successful:          text("call_successful"),
+  has_audio:                boolean("has_audio").notNull().default(false),
+  has_transcript:           boolean("has_transcript").notNull().default(false),
+  consent_status:           text("consent_status").notNull().default("not_captured"),
+  consent_version:          text("consent_version"),
+  consent_recorded_at:      timestamp("consent_recorded_at", { withTimezone: true }),
+  started_at:               timestamp("started_at", { withTimezone: true }),
+  completed_at:             timestamp("completed_at", { withTimezone: true }),
+  duration_seconds:         integer("duration_seconds"),
+  retention_delete_at:      timestamp("retention_delete_at", { withTimezone: true }).notNull(),
+  provider_deleted_at:      timestamp("provider_deleted_at", { withTimezone: true }),
+  review_status:            text("review_status").notNull().default("unreviewed"),
+  review_note:              text("review_note"),
+  reviewed_by:              text("reviewed_by"),
+  reviewed_at:              timestamp("reviewed_at", { withTimezone: true }),
+  last_provider_sync_at:    timestamp("last_provider_sync_at", { withTimezone: true }),
+  created_at:               timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:               timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("elevenlabs_conversations_user_completed_idx").on(t.user_id, t.completed_at),
+  index("elevenlabs_conversations_review_completed_idx").on(t.review_status, t.completed_at),
+  index("elevenlabs_conversations_retention_idx").on(t.retention_delete_at),
+]);
+
+export const elevenlabsConversationAccessEvents = pgTable("elevenlabs_conversation_access_events", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  conversation_id:          uuid("conversation_id").notNull().references(() => elevenlabsConversations.id, { onDelete: "cascade" }),
+  provider_conversation_id: text("provider_conversation_id").notNull(),
+  actor_user_id:             text("actor_user_id").notNull(),
+  action:                    text("action").notNull(),
+  reason:                    text("reason").notNull(),
+  succeeded:                 boolean("succeeded").notNull().default(true),
+  metadata:                  jsonb("metadata").notNull().default({}),
+  created_at:                timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("elevenlabs_access_events_conversation_created_idx").on(t.conversation_id, t.created_at),
+  index("elevenlabs_access_events_actor_created_idx").on(t.actor_user_id, t.created_at),
+]);
+
+export type ElevenLabsConversationRow = typeof elevenlabsConversations.$inferSelect;
+export type ElevenLabsConversationAccessEventRow = typeof elevenlabsConversationAccessEvents.$inferSelect;
+
 export const voiceTriageSessions = pgTable("voice_triage_sessions", {
   id:                    uuid("id").primaryKey().defaultRandom(),
   user_id:               text("user_id").notNull(),

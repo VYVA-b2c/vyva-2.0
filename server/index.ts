@@ -18,6 +18,13 @@ import {
   saveVoiceQaSessionReviewHandler,
 } from "./routes/voiceQaSessionReviews.js";
 import {
+  elevenLabsPostCallWebhookHandler,
+  getElevenLabsConversationAudioHandler,
+  getElevenLabsConversationDetailsHandler,
+  listElevenLabsConversationsHandler,
+  updateElevenLabsConversationReviewHandler,
+} from "./routes/elevenLabsConversationReviews.js";
+import {
   completeCallbackOnboardingToolHandler,
   completePhoneOnboardingToolHandler,
   failCallbackOnboardingToolHandler,
@@ -152,6 +159,13 @@ async function fileExists(filePath: string) {
 app.use(cors());
 app.use(languageMiddleware);
 
+// ElevenLabs signs the exact request bytes, so this must run before the global JSON parser.
+app.post(
+  "/api/webhooks/elevenlabs/post-call",
+  express.raw({ type: "application/json", limit: "5mb" }),
+  elevenLabsPostCallWebhookHandler,
+);
+
 // Stripe webhook must receive the raw body before JSON parsing
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
 
@@ -261,6 +275,10 @@ app.use("/api/admin/home/fast-help-outcomes", authMiddleware, requireAdminUser, 
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
 app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
+app.get("/api/admin/voice/conversations", authMiddleware, requireAdminUser, listElevenLabsConversationsHandler);
+app.get("/api/admin/voice/conversations/:conversationId/details", authMiddleware, requireAdminUser, getElevenLabsConversationDetailsHandler);
+app.get("/api/admin/voice/conversations/:conversationId/audio", authMiddleware, requireAdminUser, getElevenLabsConversationAudioHandler);
+app.patch("/api/admin/voice/conversations/:conversationId/review", authMiddleware, requireAdminUser, updateElevenLabsConversationReviewHandler);
 app.get("/api/health/db", authMiddleware, requireAdminUser, dbHealthHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
