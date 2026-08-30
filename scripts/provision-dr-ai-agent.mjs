@@ -30,6 +30,16 @@ function validateManifest(value) {
   if (names.join(",") !== "sync_dr_ai_screen,vyva_triage_step") throw new Error("Dr. AI requires sync_dr_ai_screen and vyva_triage_step");
   const sync = value.tools.find((tool) => tool.tool_config.name === "sync_dr_ai_screen")?.tool_config;
   if (!sync?.expects_response) throw new Error("sync_dr_ai_screen must wait for the client response");
+  const prompt = requireString(value.conversation_config?.agent?.prompt?.prompt, "Dr. AI system prompt");
+  const requiredConversationRules = [
+    "Be warm, calm, patient, and unhurried",
+    "say it only once",
+    "Do not repeat a question that has already been answered",
+    "do not call vyva_triage_step again for that completed session",
+  ];
+  for (const rule of requiredConversationRules) {
+    if (!prompt.includes(rule)) throw new Error(`Dr. AI system prompt is missing required conversation rule: ${rule}`);
+  }
   if (value.privacy?.record_voice !== false || value.privacy?.retention_days !== 0 || value.privacy?.delete_audio !== true) {
     throw new Error("Dr. AI manifest must use maximum privacy defaults");
   }
