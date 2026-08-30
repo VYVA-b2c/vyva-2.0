@@ -33,7 +33,8 @@ describe("VitalsTracker redesign", () => {
   it("uses the real safety label, shows a labelled risk score, and declutters untracked readings", () => {
     renderTracker();
 
-    expect(screen.getByTestId("vitals-hero")).toHaveTextContent("Steady");
+    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Steady");
+    expect(screen.getByLabelText("Steady")).toBeVisible();
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Lower is better");

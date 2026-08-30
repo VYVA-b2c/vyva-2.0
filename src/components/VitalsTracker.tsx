@@ -1551,33 +1551,24 @@ export default function VitalsTracker({
       ) : (
         <>
           <div data-testid="vitals-hero">
-            <section className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 ${dashboardPanel} ${safetyHeroAccent}`}>
-              <div className="flex min-w-0 items-center gap-3 pr-16">
-                   <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                     <VyvaIcon icon={SafetyIcon} accent="check" tone={safetyStatus === "steady" ? "success" : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver" ? "warning" : "danger"} size={22} />
-                   </span>
-                   <div className="min-w-0">
-                     <p className={`font-body text-[10px] font-black uppercase tracking-[0.13em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{copy.safetyTitle}</p>
-                    <h2 className={`mt-0.5 font-body text-[29px] font-extrabold leading-none tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
-                       {safetyLabel(safetyStatus, language)}
-                     </h2>
-                   </div>
-              </div>
-
-              <div className={`mt-4 border-t pt-4 ${isDark ? "border-white/[0.12]" : "border-[#E7DDEB]"}`} data-testid="vitals-hero-metric">
+            <section
+              aria-label={safetyLabel(safetyStatus, language)}
+              className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 pr-[76px] sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 sm:pr-[88px] ${dashboardPanel} ${safetyHeroAccent}`}
+            >
+              <div data-testid="vitals-hero-metric">
                 {activeHeroMetricIndex === 0 ? (
                   <div
-                    className="flex min-h-[62px] items-center gap-3"
+                    className="flex min-h-[68px] items-center gap-3"
                     data-testid="vitals-risk-score"
                     aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
                   >
-                    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                      <VyvaIcon icon={ShieldCheck} accent="trend" size={23} />
+                    <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                      <VyvaIcon icon={ShieldCheck} accent="trend" size={25} />
                     </span>
                     <div className="min-w-0">
                       <p className={`font-body text-[10px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
                       <div className="mt-0.5 flex items-baseline gap-1.5">
-                        <span className="font-body text-[38px] font-extrabold leading-none tracking-[-0.05em] sm:text-[42px]" style={{ color: riskColor }}>{riskScore}</span>
+                        <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.05em] sm:text-[46px]" style={{ color: riskColor }}>{riskScore}</span>
                         <span className={`font-body text-[13px] font-black sm:text-[15px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
                         <span className={`ml-1 font-body text-[11px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</span>
                       </div>
@@ -1585,16 +1576,16 @@ export default function VitalsTracker({
                   </div>
                 ) : activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
                   <div className="min-w-0" data-testid="vitals-hero-marker">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                        <SignalIcon type={activeHeroConfig.icon} className="h-[23px] w-[23px]" />
+                    <div className="flex min-h-[68px] min-w-0 items-center gap-3">
+                      <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                        <SignalIcon type={activeHeroConfig.icon} className="h-[25px] w-[25px]" />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className={`truncate font-body text-[10px] font-black uppercase tracking-[0.11em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>
                           {signalLabel(activeHeroSignal, activeHeroConfig, language)}
                         </p>
                         <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
-                          <span className={`truncate font-body text-[30px] font-extrabold leading-none tracking-[-0.03em] sm:text-[34px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                          <span className={`truncate font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
                             {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
                           </span>
                           {activeHeroDeviation != null ? (
