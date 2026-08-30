@@ -306,6 +306,63 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
   });
 
+  it("keeps the emergency acknowledgement when the intro remounts for voice mode", () => {
+    const onEmergencyModalDismiss = vi.fn();
+    const { rerender } = render(
+      <IntroScreen
+        key="touch"
+        onStart={vi.fn()}
+        showEmergencyModal
+        onEmergencyModalDismiss={onEmergencyModalDismiss}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    expect(onEmergencyModalDismiss).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <IntroScreen
+        key="voice"
+        onStart={vi.fn()}
+        showEmergencyModal={false}
+        onEmergencyModalDismiss={onEmergencyModalDismiss}
+      />,
+    );
+
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
+  it("does not show the emergency modal again when Ask Dr. AI switches to voice", async () => {
+    const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: true, mode: "active" }),
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, queryFn: async () => ({}) },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/health/symptom-check?fresh=1"]}>
+          <SymptomCheckScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to voice mode" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to touch mode" })).toBeInTheDocument());
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
   it("leaves the single voice entry point to the shared Home header", () => {
     const onTalkToVyva = vi.fn();
     render(<IntroScreen onStart={vi.fn()} onTalkToVyva={onTalkToVyva} />);
