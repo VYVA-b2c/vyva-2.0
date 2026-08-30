@@ -1093,6 +1093,8 @@ type IntroScreenProps = {
   activeConditions?: string[];
   profileContextItems?: string[];
   emergencyContact?: EmergencyContact | null;
+  showEmergencyModal?: boolean;
+  onEmergencyModalDismiss?: () => void;
 };
 
 function EmergencySafetyDialog({
@@ -1595,6 +1597,8 @@ export function IntroScreen({
   activeConditions = [],
   profileContextItems = [],
   emergencyContact = null,
+  showEmergencyModal: controlledShowEmergencyModal,
+  onEmergencyModalDismiss,
 }: IntroScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -1602,7 +1606,7 @@ export function IntroScreen({
   const [clue, setClue] = useState("");
   const [voiceState, setVoiceState] = useState<VoiceCaptureState>("idle");
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [showEmergencyModal, setShowEmergencyModal] = useState(true);
+  const [localShowEmergencyModal, setLocalShowEmergencyModal] = useState(true);
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [examplePage, setExamplePage] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -1879,6 +1883,14 @@ export function IntroScreen({
     : isTranscribingVoice
       ? t("health.symptomCheck.intro.voiceTranscribingStatus", "Turning voice into text...")
       : voiceError;
+  const showEmergencyModal = controlledShowEmergencyModal ?? localShowEmergencyModal;
+  const dismissEmergencyModal = () => {
+    if (onEmergencyModalDismiss) {
+      onEmergencyModalDismiss();
+      return;
+    }
+    setLocalShowEmergencyModal(false);
+  };
 
   if (showCustomInput) {
     return (
@@ -1934,7 +1946,7 @@ export function IntroScreen({
       {showEmergencyModal ? (
         <EmergencySafetyDialog
           emergencyContact={emergencyContact}
-          onDismiss={() => setShowEmergencyModal(false)}
+          onDismiss={dismissEmergencyModal}
         />
       ) : null}
 
@@ -3985,6 +3997,7 @@ export default function SymptomCheckScreen() {
   const [symptomInteractionMode, setSymptomInteractionMode] = useState<HomeInteractionMode>(() =>
     incomingState?.autoStartVoice ? "voice" : "touch",
   );
+  const [hasAcknowledgedEmergencySafety, setHasAcknowledgedEmergencySafety] = useState(false);
   const voiceStartResetTimerRef = useRef<number | null>(null);
   const chatBackHandlerRef = useRef<(() => boolean) | null>(null);
   const { data: drAiVoiceFeature } = useQuery<{ enabled: boolean; mode: "disabled" | "pilot" | "active" }>({
@@ -4591,6 +4604,8 @@ export default function SymptomCheckScreen() {
             activeConditions={triageContext?.activeConditions ?? []}
             profileContextItems={triageContext?.usedItems ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
+            showEmergencyModal={!hasAcknowledgedEmergencySafety}
+            onEmergencyModalDismiss={() => setHasAcknowledgedEmergencySafety(true)}
           />
         )}
 
