@@ -94,12 +94,17 @@ async function completeLevelOneVisualMemoryBoard() {
   const cards = await screen.findAllByTestId("visual-memory-card");
 
   fireEvent.click(cards[0]);
-  fireEvent.click(cards[3]);
+  fireEvent.click(cards[5]);
   await act(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 500));
   });
   fireEvent.click(cards[1]);
   fireEvent.click(cards[2]);
+  await act(async () => {
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+  });
+  fireEvent.click(cards[3]);
+  fireEvent.click(cards[4]);
   await act(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 500));
   });
@@ -199,6 +204,8 @@ describe("MemoryGameRunner word recall", () => {
     renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
 
     expect(await screen.findByRole("heading", { name: "Find the pairs" })).toBeInTheDocument();
+    expect(screen.getByText("Different pictures? Both cards turn back. Try another pair.")).toBeInTheDocument();
+    expect(screen.getByText("Find all 3 pairs to finish. There is no timer.")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Do not show these instructions again." })).toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "Start Level 1" }));
@@ -217,19 +224,19 @@ describe("MemoryGameRunner word recall", () => {
     expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
   });
 
-  it("shows Stay Here and Play Again while Visual Memory level progress is still building", async () => {
+  it("shows Next round and Play Again while Visual Memory level progress is still building", async () => {
     window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
     renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
 
     await completeLevelOneVisualMemoryBoard();
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("1/3");
-    expect(screen.getByRole("button", { name: "Stay Here" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Next Level/i })).not.toBeInTheDocument();
   });
 
-  it("offers Next Level, Stay Here, and Play Again after three strong Visual Memory rounds", async () => {
+  it("offers Next Level, Next round, and Play Again after three strong Visual Memory rounds", async () => {
     window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
     vi.mocked(getGameHistory).mockResolvedValue([visualResult(0), visualResult(1)]);
     renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
@@ -238,7 +245,7 @@ describe("MemoryGameRunner word recall", () => {
 
     expect(await screen.findByRole("dialog")).toHaveTextContent("3/3");
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Stay Here" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next round" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
   });
 });

@@ -531,6 +531,35 @@ function MemoryAudioToggle({
   );
 }
 
+function TutorialMemoryCard({
+  faceUp = false,
+  emoji,
+  label,
+}: {
+  faceUp?: boolean;
+  emoji?: string;
+  label?: string;
+}) {
+  return (
+    <span
+      className={`flex h-[66px] w-[58px] shrink-0 flex-col items-center justify-center rounded-[14px] border text-center shadow-sm ${
+        faceUp
+          ? "border-[#C4B5FD] bg-white text-vyva-text-1"
+          : "border-vyva-purple bg-gradient-to-br from-[#6B21A8] to-[#8B3FC8] text-white"
+      }`}
+    >
+      {faceUp ? (
+        <>
+          <span className="text-[25px] leading-none">{emoji ?? "🍎"}</span>
+          <span className="mt-1 max-w-[52px] truncate text-[10px] font-black">{label ?? "apple"}</span>
+        </>
+      ) : (
+        <span className="text-[25px] font-black">?</span>
+      )}
+    </span>
+  );
+}
+
 type MemoryGameRunnerProps = {
   forcedGameType?: MemoryGameType;
   returnPath?: string;
@@ -1549,7 +1578,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   );
 
   if (plan.gameType === "memory_match" && showVisualMemoryTutorial) {
-    const tutorialPair = ((localizedVariant.payload.pairItems as Array<{ emoji: string; label: string }>) ?? [])[0];
+    const tutorialPairs = (localizedVariant.payload.pairItems as Array<{ emoji: string; label: string }>) ?? [];
+    const tutorialPair = tutorialPairs[0];
 
     return renderBrainRunnerScreen("tutorial", "tutorial", "card_example", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
@@ -1575,36 +1605,51 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             {t("memory.visualTutorialTitle", "Find the pairs")}
           </h1>
           <p className="mx-auto mt-1 max-w-[38ch] text-[17px] font-semibold leading-snug text-vyva-text-2 sm:text-[18px]">
-            {t("memory.visualTutorialLead", "Turn over two cards. Matching pictures stay open.")}
+            {t("memory.visualTutorialLead", "Turn over two cards at a time.")}
           </p>
 
-          <div className="mx-auto mt-4 grid max-w-[340px] grid-cols-2 gap-3" aria-hidden="true">
-            <div className="flex min-h-[96px] flex-col items-center justify-center rounded-[20px] border border-[#C4B5FD] bg-white shadow-vyva-card">
-              <span className="text-[34px] leading-none">{tutorialPair?.emoji ?? "🍎"}</span>
-              <span className="mt-1 text-[16px] font-black text-vyva-text-1">{tutorialPair?.label ?? "apple"}</span>
-            </div>
-            <div className="flex min-h-[96px] flex-col items-center justify-center rounded-[20px] bg-gradient-to-br from-[#6B21A8] to-[#8B3FC8] text-white shadow-vyva-card">
-              <span className="text-[34px] font-black">?</span>
-            </div>
-          </div>
-
           <div className="mt-4 grid gap-2 text-left sm:grid-cols-3">
-            {[
-              t("memory.visualTutorialFirst", "Tap one card"),
-              t("memory.visualTutorialSecond", "Tap a second card"),
-              t("memory.visualTutorialFinish", "Keep matching until every pair is open"),
-            ].map((label, index) => (
-              <div key={label} className="flex min-h-[58px] items-center gap-3 rounded-[18px] bg-[#FFF9F1] px-3 py-2">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">
-                  {index + 1}
-                </span>
-                <p className="text-[16px] font-black leading-tight text-vyva-text-1">{label}</p>
+            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#FFF9F1] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+              <div className="flex items-center gap-2" aria-hidden="true">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">1</span>
+                <TutorialMemoryCard />
               </div>
-            ))}
+              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+                {t("memory.visualTutorialFirst", "Turn over one card")}
+              </p>
+            </div>
+            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#FFF9F1] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+              <div className="flex items-center gap-1.5" aria-hidden="true">
+                <span className="mr-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">2</span>
+                <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
+                <TutorialMemoryCard />
+              </div>
+              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+                {t("memory.visualTutorialSecond", "Then turn over a second card")}
+              </p>
+            </div>
+            <div className="flex min-h-[104px] items-center gap-4 rounded-[20px] bg-[#ECFDF5] p-3 sm:min-h-[154px] sm:flex-col sm:justify-center sm:gap-2 sm:text-center">
+              <div className="flex items-center gap-1.5" aria-hidden="true">
+                <span className="mr-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#0F766E] text-[15px] font-black text-white">3</span>
+                <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
+                <TutorialMemoryCard faceUp emoji={tutorialPair?.emoji} label={tutorialPair?.label} />
+                <span className="-ml-4 -mt-11 flex h-7 w-7 items-center justify-center rounded-full bg-[#0F766E] text-white shadow-sm">
+                  <Check size={17} strokeWidth={3} />
+                </span>
+              </div>
+              <p className="text-[17px] font-black leading-tight text-vyva-text-1">
+                {t("memory.visualTutorialFinish", "Same picture? The pair stays open")}
+              </p>
+            </div>
           </div>
 
-          <div className="mt-3 rounded-[18px] bg-[#ECFDF5] px-4 py-2.5 text-[15px] font-black text-[#0F766E]">
-            {t("memory.visualTutorialPace", "Take your time. Three strong rounds unlock the next level.")}
+          <div className="mt-3 flex items-center gap-3 rounded-[18px] bg-[#FFF7ED] px-4 py-2.5 text-left text-[15px] font-black leading-snug text-[#92400E]">
+            <RotateCcw size={22} className="shrink-0" />
+            <span>{t("memory.visualTutorialMismatch", "Different pictures? Both cards turn back. Try another pair.")}</span>
+          </div>
+
+          <div className="mt-2 rounded-[18px] bg-[#ECFDF5] px-4 py-2.5 text-[15px] font-black text-[#0F766E]">
+            {t("memory.visualTutorialGoal", "Find all {count} pairs to finish. There is no timer.", { count: tutorialPairs.length })}
           </div>
 
           <label className="mx-auto mt-3 flex w-fit cursor-pointer items-center gap-3 rounded-full border border-[#EADFF8] bg-white px-4 py-2.5 text-left text-[15px] font-extrabold text-vyva-text-2 shadow-sm">
@@ -2701,18 +2746,16 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const nextLevelLabel = t("memory.nextVisualLevelLabel", "Next Level {level}", { level: nextPlayableLevel });
   const memoryGridClassName =
     memoryDeck.length <= 4
-      ? "grid-cols-2 max-w-[540px] sm:max-w-[620px]"
+      ? "grid-cols-2 max-w-[380px]"
       : memoryDeck.length <= 6
-        ? "grid-cols-3 max-w-[620px] sm:max-w-[680px]"
-        : "grid-cols-4 max-w-[760px] sm:max-w-[860px]";
-  const memoryCardHeight =
-    memoryComplete
-      ? "clamp(108px, 16dvh, 132px)"
-      : memoryDeck.length <= 4
-        ? "clamp(118px, 19dvh, 152px)"
-        : memoryDeck.length <= 6
-          ? "clamp(100px, 15dvh, 136px)"
-          : "clamp(88px, 13dvh, 124px)";
+        ? "grid-cols-3 max-w-[520px]"
+        : "grid-cols-4 max-w-[620px]";
+  const memoryCardStyle =
+    memoryDeck.length <= 6
+      ? { aspectRatio: "1 / 1", maxHeight: "156px" }
+      : memoryDeck.length <= 8
+        ? { aspectRatio: "1 / 1", maxHeight: "148px" }
+        : { aspectRatio: "1.12 / 1", maxHeight: "118px" };
   const memoryStats = [
     getBrainCoachProgressLabel(plan.level),
     `${matchedPairs}/${totalPairs} ${t("memory.pairs")}`,
@@ -2732,8 +2775,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             summary={
               completionMetrics
                 ? visualLevelCompleted && !canOpenNextLevel
-                  ? t("memory.visualMasteryComplete", "Mastery complete. Stay here and enjoy another strong round.")
-                  : getBrainCoachSupportiveProgressCopy({ advanced: canOpenNextLevel, level: plan.level })
+                  ? t("memory.visualMasteryComplete", "Mastery complete. Ready for another board?")
+                  : canOpenNextLevel
+                    ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
+                    : t("memory.visualRoundComplete", "Round complete. Ready for a new board?")
                 : t("memory.exerciseCompleted")
             }
             metrics={[
@@ -2742,10 +2787,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               { label: t("memory.moves", "Moves"), value: memoryAttempts },
               { label: t("memory.duration"), value: `${completionMetrics?.durationSeconds ?? durationSeconds}s` },
             ]}
-            continueLabel={t("memory.stayHere", "Stay Here")}
+            continueLabel={t("memory.nextRound", "Next round")}
             nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
             nextLevelDisplayLabel={canOpenNextLevel ? t("memory.nextVisualLevel", "Next Level") : undefined}
-            stayLabel={canOpenNextLevel ? t("memory.stayHere", "Stay Here") : undefined}
+            stayLabel={canOpenNextLevel ? t("memory.nextRound", "Next round") : undefined}
             replayLabel={t("brainGames.resultActions.playAgain")}
             assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
             assessmentReturnHint={
@@ -2773,12 +2818,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 </div>
                 <p className="mt-2 text-[14px] font-bold leading-snug text-vyva-text-2">
                   {canOpenNextLevel
-                    ? t("memory.visualLevelReady", "Level complete. You can move on or stay here for another board.")
+                    ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
                     : visualLevelCompleted
-                      ? t("memory.visualMasteryComplete", "Mastery complete. Stay here and enjoy another strong round.")
+                      ? t("memory.visualMasteryComplete", "Mastery complete. Play another board whenever you are ready.")
                     : completionMetrics && completionMetrics.accuracy >= 80
                       ? t("memory.visualRoundCounted", "Strong round. Keep going with a new board at this level.")
-                      : t("memory.visualStaySupport", "Stay here and strengthen this level. Take another calm round when you are ready.")}
+                      : t("memory.visualStaySupport", "Try a new board at this level. Three strong rounds unlock the next level.")}
                 </p>
                 <p className="mt-2 text-[13px] font-black text-vyva-purple">{getBrainCoachProgressLabel(plan.level)}</p>
               </div>
@@ -2869,7 +2914,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
         {voiceGameContextPanel}
 
-        <div className={`mx-auto mt-4 grid w-full gap-2 sm:mt-5 sm:gap-3 ${memoryGridClassName}`}>
+        <div className={`mx-auto mt-4 grid w-full gap-2.5 sm:mt-5 sm:gap-3.5 ${memoryGridClassName}`}>
           {memoryDeck.map((card, index) => {
             const isOpen = revealed.includes(card.deckId) || matchedIds.includes(card.deckId);
             const isMatched = matchedIds.includes(card.deckId);
@@ -2882,23 +2927,32 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 aria-label={isOpen ? card.label : t("memory.hiddenCard", "Hidden card {number}", { number: index + 1 })}
                 aria-pressed={isOpen}
                 disabled={isMatched}
-                className="rounded-[16px] border border-vyva-border p-2 text-center shadow-vyva-card transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-vyva-purple/20 disabled:cursor-default sm:rounded-[20px] sm:p-3"
+                className="relative w-full overflow-hidden rounded-[18px] border p-2 text-center shadow-[0_8px_18px_rgba(61,35,83,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(61,35,83,0.18)] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20 disabled:cursor-default sm:rounded-[22px] sm:p-3"
                 style={
                   isOpen
-                    ? { height: memoryCardHeight, background: "#FFFFFF", borderColor: "#C4B5FD", transform: "translateY(-1px)" }
-                    : { height: memoryCardHeight, background: "linear-gradient(145deg, #6B21A8 0%, #8B3FC8 100%)", color: "#FFFFFF" }
+                    ? {
+                        ...memoryCardStyle,
+                        background: isMatched ? "#F0FDF4" : "#FFFFFF",
+                        borderColor: isMatched ? "#86EFAC" : "#C4B5FD",
+                        transform: "translateY(-1px)",
+                      }
+                    : {
+                        ...memoryCardStyle,
+                        background: "radial-gradient(circle at 50% 35%, #9B4DCE 0%, #7B2CBF 48%, #612095 100%)",
+                        borderColor: "rgba(255,255,255,0.2)",
+                        color: "#FFFFFF",
+                      }
                 }
               >
+                {!isOpen && <span aria-hidden="true" className="pointer-events-none absolute inset-2 rounded-[13px] border border-white/15 sm:rounded-[16px]" />}
                 <div className="flex h-full flex-col items-center justify-center">
                   {isOpen ? (
                     <>
-                      <span className="text-[28px] leading-none sm:text-[36px]">{card.emoji}</span>
-                      <span className="mt-1 text-[12px] font-semibold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[17px]">{card.label}</span>
+                      <span className="text-[32px] leading-none sm:text-[40px]">{card.emoji}</span>
+                      <span className="mt-1.5 text-[12px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[16px]">{card.label}</span>
                     </>
                   ) : (
-                    <>
-                      <span className="text-[30px] font-semibold sm:text-[34px]">?</span>
-                    </>
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[30px] font-bold shadow-inner backdrop-blur-[1px] sm:h-14 sm:w-14 sm:text-[34px]">?</span>
                   )}
                 </div>
               </button>

@@ -165,7 +165,7 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
 }
 
 function buildMemoryMatchLevels(sets: MemoryMatchSet[]): MemoryGameLevel[] {
-  const pairCounts = [2, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
+  const pairCounts = [3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
   const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
     level,
     pairs: pairCounts[level - 1] ?? 8,
