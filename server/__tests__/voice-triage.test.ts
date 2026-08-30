@@ -8,6 +8,7 @@ import {
   retainedMessagesForStatus,
   serializeVoiceTriageTurn,
   selectChoiceFromVoice,
+  structuredConsultationEvidence,
   terminalVoiceTriageResponse,
   voiceQuestionFor,
   voiceReviewAnswers,
@@ -88,6 +89,21 @@ describe("ElevenLabs voice triage tool", () => {
     expect(retainedMessagesForStatus("emergency", messages)).toEqual([]);
     expect(retainedMessagesForStatus("failed", messages)).toEqual([]);
     expect(retainedMessagesForStatus("abandoned", messages)).toEqual([]);
+  });
+
+  it("keeps completed consultation evidence structured but minimizes emergencies", () => {
+    const wizard = {
+      quickAnswers: [{ id: "severity_5", label: "5", value: "5 out of 10", kind: "severity" }],
+      vitals: { bpm: 72 },
+    };
+    expect(structuredConsultationEvidence("complete", wizard)).toEqual({
+      answers: wizard.quickAnswers,
+      vitals: wizard.vitals,
+    });
+    expect(structuredConsultationEvidence("emergency", wizard)).toEqual({
+      answers: [],
+      vitals: {},
+    });
   });
 
   it("keeps the complete zero-to-ten severity scale in the voice question", () => {

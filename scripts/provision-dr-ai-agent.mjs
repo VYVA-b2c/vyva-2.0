@@ -37,10 +37,12 @@ function validateManifest(value) {
     "Be warm, calm, patient, and unhurried",
     "say it only once",
     "Do not repeat a question that has already been answered",
-    "do not call vyva_triage_step again for that completed session",
-    "call retrieve_medical_profile once",
+    "call vyva_triage_step again for that completed session",
+    "call retrieve_medical_profile exactly once",
     "Address the user by name naturally",
     "Policy-filtered memory may support continuity",
+    "Do not mention unrelated consultation history proactively",
+    "Never claim access to raw audio or transcripts",
   ];
   for (const rule of requiredConversationRules) {
     if (!prompt.includes(rule)) throw new Error(`Dr. AI system prompt is missing required conversation rule: ${rule}`);

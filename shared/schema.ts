@@ -3682,6 +3682,53 @@ export const insertVoiceTriageSessionSchema = createInsertSchema(voiceTriageSess
 export type InsertVoiceTriageSession = z.infer<typeof insertVoiceTriageSessionSchema>;
 export type VoiceTriageSessionRow = typeof voiceTriageSessions.$inferSelect;
 
+export type VoiceConsultationAnswer = {
+  id: string;
+  label: string;
+  value: string;
+  kind?: string;
+};
+
+export type VoiceConsultationVitals = {
+  bpm?: number | null;
+  respiratoryRate?: number | null;
+  oxygenSaturation?: number | null;
+  temperatureC?: number | null;
+  systolicBp?: number | null;
+  diastolicBp?: number | null;
+  glucoseMgdl?: number | null;
+  painScore?: number | null;
+  energyLevel?: number | null;
+};
+
+export const voiceConsultationSummaries = pgTable("voice_consultation_summaries", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               text("user_id").notNull(),
+  conversation_id:       text("conversation_id").notNull().unique(),
+  triage_report_id:      uuid("triage_report_id").references(() => triageReports.id, { onDelete: "set null" }),
+  channel:               text("channel").notNull().default("voice_app"),
+  locale:                text("locale").notNull().default("en"),
+  status:                text("status").notNull(),
+  canonical_symptom_id:  text("canonical_symptom_id").notNull(),
+  concern:               text("concern").notNull(),
+  normalized_answers:    jsonb("normalized_answers").$type<VoiceConsultationAnswer[]>().notNull().default(sql`'[]'::jsonb`),
+  reported_vitals:       jsonb("reported_vitals").$type<VoiceConsultationVitals>().notNull().default(sql`'{}'::jsonb`),
+  urgency:               text("urgency").notNull(),
+  guidance_outcome:      text("guidance_outcome").notNull(),
+  next_step:             text("next_step"),
+  started_at:            timestamp("started_at", { withTimezone: true }).notNull(),
+  completed_at:          timestamp("completed_at", { withTimezone: true }).notNull(),
+  created_at:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("voice_consultation_summaries_user_completed_idx").on(t.user_id, t.completed_at),
+  index("voice_consultation_summaries_user_symptom_completed_idx").on(t.user_id, t.canonical_symptom_id, t.completed_at),
+]);
+
+export const insertVoiceConsultationSummarySchema = createInsertSchema(voiceConsultationSummaries).omit({ id: true, created_at: true, updated_at: true });
+export type InsertVoiceConsultationSummary = z.infer<typeof insertVoiceConsultationSummarySchema>;
+export type VoiceConsultationSummaryRow = typeof voiceConsultationSummaries.$inferSelect;
+
 export const homePlanCards = pgTable("home_plan_cards", {
   id:                       uuid("id").primaryKey().defaultRandom(),
   card_id:                  text("card_id").notNull().unique(),
@@ -4478,6 +4525,7 @@ export const schema = {
   orchestrationEventStateEvents,
   orchestrationFlowStateProjections,
   voiceTriageSessions,
+  voiceConsultationSummaries,
   homePlanCards,
   homeFastHelpJourneys,
   homeFastHelpJourneyEvents,

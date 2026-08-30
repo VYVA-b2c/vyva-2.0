@@ -1,4 +1,5 @@
 import { buildVoiceContext, type VoiceDynamicVariables } from "./voiceContext.js";
+import { resolveHealthMemoryPolicyFlag } from "../memory/healthMemoryPolicy.js";
 
 export type DoctorMedicalProfileVariables = VoiceDynamicVariables;
 
@@ -10,8 +11,32 @@ function valueAsString(value: unknown) {
 
 export async function getDoctorMedicalProfileVariables(
   userId: string,
+  options: {
+    flowInstanceId?: string;
+    env?: NodeJS.ProcessEnv;
+  } = {},
 ): Promise<DoctorMedicalProfileVariables> {
-  const context = await buildVoiceContext(userId, "doctor", "doctor medical profile");
+  const env = options.env ?? process.env;
+  const memoryFlag = resolveHealthMemoryPolicyFlag({
+    env,
+    userRef: userId,
+    cohortKey: userId,
+  });
+  const policyMemoryEnabled = memoryFlag.effectiveMode === "pilot";
+  const context = await buildVoiceContext(
+    userId,
+    "health",
+    policyMemoryEnabled ? "doctor medical profile" : "",
+    policyMemoryEnabled
+      ? {
+          healthMemoryPolicy: {
+            enabled: true,
+            flowInstanceId: options.flowInstanceId,
+            env,
+          },
+        }
+      : {},
+  );
 
   return {
     ...context,
