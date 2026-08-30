@@ -37,6 +37,9 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Lower is better");
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Heart rate");
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("72 bpm");
+    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Your latest readings look steady.");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Heart");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Breathing");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
@@ -101,7 +104,7 @@ describe("VitalsTracker redesign", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("vitals-hero")).toHaveTextContent("VYVA a détecté un changement qui mérite un avis médical aujourd’hui.");
+    expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("VYVA noticed a change worth same-day medical advice.");
     expect(screen.getByTestId("daily-safety-check")).toHaveTextContent("Rapport de symptômes : Douleur à la tête ou au cou");
     expect(screen.getByTestId("button-safety-call-gp")).toHaveTextContent("Appeler Quiron");
     expect(screen.getByTestId("button-safety-email-gp")).toHaveTextContent("Envoyer un e-mail au médecin");

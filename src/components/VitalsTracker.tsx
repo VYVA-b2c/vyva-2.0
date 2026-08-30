@@ -817,6 +817,16 @@ function numberValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readingValueDisplay(signalKey: SignalKey, reading: RecentReading): string {
+  const value = numberValue(reading.value);
+  if (signalKey === "medication_confirmed") {
+    return value === 1 ? "✓" : value === 0 ? "—" : "--";
+  }
+  if (value == null) return "--";
+  const unit = reading.unit || VITALS_SIGNAL_CATALOG[signalKey].unit;
+  return `${value}${unit ? ` ${unit}` : ""}`;
+}
+
 function getRiskColor(score: number) {
   if (score < 30) return "#22C55E";
   if (score < 50) return "#F59E0B";
@@ -1095,6 +1105,7 @@ export default function VitalsTracker({
   const [loading, setLoading] = useState(!previewData);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [heroMarkerIndex, setHeroMarkerIndex] = useState(0);
 
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
   const showDashboard = useCallback(() => setScreen("dashboard"), []);
@@ -1103,6 +1114,16 @@ export default function VitalsTracker({
   const copy = useMemo(() => copyFor(language), [language]);
   const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
+  const heroMarkers = useMemo(() => {
+    const seen = new Set<SignalKey>();
+    return recentReadings.filter((reading) => {
+      if (!(reading.signal_type in SIGNAL_CONFIG)) return false;
+      const signalKey = reading.signal_type as SignalKey;
+      if (seen.has(signalKey)) return false;
+      seen.add(signalKey);
+      return true;
+    }).slice(0, 4);
+  }, [recentReadings]);
   const riskScore = analysis?.risk_score ?? 0;
   const riskColor = getRiskColor(riskScore);
   const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
@@ -1142,6 +1163,16 @@ export default function VitalsTracker({
   useEffect(() => {
     if (screen === "dashboard") onBackActionChange?.(null);
   }, [onBackActionChange, screen]);
+
+  useEffect(() => {
+    setHeroMarkerIndex(0);
+    if (screen !== "dashboard" || heroMarkers.length < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setHeroMarkerIndex((current) => (current + 1) % heroMarkers.length);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, [heroMarkers.length, screen]);
 
   const loadDashboard = useCallback(async () => {
     if (previewData) {
@@ -1470,6 +1501,11 @@ export default function VitalsTracker({
   }
 
   const latestBySignal = latestReadingMap(recentReadings);
+  const activeHeroMarkerIndex = heroMarkerIndex % Math.max(1, heroMarkers.length);
+  const activeHeroMarker = heroMarkers[activeHeroMarkerIndex];
+  const activeHeroSignal = activeHeroMarker?.signal_type as SignalKey | undefined;
+  const activeHeroConfig = activeHeroSignal ? SIGNAL_CONFIG[activeHeroSignal] : null;
+  const activeHeroDeviation = numberValue(activeHeroMarker?.deviation_pct);
   const visibleSignalEntries = visibleSignals.filter(([key]) => !VITALS_SIGNAL_CATALOG[key].futureReady);
   const readingGroups = DISPLAY_GROUP_ORDER.flatMap((group) => {
     const signals = visibleSignalEntries.filter(([key]) => VITALS_SIGNAL_CATALOG[key].displayGroup === group);
@@ -1542,16 +1578,50 @@ export default function VitalsTracker({
                   <p className={`mt-1 font-body text-[10px] font-bold sm:text-[11px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</p>
                 </div>
 
-                <div className="min-w-0">
-                  <p className={`font-body text-[14px] font-semibold leading-[1.45] sm:text-[15px] ${isDark ? "text-[#E4DAEC]" : "text-[#665A63]"}`}>
-                    {seniorMessage}
-                  </p>
-                  <div className={`mt-3 h-1.5 overflow-hidden rounded-full sm:h-2 ${isDark ? "bg-white/[0.1]" : "bg-[#EDE5F1]"}`} aria-hidden="true">
-                    <div
-                      className="h-full rounded-full transition-[width] duration-500"
-                      style={{ width: `${Math.max(4, Math.min(100, riskScore))}%`, backgroundColor: riskColor }}
-                    />
-                  </div>
+                <div className="min-w-0" data-testid="vitals-hero-marker">
+                  {activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[13px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                        <SignalIcon type={activeHeroConfig.icon} className="h-[22px] w-[22px]" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate font-body text-[10px] font-black uppercase tracking-[0.11em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>
+                          {signalLabel(activeHeroSignal, activeHeroConfig, language)}
+                        </p>
+                        <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+                          <span className={`truncate font-body text-[24px] font-extrabold leading-none tracking-[-0.03em] sm:text-[28px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                            {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
+                          </span>
+                          {activeHeroDeviation != null ? (
+                            <span className={`shrink-0 font-body text-[11px] font-black ${activeHeroDeviation > 0 ? "text-[#D97706]" : activeHeroDeviation < 0 ? "text-[#047857]" : isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>
+                              {activeHeroDeviation > 0 ? "+" : ""}{activeHeroDeviation}% {activeHeroDeviation > 0 ? "↑" : activeHeroDeviation < 0 ? "↓" : ""}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className={`font-body text-[10px] font-black uppercase tracking-[0.11em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.latest}</p>
+                      <p className={`mt-1 font-body text-[28px] font-extrabold leading-none ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>--</p>
+                    </div>
+                  )}
+                  {heroMarkers.length > 1 ? (
+                    <div className="mt-2 flex items-center gap-1" aria-label={dashboardLabels.latest}>
+                      {heroMarkers.map((marker, index) => (
+                        <button
+                          key={marker.signal_type}
+                          type="button"
+                          aria-label={`${dashboardLabels.latest} ${index + 1}`}
+                          aria-current={index === activeHeroMarkerIndex ? "true" : undefined}
+                          onClick={() => setHeroMarkerIndex(index)}
+                          className="vyva-tap grid h-5 !min-h-5 w-5 place-items-center rounded-full"
+                        >
+                          <span className={`h-1.5 rounded-full transition-all ${index === activeHeroMarkerIndex ? "w-4 bg-[#F8AE1B]" : isDark ? "w-1.5 bg-white/30" : "w-1.5 bg-[#C9BDD6]"}`} />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
