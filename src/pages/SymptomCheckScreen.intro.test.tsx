@@ -6,6 +6,7 @@ import {
   AssessmentConfidenceTracker,
   IntroScreen,
   SymptomWarningSignsPreviewScreen,
+  VoiceTriageLivePanel,
   symptomAssessmentStageForRuntime,
   symptomCheckHealthReturnPath,
 } from "./SymptomCheckScreen";
@@ -361,6 +362,38 @@ describe("SymptomCheck intro chips", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Switch to touch mode" })).toBeInTheDocument());
     expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
+  it("keeps the canonical symptom choices instead of showing the legacy voice describe panel", () => {
+    const onAnswer = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-describe",
+            status: "active",
+            latest_response: {
+              ok: true,
+              status: "active",
+              spoken_text: "Tell VYVA what has changed today.",
+              question: { stage: "start", text: "Tell VYVA what has changed today.", choices: [] },
+            },
+          }}
+          stageId="describe"
+          modality="voice"
+          onAnswer={onAnswer}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-check-intro")).toBeVisible();
+    expect(screen.getByText("What feels different today?")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Breathing feels different/i })).toBeEnabled();
+    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Breathing feels different/i }));
+    expect(onAnswer).toHaveBeenCalledWith({ utterance: "Breathing feels different" });
   });
 
   it("leaves the single voice entry point to the shared Home header", () => {
