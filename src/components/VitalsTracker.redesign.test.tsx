@@ -37,6 +37,9 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Lower is better");
+    expect(screen.queryByTestId("vitals-hero-marker")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Latest readings 1" }));
+    expect(screen.queryByTestId("vitals-risk-score")).not.toBeInTheDocument();
     expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Heart rate");
     expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("72 bpm");
     expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Your latest readings look steady.");
