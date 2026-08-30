@@ -1558,7 +1558,7 @@ export default function VitalsTracker({
               <div data-testid="vitals-hero-metric">
                 {activeHeroMetricIndex === 0 ? (
                   <div
-                    className="flex min-h-[68px] items-center gap-3 sm:justify-center"
+                    className="flex min-h-[68px] items-center gap-3 sm:mx-auto sm:w-[380px]"
                     data-testid="vitals-risk-score"
                     aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
                   >
@@ -1575,8 +1575,8 @@ export default function VitalsTracker({
                     </div>
                   </div>
                 ) : activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
-                  <div className="min-w-0" data-testid="vitals-hero-marker">
-                    <div className="flex min-h-[68px] min-w-0 items-center gap-3 sm:justify-center">
+                  <div className="min-w-0 sm:mx-auto sm:w-[380px]" data-testid="vitals-hero-marker">
+                    <div className="flex min-h-[68px] min-w-0 items-center gap-3">
                       <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
                         <SignalIcon type={activeHeroConfig.icon} className="h-[25px] w-[25px]" />
                       </span>
@@ -1599,7 +1599,7 @@ export default function VitalsTracker({
                   </div>
                 ) : null}
                 {heroMetricCount > 1 ? (
-                  <div className="mt-2 flex items-center gap-1 sm:justify-center" aria-label={dashboardLabels.latest}>
+                  <div className="mt-2 flex items-center gap-1 sm:mx-auto sm:w-[380px]" aria-label={dashboardLabels.latest}>
                     {["risk", ...heroMarkers.map((marker) => marker.signal_type)].map((metricKey, index) => (
                       <button
                         key={metricKey}
