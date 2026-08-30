@@ -1,15 +1,12 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Bell,
   Check,
   Circle,
-  CircleHelp,
   Flag,
   Heart,
   KeyRound,
   Leaf,
-  Loader2,
   Moon,
   Music,
   Play,
@@ -19,9 +16,16 @@ import {
   Triangle,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { VyvaMark } from "@/components/VyvaMark";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachMilestoneLabel,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -36,20 +40,27 @@ const BRAND = {
   tealPale: "#DDF7F1",
 };
 
-const MAX_TIER = 10;
+const MAX_TIER = BRAIN_COACH_MAX_LEVEL;
+const DEFAULT_ENTRY_TIER = 1;
+const LOCAL_VARIANTS_PER_TIER = 20;
 const LEVEL_LOSS_ACCURACY_PCT = 30;
 const LEVEL_REQUIREMENTS = [
   { maxTier: 1, combinedAccuracyPct: 60, matchingAccuracyPct: 50 },
-  { maxTier: 2, combinedAccuracyPct: 65, matchingAccuracyPct: 60 },
-  { maxTier: MAX_TIER, combinedAccuracyPct: 70, matchingAccuracyPct: 65 },
+  { maxTier: 5, combinedAccuracyPct: 64, matchingAccuracyPct: 56 },
+  { maxTier: 10, combinedAccuracyPct: 68, matchingAccuracyPct: 60 },
+  { maxTier: 15, combinedAccuracyPct: 72, matchingAccuracyPct: 64 },
+  { maxTier: MAX_TIER, combinedAccuracyPct: 76, matchingAccuracyPct: 68 },
 ];
 const ROUND_TUNING = [
-  { maxTier: 1, minIntervalMs: 2000, maxItems: 6, tailSeconds: 2 },
-  { maxTier: 2, minIntervalMs: 1750, maxItems: 8, tailSeconds: 2 },
-  { maxTier: 3, minIntervalMs: 1550, maxItems: 10, tailSeconds: 2 },
-  { maxTier: MAX_TIER, minIntervalMs: 0, maxItems: Infinity, tailSeconds: 0 },
+  { maxTier: 1, minIntervalMs: 1700, maxItems: 10, tailSeconds: 0 },
+  { maxTier: 5, minIntervalMs: 1550, maxItems: 14, tailSeconds: 0 },
+  { maxTier: 10, minIntervalMs: 1450, maxItems: 18, tailSeconds: 1 },
+  { maxTier: 15, minIntervalMs: 1350, maxItems: Infinity, tailSeconds: 1 },
+  { maxTier: MAX_TIER, minIntervalMs: 1200, maxItems: Infinity, tailSeconds: 0 },
 ];
 const LOCAL_TUTORIAL_KEY = "rememberLater:tutorialSeen:v1";
+const LOCAL_STATE_KEY = "rememberLater:state:v1";
+const LOCAL_SESSIONS_KEY = "rememberLater:sessions:v1";
 
 const COLOR_HEX = {
   red: "#DC2626",
@@ -67,6 +78,19 @@ const CUE_ICON_COMPONENTS = {
   flag: Flag,
   music: Music,
 };
+
+const LOCAL_ONGOING_RULES = [
+  "shape_circle",
+  "shape_square",
+  "shape_triangle",
+  "color_red",
+  "color_blue",
+  "color_yellow",
+  "number_even",
+  "number_odd",
+];
+
+const LOCAL_CUE_ICONS = ["bell", "moon", "key", "leaf", "heart", "sparkle", "flag", "music"];
 
 const FALLBACK_ROUND = {
   id: null,
@@ -140,6 +164,170 @@ function getRememberLaterRoundTuning(tier = 1) {
   return getTierProfile(ROUND_TUNING, clamp(Number(tier ?? 1), 1, MAX_TIER));
 }
 
+function hashSeed(seedText) {
+  let hash = 2166136261;
+  String(seedText).split("").forEach((character) => {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  });
+  return hash >>> 0;
+}
+
+function createLocalRng(seedText) {
+  let state = hashSeed(seedText);
+  return () => {
+    state = Math.imul(state, 1664525) + 1013904223;
+    return (state >>> 0) / 0x100000000;
+  };
+}
+
+function localIntegerBetween(random, min, max) {
+  return min + Math.floor(random() * (max - min + 1));
+}
+
+function localShuffle(random, items) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
+}
+
+function getLocalRoundSettings(tier) {
+  const difficultyTier = clamp(Number(tier ?? DEFAULT_ENTRY_TIER), 1, MAX_TIER);
+  const roundType = difficultyTier <= 4 ? "event_based" : difficultyTier <= 8 ? "time_based" : "dual";
+
+  return {
+    tier: difficultyTier,
+    roundType,
+    duration: Math.min(90, 24 + (difficultyTier * 4)),
+    items: Math.min(54, 8 + (difficultyTier * 3)),
+    interval: Math.max(1250, 1725 - (difficultyTier * 25)),
+    responseWindow: difficultyTier <= 4 ? 3 : difficultyTier <= 14 ? 2 : 1,
+    tolerance: difficultyTier <= 8 ? 8 : difficultyTier <= 14 ? 6 : 4,
+  };
+}
+
+function localMiddleIndexRange(itemCount) {
+  return {
+    min: Math.max(1, Math.ceil(itemCount * 0.2)),
+    max: Math.max(1, Math.floor(itemCount * 0.75)),
+  };
+}
+
+function localMiddleDelayRange(durationSeconds) {
+  return {
+    min: Math.max(10, Math.ceil(durationSeconds * 0.45)),
+    max: Math.max(12, Math.floor(durationSeconds * 0.7)),
+  };
+}
+
+function localItemForRule(rule, shouldMatch, random) {
+  const [kind, targetValue] = String(rule).split("_");
+  const shapeValues = ["circle", "square", "triangle"];
+  const colorValues = ["red", "blue", "yellow"];
+  const evenValues = [2, 4, 6, 8];
+  const oddValues = [1, 3, 5, 7, 9];
+
+  if (kind === "shape") {
+    const pool = shouldMatch ? [targetValue] : shapeValues.filter((value) => value !== targetValue);
+    return {
+      type: "shape",
+      value: pool[Math.floor(random() * pool.length)],
+      matches_rule: shouldMatch,
+    };
+  }
+
+  if (kind === "color") {
+    const pool = shouldMatch ? [targetValue] : colorValues.filter((value) => value !== targetValue);
+    return {
+      type: "color",
+      value: pool[Math.floor(random() * pool.length)],
+      matches_rule: shouldMatch,
+    };
+  }
+
+  const pool = shouldMatch
+    ? targetValue === "even" ? evenValues : oddValues
+    : targetValue === "even" ? oddValues : evenValues;
+
+  return {
+    type: "number",
+    value: pool[Math.floor(random() * pool.length)],
+    matches_rule: shouldMatch,
+  };
+}
+
+function buildLocalFillerStream(settings, rule, cuePositionIndex, random) {
+  const indices = Array.from({ length: settings.items }, (_, index) => index);
+  const tappableIndices = cuePositionIndex == null ? indices : indices.filter((index) => index !== cuePositionIndex);
+  const matchCount = Math.max(2, Math.floor(settings.items * 0.4));
+  const matches = new Set(localShuffle(random, tappableIndices).slice(0, matchCount));
+
+  return indices.map((index) => {
+    if (index === cuePositionIndex) {
+      return {
+        type: "icon",
+        value: "cue",
+        icon: "cue",
+        matches_rule: false,
+        cue: true,
+      };
+    }
+
+    return localItemForRule(rule, matches.has(index), random);
+  });
+}
+
+export function buildLocalRememberLaterRounds(tier, variantCount = LOCAL_VARIANTS_PER_TIER) {
+  const settings = getLocalRoundSettings(tier);
+  const rounds = [];
+
+  for (let variant = 1; variant <= variantCount; variant += 1) {
+    const random = createLocalRng(`remember-later-local:${settings.tier}:${variant}`);
+    const ongoingRule = LOCAL_ONGOING_RULES[(settings.tier + variant - 2) % LOCAL_ONGOING_RULES.length];
+    const cueIcon = LOCAL_CUE_ICONS[(variant - 1) % LOCAL_CUE_ICONS.length];
+    const intentions = [];
+    let cuePositionIndex = null;
+
+    if (settings.roundType === "event_based" || settings.roundType === "dual") {
+      const { min, max } = localMiddleIndexRange(settings.items);
+      cuePositionIndex = localIntegerBetween(random, min, max);
+      intentions.push({
+        type: "event",
+        cue_icon: cueIcon,
+        cue_position_index: cuePositionIndex,
+        response_window_items: settings.responseWindow,
+      });
+    }
+
+    if (settings.roundType === "time_based" || settings.roundType === "dual") {
+      const { min, max } = localMiddleDelayRange(settings.duration);
+      intentions.push({
+        type: "time",
+        target_delay_seconds: localIntegerBetween(random, min, max),
+        tolerance_seconds: settings.tolerance,
+      });
+    }
+
+    rounds.push(normalizeRememberLaterRound({
+      id: `local-remember-later-${settings.tier}-${variant}`,
+      round_type: settings.roundType,
+      difficulty_tier: settings.tier,
+      round_duration_seconds: settings.duration,
+      ongoing_task_rule: ongoingRule,
+      filler_stream: buildLocalFillerStream(settings, ongoingRule, cuePositionIndex, random),
+      filler_item_count: settings.items,
+      filler_item_interval_ms: settings.interval,
+      intentions,
+      is_local_practice: true,
+    }));
+  }
+
+  return rounds;
+}
+
 export function isRememberLaterCountedRound(result) {
   if (!result || result.abandoned || result.pm_hits < 1) return false;
   const requirements = getRememberLaterLevelRequirements(result.difficulty_tier);
@@ -149,7 +337,16 @@ export function isRememberLaterCountedRound(result) {
   );
 }
 
-function tuneFillerStreamForTier(fillerStream, intentions, tier) {
+function getLatestTimedIntentionSeconds(intentions) {
+  return intentions.reduce((latestSeconds, intention) => {
+    if (intention?.type !== "time") return latestSeconds;
+    const targetSeconds = Number(intention.target_delay_seconds ?? 0);
+    const toleranceSeconds = Number(intention.tolerance_seconds ?? 0);
+    return Math.max(latestSeconds, targetSeconds + toleranceSeconds);
+  }, 0);
+}
+
+function tuneFillerStreamForTier(fillerStream, intentions, tier, intervalMs) {
   const tuning = getRememberLaterRoundTuning(tier);
   if (!Number.isFinite(tuning.maxItems) || fillerStream.length <= tuning.maxItems) return fillerStream;
 
@@ -159,7 +356,11 @@ function tuneFillerStreamForTier(fillerStream, intentions, tier) {
   }, 0);
   const targetCount = Math.min(
     fillerStream.length,
-    Math.max(tuning.maxItems, lastRequiredCueIndex + 1),
+    Math.max(
+      tuning.maxItems,
+      lastRequiredCueIndex + 1,
+      Math.ceil((getLatestTimedIntentionSeconds(intentions) * 1000) / intervalMs) + 1,
+    ),
   );
 
   return fillerStream.slice(0, targetCount);
@@ -168,7 +369,7 @@ function tuneFillerStreamForTier(fillerStream, intentions, tier) {
 export function getDefaultRememberLaterUserState(userId) {
   return {
     user_id: userId,
-    current_tier: 1,
+    current_tier: DEFAULT_ENTRY_TIER,
     sessions_at_tier: 0,
     consecutive_wins: 0,
     consecutive_losses: 0,
@@ -187,12 +388,15 @@ export function normalizeRememberLaterRound(row) {
   const intentions = asArray(row?.intentions);
   const difficultyTier = clamp(Number(row?.difficulty_tier ?? 1), 1, MAX_TIER);
   const tuning = getRememberLaterRoundTuning(difficultyTier);
-  const tunedFillerStream = tuneFillerStreamForTier(fillerStream, intentions, difficultyTier);
   const intervalMs = Math.max(Number(row?.filler_item_interval_ms ?? 1600), tuning.minIntervalMs);
-  const suppliedDurationSeconds = Number(row?.round_duration_seconds ?? 30);
-  const durationSeconds = tuning.tailSeconds > 0
-    ? Math.max(suppliedDurationSeconds, Math.ceil((tunedFillerStream.length * intervalMs) / 1000) + tuning.tailSeconds)
-    : suppliedDurationSeconds;
+  const tunedFillerStream = tuneFillerStreamForTier(fillerStream, intentions, difficultyTier, intervalMs);
+  const streamDurationSeconds = Math.ceil((tunedFillerStream.length * intervalMs) / 1000);
+  const timedIntentionSeconds = getLatestTimedIntentionSeconds(intentions);
+  const durationSeconds = Math.max(
+    1,
+    streamDurationSeconds + tuning.tailSeconds,
+    timedIntentionSeconds > 0 ? Math.ceil(timedIntentionSeconds + tuning.tailSeconds) : 0,
+  );
 
   return {
     ...row,
@@ -205,6 +409,24 @@ export function normalizeRememberLaterRound(row) {
     filler_item_interval_ms: intervalMs,
     intentions,
   };
+}
+
+function normalizeRememberLaterUserState(state) {
+  const normalized = state ?? getDefaultRememberLaterUserState("");
+  const currentTier = clamp(Number(normalized.current_tier ?? DEFAULT_ENTRY_TIER), 1, MAX_TIER);
+
+  return {
+    ...normalized,
+    current_tier: currentTier,
+  };
+}
+
+export function shouldShowRememberLaterIntro(state, round) {
+  const stateTier = Number(state?.current_tier ?? DEFAULT_ENTRY_TIER);
+  const roundTier = Number(round?.difficulty_tier ?? stateTier);
+  const effectiveTier = clamp(Number.isFinite(roundTier) ? roundTier : stateTier, 1, MAX_TIER);
+
+  return !state?.has_seen_tutorial && effectiveTier <= 1;
 }
 
 export function pickRememberLaterRound(rounds, todaySessions = [], historySessions = [], random = Math.random) {
@@ -341,6 +563,67 @@ function writeLocalTutorialSeen() {
   window.localStorage.setItem(LOCAL_TUTORIAL_KEY, "true");
 }
 
+function readLocalJson(key, fallback) {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key, value) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function readLocalRememberLaterState() {
+  const stored = readLocalJson(LOCAL_STATE_KEY, null);
+  const fallback = getDefaultRememberLaterUserState("");
+  const normalized = normalizeRememberLaterUserState({
+    ...fallback,
+    ...(stored && typeof stored === "object" ? stored : {}),
+    user_id: "",
+    has_seen_tutorial: Boolean(stored?.has_seen_tutorial || readLocalTutorialSeen()),
+  });
+
+  return normalized;
+}
+
+function writeLocalRememberLaterState(state) {
+  writeLocalJson(LOCAL_STATE_KEY, {
+    ...normalizeRememberLaterUserState(state),
+    user_id: "",
+  });
+}
+
+function readLocalRememberLaterSessions() {
+  const stored = readLocalJson(LOCAL_SESSIONS_KEY, []);
+  if (!Array.isArray(stored)) return [];
+
+  return stored.filter((session) => session && typeof session === "object" && typeof session.played_at === "string");
+}
+
+function writeLocalRememberLaterSession(result, playedAt = new Date()) {
+  if (!result?.round_id) return;
+  const nextSession = {
+    round_id: result.round_id,
+    difficulty_tier: result.difficulty_tier,
+    played_at: playedAt.toISOString(),
+  };
+  const nextSessions = [...readLocalRememberLaterSessions(), nextSession].slice(-500);
+  writeLocalJson(LOCAL_SESSIONS_KEY, nextSessions);
+}
+
+function getTodayLocalRememberLaterSessions(date = new Date()) {
+  const { start, end } = localDayBounds(date);
+  return readLocalRememberLaterSessions().filter((session) => {
+    const playedAt = new Date(session.played_at);
+    return playedAt >= start && playedAt < end;
+  });
+}
+
 function CueIcon({ icon = "bell", size = 72, className = "" }) {
   const Icon = CUE_ICON_COMPONENTS[icon] ?? Bell;
   return <Icon aria-hidden="true" size={size} strokeWidth={2.5} className={className} />;
@@ -437,6 +720,7 @@ export default function RememberLater({
   const [sessionResult, setSessionResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [autoStartAfterLoad, setAutoStartAfterLoad] = useState(false);
   const roundRef = useLatestRef(round);
   const screenRef = useLatestRef(screen);
   const userStateRef = useLatestRef(userState);
@@ -466,10 +750,7 @@ export default function RememberLater({
 
   const loadUserState = useCallback(async () => {
     if (!userId) {
-      return {
-        ...getDefaultRememberLaterUserState(""),
-        has_seen_tutorial: readLocalTutorialSeen(),
-      };
+      return readLocalRememberLaterState();
     }
 
     const { data, error } = await gameData
@@ -478,7 +759,7 @@ export default function RememberLater({
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (data) return data;
+    if (data) return normalizeRememberLaterUserState(data);
     if (error) {
       console.warn("Remember Later could not load progress state.", error);
     }
@@ -490,15 +771,19 @@ export default function RememberLater({
       .select("*")
       .single();
 
-    if (saved.data) return saved.data;
+    if (saved.data) return normalizeRememberLaterUserState(saved.data);
     if (saved.error) {
       console.warn("Remember Later could not create progress state.", saved.error);
     }
-    return fallback;
+    return normalizeRememberLaterUserState(fallback);
   }, [userId]);
 
   const loadRound = useCallback(async (tier) => {
-    if (!userId) return normalizeRememberLaterRound(FALLBACK_ROUND);
+    if (!userId) {
+      const localRounds = buildLocalRememberLaterRounds(tier);
+      const todaySessions = getTodayLocalRememberLaterSessions();
+      return pickRememberLaterRound(localRounds, todaySessions, readLocalRememberLaterSessions(), () => 0) ?? normalizeRememberLaterRound(FALLBACK_ROUND);
+    }
 
     const { start, end } = localDayBounds();
     const [todaySessionsResult, roundsResult] = await Promise.all([
@@ -543,25 +828,32 @@ export default function RememberLater({
   const loadGame = useCallback(async () => {
     setScreen("loading");
     setLoadError("");
+    setAutoStartAfterLoad(false);
     stopTimers();
     finalizingRef.current = false;
     sessionSavedRef.current = false;
     try {
       const state = await loadUserState();
       const nextRound = await loadRound(Number(state.current_tier ?? 1));
+      const shouldShowIntro = shouldShowRememberLaterIntro(state, nextRound);
       setUserState(state);
       setRound(nextRound);
       setCurrentIndex(0);
       setSessionResult(null);
+      setAutoStartAfterLoad(!shouldShowIntro);
       setScreen("intro");
     } catch (error) {
       console.warn("Remember Later could not load.", error);
-      setUserState({
-        ...getDefaultRememberLaterUserState(userId ?? ""),
-        has_seen_tutorial: readLocalTutorialSeen(),
-      });
+      const fallbackState = userId
+        ? normalizeRememberLaterUserState({
+          ...getDefaultRememberLaterUserState(userId),
+          has_seen_tutorial: readLocalTutorialSeen(),
+        })
+        : readLocalRememberLaterState();
+      setUserState(fallbackState);
       setRound(normalizeRememberLaterRound(FALLBACK_ROUND));
       setLoadError(t("games.rememberLater.practiceFallback", "We will use a short practice round."));
+      setAutoStartAfterLoad(!shouldShowRememberLaterIntro(fallbackState, FALLBACK_ROUND));
       setScreen("intro");
     }
   }, [loadRound, loadUserState, stopTimers, t, userId]);
@@ -576,8 +868,6 @@ export default function RememberLater({
   const saveSession = useCallback(async (result) => {
     if (sessionSavedRef.current) return null;
     sessionSavedRef.current = true;
-
-    if (!userId) return null;
 
     const payload = {
       user_id: userId,
@@ -599,6 +889,11 @@ export default function RememberLater({
       abandoned: result.abandoned,
       duration_seconds: result.duration_seconds,
     };
+
+    if (!userId) {
+      writeLocalRememberLaterSession(result);
+      return null;
+    }
 
     const saved = await gameData
       .table("remember_later_sessions")
@@ -647,6 +942,7 @@ export default function RememberLater({
     if (!userId) {
       const next = getNextRememberLaterStateAfterSession(userStateRef.current, result);
       setUserState(next);
+      writeLocalRememberLaterState(next);
       return next;
     }
 
@@ -661,8 +957,9 @@ export default function RememberLater({
       .single();
 
     if (saved.data) {
-      setUserState(saved.data);
-      return saved.data;
+      const savedState = normalizeRememberLaterUserState(saved.data);
+      setUserState(savedState);
+      return savedState;
     }
 
     if (saved.error) {
@@ -726,6 +1023,7 @@ export default function RememberLater({
   const startRound = useCallback(() => {
     const currentRound = normalizedRound ?? normalizeRememberLaterRound(FALLBACK_ROUND);
     stopTimers();
+    setAutoStartAfterLoad(false);
     setCurrentIndex(0);
     setSessionResult(null);
     setScreen("playing");
@@ -761,6 +1059,16 @@ export default function RememberLater({
     }, currentRound.round_duration_seconds * 1000);
   }, [maybeFinishRound, normalizedRound, stopTimers]);
 
+  useEffect(() => {
+    if (screen !== "intro" || !autoStartAfterLoad || !normalizedRound) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      startRound();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [autoStartAfterLoad, normalizedRound, screen, startRound]);
+
   const markTutorialSeen = useCallback(async () => {
     const next = {
       ...(userStateRef.current ?? getDefaultRememberLaterUserState(userId ?? "")),
@@ -771,6 +1079,7 @@ export default function RememberLater({
 
     if (!userId) {
       writeLocalTutorialSeen();
+      writeLocalRememberLaterState(next);
       return;
     }
 
@@ -780,21 +1089,15 @@ export default function RememberLater({
       .select("*")
       .single();
 
-    if (saved.data) setUserState(saved.data);
+    if (saved.data) setUserState(normalizeRememberLaterUserState(saved.data));
   }, [userId, userStateRef]);
 
-  const beginAfterIntro = useCallback(() => {
-    if (userState?.has_seen_tutorial) {
-      startRound();
-      return;
+  const beginAfterIntro = useCallback(async () => {
+    if (!userState?.has_seen_tutorial) {
+      await markTutorialSeen();
     }
-    setScreen("tutorial");
-  }, [startRound, userState?.has_seen_tutorial]);
-
-  const finishTutorial = useCallback(async () => {
-    await markTutorialSeen();
     startRound();
-  }, [markTutorialSeen, startRound]);
+  }, [markTutorialSeen, startRound, userState?.has_seen_tutorial]);
 
   const handleOngoingTap = useCallback(() => {
     if (screenRef.current !== "playing" || !roundRef.current) return;
@@ -858,6 +1161,8 @@ export default function RememberLater({
 
   const resultToneHit = (sessionResult?.pm_hits ?? 0) > 0;
   const nextTier = userState?.current_tier ?? normalizedRound?.difficulty_tier ?? 1;
+  const nextTierBand = getBrainCoachLevelBand(nextTier);
+  const currentTierBand = normalizedRound ? getBrainCoachLevelBand(normalizedRound.difficulty_tier) : nextTierBand;
   const progressWins = userState?.consecutive_wins ?? 0;
   const ongoingRuleLabel = normalizedRound ? ruleLabel(normalizedRound.ongoing_task_rule, t) : "";
   const ongoingRuleShortLabel = normalizedRound ? shortRuleLabel(normalizedRound.ongoing_task_rule, t) : "";
@@ -873,184 +1178,138 @@ export default function RememberLater({
   const waitActionLabel = normalizedRound
     ? t("games.rememberLater.waitActionLabel", "No {rule}? Wait", { rule: ongoingRuleShortLabel })
     : t("games.rememberLater.waitActionFallback", "No target? Wait");
+  const targetCueLabel = normalizedRound
+    ? t("games.rememberLater.targetCueLabel", "See {rule}", { rule: ongoingRuleLabel })
+    : t("games.rememberLater.targetCueFallback", "See the target");
   const starActionLabel =
     firstIntention?.type === "event"
       ? t("games.rememberLater.starActionEvent", "{cue}? Tap gold star", { cue: firstCuePromptLabel })
       : t("games.rememberLater.starActionTime", "Later? Tap gold star");
-  const starReminderText =
+  const reminderCueLabel =
     firstIntention?.type === "event"
-      ? t("games.rememberLater.starReminderEvent", "{cue}: tap gold star.", { cue: firstCueLabel })
-      : t("games.rememberLater.starReminderTime", "Later: tap gold star.");
+      ? t("games.rememberLater.reminderCueLabel", "See the {cue}", { cue: firstCueLabel })
+      : t("games.rememberLater.reminderCueTimeLabel", "Later in the round");
   const progressWinsNeeded = Math.max(0, 3 - progressWins);
   const resultCountsForLevel = isRememberLaterCountedRound(sessionResult);
   const promotedThisRound = Boolean(sessionResult && resultCountsForLevel && nextTier > sessionResult.difficulty_tier);
+  const completedMilestone = sessionResult ? getBrainCoachMilestoneLabel(sessionResult.difficulty_tier) : null;
   const resultVerdict = sessionResult
     ? promotedThisRound
-      ? t("games.rememberLater.verdictLevelUp", "Level up")
+      ? completedMilestone ?? t("games.rememberLater.verdictLevelUp", "Level up")
       : resultCountsForLevel
         ? t("games.rememberLater.verdictCounted", "Good round")
         : resultToneHit
           ? t("games.rememberLater.verdictMemoryCredit", "Gold star remembered")
-          : t("games.rememberLater.verdictNotCounted", "Try again")
+          : t("games.rememberLater.verdictNotCounted", "Stay with this level")
     : "";
   const resultWhy = sessionResult
     ? resultCountsForLevel
       ? t("games.rememberLater.resultWhyCounted", "You used both buttons at the right time.")
       : resultToneHit
-        ? t("games.rememberLater.resultWhyMemoryCredit", "You got the gold star. Next time, tap purple for the target too.")
-        : t("games.rememberLater.resultWhyNeedsRecall", "To count: tap purple for the target and gold star for the reminder.")
+        ? t("games.rememberLater.resultWhyMemoryCredit", "You got the gold star. Stay here and strengthen the target taps too.")
+        : t("games.rememberLater.resultWhyNeedsRecall", "Stay here and strengthen this level. Use purple for targets and gold for reminders.")
     : "";
   const levelProgressNote = sessionResult
     ? promotedThisRound
-      ? t("games.rememberLater.levelProgressPromoted", "Level up. You got 3 counted rounds, so your next round is Level {level}.", { level: nextTier })
+      ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: sessionResult.difficulty_tier })
       : resultCountsForLevel
         ? t("games.rememberLater.levelProgressCounted", "Good round. {count} more to move up.", { count: progressWinsNeeded })
-        : resultToneHit
-          ? t("games.rememberLater.levelProgressNeedsBackground", "You remembered the gold star. To count the round, also tap purple for the target.")
-          : t("games.rememberLater.levelProgressNeedsRecall", "To count the round, use both buttons: purple for the target and gold star for the reminder.")
+        : getBrainCoachSupportiveProgressCopy({ advanced: false, level: sessionResult.difficulty_tier })
     : "";
+  const resultContinueLabel = promotedThisRound
+    ? t("games.rememberLater.startLevel", "Start Level {level}", { level: nextTier })
+    : t("games.rememberLater.nextRound", "Next round");
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-5 text-[24px] font-bold">{t("games.rememberLater.preparing", "Preparing the reminder...")}</p>
-        </section>
-      </main>
+      <BrainCoachLoadingState
+        title={t("games.rememberLater.title", "Remember Later")}
+        label={t("games.rememberLater.preparing", "Preparing the reminder...")}
+        testId="remember-later-flow-shell"
+        presentationId="brain_coach.activity_session.memory.remember_later.loading.touch"
+        sceneId="brain_coach.activity_session.memory.remember_later"
+      />
     );
   }
 
   return (
-    <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-      <div className="mx-auto w-full max-w-[980px]">
-        <header className="flex items-center justify-between gap-4">
-          <VyvaMark className="h-12 w-12" />
-          <button
-            type="button"
-            onClick={exitGame}
-            className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card"
-          >
-            <ArrowLeft size={24} />
-            {t("common.exit", "Exit")}
-          </button>
-        </header>
-
+    <BrainCoachActivityShell
+      title={t("games.rememberLater.title", "Remember Later")}
+      backLabel={t("common.exit", "Exit")}
+      onBack={exitGame}
+      showHeader={screen !== "result"}
+      testId="remember-later-flow-shell"
+      frameClassName="lg:max-w-[980px]"
+      presentationId={`brain_coach.activity_session.memory.remember_later.${screen}.touch`}
+      sceneId="brain_coach.activity_session.memory.remember_later"
+      sceneKind={screen === "result" ? "completion" : screen}
+      sceneLayout={screen === "playing" ? "dual_action_game" : screen === "result" ? "modal_actions" : "activity_panel"}
+      state={screen === "result" ? "complete" : "default"}
+    >
+      <div className="mx-auto w-full max-w-[980px]" style={{ color: BRAND.ink }}>
         {screen === "intro" && normalizedRound ? (
-          <section className="mt-5 overflow-hidden rounded-[28px] border bg-white shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <section className="mt-5 rounded-[28px] border bg-white p-5 shadow-vyva-card sm:p-7" style={{ borderColor: BRAND.border }}>
             {loadError ? <p className="m-5 rounded-2xl bg-[#FFF7ED] px-4 py-3 text-[20px] font-bold text-[#92400E]">{loadError}</p> : null}
-            <div className="grid gap-0 md:grid-cols-[1.08fr_0.92fr]">
-              <div className="p-5 text-left sm:p-6">
-                <p className="inline-flex rounded-full px-4 py-2 text-[17px] font-black sm:text-[18px]" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                  {t("common.level", "Level")} {normalizedRound.difficulty_tier}
-                </p>
-                <h1 className="mt-3 font-display text-[38px] leading-tight sm:text-[42px]">{t("games.rememberLater.title", "Remember Later")}</h1>
-                <p className="mt-2 max-w-[540px] text-[22px] font-extrabold leading-snug sm:text-[24px]" style={{ color: BRAND.muted }}>
-                  {t("games.rememberLater.subtitle", "Use two buttons during the round.")}
-                </p>
+            <div className="text-left">
+              <p className="inline-flex rounded-full px-4 py-2 text-[17px] font-black sm:text-[18px]" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                {t("common.level", "Level")} {normalizedRound.difficulty_tier} - {currentTierBand.label}
+              </p>
+              <h1 className="mt-4 font-display text-[38px] leading-tight sm:text-[44px]">{t("games.rememberLater.title", "Remember Later")}</h1>
+              <p className="mt-2 max-w-[560px] text-[22px] font-extrabold leading-snug sm:text-[24px]" style={{ color: BRAND.muted }}>
+                {t("games.rememberLater.introLead", "Watch for two things.")}
+              </p>
+            </div>
 
-                <div className="mt-5 grid gap-3">
-                  <div className="rounded-[24px] border p-3 sm:p-4" style={{ borderColor: BRAND.border, background: BRAND.softPurple }}>
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-[20px] bg-white sm:h-[76px] sm:w-[76px] sm:rounded-[22px]" style={{ color: BRAND.purple }}>
-                        <RuleVisual rule={normalizedRound.ongoing_task_rule} size={48} />
-                      </div>
-                      <div>
-                        <p className="text-[16px] font-black uppercase tracking-[0.04em] sm:text-[18px]" style={{ color: BRAND.muted }}>
-                          {t("games.rememberLater.matchButtonHeading", "Purple button")}
-                        </p>
-                        <p className="mt-1 text-[23px] font-black leading-tight sm:text-[26px]">{matchActionLabel}</p>
-                        <p className="text-[17px] font-extrabold sm:text-[19px]" style={{ color: BRAND.muted }}>{waitActionLabel}</p>
-                      </div>
-                    </div>
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[24px] border p-4" style={{ borderColor: BRAND.border, background: BRAND.softPurple }}>
+                <div className="flex min-h-[118px] items-center gap-4">
+                  <div className="flex h-[74px] w-[74px] shrink-0 items-center justify-center rounded-[22px] bg-white" style={{ color: BRAND.purple }}>
+                    <RuleVisual rule={normalizedRound.ongoing_task_rule} size={48} />
                   </div>
-
-                  <div className="rounded-[24px] border p-3 sm:p-4" style={{ borderColor: "#FDE68A", background: "#FFF7ED" }}>
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-[20px] bg-white sm:h-[76px] sm:w-[76px] sm:rounded-[22px]" style={{ color: "#B45309" }}>
-                        {firstIntention?.type === "event" ? <CueIcon icon={firstIntention.cue_icon} size={48} /> : <Star size={48} fill="currentColor" />}
-                      </div>
-                      <div>
-                        <p className="text-[16px] font-black uppercase tracking-[0.04em] sm:text-[18px]" style={{ color: BRAND.muted }}>
-                          {t("games.rememberLater.starButtonHeading", "Gold star")}
-                        </p>
-                        <p className="mt-1 text-[23px] font-black leading-tight sm:text-[26px]">{starActionLabel}</p>
-                        <p className="text-[17px] font-extrabold sm:text-[19px]" style={{ color: BRAND.muted }}>
-                          {t("games.rememberLater.keepInMind", "No reminder during the round.")}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t p-5 sm:p-6 md:border-l md:border-t-0" style={{ borderColor: BRAND.border, background: "#FFFEFC" }}>
-                <div className="flex h-full min-h-[320px] flex-col justify-between rounded-[26px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFFFF" }}>
                   <div>
-                    <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
-                      {t("games.rememberLater.roundGoalHeading", "Round goal")}
-                    </p>
-                    <p className="mt-2 text-[24px] font-black leading-snug">
-                      {t("games.rememberLater.countedRoundIntro", "3 good rounds = next level.")}
+                    <p className="text-[18px] font-extrabold leading-tight" style={{ color: BRAND.muted }}>{targetCueLabel}</p>
+                    <p className="mt-1 text-[27px] font-black leading-tight sm:text-[30px]">
+                      {t("games.rememberLater.tutorialTapPurple", "Tap purple")}
                     </p>
                   </div>
+                </div>
+              </div>
 
-                  <div className="my-5 grid grid-cols-3 items-center gap-3">
-                    <div className="flex min-h-[98px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-                      <RuleVisual rule={normalizedRound.ongoing_task_rule} size={54} />
-                    </div>
-                    <div className="text-center text-[34px] font-black" style={{ color: BRAND.muted }}>+</div>
-                    <div className="flex min-h-[98px] items-center justify-center rounded-[24px]" style={{ background: "#FFF7ED", color: BRAND.gold }}>
-                      <Star size={54} fill="currentColor" />
-                    </div>
+              <div className="rounded-[24px] border p-4" style={{ borderColor: "#FDE68A", background: "#FFF7ED" }}>
+                <div className="flex min-h-[118px] items-center gap-4">
+                  <div className="flex h-[74px] w-[74px] shrink-0 items-center justify-center rounded-[22px] bg-white" style={{ color: "#B45309" }}>
+                    {firstIntention?.type === "event" ? <CueIcon icon={firstIntention.cue_icon} size={48} /> : <Star size={48} fill="currentColor" />}
                   </div>
-
-                  <div className="grid gap-3">
-                    <button
-                      type="button"
-                      onClick={beginAfterIntro}
-                      className="inline-flex min-h-[78px] w-full items-center justify-center gap-3 rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card"
-                      style={{ background: BRAND.purple }}
-                    >
-                      <Play size={30} fill="currentColor" />
-                      {t("games.rememberLater.startRound", "Start round")}
-                    </button>
-                    <p className="text-center text-[18px] font-extrabold leading-snug" style={{ color: BRAND.muted }}>
-                      {t("games.rememberLater.noReminder", "Remember both rules after you start.")}
+                  <div>
+                    <p className="text-[18px] font-extrabold leading-tight" style={{ color: BRAND.muted }}>{reminderCueLabel}</p>
+                    <p className="mt-1 text-[27px] font-black leading-tight sm:text-[30px]" style={{ color: "#92400E" }}>
+                      {t("games.rememberLater.tutorialTapGold", "Tap gold star")}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
-          </section>
-        ) : null}
 
-        {screen === "tutorial" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="flex items-center justify-between gap-4">
-              <h1 className="font-display text-[36px] leading-tight">{t("common.example", "Example")}</h1>
-              <button type="button" onClick={finishTutorial} className="min-h-[64px] rounded-full border px-6 text-[22px] font-black" style={{ borderColor: BRAND.border, color: BRAND.purple }}>
-                {t("common.skip", "Skip")}
-              </button>
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+              <div className="rounded-[22px] bg-[#F8FAFC] px-4 py-4">
+                <p className="text-[23px] font-black leading-tight">{t("games.rememberLater.waitAnythingElse", "Anything else: wait.")}</p>
+                <p className="mt-1 text-[17px] font-extrabold leading-snug" style={{ color: BRAND.muted }}>
+                  {t("games.rememberLater.firstRoundOnly", "First round only. After this, levels start right away.")}
+                </p>
+              </div>
+              <p className="rounded-full px-4 py-3 text-center text-[17px] font-black" style={{ background: "#ECFDF5", color: BRAND.teal }}>
+                {t("games.rememberLater.countedRoundIntro", "3 good rounds = next level.")}
+              </p>
             </div>
-            <p className="mt-5 text-[24px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.tutorialBody", "Tap when you see {rule}. {cue}: tap gold star. Anything else: wait. This is the only example.", { rule: ongoingRuleLabel || "a circle", cue: firstCueLabel })}
-            </p>
-            <div className="mt-6 grid grid-cols-4 gap-3">
-              {[Circle, Square, Bell, Triangle].map((Icon, index) => (
-                <div key={index} className="flex min-h-[96px] items-center justify-center rounded-[22px] border bg-[#FFFEFC]" style={{ borderColor: index === 2 ? BRAND.gold : BRAND.border, color: index === 2 ? "#B45309" : BRAND.purple }}>
-                  <Icon size={48} />
-                </div>
-              ))}
-            </div>
-            <p className="mt-6 text-center text-[26px] font-black">{t("games.rememberLater.tutorialReady", "Ready to try it for real?")}</p>
+
             <button
               type="button"
-              onClick={finishTutorial}
-              className="mt-5 min-h-[76px] w-full rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card"
+              onClick={beginAfterIntro}
+              className="mt-6 inline-flex min-h-[78px] w-full items-center justify-center gap-3 rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card"
               style={{ background: BRAND.purple }}
             >
-              {t("games.rememberLater.tryForReal", "Try it for real")}
+              <Play size={30} fill="currentColor" />
+              {t("games.rememberLater.startRound", "Start round")}
             </button>
           </section>
         ) : null}
@@ -1122,108 +1381,58 @@ export default function RememberLater({
         ) : null}
 
         {screen === "result" && sessionResult ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[28px]" style={{ background: resultToneHit ? BRAND.tealPale : BRAND.softPurple, color: resultToneHit ? BRAND.teal : BRAND.purple }}>
-              {resultToneHit ? <Check size={52} /> : <CircleHelp size={52} />}
-            </div>
-            <h1 className="mt-5 font-display text-[36px] leading-tight">
-              {resultToneHit
+          <BrainGameCompletionDialog
+            title={
+              resultToneHit
                 ? t("games.rememberLater.resultHit", "You remembered without anyone reminding you.")
-                : t("games.rememberLater.resultMiss", "You did not remember this time, and that is okay. Let us keep practicing.")}
-            </h1>
-            <div
-              className="mt-4 rounded-[22px] px-4 py-3 text-left"
-              style={{
-                background: resultCountsForLevel ? BRAND.tealPale : resultToneHit ? "#FEF3C7" : BRAND.softPurple,
-                color: resultCountsForLevel ? BRAND.teal : resultToneHit ? "#92400E" : BRAND.purple,
-              }}
-            >
-              <p className="text-[20px] font-black uppercase tracking-[0.04em]">{resultVerdict}</p>
-              <p className="mt-1 text-[20px] font-extrabold leading-snug">{resultWhy}</p>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3 text-left">
-              <div className="rounded-[22px] p-4" style={{ background: BRAND.softPurple }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>{t("games.rememberLater.matchingTask", "Matching task")}</p>
-                <p className="mt-2 text-[34px] font-black">{Math.round(sessionResult.ongoing_accuracy_pct)}%</p>
-              </div>
-              <div className="rounded-[22px] p-4" style={{ background: BRAND.tealPale }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>{t("games.rememberLater.remembered", "Recall")}</p>
-                <p className="mt-2 text-[34px] font-black">{sessionResult.pm_hits}/{sessionResult.pm_total}</p>
-              </div>
-              <div className="rounded-[22px] p-4" style={{ background: "#FEF3C7" }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>{t("games.rememberLater.score", "Score")}</p>
-                <p className="mt-2 text-[34px] font-black">{sessionResult.score}</p>
-              </div>
-              <div className="rounded-[22px] p-4" style={{ background: "#F8FAFC" }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>{t("games.rememberLater.streak", "Streak")}</p>
-                <p className="mt-2 text-[34px] font-black">{userState?.streak_days ?? 1}</p>
-              </div>
-            </div>
-
-            <div className="mt-6 text-left">
-              <div className="flex items-center justify-between text-[20px] font-black">
-                <span>{t("games.rememberLater.promotionProgress", "Level progress")}</span>
-                <span>{progressWins}/3</span>
-              </div>
-              <div className="mt-2 h-3 rounded-full bg-[#EDE9FE]">
-                <div className="h-full rounded-full" style={{ width: `${Math.min(100, (progressWins / 3) * 100)}%`, background: BRAND.purple }} />
-              </div>
-              <p className="mt-2 text-[18px] font-bold" style={{ color: BRAND.muted }}>
-                {t("games.rememberLater.currentLevel", "Current level")}: {nextTier}
-              </p>
-              <p
-                className="mt-3 rounded-2xl px-4 py-3 text-[18px] font-extrabold leading-snug"
+                : t("games.rememberLater.resultMiss", "You did not remember this time, and that is okay. Let us keep practicing.")
+            }
+            summary={levelProgressNote}
+            metrics={[
+              { label: t("games.rememberLater.matchingTask", "Matching task"), value: `${Math.round(sessionResult.ongoing_accuracy_pct)}%` },
+              { label: t("games.rememberLater.remembered", "Recall"), value: `${sessionResult.pm_hits}/${sessionResult.pm_total}` },
+              { label: t("games.rememberLater.score", "Score"), value: sessionResult.score },
+              { label: t("games.rememberLater.streak", "Streak"), value: userState?.streak_days ?? 1 },
+            ]}
+            details={
+              <div
+                className="rounded-[20px] px-4 py-4 text-left"
                 style={{
-                  background: resultCountsForLevel ? BRAND.tealPale : "#FFF7ED",
-                  color: resultCountsForLevel ? BRAND.teal : "#92400E",
+                  background: resultCountsForLevel ? BRAND.tealPale : resultToneHit ? "#FEF3C7" : BRAND.softPurple,
+                  color: resultCountsForLevel ? BRAND.teal : resultToneHit ? "#92400E" : BRAND.purple,
                 }}
               >
-                {levelProgressNote}
-              </p>
-            </div>
-
-            {assessmentPractice ? (
-              <div className="mt-6 rounded-[22px] border px-4 py-4 text-left" style={{ borderColor: "#A7F3D0", background: "#ECFDF5", color: BRAND.teal }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.05em]">{t("brainGames.resultActions.assessmentPractice", "Assessment practice")}</p>
-                <p className="mt-1 text-[21px] font-extrabold leading-snug" style={{ color: BRAND.ink }}>
-                  {t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")}
-                </p>
-                <button
-                  type="button"
-                  onClick={onAssessmentPracticeReturn}
-                  disabled={saving || !onAssessmentPracticeReturn}
-                  className="mt-4 min-h-[62px] w-full rounded-full px-5 text-[21px] font-black text-white shadow-vyva-card disabled:opacity-60"
-                  style={{ background: BRAND.teal }}
-                >
-                  {t("brainGames.resultActions.backToResults", "Back to my results")}
-                </button>
+                <p className="text-[15px] font-black uppercase">{resultVerdict}</p>
+                <p className="mt-1 text-[15px] font-extrabold leading-snug">{resultWhy}</p>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-[15px] font-black">
+                    <span>{t("games.rememberLater.promotionProgress", "Level progress")}</span>
+                    <span>{progressWins}/3</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-white/70">
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, (progressWins / 3) * 100)}%`, background: BRAND.purple }} />
+                  </div>
+                  <p className="mt-2 text-[14px] font-bold">
+                    {t("games.rememberLater.currentLevel", "Current level")}: {nextTier} - {nextTierBand.label}
+                  </p>
+                </div>
               </div>
-            ) : null}
-
-            <div className="mt-7 grid gap-3">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={loadGame}
-                className="min-h-[72px] rounded-full px-6 text-[24px] font-black text-white shadow-vyva-card disabled:opacity-60"
-                style={{ background: BRAND.purple }}
-              >
-                {t("common.playAgain", "Play again")}
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={onExit}
-                className="min-h-[72px] rounded-full border bg-white px-6 text-[24px] font-black shadow-vyva-card disabled:opacity-60"
-                style={{ borderColor: BRAND.border, color: BRAND.ink }}
-              >
-                {t("common.finish", "Finish")}
-              </button>
-            </div>
-          </section>
+            }
+            continueLabel={resultContinueLabel}
+            anotherLabel={t("common.finish", "Finish")}
+            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+            assessmentReturnHint={
+              assessmentPractice
+                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+                : undefined
+            }
+            onContinue={loadGame}
+            onAnother={onExit}
+            onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+            disabled={saving}
+          />
         ) : null}
       </div>
-    </main>
+    </BrainCoachActivityShell>
   );
 }

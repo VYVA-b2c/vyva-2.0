@@ -1,5 +1,9 @@
 import { translate } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+} from "../shared/brainCoachProgression";
 import type {
   CognitiveDomain,
   MemoryGameDefinition,
@@ -49,6 +53,17 @@ type RoutineTemplate = {
   activities: string[];
 };
 
+type AssociationLabel = Partial<Record<LanguageCode, string>> & {
+  es: string;
+  en: string;
+};
+
+type AssociationTemplate = {
+  left: AssociationLabel;
+  right: AssociationLabel;
+  extra: string;
+};
+
 type GameContentLanguage = LanguageCode;
 
 type StoryChoiceQuestion = {
@@ -67,6 +82,8 @@ type StoryContent = {
 type StoryTemplate = Record<GameContentLanguage, StoryContent>;
 
 const GAME_CONTENT_LANGUAGES: GameContentLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
+const MEMORY_GAME_LEVELS = Array.from({ length: BRAIN_COACH_MAX_LEVEL }, (_, index) => index + 1);
+const MEMORY_MATCH_VARIANTS_PER_THEME = 3;
 
 function createVariant(
   id: string,
@@ -108,18 +125,38 @@ function buildSpanishOnlyVariants(
   );
 }
 
-function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number): LocalizedValue<MemoryGameVariantContent> {
+function pickMemoryMatchItems(items: MemoryMatchItem[], pairCount: number, offset: number) {
+  const safePairCount = Math.min(pairCount, items.length);
+  const safeOffset = items.length > 0 ? ((offset % items.length) + items.length) % items.length : 0;
+
+  return Array.from({ length: safePairCount }, (_, index) => items[(safeOffset + index) % items.length]);
+}
+
+function getMemoryMatchOffsets(itemCount: number, pairCount: number) {
+  if (pairCount >= itemCount) return [0];
+
+  return Array.from(
+    { length: MEMORY_MATCH_VARIANTS_PER_THEME },
+    (_, index) => Math.floor((index * itemCount) / MEMORY_MATCH_VARIANTS_PER_THEME),
+  );
+}
+
+function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, level: number, itemOffset: number): LocalizedValue<MemoryGameVariantContent> {
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
+  const band = getBrainCoachLevelBand(level);
+  const pairItems = pickMemoryMatchItems(set.items, pairCount, itemOffset);
 
   return languages.reduce((accumulator, language) => {
     accumulator[language] = {
       title: set.titles[language],
       prompt: set.prompts[language],
       payload: {
-        pairItems: set.items.slice(0, pairCount).map((item) => ({
+        pairItems: pairItems.map((item) => ({
           label: item.labels[language],
           emoji: item.emoji,
         })),
+        levelBand: band.label,
+        previewSeconds: Math.max(0, 6 - Math.floor((level - 1) / 4)),
       },
     };
 
@@ -128,24 +165,35 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number): Loc
 }
 
 function buildMemoryMatchLevels(sets: MemoryMatchSet[]): MemoryGameLevel[] {
-  const levelSpecs = [
-    { level: 1, pairs: 2 },
-    { level: 2, pairs: 3 },
-    { level: 3, pairs: 4 },
-    { level: 4, pairs: 6 },
-    { level: 5, pairs: 8 },
-  ] as const;
-
-  return levelSpecs.map((spec) => ({
-    level: spec.level,
-    variants: sets.map((set, index) =>
-      createVariant(
-        `memory_match-l${spec.level}-v${index + 1}`,
-        spec.level,
-        localizeMemoryMatchContent(set, spec.pairs),
-      ),
-    ),
+  const pairCounts = [2, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
+  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
+    level,
+    pairs: pairCounts[level - 1] ?? 8,
   }));
+
+  return levelSpecs.map((spec) => {
+    const maxOffsetCount = Math.max(...sets.map((set) => getMemoryMatchOffsets(set.items.length, spec.pairs).length));
+    const variants = Array.from({ length: maxOffsetCount }).flatMap((_, offsetIndex) =>
+      sets.flatMap((set, setIndex) => {
+        const offsets = getMemoryMatchOffsets(set.items.length, spec.pairs);
+        const itemOffset = offsets[offsetIndex];
+        if (itemOffset === undefined) return [];
+
+        return [
+          createVariant(
+            `memory_match-l${spec.level}-v${offsetIndex * sets.length + setIndex + 1}`,
+            spec.level,
+            localizeMemoryMatchContent(set, spec.pairs, spec.level, itemOffset),
+          ),
+        ];
+      }),
+    );
+
+    return {
+      level: spec.level,
+      variants,
+    };
+  });
 }
 
 function buildListLevels(
@@ -172,23 +220,19 @@ function buildListLevels(
 }
 
 function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
-  const levelSpecs = [
-    { level: 1, count: 3, distractionType: null },
-    { level: 2, count: 4, distractionType: null },
-    { level: 3, count: 5, distractionType: null },
-    { level: 4, count: 6, distractionType: "count_backwards" },
-    { level: 5, count: 6, distractionType: "choose_blue" },
-  ] as const;
-
   const distractionRotation = ["count_backwards", "choose_blue", "breathe_continue"] as const;
+  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
+    level,
+    count: Math.min(6, 3 + Math.floor((level - 1) / 4)),
+    distractionType: level <= 4 ? null : distractionRotation[(level - 5) % distractionRotation.length],
+  }));
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
 
   return levelSpecs.map((spec) => ({
     level: spec.level,
     variants: sets.map((set, index) => {
       const content = languages.reduce((accumulator, language) => {
-        const distractionType =
-          spec.distractionType === null ? null : distractionRotation[index % distractionRotation.length];
+        const distractionType = spec.distractionType;
 
         accumulator[language] = {
           title: set.titles[language],
@@ -197,6 +241,8 @@ function buildWordRecallLevels(sets: WordRecallSet[]): MemoryGameLevel[] {
             words: set.words.slice(0, spec.count).map((item) => item.labels[language]),
             distractors: set.distractors.slice(0, spec.count + 1).map((item) => item.labels[language]),
             distractionType,
+            levelBand: getBrainCoachLevelBand(spec.level).label,
+            recallMode: spec.level >= 15 ? "mastery" : spec.level >= 9 ? "delayed" : "guided",
           },
         };
 
@@ -272,13 +318,16 @@ function buildSequenceLevels(templates: readonly SequenceTemplate[]): MemoryGame
     ],
   ];
 
-  const levelSpecs = [
-    { level: 1, count: 3, reverse: false },
-    { level: 2, count: 4, reverse: false },
-    { level: 3, count: 5, reverse: false },
-    { level: 4, count: 6, reverse: false },
-    { level: 5, count: 6, reverse: true },
-  ] as const;
+  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
+    level,
+    count: Math.min(8, 3 + Math.floor((level - 1) / 3)),
+    reverse: level >= 11 && level % 2 === 0,
+  }));
+
+  const buildSequencePattern = (level: number, variantIndex: number, count: number) =>
+    Array.from({ length: count }, (_, position) => (
+      variantIndex + level + position * (level >= 11 ? 2 : 1) + Math.floor(position / 2)
+    ) % 4);
 
   const patternMap: Record<number, number[][]> = {
     1: [
@@ -390,18 +439,22 @@ function buildSequenceLevels(templates: readonly SequenceTemplate[]): MemoryGame
     level: spec.level,
     variants: templates.map((template, index) => {
       const tileSet = sequenceVisualSets[index % sequenceVisualSets.length];
-      const pattern = patternMap[spec.level][index % patternMap[spec.level].length];
+      const pattern = patternMap[spec.level]?.[index % patternMap[spec.level].length]
+        ?? buildSequencePattern(spec.level, index, spec.count);
       const sequence = pattern.slice(0, spec.count).map((tileIndex) => tileSet[tileIndex % tileSet.length].id);
       const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
 
       const content = languages.reduce((accumulator, language) => {
+        const promptLevel = Math.min(spec.level, 5) as keyof typeof promptMap;
         accumulator[language] = {
           title: template.titles[language],
-          prompt: promptMap[spec.level][language],
+          prompt: promptMap[promptLevel][language],
           payload: {
             tiles: tileSet,
             sequence,
             reverse: spec.reverse,
+            levelBand: getBrainCoachLevelBand(spec.level).label,
+            tempoMs: Math.max(680, 1180 - spec.level * 20),
           },
         };
         return accumulator;
@@ -412,27 +465,66 @@ function buildSequenceLevels(templates: readonly SequenceTemplate[]): MemoryGame
   }));
 }
 
+function buildNumberDigits(set: readonly string[], templateIndex: number, level: number, targetLength: number) {
+  const source = set[(level - 1) % set.length] ?? set[0] ?? "123";
+  if (source.length >= targetLength) return source.slice(0, targetLength);
+
+  let digits = source;
+  let seed = (templateIndex + 1) * 41 + level * 67;
+  while (digits.length < targetLength) {
+    seed = (seed * 9301 + 49297) % 233280;
+    digits += String(seed % 10);
+  }
+
+  return digits;
+}
+
+function getNumberMemoryTitle(language: LanguageCode, index: number) {
+  return language === "es" ? `Números ${index + 1}` : `Numbers ${index + 1}`;
+}
+
+function getNumberMemoryPrompt(language: LanguageCode, count: number, reverse: boolean) {
+  if (language === "es") {
+    return reverse
+      ? `Recuerda ${count} digitos y repitelos en orden inverso.`
+      : `Recuerda ${count} digitos en orden.`;
+  }
+
+  return reverse
+    ? `Remember ${count} digits and enter them in reverse order.`
+    : `Remember ${count} digits in order.`;
+}
+
 function buildNumberLevels(numberTemplates: readonly string[][]): MemoryGameLevel[] {
-  return [
-    { level: 1, count: 3, reverse: false, prompt: "Recuerda 3 dígitos en orden." },
-    { level: 2, count: 4, reverse: false, prompt: "Recuerda 4 dígitos en orden." },
-    { level: 3, count: 5, reverse: false, prompt: "Recuerda 5 dígitos en orden." },
-    { level: 4, count: 6, reverse: false, prompt: "Recuerda 6 dígitos en orden." },
-    { level: 5, count: 5, reverse: true, prompt: "Recuerda los dígitos y repítelos en orden inverso." },
-  ].map((spec) => ({
+  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => {
+    const count = Math.min(8, 3 + Math.floor((level - 1) / 3));
+    const reverse = level >= 6 && level % 2 === 0;
+    return {
+      level,
+      count,
+      reverse,
+    };
+  });
+
+  return levelSpecs.map((spec) => ({
     level: spec.level,
-    variants: buildSpanishOnlyVariants(
-      "number_memory",
-      spec.level,
-      numberTemplates.map((set, index) => ({
-        title: `Números ${index + 1}`,
-        prompt: spec.prompt,
-        payload: {
-          digits: set[spec.level - 1],
-          reverse: spec.reverse,
-        },
-      })),
-    ),
+    variants: numberTemplates.map((set, index) => {
+      const digits = buildNumberDigits(set, index, spec.level, spec.count);
+      const content = GAME_CONTENT_LANGUAGES.reduce((accumulator, language) => {
+        accumulator[language] = {
+          title: getNumberMemoryTitle(language, index),
+          prompt: getNumberMemoryPrompt(language, spec.count, spec.reverse),
+          payload: {
+            digits,
+            reverse: spec.reverse,
+            levelBand: getBrainCoachLevelBand(spec.level).label,
+          },
+        };
+        return accumulator;
+      }, {} as LocalizedValue<MemoryGameVariantContent>);
+
+      return createVariant(`number_memory-l${spec.level}-v${index + 1}`, spec.level, content);
+    }),
   }));
 }
 
@@ -486,49 +578,102 @@ function buildRoutineLevels(routines: readonly RoutineTemplate[]): MemoryGameLev
   }));
 }
 
-function buildAssociationLevels(templates: readonly Array<{ left: string; right: string; extra: string }>): MemoryGameLevel[] {
-  return [
-    {
-      level: 1,
-      prompt: "Relaciona objeto y categoría.",
-      payload: (template: { left: string; right: string; extra: string }) => ({ left: template.left, right: template.right, icon: template.extra }),
-    },
-    {
-      level: 2,
-      prompt: "Relaciona un nombre con su objeto.",
-      payload: (template: { left: string; right: string; extra: string }) => ({ name: template.left, object: template.right, icon: template.extra }),
-    },
-    {
-      level: 3,
-      prompt: "Relaciona una cara o icono con un nombre.",
-      payload: (template: { left: string; right: string; extra: string }) => ({ icon: template.extra, name: template.left }),
-    },
-    {
-      level: 4,
-      prompt: "Relaciona una persona con su rutina.",
-      payload: (template: { left: string; right: string; extra: string }) => ({ person: template.left, routine: template.right }),
-    },
-    {
-      level: 5,
-      prompt: "Memoriza la asociación ahora y recuérdala después.",
-      payload: (template: { left: string; right: string; extra: string }) => ({ pair: [template.left, template.right], icon: template.extra }),
-    },
-  ].map((spec) => ({
+function getAssociationLabel(label: AssociationLabel, language: LanguageCode) {
+  return label[language] ?? label.en ?? label.es;
+}
+
+function getAssociationTitle(language: LanguageCode, index: number) {
+  return language === "es" ? `Asociación ${index + 1}` : `Association ${index + 1}`;
+}
+
+function buildAssociationLevels(templates: readonly AssociationTemplate[]): MemoryGameLevel[] {
+  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => {
+    const mode = ((level - 1) % 5) + 1;
+    const sharedPayload = (template: AssociationTemplate) => ({
+      levelBand: getBrainCoachLevelBand(level).label,
+      delaySeconds: level >= 11 ? 6 : level >= 6 ? 4 : 2,
+      choiceCount: Math.min(4, 2 + Math.floor((level - 1) / 5)),
+      icon: template.extra,
+    });
+    const promptByLanguage = (es: string, en: string) => (language: LanguageCode) => language === "es" ? es : en;
+
+    if (mode === 1) {
+      return {
+        level,
+        prompt: promptByLanguage("Relaciona objeto y categoria.", "Link the item to its group."),
+        payload: (template: AssociationTemplate, language: LanguageCode) => ({
+          ...sharedPayload(template),
+          left: getAssociationLabel(template.left, language),
+          right: getAssociationLabel(template.right, language),
+        }),
+      };
+    }
+
+    if (mode === 2) {
+      return {
+        level,
+        prompt: promptByLanguage("Relaciona un nombre con su objeto.", "Link the person to the item."),
+        payload: (template: AssociationTemplate, language: LanguageCode) => ({
+          ...sharedPayload(template),
+          name: getAssociationLabel(template.left, language),
+          object: getAssociationLabel(template.right, language),
+        }),
+      };
+    }
+
+    if (mode === 3) {
+      return {
+        level,
+        prompt: promptByLanguage("Relaciona un icono con un nombre.", "Link the symbol to the name."),
+        payload: (template: AssociationTemplate, language: LanguageCode) => ({
+          ...sharedPayload(template),
+          icon: template.extra,
+          name: getAssociationLabel(template.left, language),
+        }),
+      };
+    }
+
+    if (mode === 4) {
+      return {
+        level,
+        prompt: promptByLanguage("Relaciona una persona con su rutina.", "Link the person to the daily detail."),
+        payload: (template: AssociationTemplate, language: LanguageCode) => ({
+          ...sharedPayload(template),
+          person: getAssociationLabel(template.left, language),
+          routine: getAssociationLabel(template.right, language),
+        }),
+      };
+    }
+
+    return {
+      level,
+      prompt: promptByLanguage("Memoriza la asociacion ahora y recuerdala despues.", "Remember the link, then recall it after a short pause."),
+      payload: (template: AssociationTemplate, language: LanguageCode) => ({
+        ...sharedPayload(template),
+        pair: [getAssociationLabel(template.left, language), getAssociationLabel(template.right, language)],
+      }),
+    };
+  });
+
+  return levelSpecs.map((spec) => ({
     level: spec.level,
-    variants: buildSpanishOnlyVariants(
-      "association_memory",
-      spec.level,
-      templates.map((template, index) => ({
-        title: `Asociación ${index + 1}`,
-        prompt: spec.prompt,
-        payload: spec.payload(template),
-      })),
-    ),
+    variants: templates.map((template, index) => {
+      const content = GAME_CONTENT_LANGUAGES.reduce((accumulator, language) => {
+        accumulator[language] = {
+          title: getAssociationTitle(language, index),
+          prompt: spec.prompt(language),
+          payload: spec.payload(template, language),
+        };
+        return accumulator;
+      }, {} as LocalizedValue<MemoryGameVariantContent>);
+
+      return createVariant(`association_memory-l${spec.level}-v${index + 1}`, spec.level, content);
+    }),
   }));
 }
 
 function buildStoryLevels(stories: readonly StoryTemplate[]): MemoryGameLevel[] {
-  const levelSpecs = [
+  const baseLevelSpecs = [
     {
       level: 1,
       questionCount: 1,
@@ -596,6 +741,16 @@ function buildStoryLevels(stories: readonly StoryTemplate[]): MemoryGameLevel[] 
     },
   ] as const;
 
+  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => {
+    const base = baseLevelSpecs[Math.min(baseLevelSpecs.length - 1, Math.floor((level - 1) / 4))];
+    return {
+      level,
+      questionCount: Math.min(4, 1 + Math.floor((level - 1) / 5)),
+      factCount: Math.min(4, 3 + Math.floor((level - 1) / 7)),
+      prompts: base.prompts,
+    };
+  });
+
   return levelSpecs.map((spec) => ({
     level: spec.level,
     variants: stories.map((story, index) => {
@@ -608,6 +763,8 @@ function buildStoryLevels(stories: readonly StoryTemplate[]): MemoryGameLevel[] 
             story: localizedStory.story,
             keyFacts: localizedStory.keyFacts.slice(0, spec.factCount),
             choiceQuestions: localizedStory.choiceQuestions.slice(0, spec.questionCount),
+            levelBand: getBrainCoachLevelBand(spec.level).label,
+            retellMode: spec.level >= 16 ? "full" : spec.level >= 11 ? "guided" : "short",
           },
         };
 
@@ -1167,18 +1324,18 @@ const routineTemplates: RoutineTemplate[] = [
   { title: "Merienda en casa", activities: ["poner mantel", "servir té", "cortar fruta", "sentarse", "recoger mesa"] },
 ];
 
-const associationTemplates = [
-  { left: "manzana", right: "fruta", extra: "🍎" },
-  { left: "Carmen", right: "gafas", extra: "👓" },
-  { left: "Javier", right: "paraguas", extra: "☂️" },
-  { left: "taza", right: "cocina", extra: "☕" },
-  { left: "Lola", right: "llaves", extra: "🔑" },
-  { left: "vecino", right: "periódico", extra: "📰" },
-  { left: "farmacia", right: "medicación", extra: "💊" },
-  { left: "Rosa", right: "bufanda", extra: "🧣" },
-  { left: "doctor", right: "agenda", extra: "📒" },
-  { left: "mercado", right: "tomates", extra: "🍅" },
-] as const;
+const associationTemplates: AssociationTemplate[] = [
+  { left: { es: "manzana", en: "apple" }, right: { es: "fruta", en: "fruit" }, extra: "🍎" },
+  { left: { es: "Carmen", en: "Carmen" }, right: { es: "gafas", en: "glasses" }, extra: "👓" },
+  { left: { es: "Javier", en: "Javier" }, right: { es: "paraguas", en: "umbrella" }, extra: "☂️" },
+  { left: { es: "taza", en: "cup" }, right: { es: "cocina", en: "kitchen" }, extra: "☕" },
+  { left: { es: "Lola", en: "Lola" }, right: { es: "llaves", en: "keys" }, extra: "🔑" },
+  { left: { es: "vecino", en: "neighbour" }, right: { es: "periódico", en: "newspaper" }, extra: "📰" },
+  { left: { es: "farmacia", en: "pharmacy" }, right: { es: "medicación", en: "medicine" }, extra: "💊" },
+  { left: { es: "Rosa", en: "Rosa" }, right: { es: "bufanda", en: "scarf" }, extra: "🧣" },
+  { left: { es: "doctor", en: "doctor" }, right: { es: "agenda", en: "calendar" }, extra: "📒" },
+  { left: { es: "mercado", en: "market" }, right: { es: "tomates", en: "tomatoes" }, extra: "🍅" },
+];
 
 const storyTemplates: StoryTemplate[] = [
   {

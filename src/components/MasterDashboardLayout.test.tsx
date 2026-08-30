@@ -216,6 +216,48 @@ describe("MasterDashboardLayout contextual message", () => {
 });
 
 describe("MasterDashboardLayout Home card presentation", () => {
+  it("supports canonical action cards with short visible summaries and full accessible labels", () => {
+    render(
+      <MasterDashboardLayout
+        heroLayoutVariant="canonicalMenu"
+        cardLayoutVariant="canonicalActionGrid"
+        fastHelpLayoutVariant="canonicalActionGrid"
+        isDarkMode
+        hero={{
+          icon: Mic,
+          eyebrow: "Today",
+          title: "Ready",
+          action: { label: "Talk", onClick: vi.fn() },
+        }}
+        cards={[
+          {
+            id: "memory",
+            icon: Brain,
+            iconAccent: "bridge",
+            title: "Strengthen Memory",
+            detail: "Practice recall, matching, and daily routines.",
+            summary: "Matching and recall",
+            tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+            onClick: vi.fn(),
+            testId: "card-memory",
+          },
+        ]}
+        fastHelpTitle="Fast help"
+        fastHelpActions={[makeAction("assessment", "Cognitive Assessment")]}
+        cardGridTestId="cards"
+        fastHelpTestId="fast-help"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Ready" }).closest("section")).toHaveAttribute("data-hero-layout", "canonical-menu");
+    expect(screen.getByTestId("cards").querySelector('[data-card-layout="canonical-action-grid"]')).toBeInTheDocument();
+    expect(screen.getByTestId("card-memory")).toHaveAttribute("data-vyva-card-layout", "canonical-action");
+    expect(screen.getByTestId("card-memory-detail")).toHaveTextContent("Matching and recall");
+    expect(screen.getByTestId("card-memory")).toHaveAccessibleName("Strengthen Memory. Practice recall, matching, and daily routines.");
+    expect(screen.getByTestId("card-memory").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();
+    expect(screen.getByTestId("fast-help")).toHaveAttribute("data-fast-help-layout", "canonical-action-grid");
+  });
+
   it("keeps mobile Home cards down to icon, label, and chevron", () => {
     render(
       <MasterDashboardLayout

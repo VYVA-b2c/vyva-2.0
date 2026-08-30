@@ -1854,6 +1854,27 @@
     "snowShowers": "Aguaceiros de neve",
     "thunderstorm": "Trovoada"
   },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} níveis",
+      "milestones": "Percurso por marcos",
+      "milestone": "Marco",
+      "nextMilestone": "Próximo marco",
+      "monthlyPracticeHeld": "Prática mensal mantida",
+      "bands": {
+        "foundation": "Base",
+        "build": "Construção",
+        "challenge": "Desafio",
+        "mastery": "Maestria"
+      },
+      "milestonesByLevel": {
+        "5": "Base concluída",
+        "10": "Confiança em construção",
+        "15": "Pronto para o desafio",
+        "20": "Ronda de maestria"
+      }
+    }
+  },
   "companions": {
     "title": "Encontrar um Companheiro",
     "subtitle": "Conecte-se com outros que partilham os seus interesses",

@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Headphones, Info, Loader2, Play, Volume2, Waves } from "lucide-react";
+import { Check, Headphones, Info, Play, Volume2, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { VyvaWordmark } from "@/components/VyvaWordmark";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 import {
   LISTEN_CLOSELY_FALLBACK_SOUNDSCAPES,
@@ -160,7 +166,6 @@ export default function ListenClosely({ userId, onExit }) {
   const finalizingRef = useRef(false);
   const tapTimesRef = useRef([]);
   const consumedPreviewTargetsRef = useRef(new Set());
-  const screenRef = useLatestRef(screen);
   const soundscapeRef = useLatestRef(soundscape);
   const userStateRef = useLatestRef(userState);
 
@@ -292,7 +297,7 @@ export default function ListenClosely({ userId, onExit }) {
 
     try {
       const state = preferredState ?? await loadUserState();
-      const tier = Math.max(1, Math.min(10, Number(state.current_tier ?? 1)));
+      const tier = Math.max(1, Math.min(BRAIN_COACH_MAX_LEVEL, Number(state.current_tier ?? 1)));
       const selected = await loadSoundscape(tier);
       const hasSeenTutorial = readListenCloselyTutorialSeen(userId);
       setUserState(state);
@@ -511,14 +516,14 @@ export default function ListenClosely({ userId, onExit }) {
   }, [finishSession]);
 
   const handleExit = useCallback(() => {
-    if (screenRef.current === "playing") {
+    if (screen === "playing") {
       void finishSession(true).finally(() => onExit?.());
       return;
     }
+    onExit?.();
     stopTimers();
     closeAudio();
-    onExit?.();
-  }, [closeAudio, finishSession, onExit, screenRef, stopTimers]);
+  }, [closeAudio, finishSession, onExit, screen, stopTimers]);
 
   const resultState = sessionResult?.userState ?? userState ?? getDefaultListenCloselyUserState(userId ?? "");
   const resultIsGood = Number(sessionResult?.score ?? 0) >= 650;
@@ -536,12 +541,16 @@ export default function ListenClosely({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-center" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="w-full max-w-[520px] rounded-[8px] border bg-white p-8 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <Loader2 className="mx-auto animate-spin" size={54} color={BRAND.purple} />
-          <p className="mt-5 text-[26px] font-black">{t("games.listenClosely.preparing", "Preparing the sounds...")}</p>
-        </section>
-      </main>
+      <BrainCoachLoadingState
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.back", "Back")}
+        onBack={handleExit}
+        showHeader={false}
+        label={t("games.listenClosely.preparing", "Preparing the sounds...")}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.loading.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+      />
     );
   }
 
@@ -549,21 +558,17 @@ export default function ListenClosely({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.back", "Back")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.intro.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="intro"
+        sceneLayout="instruction_panel"
+      >
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
-          <div className="flex items-center justify-between gap-4">
-            <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
-            <button
-              type="button"
-              onClick={handleExit}
-              className="flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold shadow-vyva-card"
-              style={{ color: BRAND.ink }}
-            >
-              <ArrowLeft size={24} />
-              {t("common.back", "Back")}
-            </button>
-          </div>
-
           <section className="rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="mb-4 flex justify-end">
               <button
@@ -657,27 +662,23 @@ export default function ListenClosely({ userId, onExit }) {
             </div>
           </section>
         </div>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "tutorial") {
     return (
-      <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.back", "Back")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.tutorial.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="tutorial"
+        sceneLayout="example_panel"
+      >
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
-          <div className="flex items-center justify-between gap-4">
-            <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
-            <button
-              type="button"
-              onClick={handleExit}
-              className="flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 text-[22px] font-bold shadow-vyva-card"
-              style={{ color: BRAND.ink }}
-            >
-              <ArrowLeft size={24} />
-              {t("common.back", "Back")}
-            </button>
-          </div>
-
           <section className="rounded-[28px] border bg-white p-4 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
             <ListenTutorialVisual />
             <h1 className="mt-5 font-display text-[34px] leading-tight sm:mt-6 sm:text-[42px]">
@@ -722,13 +723,23 @@ export default function ListenClosely({ userId, onExit }) {
             </button>
           </section>
         </div>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "playing") {
     return (
-      <main className="min-h-screen px-4 pb-6 pt-4" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.exit", "Exit")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.playing.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="playing"
+        sceneLayout="audio_focus"
+        contentClassName="sm:mt-4"
+      >
         <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
           <header className="rounded-[8px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -737,17 +748,9 @@ export default function ListenClosely({ userId, onExit }) {
                 <p className="mt-1 text-[20px] font-bold" style={{ color: BRAND.muted }}>
                   {isCompareMode
                     ? t("games.listenClosely.justListen", "Just listen.")
-                    : t("games.listenClosely.tapWhenHeard", "Tap when you hear it.")}
+                  : t("games.listenClosely.tapWhenHeard", "Tap when you hear it.")}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleExit}
-                className="min-h-[60px] rounded-full border-2 bg-white px-5 text-[22px] font-extrabold"
-                style={{ borderColor: BRAND.border, color: BRAND.ink }}
-              >
-                {t("common.exit", "Exit")}
-              </button>
             </div>
             <div className="mt-4">
               <ProgressBar value={progressPct} />
@@ -792,13 +795,23 @@ export default function ListenClosely({ userId, onExit }) {
             }
           }
         `}</style>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
   if (screen === "compare") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-5 py-8" style={{ background: BRAND.bg, color: BRAND.ink }}>
+      <BrainCoachActivityShell
+        title={t("games.listenClosely.title", "Listen Closely")}
+        backLabel={t("common.exit", "Exit")}
+        onBack={handleExit}
+        testId="listen-closely-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.compare.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+        sceneKind="decision"
+        sceneLayout="choice_panel"
+        contentClassName="items-center justify-center"
+      >
         <section className="w-full max-w-[740px] rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
           <div className="mx-auto flex h-[86px] w-[86px] items-center justify-center rounded-[8px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
             <Headphones size={50} />
@@ -821,7 +834,7 @@ export default function ListenClosely({ userId, onExit }) {
             ))}
           </div>
         </section>
-      </main>
+      </BrainCoachActivityShell>
     );
   }
 
@@ -830,84 +843,65 @@ export default function ListenClosely({ userId, onExit }) {
   const progress = Math.max(0, Math.min(100, ((resultState.consecutive_wins ?? 0) / 3) * 100));
   const completedTier = Number(sessionResult?.difficulty_tier ?? resultState.current_tier ?? 1);
   const resultTier = Number(resultState.current_tier ?? completedTier);
+  const resultBand = getBrainCoachLevelBand(resultTier);
   const levelUnlocked = resultTier > completedTier;
-  const nextTier = Math.min(10, resultTier + 1);
+  const nextTier = Math.min(BRAIN_COACH_MAX_LEVEL, resultTier + 1);
   const winsRemaining = Math.max(0, 3 - Number(resultState.consecutive_wins ?? 0));
   const progressHint = levelUnlocked
-    ? t("games.listenClosely.levelReady", "Level {level} is ready.", { level: resultTier })
+    ? t("games.listenClosely.levelReady", "Level {level} is ready.", { level: `${resultTier} - ${resultBand.label}` })
     : resultIsGood
       ? t("games.listenClosely.levelProgressHint", "{n} more good rounds to unlock Level {level}.", { n: winsRemaining, level: nextTier })
-      : t("games.listenClosely.levelPracticeHint", "Try another round when you are ready.");
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
   const continueLabel = levelUnlocked
     ? t("games.listenClosely.startLevel", "Start Level {level}", { level: resultTier })
     : t("games.listenClosely.nextRound", "Next round");
 
   return (
-    <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
+    <BrainCoachActivityShell
+      title={t("games.listenClosely.title", "Listen Closely")}
+      showHeader={false}
+      testId="listen-closely-flow-shell"
+      presentationId="brain_coach.activity_session.sharpen_senses.listen_closely.result.touch"
+      sceneId="brain_coach.activity_session.sharpen_senses.listen_closely"
+      sceneKind="completion"
+      sceneLayout="modal_actions"
+      state="complete"
+    >
       <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5">
-        <section className="rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <div
-            className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[8px]"
-            style={{ background: resultIsGood ? "#FEF3C7" : BRAND.softPurple, color: resultIsGood ? "#92400E" : BRAND.purple }}
-          >
-            {resultIsGood ? <Check size={54} strokeWidth={3} /> : <Headphones size={54} />}
-          </div>
-          <h1 className="mt-5 font-display text-[42px] font-bold leading-[1.1]">
-            {resultIsGood
+        <BrainGameCompletionDialog
+          title={
+            resultIsGood
               ? t("games.listenClosely.resultGood", "Good listening.")
-              : t("games.listenClosely.resultTry", "Nice practice. Listening gets easier with time.")}
-          </h1>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 rounded-[8px] border p-4" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
-            {[
-              { label: t("games.listenClosely.accuracy", "Accuracy"), value: `${accuracy}%` },
-              { label: t("games.listenClosely.score", "Score"), value: score },
-              { label: t("games.listenClosely.heardCount", "Heard"), value: `${sessionResult?.hits ?? 0}/${sessionResult?.target_total ?? 0}` },
-              { label: t("games.listenClosely.streak", "Streak"), value: `${resultState.streak_days ?? 0}` },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[8px] bg-white px-3 py-4 shadow-sm">
-                <p className="text-[20px] font-bold leading-[1.2]" style={{ color: BRAND.muted }}>{item.label}</p>
-                <p className="mt-2 text-[32px] font-extrabold leading-[1.05]">{item.value}</p>
+              : t("games.listenClosely.resultTry", "Nice practice. Listening gets easier with time.")
+          }
+          summary={progressHint}
+          metrics={[
+            { label: t("games.listenClosely.accuracy", "Accuracy"), value: `${accuracy}%` },
+            { label: t("games.listenClosely.score", "Score"), value: score },
+            { label: t("games.listenClosely.heardCount", "Heard"), value: `${sessionResult?.hits ?? 0}/${sessionResult?.target_total ?? 0}` },
+            { label: t("games.listenClosely.streak", "Streak"), value: `${resultState.streak_days ?? 0}` },
+          ]}
+          details={
+            <div className="rounded-[20px] border border-[#EADFF8] bg-[#FFFCF7] px-4 py-4 text-left">
+              <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                <span>{t("games.listenClosely.progress", "Level progress")}</span>
+                <span className="text-vyva-purple">{resultState.consecutive_wins ?? 0}/3</span>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-6 text-left">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[22px] font-extrabold">{t("games.listenClosely.progress", "Level progress")}</p>
-              <p className="text-[22px] font-extrabold" style={{ color: BRAND.purple }}>{resultState.consecutive_wins ?? 0}/3</p>
+              <div className="mt-3">
+                <ProgressBar value={progress} />
+              </div>
+              <p className="mt-2 text-[14px] font-bold text-vyva-text-2">
+                {t("games.listenClosely.currentLevel", "Current level")}: {resultTier} - {resultBand.label}
+              </p>
             </div>
-            <div className="mt-3">
-              <ProgressBar value={progress} />
-            </div>
-            <p className="mt-3 text-[20px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-              {progressHint}
-            </p>
-          </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => void loadGame(resultState)}
-              disabled={saving}
-              className="flex min-h-[72px] items-center justify-center gap-3 rounded-full border-2 bg-white px-6 text-[23px] font-extrabold disabled:opacity-60"
-              style={{ borderColor: BRAND.border, color: BRAND.purple }}
-            >
-              <Play size={26} fill="currentColor" />
-              {continueLabel}
-            </button>
-            <button
-              type="button"
-              onClick={handleExit}
-              disabled={saving}
-              className="min-h-[72px] rounded-full px-6 text-[24px] font-extrabold text-white shadow-vyva-hero disabled:opacity-60"
-              style={{ background: BRAND.purple }}
-            >
-              {t("games.listenClosely.finish", "Finish")}
-            </button>
-          </div>
-        </section>
+          }
+          continueLabel={continueLabel}
+          anotherLabel={t("games.listenClosely.finish", "Finish")}
+          onContinue={() => void loadGame(resultState)}
+          onAnother={handleExit}
+          disabled={saving}
+        />
       </div>
-    </main>
+    </BrainCoachActivityShell>
   );
 }

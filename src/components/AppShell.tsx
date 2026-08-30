@@ -9,6 +9,15 @@ import VoiceCallOverlay from "./VoiceCallOverlay";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
 import MotivationMilestoneProvider from "./MotivationMilestoneProvider";
+import {
+  buildVoiceActionRouteState,
+  emergencyProfileContactFromState,
+  getAppShellLayout,
+  isBrainCoachAppRoute,
+  usesBrainCoachDocklessRoute,
+  type EmergencyProfileContact,
+  type OnboardingStateResponse,
+} from "./appShellUtils";
 import { useProfile } from "@/contexts/ProfileContext";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
@@ -59,84 +68,6 @@ import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 import { acknowledgeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
 import CrossPillarHandoffRecovery from "./CrossPillarHandoffRecovery";
 
-type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
-
-const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/", "/social-rooms/morning-movement/exercises/", "/activities/relax-breathe"];
-const FULLSCREEN_ROUTES = [
-  "/chat",
-  "/spatial-navigator",
-  "/face-name-match",
-  "/attention-boosters/rhythm-tap",
-];
-
-const WIDE_ROUTE_PREFIXES = [
-  "/settings",
-  "/health",
-  "/informes",
-  "/mind-memory/cognitive-assessment",
-  "/social-rooms",
-  "/meds",
-  "/attention-boosters",
-  "/executive-function",
-  "/memory-games",
-  "/concierge",
-];
-
-const WIDE_ROUTES = [
-  "/",
-  "/menu",
-  "/companions",
-  "/mind-memory",
-  "/activities",
-  "/senses",
-  "/activity",
-  "/learn",
-  "/language",
-  "/safe-home",
-  "/scam-guard",
-  "/history",
-];
-
-export function getAppShellLayout(pathname: string): AppShellLayout {
-  if (pathname === "/health/vitals") {
-    return "vitals";
-  }
-
-  if (
-    FULLSCREEN_ROUTES.includes(pathname) ||
-    FULLSCREEN_ROUTE_PREFIXES.some((route) => pathname.startsWith(route))
-  ) {
-    return "fullscreen";
-  }
-
-  if (
-    WIDE_ROUTES.includes(pathname) ||
-    WIDE_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
-  ) {
-    return "wide";
-  }
-
-  return "compact";
-}
-
-type EmergencyProfileContact = {
-  name?: string | null;
-  relationship?: string | null;
-  primaryPhone?: string | null;
-  secondaryPhone?: string | null;
-};
-
-type OnboardingStateResponse = {
-  profile?: {
-    emergency_contact?: {
-      name?: string | null;
-      relationship?: string | null;
-      primary_phone?: string | null;
-      secondary_phone?: string | null;
-    } | null;
-  } | null;
-} | null;
-
 const compactModeControlFor = (mode: HomeInteractionMode): HomeModeControlDetail => ({
   label: mode === "voice" ? "Switch to touch" : "Switch to voice",
   mode,
@@ -148,20 +79,6 @@ const HIDDEN_COMPACT_MODE_CONTROL: HomeModeControlDetail = {
   ...compactModeControlFor("touch"),
   visible: false,
 };
-
-export function emergencyProfileContactFromState(data?: OnboardingStateResponse): EmergencyProfileContact | null {
-  const contact = data?.profile?.emergency_contact;
-  if (!contact) return null;
-  const primaryPhone = contact.primary_phone?.trim() ?? "";
-  const secondaryPhone = contact.secondary_phone?.trim() ?? "";
-  if (!primaryPhone && !secondaryPhone) return null;
-  return {
-    name: contact.name?.trim() || null,
-    relationship: contact.relationship?.trim() || null,
-    primaryPhone,
-    secondaryPhone,
-  };
-}
 
 type VoiceSessionDockProps = {
   isSpeaking: boolean;
@@ -183,114 +100,6 @@ function canvasSelectableLabel(viewModel: VoiceCanvasViewModel | undefined, id: 
   if (choice) return choice.label;
   const optionCard = viewModel?.blocks?.find((block) => block.kind === "option-card" && block.id === id);
   return optionCard?.title;
-}
-
-function voicePayloadString(action: VoiceAppAction, key: string) {
-  const value = action.payload?.[key];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function voicePayloadDetails(action: VoiceAppAction, keys: string[]) {
-  return keys
-    .map((key) => {
-      const value = voicePayloadString(action, key);
-      return value ? `${key.replace(/_/g, " ")}: ${value}` : "";
-    })
-    .filter(Boolean)
-    .join(", ");
-}
-
-function buildConciergePrefillMessage(action: VoiceAppAction) {
-  const details = voicePayloadDetails(action, [
-    "pickup",
-    "destination",
-    "time",
-    "mobility_needs",
-    "provider_type",
-    "appointment_reason",
-    "reminder_text",
-    "reminder_time",
-  ]);
-  const base = action.sourceText.trim() || action.summary;
-  return `${base}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
-}
-
-function shoppingCategoryForVoiceAction(action: VoiceAppAction) {
-  const category = voicePayloadString(action, "category").toLowerCase();
-  if (["groceries", "pharmacy_basics", "household", "mobility_aids", "safe_home"].includes(category)) {
-    return category;
-  }
-  const text = `${action.sourceText} ${voicePayloadString(action, "items")}`.toLowerCase();
-  if (/grocery|groceries|food|meal|supermarket|comida|compra/.test(text)) return "groceries";
-  if (/pharmacy|farmacia/.test(text)) return "pharmacy_basics";
-  if (/walker|cane|wheelchair|mobility|andador|baston/.test(text)) return "mobility_aids";
-  if (/cleaning|household|home|limpieza|hogar/.test(text)) return "household";
-  return "safe_home";
-}
-
-function shoppingPrioritiesForVoiceAction(action: VoiceAppAction) {
-  const text = `${action.sourceText} ${voicePayloadString(action, "constraint")}`.toLowerCase();
-  if (/budget|cheap|cost|precio|barato/.test(text)) return ["budget", "delivery"];
-  if (/diet|salt|sugar|comida|food/.test(text)) return ["diet", "delivery"];
-  if (/pharmacy|medicine|farmacia/.test(text)) return ["safety", "simplicity"];
-  return ["delivery", "simplicity"];
-}
-
-export function buildVoiceActionRouteState(action: VoiceAppAction): Record<string, unknown> {
-  const baseState: Record<string, unknown> = {
-    voiceActionId: action.id,
-    voiceActionTitle: action.title,
-    voiceActionDomain: action.domain,
-    voiceActionType: action.actionType,
-    voiceActionPayload: action.payload ?? {},
-    voiceActionRequiredPayloadKeys: action.requiredPayloadKeys ?? [],
-    voiceActionOptionalPayloadKeys: action.optionalPayloadKeys ?? [],
-  };
-
-  if (action.actionType === "concierge.ride_booking") {
-    return {
-      ...baseState,
-      conciergePrefill: {
-        kind: "ride",
-        message: buildConciergePrefillMessage(action),
-        source: "voice_action",
-      },
-    };
-  }
-
-  if (action.actionType === "concierge.appointment_help") {
-    return {
-      ...baseState,
-      conciergePrefill: {
-        kind: "appointment",
-        message: buildConciergePrefillMessage(action),
-        source: "voice_action",
-      },
-    };
-  }
-
-  if (action.actionType === "concierge.order_request" || action.actionType === "concierge.shopping") {
-    const items = voicePayloadString(action, "items") || voicePayloadString(action, "need") || action.sourceText;
-    const constraints = [
-      voicePayloadString(action, "budget"),
-      voicePayloadString(action, "delivery_time"),
-      voicePayloadString(action, "substitutions"),
-      voicePayloadString(action, "constraint"),
-    ].filter(Boolean);
-
-    return {
-      ...baseState,
-      shoppingPrefill: {
-        needText: items,
-        category: shoppingCategoryForVoiceAction(action),
-        priorities: shoppingPrioritiesForVoiceAction(action),
-        constraints,
-        sourceRecommendation: buildConciergePrefillMessage(action),
-      },
-    };
-  }
-
-  return baseState;
 }
 
 const VoiceSessionDock = ({
@@ -541,6 +350,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
   const isHomeMasterMenuRoute = location.pathname === "/menu" || location.pathname === "/dev/home-master/menu";
   const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
+  const isBrainCoachRoute = isBrainCoachAppRoute(location.pathname);
+  const isBrainCoachDocklessRoute = usesBrainCoachDocklessRoute(location.pathname);
   const isDevSymptomAssessmentRoute =
     location.pathname === "/dev/home-master/ask-dr-ai" ||
     location.pathname === "/dev/home-master/ask-dr-ai-checking" ||
@@ -992,7 +803,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && !hidePrototypeDock && (
+        {!isFullScreen && !hidePrototypeDock && !isBrainCoachDocklessRoute && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
             <BottomNav wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);
@@ -1008,7 +819,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !usesCompactVoiceSurface && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {!isFullScreen && !usesCompactVoiceSurface && !isVitalsRoute && !isSymptomCheckRoute && !isBrainCoachRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}

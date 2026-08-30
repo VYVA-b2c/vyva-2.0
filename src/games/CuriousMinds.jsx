@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, BrainCircuit, Check, CircleHelp, Lightbulb, Loader2, MessageCircle, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
+import { BrainCircuit, Check, CircleHelp, Lightbulb, MessageCircle, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { VyvaMark } from "@/components/VyvaMark";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
+import { getBrainCoachMilestoneJourney } from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -173,6 +175,10 @@ export default function CuriousMinds({
     t("games.curiousMinds.encouragements.four", "How original!"),
     t("games.curiousMinds.encouragements.five", "Ah, I had not thought of that"),
   ], [t]);
+  const milestoneJourney = getBrainCoachMilestoneJourney(userState?.streak_days ?? 1);
+  const nextMilestoneValue = milestoneJourney.next
+    ? `${milestoneJourney.next.label} (${milestoneJourney.next.count} days)`
+    : t("brainCoach.progression.monthlyPracticeHeld", "Monthly practice held");
 
   const loadTodaysContent = useCallback(async () => {
     if (!userId) throw new Error("Curious Minds needs a signed-in user.");
@@ -342,46 +348,43 @@ export default function CuriousMinds({
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="text-center">
-          <Loader2 className="mx-auto h-14 w-14 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-5 text-[26px] font-black">{t("games.curiousMinds.preparing", "Preparing something curious...")}</p>
-        </section>
-      </main>
+      <BrainCoachLoadingState
+        title={t("games.curiousMinds.title", "Curious Minds")}
+        label={t("games.curiousMinds.preparing", "Preparing something curious...")}
+        testId="curious-minds-flow-shell"
+        presentationId="brain_coach.activity_session.memory.curious_minds.loading.touch"
+        sceneId="brain_coach.activity_session.memory.curious_minds"
+      />
     );
   }
 
   return (
-    <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-      <div className="mx-auto w-full max-w-[780px]">
-        <header className="flex items-center justify-between gap-4">
-          <VyvaMark className="h-12 w-12" />
-          {screen !== "close" ? (
-            <div className="flex items-center gap-3">
-              {tutorialSeen ? (
-                <button
-                  type="button"
-                  onClick={openInstructions}
-                  aria-label={t("games.curiousMinds.instructions", "Instructions")}
-                  title={t("games.curiousMinds.instructions", "Instructions")}
-                  className="flex min-h-[64px] w-[64px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
-                >
-                  <CircleHelp size={28} aria-hidden="true" />
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void exitGame()}
-                disabled={saving}
-                className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
-              >
-                <ArrowLeft size={24} aria-hidden="true" />
-                {t("common.exit", "Exit")}
-              </button>
-            </div>
-          ) : null}
-        </header>
-
+    <BrainCoachActivityShell
+      title={t("games.curiousMinds.title", "Curious Minds")}
+      backLabel={t("common.exit", "Exit")}
+      onBack={() => void exitGame()}
+      showHeader={screen !== "close"}
+      action={
+        tutorialSeen && screen !== "close" ? (
+          <button
+            type="button"
+            onClick={openInstructions}
+            aria-label={t("games.curiousMinds.instructions", "Instructions")}
+            title={t("games.curiousMinds.instructions", "Instructions")}
+            className="vyva-tap grid h-11 w-11 place-items-center rounded-full bg-white text-vyva-purple shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05]"
+          >
+            <CircleHelp size={24} aria-hidden="true" />
+          </button>
+        ) : null
+      }
+      testId="curious-minds-flow-shell"
+      presentationId={`brain_coach.activity_session.memory.curious_minds.${screen}.touch`}
+      sceneId="brain_coach.activity_session.memory.curious_minds"
+      sceneKind={screen === "close" ? "completion" : screen}
+      sceneLayout={screen === "close" ? "modal_actions" : screen === "wonder" ? "idea_prompt" : "activity_panel"}
+      state={screen === "close" ? "complete" : "default"}
+    >
+      <div className="mx-auto w-full max-w-[780px]" style={{ color: BRAND.ink }}>
         {screen === "tutorial" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
             <div className="mx-auto flex h-[84px] w-[84px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
@@ -587,48 +590,32 @@ export default function CuriousMinds({
         ) : null}
 
         {screen === "close" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-              <PartyPopper size={52} aria-hidden="true" />
-            </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.curiousMinds.closeTitle", "Thanks for thinking with me today!")}</h1>
-            <p className="mt-5 text-[24px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.curiousMinds.closeSummary", "Today you came up with {n} different ideas.", { n: ideas.length })}
-            </p>
-            <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full px-5 py-3 text-[22px] font-black" style={{ background: "#FEF3C7", color: "#92400E" }}>
-              <Check size={24} aria-hidden="true" />
-              {t("games.curiousMinds.streakLabel", "{n} days thinking together", { n: userState?.streak_days ?? 1 })}
-            </p>
-            {saveWarning ? <p className="mt-4 text-[20px] font-bold text-[#92400E]">{saveWarning}</p> : null}
-            {assessmentPractice ? (
-              <div className="mt-5 rounded-[22px] border px-4 py-4 text-left" style={{ borderColor: "#A7F3D0", background: "#ECFDF5", color: BRAND.teal }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.05em]">{t("brainGames.resultActions.assessmentPractice", "Assessment practice")}</p>
-                <p className="mt-1 text-[21px] font-extrabold leading-snug" style={{ color: BRAND.ink }}>
-                  {t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")}
-                </p>
-                <button
-                  type="button"
-                  onClick={onAssessmentPracticeReturn}
-                  disabled={!onAssessmentPracticeReturn}
-                  className="mt-4 min-h-[62px] w-full rounded-full px-5 text-[21px] font-black text-white shadow-vyva-card disabled:opacity-60"
-                  style={{ background: BRAND.teal }}
-                >
-                  {t("brainGames.resultActions.backToResults", "Back to my results")}
-                </button>
-              </div>
-            ) : null}
-            <button
-              type="button"
-              onClick={onExit}
-              className="mt-7 min-h-[72px] w-full rounded-full px-6 text-[24px] font-black text-white shadow-vyva-card"
-              style={{ background: BRAND.purple }}
-            >
-              {t("common.finish", "Finish")}
-            </button>
-          </section>
+          <BrainGameCompletionDialog
+            title={t("games.curiousMinds.closeTitle", "Thanks for thinking with me today!")}
+            summary={t("games.curiousMinds.closeSummary", "Today you came up with {n} different ideas.", { n: ideas.length })}
+            metrics={[
+              { label: t("games.curiousMinds.ideas", "Ideas"), value: ideas.length },
+              { label: t("games.curiousMinds.streak", "Streak"), value: t("games.curiousMinds.streakLabel", "{n} days thinking together", { n: userState?.streak_days ?? 1 }) },
+              { label: t("brainCoach.progression.milestone", "Milestone"), value: milestoneJourney.current.label },
+              { label: t("brainCoach.progression.nextMilestone", "Next milestone"), value: nextMilestoneValue },
+            ]}
+            details={saveWarning ? <p className="text-[15px] font-bold text-[#92400E]">{saveWarning}</p> : null}
+            continueLabel={t("common.finish", "Finish")}
+            replayLabel={t("common.playAgain", "Play again")}
+            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+            assessmentReturnHint={
+              assessmentPractice
+                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+                : undefined
+            }
+            onContinue={onExit}
+            onReplay={() => void loadGame()}
+            onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+            disabled={saving}
+          />
         ) : null}
       </div>
-    </main>
+    </BrainCoachActivityShell>
   );
 }
 

@@ -45,14 +45,18 @@ vi.mock("./gameStorage", async () => {
   };
 });
 
-function renderWordRecall() {
+function renderMemoryGame(initialEntry: string) {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games/word_recall?level=1&variant=word_recall-l1-v1"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/memory-games/:gameType" element={<MemoryGameRunner />} />
       </Routes>
     </MemoryRouter>,
   );
+}
+
+function renderWordRecall() {
+  return renderMemoryGame("/memory-games/word_recall?level=1&variant=word_recall-l1-v1");
 }
 
 function renderRhythmTap() {
@@ -70,7 +74,7 @@ function renderRhythmTap() {
 
 describe("MemoryGameRunner word recall", () => {
   beforeEach(() => {
-    setLanguage("fr");
+    setLanguage("en");
     mocks.speakSequence.mockClear();
     mocks.stopTts.mockClear();
     mocks.startListening.mockClear();
@@ -84,24 +88,59 @@ describe("MemoryGameRunner word recall", () => {
   it("keeps the next-level action available when result persistence is still pending", async () => {
     renderWordRecall();
 
-    fireEvent.click(await screen.findByRole("button", { name: /je suis pret/i }));
-    fireEvent.click(await screen.findByRole("button", { name: "pain" }));
+    fireEvent.click(await screen.findByRole("button", { name: /hide words/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "bread" }));
+    fireEvent.click(await screen.findByRole("button", { name: "milk" }));
+    fireEvent.click(await screen.findByRole("button", { name: "cheese" }));
 
-    const continueButton = screen.getByRole("button", { name: "Continuer" });
+    const continueButton = screen.getByRole("button", { name: "Continue" });
     expect(continueButton).not.toBeDisabled();
 
     fireEvent.click(continueButton);
 
-    expect(await screen.findByText("Tres bien")).toBeInTheDocument();
-    expect(screen.getByText("Vous avez termine cet exercice")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continuer au niveau 2" })).not.toBeDisabled();
+    expect(await screen.findByText("Well done")).toBeInTheDocument();
+    expect(screen.getByText(/building the base/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to Level 2" })).not.toBeDisabled();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
       cognitiveDomain: "episodic_memory",
       variantId: "word_recall-l1-v1",
-      language: "fr",
+      language: "en",
     }));
+  });
+
+  it("uses fewer Association choices in Foundation and more in Challenge", async () => {
+    const { unmount } = renderMemoryGame("/memory-games/association_memory?level=1&variant=association_memory-l1-v1");
+
+    expect(await screen.findByText("Remember one link.")).toBeInTheDocument();
+    expect(screen.getByText("apple")).toBeInTheDocument();
+    expect(screen.getByText("fruit")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ready to choose" }));
+
+    expect(await screen.findByText("What matches this?")).toBeInTheDocument();
+    expect(screen.getAllByTestId("association-choice")).toHaveLength(2);
+
+    unmount();
+    renderMemoryGame("/memory-games/association_memory?level=11&variant=association_memory-l11-v1");
+
+    expect(await screen.findByText("Level 11 - Challenge")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ready to choose" }));
+
+    expect(await screen.findByText("What matches this?")).toBeInTheDocument();
+    expect(screen.getAllByTestId("association-choice")).toHaveLength(4);
+  });
+
+  it("shows Number Memory order and level mode before recall", async () => {
+    renderMemoryGame("/memory-games/number_memory?level=6&variant=number_memory-l6-v1");
+
+    expect(await screen.findByText("Level 6 - Build")).toBeInTheDocument();
+    expect(screen.getByText("Reverse order")).toBeInTheDocument();
+    expect(screen.getByText("4 digits")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide digits" }));
+
+    expect(await screen.findByLabelText("Type the digits in reverse")).toBeInTheDocument();
   });
 
   it("shows Rhythm Tap instructions once and reopens them from the icon", async () => {

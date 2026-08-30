@@ -1991,6 +1991,27 @@
     "snowShowers": "Chubascos de nieve",
     "thunderstorm": "Tormenta"
   },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} niveles",
+      "milestones": "Ruta de hitos",
+      "milestone": "Hito",
+      "nextMilestone": "Siguiente hito",
+      "monthlyPracticeHeld": "Práctica mensual mantenida",
+      "bands": {
+        "foundation": "Base",
+        "build": "Construcción",
+        "challenge": "Reto",
+        "mastery": "Maestría"
+      },
+      "milestonesByLevel": {
+        "5": "Base completada",
+        "10": "Confianza en desarrollo",
+        "15": "Listo para el reto",
+        "20": "Ronda de maestría"
+      }
+    }
+  },
   "companions": {
     "title": "Encontrar un Compañero",
     "subtitle": "Conéctate con otros que comparten tus intereses",

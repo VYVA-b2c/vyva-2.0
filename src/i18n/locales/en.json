@@ -1658,10 +1658,10 @@
       "S"
     ],
     "activities": {
-      "triviaQuiz": "Focus & Attention",
-      "memoryGame": "Memory Game",
+      "triviaQuiz": "Train Reflexes",
+      "memoryGame": "Strengthen Memory",
       "scrabble": "Word & Language",
-      "logicPuzzle": "Brain Training",
+      "logicPuzzle": "Improve Thinking",
       "meditation": "Relax & Breathe",
       "breathing": "Relax & Breathe"
     }
@@ -1990,6 +1990,27 @@
     "showers": "Showers",
     "snowShowers": "Snow showers",
     "thunderstorm": "Thunderstorm"
+  },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} levels",
+      "milestones": "Milestone journey",
+      "milestone": "Milestone",
+      "nextMilestone": "Next milestone",
+      "monthlyPracticeHeld": "Monthly practice held",
+      "bands": {
+        "foundation": "Foundation",
+        "build": "Build",
+        "challenge": "Challenge",
+        "mastery": "Mastery"
+      },
+      "milestonesByLevel": {
+        "5": "Foundation complete",
+        "10": "Building confidence",
+        "15": "Challenge ready",
+        "20": "Mastery round"
+      }
+    }
   },
   "companions": {
     "title": "Find a Companion",

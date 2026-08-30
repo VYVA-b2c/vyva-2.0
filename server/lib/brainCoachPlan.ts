@@ -114,6 +114,20 @@ const ACTIVITY_CATALOG: ActivityCandidate[] = [
     estimatedDurationMinutes: 5,
   },
   {
+    activityType: "association_memory",
+    title: "Association",
+    domain: "associative_memory",
+    route: "/memory-games/association_memory",
+    estimatedDurationMinutes: 4,
+  },
+  {
+    activityType: "number_memory",
+    title: "Number Memory",
+    domain: "working_memory",
+    route: "/memory-games/number_memory",
+    estimatedDurationMinutes: 4,
+  },
+  {
     activityType: "remember_later",
     title: "Remember Later",
     domain: "prospective_memory",
@@ -144,17 +158,18 @@ const ACTIVITY_CATALOG: ActivityCandidate[] = [
     estimatedDurationMinutes: 4,
   },
   {
+    activityType: "listen_closely",
+    title: "Listen Closely",
+    domain: "auditory_attention",
+    secondaryDomain: "attention",
+    route: "/senses/listen-closely",
+    estimatedDurationMinutes: 4,
+  },
+  {
     activityType: "story_recall",
     title: "Story Recall",
     domain: "language",
     route: "/memory-games/story_recall",
-    estimatedDurationMinutes: 5,
-  },
-  {
-    activityType: "spatial_navigator",
-    title: "Spatial Navigator",
-    domain: "spatial_navigation",
-    route: "/spatial-navigator",
     estimatedDurationMinutes: 5,
   },
   {

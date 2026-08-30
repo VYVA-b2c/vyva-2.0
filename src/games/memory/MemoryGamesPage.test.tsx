@@ -66,6 +66,8 @@ describe("MemoryGamesPage", () => {
 
     renderPage();
 
+    expect(screen.getByTestId("memory-games-flow-shell")).toHaveAttribute("data-flow-id", "brain_coach.activity_session");
+    expect(screen.getByTestId("memory-games-flow-shell")).toHaveAttribute("data-registry-scene", "brain_coach.activity_session.memory");
     expect(screen.queryByText("More exercises")).not.toBeInTheDocument();
 
     resolveRecommendation({
@@ -78,14 +80,17 @@ describe("MemoryGamesPage", () => {
     const heading = await screen.findByText("More exercises");
     const choices = heading.closest("section");
     expect(choices).not.toBeNull();
+    expect(screen.getByTestId("memory-games-flow-shell").querySelector('[data-vyva-icon-tile="bridge"]')).toBeInTheDocument();
+    expect(screen.getByTestId("memory-recommended-card").querySelector('[data-vyva-accent="bridge"]')).toBeInTheDocument();
 
     expect(within(choices as HTMLElement).queryByText("Visual memory")).not.toBeInTheDocument();
     expect(within(choices as HTMLElement).queryByText("Curious Minds")).not.toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Remember Later")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByRole("button", { name: /Remember Later/i }).querySelector('[data-vyva-accent="calendar"]')).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Association")).toBeInTheDocument();
-    expect(within(choices as HTMLElement).getByText("Recall words")).toBeInTheDocument();
-    expect(within(choices as HTMLElement).getByText("Short stories")).toBeInTheDocument();
-    expect(within(choices as HTMLElement).getByText("Number memory")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Word Recall")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Story Recall")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Number Memory")).toBeInTheDocument();
   });
 
   it("renders when the latest history item is a standalone memory activity", async () => {

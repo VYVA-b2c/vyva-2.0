@@ -1865,6 +1865,27 @@
     "snowShowers": "Averses de neige",
     "thunderstorm": "Orage"
   },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} niveaux",
+      "milestones": "Parcours d'étapes",
+      "milestone": "Étape",
+      "nextMilestone": "Prochaine étape",
+      "monthlyPracticeHeld": "Pratique mensuelle maintenue",
+      "bands": {
+        "foundation": "Fondation",
+        "build": "Construction",
+        "challenge": "Défi",
+        "mastery": "Maîtrise"
+      },
+      "milestonesByLevel": {
+        "5": "Fondation terminée",
+        "10": "Confiance en progression",
+        "15": "Prêt pour le défi",
+        "20": "Tour de maîtrise"
+      }
+    }
+  },
   "companions": {
     "title": "Trouver un Compagnon",
     "subtitle": "Connectez-vous avec des personnes partageant vos intérêts",

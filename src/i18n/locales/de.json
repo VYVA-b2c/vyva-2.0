@@ -1854,6 +1854,27 @@
     "snowShowers": "Schneeschauer",
     "thunderstorm": "Gewitter"
   },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} Level",
+      "milestones": "Meilensteinreise",
+      "milestone": "Meilenstein",
+      "nextMilestone": "Nächster Meilenstein",
+      "monthlyPracticeHeld": "Monatliche Übung gehalten",
+      "bands": {
+        "foundation": "Grundlage",
+        "build": "Aufbau",
+        "challenge": "Herausforderung",
+        "mastery": "Meisterung"
+      },
+      "milestonesByLevel": {
+        "5": "Grundlage abgeschlossen",
+        "10": "Vertrauen aufbauen",
+        "15": "Bereit für die Herausforderung",
+        "20": "Meisterrunde"
+      }
+    }
+  },
   "companions": {
     "title": "Begleitung finden",
     "subtitle": "Verbinde dich mit anderen, die deine Interessen teilen",
