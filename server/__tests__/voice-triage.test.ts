@@ -8,7 +8,9 @@ import {
   retainedMessagesForStatus,
   serializeVoiceTriageTurn,
   selectChoiceFromVoice,
+  terminalVoiceTriageResponse,
   voiceQuestionFor,
+  voiceReviewAnswers,
   voiceTriageSessionAnswerHandler,
   voiceTriageSessionEndHandler,
 } from "../routes/voiceTriage.js";
@@ -186,5 +188,35 @@ describe("ElevenLabs voice triage tool", () => {
     releaseFirst();
     await expect(Promise.all([first, second])).resolves.toEqual(["first", "second"]);
     expect(order).toEqual(["first-start", "first-end", "second-start"]);
+  });
+
+  it.each(["complete", "emergency"])("replays the saved %s response instead of restarting", (status) => {
+    const saved = { ok: true, status, spoken_text: "Saved terminal guidance" };
+    expect(terminalVoiceTriageResponse({ status, latest_response_json: saved })).toEqual(saved);
+  });
+
+  it("does not treat an active session as terminal", () => {
+    expect(terminalVoiceTriageResponse({
+      status: "active",
+      latest_response_json: { ok: true, status: "active" },
+    })).toBeNull();
+  });
+
+  it("builds the canonical review summary from the latest answer of each kind", () => {
+    expect(voiceReviewAnswers({
+      mode: "without_vitals",
+      quickAnswers: [
+        { id: "breathing", label: "Breathing feels different", value: "Breathing feels different", kind: "symptom" },
+        { id: "severity_3", label: "3", value: "3 out of 10", kind: "severity" },
+        { id: "severity_5", label: "5", value: "5 out of 10", kind: "severity" },
+        { id: "few_days", label: "Few days", value: "It started a few days ago", kind: "duration" },
+        { id: "mild_improving", label: "Mild and improving", value: "It is mild and improving", kind: "trend" },
+      ],
+    })).toEqual([
+      { id: "breathing", label: "Breathing feels different", value: "Breathing feels different", kind: "symptom" },
+      { id: "severity_5", label: "5", value: "5 out of 10", kind: "severity" },
+      { id: "few_days", label: "Few days", value: "It started a few days ago", kind: "duration" },
+      { id: "mild_improving", label: "Mild and improving", value: "It is mild and improving", kind: "trend" },
+    ]);
   });
 });
