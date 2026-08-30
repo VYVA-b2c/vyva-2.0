@@ -96,4 +96,30 @@ describe("Task 10 preventive web push provider adapter", () => {
       reason: "provider_permanent_failure",
     });
   });
+
+  it("sends the fixed refill payload on a medicine-specific push topic", async () => {
+    const normalized = normalizePreventiveWebPushSubscription(validPreventiveWebPushSubscription());
+    expect(normalized.ok).toBe(true);
+    if (!normalized.ok) return;
+    const sender = {
+      setVapidDetails: vi.fn(),
+      sendNotification: vi.fn(async () => ({ statusCode: 201, headers: {} })),
+    };
+    const resolved = resolvePreventiveWebPushProviderConfig(validPreventiveWebPushEnv());
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    const provider = createPreventiveWebPushProvider({ config: resolved.config, sender });
+    const payload = {
+      type: "vyva.medication_refill" as const,
+      deliveryId: "11111111-1111-4111-8111-111111111111",
+      alertId: "22222222-2222-4222-8222-222222222222",
+    };
+    await expect(provider.send({ subscription: normalized.subscription, payload }))
+      .resolves.toEqual({ outcome: "sent", providerStatus: 201 });
+    expect(sender.sendNotification).toHaveBeenCalledWith(
+      expect.any(Object),
+      JSON.stringify(payload),
+      expect.objectContaining({ topic: `vyva-refill-${payload.alertId}` }),
+    );
+  });
 });

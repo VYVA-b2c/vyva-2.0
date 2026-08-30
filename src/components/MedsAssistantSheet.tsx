@@ -18,10 +18,11 @@ interface MedsAssistantSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  subtitle?: string;
   initialPrompt: string;
 }
 
-async function callAssistant(prompt: string, history: ChatMessage[], locale: string): Promise<string> {
+async function callAssistant(prompt: string, history: ChatMessage[], locale: string, emptyResponseFallback: string): Promise<string> {
   const res = await fetch("/api/meds-assistant", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -29,13 +30,14 @@ async function callAssistant(prompt: string, history: ChatMessage[], locale: str
   });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   const data = await res.json() as { response?: string };
-  return data.response ?? "";
+  return data.response?.trim() || emptyResponseFallback;
 }
 
 const MedsAssistantSheet = ({
   open,
   onOpenChange,
   title,
+  subtitle,
   initialPrompt,
 }: MedsAssistantSheetProps) => {
   const { t } = useTranslation();
@@ -53,7 +55,15 @@ const MedsAssistantSheet = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await callAssistant(text, history, language);
+      const response = await callAssistant(
+        text,
+        history,
+        language,
+        t(
+          "meds.assistantEmptyFallback",
+          "VYVA could not complete a personalised answer just now. Review the current checks and ask a pharmacist or doctor before taking new, changed, or uncertain medicines together. Do not start, stop, skip, or change a dose based on this screen.",
+        ),
+      );
       if (reqIdRef.current !== myReqId) return;
       setMessages((prev) => [
         ...prev,
@@ -133,7 +143,7 @@ const MedsAssistantSheet = ({
       Icon={MessageCircle}
       kicker={t("meds.assistantKicker", "Medication")}
       title={title}
-      subtitle={t("meds.assistantSubtitle", "Ask a follow-up question or read the answer here.")}
+      subtitle={subtitle ?? t("meds.assistantSubtitle", "Ask a follow-up question or read the answer here.")}
       titleId="meds-assistant-title"
       onClose={() => onOpenChange(false)}
       closeLabel={t("common.close", "Close")}

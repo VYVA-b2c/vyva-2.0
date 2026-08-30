@@ -1403,8 +1403,8 @@
       "remindersSub": "Revisa el horario de hoy y anade recordatorios de medicacion.",
       "remindersMobileSub": "Horario de hoy",
       "refills": "Mis reposiciones",
-      "refillsSub": "Prepara recetas repetidas o entregas.",
-      "refillsMobileSub": "Farmacia",
+      "refillsSub": "Controla lo que queda y cuando reponer.",
+      "refillsMobileSub": "Revisar existencias",
       "checkInteractions": "Revisar seguridad",
       "checkInteractionsSub": "Mezcla de medicinas",
       "interactions": "Interacciones",
@@ -1455,9 +1455,16 @@
     "checkInteractions": {
       "kicker": "Seguridad de medicinas",
       "title": "Revisar seguridad",
+      "intro": "Revisa los medicamentos y suplementos guardados y recibe orientacion clara sobre que preguntar a un farmaceutico o medico.",
+      "adviceCta": "Obtener consejos sobre combinaciones",
+      "adviceTitle": "Consejos sobre combinaciones de medicamentos",
+      "adviceSubtitle": "Orientacion clara para medicamentos y suplementos que se toman juntos.",
+      "advicePrompt": "Revisa juntos estos medicamentos y suplementos: {{medications}}. Explica posibles dudas sobre la combinacion con palabras sencillas. No indiques iniciar, suspender, omitir ni cambiar una dosis. Dime que preguntar a un farmaceutico o medico y cuando buscar ayuda urgente.",
       "loadingSub": "VYVA esta revisando tu lista guardada.",
       "loading": "Revisando tu lista...",
       "error": "No pude revisar esto ahora. Intentalo de nuevo.",
+      "emptyTitle": "Añade un medicamento para empezar",
+      "emptySub": "VYVA necesita tu lista actual antes de buscar preguntas que convenga consultar.",
       "clearTitle": "Parece seguro hoy",
       "clearSub": "No hay preguntas de seguridad segun las reglas que reviso VYVA.",
       "flagKicker": "Pregunta de seguridad",
@@ -1465,7 +1472,8 @@
       "duplicateShort": "Medicinas parecidas. Revisa si necesitas las dos.",
       "asked": "Ya pregunte",
       "later": "Luego",
-      "footer": "{{count}} medicinas revisadas. VYVA nunca cambia dosis."
+      "footer": "{{count}} medicinas revisadas. VYVA nunca cambia dosis.",
+      "boundary": "Esta no es una revisión completa de interacciones. Consulta a un farmacéutico o médico sobre medicamentos nuevos, modificados o dudosos. VYVA nunca cambia dosis."
     },
     "assistant": {
       "interactions": {
@@ -1517,6 +1525,7 @@
         "sub": "Apoyo para pedir"
       }
     },
+    "assistantEmptyFallback": "VYVA no pudo completar una respuesta personalizada ahora. Revisa las comprobaciones actuales y consulta a un farmaceutico o medico antes de combinar medicamentos nuevos, modificados o dudosos. No inicies, suspendas, omitas ni cambies una dosis basandote en esta pantalla.",
     "notes": {
       "takenMorning": "Tomado esta mañana con el desayuno",
       "takenAt9": "Tomado a las 9:00",

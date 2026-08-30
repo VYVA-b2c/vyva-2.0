@@ -18,6 +18,7 @@ import {
   MessageSquare,
   PhoneCall,
   Pill,
+  PackageOpen,
   RefreshCw,
   ShieldCheck,
   Stethoscope,
@@ -30,6 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { CaregiverBrainCoachPanel } from "@/components/CaregiverBrainCoachPanel";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { apiFetch } from "@/lib/queryClient";
+import MedicationRefillAlertCard, { type MedicationRefillAlertResponse } from "@/features/medications/MedicationRefillAlertCard";
 
 type SafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
 type WorkflowStatus = "new" | "acknowledged" | "contacted" | "watching" | "resolved";
@@ -102,6 +104,16 @@ type CaregiverMedsResponse = {
     totalTaken?: number | null;
     missedDoses?: MissedDose[];
   };
+};
+
+type CaregiverRefillsResponse = MedicationRefillAlertResponse & {
+  medicines: Array<{
+    medicineId: string;
+    medicineName: string;
+    daysRemaining: number | null;
+    status: "setup_needed" | "on_track" | "refill_soon" | "refill_now" | "uncertain";
+    updatedBy: { name: string; role: string } | null;
+  }>;
 };
 
 type VitalsMetricSummary = {
@@ -518,6 +530,12 @@ export default function CaregiverDashboardPage() {
       if (!response.ok) throw new Error("Could not load caregiver medication summary");
       return response.json();
     },
+    enabled: caregiverProfileReady,
+    retry: false,
+  });
+  const refillUrl = `/api/meds/refills/${encodeURIComponent(caregiverProfileId)}`;
+  const { data: refillData } = useQuery<CaregiverRefillsResponse>({
+    queryKey: [refillUrl],
     enabled: caregiverProfileReady,
     retry: false,
   });
@@ -955,6 +973,42 @@ export default function CaregiverDashboardPage() {
                           <p className="font-body text-[14px] font-semibold text-vyva-text-2">No missed-dose entries in this view.</p>
                         )}
                       </div>
+                    </div>
+                  ) : null}
+                  {refillData && (refillData.permissions.manage_inventory || refillData.permissions.receive_refill_alerts) ? (
+                    <div className="mt-4 border-t border-vyva-border pt-4" data-testid="caregiver-refill-access">
+                      {refillData.alerts?.[0] ? (
+                        <div className="mb-3">
+                          <MedicationRefillAlertCard
+                            alert={refillData.alerts[0]}
+                            canManage={Boolean(refillData.permissions.manage_inventory)}
+                            onOpen={() => navigate(`/meds/refills?profileId=${encodeURIComponent(caregiverProfileId)}&returnTo=${encodeURIComponent("/caregiver")}`)}
+                            testId="caregiver-refill-alert"
+                          />
+                        </div>
+                      ) : null}
+                      {refillData.medicines.length ? (
+                        <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                          {refillData.medicines.slice(0, 2).map((medicine) => (
+                            <div key={medicine.medicineId} className="rounded-[16px] bg-[#FFF9E9] p-3">
+                              <p className="font-body text-[14px] font-black text-vyva-text-1">{medicine.medicineName}</p>
+                              <p className="mt-1 font-body text-[12px] font-semibold text-vyva-text-2">
+                                {medicine.daysRemaining === null ? "Supply setup needed" : `About ${medicine.daysRemaining} days remaining`}
+                                {medicine.updatedBy ? ` · Updated by ${medicine.updatedBy.name}` : ""}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/meds/refills?profileId=${encodeURIComponent(caregiverProfileId)}&returnTo=${encodeURIComponent("/caregiver")}`)}
+                        className="vyva-tap inline-flex min-h-[48px] items-center gap-2 rounded-[16px] bg-vyva-purple px-4 font-body text-[14px] font-black text-white"
+                        data-testid="button-caregiver-manage-refills"
+                      >
+                        <PackageOpen className="h-4 w-4" />
+                        {refillData.permissions.manage_inventory ? "Manage refill stock" : "View refill status"}
+                      </button>
                     </div>
                   ) : null}
                 </section>

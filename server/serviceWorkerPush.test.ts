@@ -78,6 +78,75 @@ describe("Task 10 service worker push entry", () => {
     ]);
   });
 
+  it("uses fixed medicine-refill content and a fixed same-origin tracker route", async () => {
+    const listeners = new Map<string, (event: Record<string, unknown>) => void>();
+    const notifications: Array<{ title: string; options: Record<string, unknown> }> = [];
+    const selfObject = {
+      location: { href: "https://app.example/service-worker.js?v=test", origin: "https://app.example" },
+      addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => listeners.set(name, handler),
+      registration: { showNotification: async (title: string, options: Record<string, unknown>) => notifications.push({ title, options }) },
+      skipWaiting: async () => {},
+      clients: {
+        claim: async () => {},
+        matchAll: async () => [],
+        openWindow: async (url: string) => opened.push(url),
+      },
+    };
+    const opened: string[] = [];
+    vm.runInNewContext(serviceWorkerSource, {
+      self: selfObject,
+      caches: {
+        open: async () => ({ addAll: async () => {}, put: async () => {} }),
+        keys: async () => [],
+        delete: async () => true,
+        match: async () => undefined,
+      },
+      fetch: async () => ({ ok: true, clone: () => ({}) }),
+      URL,
+    });
+    const push = listeners.get("push");
+    expect(push).toBeDefined();
+    if (!push) return;
+    await push({
+      data: { json: () => ({
+        type: "vyva.medication_refill",
+        deliveryId: "11111111-1111-4111-8111-111111111111",
+        alertId: "22222222-2222-4222-8222-222222222222",
+        title: "Unsafe title",
+        url: "https://evil.example",
+      }) },
+      waitUntil: (promise: Promise<unknown>) => promise,
+    });
+    expect(notifications).toEqual([{
+      title: "Medicine supply reminder",
+      options: expect.objectContaining({
+        body: "Open VYVA to review your estimated medicine supply.",
+        data: {
+          route: "/meds/refills",
+          refillDelivery: "11111111-1111-4111-8111-111111111111",
+        },
+      }),
+    }]);
+    const click = listeners.get("notificationclick");
+    expect(click).toBeDefined();
+    if (!click) return;
+    const waits: Promise<unknown>[] = [];
+    click({
+      notification: {
+        close: () => {},
+        data: {
+          refillDelivery: "11111111-1111-4111-8111-111111111111",
+          url: "https://evil.example",
+        },
+      },
+      waitUntil: (promise: Promise<unknown>) => waits.push(promise),
+    });
+    await Promise.all(waits);
+    expect(opened).toEqual([
+      "https://app.example/meds/refills?refillPush=11111111-1111-4111-8111-111111111111",
+    ]);
+  });
+
   it("clicks focus a same-origin client and ignore arbitrary payload URLs", async () => {
     const listeners = new Map<string, (event: Record<string, unknown>) => void>();
     const navigated: string[] = [];

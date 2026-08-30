@@ -112,12 +112,14 @@ import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import advisorsRouter from "./routes/advisors.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
+import medicationRefillsRouter from "./routes/medicationRefills.js";
+import medicationRefillPushRouter from "./routes/medicationRefillPush.js";
 import scheduledSupportRouter from "./routes/scheduledSupport.js";
 import caregiverDashboardRouter from "./routes/caregiverDashboard.js";
 import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
-import healthPreventionRouter from "./routes/healthPrevention.js";
+import healthLongevityRouter from "./routes/healthLongevity.js";
 import healthInsightsReportRouter, { registerHealthInsightsJobs } from "./routes/healthInsightsReport.js";
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
@@ -141,6 +143,7 @@ import {
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
 import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
+import { startMedicationRefillMonitor } from "./services/medicationRefillMonitor.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
@@ -297,6 +300,8 @@ app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/advisors", authMiddleware, requireUser, advisorsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
+app.use("/api/meds/refill-notifications", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medicationRefillPushRouter);
+app.use("/api/meds/refills", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medicationRefillsRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
 app.use("/api/caregiver/dashboard", authMiddleware, requireUser, caregiverDashboardRouter);
 app.use("/api/caregiver/brain-coach", authMiddleware, caregiverBrainCoachRouter);
@@ -306,7 +311,7 @@ app.use("/api/caregiver/brain-coach", authMiddleware, caregiverBrainCoachRouter)
 app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
-app.use("/api/health", authMiddleware, requireUser, healthPreventionRouter);
+app.use("/api/health", authMiddleware, requireUser, healthLongevityRouter);
 app.use("/api", authMiddleware, requireUser, healthInsightsReportRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
@@ -565,6 +570,9 @@ configureFrontend().then(() => {
     }
     if (startMarketingEmailScheduler()) {
       console.log("[marketing-email-scheduler] scheduled email campaign runner enabled");
+    }
+    if (startMedicationRefillMonitor()) {
+      console.log("[medication-refill-monitor] proactive refill alerts enabled");
     }
   });
 }).catch((err) => {

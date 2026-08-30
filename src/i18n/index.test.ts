@@ -251,12 +251,12 @@ describe("language persistence", () => {
 
   it("keeps medication service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Prepare refill", "Check interactions", "Doctor help"],
-      es: ["Preparar reposicion", "Revisar interacciones", "Ayuda medica"],
-      fr: ["Preparer le renouvellement", "Verifier interactions", "Aide medecin"],
-      de: ["Nachfullung vorbereiten", "Wechselwirkungen prufen", "Arzthilfe"],
-      it: ["Prepara rifornimento", "Controlla interazioni", "Aiuto medico"],
-      pt: ["Preparar reposicao", "Verificar interacoes", "Ajuda medica"],
+      en: ["Check refill need", "Check interactions", "Doctor help"],
+      es: ["Revisar necesidad de reposicion", "Revisar interacciones", "Ayuda medica"],
+      fr: ["Verifier le besoin de renouvellement", "Verifier interactions", "Aide medecin"],
+      de: ["Nachfuellbedarf pruefen", "Wechselwirkungen prufen", "Arzthilfe"],
+      it: ["Verifica la necessita di rifornimento", "Controlla interazioni", "Aiuto medico"],
+      pt: ["Verificar necessidade de reposicao", "Verificar interacoes", "Ajuda medica"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -297,12 +297,12 @@ describe("language persistence", () => {
 
   it("keeps adherence report service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Medication help in one tap", "Prepare refill", "Medication appointment"],
-      es: ["Ayuda de medicacion en un toque", "Preparar reposicion", "Cita de medicacion"],
-      fr: ["Aide medicaments en un geste", "Preparer le renouvellement", "Rendez-vous medicaments"],
-      de: ["Medikamentenhilfe mit einem Tipp", "Nachfullung vorbereiten", "Medikamententermin"],
-      it: ["Aiuto farmaci in un tocco", "Prepara rifornimento", "Appuntamento farmaci"],
-      pt: ["Ajuda com medicacao num toque", "Preparar reposicao", "Consulta de medicacao"],
+      en: ["Medication help in one tap", "Check refill need", "Medication appointment"],
+      es: ["Ayuda de medicacion en un toque", "Revisar necesidad de reposicion", "Cita de medicacion"],
+      fr: ["Aide medicaments en un geste", "Verifier le besoin de renouvellement", "Rendez-vous medicaments"],
+      de: ["Medikamentenhilfe mit einem Tipp", "Nachfuellbedarf pruefen", "Medikamententermin"],
+      it: ["Aiuto farmaci in un tocco", "Verifica la necessita di rifornimento", "Appuntamento farmaci"],
+      pt: ["Ajuda com medicacao num toque", "Verificar necessidade de reposicao", "Consulta de medicacao"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -316,12 +316,12 @@ describe("language persistence", () => {
 
   it("keeps reports overview service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Fast service access", "Review vitals", "Prepare refill", "Find transport"],
-      es: ["Acceso rapido a servicios", "Revisar constantes", "Preparar reposicion", "Buscar transporte"],
-      fr: ["Acces rapide aux services", "Voir constantes", "Renouvellement", "Trouver transport"],
-      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfullung", "Transport finden"],
-      it: ["Accesso rapido ai servizi", "Vedi parametri", "Rifornimento", "Trova trasporto"],
-      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Preparar reposicao", "Encontrar transporte"],
+      en: ["Fast service access", "Review vitals", "Check refill need", "Find transport"],
+      es: ["Acceso rapido a servicios", "Revisar constantes", "Revisar necesidad de reposicion", "Buscar transporte"],
+      fr: ["Acces rapide aux services", "Voir constantes", "Verifier le renouvellement", "Trouver transport"],
+      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfuellbedarf pruefen", "Transport finden"],
+      it: ["Accesso rapido ai servizi", "Vedi parametri", "Verifica rifornimento", "Trova trasporto"],
+      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Verificar necessidade de reposicao", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

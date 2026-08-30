@@ -244,6 +244,7 @@ const channelPreferencesPatchSchema = z.object({
   max_outbound_calls_per_day: channelPreferenceLimitSchema.optional(),
   max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
   concierge_task_notifications_enabled: z.boolean().optional(),
+  medication_refill_push_enabled: z.boolean().optional(),
   preventive_web_push_enabled: z.boolean().optional(),
 });
 
@@ -268,6 +269,7 @@ const channelPreferencesDefaults = {
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
   concierge_task_notifications_enabled: true,
+  medication_refill_push_enabled: false,
   preventive_web_push_enabled: false,
 };
 
@@ -327,6 +329,9 @@ function serializeChannelPreferences(row?: ChannelPreferencesRow | null, consent
     concierge_task_notifications_enabled:
       row?.concierge_task_notifications_enabled
       ?? channelPreferencesDefaults.concierge_task_notifications_enabled,
+    medication_refill_push_enabled:
+      row?.medication_refill_push_enabled
+      ?? channelPreferencesDefaults.medication_refill_push_enabled,
     preventive_web_push_enabled:
       row?.preventive_web_push_enabled
       ?? channelPreferencesDefaults.preventive_web_push_enabled,
@@ -1176,7 +1181,12 @@ router.patch("/channel-preferences", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
   }
 
-  const { support_mode, preventive_web_push_enabled: _preventiveWebPushEnabled, ...channelData } = parsed.data;
+  const {
+    support_mode,
+    preventive_web_push_enabled: _preventiveWebPushEnabled,
+    medication_refill_push_enabled: _medicationRefillPushEnabled,
+    ...channelData
+  } = parsed.data;
   const channelUpdates = Object.fromEntries(
     Object.entries(channelData).filter(([, value]) => value !== undefined),
   );
