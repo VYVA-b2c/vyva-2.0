@@ -50,6 +50,27 @@ const voiceTriageAnswerSchema = z.object({
 });
 
 let ensureVoiceTriageSessionsPromise: Promise<void> | null = null;
+const voiceTriageTurnTails = new Map<string, Promise<void>>();
+
+export async function serializeVoiceTriageTurn<T>(conversationId: string, task: () => Promise<T>): Promise<T> {
+  const previous = voiceTriageTurnTails.get(conversationId) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const tail = previous.catch(() => undefined).then(() => current);
+  voiceTriageTurnTails.set(conversationId, tail);
+
+  await previous.catch(() => undefined);
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+    if (voiceTriageTurnTails.get(conversationId) === tail) {
+      voiceTriageTurnTails.delete(conversationId);
+    }
+  }
+}
 
 function safeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -115,7 +136,7 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function latestChoices(response: unknown): TriageWizardAnswer[] {
+export function latestChoices(response: unknown): TriageWizardAnswer[] {
   const record = safeObject(response);
   const question = safeObject(record.question);
   const questionChoices = Array.isArray(question.choices)
@@ -124,9 +145,9 @@ function latestChoices(response: unknown): TriageWizardAnswer[] {
   const quickReplies = Array.isArray(record.quickReplies)
     ? record.quickReplies
     : [];
-  const rawChoices = questionChoices.length ? questionChoices : quickReplies;
+  const rawChoices = [...questionChoices, ...quickReplies];
 
-  return rawChoices
+  const choices = rawChoices
     .map((item) => {
       const choice = safeObject(item);
       const id = typeof choice.id === "string" ? choice.id : "";
@@ -140,9 +161,52 @@ function latestChoices(response: unknown): TriageWizardAnswer[] {
       return id && label ? { id, label, value, kind } : null;
     })
     .filter((item): item is TriageWizardAnswer => Boolean(item));
+
+  return choices.filter((choice, index) => (
+    choices.findIndex((candidate) => candidate.id === choice.id) === index
+  ));
 }
 
-function selectChoiceFromVoice(input: {
+const SPOKEN_SEVERITY_SCORES = new Map<string, number>([
+  ["zero", 0], ["oh", 0], ["cero", 0],
+  ["one", 1], ["un", 1], ["une", 1], ["uno", 1], ["una", 1],
+  ["two", 2], ["deux", 2], ["dos", 2],
+  ["three", 3], ["trois", 3], ["tres", 3],
+  ["four", 4], ["quatre", 4], ["cuatro", 4],
+  ["five", 5], ["cinq", 5], ["cinco", 5],
+  ["six", 6], ["seis", 6],
+  ["seven", 7], ["sept", 7], ["siete", 7],
+  ["eight", 8], ["huit", 8], ["ocho", 8],
+  ["nine", 9], ["neuf", 9], ["nueve", 9],
+  ["ten", 10], ["dix", 10], ["diez", 10],
+]);
+
+function spokenSeverityScore(utterance: string) {
+  const digit = utterance.match(/\b(10|[0-9])\b/);
+  if (digit) return Number(digit[1]);
+
+  const outOfTen = utterance.match(/\b([a-z]+)\s+(?:sur|out\s+of|de|von)\s+(?:dix|ten|diez)\b/);
+  if (outOfTen) {
+    const score = SPOKEN_SEVERITY_SCORES.get(outOfTen[1]);
+    if (score !== undefined) return score;
+  }
+
+  const tokens = utterance.split(" ").filter(Boolean);
+  const matches = tokens
+    .map((token) => ({ token, score: SPOKEN_SEVERITY_SCORES.get(token) }))
+    .filter((item): item is { token: string; score: number } => item.score !== undefined);
+  if (matches.length !== 1) return null;
+
+  const match = matches[0];
+  // French "un" is commonly an article. Only interpret it as a score when
+  // it is the complete answer or is explicitly framed as one out of ten.
+  if (match.token === "un" && utterance !== "un" && !/\bun\s+sur\s+dix\b/.test(utterance)) {
+    return null;
+  }
+  return match.score;
+}
+
+export function selectChoiceFromVoice(input: {
   choiceId?: string | null;
   utterance: string;
   latestResponse: unknown;
@@ -157,6 +221,16 @@ function selectChoiceFromVoice(input: {
 
   const utterance = normalizeText(input.utterance);
   if (!utterance) return null;
+  const severityChoices = choices.filter((choice) => (
+    choice.kind === "severity" && /^severity_(?:10|[0-9])$/.test(choice.id)
+  ));
+  if (severityChoices.length) {
+    const severityScore = spokenSeverityScore(utterance);
+    if (severityScore !== null) {
+      const severityChoice = severityChoices.find((choice) => choice.id === `severity_${severityScore}`);
+      if (severityChoice) return severityChoice;
+    }
+  }
   const exact = choices.find((choice) => {
     const label = normalizeText(choice.label);
     const value = normalizeText(choice.value);
@@ -208,7 +282,11 @@ function parseVitalsText(vitalsText?: string | null): TriageWizardContext["vital
   return vitals;
 }
 
-function voiceQuestionFor(response: TriageStepResponse) {
+export function voiceQuestionFor(response: TriageStepResponse) {
+  const replies = response.quickReplies ?? [];
+  const visibleReplies = response.wizardStage === "severity"
+    ? replies
+    : replies.slice(0, 3);
   return response.done
     ? undefined
     : {
@@ -216,7 +294,7 @@ function voiceQuestionFor(response: TriageStepResponse) {
       text: response.content,
       reason: response.questionReason ?? null,
       profile_context_used: Boolean(response.profileContextUsed),
-      choices: (response.quickReplies ?? []).slice(0, 3).map((reply) => ({
+      choices: visibleReplies.map((reply) => ({
         id: reply.id,
         spoken_label: reply.label,
         value: reply.value,
@@ -484,7 +562,7 @@ async function recordEmergencyVoiceHandoff(input: {
   return { sentTo: sent.sentTo, staffReviewRequested: sent.staffReviewRequested };
 }
 
-async function runVoiceTriageSessionTurn(input: {
+type VoiceTriageSessionTurnInput = {
   userId: string;
   conversationId: string;
   channel: string;
@@ -493,7 +571,9 @@ async function runVoiceTriageSessionTurn(input: {
   choiceId?: string | null;
   vitalsText?: string | null;
   timelineSource: string;
-}) {
+};
+
+async function runVoiceTriageSessionTurnUnlocked(input: VoiceTriageSessionTurnInput) {
   const healthMemory = await healthMemoryForUser(input.userId);
   const session = await upsertStartedSession({
     userId: input.userId,
@@ -602,6 +682,10 @@ async function runVoiceTriageSessionTurn(input: {
   }).catch((err) => console.warn("[voice-triage timeline]", err));
 
   return toolResponse;
+}
+
+async function runVoiceTriageSessionTurn(input: VoiceTriageSessionTurnInput) {
+  return serializeVoiceTriageTurn(input.conversationId, () => runVoiceTriageSessionTurnUnlocked(input));
 }
 
 export async function elevenLabsTriageStepToolHandler(req: Request, res: Response) {
