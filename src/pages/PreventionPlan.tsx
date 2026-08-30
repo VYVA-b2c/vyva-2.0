@@ -405,7 +405,6 @@ export default function PreventionPlan({
 
   const dailyContent = previewPlan ? PREVIEW_DAILY_CONTENT : dailyContentQuery.data;
   const dailyPicks = [dailyContent?.exercise, dailyContent?.meal, dailyContent?.tip].filter((item): item is DailyContentItem => Boolean(item));
-  const dailyArticles = dailyContent?.articles?.filter(Boolean) ?? [];
   const liveStatuses = pillarStatusQuery.data?.statuses;
   const livePriority = pillarStatusQuery.data?.priority_pillar ?? null;
   const priorityDefinition = resolvePriorityDefinition(plan, livePriority, liveStatuses);
@@ -491,22 +490,21 @@ export default function PreventionPlan({
           <span aria-hidden="true" className="h-11 min-h-11 w-11" />
         </header>
 
-        <section className="relative mt-7 overflow-hidden rounded-[16px] border-[0.5px] border-[#E8E0D0] border-l-4 border-l-[#F59E0B] bg-[#FFFFFF] px-5 py-6 shadow-[0_18px_42px_rgba(80,52,109,0.08)] sm:px-7 sm:py-7">
+        <section className="relative mt-6 overflow-hidden rounded-[16px] border-[0.5px] border-[#E8E0D0] border-l-4 border-l-[#F59E0B] bg-[#FFFFFF] px-5 py-5 shadow-[0_14px_34px_rgba(80,52,109,0.07)] sm:px-6 sm:py-6">
           <div className="relative">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <span className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[18px] bg-[#FFF7E8] ring-1 ring-inset ring-[#F6D7A4]"><VyvaIcon glyph="longevity" size={44} /></span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[16px] bg-[#FFF7E8] ring-1 ring-inset ring-[#F6D7A4]"><VyvaIcon glyph="longevity" size={38} /></span>
                 <div>
-                  <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#854F0B]">Your monthly plan</p>
-                  <p className="mt-1 font-body text-[14px] font-bold" style={{ color: "var(--text-secondary, #766C80)" }}>{[planDate, TRAJECTORY_LABELS[plan.trajectory]].filter(Boolean).join(" · ")}</p>
+                  <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#854F0B]">Monthly plan</p>
+                  <p className="mt-0.5 truncate font-body text-[13px] font-bold" style={{ color: "var(--text-secondary, #766C80)" }}>{[planDate, TRAJECTORY_LABELS[plan.trajectory]].filter(Boolean).join(" · ")}</p>
                 </div>
               </div>
-              {priorityDefinition ? <span className="rounded-full bg-[#FAEEDA] px-4 py-2 font-body text-[12px] font-black text-[#854F0B]">{priorityDefinition.shortLabel} focus</span> : null}
+              {priorityDefinition ? <span className="shrink-0 rounded-full bg-[#FAEEDA] px-3 py-1.5 font-body text-[12px] font-black text-[#854F0B]">{priorityDefinition.shortLabel}</span> : null}
             </div>
-            <h2 className="mt-6 max-w-[700px] font-display text-[22px] font-medium leading-[1.16]" style={{ color: "var(--text-primary, #241C30)" }}>{heroHeadline}</h2>
-            {seniorNarrative ? <p className="mt-3 max-w-[720px] font-body text-[16px] font-semibold leading-6" style={{ color: "var(--text-secondary, #766C80)" }}>{seniorNarrative}</p> : null}
-            <button type="button" onClick={() => navigate("/chat?mode=voice&q=" + encodeURIComponent(vyvaPrompt))} className="mt-6 inline-flex h-14 min-h-14 w-full items-center justify-center gap-3 rounded-[18px] bg-[#6B21A8] px-6 font-body text-[16px] font-black text-white shadow-[0_12px_28px_rgba(107,33,168,0.18)]">
-              <VyvaIcon icon={Mic} accent="dot" size={22} strokeWidth={2.5} tone="inverse" />Ask VYVA about my plan
+            <h2 className="mt-4 max-w-[700px] font-display text-[21px] font-medium leading-[1.16]" style={{ color: "var(--text-primary, #241C30)" }}>{heroHeadline}</h2>
+            <button type="button" onClick={() => navigate("/chat?mode=voice&q=" + encodeURIComponent(vyvaPrompt))} className="mt-4 inline-flex h-[52px] min-h-[52px] w-full items-center justify-center gap-3 rounded-[17px] bg-[#6B21A8] px-6 font-body text-[15px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.16)]">
+              <VyvaIcon icon={Mic} accent="dot" size={21} strokeWidth={2.5} tone="inverse" />Ask VYVA
             </button>
           </div>
         </section>
@@ -515,7 +513,7 @@ export default function PreventionPlan({
           <section className="mt-7" aria-labelledby="daily-picks-heading">
             <h2 id="daily-picks-heading" className="font-display text-[24px] font-semibold">Today</h2>
 
-            <div className={["mt-3 rounded-[24px] border p-3", cardClass].join(" ")}>
+            <div className={["mt-3 rounded-[22px] border p-2.5", cardClass].join(" ")}>
               {dailyPicks.map((content) => {
                 const Icon = dailyContentIcon(content.content_type);
                 return (
@@ -523,17 +521,16 @@ export default function PreventionPlan({
                     key={content.id}
                     type="button"
                     onClick={() => openDailyContent(content)}
-                    className={["group grid min-h-[76px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[18px] px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "hover:bg-white/[0.05]" : "hover:bg-[#FAF7FC]"].join(" ")}
+                    className={["group grid min-h-[58px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] px-2 py-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "hover:bg-white/[0.05]" : "hover:bg-[#FAF7FC]"].join(" ")}
                   >
-                    <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
-                      <VyvaIcon icon={Icon} accent={content.content_type === "exercise" ? "step" : content.content_type === "meal" ? "check" : "spark"} size={22} strokeWidth={2.4} tone={content.content_type === "meal" && !isDark ? "muted" : "brand"} />
+                    <span className={["grid h-9 w-9 shrink-0 place-items-center rounded-[13px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
+                      <VyvaIcon icon={Icon} accent={content.content_type === "exercise" ? "step" : content.content_type === "meal" ? "check" : "spark"} size={20} strokeWidth={2.4} tone={content.content_type === "meal" && !isDark ? "muted" : "brand"} />
                     </span>
                     <span className="min-w-0">
-                      <span className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{dailyContentLabel(content.content_type)}</span>
-                      <span className="mt-0.5 block truncate font-display text-[18px] font-semibold">{content.title}</span>
-                      <span className={["mt-0.5 block truncate font-body text-[13px] font-semibold", mutedTextClass].join(" ")}>{briefText(content.description, 86)}</span>
+                      <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{dailyContentLabel(content.content_type)}</span>
+                      <span className="block truncate font-display text-[16px] font-semibold">{content.title}</span>
                     </span>
-                    <VyvaIcon icon={ChevronRight} size={18} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
+                    <VyvaIcon icon={ChevronRight} size={17} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
                   </button>
                 );
               })}
@@ -541,35 +538,8 @@ export default function PreventionPlan({
           </section>
         ) : null}
 
-        {dailyArticles.length > 0 ? (
-          <section className="mt-4" aria-labelledby="daily-articles-heading">
-            <h2 id="daily-articles-heading" className="sr-only">Latest read</h2>
-
-            <div className={["rounded-[22px] border p-3", cardClass].join(" ")}>
-              {dailyArticles.slice(0, 1).map((content) => (
-                <button
-                  key={content.id}
-                  type="button"
-                  onClick={() => openDailyContent(content)}
-                  className={["group grid min-h-[68px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "hover:bg-white/[0.05]" : "hover:bg-[#FAF7FC]"].join(" ")}
-                >
-                  <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
-                    <VyvaIcon icon={Clipboard} accent="bookmark" size={21} strokeWidth={2.4} tone="brand" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#854F0B]">Read</span>
-                    <span className="mt-0.5 block truncate font-display text-[17px] font-semibold">{content.title}</span>
-                    {content.source_label ? <span className={["mt-0.5 block truncate font-body text-[13px] font-semibold", mutedTextClass].join(" ")}>{content.source_label}</span> : null}
-                  </span>
-                  <VyvaIcon icon={ChevronRight} size={18} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="mt-7" aria-labelledby="five-pillars-heading">
-          <h2 id="five-pillars-heading" className="font-display text-[24px] font-semibold">Five pillars</h2>
+        <section className="mt-6" aria-labelledby="five-pillars-heading">
+          <h2 id="five-pillars-heading" className="font-display text-[24px] font-semibold">Pillars</h2>
 
           <div className="mt-3 grid grid-cols-1 gap-3">
             {orderedPillars.map((pillar) => {
@@ -583,18 +553,18 @@ export default function PreventionPlan({
               return (
                 <article
                   key={pillar.id}
-                  className={["relative rounded-[24px] border p-4 sm:p-5", cardClass, isPriority && isDark ? "border-[#D89225]/70" : "", isPriority && !isDark ? "border-[#E7B553]" : ""].join(" ")}
+                  className={["relative rounded-[22px] border p-4", cardClass, isPriority && isDark ? "border-[#D89225]/70" : "", isPriority && !isDark ? "border-[#E7B553]" : ""].join(" ")}
                   style={isPriority ? { borderLeft: "4px solid #F59E0B" } : undefined}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className={["grid h-12 w-12 shrink-0 place-items-center rounded-[16px]", isDark ? "bg-[#3C2956]" : "bg-[#F1E8FF]"].join(" ")}><VyvaIcon icon={Icon} accent={pillar.accent} size={25} strokeWidth={2.4} tone="brand" /></span>
-                      <h3 className="truncate font-display text-[20px] font-semibold">{pillar.label}</h3>
+                      <span className={["grid h-11 w-11 shrink-0 place-items-center rounded-[15px]", isDark ? "bg-[#3C2956]" : "bg-[#F1E8FF]"].join(" ")}><VyvaIcon icon={Icon} accent={pillar.accent} size={23} strokeWidth={2.4} tone="brand" /></span>
+                      <h3 className="truncate font-display text-[19px] font-semibold">{pillar.label}</h3>
                     </div>
                     <span className={["shrink-0 rounded-full px-3 py-1.5 font-body text-[12px] font-black", isPriority ? "bg-[#FAEEDA] text-[#854F0B]" : statusClass(statusDisplay.tone, isDark)].join(" ")}>{statusDisplay.label}</span>
                   </div>
 
-                  {primaryRecommendation ? (
+                  {isPriority && primaryRecommendation ? (
                     <button type="button" onClick={() => openAction(primaryRecommendation.action)} className={["group mt-4 grid min-h-[60px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "bg-white/[0.04] hover:bg-white/[0.07]" : "bg-[#FCFAFD] hover:bg-[#FAF7FC]"].join(" ")}>
                       <span className="min-w-0">
                         <span className="block truncate font-body text-[15px] font-black leading-5">{primaryRecommendation.action}</span>
@@ -602,9 +572,9 @@ export default function PreventionPlan({
                       </span>
                       <VyvaIcon icon={ChevronRight} size={18} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
                     </button>
-                  ) : (
+                  ) : isPriority ? (
                     <p className={["mt-4 rounded-[16px] px-3 py-3 font-body text-[14px] font-semibold", isDark ? "bg-white/[0.04]" : "bg-[#FCFAFD]", mutedTextClass].join(" ")}>VYVA will add a step here as it learns more.</p>
-                  )}
+                  ) : null}
                 </article>
               );
             })}
