@@ -1991,6 +1991,27 @@
     "snowShowers": "Rovesci di neve",
     "thunderstorm": "Temporale"
   },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} livelli",
+      "milestones": "Percorso a tappe",
+      "milestone": "Tappa",
+      "nextMilestone": "Prossima tappa",
+      "monthlyPracticeHeld": "Pratica mensile mantenuta",
+      "bands": {
+        "foundation": "Fondazione",
+        "build": "Costruzione",
+        "challenge": "Sfida",
+        "mastery": "Padronanza"
+      },
+      "milestonesByLevel": {
+        "5": "Fondazione completata",
+        "10": "Fiducia in crescita",
+        "15": "Pronto per la sfida",
+        "20": "Round di padronanza"
+      }
+    }
+  },
   "companions": {
     "title": "Trova un Compagno",
     "subtitle": "Connettiti con altri che condividono i tuoi interessi",
