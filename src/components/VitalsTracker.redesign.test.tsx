@@ -42,6 +42,8 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Wellbeing");
     expect(screen.getByLabelText("Device - High")).toHaveTextContent("Device");
     expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
+    expect(screen.getByTestId("button-vitals-hero-add")).toHaveAccessibleName("Add reading");
+    expect(screen.getByTestId("button-vitals-hero-add")).not.toHaveTextContent("Add reading");
 
     fireEvent.click(screen.getByText("How VYVA connects your health signals"));
     expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");

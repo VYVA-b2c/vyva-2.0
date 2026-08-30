@@ -1515,7 +1515,7 @@ export default function VitalsTracker({
         <>
           <div data-testid="vitals-hero">
             <section className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 ${dashboardPanel} ${safetyHeroAccent}`}>
-              <div className="flex min-w-0 items-center gap-3 sm:pr-40">
+              <div className="flex min-w-0 items-center gap-3 pr-16">
                    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
                      <VyvaIcon icon={SafetyIcon} accent="check" tone={safetyStatus === "steady" ? "success" : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver" ? "warning" : "danger"} size={22} />
                    </span>
@@ -1557,12 +1557,12 @@ export default function VitalsTracker({
 
               <button
                 type="button"
+                aria-label={copy.add}
                 onClick={showAddReading}
-                className="vyva-tap mt-4 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#7024C4] px-4 font-body text-[15px] font-black text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.98] sm:absolute sm:right-[22px] sm:top-5 sm:mt-0 sm:min-h-11 sm:w-auto sm:rounded-full sm:text-[14px]"
+                className="vyva-tap absolute right-4 top-4 grid h-[52px] !min-h-[52px] w-[52px] place-items-center rounded-full bg-[#7024C4] text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.96] sm:right-[22px] sm:top-5"
                 data-testid="button-vitals-hero-add"
               >
-                <Plus className="h-[18px] w-[18px] text-[#F8AE1B]" />
-                {copy.add}
+                <Plus className="h-7 w-7 text-[#F8AE1B]" strokeWidth={2.7} aria-hidden="true" />
               </button>
             </section>
           </div>
