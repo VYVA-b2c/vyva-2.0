@@ -925,7 +925,6 @@ function sessionOverridesForResolvedContext(
       agent: {
         ...existing?.agent,
         language,
-        firstMessage: drAiFirstMessage,
       },
     };
   }

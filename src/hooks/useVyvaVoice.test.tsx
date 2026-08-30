@@ -67,6 +67,7 @@ type MockStartSessionOptions = {
   dynamicVariables?: Record<string, string | number | boolean>;
   overrides?: {
     agent?: {
+      language?: string;
       firstMessage?: string;
       prompt?: {
         prompt?: string;
@@ -561,6 +562,50 @@ describe("useVyvaVoice", () => {
     );
     expect(createdConversations[0].sendUserMessage).not.toHaveBeenCalled();
     expect(createdConversations[0].sendUserActivity).not.toHaveBeenCalled();
+  });
+
+  it("does not send a Dr. AI first-message override that the ElevenLabs agent rejects", async () => {
+    let controller: VoiceController | null = null;
+    const defaultApiFetch = voiceMocks.apiFetch.getMockImplementation();
+    voiceMocks.apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/voice-context") {
+        return jsonResponse({
+          dynamic_variables: {
+            routing_domain: "health",
+            language: "fr",
+            dr_ai_first_message: "Bonjour, je suis le Dr AI. Qu'est-ce qui a change aujourd'hui ?",
+          },
+        });
+      }
+      if (!defaultApiFetch) throw new Error(`Unexpected voice API request: ${url}`);
+      return defaultApiFetch(url, init);
+    });
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("health questions", undefined, {
+        agentSlug: "health",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    expect(sessionOptions?.overrides?.agent?.language).toBe("fr");
+    expect(sessionOptions?.overrides?.agent).not.toHaveProperty("firstMessage");
+    expect(sessionOptions?.dynamicVariables).toMatchObject({
+      language: "fr",
+      dr_ai_first_message: "Bonjour, je suis le Dr AI. Qu'est-ce qui a change aujourd'hui ?",
+    });
   });
 
   it("shares the ElevenLabs conversation id with the symptom check page", async () => {
