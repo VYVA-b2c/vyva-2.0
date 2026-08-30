@@ -716,7 +716,7 @@ type VoiceTriageAnswerInput = {
   vitalsText?: string | null;
 };
 
-function VoiceTriageLivePanel({
+export function VoiceTriageLivePanel({
   session,
   stageId,
   modality,
@@ -779,6 +779,17 @@ function VoiceTriageLivePanel({
     }
     if (action.route) navigate(action.route);
   };
+
+  if (stageId === "describe") {
+    return (
+      <IntroScreen
+        onStart={(clue) => onAnswer?.({ utterance: clue })}
+        startDisabled={!canTapAnswer}
+        onTalkToVyva={() => undefined}
+        showEmergencyModal={false}
+      />
+    );
+  }
 
   return (
     <aside
@@ -1087,6 +1098,7 @@ export function SymptomSeverityPreviewScreen() {
 
 type IntroScreenProps = {
   onStart: (clue: string) => void;
+  startDisabled?: boolean;
   onTalkToVyva?: () => void;
   onNavigate?: (route: string) => void;
   personalizedSuggestions?: TriagePersonalizedSuggestion[];
@@ -1591,6 +1603,7 @@ function stopVoiceStream(stream: MediaStream | null) {
 
 export function IntroScreen({
   onStart,
+  startDisabled = false,
   onTalkToVyva,
   onNavigate,
   personalizedSuggestions,
@@ -1661,7 +1674,9 @@ export function IntroScreen({
       <button
         key={suggestion.id}
         type="button"
+        disabled={isConcern && startDisabled}
         onClick={() => {
+          if (isConcern && startDisabled) return;
           if (isConcern) {
             onStart(suggestion.initialClue || suggestion.label);
             return;
@@ -1669,7 +1684,7 @@ export function IntroScreen({
           if (suggestion.route) onNavigate?.(suggestion.route);
         }}
         data-testid={`button-symptom-intro-suggestion-${suggestion.id}`}
-        className={`vyva-tap group flex min-h-[72px] w-full min-w-0 items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/45 focus-visible:ring-offset-2 ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_8px_22px_rgba(0,0,0,0.10)] hover:border-[#8B5CF6]/55 hover:bg-[#3D2D4B]" : `${tone.button} shadow-[0_8px_20px_rgba(63,45,35,0.05)]`}`}
+        className={`vyva-tap group flex min-h-[72px] w-full min-w-0 items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/45 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-55 ${isDark ? "border-white/[0.13] bg-[#352842] shadow-[0_8px_22px_rgba(0,0,0,0.10)] hover:border-[#8B5CF6]/55 hover:bg-[#3D2D4B]" : `${tone.button} shadow-[0_8px_20px_rgba(63,45,35,0.05)]`}`}
       >
         <span
           className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[13px] ${isDark ? "bg-[#45325E]" : tone.icon}`}
@@ -1708,9 +1723,10 @@ export function IntroScreen({
       <button
         key={suggestion.id}
         type="button"
+        disabled={startDisabled}
         onClick={() => onStart(suggestion.initialClue || suggestion.label)}
         data-testid={`button-symptom-example-${index}`}
-        className={`symptom-canonical-choice vyva-tap flex min-h-[60px] min-w-0 items-center gap-3 rounded-[18px] border px-4 py-3 text-left shadow-[0_8px_22px_rgba(0,0,0,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 focus-visible:ring-offset-2 ${isDark ? "border-white/[0.13] bg-[#352842] hover:border-[#8B5CF6]/55" : "border-[#DED3E2] bg-white hover:border-[#B99BCE]"}`}
+        className={`symptom-canonical-choice vyva-tap flex min-h-[60px] min-w-0 items-center gap-3 rounded-[18px] border px-4 py-3 text-left shadow-[0_8px_22px_rgba(0,0,0,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-55 ${isDark ? "border-white/[0.13] bg-[#352842] hover:border-[#8B5CF6]/55" : "border-[#DED3E2] bg-white hover:border-[#B99BCE]"}`}
       >
         <span
           className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}
@@ -1928,7 +1944,7 @@ export function IntroScreen({
             <button
               type="button"
               onClick={() => onStart(cleanClue)}
-              disabled={!canStart}
+              disabled={!canStart || startDisabled}
               data-testid="button-symptom-check-start"
               className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#7024C4] px-5 font-body text-[17px] font-black text-white shadow-[0_10px_22px_rgba(112,36,196,0.18)] disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -1983,6 +1999,7 @@ export function IntroScreen({
               {visibleExamples.map(renderExampleChip)}
               <button
                 type="button"
+                disabled={startDisabled}
                 onClick={() => {
                   setShowCustomInput(true);
                   window.setTimeout(() => {
@@ -1993,7 +2010,7 @@ export function IntroScreen({
                 }}
                 aria-expanded={showCustomInput}
                 data-testid="button-symptom-other"
-                className={`symptom-canonical-choice vyva-tap flex min-h-[60px] min-w-0 items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 focus-visible:ring-offset-2 ${isDark ? "border-white/[0.13] bg-[#352842] hover:border-[#8B5CF6]/55" : "border-[#DED3E2] bg-[#FCFAFD] hover:border-[#B99BCE] hover:bg-white"}`}
+                className={`symptom-canonical-choice vyva-tap flex min-h-[60px] min-w-0 items-center gap-3 rounded-[18px] border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-55 ${isDark ? "border-white/[0.13] bg-[#352842] hover:border-[#8B5CF6]/55" : "border-[#DED3E2] bg-[#FCFAFD] hover:border-[#B99BCE] hover:bg-white"}`}
               >
                 <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}>
                   <VyvaIcon icon={Keyboard} accent="knobs" size={20} strokeWidth={2.45} />
