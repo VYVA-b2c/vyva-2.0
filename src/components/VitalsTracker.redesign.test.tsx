@@ -46,6 +46,9 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Heart rate");
     expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("72 bpm");
     expect(screen.getByTestId("vitals-hero-marker")).toHaveClass("sm:mx-auto", "sm:w-[380px]");
+    fireEvent.click(screen.getByRole("button", { name: "Latest readings 2" }));
+    expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Oxygen");
+    expect(screen.getByTestId("vitals-hero-marker")).not.toHaveTextContent("0%");
     expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Your latest readings look steady.");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Heart");
     expect(screen.getByTestId("vitals-reading-groups")).toHaveTextContent("Breathing");
@@ -54,6 +57,7 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("vitals-more-readings")).toHaveTextContent("More vitals");
     expect(screen.getByTestId("button-vitals-hero-add")).toHaveAccessibleName("Add reading");
     expect(screen.getByTestId("button-vitals-hero-add")).not.toHaveTextContent("Add reading");
+    expect(screen.getByTestId("button-vitals-hero-add")).toHaveClass("right-6", "top-[26px]", "sm:right-8");
 
     fireEvent.click(screen.getByText("How VYVA connects your health signals"));
     expect(screen.getByTestId("vitals-evidence-guide")).toHaveTextContent("personal baseline");

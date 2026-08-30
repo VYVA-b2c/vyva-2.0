@@ -1588,7 +1588,7 @@ export default function VitalsTracker({
                           <span className={`truncate font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
                             {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
                           </span>
-                          {activeHeroDeviation != null ? (
+                          {activeHeroDeviation != null && activeHeroDeviation !== 0 ? (
                             <span className={`shrink-0 font-body text-[11px] font-black ${activeHeroDeviation > 0 ? "text-[#D97706]" : activeHeroDeviation < 0 ? "text-[#047857]" : isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>
                               {activeHeroDeviation > 0 ? "+" : ""}{activeHeroDeviation}% {activeHeroDeviation > 0 ? "↑" : activeHeroDeviation < 0 ? "↓" : ""}
                             </span>
@@ -1620,7 +1620,7 @@ export default function VitalsTracker({
                 type="button"
                 aria-label={copy.add}
                 onClick={showAddReading}
-                className="vyva-tap absolute right-4 top-4 grid h-[52px] !min-h-[52px] w-[52px] place-items-center rounded-full bg-[#7024C4] text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.96] sm:right-[22px] sm:top-5"
+                className="vyva-tap absolute right-6 top-[26px] grid h-[52px] !min-h-[52px] w-[52px] place-items-center rounded-full bg-[#7024C4] text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.96] sm:right-8"
                 data-testid="button-vitals-hero-add"
               >
                 <Plus className="h-7 w-7 text-[#F8AE1B]" strokeWidth={2.7} aria-hidden="true" />
