@@ -56,6 +56,11 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByRole("heading", { name: "What would you like to add?" })).toBeVisible();
     expect(screen.queryByText("Heart rate variability")).not.toBeInTheDocument();
     expect(screen.queryByText("Steps")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Blood pressure")).toHaveLength(2);
+    expect(screen.queryByText("Blood pressure top number")).not.toBeInTheDocument();
+    expect(screen.queryByText("Blood pressure bottom number")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Systolic blood pressure mmHg" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Diastolic blood pressure mmHg" })).toBeVisible();
 
     fireEvent.click(screen.getByTestId("button-vital-resting_hr_bpm"));
     expect(screen.getByTestId("vitals-method-picker")).toBeVisible();
