@@ -45,6 +45,7 @@ import {
   type VitalsCaptureMethod,
   type VitalsSignalKey,
 } from "../../shared/vitalsSignalCatalog.js";
+import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
 import {
   buildProposedVitalsReading,
   normalizeParsedReading,
@@ -119,6 +120,14 @@ const acknowledgeSchema = z.object({
 });
 
 type RiskTier = "none" | "watch" | "notify" | "urgent";
+
+function preventionRiskTierRank(value: unknown): number {
+  const tier = String(value ?? "").toLowerCase();
+  if (tier === "urgent") return 5;
+  if (tier === "notify") return 4;
+  if (tier === "watch") return 3;
+  return 1;
+}
 
 type SignalReadingRow = {
   id?: string;
@@ -1291,6 +1300,18 @@ export async function runAnalysis(userId: string) {
       WHERE id = ${stored.id}
         AND user_id = ${userId}
     `);
+  }
+
+  if (preventionRiskTierRank(analysis.risk_tier) >= 3) {
+    void triggerPreventionPlanRefresh({
+      userId,
+      triggerType: "vitals_deviation",
+      triggerData: {
+        risk_tier: analysis.risk_tier,
+        pattern_labels: analysis.pattern_labels,
+        pattern_window_id: stored?.id ?? null,
+      },
+    }).catch((err) => console.error("[vitals-engine prevention refresh]", err));
   }
 
   return {

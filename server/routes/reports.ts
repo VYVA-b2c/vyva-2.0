@@ -8,6 +8,7 @@ import { unitForSignal, type VitalsSignalKey } from "../../shared/vitalsSignalCa
 import type { TriageScanResult } from "../../shared/triageScans.js";
 import { resolveTriageHandoffAuthorization } from "../../shared/triageHandoffConsent.js";
 import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
+import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -162,6 +163,17 @@ export async function saveTriageReport(params: {
     respiratory_rate: params.respiratory_rate ?? null,
     duration_seconds: params.duration_seconds ?? null,
   }).returning();
+  if (params.urgency !== "monitor") {
+    void triggerPreventionPlanRefresh({
+      userId: params.userId,
+      triggerType: "symptom_logged",
+      triggerData: {
+        urgency: params.urgency,
+        symptom_description: params.chief_complaint,
+        triage_report_id: row.id,
+      },
+    }).catch((err) => console.error("[reports prevention refresh]", err));
+  }
   return row;
 }
 

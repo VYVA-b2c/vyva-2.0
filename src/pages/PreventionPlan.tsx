@@ -45,6 +45,33 @@ export type PreventionPlanData = {
   trajectory: "improving" | "stable" | "declining" | "first";
 };
 
+type DailyContentType = "exercise" | "meal" | "tip" | "article";
+type DailyContentItem = {
+  id: string;
+  content_type: DailyContentType;
+  title: string;
+  description: string;
+  detail_text: string | null;
+  source_label: string | null;
+  source_url: string | null;
+  condition_tags: string[];
+  pillar_tag: PreventionPillar | null;
+  time_of_day: string | null;
+  language: string;
+};
+
+type DailyContentResponse = {
+  exercise: DailyContentItem | null;
+  meal: DailyContentItem | null;
+  tip: DailyContentItem | null;
+  articles: DailyContentItem[];
+};
+
+type PillarStatusResponse = {
+  statuses: Partial<Record<PreventionPillar, PreventionPillarStatus>>;
+  priority_pillar: PreventionPillar | null;
+};
+
 type PreventionPlanProps = {
   previewPlan?: PreventionPlanData;
   firstNameOverride?: string;
@@ -89,6 +116,63 @@ const TRAJECTORY_LABELS: Record<PreventionPlanData["trajectory"], string> = {
   first: "Your first monthly plan",
 };
 
+const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
+  exercise: {
+    id: "preview-exercise",
+    content_type: "exercise",
+    title: "Walk after lunch",
+    description: "Ten steady minutes supports circulation without making the plan feel heavy.",
+    detail_text: null,
+    source_label: null,
+    source_url: null,
+    condition_tags: ["heart"],
+    pillar_tag: "heart",
+    time_of_day: "afternoon",
+    language: "en",
+  },
+  meal: {
+    id: "preview-meal",
+    content_type: "meal",
+    title: "Protein at breakfast",
+    description: "A simple egg, yogurt, or beans helps energy and strength hold steadier.",
+    detail_text: null,
+    source_label: null,
+    source_url: null,
+    condition_tags: ["all"],
+    pillar_tag: "nourishment",
+    time_of_day: "morning",
+    language: "en",
+  },
+  tip: {
+    id: "preview-tip",
+    content_type: "tip",
+    title: "Same bedtime tonight",
+    description: "A regular sleep time supports memory, mood, and blood sugar patterns.",
+    detail_text: null,
+    source_label: null,
+    source_url: null,
+    condition_tags: ["all"],
+    pillar_tag: "calm",
+    time_of_day: "evening",
+    language: "en",
+  },
+  articles: [
+    {
+      id: "preview-article",
+      content_type: "article",
+      title: "Walking after meals supports heart and glucose patterns",
+      description: "A short, practical read connected to your current heart focus.",
+      detail_text: null,
+      source_label: "Curated research",
+      source_url: "https://academic.oup.com/eurheartj",
+      condition_tags: ["heart"],
+      pillar_tag: "heart",
+      time_of_day: "any",
+      language: "en",
+    },
+  ],
+};
+
 function upperFirst(value: string): string {
   return value ? value[0].toUpperCase() + value.slice(1) : value;
 }
@@ -122,17 +206,27 @@ function formatPlanDate(value: string | null): string | null {
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-function pillarStatus(plan: PreventionPlanData, pillarId: PreventionPillar): PreventionPillarStatus {
+function pillarStatus(
+  plan: PreventionPlanData,
+  pillarId: PreventionPillar,
+  liveStatuses?: Partial<Record<PreventionPillar, PreventionPillarStatus>>,
+): PreventionPillarStatus {
+  if (liveStatuses?.[pillarId]) return liveStatuses[pillarId];
   const key = ("pillar_" + pillarId) as keyof PreventionPlanData;
   return plan[key] as PreventionPillarStatus;
 }
 
-function resolvePriorityDefinition(plan: PreventionPlanData): PillarDefinition | null {
-  const apiPriority = plan.priority_pillar
-    ? PILLARS.find((pillar) => pillar.id === plan.priority_pillar) ?? null
+function resolvePriorityDefinition(
+  plan: PreventionPlanData,
+  livePriority?: PreventionPillar | null,
+  liveStatuses?: Partial<Record<PreventionPillar, PreventionPillarStatus>>,
+): PillarDefinition | null {
+  const priority = livePriority ?? plan.priority_pillar;
+  const apiPriority = priority
+    ? PILLARS.find((pillar) => pillar.id === priority) ?? null
     : null;
   if (apiPriority) return apiPriority;
-  return [...PILLARS].sort((a, b) => PRIORITY_STATUS_RANK[pillarStatus(plan, b.id)] - PRIORITY_STATUS_RANK[pillarStatus(plan, a.id)])[0] ?? null;
+  return [...PILLARS].sort((a, b) => PRIORITY_STATUS_RANK[pillarStatus(plan, b.id, liveStatuses)] - PRIORITY_STATUS_RANK[pillarStatus(plan, a.id, liveStatuses)])[0] ?? null;
 }
 
 function usePreventionPlan(userId: string) {
@@ -148,6 +242,63 @@ function usePreventionPlan(userId: string) {
       return response.json();
     },
   });
+}
+
+function msUntilLocalMidnight(): number {
+  const tomorrow = new Date();
+  tomorrow.setHours(24, 0, 0, 0);
+  return Math.max(1000, tomorrow.getTime() - Date.now());
+}
+
+function useDailyContent(userId: string) {
+  return useQuery<DailyContentResponse>({
+    queryKey: ["prevention-daily-content", userId],
+    enabled: Boolean(userId),
+    staleTime: msUntilLocalMidnight(),
+    refetchOnWindowFocus: false,
+    retry: false,
+    queryFn: async () => {
+      const response = await apiFetch("/api/prevention/daily-content/" + encodeURIComponent(userId));
+      if (!response.ok) throw new Error("Could not load daily content");
+      return response.json();
+    },
+  });
+}
+
+function usePillarStatus(userId: string) {
+  return useQuery<PillarStatusResponse>({
+    queryKey: ["prevention-pillar-status", userId],
+    enabled: Boolean(userId),
+    staleTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+    retry: false,
+    queryFn: async () => {
+      const response = await apiFetch("/api/prevention/pillar-status/" + encodeURIComponent(userId));
+      if (!response.ok) throw new Error("Could not load live pillar status");
+      return response.json();
+    },
+  });
+}
+
+function dailyContentLabel(type: DailyContentType): string {
+  if (type === "exercise") return "Move";
+  if (type === "meal") return "Eat";
+  if (type === "article") return "Read";
+  return "Try";
+}
+
+function dailyContentIcon(type: DailyContentType): LucideIcon {
+  if (type === "exercise") return Footprints;
+  if (type === "meal") return Apple;
+  if (type === "article") return Clipboard;
+  return Sparkles;
+}
+
+function dailyContentPrompt(content: DailyContentItem): string {
+  if (content.content_type === "exercise") return "Help me do today's movement: " + content.title;
+  if (content.content_type === "meal") return "Help me make today's meal idea simple: " + content.title;
+  if (content.content_type === "tip") return "Help me use today's longevity tip: " + content.title;
+  return "Tell me why this health article matters for my plan: " + content.title;
 }
 
 function actionRoute(action: string): string | null {
@@ -203,6 +354,8 @@ export default function PreventionPlan({
   const navigate = useNavigate();
   const userId = previewPlan ? "" : user?.id ?? "";
   const query = usePreventionPlan(userId);
+  const dailyContentQuery = useDailyContent(userId);
+  const pillarStatusQuery = usePillarStatus(userId);
   const plan = previewPlan ?? query.data;
   const firstName = firstNameOverride ?? profileFirstName;
   const [copied, setCopied] = useState(false);
@@ -241,7 +394,12 @@ export default function PreventionPlan({
     symptoms: "Symptoms you recently shared",
   };
 
-  const priorityDefinition = resolvePriorityDefinition(plan);
+  const dailyContent = previewPlan ? PREVIEW_DAILY_CONTENT : dailyContentQuery.data;
+  const dailyPicks = [dailyContent?.exercise, dailyContent?.meal, dailyContent?.tip].filter((item): item is DailyContentItem => Boolean(item));
+  const dailyArticles = dailyContent?.articles?.filter(Boolean) ?? [];
+  const liveStatuses = pillarStatusQuery.data?.statuses;
+  const livePriority = pillarStatusQuery.data?.priority_pillar ?? null;
+  const priorityDefinition = resolvePriorityDefinition(plan, livePriority, liveStatuses);
   const priorityPillarId = priorityDefinition?.id ?? null;
   const priorityLabel = priorityDefinition?.label ?? plan.priority_pillar;
   const priorityActions = priorityPillarId ? plan.recommendations?.[priorityPillarId] ?? [] : [];
@@ -286,6 +444,24 @@ export default function PreventionPlan({
     window.setTimeout(() => setShareFeedback(null), 1800);
   };
 
+  const trackDailyContentEngagement = (content: DailyContentItem) => {
+    if (!userId || !content.id) return;
+    void apiFetch("/api/prevention/daily-content/engage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, contentId: content.id }),
+    }).catch((err) => console.warn("[prevention daily content engage]", err));
+  };
+
+  const openDailyContent = (content: DailyContentItem) => {
+    trackDailyContentEngagement(content);
+    if (content.content_type === "article" && content.source_url) {
+      window.open(content.source_url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    navigate("/chat?mode=voice&q=" + encodeURIComponent(dailyContentPrompt(content)));
+  };
+
   const surfaceClass = isDark
     ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)] text-[#F8F2FF]"
     : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)] text-[#241C30]";
@@ -326,6 +502,66 @@ export default function PreventionPlan({
           </div>
         </section>
 
+        {dailyPicks.length > 0 ? (
+          <section className="mt-8" aria-labelledby="daily-picks-heading">
+            <div>
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#9D4FE0]">Fresh today</p>
+              <h2 id="daily-picks-heading" className="mt-1 font-display text-[28px] font-semibold tracking-[-0.03em]">Today's picks</h2>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4">
+              {dailyPicks.map((content) => {
+                const Icon = dailyContentIcon(content.content_type);
+                return (
+                  <button
+                    key={content.id}
+                    type="button"
+                    onClick={() => openDailyContent(content)}
+                    className={["group grid min-h-[112px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-[26px] border p-5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", cardClass].join(" ")}
+                  >
+                    <span className={["grid h-12 w-12 shrink-0 place-items-center rounded-[17px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
+                      <VyvaIcon icon={Icon} accent={content.content_type === "exercise" ? "step" : content.content_type === "meal" ? "check" : "spark"} size={25} strokeWidth={2.45} tone={content.content_type === "meal" && !isDark ? "muted" : "brand"} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#854F0B]">{dailyContentLabel(content.content_type)}</span>
+                      <span className="mt-1 block font-display text-[20px] font-semibold tracking-[-0.02em]">{content.title}</span>
+                      <span className={["mt-1 block font-body text-[14px] font-bold leading-5", mutedTextClass].join(" ")}>{content.description}</span>
+                    </span>
+                    <VyvaIcon icon={ChevronRight} size={20} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {dailyArticles.length > 0 ? (
+          <section className="mt-8" aria-labelledby="daily-articles-heading">
+            <div>
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#9D4FE0]">Your health areas</p>
+              <h2 id="daily-articles-heading" className="mt-1 font-display text-[28px] font-semibold tracking-[-0.03em]">Latest reads</h2>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4">
+              {dailyArticles.map((content) => (
+                <button
+                  key={content.id}
+                  type="button"
+                  onClick={() => openDailyContent(content)}
+                  className={["group grid min-h-[104px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[26px] border p-5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", cardClass].join(" ")}
+                >
+                  <span className="min-w-0">
+                    {content.source_label ? <span className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#854F0B]">{content.source_label}</span> : null}
+                    <span className="mt-1 block font-display text-[19px] font-semibold tracking-[-0.02em]">{content.title}</span>
+                    <span className={["mt-1 block font-body text-[14px] font-bold leading-5", mutedTextClass].join(" ")}>{content.description}</span>
+                  </span>
+                  <VyvaIcon icon={ChevronRight} size={20} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="mt-9" aria-labelledby="five-pillars-heading">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -337,7 +573,7 @@ export default function PreventionPlan({
 
           <div className="mt-5 grid grid-cols-1 gap-4">
             {orderedPillars.map((pillar) => {
-              const status = pillarStatus(plan, pillar.id);
+              const status = pillarStatus(plan, pillar.id, liveStatuses);
               const isPriority = priorityPillarId === pillar.id;
               const statusDisplay = isPriority ? { label: "← This month", tone: "warning" as const } : STATUS[status];
               const recommendations = plan.recommendations?.[pillar.id] ?? [];
