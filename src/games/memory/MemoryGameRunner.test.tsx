@@ -220,10 +220,21 @@ describe("MemoryGameRunner word recall", () => {
   it("starts Visual Memory above Level 1 without repeating basic instructions", async () => {
     renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-v1");
 
-    expect(await screen.findByRole("heading", { name: /Visual memory/i })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: /Visual memory/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Find the pairs" })).not.toBeInTheDocument();
     expect(screen.queryByText("Tap two cards to find the pair.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
+  });
+
+  it("keeps larger Visual Memory boards readable on narrow screens", async () => {
+    renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(10);
+    expect(screen.getByTestId("visual-memory-grid")).toHaveClass("grid-cols-2", "sm:grid-cols-4");
+    expect(screen.getByText("Level 5 - Foundation")).toBeInTheDocument();
+    expect(screen.getByText("Pairs")).toBeInTheDocument();
+    expect(screen.getByText("Accuracy")).toBeInTheDocument();
+    expect(screen.getByText("Duration")).toBeInTheDocument();
   });
 
   it("unlocks the next Visual Memory level after one completed board", async () => {
