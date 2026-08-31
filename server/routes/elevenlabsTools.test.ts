@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 
 const getDoctorMedicalProfileVariables = vi.fn();
 const verifyMedicalProfileToolToken = vi.fn();
+const recentVoiceConsultations = vi.fn();
+const consultationContinuityCue = vi.fn();
 
 vi.mock("../lib/doctorMedicalProfile.js", () => ({
   getDoctorMedicalProfileVariables,
@@ -12,6 +14,11 @@ vi.mock("../lib/jwt.js", () => ({
   verifyCallbackOnboardingToolToken: vi.fn(),
   verifyMedicalProfileToolToken,
   verifyVoiceRecommendationFeedbackToolToken: vi.fn(),
+}));
+
+vi.mock("../lib/voiceConsultationContinuity.js", () => ({
+  recentVoiceConsultations,
+  consultationContinuityCue,
 }));
 
 const { retrieveMedicalProfileToolHandler } = await import("./elevenlabsTools.js");
@@ -34,6 +41,11 @@ function responseRecorder() {
 describe("retrieveMedicalProfileToolHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    recentVoiceConsultations.mockResolvedValue({
+      recentConsultations: [],
+      relevantPriorConsultation: null,
+    });
+    consultationContinuityCue.mockReturnValue(null);
   });
 
   it("returns authenticated identity, health, vitals, and memory context", async () => {
@@ -75,6 +87,17 @@ describe("retrieveMedicalProfileToolHandler", () => {
       health_session_context: "Session context",
       medical_profile_last_updated: "2026-08-30T07:00:00Z",
     });
+    const priorConsultation = {
+      conversation_id: "previous-conversation",
+      canonical_symptom_id: "dizzy_weak",
+      concern: "des vertiges",
+      completed_at: "2026-08-29T09:00:00.000Z",
+    };
+    recentVoiceConsultations.mockResolvedValue({
+      recentConsultations: [priorConsultation],
+      relevantPriorConsultation: priorConsultation,
+    });
+    consultationContinuityCue.mockReturnValue("French continuity cue");
     const { response, result } = responseRecorder();
 
     await retrieveMedicalProfileToolHandler({
@@ -82,6 +105,8 @@ describe("retrieveMedicalProfileToolHandler", () => {
         user_id: "user-1",
         conversation_id: "conversation-1",
         context_token: "scoped-token",
+        current_symptom_id: "dizzy_weak",
+        locale: "fr-FR",
       },
     } as Request, response);
 
@@ -98,7 +123,23 @@ describe("retrieveMedicalProfileToolHandler", () => {
       medications: "Example medication",
       allergies: "Penicillin",
       checkin_context: "Checked in today",
+      recent_consultations: [priorConsultation],
+      relevant_prior_consultation: {
+        ...priorConsultation,
+        spoken_cue: "French continuity cue",
+      },
     });
+    expect(recentVoiceConsultations).toHaveBeenCalledWith({
+      userId: "user-1",
+      currentConversationId: "conversation-1",
+      currentSymptomId: "dizzy_weak",
+    });
+    expect(consultationContinuityCue).toHaveBeenCalledWith(
+      priorConsultation,
+      "fr-FR",
+      expect.any(Date),
+      "Europe/Madrid",
+    );
   });
 
   it("rejects a token scoped to another conversation", async () => {
