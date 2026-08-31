@@ -40,13 +40,15 @@ const plan: PreventionPlanData = {
 
 const pillarActions = {
   heart: {
-    action_key: "heart:walk-after-lunch",
+    action_key: "heart:find-a-nearby-walk-or-activity",
     content_id: "daily-heart",
-    title: "Walk after lunch",
-    detail: "Tie ten easy minutes to a meal so circulation support is simple to remember.",
+    title: "Find a nearby walk or activity",
+    detail: "After lunch, VYVA can suggest nearby places, gentle groups, or daytime programs.",
     pillar: "heart",
-    route: "/health/exercises/gentle-walk",
-    prompt: "Help me make today's heart step easy.",
+    route: "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning",
+    resource_label: "Nearby walking ideas",
+    resource_url: "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning",
+    prompt: "Help me find a nearby walk or activity today.",
     source: "daily_content",
   },
   brain: {
@@ -107,7 +109,7 @@ const companion = {
     title: "Longevity summary for Karim",
     bullets: [
       "Brain and memory comes first today because no recent Brain Coach sessions are logged.",
-      "Heart and circulation: Walk after lunch.",
+      "Heart and circulation: Find a nearby walk or activity.",
       "Brain and memory: One familiar Brain Coach round.",
       "Strength and stability: Clear one walking path.",
       "Nourishment: Protein with the next meal.",
@@ -167,7 +169,8 @@ describe("PreventionPlan", () => {
     expect(await screen.findByRole("heading", { name: "Karim, restart Brain Coach gently today" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Today" })).toBeVisible();
     expect(screen.getByRole("button", { name: /One familiar Brain Coach round/ })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Walk after lunch/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Find a nearby walk or activity/ })).toBeVisible();
+    expect(screen.getByText("Nearby walking ideas")).toBeVisible();
     expect(screen.getByRole("button", { name: /Clear one walking path/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /Protein with the next meal/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /Same bedtime tonight/ })).toBeVisible();
@@ -208,7 +211,7 @@ describe("PreventionPlan", () => {
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
       method: "POST",
-      body: expect.stringContaining("\"actionKey\":\"heart:walk-after-lunch\""),
+      body: expect.stringContaining("\"actionKey\":\"heart:find-a-nearby-walk-or-activity\""),
     })));
   });
 
@@ -224,7 +227,7 @@ describe("PreventionPlan", () => {
 
     expect(screen.getByRole("heading", { name: "Karim, restart Brain Coach gently today" })).toBeVisible();
     expect(screen.getByRole("button", { name: /One familiar Brain Coach round/ })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Walk after lunch/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Find a nearby walk or activity/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /Clear one walking path/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /Protein with the next meal/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /Same bedtime tonight/ })).toBeVisible();
