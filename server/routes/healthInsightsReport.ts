@@ -57,6 +57,31 @@ type AgeWellAction = {
   tier_min: number;
 };
 
+type DailyContentType = "exercise" | "meal" | "tip" | "article";
+type DailyContentRow = {
+  id: string;
+  content_type: DailyContentType;
+  title: string;
+  description: string;
+  detail_text: string | null;
+  source_label: string | null;
+  source_url: string | null;
+  condition_tags: string[];
+  pillar_tag: PreventionPillar | null;
+  time_of_day: string | null;
+  language: string;
+  rotation_weight: number;
+};
+
+type PreventionRefreshTrigger =
+  | "symptom_logged"
+  | "vitals_deviation"
+  | "adherence_drop"
+  | "cognitive_drop"
+  | "mood_decline"
+  | "user_requested"
+  | "scheduled";
+
 type RealtimeSignals = {
   tierRaise: number;
   urgentFlags: string[];
@@ -366,6 +391,104 @@ async function getUserConditions(userId: string): Promise<string[]> {
     ...conditionRows.map((row) => row.condition),
     ...profileConditions,
   ].filter(Boolean)));
+}
+
+function dailyContentTagsFor(conditions: string[], includeAll = true): string[] {
+  const tags = new Set<string>();
+  if (includeAll) tags.add("all");
+
+  for (const condition of conditions) {
+    const normalized = normalizeConditionTag(condition);
+    if (!normalized) continue;
+    tags.add(normalized);
+    if (normalized === "alzheimers") tags.add("brain");
+    if (normalized === "falls") tags.add("strength");
+    if (normalized === "anxiety") tags.add("calm");
+  }
+
+  return Array.from(tags);
+}
+
+function todaySeed(): string {
+  return Math.floor(Date.now() / (24 * 60 * 60 * 1000)).toString();
+}
+
+function normalizeLanguage(value: string | null | undefined): string {
+  const language = String(value ?? "es").trim().toLowerCase().slice(0, 2);
+  return language || "es";
+}
+
+async function getRecentDailyContentIds(userId: string): Promise<string[]> {
+  const rows = await optionalQuery<{ content_id: string }>("longevity_daily_content_log", `
+    select content_id::text as content_id
+    from public.longevity_daily_content_log
+    where user_id = $1 and shown_on >= current_date - interval '14 days'
+  `, [userId]);
+  return rows.map((row) => row.content_id).filter(Boolean);
+}
+
+async function pickDailyContentRows(input: {
+  type: DailyContentType;
+  language: string;
+  conditionTags: string[];
+  recentIds: string[];
+  daySeed: string;
+  allowAllFallback: boolean;
+  limit: number;
+}): Promise<DailyContentRow[]> {
+  const tags = input.conditionTags.length > 0 ? input.conditionTags : ["__none__"];
+  const rows = await optionalQuery<DailyContentRow>("longevity_daily_content", `
+    select id::text, content_type, title, description, detail_text, source_label, source_url,
+           condition_tags, pillar_tag, time_of_day, language, rotation_weight
+    from public.longevity_daily_content
+    where content_type = $1
+      and language = $2
+      and is_active = true
+      and (
+        condition_tags && $3::text[]
+        or ($6::boolean = true and 'all' = any(condition_tags))
+      )
+      and (coalesce(array_length($4::uuid[], 1), 0) = 0 or id <> all($4::uuid[]))
+    order by
+      case when condition_tags && $3::text[] and not ('all' = any(condition_tags)) then 0 else 1 end,
+      rotation_weight desc,
+      abs(hashtext(id::text || $5::text))
+    limit $7
+  `, [input.type, input.language, tags, input.recentIds, input.daySeed, input.allowAllFallback, input.limit]);
+
+  if (rows.length > 0 || input.language === "es") return rows;
+  return pickDailyContentRows({ ...input, language: "es" });
+}
+
+function logDailyContentShown(userId: string, rows: DailyContentRow[]): void {
+  const shownIds = rows.map((row) => row.id).filter(Boolean);
+  if (shownIds.length === 0) return;
+  void optionalQuery("longevity_daily_content_log", `
+    insert into public.longevity_daily_content_log (user_id, content_id, shown_on)
+    select $1, unnest($2::uuid[]), current_date
+    on conflict (user_id, content_id, shown_on) do nothing
+  `, [userId, shownIds]);
+}
+
+function worstPreventionPillar(scores: PreventionPillarScores): PreventionPillar | null {
+  return [...PREVENTION_PILLARS]
+    .sort((a, b) => PREVENTION_STATUS_RANK[scores[b]] - PREVENTION_STATUS_RANK[scores[a]])[0] ?? null;
+}
+
+const PREVENTION_REFRESH_TRIGGERS = new Set<PreventionRefreshTrigger>([
+  "symptom_logged",
+  "vitals_deviation",
+  "adherence_drop",
+  "cognitive_drop",
+  "mood_decline",
+  "user_requested",
+  "scheduled",
+]);
+
+function normalizePreventionRefreshTrigger(value: unknown): PreventionRefreshTrigger {
+  return PREVENTION_REFRESH_TRIGGERS.has(value as PreventionRefreshTrigger)
+    ? value as PreventionRefreshTrigger
+    : "user_requested";
 }
 
 async function getConditionProfile(conditions: string[]): Promise<ConditionProfile> {
@@ -1408,6 +1531,39 @@ export async function runPreventionPlanSynthesis(userId: string): Promise<Longev
   return result.rows[0];
 }
 
+export async function triggerPreventionPlanRefresh(input: {
+  userId: string;
+  triggerType?: unknown;
+  triggerData?: unknown;
+}): Promise<{ ran: boolean; reason?: "debounced" | "missing_user" }> {
+  const userId = input.userId.trim();
+  if (!userId) return { ran: false, reason: "missing_user" };
+
+  const triggerType = normalizePreventionRefreshTrigger(input.triggerType);
+  const recentRun = await optionalQuery<{ id: string }>("longevity_synthesis_events", `
+    select id
+    from public.longevity_synthesis_events
+    where user_id = $1
+      and synthesis_ran = true
+      and created_at > now() - interval '6 hours'
+    limit 1
+  `, [userId]);
+
+  const shouldRun = recentRun.length === 0;
+  await optionalQuery("longevity_synthesis_events", `
+    insert into public.longevity_synthesis_events (user_id, trigger_type, trigger_data, synthesis_ran)
+    values ($1, $2, $3::jsonb, $4)
+  `, [userId, triggerType, JSON.stringify(input.triggerData ?? {}), shouldRun]);
+
+  if (!shouldRun) return { ran: false, reason: "debounced" };
+
+  void runPreventionPlanSynthesis(userId).catch((err) => {
+    console.error(`[PreventionPlan] Event-driven synthesis failed for ${userId}:`, err);
+  });
+
+  return { ran: true };
+}
+
 async function hasAtLeastThirtyDaysOfData(userId: string): Promise<boolean> {
   const candidates = await Promise.all([
     optionalQuery<{ first_at: Date | null }>("vyva_signal_readings", "select min(recorded_at) as first_at from public.vyva_signal_readings where user_id::text = $1", [userId]),
@@ -1665,6 +1821,123 @@ router.get("/prevention/plan/:userId", async (req: Request, res: Response) => {
       source_signals: {},
       generated_at: null,
     });
+  }
+});
+
+router.get("/prevention/daily-content/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+
+  try {
+    const [conditions, profile, recentIds] = await Promise.all([
+      getUserConditions(userId),
+      getUserProfile(userId),
+      getRecentDailyContentIds(userId),
+    ]);
+    const language = normalizeLanguage(profile.language_preference);
+    const conditionTags = dailyContentTagsFor(conditions, false);
+    const seed = todaySeed();
+
+    const [exerciseRows, mealRows, tipRows, articleRows] = await Promise.all([
+      pickDailyContentRows({ type: "exercise", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: true, limit: 1 }),
+      pickDailyContentRows({ type: "meal", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: true, limit: 1 }),
+      pickDailyContentRows({ type: "tip", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: true, limit: 1 }),
+      conditionTags.length > 0
+        ? pickDailyContentRows({ type: "article", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: false, limit: 2 })
+        : Promise.resolve([]),
+    ]);
+
+    const exercise = exerciseRows[0] ?? null;
+    const meal = mealRows[0] ?? null;
+    const tip = tipRows[0] ?? null;
+    const articles = articleRows.slice(0, 2);
+    logDailyContentShown(userId, [exercise, meal, tip, ...articles].filter((row): row is DailyContentRow => Boolean(row)));
+
+    return res.json({ exercise, meal, tip, articles });
+  } catch (err) {
+    console.error("[DailyContent] GET error:", err);
+    return res.json({ exercise: null, meal: null, tip: null, articles: [] });
+  }
+});
+
+router.post("/prevention/daily-content/engage", async (req: Request, res: Response) => {
+  const rawUserId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
+  const profileId = await resolveProfileId(req, res, rawUserId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+  const contentId = typeof req.body?.contentId === "string" ? req.body.contentId : "";
+
+  if (!isUuid(contentId)) {
+    return res.status(400).json({ success: false, error: "Invalid content id" });
+  }
+
+  try {
+    await optionalQuery("longevity_daily_content_log", `
+      update public.longevity_daily_content_log
+      set engaged = true
+      where user_id = $1 and content_id = $2::uuid and shown_on = current_date
+    `, [userId, contentId]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[DailyContent] engage error:", err);
+    return res.json({ success: false });
+  }
+});
+
+router.get("/prevention/pillar-status/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+
+  try {
+    const periodStart = daysAgo(14);
+    const [vitals, meds, cognitive, mood, symptoms, conditions] = await Promise.all([
+      getVitalsSummary(userId, periodStart),
+      getMedicationSummary(userId, periodStart),
+      getCognitiveSummary(userId, periodStart),
+      getMoodSummary(userId, periodStart),
+      getSymptomSummary(userId, periodStart),
+      getUserConditions(userId),
+    ]);
+    const conditionProfile = await getConditionProfile(conditions);
+    const medicationCount = numericValue(asSummary(meds).active_medications);
+    const scores: PreventionPillarScores = {
+      heart: scorePillarHeart({ vitals, meds, conditions, conditionProfile }),
+      brain: scorePillarBrain({ cognitive, mood, conditions, conditionProfile }),
+      strength: scorePillarStrength({ vitals, conditions, symptoms, medicationCount, conditionProfile }),
+      nourishment: scorePillarNourishment({ meds, mood, conditions, conditionProfile }),
+      calm: scorePillarCalm({ mood, vitals, conditions, conditionProfile }),
+    };
+    const priorityPillar = resolvePriorityPillar(scores, conditions) ?? worstPreventionPillar(scores);
+    const statuses = enforceSinglePriority(scores, priorityPillar);
+
+    return res.json({ statuses, priority_pillar: priorityPillar });
+  } catch (err) {
+    console.error("[PillarStatus] GET error:", err);
+    return res.json({
+      statuses: { heart: "steady", brain: "steady", strength: "steady", nourishment: "steady", calm: "steady" },
+      priority_pillar: null,
+    });
+  }
+});
+
+router.post("/prevention/refresh", async (req: Request, res: Response) => {
+  const rawUserId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
+  const profileId = await resolveProfileId(req, res, rawUserId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+
+  try {
+    const result = await triggerPreventionPlanRefresh({
+      userId,
+      triggerType: req.body?.triggerType,
+      triggerData: req.body?.triggerData,
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error("[PreventionPlan] refresh error:", err);
+    return res.status(500).json({ ran: false, error: "Failed to refresh plan" });
   }
 });
 

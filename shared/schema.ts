@@ -1862,6 +1862,61 @@ export type LongevityPreventionPlan = typeof longevityPreventionPlans.$inferSele
 export type InsertInsightOutcome = z.infer<typeof insertInsightOutcomeSchema>;
 export type InsightOutcome = typeof insightOutcomes.$inferSelect;
 
+export const longevityDailyContent = pgTable("longevity_daily_content", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  content_type: text("content_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  detail_text: text("detail_text"),
+  source_label: text("source_label"),
+  source_url: text("source_url"),
+  condition_tags: text("condition_tags").array().notNull().default(sql`array['all']::text[]`),
+  pillar_tag: text("pillar_tag"),
+  time_of_day: text("time_of_day").notNull().default("any"),
+  language: text("language").notNull().default("es"),
+  rotation_weight: integer("rotation_weight").notNull().default(1),
+  is_active: boolean("is_active").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_ldc_type_language_active").on(t.content_type, t.language, t.is_active),
+  uniqueIndex("idx_ldc_unique_seed_content").on(t.content_type, t.title, t.language),
+]);
+
+export const insertLongevityDailyContentSchema = createInsertSchema(longevityDailyContent).omit({ id: true, created_at: true });
+export type InsertLongevityDailyContent = z.infer<typeof insertLongevityDailyContentSchema>;
+export type LongevityDailyContent = typeof longevityDailyContent.$inferSelect;
+
+export const longevityDailyContentLog = pgTable("longevity_daily_content_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  content_id: uuid("content_id").notNull().references(() => longevityDailyContent.id, { onDelete: "cascade" }),
+  shown_on: date("shown_on").notNull().default(sql`current_date`),
+  engaged: boolean("engaged").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("longevity_daily_content_log_user_content_day_key").on(t.user_id, t.content_id, t.shown_on),
+  index("idx_ldcl_user_date").on(t.user_id, t.shown_on.desc()),
+]);
+
+export const insertLongevityDailyContentLogSchema = createInsertSchema(longevityDailyContentLog).omit({ id: true, shown_on: true, created_at: true });
+export type InsertLongevityDailyContentLog = z.infer<typeof insertLongevityDailyContentLogSchema>;
+export type LongevityDailyContentLog = typeof longevityDailyContentLog.$inferSelect;
+
+export const longevitySynthesisEvents = pgTable("longevity_synthesis_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  trigger_type: text("trigger_type").notNull(),
+  trigger_data: jsonb("trigger_data"),
+  synthesis_ran: boolean("synthesis_ran").notNull().default(false),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_lse_user_recent_run").on(t.user_id, t.created_at.desc()).where(sql`${t.synthesis_ran} = true`),
+]);
+
+export const insertLongevitySynthesisEventSchema = createInsertSchema(longevitySynthesisEvents).omit({ id: true, created_at: true });
+export type InsertLongevitySynthesisEvent = z.infer<typeof insertLongevitySynthesisEventSchema>;
+export type LongevitySynthesisEvent = typeof longevitySynthesisEvents.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: vitals_readings — persisted heart rate readings per user
@@ -4473,6 +4528,10 @@ export const schema = {
   participationNotifications,
   triageReports,
   insightOutcomes,
+  longevityPreventionPlans,
+  longevityDailyContent,
+  longevityDailyContentLog,
+  longevitySynthesisEvents,
   vitalsReadings,
   vyvaSignalReadings,
   vyvaUserBaselines,

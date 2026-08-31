@@ -862,14 +862,6 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
     );
   }
 
-  if (kind === "plan") {
-    return (
-      <AppShell>
-        <LongevityScreen backPath="/dev/home-master/health" />
-      </AppShell>
-    );
-  }
-
   return (
     <AppShell>
       <PrototypeHealthActionPreviewScreen kind={kind} />
