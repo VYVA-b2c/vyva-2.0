@@ -1058,7 +1058,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     if (!plan || loading || saving || finished || isMemoryAudioMuted) return;
 
     const canSpeakDuringCurrentPhase =
-      plan.gameType === "memory_match" ||
       (plan.gameType === "sequence_memory" && sequencePhase === "input") ||
       (plan.gameType === "word_recall" && wordRecallPhase === "recall");
 
@@ -1089,7 +1088,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   ]);
 
   useEffect(() => {
-    if (!finished || !completionMetrics || isMemoryAudioMuted) return;
+    if (!finished || !completionMetrics || isMemoryAudioMuted || plan?.gameType === "memory_match") return;
 
     const timer = window.setTimeout(() => {
       speakCompanion("complete", `${plan?.variantId ?? "memory"}-${completionMetrics.score}-${completionMetrics.accuracy}`);
@@ -1102,9 +1101,16 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     completionMetrics,
     finished,
     isMemoryAudioMuted,
+    plan?.gameType,
     plan?.variantId,
     speakCompanion,
   ]);
+
+  useEffect(() => {
+    if (plan?.gameType === "memory_match") {
+      stopTts();
+    }
+  }, [plan?.gameType, stopTts]);
 
   useEffect(() => {
     const canListenForCommands =
@@ -1929,13 +1935,11 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       timeoutRef.current = window.setTimeout(() => {
         setMatchedIds((current) => [...current, firstId, secondId]);
         setRevealed([]);
-        speakCompanion("match", `${firstCard.pairId}-${secondCard.deckId}`);
       }, 450);
       return;
     }
 
     setMistakes((current) => current + 1);
-    speakCompanion("mismatch", `${firstCard.deckId}-${secondCard.deckId}-${memoryAttempts}`);
     timeoutRef.current = window.setTimeout(() => {
       setRevealed([]);
     }, 850);
@@ -2739,8 +2743,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const totalPairs = memoryDeck.length / 2;
   const nextPlayableLevel = getNextPlayableLevel();
   const visualMemoryProgress = completionMetrics
-    ? getVisualMemoryLevelProgress(gameHistory, plan.level, completionMetrics.accuracy)
+    ? getVisualMemoryLevelProgress(gameHistory, plan.level)
     : null;
+  const visualTotalLevels = definition?.levels.length ?? 20;
   const visualLevelCompleted = Boolean(visualMemoryProgress?.levelCompleted);
   const canOpenNextLevel = Boolean(visualMemoryProgress?.advanced && nextPlayableLevel > plan.level);
   const nextLevelLabel = t("memory.nextVisualLevelLabel", "Next Level {level}", { level: nextPlayableLevel });
@@ -2787,10 +2792,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               { label: t("memory.moves", "Moves"), value: memoryAttempts },
               { label: t("memory.duration"), value: `${completionMetrics?.durationSeconds ?? durationSeconds}s` },
             ]}
-            continueLabel={t("memory.nextRound", "Next round")}
+            continueLabel={!canOpenNextLevel ? t("brainGames.resultActions.moreGames", "More games") : undefined}
             nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
             nextLevelDisplayLabel={canOpenNextLevel ? t("memory.nextVisualLevel", "Next Level") : undefined}
-            stayLabel={canOpenNextLevel ? t("memory.nextRound", "Next round") : undefined}
             replayLabel={t("brainGames.resultActions.playAgain")}
             assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
             assessmentReturnHint={
@@ -2798,22 +2802,21 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
                 : undefined
             }
-            onContinue={() => void openSameGame()}
+            onContinue={!canOpenNextLevel ? backToList : undefined}
             onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-            onStay={canOpenNextLevel ? () => void openSameGame() : undefined}
             onReplay={replayCurrentBoard}
             onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
             disabled={actionLoading !== null}
             details={
               <div className={`rounded-[20px] border px-4 py-4 ${visualLevelCompleted ? "border-[#A7F3D0] bg-[#ECFDF5]" : "border-[#EADFF8] bg-[#FAF7FF]"}`}>
                 <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
-                  <span>{t("memory.levelProgress", "Level progress")}</span>
-                  <span>{visualMemoryProgress?.successfulRounds ?? 0}/{visualMemoryProgress?.roundsRequired ?? 3}</span>
+                  <span>{t("memory.gameProgress", "Visual Memory progress")}</span>
+                  <span>{t("memory.visualLevelOf", "Level {level} of {total}", { level: plan.level, total: visualTotalLevels })}</span>
                 </div>
                 <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/80">
                   <div
                     className="h-full rounded-full bg-vyva-purple transition-[width] duration-500"
-                    style={{ width: `${((visualMemoryProgress?.successfulRounds ?? 0) / (visualMemoryProgress?.roundsRequired ?? 3)) * 100}%` }}
+                    style={{ width: `${(plan.level / visualTotalLevels) * 100}%` }}
                   />
                 </div>
                 <p className="mt-2 text-[14px] font-bold leading-snug text-vyva-text-2">
@@ -2821,9 +2824,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                     ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
                     : visualLevelCompleted
                       ? t("memory.visualMasteryComplete", "Mastery complete. Play another board whenever you are ready.")
-                    : completionMetrics && completionMetrics.accuracy >= 80
-                      ? t("memory.visualRoundCounted", "Strong round. Keep going with a new board at this level.")
-                      : t("memory.visualStaySupport", "Try a new board at this level. Three strong rounds unlock the next level.")}
+                    : t("memory.visualRoundCounted", "Round counted. Continue with a new board at this level.")}
                 </p>
                 <p className="mt-2 text-[13px] font-black text-vyva-purple">{getBrainCoachProgressLabel(plan.level)}</p>
               </div>
@@ -2890,7 +2891,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               <CircleHelp size={19} />
               <span className="hidden xl:inline">{t("memory.instructions", "Instructions")}</span>
             </button>
-            <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
           </div>
         </div>
 
@@ -2911,8 +2911,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             ))}
           </div>
         </div>
-
-        {voiceGameContextPanel}
 
         <div className={`mx-auto mt-4 grid w-full gap-2.5 sm:mt-5 sm:gap-3.5 ${memoryGridClassName}`}>
           {memoryDeck.map((card, index) => {
