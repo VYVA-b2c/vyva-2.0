@@ -70,6 +70,11 @@ type DailyContentResponse = {
   byPillar?: Partial<Record<PreventionPillar, DailyContentItem[]>>;
 };
 
+type PillarStatusResponse = {
+  statuses: Partial<Record<PreventionPillar, PreventionPillarStatus>>;
+  priority_pillar: PreventionPillar | null;
+};
+
 type CompanionSignal = {
   id: string;
   label: string;
@@ -86,6 +91,8 @@ type CompanionAction = {
   detail: string;
   pillar: PreventionPillar | null;
   route: string | null;
+  resource_label?: string | null;
+  resource_url?: string | null;
   prompt: string;
   source: "monthly_plan" | "daily_content" | "feedback_memory" | "fallback";
 };
@@ -147,6 +154,20 @@ const STATUS: Record<PreventionPillarStatus, { label: string; tone: "success" | 
   priority_focus: { label: "This month", tone: "warning" },
 };
 
+const DAILY_CONTENT_LABELS: Record<DailyContentType, string> = {
+  exercise: "Move",
+  meal: "Eat",
+  tip: "Tip",
+  article: "Read",
+};
+
+const DAILY_CONTENT_ICONS: Record<DailyContentType, LucideIcon> = {
+  exercise: Footprints,
+  meal: Apple,
+  tip: Sparkles,
+  article: Clipboard,
+};
+
 const PRIORITY_STATUS_RANK: Record<PreventionPillarStatus, number> = {
   priority_focus: 4,
   needs_attention: 3,
@@ -154,15 +175,27 @@ const PRIORITY_STATUS_RANK: Record<PreventionPillarStatus, number> = {
   thriving: 1,
 };
 
+const RESOURCE_URLS = {
+  communityWalking: "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning",
+  niaBrain: "https://www.nia.nih.gov/health/brain-health/cognitive-health-and-older-adults",
+  niaActivities: "https://www.nia.nih.gov/health/healthy-aging/participating-activities-you-enjoy-you-age",
+  niaExerciseVideos: "https://www.nia.nih.gov/toolkits/exercise",
+  niaFallHome: "https://www.nia.nih.gov/health/falls-and-falls-prevention/preventing-falls-home-room-room",
+  niaFood: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-eating-you-age-know-your-food-groups",
+  niaMealPlanning: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-meal-planning-tips-older-adults",
+  niaSleep: "https://www.nia.nih.gov/health/sleep/sleep-and-older-adults",
+  nihRelaxation: "https://www.nccih.nih.gov/health/relaxation-techniques-what-you-need-to-know",
+};
+
 const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
   exercise: {
     id: "preview-exercise",
     content_type: "exercise",
-    title: "Walk after lunch",
-    description: "Ten steady minutes supports circulation without making the plan feel heavy.",
+    title: "Find a nearby walk or activity",
+    description: "VYVA can look for gentle places, local programs, or a social outing close to home.",
     detail_text: null,
-    source_label: null,
-    source_url: null,
+    source_label: "Nearby walking ideas",
+    source_url: RESOURCE_URLS.communityWalking,
     condition_tags: ["heart"],
     pillar_tag: "heart",
     time_of_day: "afternoon",
@@ -174,8 +207,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     title: "Protein at breakfast",
     description: "A simple egg, yogurt, or beans helps energy and strength hold steadier.",
     detail_text: null,
-    source_label: null,
-    source_url: null,
+    source_label: "NIA food guide",
+    source_url: RESOURCE_URLS.niaFood,
     condition_tags: ["all"],
     pillar_tag: "nourishment",
     time_of_day: "morning",
@@ -187,8 +220,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     title: "Same bedtime tonight",
     description: "A regular sleep time supports memory, mood, and blood sugar patterns.",
     detail_text: null,
-    source_label: null,
-    source_url: null,
+    source_label: "NIA sleep guide",
+    source_url: RESOURCE_URLS.niaSleep,
     condition_tags: ["all"],
     pillar_tag: "calm",
     time_of_day: "evening",
@@ -198,13 +231,13 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     {
       id: "preview-article",
       content_type: "article",
-      title: "Walking after meals supports heart and glucose patterns",
-      description: "A short, practical read connected to your current heart focus.",
+      title: "Gentle exercise videos for older adults",
+      description: "A trusted visual guide can be easier than reading instructions.",
       detail_text: null,
-      source_label: "Curated research",
-      source_url: "https://academic.oup.com/eurheartj",
-      condition_tags: ["heart"],
-      pillar_tag: "heart",
+      source_label: "Visual guide",
+      source_url: RESOURCE_URLS.niaExerciseVideos,
+      condition_tags: ["strength"],
+      pillar_tag: "strength",
       time_of_day: "any",
       language: "en",
     },
@@ -213,11 +246,11 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     heart: [{
       id: "preview-heart",
       content_type: "exercise",
-      title: "Walk after lunch",
-      description: "Tie ten easy minutes to a meal so circulation support is simple to remember.",
+      title: "Find a nearby walk or activity",
+      description: "After lunch, VYVA can suggest nearby places, gentle groups, or daytime programs.",
       detail_text: null,
-      source_label: null,
-      source_url: null,
+      source_label: "Nearby walking ideas",
+      source_url: RESOURCE_URLS.communityWalking,
       condition_tags: ["heart"],
       pillar_tag: "heart",
       time_of_day: "afternoon",
@@ -229,8 +262,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
       title: "One familiar Brain Coach round",
       description: "A familiar activity keeps today's brain step low effort.",
       detail_text: null,
-      source_label: null,
-      source_url: null,
+      source_label: "Brain Coach",
+      source_url: "/mind",
       condition_tags: ["brain"],
       pillar_tag: "brain",
       time_of_day: "any",
@@ -242,8 +275,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
       title: "Clear one walking path",
       description: "One clear route at home makes movement easier and steadier.",
       detail_text: null,
-      source_label: null,
-      source_url: null,
+      source_label: "NIA fall guide",
+      source_url: RESOURCE_URLS.niaFallHome,
       condition_tags: ["falls"],
       pillar_tag: "strength",
       time_of_day: "evening",
@@ -255,8 +288,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
       title: "Protein with the next meal",
       description: "Choose one familiar protein food so nourishment does not become complicated.",
       detail_text: null,
-      source_label: null,
-      source_url: null,
+      source_label: "NIA food guide",
+      source_url: RESOURCE_URLS.niaFood,
       condition_tags: ["all"],
       pillar_tag: "nourishment",
       time_of_day: "any",
@@ -268,8 +301,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
       title: "Same bedtime tonight",
       description: "A familiar evening time supports tomorrow's energy and attention.",
       detail_text: null,
-      source_label: null,
-      source_url: null,
+      source_label: "NIA sleep guide",
+      source_url: RESOURCE_URLS.niaSleep,
       condition_tags: ["calm"],
       pillar_tag: "calm",
       time_of_day: "evening",
@@ -284,6 +317,109 @@ function upperFirst(value: string): string {
 
 function lowerFirst(value: string): string {
   return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function msUntilLocalMidnight(): number {
+  const tomorrow = new Date();
+  tomorrow.setHours(24, 0, 0, 0);
+  return Math.max(1000, tomorrow.getTime() - Date.now());
+}
+
+function emptyDailyContentResponse(): DailyContentResponse {
+  return {
+    exercise: null,
+    meal: null,
+    tip: null,
+    articles: [],
+    byPillar: {},
+  };
+}
+
+function isPillarStatus(value: unknown): value is PreventionPillarStatus {
+  return typeof value === "string" && value in STATUS;
+}
+
+function isPillar(value: unknown): value is PreventionPillar {
+  return typeof value === "string" && PILLARS.some((pillar) => pillar.id === value);
+}
+
+function normalizeDailyContentResponse(value: unknown): DailyContentResponse {
+  if (!value || typeof value !== "object") return emptyDailyContentResponse();
+  const data = value as Partial<DailyContentResponse>;
+  return {
+    exercise: data.exercise ?? null,
+    meal: data.meal ?? null,
+    tip: data.tip ?? null,
+    articles: Array.isArray(data.articles) ? data.articles : [],
+    byPillar: data.byPillar ?? {},
+  };
+}
+
+function normalizePillarStatusResponse(value: unknown): PillarStatusResponse {
+  const statuses: Partial<Record<PreventionPillar, PreventionPillarStatus>> = {};
+  const data = value && typeof value === "object"
+    ? value as { statuses?: Record<string, unknown>; priority_pillar?: unknown }
+    : {};
+
+  for (const pillar of PILLARS) {
+    const status = data.statuses?.[pillar.id];
+    if (isPillarStatus(status)) statuses[pillar.id] = status;
+  }
+
+  return {
+    statuses,
+    priority_pillar: isPillar(data.priority_pillar) ? data.priority_pillar : null,
+  };
+}
+
+function uniqueDailyContentItems(items: DailyContentItem[]): DailyContentItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.id || `${item.content_type}:${item.title}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function hasVisualResource(content: DailyContentItem): boolean {
+  return Boolean(content.source_url?.match(/(?:youtube\.com|youtu\.be|vimeo\.com)/i));
+}
+
+function contentResourceLabel(content: DailyContentItem): string {
+  if (hasVisualResource(content)) return "Visual guide";
+  if (content.source_url) return content.source_label || "Useful link";
+  return DAILY_CONTENT_LABELS[content.content_type];
+}
+
+function isInternalResourceUrl(url: string): boolean {
+  return url.startsWith("/");
+}
+
+function defaultResourceForPillar(pillar: PreventionPillar | null): { label: string; url: string } | null {
+  if (pillar === "heart") return { label: "Nearby walking ideas", url: RESOURCE_URLS.communityWalking };
+  if (pillar === "brain") return { label: "Brain Coach", url: "/mind" };
+  if (pillar === "strength") return { label: "NIA exercise videos", url: RESOURCE_URLS.niaExerciseVideos };
+  if (pillar === "nourishment") return { label: "NIA food guide", url: RESOURCE_URLS.niaFood };
+  if (pillar === "calm") return { label: "NIA sleep guide", url: RESOURCE_URLS.niaSleep };
+  return null;
+}
+
+function actionDestination(action: CompanionAction): { label: string; url: string } | null {
+  if (action.resource_url) {
+    return {
+      label: action.resource_label || (action.resource_url.match(/(?:youtube\.com|youtu\.be|vimeo\.com)/i) ? "Visual guide" : "Useful link"),
+      url: action.resource_url,
+    };
+  }
+  if (action.route) {
+    return { label: action.pillar === "brain" ? "Brain Coach" : "Open step", url: action.route };
+  }
+  return defaultResourceForPillar(action.pillar);
+}
+
+function actionResourceLabel(action: CompanionAction): string | null {
+  return actionDestination(action)?.label ?? null;
 }
 
 function withoutMonthlySuffix(value: string): string {
@@ -345,6 +481,8 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): Com
     detail: content.description,
     pillar,
     route: pillar === "brain" ? "/mind" : pillar === "calm" ? "/games/breath-garden" : pillar === "strength" ? "/health/exercises/gentle-walk" : null,
+    resource_label: content.source_label,
+    resource_url: content.source_url,
     prompt: `Help me with today's ${pillar} step: ${content.title}.`,
     source: "daily_content",
   });
@@ -360,6 +498,8 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): Com
         detail: fallbackDetail,
         pillar: pillar.id,
         route: null,
+        resource_label: defaultResourceForPillar(pillar.id)?.label ?? null,
+        resource_url: defaultResourceForPillar(pillar.id)?.url ?? null,
         prompt: `Help me with today's ${pillar.label} step: ${fallbackTitle}.`,
         source: "fallback" as const,
       }];
@@ -423,6 +563,36 @@ function usePreventionCompanion(userId: string) {
   });
 }
 
+function useDailyContent(userId: string) {
+  return useQuery<DailyContentResponse>({
+    queryKey: ["prevention-daily-content", userId],
+    enabled: Boolean(userId),
+    staleTime: msUntilLocalMidnight(),
+    refetchOnWindowFocus: false,
+    retry: false,
+    queryFn: async () => {
+      const response = await apiFetch("/api/prevention/daily-content/" + encodeURIComponent(userId));
+      if (!response.ok) throw new Error("Could not load daily longevity content");
+      return normalizeDailyContentResponse(await response.json());
+    },
+  });
+}
+
+function usePillarStatus(userId: string) {
+  return useQuery<PillarStatusResponse>({
+    queryKey: ["prevention-pillar-status", userId],
+    enabled: Boolean(userId),
+    staleTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+    retry: false,
+    queryFn: async () => {
+      const response = await apiFetch("/api/prevention/pillar-status/" + encodeURIComponent(userId));
+      if (!response.ok) throw new Error("Could not load live longevity status");
+      return normalizePillarStatusResponse(await response.json());
+    },
+  });
+}
+
 function statusClass(tone: "success" | "steady" | "warning", isDark: boolean): string {
   if (tone === "success") return isDark ? "bg-[#123D31] text-[#72E1B3]" : "bg-[#E4F7EF] text-[#0A7653]";
   if (tone === "warning") return isDark ? "bg-[#4A3618] text-[#FFC65A]" : "bg-[#FFF0D2] text-[#9A5A00]";
@@ -433,8 +603,19 @@ function routeForPillarAction(pillar: PreventionPillar, title: string): string |
   const text = title.toLowerCase();
   if (pillar === "brain" || text.includes("brain coach")) return "/mind";
   if (pillar === "calm" || text.includes("breath")) return "/games/breath-garden";
+  if (pillar === "heart" && (text.includes("walk") || text.includes("outing") || text.includes("activity"))) return RESOURCE_URLS.communityWalking;
   if (pillar === "strength" || text.includes("walk") || text.includes("chair")) return "/health/exercises/gentle-walk";
   if (text.includes("medicine") || text.includes("medication")) return "/health/medications";
+  return null;
+}
+
+function previewRouteForAction(action: CompanionAction, fallbackUrl = ""): string | null {
+  const route = action.route ?? fallbackUrl;
+  const resourceUrl = action.resource_url ?? fallbackUrl;
+  if (route.startsWith("/social-rooms/activities") || resourceUrl.startsWith("/social-rooms/activities")) return "/dev/home-master/community";
+  if (route === "/mind" || action.pillar === "brain") return "/dev/home-master/brain";
+  if (route === "/games/breath-garden" || action.pillar === "calm") return "/dev/breath-garden";
+  if (route === "/health/medications") return "/dev/home-master/medicines";
   return null;
 }
 
@@ -443,12 +624,15 @@ function fallbackActionForPillar(plan: PreventionPlanData, pillar: PreventionPil
   const pillarLabel = PILLARS.find((item) => item.id === pillar)?.shortLabel.toLowerCase() ?? "wellbeing";
   const title = recommendation?.action ?? `Choose one ${pillarLabel} step`;
   const detail = recommendation?.why ?? "One small step is enough today.";
+  const resource = defaultResourceForPillar(pillar);
   return {
     action_key: actionKeyFor(pillar, title),
     title,
     detail,
     pillar,
     route: routeForPillarAction(pillar, title),
+    resource_label: resource?.label ?? null,
+    resource_url: resource?.url ?? null,
     prompt: `Help me with today's longevity step: ${title}.`,
     source: "fallback",
   };
@@ -508,14 +692,18 @@ export default function PreventionPlan({
   const { isDark: preferredIsDark } = useHomeMasterTheme();
   const isDark = themeOverride ? themeOverride === "dark" : preferredIsDark;
   const navigate = useNavigate();
-  const userId = previewPlan ? "" : user?.id ?? "";
+  const isPreview = Boolean(previewPlan);
+  const userId = isPreview ? "" : user?.id ?? "";
   const firstName = firstNameOverride ?? profileFirstName;
   const query = usePreventionCompanion(userId);
+  const dailyContentQuery = useDailyContent(userId);
+  const pillarStatusQuery = usePillarStatus(userId);
   const companion = previewPlan ? buildPreviewCompanion(previewPlan, firstName) : query.data;
   const plan = companion?.plan;
   const [copied, setCopied] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
   const [feedbackState, setFeedbackState] = useState<Record<string, "done" | "too_hard" | "not_relevant">>({});
+  const [previewVoiceContext, setPreviewVoiceContext] = useState<{ title: string; prompt: string } | null>(null);
 
   if (!previewPlan && (query.isLoading || !userId)) return <PreventionPlanSkeleton isDark={isDark} />;
 
@@ -536,9 +724,71 @@ export default function PreventionPlan({
     );
   }
 
+  const openVoicePrompt = (title: string, prompt: string) => {
+    if (isPreview) {
+      setPreviewVoiceContext({ title, prompt });
+      return;
+    }
+    navigate("/chat?mode=voice&q=" + encodeURIComponent(prompt));
+  };
+
+  const openResourceUrl = (url: string, action?: CompanionAction) => {
+    if (isInternalResourceUrl(url)) {
+      if (isPreview) {
+        const previewRoute = action
+          ? previewRouteForAction({ ...action, route: url }, url)
+          : previewRouteForAction({
+            action_key: "preview-resource",
+            title: "Preview resource",
+            detail: "",
+            pillar: null,
+            route: url,
+            prompt: "",
+            source: "fallback",
+          }, url);
+        if (previewRoute) {
+          navigate(previewRoute);
+          return;
+        }
+      }
+      navigate(url);
+      return;
+    }
+    window.location.assign(url);
+  };
+
   const openCompanionAction = (action: CompanionAction) => {
-    if (action.route) navigate(action.route);
-    else navigate("/chat?mode=voice&q=" + encodeURIComponent(action.prompt));
+    const destination = actionDestination(action);
+    if (destination) {
+      openResourceUrl(destination.url, action);
+      return;
+    }
+    if (isPreview) {
+      openVoicePrompt(action.title, action.prompt);
+      return;
+    }
+    openVoicePrompt(action.title, action.prompt);
+  };
+
+  const trackDailyContentEngagement = (content: DailyContentItem) => {
+    if (!userId || !content.id) return;
+    void apiFetch("/api/prevention/daily-content/engage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, contentId: content.id }),
+    }).catch((err) => console.warn("[daily content engage]", err));
+  };
+
+  const openDailyContent = (content: DailyContentItem) => {
+    trackDailyContentEngagement(content);
+    if (content.source_url) {
+      openResourceUrl(content.source_url);
+      return;
+    }
+    openVoicePrompt(
+      content.title,
+      `Help me with today's ${DAILY_CONTENT_LABELS[content.content_type].toLowerCase()}: ${content.title}. ${content.description}`,
+    );
   };
 
   const submitFeedback = async (action: CompanionAction, eventType: "done" | "too_hard" | "not_relevant") => {
@@ -564,13 +814,26 @@ export default function PreventionPlan({
     }).catch((err) => console.warn("[prevention feedback]", err));
   };
 
+  const liveStatuses = pillarStatusQuery.data?.statuses;
+  const livePriority = pillarStatusQuery.data?.priority_pillar;
+  const dailyContent = dailyContentQuery.data ?? companion.dailyContent ?? emptyDailyContentResponse();
   const priorityDefinition = companion.todayFocus.pillar
     ? PILLARS.find((pillar) => pillar.id === companion.todayFocus.pillar) ?? resolvePriorityDefinition(plan)
-    : resolvePriorityDefinition(plan);
+    : resolvePriorityDefinition(plan, livePriority, liveStatuses);
   const priorityPillarId = priorityDefinition?.id ?? null;
   const priorityLabel = companion.todayFocus.label || priorityDefinition?.label || plan.priority_pillar;
   const pillarActions = resolvePillarActions(companion, plan);
   const priorityAction = priorityPillarId ? pillarActions[priorityPillarId] : companion.primaryAction;
+  const priorityStatusDisplay = priorityPillarId ? STATUS[pillarStatus(plan, priorityPillarId, liveStatuses)] : null;
+  const priorityResourceLabel = actionResourceLabel(priorityAction);
+  const selectedActionTitles = new Set(Object.values(pillarActions).map((action) => action.title.toLowerCase().trim()));
+  const dailyPicks = uniqueDailyContentItems([
+    dailyContent.exercise,
+    dailyContent.meal,
+    dailyContent.tip,
+  ].filter((item): item is DailyContentItem => Boolean(item))).filter((item) => !selectedActionTitles.has(item.title.toLowerCase().trim()));
+  const articlePicks = uniqueDailyContentItems(dailyContent.articles).slice(0, 2);
+  const supportPick = articlePicks.find(hasVisualResource) ?? dailyPicks[0] ?? articlePicks[0] ?? null;
   const orderedPillars = priorityDefinition
     ? [priorityDefinition, ...PILLARS.filter((pillar) => pillar.id !== priorityDefinition.id)]
     : PILLARS;
@@ -644,13 +907,26 @@ export default function PreventionPlan({
               {priorityDefinition ? <span className="shrink-0 rounded-full bg-[#FAEEDA] px-3 py-1.5 font-body text-[12px] font-black text-[#854F0B]">{priorityDefinition.shortLabel}</span> : null}
             </div>
             <h2 className="mt-4 max-w-[700px] font-display text-[21px] font-medium leading-[1.16]" style={{ color: "var(--text-primary, #241C30)" }}>{heroHeadline}</h2>
-            <button type="button" onClick={() => navigate("/chat?mode=voice&q=" + encodeURIComponent(vyvaPrompt))} className="mt-4 inline-flex h-[52px] min-h-[52px] w-full items-center justify-center gap-3 rounded-[17px] bg-[#6B21A8] px-6 font-body text-[15px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.16)]">
+            <button type="button" onClick={() => openVoicePrompt("Ask VYVA about my plan", vyvaPrompt)} className="mt-4 inline-flex h-[52px] min-h-[52px] w-full items-center justify-center gap-3 rounded-[17px] bg-[#6B21A8] px-6 font-body text-[15px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.16)]">
               <VyvaIcon icon={Mic} accent="dot" size={21} strokeWidth={2.5} tone="inverse" />Ask VYVA
             </button>
           </div>
         </section>
 
-        <section className="mt-7" aria-labelledby="daily-picks-heading">
+        {previewVoiceContext ? (
+          <section className={["mt-4 rounded-[18px] border px-4 py-3", isDark ? "border-white/[0.12] bg-white/[0.07]" : "border-[#E8E0D0] bg-white"].join(" ")} role="status" aria-live="polite">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-body text-[10px] font-black uppercase tracking-[0.1em] text-[#854F0B]">Voice context ready</p>
+                <h3 className="mt-1 font-display text-[17px] font-semibold leading-5">{previewVoiceContext.title}</h3>
+                <p className={["mt-1 font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}>{previewVoiceContext.prompt}</p>
+              </div>
+              <button type="button" onClick={() => setPreviewVoiceContext(null)} className={["shrink-0 rounded-full border px-3 py-1.5 font-body text-[12px] font-black", isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>Close</button>
+            </div>
+          </section>
+        ) : null}
+
+        <section className="mt-5" aria-labelledby="daily-picks-heading">
           <h2 id="daily-picks-heading" className="font-display text-[24px] font-semibold">Today</h2>
 
           <div className={["mt-3 rounded-[22px] border p-3", cardClass].join(" ")}>
@@ -663,7 +939,11 @@ export default function PreventionPlan({
                 <VyvaIcon icon={Sparkles} accent="spark" size={22} strokeWidth={2.4} tone="brand" />
               </span>
               <span className="min-w-0">
-                <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{priorityDefinition?.label ?? "Do this"}</span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{priorityDefinition?.label ?? "Do this"}</span>
+                  {priorityStatusDisplay ? <span className={["rounded-full px-2 py-0.5 font-body text-[10px] font-black", statusClass(priorityStatusDisplay.tone, isDark)].join(" ")}>{priorityStatusDisplay.label}</span> : null}
+                  {priorityResourceLabel ? <span className="rounded-full bg-[#FFF7E8] px-2 py-0.5 font-body text-[10px] font-black text-[#854F0B]">{priorityResourceLabel}</span> : null}
+                </span>
                 <span className="block font-display text-[17px] font-semibold leading-5">{priorityAction.title}</span>
                 <span className={["mt-1 block font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(priorityAction.detail, 110)}</span>
               </span>
@@ -692,6 +972,7 @@ export default function PreventionPlan({
                 const status = pillarStatus(plan, pillar.id);
                 const statusDisplay = STATUS[status];
                 const reason = briefText(action.detail, 92);
+                const resourceLabel = actionResourceLabel(action);
                 const Icon = pillar.icon;
                 return (
                   <article
@@ -707,7 +988,11 @@ export default function PreventionPlan({
                         <VyvaIcon icon={Icon} accent={pillar.accent} size={20} strokeWidth={2.4} tone="brand" />
                       </span>
                       <span className="min-w-0">
-                        <span className={["font-body text-[10px] font-black uppercase tracking-[0.08em]", statusDisplay.tone === "success" ? "text-[#0A7653]" : statusDisplay.tone === "warning" ? "text-[#854F0B]" : isDark ? "text-[#D9CFE3]" : "text-[#766C80]"].join(" ")}>{pillar.shortLabel}</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className={["font-body text-[10px] font-black uppercase tracking-[0.08em]", statusDisplay.tone === "success" ? "text-[#0A7653]" : statusDisplay.tone === "warning" ? "text-[#854F0B]" : isDark ? "text-[#D9CFE3]" : "text-[#766C80]"].join(" ")}>{pillar.shortLabel}</span>
+                          <span className={["rounded-full px-2 py-0.5 font-body text-[10px] font-black", statusClass(statusDisplay.tone, isDark)].join(" ")}>{statusDisplay.label}</span>
+                          {resourceLabel ? <span className="max-w-[120px] truncate rounded-full bg-[#FFF7E8] px-2 py-0.5 font-body text-[10px] font-black text-[#854F0B]">{resourceLabel}</span> : null}
+                        </span>
                         <span className="block truncate font-display text-[15px] font-semibold leading-5">{action.title}</span>
                         {reason ? <span className={["mt-0.5 block truncate font-body text-[12px] font-semibold leading-5", mutedTextClass].join(" ")}>{reason}</span> : null}
                       </span>
@@ -725,6 +1010,24 @@ export default function PreventionPlan({
                 );
               })}
             </div>
+
+            {supportPick ? (
+              <button
+                type="button"
+                onClick={() => openDailyContent(supportPick)}
+                className={["mt-3 grid min-h-[68px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[17px] border px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "border-white/[0.1] bg-white/[0.03]" : "border-[#EEE4D2] bg-[#FFFDF9]"].join(" ")}
+              >
+                <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#2E2541]" : "bg-[#FFF7E8]"].join(" ")}>
+                  <VyvaIcon icon={DAILY_CONTENT_ICONS[supportPick.content_type]} accent="spark" size={20} strokeWidth={2.35} tone="brand" />
+                </span>
+                <span className="min-w-0">
+                  <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{contentResourceLabel(supportPick)}</span>
+                  <span className="block truncate font-display text-[15px] font-semibold leading-5">{supportPick.title}</span>
+                  <span className={["mt-0.5 block truncate font-body text-[12px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(supportPick.description, 96)}</span>
+                </span>
+                <VyvaIcon icon={ChevronRight} size={16} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
+              </button>
+            ) : null}
           </div>
         </section>
 

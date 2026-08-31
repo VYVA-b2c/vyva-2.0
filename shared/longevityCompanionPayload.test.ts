@@ -27,7 +27,7 @@ const basePlan: ComposeInput["plan"] = {
   pillar_calm_signals: null,
   cross_pillar_patterns: [],
   recommendations: {
-    heart: [{ action: "Walk after lunch", why: "A walk tied to lunch is easier to remember." }],
+    heart: [{ action: "Find a nearby walk or activity", why: "A gentle outing can support circulation and make the day more social." }],
     brain: [
       { action: "Open Brain Coach once each day", why: "Small sessions support continuity." },
       { action: "Call someone you enjoy this week", why: "Connection keeps the mind engaged." },
@@ -88,7 +88,7 @@ function dailyRow(
 const fivePillarDailyContent: DailyContent = {
   ...emptyDailyContent,
   byPillar: {
-    heart: [dailyRow("heart", "Walk after lunch", "Tie ten easy minutes to a meal so circulation support is simple to remember.")],
+    heart: [dailyRow("heart", "Find a nearby walk or activity", "After lunch, VYVA can suggest nearby places, gentle groups, or daytime programs.")],
     brain: [dailyRow("brain", "One familiar Brain Coach round", "A familiar activity keeps today's brain step low effort.")],
     strength: [dailyRow("strength", "Clear one walking path", "One clear route at home makes movement easier and steadier.")],
     nourishment: [dailyRow("nourishment", "Protein with the next meal", "Choose one familiar protein food so nourishment does not become complicated.")],
@@ -120,8 +120,11 @@ describe("longevity companion payload", () => {
     expect(Object.keys(payload.pillarActions).sort()).toEqual(["brain", "calm", "heart", "nourishment", "strength"]);
     expect(payload.primaryAction).toEqual(payload.pillarActions.brain);
     expect(payload.primaryAction.title).toBe("One familiar Brain Coach round");
+    expect(payload.pillarActions.heart.resource_label).toBe("Nearby walking ideas");
+    expect(payload.pillarActions.heart.resource_url).toContain("/social-rooms/activities");
+    expect(payload.pillarActions.heart.resource_url).toContain("interests=walking,nature,community,learning");
     expect(payload.careSummary.bullets).toEqual(expect.arrayContaining([
-      "Heart and circulation: Walk after lunch.",
+      "Heart and circulation: Find a nearby walk or activity.",
       "Brain and memory: One familiar Brain Coach round.",
       "Strength and stability: Clear one walking path.",
       "Nourishment: Protein with the next meal.",
