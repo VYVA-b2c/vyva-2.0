@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BRAIN_COACH_MAX_LEVEL } from "../shared/brainCoachProgression";
-import { memoryGameRegistry } from "./memoryGameRegistry";
+import { getVisualMemoryDifficulty, memoryGameRegistry } from "./memoryGameRegistry";
 import type { MemoryGameType, MemoryGameVariant } from "./types";
 
 const visibleLeveledGames: MemoryGameType[] = [
@@ -45,6 +45,19 @@ describe("memory game registry", () => {
     });
 
     expect(pairCounts).toEqual([3, 4, 4, 5, 5]);
+  });
+
+  it("keeps increasing Visual Memory difficulty after the board reaches eight pairs", () => {
+    const levelTen = getVisualMemoryDifficulty(10);
+    const levelFifteen = getVisualMemoryDifficulty(15);
+    const levelTwenty = getVisualMemoryDifficulty(20);
+
+    expect(levelTen).toMatchObject({ pairCount: 8, showLabels: true });
+    expect(levelFifteen).toMatchObject({ pairCount: 8, showLabels: false });
+    expect(levelTwenty).toMatchObject({ pairCount: 8, showLabels: false });
+    expect(levelFifteen.mismatchRevealMs).toBeLessThan(levelTen.mismatchRevealMs);
+    expect(levelTwenty.mismatchRevealMs).toBeLessThan(levelFifteen.mismatchRevealMs);
+    expect(levelTwenty.matchRevealMs).toBeLessThan(levelTen.matchRevealMs);
   });
 
   it("gives each required Visual Memory round a distinct board at every level", () => {

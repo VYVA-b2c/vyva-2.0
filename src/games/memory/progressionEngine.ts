@@ -70,9 +70,11 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
   if (gameHistory.length === 0) return 1;
 
   if (gameType === "memory_match") {
-    const latestLevel = gameHistory[0].level;
-    const completedLevel = getConsecutiveVisualMemoryRounds(history, latestLevel) >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE;
-    return clampBrainCoachLevel(completedLevel ? latestLevel + 1 : latestLevel);
+    const highestCompletedLevel = gameHistory.reduce(
+      (highest, entry) => Math.max(highest, entry.level),
+      1,
+    );
+    return clampBrainCoachLevel(highestCompletedLevel + 1);
   }
 
   const recent = gameHistory.slice(0, 3);

@@ -29,6 +29,7 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
 import {
+  BRAIN_COACH_MAX_LEVEL,
   getBrainCoachProgressLabel,
   getBrainCoachSupportiveProgressCopy,
 } from "../shared/brainCoachProgression";
@@ -42,7 +43,9 @@ import {
   memoryGameRegistry,
 } from "./memoryGameRegistry";
 import {
+  getRecommendedLevelForGame,
   getVisualMemoryLevelProgress,
+  pickVariantForGame,
   selectGamePlan,
   selectNextMemoryGame,
   selectNextVariantForSameGame,
@@ -658,6 +661,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const wordRecallRepeatTimerRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
   const completedVisualResultRef = useRef<GameResult | null>(null);
+  const visualUnlockedLevelRef = useRef(1);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -706,18 +710,48 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       const directDefinition = getGameDefinition(validGameType);
       const directMaxLevel = directDefinition.levels.reduce((highest, levelConfig) => Math.max(highest, levelConfig.level), 1);
       const historyPromise = validGameType === "memory_match" ? getGameHistory(userId) : Promise.resolve([]);
-      const nextPlan =
-        initialVariantId && Number.isFinite(initialLevel)
-          ? {
-              gameType: validGameType,
-              level: Math.min(directMaxLevel, Math.max(1, initialLevel)),
-              variantId: initialVariantId,
-              reasonLabel: "",
-            }
-          : await selectGamePlan(userId, validGameType, language);
       const history = await historyPromise;
+      const requestedLevel = Math.min(directMaxLevel, Math.max(1, initialLevel));
+      let nextPlan: Recommendation;
+
+      if (initialVariantId && Number.isFinite(initialLevel)) {
+        if (validGameType === "memory_match") {
+          const persistedUnlockedLevel = getRecommendedLevelForGame(history, validGameType);
+          const unlockedLevel = Math.max(persistedUnlockedLevel, visualUnlockedLevelRef.current);
+          const resolvedLevel = Math.min(requestedLevel, unlockedLevel);
+          const requestedVariant = getGameLevel(validGameType, resolvedLevel).variants.find(
+            (entry) => entry.id === initialVariantId && entry.level === resolvedLevel,
+          );
+          const resolvedVariant = requestedVariant ?? pickVariantForGame(history, validGameType, resolvedLevel);
+
+          visualUnlockedLevelRef.current = unlockedLevel;
+          nextPlan = {
+            gameType: validGameType,
+            level: resolvedLevel,
+            variantId: resolvedVariant.id,
+            reasonLabel: "",
+          };
+        } else {
+          nextPlan = {
+            gameType: validGameType,
+            level: requestedLevel,
+            variantId: initialVariantId,
+            reasonLabel: "",
+          };
+        }
+      } else {
+        nextPlan = await selectGamePlan(userId, validGameType, language);
+      }
 
       if (!active) return;
+
+      if (
+        validGameType === "memory_match"
+        && initialVariantId
+        && (nextPlan.level !== requestedLevel || nextPlan.variantId !== initialVariantId)
+      ) {
+        navigate(buildGameRoute(nextPlan), { replace: true });
+      }
 
       setPlan(nextPlan);
       setGameHistory((current) => {
@@ -785,7 +819,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       stopTts();
       wordRecallNarrationKeyRef.current = "";
     };
-  }, [initialLevel, initialVariantId, language, location.key, stopTts, userId, validGameType]);
+  }, [initialLevel, initialVariantId, language, location.key, navigate, stopTts, userId, validGameType]);
 
   useEffect(() => {
     return () => {
@@ -1156,6 +1190,15 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       ]),
     );
   }, [localizedVariant, plan, variant?.id]);
+  const visualMemoryShowLabels = localizedVariant?.payload.showLabels !== false;
+  const visualMemoryMismatchRevealMs = Math.max(
+    450,
+    Math.min(1_050, Number(localizedVariant?.payload.mismatchRevealMs ?? 850)),
+  );
+  const visualMemoryMatchRevealMs = Math.max(
+    250,
+    Math.min(500, Number(localizedVariant?.payload.matchRevealMs ?? 450)),
+  );
 
   const sequenceTiles = useMemo(() => {
     if (!plan || plan.gameType !== "sequence_memory" || !localizedVariant) return [];
@@ -1320,6 +1363,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         language,
       };
       completedVisualResultRef.current = completedResult;
+      visualUnlockedLevelRef.current = Math.max(
+        visualUnlockedLevelRef.current,
+        Math.min(plan.level + 1, BRAIN_COACH_MAX_LEVEL),
+      );
       setCompletionMetrics({ score, accuracy, mistakes, durationSeconds });
       setCompletionDetails(null);
       setFinished(true);
@@ -1935,14 +1982,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       timeoutRef.current = window.setTimeout(() => {
         setMatchedIds((current) => [...current, firstId, secondId]);
         setRevealed([]);
-      }, 450);
+      }, visualMemoryMatchRevealMs);
       return;
     }
 
     setMistakes((current) => current + 1);
     timeoutRef.current = window.setTimeout(() => {
       setRevealed([]);
-    }, 850);
+    }, visualMemoryMismatchRevealMs);
   };
 
   const onSequenceTileClick = (tileId: string, tileIndex: number) => {
@@ -2912,7 +2959,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                   {isOpen ? (
                     <>
                       <span className="text-[32px] leading-none sm:text-[40px]">{card.emoji}</span>
-                      <span className="mt-1.5 text-[12px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[16px]">{card.label}</span>
+                      {visualMemoryShowLabels ? (
+                        <span className="mt-1.5 text-[12px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[16px]">{card.label}</span>
+                      ) : null}
                     </>
                   ) : (
                     <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[30px] font-bold shadow-inner backdrop-blur-[1px] sm:h-14 sm:w-14 sm:text-[34px]">?</span>

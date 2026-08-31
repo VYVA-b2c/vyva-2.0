@@ -74,13 +74,13 @@ function renderRhythmTap() {
   );
 }
 
-function visualResult(minutesAgo: number): GameResult {
+function visualResult(minutesAgo: number, level = 1): GameResult {
   return {
     userId: "user-1",
     gameType: "memory_match",
     cognitiveDomain: "visual_memory",
-    variantId: `memory_match-l1-v${minutesAgo + 2}`,
-    level: 1,
+    variantId: `memory_match-l${level}-v${minutesAgo + 2}`,
+    level,
     score: 500,
     accuracy: 100,
     mistakes: 0,
@@ -218,6 +218,7 @@ describe("MemoryGameRunner word recall", () => {
   });
 
   it("starts Visual Memory above Level 1 without repeating basic instructions", async () => {
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 1)]);
     renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-v1");
 
     expect(await screen.findByRole("region", { name: /Visual memory/i })).toBeInTheDocument();
@@ -226,7 +227,17 @@ describe("MemoryGameRunner word recall", () => {
     expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
   });
 
+  it("does not allow a direct URL to skip locked Visual Memory levels", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-v1");
+
+    expect(await screen.findByText("Level 1 - Foundation", {}, { timeout: 3_000 })).toBeInTheDocument();
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(6);
+    expect(screen.queryByText("Level 5 - Foundation")).not.toBeInTheDocument();
+  });
+
   it("keeps larger Visual Memory boards readable on narrow screens", async () => {
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 4)]);
     renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-v1");
 
     expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(10);

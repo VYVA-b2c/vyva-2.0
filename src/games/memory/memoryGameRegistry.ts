@@ -84,6 +84,18 @@ type StoryTemplate = Record<GameContentLanguage, StoryContent>;
 const GAME_CONTENT_LANGUAGES: GameContentLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
 const MEMORY_GAME_LEVELS = Array.from({ length: BRAIN_COACH_MAX_LEVEL }, (_, index) => index + 1);
 const MEMORY_MATCH_VARIANTS_PER_THEME = 3;
+const MEMORY_MATCH_PAIR_COUNTS = [3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
+
+export function getVisualMemoryDifficulty(level: number) {
+  const safeLevel = Math.min(BRAIN_COACH_MAX_LEVEL, Math.max(1, Math.round(level)));
+
+  return {
+    pairCount: MEMORY_MATCH_PAIR_COUNTS[safeLevel - 1] ?? 8,
+    showLabels: safeLevel <= 10,
+    mismatchRevealMs: Math.max(450, 1_050 - (safeLevel - 1) * 35),
+    matchRevealMs: Math.max(250, 500 - (safeLevel - 1) * 12),
+  };
+}
 
 function createVariant(
   id: string,
@@ -145,6 +157,7 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
   const band = getBrainCoachLevelBand(level);
   const pairItems = pickMemoryMatchItems(set.items, pairCount, itemOffset);
+  const difficulty = getVisualMemoryDifficulty(level);
 
   return languages.reduce((accumulator, language) => {
     accumulator[language] = {
@@ -157,6 +170,9 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
         })),
         levelBand: band.label,
         previewSeconds: Math.max(0, 6 - Math.floor((level - 1) / 4)),
+        showLabels: difficulty.showLabels,
+        mismatchRevealMs: difficulty.mismatchRevealMs,
+        matchRevealMs: difficulty.matchRevealMs,
       },
     };
 
@@ -165,10 +181,9 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
 }
 
 function buildMemoryMatchLevels(sets: MemoryMatchSet[]): MemoryGameLevel[] {
-  const pairCounts = [3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
   const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
     level,
-    pairs: pairCounts[level - 1] ?? 8,
+    pairs: getVisualMemoryDifficulty(level).pairCount,
   }));
 
   return levelSpecs.map((spec) => {

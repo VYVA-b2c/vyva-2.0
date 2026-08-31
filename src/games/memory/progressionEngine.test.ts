@@ -63,6 +63,12 @@ describe("memory game progression", () => {
     expect(getRecommendedLevelForGame([visualResult(9, 46, 0)], "memory_match")).toBe(10);
   });
 
+  it("keeps the highest Visual Memory level unlocked after replaying an earlier level", () => {
+    const history = [visualResult(4, 100, 0), visualResult(12, 70, 10)];
+
+    expect(getRecommendedLevelForGame(history, "memory_match")).toBe(13);
+  });
+
   it("completes Mastery at Level 20 without inventing a Level 21", () => {
     expect(getVisualMemoryLevelProgress([], 20)).toMatchObject({
       completedRounds: 1,
