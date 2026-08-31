@@ -21,7 +21,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
-import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
+import { BrainCoachActivityShell, BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import {
   cognitiveAssessmentPracticeStateFromRoute,
@@ -2754,18 +2754,17 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       ? "grid-cols-2 max-w-[380px]"
       : memoryDeck.length <= 6
         ? "grid-cols-3 max-w-[520px]"
-        : "grid-cols-4 max-w-[620px]";
-  const memoryCardStyle =
+        : "grid-cols-2 max-w-[620px] sm:grid-cols-4";
+  const memoryCardClassName =
     memoryDeck.length <= 6
-      ? { aspectRatio: "1 / 1", maxHeight: "156px" }
+      ? "aspect-square sm:max-h-[156px]"
       : memoryDeck.length <= 8
-        ? { aspectRatio: "1 / 1", maxHeight: "148px" }
-        : { aspectRatio: "1.12 / 1", maxHeight: "118px" };
+        ? "aspect-[4/3] sm:aspect-square sm:max-h-[148px]"
+        : "h-[clamp(92px,12dvh,116px)] sm:h-auto sm:aspect-[1.12/1] sm:max-h-[118px]";
   const memoryStats = [
-    getBrainCoachProgressLabel(plan.level),
-    `${matchedPairs}/${totalPairs} ${t("memory.pairs")}`,
-    `${memoryAccuracy}%`,
-    `${durationSeconds}s`,
+    { label: t("memory.pairs"), value: `${matchedPairs}/${totalPairs}` },
+    { label: t("memory.accuracy"), value: `${memoryAccuracy}%` },
+    { label: t("memory.duration"), value: `${durationSeconds}s` },
   ];
 
   if (finished && memoryComplete) {
@@ -2836,83 +2835,51 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     );
   }
 
-  return renderBrainRunnerScreen(
-    "playing",
-    "playing",
-    "card_grid",
-    (
-    <div className="mx-auto w-full max-w-[1120px] px-3 pb-3 sm:px-4 sm:pb-4">
-      <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
-          <button
-            onClick={backToList}
-            aria-label={t("common.back")}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#EADFD5] bg-white/95 px-3 text-[14px] font-semibold text-vyva-text-1 shadow-sm"
-          >
-            <ArrowLeft size={17} />
-            <span className="hidden sm:inline">{t("common.back")}</span>
-          </button>
+  return (
+    <BrainCoachActivityShell
+      title={gameTitle}
+      backLabel={t("common.back")}
+      onBack={backToList}
+      action={
+        <button
+          type="button"
+          onClick={openVisualMemoryInstructions}
+          aria-label={t("memory.instructions", "Instructions")}
+          title={t("memory.instructions", "Instructions")}
+          className="vyva-tap grid h-11 w-11 place-items-center rounded-full bg-white text-vyva-purple shadow-[0_8px_22px_rgba(61,35,83,0.12)] ring-1 ring-black/[0.05]"
+        >
+          <CircleHelp size={21} aria-hidden="true" />
+        </button>
+      }
+      testId={brainTestId}
+      presentationId={`${brainSceneId}.playing.touch`}
+      sceneId={brainSceneId}
+      sceneKind="playing"
+      sceneLayout="card_grid"
+    >
+      <section className="flex min-h-full flex-1 flex-col overflow-hidden rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
+            {getBrainCoachProgressLabel(plan.level)}
+          </span>
+          <p className="min-w-0 flex-1 text-right text-[14px] font-bold leading-snug text-vyva-text-2 sm:text-[15px]">
+            {plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.title}
+          </p>
+        </div>
 
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-[#EEE5FA] bg-white shadow-sm" style={gameIconStyle}>
-                <GameIcon size={19} />
-              </span>
-              <div className="min-w-0">
-                <h1 className="truncate font-display text-[20px] leading-none text-vyva-text-1 sm:text-[27px]">{gameTitle}</h1>
-                <p className="mt-1 hidden truncate text-[13px] font-semibold text-vyva-text-2 xl:block">
-                  {plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.title}
-                </p>
-              </div>
+        <dl className="mt-3 grid grid-cols-3 gap-2">
+          {memoryStats.map(({ label, value }) => (
+            <div key={label} className="rounded-[16px] border border-[#EADFF8] bg-white px-2 py-2.5 text-center shadow-sm">
+              <dt className="text-[10px] font-bold uppercase tracking-[0.04em] text-vyva-text-2 sm:text-[11px]">{label}</dt>
+              <dd className="mt-1 text-[17px] font-black leading-none text-vyva-text-1 sm:text-[19px]">{value}</dd>
             </div>
-          </div>
+          ))}
+        </dl>
 
-          <div className="hidden min-w-[350px] grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm sm:grid">
-            {memoryStats.map((item, index) => (
-              <span
-                key={`desktop-${item}`}
-                className={`flex min-h-8 items-center justify-center px-3 text-center text-[12px] font-semibold leading-none text-vyva-text-1 ${
-                  index === 0 ? "" : "border-l border-[#EFE7DB]"
-                }`}
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={openVisualMemoryInstructions}
-              aria-label={t("memory.instructions", "Instructions")}
-              title={t("memory.instructions", "Instructions")}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#D8C7F3] bg-white px-2 text-[14px] font-bold text-vyva-purple shadow-vyva-card sm:px-3"
-            >
-              <CircleHelp size={19} />
-              <span className="hidden xl:inline">{t("memory.instructions", "Instructions")}</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:hidden">
-          <div className="min-w-0 rounded-full border border-[#EADFF8] bg-white/95 px-3 py-2 text-[12px] font-semibold leading-none text-vyva-text-1 shadow-sm sm:hidden">
-            <span className="block truncate">{plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.title}</span>
-          </div>
-          <div className="grid grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm">
-            {memoryStats.map((item, index) => (
-              <span
-                key={`mobile-${item}`}
-                className={`flex min-h-8 items-center justify-center px-2 text-center text-[11px] font-semibold leading-none text-vyva-text-1 sm:px-3 sm:text-[12px] ${
-                  index === 0 ? "" : "border-l border-[#EFE7DB]"
-                }`}
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className={`mx-auto mt-4 grid w-full gap-2.5 sm:mt-5 sm:gap-3.5 ${memoryGridClassName}`}>
+        <div
+          data-testid="visual-memory-grid"
+          className={`mx-auto mt-3 grid w-full gap-2.5 sm:mt-5 sm:gap-3.5 ${memoryGridClassName}`}
+        >
           {memoryDeck.map((card, index) => {
             const isOpen = revealed.includes(card.deckId) || matchedIds.includes(card.deckId);
             const isMatched = matchedIds.includes(card.deckId);
@@ -2925,17 +2892,15 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 aria-label={isOpen ? card.label : t("memory.hiddenCard", "Hidden card {number}", { number: index + 1 })}
                 aria-pressed={isOpen}
                 disabled={isMatched}
-                className="relative w-full overflow-hidden rounded-[18px] border p-2 text-center shadow-[0_8px_18px_rgba(61,35,83,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(61,35,83,0.18)] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20 disabled:cursor-default sm:rounded-[22px] sm:p-3"
+                className={`relative w-full overflow-hidden rounded-[18px] border p-2 text-center shadow-[0_8px_18px_rgba(61,35,83,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(61,35,83,0.18)] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20 disabled:cursor-default sm:rounded-[22px] sm:p-3 ${memoryCardClassName}`}
                 style={
                   isOpen
                     ? {
-                        ...memoryCardStyle,
                         background: isMatched ? "#F0FDF4" : "#FFFFFF",
                         borderColor: isMatched ? "#86EFAC" : "#C4B5FD",
                         transform: "translateY(-1px)",
                       }
                     : {
-                        ...memoryCardStyle,
                         background: "radial-gradient(circle at 50% 35%, #9B4DCE 0%, #7B2CBF 48%, #612095 100%)",
                         borderColor: "rgba(255,255,255,0.2)",
                         color: "#FFFFFF",
@@ -2957,11 +2922,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             );
           })}
         </div>
-
       </section>
-    </div>
-    ),
-    "default",
+    </BrainCoachActivityShell>
   );
 };
 
