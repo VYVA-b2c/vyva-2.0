@@ -874,7 +874,7 @@ const it = {
     visualRoundComplete: "Round completato. Pronto per una nuova griglia?",
     visualRoundCounted: "Round conteggiato. Continua con una nuova griglia a questo livello.",
     visualStaySupport: "Prova una nuova griglia a questo livello. Tre buoni round sbloccano il successivo.",
-    visualMasteryComplete: "Maestria completata. Gioca un’altra griglia quando vuoi.",
+    visualMasteryComplete: "Percorso di memoria visiva completato. Gioca di nuovo o scopri altri giochi.",
     hiddenCard: "Carta coperta {number}",
     sequenceWatch: "Osserva la sequenza.",
     sequenceWatchShort: "Guarda ordine",

@@ -29,7 +29,6 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
 import {
-  BRAIN_COACH_MAX_LEVEL,
   getBrainCoachProgressLabel,
   getBrainCoachSupportiveProgressCopy,
 } from "../shared/brainCoachProgression";
@@ -54,6 +53,12 @@ import type { GameResult, MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
 import StoryRecallGame from "./StoryRecallGame";
+import MemoryMatchVisual from "./MemoryMatchVisual";
+import {
+  getVisualMemoryProgressLabel,
+  VISUAL_MEMORY_MAX_LEVEL,
+  type VisualMemoryVisual,
+} from "./visualMemoryJourney";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
@@ -120,7 +125,7 @@ type MemoryCard = {
   deckId: string;
   pairId: string;
   label: string;
-  emoji: string;
+  visual: VisualMemoryVisual;
 };
 
 type SequenceTile = {
@@ -718,10 +723,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         if (validGameType === "memory_match") {
           const persistedUnlockedLevel = getRecommendedLevelForGame(history, validGameType);
           const unlockedLevel = Math.max(persistedUnlockedLevel, visualUnlockedLevelRef.current);
-          const resolvedLevel = Math.min(requestedLevel, unlockedLevel);
-          const requestedVariant = getGameLevel(validGameType, resolvedLevel).variants.find(
-            (entry) => entry.id === initialVariantId && entry.level === resolvedLevel,
-          );
+          const requestedVariant = requestedLevel <= unlockedLevel
+            ? getGameLevel(validGameType, requestedLevel).variants.find(
+                (entry) => entry.id === initialVariantId && entry.level === requestedLevel,
+              )
+            : undefined;
+          const resolvedLevel = requestedVariant ? requestedLevel : unlockedLevel;
           const resolvedVariant = requestedVariant ?? pickVariantForGame(history, validGameType, resolvedLevel);
 
           visualUnlockedLevelRef.current = unlockedLevel;
@@ -1181,12 +1188,27 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const memoryDeck = useMemo(() => {
     if (!plan || plan.gameType !== "memory_match" || !localizedVariant) return [];
-    const pairItems = (localizedVariant.payload.pairItems as { label: string; emoji: string }[]) ?? [];
+    const pairItems = (localizedVariant.payload.pairItems as Array<{
+      id?: string;
+      label: string;
+      emoji?: string;
+      visual?: VisualMemoryVisual;
+    }>) ?? [];
 
     return shuffleCards(
       pairItems.flatMap((item, index) => [
-        { deckId: `${variant?.id}-${index}-a`, pairId: `${variant?.id}-${index}`, label: item.label, emoji: item.emoji },
-        { deckId: `${variant?.id}-${index}-b`, pairId: `${variant?.id}-${index}`, label: item.label, emoji: item.emoji },
+        {
+          deckId: `${variant?.id}-${item.id ?? index}-a`,
+          pairId: `${variant?.id}-${item.id ?? index}`,
+          label: item.label,
+          visual: item.visual ?? { kind: "emoji", glyph: item.emoji ?? "" },
+        },
+        {
+          deckId: `${variant?.id}-${item.id ?? index}-b`,
+          pairId: `${variant?.id}-${item.id ?? index}`,
+          label: item.label,
+          visual: item.visual ?? { kind: "emoji", glyph: item.emoji ?? "" },
+        },
       ]),
     );
   }, [localizedVariant, plan, variant?.id]);
@@ -1365,7 +1387,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       completedVisualResultRef.current = completedResult;
       visualUnlockedLevelRef.current = Math.max(
         visualUnlockedLevelRef.current,
-        Math.min(plan.level + 1, BRAIN_COACH_MAX_LEVEL),
+        Math.min(plan.level + 1, VISUAL_MEMORY_MAX_LEVEL),
       );
       setCompletionMetrics({ score, accuracy, mistakes, durationSeconds });
       setCompletionDetails(null);
@@ -1614,7 +1636,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
   const GameIcon = getMemoryGameIcon(plan.gameType);
   const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
-  const currentLevelLabel = getBrainCoachProgressLabel(plan.level);
+  const currentLevelLabel = plan.gameType === "memory_match"
+    ? getVisualMemoryProgressLabel(plan.level, language)
+    : getBrainCoachProgressLabel(plan.level);
   const voiceGameContextPanel = (
     <VoiceActionFulfillmentPanel
       domain="brain_coach"
@@ -1651,7 +1675,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               <Grid2x2 size={27} />
             </div>
             <p className="inline-flex rounded-full bg-[#FEF3C7] px-4 py-2 text-[16px] font-black text-[#92400E]">
-              {getBrainCoachProgressLabel(plan.level)}
+              {getVisualMemoryProgressLabel(plan.level, language)}
             </p>
           </div>
           <h1 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[36px]">
@@ -2792,7 +2816,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const visualMemoryProgress = completionMetrics
     ? getVisualMemoryLevelProgress(gameHistory, plan.level)
     : null;
-  const visualTotalLevels = definition?.levels.length ?? 20;
+  const visualTotalLevels = definition?.levels.length ?? VISUAL_MEMORY_MAX_LEVEL;
   const visualLevelCompleted = Boolean(visualMemoryProgress?.levelCompleted);
   const canOpenNextLevel = Boolean(visualMemoryProgress?.advanced && nextPlayableLevel > plan.level);
   const nextLevelLabel = t("memory.nextVisualLevelLabel", "Next Level {level}", { level: nextPlayableLevel });
@@ -2826,7 +2850,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             summary={
               completionMetrics
                 ? visualLevelCompleted && !canOpenNextLevel
-                  ? t("memory.visualMasteryComplete", "Mastery complete. Ready for another board?")
+                  ? t("memory.visualMasteryComplete", "Visual Memory journey complete. Play again or explore more games.")
                   : canOpenNextLevel
                     ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
                     : t("memory.visualRoundComplete", "Round complete. Ready for a new board?")
@@ -2869,10 +2893,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                   {canOpenNextLevel
                     ? t("memory.visualLevelReady", "Level complete. Move to the next level or play another board.")
                     : visualLevelCompleted
-                      ? t("memory.visualMasteryComplete", "Mastery complete. Play another board whenever you are ready.")
+                      ? t("memory.visualMasteryComplete", "Visual Memory journey complete. Play again or explore more games.")
                     : t("memory.visualRoundCounted", "Round counted. Continue with a new board at this level.")}
                 </p>
-                <p className="mt-2 text-[13px] font-black text-vyva-purple">{getBrainCoachProgressLabel(plan.level)}</p>
+                <p className="mt-2 text-[13px] font-black text-vyva-purple">{getVisualMemoryProgressLabel(plan.level, language)}</p>
               </div>
             }
           />
@@ -2907,7 +2931,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       <section className="flex min-h-full flex-1 flex-col overflow-hidden rounded-[24px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
-            {getBrainCoachProgressLabel(plan.level)}
+            {getVisualMemoryProgressLabel(plan.level, language)}
           </span>
           <p className="min-w-0 flex-1 text-right text-[14px] font-bold leading-snug text-vyva-text-2 sm:text-[15px]">
             {plan.level === 1 ? t("memory.matchInstruction") : localizedVariant.title}
@@ -2958,7 +2982,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                 <div className="flex h-full flex-col items-center justify-center">
                   {isOpen ? (
                     <>
-                      <span className="text-[32px] leading-none sm:text-[40px]">{card.emoji}</span>
+                      <MemoryMatchVisual
+                        visual={card.visual}
+                        className={card.visual.kind === "emoji" ? "text-[32px] leading-none sm:text-[40px]" : "h-14 w-14 sm:h-[68px] sm:w-[68px]"}
+                      />
                       {visualMemoryShowLabels ? (
                         <span className="mt-1.5 text-[12px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[16px]">{card.label}</span>
                       ) : null}

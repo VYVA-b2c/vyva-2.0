@@ -4,6 +4,14 @@ import {
   BRAIN_COACH_MAX_LEVEL,
   getBrainCoachLevelBand,
 } from "../shared/brainCoachProgression";
+import {
+  getVisualMemoryBand,
+  getVisualMemoryDifficulty,
+  VISUAL_MEMORY_MAX_LEVEL,
+  VISUAL_MEMORY_NEW_THEMES,
+  type VisualMemoryBandId,
+  type VisualMemoryVisual,
+} from "./visualMemoryJourney";
 import type {
   CognitiveDomain,
   MemoryGameDefinition,
@@ -16,14 +24,21 @@ import type {
 type LocalizedValue<T> = Partial<Record<LanguageCode, T>> & { es: T };
 
 type MemoryMatchItem = {
-  emoji: string;
+  emoji?: string;
+  id?: string;
   labels: Record<LanguageCode, string>;
+  visual?: VisualMemoryVisual;
 };
 
 type MemoryMatchSet = {
   titles: Record<LanguageCode, string>;
   prompts: Record<LanguageCode, string>;
   items: MemoryMatchItem[];
+};
+
+type JourneyMemoryMatchSet = MemoryMatchSet & {
+  id: string;
+  bandId: VisualMemoryBandId;
 };
 
 type SequenceTemplate = {
@@ -84,18 +99,9 @@ type StoryTemplate = Record<GameContentLanguage, StoryContent>;
 const GAME_CONTENT_LANGUAGES: GameContentLanguage[] = ["es", "en", "fr", "de", "it", "pt"];
 const MEMORY_GAME_LEVELS = Array.from({ length: BRAIN_COACH_MAX_LEVEL }, (_, index) => index + 1);
 const MEMORY_MATCH_VARIANTS_PER_THEME = 3;
-const MEMORY_MATCH_PAIR_COUNTS = [3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] as const;
+const VISUAL_MEMORY_LEVELS = Array.from({ length: VISUAL_MEMORY_MAX_LEVEL }, (_, index) => index + 1);
 
-export function getVisualMemoryDifficulty(level: number) {
-  const safeLevel = Math.min(BRAIN_COACH_MAX_LEVEL, Math.max(1, Math.round(level)));
-
-  return {
-    pairCount: MEMORY_MATCH_PAIR_COUNTS[safeLevel - 1] ?? 8,
-    showLabels: safeLevel <= 10,
-    mismatchRevealMs: Math.max(450, 1_050 - (safeLevel - 1) * 35),
-    matchRevealMs: Math.max(250, 500 - (safeLevel - 1) * 12),
-  };
-}
+export { getVisualMemoryDifficulty } from "./visualMemoryJourney";
 
 function createVariant(
   id: string,
@@ -153,9 +159,9 @@ function getMemoryMatchOffsets(itemCount: number, pairCount: number) {
   );
 }
 
-function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, level: number, itemOffset: number): LocalizedValue<MemoryGameVariantContent> {
+function localizeMemoryMatchContent(set: JourneyMemoryMatchSet, pairCount: number, level: number, itemOffset: number): LocalizedValue<MemoryGameVariantContent> {
   const languages: LanguageCode[] = ["es", "en", "fr", "de", "it", "pt"];
-  const band = getBrainCoachLevelBand(level);
+  const band = getVisualMemoryBand(level);
   const pairItems = pickMemoryMatchItems(set.items, pairCount, itemOffset);
   const difficulty = getVisualMemoryDifficulty(level);
 
@@ -165,10 +171,14 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
       prompt: set.prompts[language],
       payload: {
         pairItems: pairItems.map((item) => ({
+          id: item.id ?? `${set.id}-${item.labels.en}`,
           label: item.labels[language],
-          emoji: item.emoji,
+          emoji: item.emoji ?? (item.visual?.kind === "emoji" ? item.visual.glyph : ""),
+          visual: item.visual ?? { kind: "emoji", glyph: item.emoji ?? "" },
         })),
-        levelBand: band.label,
+        themeId: set.id,
+        bandId: set.bandId,
+        levelBand: band.labels[language],
         previewSeconds: Math.max(0, 6 - Math.floor((level - 1) / 4)),
         showLabels: difficulty.showLabels,
         mismatchRevealMs: difficulty.mismatchRevealMs,
@@ -180,23 +190,25 @@ function localizeMemoryMatchContent(set: MemoryMatchSet, pairCount: number, leve
   }, {} as LocalizedValue<MemoryGameVariantContent>);
 }
 
-function buildMemoryMatchLevels(sets: MemoryMatchSet[]): MemoryGameLevel[] {
-  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => ({
+function buildMemoryMatchLevels(sets: JourneyMemoryMatchSet[]): MemoryGameLevel[] {
+  const levelSpecs = VISUAL_MEMORY_LEVELS.map((level) => ({
     level,
     pairs: getVisualMemoryDifficulty(level).pairCount,
   }));
 
   return levelSpecs.map((spec) => {
-    const maxOffsetCount = Math.max(...sets.map((set) => getMemoryMatchOffsets(set.items.length, spec.pairs).length));
+    const bandId = getVisualMemoryBand(spec.level).id;
+    const levelSets = sets.filter((set) => set.bandId === bandId);
+    const maxOffsetCount = Math.max(...levelSets.map((set) => getMemoryMatchOffsets(set.items.length, spec.pairs).length));
     const variants = Array.from({ length: maxOffsetCount }).flatMap((_, offsetIndex) =>
-      sets.flatMap((set, setIndex) => {
+      levelSets.flatMap((set) => {
         const offsets = getMemoryMatchOffsets(set.items.length, spec.pairs);
         const itemOffset = offsets[offsetIndex];
         if (itemOffset === undefined) return [];
 
         return [
           createVariant(
-            `memory_match-l${spec.level}-v${offsetIndex * sets.length + setIndex + 1}`,
+            `memory_match-l${spec.level}-${set.id}-v${offsetIndex + 1}`,
             spec.level,
             localizeMemoryMatchContent(set, spec.pairs, spec.level, itemOffset),
           ),
@@ -1004,6 +1016,20 @@ const memoryMatchSets: MemoryMatchSet[] = [
   },
 ];
 
+const visualMemoryJourneySets: JourneyMemoryMatchSet[] = [
+  { ...memoryMatchSets[0], id: "foundation-fruit", bandId: "foundation" },
+  { ...memoryMatchSets[2], id: "foundation-animals", bandId: "foundation" },
+  { ...memoryMatchSets[3], id: "foundation-home", bandId: "foundation" },
+  { ...memoryMatchSets[8], id: "foundation-breakfast", bandId: "foundation" },
+  ...VISUAL_MEMORY_NEW_THEMES.map((theme) => ({
+    id: theme.id,
+    bandId: theme.bandId,
+    titles: theme.titles,
+    prompts: theme.prompts,
+    items: theme.items,
+  })),
+];
+
 const sequenceTemplates: SequenceTemplate[] = [
   { titles: { es: "Colores del jardín", en: "Garden colours", fr: "Couleurs du jardin", de: "Farben im Garten", it: "Colori del giardino", pt: "Cores do jardim" }, items: ["verde", "amarillo", "rojo", "azul", "blanco", "morado"] },
   { titles: { es: "Pasos de cocina", en: "Cooking steps", fr: "Étapes de cuisine", de: "Kochschritte", it: "Passi in cucina", pt: "Passos na cozinha" }, items: ["lavar", "cortar", "mezclar", "cocinar", "servir", "probar"] },
@@ -1767,7 +1793,7 @@ const numberMemoryLevels = buildNumberLevels(numberTemplates);
 const routineLevels = buildRoutineLevels(routineTemplates);
 const associationLevels = buildAssociationLevels(associationTemplates);
 const storyLevels = buildStoryLevels(storyTemplates);
-const memoryMatchLevels = buildMemoryMatchLevels(memoryMatchSets);
+const memoryMatchLevels = buildMemoryMatchLevels(visualMemoryJourneySets);
 
 export const MEMORY_GAME_ORDER: MemoryGameType[] = [
   "memory_match",

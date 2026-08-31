@@ -971,7 +971,7 @@ const es = {
     visualRoundComplete: "Ronda completada. ¿Listo para un tablero nuevo?",
     visualRoundCounted: "Ronda contabilizada. Continúa con un tablero nuevo en este nivel.",
     visualStaySupport: "Prueba un tablero nuevo en este nivel. Tres rondas buenas desbloquean el siguiente.",
-    visualMasteryComplete: "Maestría completada. Juega otro tablero cuando quieras.",
+    visualMasteryComplete: "Viaje de Memoria visual completado. Juega de nuevo o explora más juegos.",
     hiddenCard: "Carta oculta {number}",
     sequenceWatch: "Observa la secuencia.",
     sequenceWatchShort: "Ver orden",

@@ -1079,7 +1079,7 @@ const fr = {
     visualRoundComplete: "Manche terminée. Prêt pour un nouveau plateau ?",
     visualRoundCounted: "Manche comptabilisée. Continuez avec un nouveau plateau à ce niveau.",
     visualStaySupport: "Essayez un nouveau plateau à ce niveau. Trois bonnes manches débloquent le suivant.",
-    visualMasteryComplete: "Maîtrise terminée. Jouez un autre plateau quand vous le souhaitez.",
+    visualMasteryComplete: "Parcours de mémoire visuelle terminé. Rejouez ou découvrez d’autres jeux.",
     hiddenCard: "Carte cachée {number}",
     sequenceWatch: "Observez la sequence.",
     sequenceWatchShort: "Voir l'ordre",

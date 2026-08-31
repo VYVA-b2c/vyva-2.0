@@ -836,7 +836,7 @@ const de = {
     visualRoundComplete: "Runde geschafft. Bereit für ein neues Feld?",
     visualRoundCounted: "Runde gezählt. Spielen Sie auf diesem Level mit einem neuen Feld weiter.",
     visualStaySupport: "Probieren Sie auf diesem Level ein neues Feld. Drei gute Runden schalten das nächste frei.",
-    visualMasteryComplete: "Mastery abgeschlossen. Spielen Sie ein weiteres Feld, wann immer Sie möchten.",
+    visualMasteryComplete: "Reise des visuellen Gedächtnisses abgeschlossen. Spielen Sie erneut oder entdecken Sie weitere Spiele.",
     hiddenCard: "Verdeckte Karte {number}",
     sequenceWatch: "Beobachten Sie die Folge.",
     sequenceWatchShort: "Reihenfolge sehen",

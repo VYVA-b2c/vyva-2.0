@@ -4,6 +4,7 @@ import type { LanguageCode } from "@/i18n/languages";
 import { getGameHistory, getRecentGameHistory } from "./gameStorage";
 import { getGameDefinition, getGameLevel, MEMORY_GAME_ORDER } from "./memoryGameRegistry";
 import type { CognitiveDomain, GameResult, MemoryGameType, Recommendation } from "./types";
+import { clampVisualMemoryLevel, VISUAL_MEMORY_MAX_LEVEL } from "./visualMemoryJourney";
 
 const DOMAIN_ROTATION: CognitiveDomain[] = [
   "visual_memory",
@@ -44,25 +45,34 @@ export function getVisualMemoryLevelProgress(
   history: GameResult[],
   currentLevel: number,
 ): VisualMemoryLevelProgress {
-  const level = clampBrainCoachLevel(currentLevel);
+  const level = clampVisualMemoryLevel(currentLevel);
   const completedRounds = Math.min(
     VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
     getConsecutiveVisualMemoryRounds(history, level) + 1,
   );
   const levelCompleted = completedRounds >= VISUAL_MEMORY_ROUNDS_TO_ADVANCE;
-  const advanced = levelCompleted && level < BRAIN_COACH_MAX_LEVEL;
+  const advanced = levelCompleted && level < VISUAL_MEMORY_MAX_LEVEL;
 
   return {
     completedRounds,
     roundsRequired: VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
     levelCompleted,
     advanced,
-    nextLevel: advanced ? clampBrainCoachLevel(level + 1) : level,
+    nextLevel: advanced ? clampVisualMemoryLevel(level + 1) : level,
   };
 }
 
 function sortNewestFirst(results: GameResult[]) {
   return [...results].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+}
+
+function getVariantThemeId(gameType: MemoryGameType, variantId?: string) {
+  if (!variantId) return null;
+  const variant = getGameDefinition(gameType).levels
+    .flatMap((level) => level.variants)
+    .find((entry) => entry.id === variantId);
+  const content = variant?.content.en ?? variant?.content.es;
+  return typeof content?.payload.themeId === "string" ? content.payload.themeId : null;
 }
 
 export function getRecommendedLevelForGame(history: GameResult[], gameType: MemoryGameType): number {
@@ -74,7 +84,7 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
       (highest, entry) => Math.max(highest, entry.level),
       1,
     );
-    return clampBrainCoachLevel(highestCompletedLevel + 1);
+    return clampVisualMemoryLevel(highestCompletedLevel + 1);
   }
 
   const recent = gameHistory.slice(0, 3);
@@ -88,6 +98,8 @@ export function getRecommendedLevelForGame(history: GameResult[], gameType: Memo
 
 export function pickVariantForGame(history: GameResult[], gameType: MemoryGameType, level: number) {
   const levelConfig = getGameLevel(gameType, level);
+  const sameGameHistory = sortNewestFirst(history).filter((entry) => entry.gameType === gameType);
+  const previousThemeId = getVariantThemeId(gameType, sameGameHistory[0]?.variantId);
   const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const recentVariantIds = new Set(
     history
@@ -96,7 +108,13 @@ export function pickVariantForGame(history: GameResult[], gameType: MemoryGameTy
       .map((entry) => entry.variantId),
   );
 
-  return levelConfig.variants.find((variant) => !recentVariantIds.has(variant.id)) ?? levelConfig.variants[0];
+  const freshThemeVariants = levelConfig.variants.filter((variant) => {
+    const content = variant.content.en ?? variant.content.es;
+    return content.payload.themeId !== previousThemeId;
+  });
+  const candidates = freshThemeVariants.length > 0 ? freshThemeVariants : levelConfig.variants;
+
+  return candidates.find((variant) => !recentVariantIds.has(variant.id)) ?? candidates[0] ?? levelConfig.variants[0];
 }
 
 export function pickNextVariantForSameGame(history: GameResult[], gameType: MemoryGameType, level: number, excludeVariantId?: string) {
@@ -109,8 +127,14 @@ export function pickNextVariantForSameGame(history: GameResult[], gameType: Memo
       .map((entry) => entry.variantId),
   );
 
+  const previousThemeId = getVariantThemeId(gameType, excludeVariantId ?? sameGameHistory[0]?.variantId);
   const availableVariants = levelConfig.variants.filter((variant) => variant.id !== excludeVariantId);
-  const unusedRecentVariant = availableVariants.find((variant) => !recentVariantIds.has(variant.id));
+  const freshThemeVariants = availableVariants.filter((variant) => {
+    const content = variant.content.en ?? variant.content.es;
+    return content.payload.themeId !== previousThemeId;
+  });
+  const candidates = freshThemeVariants.length > 0 ? freshThemeVariants : availableVariants;
+  const unusedRecentVariant = candidates.find((variant) => !recentVariantIds.has(variant.id));
   if (unusedRecentVariant) return unusedRecentVariant;
 
   const lastPlayedAt = new Map<string, number>();
@@ -121,7 +145,7 @@ export function pickNextVariantForSameGame(history: GameResult[], gameType: Memo
   });
 
   return (
-    [...availableVariants].sort((a, b) => {
+    [...candidates].sort((a, b) => {
       const timeA = lastPlayedAt.get(a.id) ?? 0;
       const timeB = lastPlayedAt.get(b.id) ?? 0;
       return timeA - timeB;
