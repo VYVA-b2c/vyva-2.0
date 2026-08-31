@@ -40,13 +40,13 @@ where content_type in ('exercise','meal','tip')
 insert into public.longevity_daily_content
   (content_type, title, description, detail_text, condition_tags, pillar_tag, time_of_day, language, rotation_weight, is_active)
 values
-('exercise','Walk after lunch',
- 'Ten steady minutes after a meal is a practical first step.',
- 'Keep the pace easy. Stop if you feel unwell, dizzy, or short of breath.',
+('exercise','Find a nearby walk or activity',
+ 'After lunch, VYVA can suggest nearby places, gentle groups, or daytime programs.',
+ 'Look for an easy place to pause, sit, or go with someone if that feels better.',
  array['all','heart','diabetes'],'heart','afternoon','en',3,true),
 ('exercise','Step outside for five minutes',
- 'A short outdoor walk gives the heart step a clear place and time.',
- 'Keep it easy and close to home. Sit down if your body asks for it.',
+ 'A short outing gives the heart step a clear place and time.',
+ 'VYVA can help look for a close, calm option before you decide.',
  array['all','heart'],'heart','morning','en',2,true),
 ('tip','Put the BP cuff where you sit',
  'If you track readings at home, keeping the cuff visible makes the routine easier.',

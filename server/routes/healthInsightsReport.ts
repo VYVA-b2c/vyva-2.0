@@ -192,6 +192,8 @@ type LongevityCompanionAction = {
   detail: string;
   pillar: PreventionPillar | null;
   route: string | null;
+  resource_label?: string | null;
+  resource_url?: string | null;
   prompt: string;
   source: "monthly_plan" | "daily_content" | "feedback_memory" | "fallback";
 };
@@ -1524,10 +1526,10 @@ function computePreventionTrajectory(scores: PreventionPillarScores, previous: L
 
 const PREVENTION_RECOMMENDATIONS: Record<PreventionPillar, Record<PreventionPillarStatus, PreventionRecommendation[]>> = {
   heart: {
-    thriving: [{ action: "Keep your daily walk going", why: "Consistency supports your heart over time." }, { action: "Keep medicine timing consistent", why: "A regular routine makes daily care easier." }],
-    steady: [{ action: "Walk after lunch four days this week", why: "A steady walk supports circulation and energy." }, { action: "Use less salt at one meal each day", why: "Small changes can support your heart." }],
-    needs_attention: [{ action: "Take a steady walk four days this week", why: "Regular movement is a strong heart-health habit." }, { action: "Set a daily medicine reminder", why: "A simple reminder supports consistency." }],
-    priority_focus: [{ action: "Start with a gentle walk today", why: "Movement is the most useful step for this month." }, { action: "Check today's medicine routine", why: "Consistency matters most right now." }],
+    thriving: [{ action: "Choose a nearby walk you enjoy", why: "A familiar place makes movement easier to repeat." }, { action: "Keep medicine timing consistent", why: "A regular routine makes daily care easier." }],
+    steady: [{ action: "Find a nearby walk or activity", why: "A gentle outing can support circulation and make the day more social." }, { action: "Use less salt at one meal each day", why: "Small changes can support your heart." }],
+    needs_attention: [{ action: "Pick a gentle local outing", why: "A nearby option with places to pause keeps the step realistic." }, { action: "Set a daily medicine reminder", why: "A simple reminder supports consistency." }],
+    priority_focus: [{ action: "Find a gentle nearby walk today", why: "A local option can turn movement into a clear, supported step." }, { action: "Check today's medicine routine", why: "Consistency matters most right now." }],
   },
   brain: {
     thriving: [{ action: "Keep up your Brain Coach sessions", why: "Regular challenge supports the progress you have built." }, { action: "Call someone you enjoy this week", why: "Connection supports memory and wellbeing." }],
@@ -1725,16 +1727,61 @@ function routeForCompanionAction(title: string, pillar: PreventionPillar | null)
   const text = title.toLowerCase();
   if (text.includes("brain coach") || pillar === "brain") return "/mind";
   if (text.includes("breath") || text.includes("breathing") || pillar === "calm") return "/games/breath-garden";
-  if (text.includes("walk") || text.includes("chair") || text.includes("strength") || pillar === "strength") return "/health/exercises/gentle-walk";
+  if (pillar === "heart" && (text.includes("walk") || text.includes("outing") || text.includes("activity"))) return "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning";
+  if (text.includes("chair") || text.includes("strength") || pillar === "strength") return "/health/exercises/gentle-walk";
   if (text.includes("medicine") || text.includes("medication")) return "/health/medications";
   if (text.includes("food") || text.includes("protein") || text.includes("water") || pillar === "nourishment") return null;
   if (text.includes("concierge")) return "/concierge";
   return null;
 }
 
+type LongevityCompanionResource = {
+  resource_label: string;
+  resource_url: string;
+};
+
+function resourceForCompanionAction(title: string, pillar: PreventionPillar | null): LongevityCompanionResource | null {
+  const text = title.toLowerCase();
+  if (text.includes("brain coach")) return { resource_label: "Brain Coach", resource_url: "/mind" };
+  if (text.includes("breath") || text.includes("breathing")) return { resource_label: "Breath Garden", resource_url: "/games/breath-garden" };
+  if (text.includes("blood pressure") || text.includes("bp")) {
+      return { resource_label: "AHA BP guide", resource_url: "https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings/monitoring-your-blood-pressure-at-home" };
+    }
+  if (text.includes("path") || text.includes("obstacle") || text.includes("safety")) {
+    return { resource_label: "NIA fall guide", resource_url: "https://www.nia.nih.gov/health/falls-and-falls-prevention/preventing-falls-home-room-room" };
+  }
+  if ((pillar === "heart" && (text.includes("walk") || text.includes("outing") || text.includes("activity"))) || text.includes("shoes")) {
+    return { resource_label: "Nearby walking ideas", resource_url: "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning" };
+  }
+  if (text.includes("chair") || text.includes("strength") || text.includes("supported") || text.includes("stand once")) {
+    return { resource_label: "NIA exercise videos", resource_url: "https://www.nia.nih.gov/toolkits/exercise" };
+  }
+  if (text.includes("protein") || text.includes("meal") || text.includes("food") || text.includes("snack") || text.includes("plate")) {
+    return { resource_label: "NIA food guide", resource_url: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-eating-you-age-know-your-food-groups" };
+  }
+  if (text.includes("water") || text.includes("hydration")) {
+    return { resource_label: "NIA meal planning", resource_url: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-meal-planning-tips-older-adults" };
+  }
+  if (text.includes("bedtime") || text.includes("sleep") || text.includes("wind-down") || text.includes("morning light")) {
+    return { resource_label: "NIA sleep guide", resource_url: "https://www.nia.nih.gov/health/sleep/sleep-and-older-adults" };
+  }
+  if (text.includes("quiet") || text.includes("pause") || text.includes("relax")) {
+    return { resource_label: "NIH relaxation guide", resource_url: "https://www.nccih.nih.gov/health/relaxation-techniques-what-you-need-to-know" };
+  }
+  if (text.includes("call someone") || text.includes("conversation") || text.includes("social")) {
+    return { resource_label: "NIA activities guide", resource_url: "https://www.nia.nih.gov/health/healthy-aging/participating-activities-you-enjoy-you-age" };
+  }
+  if (pillar === "heart") return { resource_label: "Nearby walking ideas", resource_url: "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning" };
+  if (pillar === "brain") return { resource_label: "NIA brain guide", resource_url: "https://www.nia.nih.gov/health/brain-health/cognitive-health-and-older-adults" };
+  if (pillar === "strength") return { resource_label: "NIA exercise videos", resource_url: "https://www.nia.nih.gov/toolkits/exercise" };
+  if (pillar === "nourishment") return { resource_label: "NIA food guide", resource_url: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-eating-you-age-know-your-food-groups" };
+  if (pillar === "calm") return { resource_label: "NIA sleep guide", resource_url: "https://www.nia.nih.gov/health/sleep/sleep-and-older-adults" };
+  return null;
+}
+
 function fallbackRecommendationForPillar(pillar: PreventionPillar | null): PreventionRecommendation {
   if (pillar === "brain") return { action: "Open one familiar Brain Coach round", why: "One familiar round keeps the step small and specific." };
-  if (pillar === "heart") return { action: "Take a short walk after lunch", why: "A walk tied to lunch is easier to remember." };
+  if (pillar === "heart") return { action: "Find a nearby walk or activity", why: "A gentle outing can support circulation and make the day more social." };
   if (pillar === "strength") return { action: "Do one supported chair-strength round", why: "Supported movement keeps the step practical." };
   if (pillar === "nourishment") return { action: "Choose protein with your next meal", why: "Protein with a meal is a clear nourishment step." };
   if (pillar === "calm") return { action: "Open a two-minute breathing reset", why: "Two minutes is enough to start." };
@@ -1757,12 +1804,15 @@ function recommendationToAction(
 ): LongevityCompanionAction {
   const actionSignal = bestSignalForPillar(signals, pillar);
   const detail = recommendation.why || actionSignal?.detail || whyToday;
+  const resource = resourceForCompanionAction(recommendation.action, pillar);
   return {
     action_key: actionKeyFor(pillar, recommendation.action),
     title: recommendation.action,
     detail: sentence(detail),
     pillar,
     route: routeForCompanionAction(recommendation.action, pillar),
+    resource_label: resource?.resource_label ?? null,
+    resource_url: resource?.resource_url ?? null,
     prompt: `Help me with today's longevity step: ${recommendation.action}. Context: ${whyToday}`,
     source: "monthly_plan",
   };
@@ -1770,6 +1820,7 @@ function recommendationToAction(
 
 function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar | null, whyToday: string): LongevityCompanionAction {
   const actionPillar = content.pillar_tag ?? pillar;
+  const resource = resourceForCompanionAction(content.title, actionPillar);
   return {
     action_key: actionKeyFor(actionPillar, content.title),
     content_id: content.id,
@@ -1777,6 +1828,8 @@ function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar
     detail: sentence(content.description),
     pillar: actionPillar,
     route: routeForCompanionAction(content.title, actionPillar),
+    resource_label: content.source_label ?? resource?.resource_label ?? null,
+    resource_url: content.source_url ?? resource?.resource_url ?? null,
     prompt: `Help me make this longevity step easy today: ${content.title}. Context: ${whyToday}`,
     source: "daily_content",
   };
@@ -1817,12 +1870,15 @@ function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityA
     nourishment: `You marked "${recentHard.action_title}" too hard, so choose the simplest version at your next meal.`,
     calm: `You marked "${recentHard.action_title}" too hard, so start with two quiet minutes only.`,
   };
+  const resource = resourceForCompanionAction(titleByPillar[pillar], pillar);
   return {
     action_key: actionKeyFor(pillar, titleByPillar[pillar]),
     title: titleByPillar[pillar],
     detail: detailByPillar[pillar],
     pillar,
     route: routeForCompanionAction(titleByPillar[pillar], pillar),
+    resource_label: resource?.resource_label ?? null,
+    resource_url: resource?.resource_url ?? null,
     prompt: `Make a smaller ${PILLAR_LABELS[pillar]} step for today. Context: ${whyToday}`,
     source: "feedback_memory",
   };
@@ -2590,9 +2646,10 @@ router.post("/prevention/daily-content/engage", async (req: Request, res: Respon
 
   try {
     await optionalQuery("longevity_daily_content_log", `
-      update public.longevity_daily_content_log
-      set engaged = true
-      where user_id = $1 and content_id = $2::uuid and shown_on = current_date
+      insert into public.longevity_daily_content_log (user_id, content_id, shown_on, engaged)
+      values ($1, $2::uuid, current_date, true)
+      on conflict (user_id, content_id, shown_on)
+      do update set engaged = true
     `, [userId, contentId]);
     return res.json({ success: true });
   } catch (err) {
