@@ -187,6 +187,7 @@ type LongevityCompanionSignal = {
 
 type LongevityCompanionAction = {
   action_key: string;
+  content_id?: string | null;
   title: string;
   detail: string;
   pillar: PreventionPillar | null;
@@ -212,6 +213,7 @@ type LongevityCompanionPayload = {
   whyToday: string;
   primaryAction: LongevityCompanionAction;
   supportAction: LongevityCompanionAction;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
   careSummary: LongevityCareSummary;
   signalsUsed: LongevityCompanionSignal[];
   dailyContent: {
@@ -219,6 +221,7 @@ type LongevityCompanionPayload = {
     meal: DailyContentRow | null;
     tip: DailyContentRow | null;
     articles: DailyContentRow[];
+    byPillar: Record<PreventionPillar, DailyContentRow[]>;
   };
   feedbackHistory: LongevityActionEventRow[];
 };
@@ -230,6 +233,16 @@ const PREVENTION_STATUS_RANK: Record<PreventionPillarStatus, number> = {
   needs_attention: 2,
   priority_focus: 3,
 };
+
+function emptyDailyContentBundle(): LongevityCompanionPayload["dailyContent"] {
+  return {
+    exercise: null,
+    meal: null,
+    tip: null,
+    articles: [],
+    byPillar: Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [pillar, []])) as Record<PreventionPillar, DailyContentRow[]>,
+  };
+}
 
 const FALLBACK_PROFILE: ProfileSummary = {
   first_name: "there",
@@ -468,8 +481,23 @@ function dailyContentTagsFor(conditions: string[], includeAll = true): string[] 
   return Array.from(tags);
 }
 
-function todaySeed(): string {
-  return Math.floor(Date.now() / (24 * 60 * 60 * 1000)).toString();
+function todaySeed(timezone?: string | null): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en", {
+      timeZone: timezone || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const value = (type: string) => parts.find((part) => part.type === type)?.value;
+    const year = value("year");
+    const month = value("month");
+    const day = value("day");
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {
+    // Fall through to UTC when a stored timezone is invalid.
+  }
+  return new Date().toISOString().slice(0, 10);
 }
 
 function normalizeLanguage(value: string | null | undefined): string {
@@ -487,22 +515,28 @@ async function getRecentDailyContentIds(userId: string): Promise<string[]> {
 }
 
 async function pickDailyContentRows(input: {
-  type: DailyContentType;
+  type?: DailyContentType;
+  types?: DailyContentType[];
   language: string;
   conditionTags: string[];
   recentIds: string[];
   daySeed: string;
   allowAllFallback: boolean;
   limit: number;
+  pillarTag?: PreventionPillar | null;
+  excludeRecent?: boolean;
 }): Promise<DailyContentRow[]> {
   const tags = input.conditionTags.length > 0 ? input.conditionTags : ["__none__"];
+  const types = input.types ?? (input.type ? [input.type] : ["exercise", "meal", "tip"]);
+  const recentIds = input.excludeRecent === false ? [] : input.recentIds;
   const rows = await optionalQuery<DailyContentRow>("longevity_daily_content", `
     select id::text, content_type, title, description, detail_text, source_label, source_url,
            condition_tags, pillar_tag, time_of_day, language, rotation_weight
     from public.longevity_daily_content
-    where content_type = $1
+    where content_type = any($1::text[])
       and language = $2
       and is_active = true
+      and ($8::text is null or pillar_tag = $8::text)
       and (
         condition_tags && $3::text[]
         or ($6::boolean = true and 'all' = any(condition_tags))
@@ -510,13 +544,18 @@ async function pickDailyContentRows(input: {
       and (coalesce(array_length($4::uuid[], 1), 0) = 0 or id <> all($4::uuid[]))
     order by
       case when condition_tags && $3::text[] and not ('all' = any(condition_tags)) then 0 else 1 end,
-      rotation_weight desc,
-      abs(hashtext(id::text || $5::text))
+      (abs(hashtext(id::text || $5::text))::double precision / greatest(rotation_weight, 1)) asc
     limit $7
-  `, [input.type, input.language, tags, input.recentIds, input.daySeed, input.allowAllFallback, input.limit]);
+  `, [types, input.language, tags, recentIds, input.daySeed, input.allowAllFallback, input.limit, input.pillarTag ?? null]);
 
   if (rows.length > 0 || input.language === "es") return rows;
   return pickDailyContentRows({ ...input, language: "es" });
+}
+
+async function pickDailyContentRowsWithRecentFallback(input: Parameters<typeof pickDailyContentRows>[0]): Promise<DailyContentRow[]> {
+  const freshRows = await pickDailyContentRows({ ...input, excludeRecent: true });
+  if (freshRows.length > 0) return freshRows;
+  return pickDailyContentRows({ ...input, excludeRecent: false });
 }
 
 function logDailyContentShown(userId: string, rows: DailyContentRow[]): void {
@@ -533,25 +572,57 @@ async function getDailyContentBundle(userId: string, conditions: string[], profi
   const [recentIds] = await Promise.all([getRecentDailyContentIds(userId)]);
   const language = normalizeLanguage(profile.language_preference);
   const conditionTags = dailyContentTagsFor(conditions, false);
-  const seed = todaySeed();
+  const seed = todaySeed(profile.timezone);
 
-  const [exerciseRows, mealRows, tipRows, articleRows] = await Promise.all([
-    pickDailyContentRows({ type: "exercise", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: true, limit: 1 }),
-    pickDailyContentRows({ type: "meal", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: true, limit: 1 }),
-    pickDailyContentRows({ type: "tip", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: true, limit: 1 }),
+  const [exerciseRows, mealRows, tipRows, articleRows, pillarEntries] = await Promise.all([
+    pickDailyContentRowsWithRecentFallback({ type: "exercise", language, conditionTags, recentIds, daySeed: `${userId}:exercise:${seed}`, allowAllFallback: true, limit: 1 }),
+    pickDailyContentRowsWithRecentFallback({ type: "meal", language, conditionTags, recentIds, daySeed: `${userId}:meal:${seed}`, allowAllFallback: true, limit: 1 }),
+    pickDailyContentRowsWithRecentFallback({ type: "tip", language, conditionTags, recentIds, daySeed: `${userId}:tip:${seed}`, allowAllFallback: true, limit: 1 }),
     conditionTags.length > 0
-      ? pickDailyContentRows({ type: "article", language, conditionTags, recentIds, daySeed: seed, allowAllFallback: false, limit: 2 })
+      ? pickDailyContentRowsWithRecentFallback({ type: "article", language, conditionTags, recentIds, daySeed: `${userId}:article:${seed}`, allowAllFallback: false, limit: 2 })
       : Promise.resolve([]),
+    Promise.all(PREVENTION_PILLARS.map(async (pillar) => [
+      pillar,
+      await pickDailyContentRowsWithRecentFallback({
+        types: ["exercise", "meal", "tip"],
+        language,
+        conditionTags,
+        recentIds,
+        daySeed: `${userId}:${pillar}:${seed}`,
+        allowAllFallback: true,
+        limit: 5,
+        pillarTag: pillar,
+      }),
+    ] as const)),
   ]);
 
-  const bundle = {
+  return {
     exercise: exerciseRows[0] ?? null,
     meal: mealRows[0] ?? null,
     tip: tipRows[0] ?? null,
     articles: articleRows.slice(0, 2),
+    byPillar: Object.fromEntries(pillarEntries) as Record<PreventionPillar, DailyContentRow[]>,
   };
-  logDailyContentShown(userId, [bundle.exercise, bundle.meal, bundle.tip, ...bundle.articles].filter((row): row is DailyContentRow => Boolean(row)));
-  return bundle;
+}
+
+function uniqueDailyContentRows(rows: DailyContentRow[]): DailyContentRow[] {
+  return Array.from(new Map(rows.map((row) => [row.id, row])).values());
+}
+
+function dailyContentRowsForActions(
+  dailyContent: LongevityCompanionPayload["dailyContent"],
+  actions: LongevityCompanionAction[],
+): DailyContentRow[] {
+  const selectedIds = new Set(actions.map((action) => action.content_id).filter((id): id is string => Boolean(id)));
+  if (selectedIds.size === 0) return [];
+  const availableRows = uniqueDailyContentRows([
+    dailyContent.exercise,
+    dailyContent.meal,
+    dailyContent.tip,
+    ...dailyContent.articles,
+    ...Object.values(dailyContent.byPillar).flat(),
+  ].filter((row): row is DailyContentRow => Boolean(row)));
+  return availableRows.filter((row) => selectedIds.has(row.id));
 }
 
 function worstPreventionPillar(scores: PreventionPillarScores): PreventionPillar | null {
@@ -1507,6 +1578,14 @@ function actionKeyFor(pillar: PreventionPillar | null, title: string): string {
   return `${pillar ?? "general"}:${slug || "action"}`;
 }
 
+function deterministicScore(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
+}
+
 function statusForPillar(plan: LongevityPreventionPlan, pillar: PreventionPillar): PreventionPillarStatus {
   return plan[`pillar_${pillar}`];
 }
@@ -1520,6 +1599,14 @@ function priorityPillarForPlan(plan: LongevityPreventionPlan): PreventionPillar 
     nourishment: plan.pillar_nourishment,
     calm: plan.pillar_calm,
   });
+}
+
+function pillarRecommendationOptions(plan: LongevityPreventionPlan, pillar: PreventionPillar): PreventionRecommendation[] {
+  const planned = safeJson<PreventionRecommendations>(plan.recommendations, {} as PreventionRecommendations)[pillar] ?? [];
+  const fromPriority = plan.priority_pillar === pillar && plan.priority_intervention
+    ? [{ action: plan.priority_intervention, why: plan.priority_why ?? planned[0]?.why ?? "This is the current priority step." }]
+    : [];
+  return [...fromPriority, ...planned];
 }
 
 function conditionTagLabel(tag: string): string {
@@ -1681,67 +1768,108 @@ function recommendationToAction(
   };
 }
 
-function pickPrimaryRecommendation(
-  plan: LongevityPreventionPlan,
-  pillar: PreventionPillar | null,
-  feedbackHistory: LongevityActionEventRow[],
-): PreventionRecommendation {
-  const suppressed = suppressedActionKeys(feedbackHistory);
-  const planned = pillar ? (safeJson<PreventionRecommendations>(plan.recommendations, {} as PreventionRecommendations)[pillar] ?? []) : [];
-  const fromPriority = plan.priority_intervention
-    ? [{ action: plan.priority_intervention, why: plan.priority_why ?? planned[0]?.why ?? "This is the current priority step." }]
-    : [];
-  const candidates = [...fromPriority, ...planned];
-  return candidates.find((item) => !suppressed.has(actionKeyFor(pillar, item.action))) ?? fallbackRecommendationForPillar(pillar);
-}
-
 function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar | null, whyToday: string): LongevityCompanionAction {
+  const actionPillar = content.pillar_tag ?? pillar;
   return {
-    action_key: actionKeyFor(content.pillar_tag ?? pillar, content.title),
+    action_key: actionKeyFor(actionPillar, content.title),
+    content_id: content.id,
     title: content.title,
     detail: sentence(content.description),
-    pillar: content.pillar_tag ?? pillar,
-    route: null,
+    pillar: actionPillar,
+    route: routeForCompanionAction(content.title, actionPillar),
     prompt: `Help me make this longevity step easy today: ${content.title}. Context: ${whyToday}`,
     source: "daily_content",
   };
 }
 
-function supportActionFor(input: {
-  pillar: PreventionPillar | null;
+function dailyContentOptionsForPillar(dailyContent: LongevityCompanionPayload["dailyContent"], pillar: PreventionPillar): DailyContentRow[] {
+  const pillarRows = dailyContent.byPillar[pillar] ?? [];
+  if (pillarRows.length > 0) return pillarRows;
+  return [dailyContent.tip, dailyContent.exercise, dailyContent.meal]
+    .filter((item): item is DailyContentRow => Boolean(item) && item.pillar_tag === pillar);
+}
+
+function rotatedDailyContentOptions(input: {
+  rows: DailyContentRow[];
+  userId: string;
+  pillar: PreventionPillar;
+  rotationDate: string;
+}): DailyContentRow[] {
+  return [...input.rows].sort((a, b) => {
+    const aScore = deterministicScore(`${input.userId}:${input.pillar}:${input.rotationDate}:${a.id}`) / Math.max(1, a.rotation_weight);
+    const bScore = deterministicScore(`${input.userId}:${input.pillar}:${input.rotationDate}:${b.id}`) / Math.max(1, b.rotation_weight);
+    return aScore - bScore;
+  });
+}
+
+function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityActionEventRow, whyToday: string): LongevityCompanionAction {
+  const titleByPillar: Record<PreventionPillar, string> = {
+    heart: "Make the heart step smaller",
+    brain: "Make the Brain Coach step smaller",
+    strength: "Make the movement step smaller",
+    nourishment: "Make the food step simpler",
+    calm: "Make the calm step shorter",
+  };
+  const detailByPillar: Record<PreventionPillar, string> = {
+    heart: `You marked "${recentHard.action_title}" too hard, so try one easier cue today.`,
+    brain: `You marked "${recentHard.action_title}" too hard, so start with one familiar round only.`,
+    strength: `You marked "${recentHard.action_title}" too hard, so do the supported version only.`,
+    nourishment: `You marked "${recentHard.action_title}" too hard, so choose the simplest version at your next meal.`,
+    calm: `You marked "${recentHard.action_title}" too hard, so start with two quiet minutes only.`,
+  };
+  return {
+    action_key: actionKeyFor(pillar, titleByPillar[pillar]),
+    title: titleByPillar[pillar],
+    detail: detailByPillar[pillar],
+    pillar,
+    route: routeForCompanionAction(titleByPillar[pillar], pillar),
+    prompt: `Make a smaller ${PILLAR_LABELS[pillar]} step for today. Context: ${whyToday}`,
+    source: "feedback_memory",
+  };
+}
+
+function buildPillarAction(input: {
+  plan: LongevityPreventionPlan;
+  pillar: PreventionPillar;
+  signals: LongevityCompanionSignal[];
   dailyContent: LongevityCompanionPayload["dailyContent"];
   feedbackHistory: LongevityActionEventRow[];
-  whyToday: string;
+  rotationDate: string;
 }): LongevityCompanionAction {
-  const recentHard = input.feedbackHistory.find((event) => event.event_type === "too_hard" && (!input.pillar || event.pillar === input.pillar));
-  if (recentHard) {
-    const title = "Make today's version smaller";
-    return {
-      action_key: actionKeyFor(input.pillar, title),
-      title,
-      detail: `You marked "${recentHard.action_title}" too hard, so start with the first two minutes only.`,
-      pillar: input.pillar,
-      route: null,
-      prompt: `Make a smaller version of today's longevity step. Context: ${input.whyToday}`,
-      source: "feedback_memory",
-    };
-  }
+  const suppressed = suppressedActionKeys(input.feedbackHistory);
+  const whyForPillar = buildWhyToday(input.pillar, input.signals, input.plan);
+  const recentHard = input.feedbackHistory.find((event) =>
+    event.event_type === "too_hard"
+    && event.pillar === input.pillar
+    && eventAgeDays(event) <= 7);
+  if (recentHard) return smallerActionForPillar(input.pillar, recentHard, whyForPillar);
 
-  const contentOptions = [input.dailyContent.tip, input.dailyContent.exercise, input.dailyContent.meal]
-    .filter((item): item is DailyContentRow => Boolean(item));
-  const matchedContent = contentOptions.find((item) => item.pillar_tag === input.pillar) ?? contentOptions[0];
-  if (matchedContent) return dailyContentToAction(matchedContent, input.pillar, input.whyToday);
-
-  const recommendation = fallbackRecommendationForPillar(input.pillar);
-  return {
-    action_key: actionKeyFor(input.pillar, "support-" + recommendation.action),
-    title: recommendation.action,
-    detail: sentence(recommendation.why),
+  const contentCandidates = rotatedDailyContentOptions({
+    rows: dailyContentOptionsForPillar(input.dailyContent, input.pillar),
+    userId: input.plan.user_id,
     pillar: input.pillar,
-    route: routeForCompanionAction(recommendation.action, input.pillar),
-    prompt: `Help me make this easier today: ${recommendation.action}. Context: ${input.whyToday}`,
-    source: "fallback",
-  };
+    rotationDate: input.rotationDate,
+  }).map((content) => dailyContentToAction(content, input.pillar, whyForPillar));
+
+  const recommendationCandidates = pillarRecommendationOptions(input.plan, input.pillar)
+    .map((recommendation) => recommendationToAction(recommendation, input.pillar, input.signals, whyForPillar));
+
+  const candidates = [...contentCandidates, ...recommendationCandidates];
+  return candidates.find((action) => !suppressed.has(action.action_key))
+    ?? recommendationToAction(fallbackRecommendationForPillar(input.pillar), input.pillar, input.signals, whyForPillar);
+}
+
+function buildPillarActions(input: {
+  plan: LongevityPreventionPlan;
+  signals: LongevityCompanionSignal[];
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate: string;
+}): Record<PreventionPillar, LongevityCompanionAction> {
+  return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [
+    pillar,
+    buildPillarAction({ ...input, pillar }),
+  ])) as Record<PreventionPillar, LongevityCompanionAction>;
 }
 
 function buildWhyToday(pillar: PreventionPillar | null, signals: LongevityCompanionSignal[], plan: LongevityPreventionPlan): string {
@@ -1757,15 +1885,13 @@ function buildWhyToday(pillar: PreventionPillar | null, signals: LongevityCompan
 function buildCareSummary(input: {
   profile: ProfileSummary;
   whyToday: string;
-  primaryAction: LongevityCompanionAction;
-  supportAction: LongevityCompanionAction;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
   signals: LongevityCompanionSignal[];
 }): LongevityCareSummary {
   const title = `Longevity summary for ${input.profile.first_name}`;
   const bullets = [
     input.whyToday,
-    `Next step: ${input.primaryAction.title}.`,
-    `Support step: ${input.supportAction.title}.`,
+    ...PREVENTION_PILLARS.map((pillar) => `${PILLAR_LABELS[pillar]}: ${input.pillarActions[pillar].title}.`),
     ...input.signals.slice(0, 3).map((item) => `${item.label}: ${item.detail}`),
   ].map(sentence);
   return {
@@ -1841,13 +1967,24 @@ export function composeLongevityCompanionPayload(input: {
   symptoms: SummaryMap;
   dailyContent: LongevityCompanionPayload["dailyContent"];
   feedbackHistory: LongevityActionEventRow[];
+  rotationDate?: string;
 }): LongevityCompanionPayload {
   const priorityPillar = priorityPillarForPlan(input.plan);
   const signals = buildCompanionSignals(input);
   const whyToday = buildWhyToday(priorityPillar, signals, input.plan);
-  const primaryRecommendation = pickPrimaryRecommendation(input.plan, priorityPillar, input.feedbackHistory);
-  const primaryAction = recommendationToAction(primaryRecommendation, priorityPillar, signals, whyToday);
-  const supportAction = supportActionFor({ pillar: priorityPillar, dailyContent: input.dailyContent, feedbackHistory: input.feedbackHistory, whyToday });
+  const rotationDate = input.rotationDate ?? todaySeed(input.profile.timezone);
+  const pillarActions = buildPillarActions({
+    plan: input.plan,
+    signals,
+    dailyContent: input.dailyContent,
+    feedbackHistory: input.feedbackHistory,
+    rotationDate,
+  });
+  const primaryAction = priorityPillar ? pillarActions[priorityPillar] : pillarActions.brain;
+  const supportPillar = [...PREVENTION_PILLARS]
+    .filter((pillar) => pillar !== primaryAction.pillar)
+    .sort((a, b) => PREVENTION_STATUS_RANK[statusForPillar(input.plan, b)] - PREVENTION_STATUS_RANK[statusForPillar(input.plan, a)])[0] ?? "heart";
+  const supportAction = pillarActions[supportPillar];
   const focusLabel = priorityPillar ? PILLAR_LABELS[priorityPillar] : "Longevity";
   const strongestSignal = bestSignalForPillar(signals, priorityPillar);
   const headline = buildTodayFocusHeadline(input.profile, priorityPillar, strongestSignal);
@@ -1863,7 +2000,8 @@ export function composeLongevityCompanionPayload(input: {
     whyToday,
     primaryAction,
     supportAction,
-    careSummary: buildCareSummary({ profile: input.profile, whyToday, primaryAction, supportAction, signals }),
+    pillarActions,
+    careSummary: buildCareSummary({ profile: input.profile, whyToday, pillarActions, signals }),
     signalsUsed: signals,
     dailyContent: input.dailyContent,
     feedbackHistory: input.feedbackHistory,
@@ -2347,7 +2485,7 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
       getRecentPlanActionEvents(userId),
     ]);
     const dailyContent = await getDailyContentBundle(userId, conditions, profile);
-    return res.json(composeLongevityCompanionPayload({
+    const payload = composeLongevityCompanionPayload({
       plan,
       profile,
       conditions,
@@ -2358,7 +2496,9 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
       symptoms,
       dailyContent,
       feedbackHistory,
-    }));
+    });
+    logDailyContentShown(userId, dailyContentRowsForActions(dailyContent, Object.values(payload.pillarActions)));
+    return res.json(payload);
   } catch (err) {
     console.error("[PreventionCompanion] GET error:", err);
     const profile = await getUserProfile(userId).catch(() => FALLBACK_PROFILE);
@@ -2372,7 +2512,7 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
       cognitive: null,
       mood: null,
       symptoms: null,
-      dailyContent: { exercise: null, meal: null, tip: null, articles: [] },
+      dailyContent: emptyDailyContentBundle(),
       feedbackHistory: [],
     }));
   }
@@ -2388,10 +2528,17 @@ router.get("/prevention/daily-content/:userId", async (req: Request, res: Respon
       getUserConditions(userId),
       getUserProfile(userId),
     ]);
-    return res.json(await getDailyContentBundle(userId, conditions, profile));
+    const dailyContent = await getDailyContentBundle(userId, conditions, profile);
+    logDailyContentShown(userId, uniqueDailyContentRows([
+      dailyContent.exercise,
+      dailyContent.meal,
+      dailyContent.tip,
+      ...dailyContent.articles,
+    ].filter((row): row is DailyContentRow => Boolean(row))));
+    return res.json(dailyContent);
   } catch (err) {
     console.error("[DailyContent] GET error:", err);
-    return res.json({ exercise: null, meal: null, tip: null, articles: [] });
+    return res.json(emptyDailyContentBundle());
   }
 });
 

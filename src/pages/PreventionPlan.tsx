@@ -67,6 +67,7 @@ type DailyContentResponse = {
   meal: DailyContentItem | null;
   tip: DailyContentItem | null;
   articles: DailyContentItem[];
+  byPillar?: Partial<Record<PreventionPillar, DailyContentItem[]>>;
 };
 
 type CompanionSignal = {
@@ -80,6 +81,7 @@ type CompanionSignal = {
 
 type CompanionAction = {
   action_key: string;
+  content_id?: string | null;
   title: string;
   detail: string;
   pillar: PreventionPillar | null;
@@ -99,6 +101,7 @@ type CompanionPayload = {
   whyToday: string;
   primaryAction: CompanionAction;
   supportAction: CompanionAction;
+  pillarActions?: Partial<Record<PreventionPillar, CompanionAction>>;
   careSummary: {
     title: string;
     bullets: string[];
@@ -206,6 +209,73 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
       language: "en",
     },
   ],
+  byPillar: {
+    heart: [{
+      id: "preview-heart",
+      content_type: "exercise",
+      title: "Walk after lunch",
+      description: "Tie ten easy minutes to a meal so circulation support is simple to remember.",
+      detail_text: null,
+      source_label: null,
+      source_url: null,
+      condition_tags: ["heart"],
+      pillar_tag: "heart",
+      time_of_day: "afternoon",
+      language: "en",
+    }],
+    brain: [{
+      id: "preview-brain",
+      content_type: "tip",
+      title: "One familiar Brain Coach round",
+      description: "A familiar activity keeps today's brain step low effort.",
+      detail_text: null,
+      source_label: null,
+      source_url: null,
+      condition_tags: ["brain"],
+      pillar_tag: "brain",
+      time_of_day: "any",
+      language: "en",
+    }],
+    strength: [{
+      id: "preview-strength",
+      content_type: "tip",
+      title: "Clear one walking path",
+      description: "One clear route at home makes movement easier and steadier.",
+      detail_text: null,
+      source_label: null,
+      source_url: null,
+      condition_tags: ["falls"],
+      pillar_tag: "strength",
+      time_of_day: "evening",
+      language: "en",
+    }],
+    nourishment: [{
+      id: "preview-nourishment",
+      content_type: "meal",
+      title: "Protein with the next meal",
+      description: "Choose one familiar protein food so nourishment does not become complicated.",
+      detail_text: null,
+      source_label: null,
+      source_url: null,
+      condition_tags: ["all"],
+      pillar_tag: "nourishment",
+      time_of_day: "any",
+      language: "en",
+    }],
+    calm: [{
+      id: "preview-calm",
+      content_type: "tip",
+      title: "Same bedtime tonight",
+      description: "A familiar evening time supports tomorrow's energy and attention.",
+      detail_text: null,
+      source_label: null,
+      source_url: null,
+      condition_tags: ["calm"],
+      pillar_tag: "calm",
+      time_of_day: "evening",
+      language: "en",
+    }],
+  },
 };
 
 function upperFirst(value: string): string {
@@ -264,29 +334,38 @@ function resolvePriorityDefinition(
 
 function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): CompanionPayload {
   const priorityDefinition = resolvePriorityDefinition(plan);
-  const priorityPillar = priorityDefinition?.id ?? null;
-  const primaryTitle = plan.priority_intervention ?? (priorityDefinition ? `Start with ${priorityDefinition.shortLabel.toLowerCase()}` : "Choose one small step");
+  const priorityPillar = priorityDefinition?.id ?? "brain";
   const whyToday = plan.priority_why
     ? `${priorityDefinition?.label ?? "Longevity"} comes first today because ${plan.priority_why.toLowerCase()}`
     : "VYVA is starting with one practical step while it learns from your routine.";
-  const primaryAction: CompanionAction = {
-    action_key: actionKeyFor(priorityPillar, primaryTitle),
-    title: primaryTitle,
-    detail: plan.priority_why ?? "One short round is enough today.",
-    pillar: priorityPillar,
-    route: "/mind",
-    prompt: "Help me start this longevity step: " + primaryTitle,
-    source: "monthly_plan",
-  };
-  const supportAction: CompanionAction = {
-    action_key: actionKeyFor(priorityPillar, "Choose the easiest Brain Coach round"),
-    title: "Choose the easiest Brain Coach round",
-    detail: "A familiar activity keeps the effort low today.",
-    pillar: priorityPillar,
-    route: "/mind",
-    prompt: "Help me choose an easy Brain Coach round today.",
-    source: "fallback",
-  };
+  const actionFromContent = (pillar: PreventionPillar, content: DailyContentItem): CompanionAction => ({
+    action_key: actionKeyFor(pillar, content.title),
+    content_id: content.id,
+    title: content.title,
+    detail: content.description,
+    pillar,
+    route: pillar === "brain" ? "/mind" : pillar === "calm" ? "/games/breath-garden" : pillar === "strength" ? "/health/exercises/gentle-walk" : null,
+    prompt: `Help me with today's ${pillar} step: ${content.title}.`,
+    source: "daily_content",
+  });
+  const pillarActions = Object.fromEntries(PILLARS.map((pillar) => {
+    const content = PREVIEW_DAILY_CONTENT.byPillar?.[pillar.id]?.[0];
+    const fallbackTitle = plan.recommendations[pillar.id]?.[0]?.action ?? `Choose one ${pillar.shortLabel.toLowerCase()} step`;
+    const fallbackDetail = plan.recommendations[pillar.id]?.[0]?.why ?? "One small step is enough today.";
+    return [pillar.id, content
+      ? actionFromContent(pillar.id, content)
+      : {
+        action_key: actionKeyFor(pillar.id, fallbackTitle),
+        title: fallbackTitle,
+        detail: fallbackDetail,
+        pillar: pillar.id,
+        route: null,
+        prompt: `Help me with today's ${pillar.label} step: ${fallbackTitle}.`,
+        source: "fallback" as const,
+      }];
+  })) as Record<PreventionPillar, CompanionAction>;
+  const primaryAction = pillarActions[priorityPillar];
+  const supportAction = pillarActions.heart;
   const signalsUsed: CompanionSignal[] = [
     {
       id: "preview-brain",
@@ -317,10 +396,11 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): Com
     whyToday,
     primaryAction,
     supportAction,
+    pillarActions,
     careSummary: {
       title: `Longevity summary for ${firstName || "this user"}`,
-      bullets: [whyToday, `Next step: ${primaryAction.title}.`, `Support step: ${supportAction.title}.`, signalsUsed[0].detail],
-      share_text: [`Longevity summary for ${firstName || "this user"}`, "- " + whyToday, "- Next step: " + primaryAction.title].join("\n"),
+      bullets: [whyToday, ...PILLARS.map((pillar) => `${pillar.label}: ${pillarActions[pillar.id].title}.`), signalsUsed[0].detail],
+      share_text: [`Longevity summary for ${firstName || "this user"}`, "- " + whyToday, ...PILLARS.map((pillar) => `- ${pillar.label}: ${pillarActions[pillar.id].title}.`)].join("\n"),
     },
     signalsUsed,
     dailyContent: PREVIEW_DAILY_CONTENT,
@@ -347,6 +427,41 @@ function statusClass(tone: "success" | "steady" | "warning", isDark: boolean): s
   if (tone === "success") return isDark ? "bg-[#123D31] text-[#72E1B3]" : "bg-[#E4F7EF] text-[#0A7653]";
   if (tone === "warning") return isDark ? "bg-[#4A3618] text-[#FFC65A]" : "bg-[#FFF0D2] text-[#9A5A00]";
   return isDark ? "bg-white/[0.08] text-[#D9CFE3]" : "bg-[#F2EDF4] text-[#6E6175]";
+}
+
+function routeForPillarAction(pillar: PreventionPillar, title: string): string | null {
+  const text = title.toLowerCase();
+  if (pillar === "brain" || text.includes("brain coach")) return "/mind";
+  if (pillar === "calm" || text.includes("breath")) return "/games/breath-garden";
+  if (pillar === "strength" || text.includes("walk") || text.includes("chair")) return "/health/exercises/gentle-walk";
+  if (text.includes("medicine") || text.includes("medication")) return "/health/medications";
+  return null;
+}
+
+function fallbackActionForPillar(plan: PreventionPlanData, pillar: PreventionPillar): CompanionAction {
+  const recommendation = plan.recommendations[pillar]?.[0];
+  const pillarLabel = PILLARS.find((item) => item.id === pillar)?.shortLabel.toLowerCase() ?? "wellbeing";
+  const title = recommendation?.action ?? `Choose one ${pillarLabel} step`;
+  const detail = recommendation?.why ?? "One small step is enough today.";
+  return {
+    action_key: actionKeyFor(pillar, title),
+    title,
+    detail,
+    pillar,
+    route: routeForPillarAction(pillar, title),
+    prompt: `Help me with today's longevity step: ${title}.`,
+    source: "fallback",
+  };
+}
+
+function resolvePillarActions(companion: CompanionPayload, plan: PreventionPlanData): Record<PreventionPillar, CompanionAction> {
+  return Object.fromEntries(PILLARS.map((pillar) => [
+    pillar.id,
+    companion.pillarActions?.[pillar.id]
+      ?? (companion.primaryAction.pillar === pillar.id ? companion.primaryAction : null)
+      ?? (companion.supportAction.pillar === pillar.id ? companion.supportAction : null)
+      ?? fallbackActionForPillar(plan, pillar.id),
+  ])) as Record<PreventionPillar, CompanionAction>;
 }
 
 function briefText(value: string | null | undefined, maxChars = 96): string {
@@ -400,7 +515,7 @@ export default function PreventionPlan({
   const plan = companion?.plan;
   const [copied, setCopied] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
-  const [feedbackState, setFeedbackState] = useState<"done" | "too_hard" | "not_relevant" | null>(null);
+  const [feedbackState, setFeedbackState] = useState<Record<string, "done" | "too_hard" | "not_relevant">>({});
 
   if (!previewPlan && (query.isLoading || !userId)) return <PreventionPlanSkeleton isDark={isDark} />;
 
@@ -426,8 +541,8 @@ export default function PreventionPlan({
     else navigate("/chat?mode=voice&q=" + encodeURIComponent(action.prompt));
   };
 
-  const submitFeedback = async (eventType: "done" | "too_hard" | "not_relevant") => {
-    setFeedbackState(eventType);
+  const submitFeedback = async (action: CompanionAction, eventType: "done" | "too_hard" | "not_relevant") => {
+    setFeedbackState((current) => ({ ...current, [action.action_key]: eventType }));
     if (!userId) return;
     await apiFetch("/api/prevention/feedback", {
       method: "POST",
@@ -435,14 +550,15 @@ export default function PreventionPlan({
       body: JSON.stringify({
         userId,
         planId: plan.id,
-        pillar: companion.primaryAction.pillar,
-        actionKey: companion.primaryAction.action_key,
-        actionTitle: companion.primaryAction.title,
+        pillar: action.pillar,
+        actionKey: action.action_key,
+        actionTitle: action.title,
         eventType,
         sourceContext: {
           todayFocus: companion.todayFocus.label,
           whyToday: companion.whyToday,
-          actionSource: companion.primaryAction.source,
+          actionSource: action.source,
+          contentId: action.content_id ?? null,
         },
       }),
     }).catch((err) => console.warn("[prevention feedback]", err));
@@ -453,12 +569,15 @@ export default function PreventionPlan({
     : resolvePriorityDefinition(plan);
   const priorityPillarId = priorityDefinition?.id ?? null;
   const priorityLabel = companion.todayFocus.label || priorityDefinition?.label || plan.priority_pillar;
+  const pillarActions = resolvePillarActions(companion, plan);
+  const priorityAction = priorityPillarId ? pillarActions[priorityPillarId] : companion.primaryAction;
   const orderedPillars = priorityDefinition
     ? [priorityDefinition, ...PILLARS.filter((pillar) => pillar.id !== priorityDefinition.id)]
     : PILLARS;
+  const secondaryPillars = orderedPillars.filter((pillar) => pillar.id !== priorityPillarId);
   const heroHeadline = companion.todayFocus.headline || personalisedHeadline(firstName, plan.priority_intervention, priorityLabel);
   const seniorNarrative = companion.whyToday || personalisedNarrative(plan.plan_narrative_senior, firstName);
-  const vyvaPrompt = companion.primaryAction.prompt || "Explain my longevity plan and help me choose where to start";
+  const vyvaPrompt = priorityAction.prompt || "Explain my longevity plan and help me choose where to start";
   const careTeamSummary = companion.careSummary.share_text;
 
   const copyCareText = async () => {
@@ -493,11 +612,12 @@ export default function PreventionPlan({
     : "border-[#EEE8F1] bg-white shadow-[0_18px_42px_rgba(80,52,109,0.08)]";
   const mutedTextClass = isDark ? "text-[#D9CFE3]" : "text-[#766C80]";
   const dividerClass = isDark ? "border-white/[0.1]" : "border-[#EEE8F1]";
-  const feedbackLabel = feedbackState === "done"
+  const primaryFeedbackState = feedbackState[priorityAction.action_key] ?? null;
+  const feedbackLabel = primaryFeedbackState === "done"
     ? "Saved as done"
-    : feedbackState === "too_hard"
+    : primaryFeedbackState === "too_hard"
       ? "VYVA will make it smaller"
-      : feedbackState === "not_relevant"
+      : primaryFeedbackState === "not_relevant"
         ? "VYVA will avoid repeats"
         : null;
 
@@ -536,78 +656,75 @@ export default function PreventionPlan({
           <div className={["mt-3 rounded-[22px] border p-3", cardClass].join(" ")}>
             <button
               type="button"
-              onClick={() => openCompanionAction(companion.primaryAction)}
+              onClick={() => openCompanionAction(priorityAction)}
               className={["group grid min-h-[72px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[17px] px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "bg-white/[0.04] hover:bg-white/[0.07]" : "bg-[#FFFDF9] hover:bg-[#FAF7FC]"].join(" ")}
             >
               <span className={["grid h-11 w-11 shrink-0 place-items-center rounded-[15px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
                 <VyvaIcon icon={Sparkles} accent="spark" size={22} strokeWidth={2.4} tone="brand" />
               </span>
               <span className="min-w-0">
-                <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">Do this</span>
-                <span className="block font-display text-[17px] font-semibold leading-5">{companion.primaryAction.title}</span>
-                <span className={["mt-1 block font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(companion.primaryAction.detail, 110)}</span>
+                <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{priorityDefinition?.label ?? "Do this"}</span>
+                <span className="block font-display text-[17px] font-semibold leading-5">{priorityAction.title}</span>
+                <span className={["mt-1 block font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(priorityAction.detail, 110)}</span>
               </span>
               <VyvaIcon icon={ChevronRight} size={17} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
             </button>
 
             <div className={["mt-3 border-t pt-3", dividerClass].join(" ")}>
               <div className="grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => void submitFeedback("done")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", feedbackState === "done" ? "border-[#149A63] bg-[#E4F7EF] text-[#0A7653]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
+                <button type="button" onClick={() => void submitFeedback(priorityAction, "done")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", primaryFeedbackState === "done" ? "border-[#149A63] bg-[#E4F7EF] text-[#0A7653]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
                   <ThumbsUp size={15} />Done
                 </button>
-                <button type="button" onClick={() => void submitFeedback("too_hard")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", feedbackState === "too_hard" ? "border-[#F59E0B] bg-[#FAEEDA] text-[#854F0B]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
+                <button type="button" onClick={() => void submitFeedback(priorityAction, "too_hard")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", primaryFeedbackState === "too_hard" ? "border-[#F59E0B] bg-[#FAEEDA] text-[#854F0B]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
                   <Sparkles size={15} />Too hard
                 </button>
-                <button type="button" onClick={() => void submitFeedback("not_relevant")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", feedbackState === "not_relevant" ? "border-[#C15A2D] bg-[#FFF1E8] text-[#8A3C16]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
+                <button type="button" onClick={() => void submitFeedback(priorityAction, "not_relevant")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", primaryFeedbackState === "not_relevant" ? "border-[#C15A2D] bg-[#FFF1E8] text-[#8A3C16]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
                   <Ban size={15} />Not relevant
                 </button>
               </div>
               {feedbackLabel ? <p className="mt-2 text-center font-body text-[12px] font-black text-[#854F0B]">{feedbackLabel}</p> : null}
             </div>
 
-            <button
-              type="button"
-              onClick={() => openCompanionAction(companion.supportAction)}
-              className={["group mt-2 grid min-h-[62px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[17px] px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "hover:bg-white/[0.05]" : "hover:bg-[#FAF7FC]"].join(" ")}
-            >
-              <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#2E2541]" : "bg-[#F1E8FF]"].join(" ")}>
-                <VyvaIcon icon={Footprints} accent="step" size={20} strokeWidth={2.4} tone="brand" />
-              </span>
-              <span className="min-w-0">
-                <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">Make it easier</span>
-                <span className="block font-display text-[16px] font-semibold leading-5">{companion.supportAction.title}</span>
-                <span className={["mt-1 block font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(companion.supportAction.detail, 105)}</span>
-              </span>
-              <VyvaIcon icon={ChevronRight} size={17} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
-            </button>
-          </div>
-        </section>
-
-        <section className="mt-6" aria-labelledby="five-pillars-heading">
-          <h2 id="five-pillars-heading" className="font-display text-[24px] font-semibold">Pillars</h2>
-
-          <div className="mt-3 grid grid-cols-1 gap-3">
-            {orderedPillars.map((pillar) => {
-              const status = pillarStatus(plan, pillar.id);
-              const isPriority = priorityPillarId === pillar.id;
-              const statusDisplay = isPriority ? { label: "This month", tone: "warning" as const } : STATUS[status];
-              const Icon = pillar.icon;
-              return (
-                <article
-                  key={pillar.id}
-                  className={["relative rounded-[22px] border p-4", cardClass, isPriority && isDark ? "border-[#D89225]/70" : "", isPriority && !isDark ? "border-[#E7B553]" : ""].join(" ")}
-                  style={isPriority ? { borderLeft: "4px solid #F59E0B" } : undefined}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className={["grid h-11 w-11 shrink-0 place-items-center rounded-[15px]", isDark ? "bg-[#3C2956]" : "bg-[#F1E8FF]"].join(" ")}><VyvaIcon icon={Icon} accent={pillar.accent} size={23} strokeWidth={2.4} tone="brand" /></span>
-                      <h3 className="truncate font-display text-[19px] font-semibold">{pillar.label}</h3>
-                    </div>
-                    <span className={["shrink-0 rounded-full px-3 py-1.5 font-body text-[12px] font-black", isPriority ? "bg-[#FAEEDA] text-[#854F0B]" : statusClass(statusDisplay.tone, isDark)].join(" ")}>{statusDisplay.label}</span>
-                  </div>
-                </article>
-              );
-            })}
+            <div className={["mt-3 space-y-2 border-t pt-3", dividerClass].join(" ")}>
+              {secondaryPillars.map((pillar) => {
+                const action = pillarActions[pillar.id];
+                const done = feedbackState[action.action_key] === "done";
+                const status = pillarStatus(plan, pillar.id);
+                const statusDisplay = STATUS[status];
+                const reason = briefText(action.detail, 92);
+                const Icon = pillar.icon;
+                return (
+                  <article
+                    key={pillar.id}
+                    className={["grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[17px] border px-2 py-2", isDark ? "border-white/[0.1] bg-white/[0.03]" : "border-[#EEE4D2] bg-[#FFFDF9]"].join(" ")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openCompanionAction(action)}
+                      className="group grid min-h-[62px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] px-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]"
+                    >
+                      <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#2E2541]" : "bg-[#F8F0FF]"].join(" ")}>
+                        <VyvaIcon icon={Icon} accent={pillar.accent} size={20} strokeWidth={2.4} tone="brand" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className={["font-body text-[10px] font-black uppercase tracking-[0.08em]", statusDisplay.tone === "success" ? "text-[#0A7653]" : statusDisplay.tone === "warning" ? "text-[#854F0B]" : isDark ? "text-[#D9CFE3]" : "text-[#766C80]"].join(" ")}>{pillar.shortLabel}</span>
+                        <span className="block truncate font-display text-[15px] font-semibold leading-5">{action.title}</span>
+                        {reason ? <span className={["mt-0.5 block truncate font-body text-[12px] font-semibold leading-5", mutedTextClass].join(" ")}>{reason}</span> : null}
+                      </span>
+                      <VyvaIcon icon={ChevronRight} size={16} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void submitFeedback(action, "done")}
+                      aria-label={`Mark ${pillar.shortLabel} done`}
+                      className={["flex h-9 min-h-9 shrink-0 items-center justify-center gap-1 rounded-full border px-3 font-body text-[12px] font-black", done ? "border-[#149A63] bg-[#E4F7EF] text-[#0A7653]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}
+                    >
+                      <ThumbsUp size={13} />Done
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -644,7 +761,7 @@ export default function PreventionPlan({
                   <li key={item} className={["flex min-h-[46px] items-start gap-3 py-2 font-body text-[14px] font-bold leading-6", mutedTextClass].join(" ")}><span aria-hidden="true" className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#F8AE1B]" /><span>{item}</span></li>
                 ))}
               </ul>
-              {priorityLabel ? <div className={["mt-5 rounded-[18px] border px-4 py-4", isDark ? "border-[#6D4A1A] bg-[#3D2C16]" : "border-[#F2D08E] bg-[#FFF5E1]"].join(" ")}><p className={["font-body text-[16px] font-black", isDark ? "text-[#FFE0A3]" : "text-[#6D4105]"].join(" ")}>Focus: {priorityLabel}</p><p className={["mt-2 font-body text-[14px] font-bold leading-6", isDark ? "text-[#E8C88D]" : "text-[#76521E]"].join(" ")}>{companion.primaryAction.title}</p></div> : null}
+              {priorityLabel ? <div className={["mt-5 rounded-[18px] border px-4 py-4", isDark ? "border-[#6D4A1A] bg-[#3D2C16]" : "border-[#F2D08E] bg-[#FFF5E1]"].join(" ")}><p className={["font-body text-[16px] font-black", isDark ? "text-[#FFE0A3]" : "text-[#6D4105]"].join(" ")}>Focus: {priorityLabel}</p><p className={["mt-2 font-body text-[14px] font-bold leading-6", isDark ? "text-[#E8C88D]" : "text-[#76521E]"].join(" ")}>{priorityAction.title}</p></div> : null}
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button type="button" onClick={() => void copyCareText()} disabled={!careTeamSummary} className={["flex min-h-[56px] items-center justify-center gap-3 rounded-[18px] border-2 px-5 font-body text-[15px] font-black disabled:opacity-40", isDark ? "border-[#9D4FE0] text-[#DAB6FF]" : "border-[#7C3AED] text-[#6B21A8]"].join(" ")}>
                   {copied ? <VyvaIcon icon={Check} size={21} tone={isDark ? "inverse" : "brand"} /> : <VyvaIcon icon={Clipboard} accent="bookmark" size={21} tone={isDark ? "inverse" : "brand"} />}{copied ? "Copied" : "Copy summary"}
