@@ -42,6 +42,8 @@ import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import type { SymptomAssessmentShellContract } from "@/design/screenPresentation";
+import { useLanguage } from "@/i18n";
+import { CanonicalDetailFlowShell } from "@/components/CanonicalDetailFlowShell";
 
 type RowTone = "health" | "brain" | "community" | "concierge" | "reports" | "profile" | "neutral";
 type OrbState = "idle" | "listening" | "responding";
@@ -416,36 +418,19 @@ export function PrototypeSymptomAssessmentShell({
   shellContract: SymptomAssessmentShellContract;
   inlineVoiceControl?: boolean;
 }) {
-  const { isDark } = useHomeMasterTheme();
-  const usesVoiceTouchHeader = shellContract.headerId === "detail.voice-touch";
-
+  const { t } = useLanguage();
   return (
-    <PrototypeShell
-      testId="prototype-symptom-assessment-screen"
-      width="hub"
-      dockPadding={shellContract.bottomNavId === "home-sos-reports"}
-      contained
-      shellContract={shellContract}
+    <CanonicalDetailFlowShell
+      shellTestId="prototype-symptom-assessment-screen"
+      contentTestId="prototype-symptom-assessment-content"
+      shellContract={{ ...shellContract, headerTitle: t("health.symptomCheck.title", shellContract.headerTitle) }}
+      interactionMode={interactionMode}
+      onInteractionModeChange={onInteractionModeChange}
+      inlineVoiceControl={inlineVoiceControl}
+      onBack={onBack}
     >
-      <div
-        className={[
-          "sticky top-0 z-40 -mx-3 px-3 backdrop-blur-xl",
-          isDark ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
-        ].join(" ")}
-      >
-        <PrototypeTopbar
-          kind="detail"
-          title={shellContract.headerTitle}
-          compactVoice={usesVoiceTouchHeader && !inlineVoiceControl}
-          interactionMode={interactionMode}
-          onInteractionModeChange={onInteractionModeChange}
-          onBack={onBack}
-        />
-      </div>
-      <div className="mt-5 flex min-h-0 flex-1 flex-col sm:mt-7 [@media(max-height:800px)]:mt-3" data-testid="prototype-symptom-assessment-content">
-        {children}
-      </div>
-    </PrototypeShell>
+      {children}
+    </CanonicalDetailFlowShell>
   );
 }
 
@@ -893,16 +878,17 @@ export function PrototypeHealthScreen({
   backPath?: string;
   contained?: boolean;
 }) {
+  const { t } = useLanguage();
   const healthRows: RowItem[] = [
-    { icon: Stethoscope, brandIcon: "doctor", title: "Ask Dr. AI", subtitle: "Aches or changes", meta: "Start", tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
-    { icon: ShieldCheck, brandIcon: "longevity", title: "Longevity", subtitle: "Prevention is the best cure", meta: "Today", tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
-    { icon: HeartPulse, brandIcon: "vitals", title: "My Vitals", subtitle: "Readings and trends", meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
-    { icon: Pill, brandIcon: "medication", title: "Medication", subtitle: "Doses and reminders", meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
+    { icon: Stethoscope, brandIcon: "doctor", title: t("healthHub.askTitle", "Ask Dr. AI"), subtitle: t("healthHub.askSubtitle", "Aches or changes"), meta: t("healthHub.start", "Start"), tone: "health", path: askDrAiPath, testId: "button-health-symptom-report", emphasis: "alert", solidSurface: true, compactTitle: true },
+    { icon: ShieldCheck, brandIcon: "longevity", title: t("healthHub.longevityTitle", "Longevity"), subtitle: t("healthHub.longevitySubtitle", "Prevention is the best cure"), meta: t("healthHub.today", "Today"), tone: "brain", path: healthPlanPath, testId: "button-health-plan", solidSurface: true },
+    { icon: HeartPulse, brandIcon: "vitals", title: t("healthHub.vitalsTitle", "My Vitals"), subtitle: t("healthHub.vitalsSubtitle", "Readings and trends"), meta: "72 bpm", tone: "community", path: vitalsPath, testId: "button-health-vitals", solidSurface: true },
+    { icon: Pill, brandIcon: "medication", title: t("healthHub.medicationTitle", "Medication"), subtitle: t("healthHub.medicationSubtitle", "Doses and reminders"), meta: "2:00 PM", tone: "profile", path: medicinesPath, testId: "button-health-medicines", solidSurface: true },
   ];
 
   return (
     <PrototypeShell testId="prototype-health-screen" width="hub" contained={contained}>
-      <PrototypeTopbar kind="hub" title="My Health" backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
+      <PrototypeTopbar kind="hub" title={t("healthHub.title", "My Health")} backPath={backPath} profilePath={profilePath} voicePath={voicePath} compactVoice />
       <HealthHubActionGrid items={healthRows} />
     </PrototypeShell>
   );

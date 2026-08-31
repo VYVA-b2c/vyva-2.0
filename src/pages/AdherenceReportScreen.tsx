@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, BarChart2, Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn, ShoppingCart, PhoneCall, Mail, Stethoscope, Calendar, Car, type LucideIcon } from "lucide-react";
+import { Copy, AlertCircle, RefreshCw, ClipboardCheck, Flame, ShieldCheck, TriangleAlert, Sparkles, Clock3, Target, LockKeyhole, LogIn, ShoppingCart, PhoneCall, Mail, Stethoscope, Calendar, Car, ChevronRight, type LucideIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
@@ -11,6 +11,7 @@ import { PrescriptionFollowUpVoiceCanvas, RefillVoiceCanvas, executePrescription
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { CanonicalDetailFlowShell, CanonicalFlowIcon, CanonicalVoiceButton } from "@/components/CanonicalDetailFlowShell";
 import {
   medicationDoctorMailto,
   medicationListSummary,
@@ -36,7 +37,17 @@ type AdherenceReport = {
   monthPct: number;
   perMedication: MedAdherence[];
   sevenDayDates: string[];
+  period?: {
+    key: AdherencePeriod;
+    startDate: string;
+    endDate: string;
+    days: number;
+  };
+  periodPct?: number;
+  rangeDates?: string[];
 };
+
+type AdherencePeriod = "weekly" | "monthly" | "quarterly" | "custom";
 
 type AdherenceServiceAction = {
   id: "refill" | "call-gp" | "email-gp" | "doctor-help" | "appointment" | "ride";
@@ -139,8 +150,36 @@ const AdherenceReportScreen = () => {
   const { toast } = useToast();
   const { profile } = useProfile();
 
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
+
   const { data, isLoading, isError, refetch, error } = useQuery<AdherenceReport, ApiError>({
     queryKey: ["/api/meds/adherence-report"],
+  });
+  const [progressPeriod, setProgressPeriod] = useState<AdherencePeriod>("weekly");
+  const todayDateKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [customEndDate, setCustomEndDate] = useState(todayDateKey);
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const start = new Date();
+    start.setDate(start.getDate() - 29);
+    return start.toISOString().slice(0, 10);
+  });
+  const progressQuery = useQuery<AdherenceReport, ApiError>({
+    queryKey: ["/api/meds/adherence-report", "progress", progressPeriod, customStartDate, customEndDate],
+    enabled: progressPeriod !== "weekly",
+    queryFn: async () => {
+      const params = new URLSearchParams({ period: progressPeriod });
+      if (progressPeriod === "custom") {
+        params.set("start", customStartDate);
+        params.set("end", customEndDate);
+      }
+      const response = await apiFetch(`/api/meds/adherence-report?${params.toString()}`);
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new ApiError(response.status, response.statusText, body);
+      return body as AdherenceReport;
+    },
   });
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
     domain: "meds",
@@ -156,9 +195,9 @@ const AdherenceReportScreen = () => {
   const prescriptionFollowUpRolloutQuery=useQuery({queryKey:["/api/config/features/prescription-follow-up-voice-canvas"],queryFn:async()=>{const response=await apiFetch("/api/config/features/prescription-follow-up-voice-canvas");return response.ok?parsePrescriptionFollowUpRolloutConfig(await response.json()):{enabled:false,rolloutPercent:0}},staleTime:0,refetchInterval:10_000,refetchOnWindowFocus:"always",retry:false});
   const prescriptionFollowUpEnabled=isPrescriptionFollowUpEnabled(prescriptionFollowUpRolloutQuery.data,profile?.profileId??"anonymous");
   useEffect(()=>{if(!refillCanvasEnabled)setRefillCanvasOpen(false)},[refillCanvasEnabled]);
-  useEffect(()=>{if(refillCanvasEnabled&&shouldResumeRefillCanvas&&!refillCanvasDismissed)setRefillCanvasOpen(true)},[refillCanvasEnabled,refillCanvasDismissed,shouldResumeRefillCanvas]);
+  useEffect(()=>{if(shouldResumeRefillCanvas)navigate("/meds/refills",{replace:true})},[navigate,shouldResumeRefillCanvas]);
   useEffect(()=>{if(!prescriptionFollowUpEnabled)setPrescriptionFollowUpSource(null)},[prescriptionFollowUpEnabled]);
-  useEffect(()=>{if(voiceAction?.actionType==="meds.refill_request"&&refillCanvasEnabled&&!refillCanvasDismissed)setRefillCanvasOpen(true)},[voiceAction?.actionType,refillCanvasEnabled,refillCanvasDismissed]);
+  useEffect(()=>{if(voiceAction?.actionType==="meds.refill_request")navigate("/meds/refills",{replace:true})},[navigate,voiceAction?.actionType]);
 
   const rawDayLabels = t("meds.adherence.dayLabels", { returnObjects: true });
   const dayLabels: string[] = Array.isArray(rawDayLabels)
@@ -220,6 +259,31 @@ const AdherenceReportScreen = () => {
     if (aMissed !== bMissed) return bMissed - aMissed;
     return a.name.localeCompare(b.name);
   });
+  const progressData = progressPeriod === "weekly" ? data : progressQuery.data ?? data;
+  const progressMedications = progressData?.perMedication ?? [];
+  const sortedProgressMedications = [...progressMedications].sort((a, b) => {
+    const aMissed = a.dailyStatus.filter((status) => status === "missed").length;
+    const bMissed = b.dailyStatus.filter((status) => status === "missed").length;
+    if (aMissed !== bMissed) return bMissed - aMissed;
+    return a.name.localeCompare(b.name);
+  });
+  const progressPeriodOptions: Array<{ value: AdherencePeriod; label: string }> = [
+    { value: "weekly", label: "Weekly" },
+    { value: "monthly", label: "Monthly" },
+    { value: "quarterly", label: "Quarterly" },
+    { value: "custom", label: "Custom" },
+  ];
+  const progressPeriodLabel =
+    progressPeriod === "weekly"
+      ? "Last 7 days"
+      : progressPeriod === "monthly"
+        ? "Last 30 days"
+        : progressPeriod === "quarterly"
+          ? "Last 90 days"
+          : `${customStartDate} to ${customEndDate}`;
+  const selectedPeriodPct = progressData?.periodPct ?? (
+    progressPeriod === "monthly" ? progressData?.monthPct : progressData?.weekPct
+  ) ?? 0;
   const voiceActionHighlights = [
     ...(focusedMedicationName
       ? [{ label: "Medication", value: focusedMedicationName, tone: focusedMedication ? "good" as const : "warning" as const }]
@@ -360,11 +424,11 @@ const AdherenceReportScreen = () => {
     {
       id: "refill",
       icon: ShoppingCart,
-      label: t("meds.adherenceService.refill", "Prepare refill"),
-      sub: t("meds.adherenceService.refillSub", "Find pharmacy or delivery options. You confirm before anything is ordered."),
+      label: t("meds.adherenceService.refill", "Check refill need"),
+      sub: t("meds.adherenceService.refillSub", "See estimated supply or update the quantity you have."),
       color: "#C9890A",
       bg: "#FEF3C7",
-      onClick: () => {if(refillCanvasEnabled){setRefillCanvasDismissed(false);setRefillCanvasOpen(true);return}navigate("/concierge/shopping",{state:medicationRefillShoppingState(medicationSummary,language)})},
+      onClick: () => navigate("/meds/refills"),
     },
     ...(gpPhoneHref
       ? [{
@@ -523,36 +587,37 @@ const AdherenceReportScreen = () => {
   const ErrorIcon = isAuthError ? LockKeyhole : AlertCircle;
 
   return (
-    <div className="min-h-screen" style={{ background: "#FAF8F5" }}>
-      <div className="px-[22px] pt-[20px] pb-8">
-        <button
-          data-testid="button-back-to-meds"
-          onClick={() => navigate("/meds")}
-          className="flex items-center gap-2 mb-5 font-body text-[15px] font-medium min-h-[44px] -ml-1 px-1"
-          style={{ color: "#6B21A8" }}
-        >
-          <ArrowLeft size={20} />
-          {t("meds.adherence.backToMeds")}
-        </button>
-
-        <div className="flex items-center gap-3 mb-[18px]">
-          <div
-            className="w-11 h-11 rounded-[14px] flex items-center justify-center flex-shrink-0"
-            style={{ background: "#EDE9FE" }}
-          >
-            <BarChart2 size={22} style={{ color: "#6B21A8" }} />
-          </div>
-          <h1 className="font-body text-[22px] font-bold text-vyva-text-1 leading-tight">
-            {t("meds.adherence.title")}
-          </h1>
-        </div>
+    <CanonicalDetailFlowShell
+      shellContract={{
+        shellId: "home.production",
+        headerId: "detail.voice-touch",
+        headerTitle: t("meds.primary.adherence", "History & progress"),
+        containerId: "flow.rounded-card",
+        bottomNavId: "home-sos-reports",
+        composer: "hidden",
+      }}
+      onBack={() => navigate("/meds")}
+      backTestId="button-back-to-meds"
+      shellTestId="meds-adherence-canonical-screen"
+      contentTestId="meds-adherence-canonical-content"
+      headerAction={(
+        <CanonicalVoiceButton
+          label={t("meds.master.heroAction", "Talk to VYVA")}
+          contextHint={t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor.")}
+          agentSlug="medication"
+          dynamicVariables={{ app_entrypoint: "medication_adherence_header" }}
+          testId="button-adherence-header-voice"
+        />
+      )}
+    >
+      <div className="mx-auto w-full max-w-[760px] px-4 py-3 sm:px-5 lg:px-0">
 
         <VoiceActionFulfillmentPanel
           domain="meds"
           actionTypes={["meds.inventory_report", "meds.refill_request"]}
           title={voiceAction?.actionType === "meds.refill_request" ? "Refill context ready" : "Medication report ready"}
           description={voiceAction?.actionType === "meds.refill_request"
-            ? "VYVA can review stock and adherence before preparing refill help. You confirm before anyone is contacted."
+            ? "VYVA can estimate remaining supply and help you update stock. It never orders or contacts anyone."
             : "VYVA can use adherence, missed doses, streaks, and today's remaining items from this report."}
           highlights={voiceActionHighlights}
           className="mb-[14px]"
@@ -565,9 +630,7 @@ const AdherenceReportScreen = () => {
             data-testid="panel-voice-medication-inventory"
           >
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0A7C4E]">
-                <ClipboardCheck size={20} />
-              </div>
+              <CanonicalFlowIcon icon={ClipboardCheck} tone="green" goldAccent="check" />
               <div className="min-w-0 flex-1">
                 <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#0A7C4E]">
                   Inventory and adherence focus
@@ -644,7 +707,7 @@ const AdherenceReportScreen = () => {
 
         {isError && (
           <div className="bg-white rounded-[20px] border border-vyva-border flex flex-col items-center gap-4 px-[24px] py-[40px] text-center" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-            <ErrorIcon size={40} style={{ color: isAuthError ? "#6B21A8" : "#DC2626" }} />
+            <CanonicalFlowIcon icon={ErrorIcon} tone={isAuthError ? "purple" : "red"} goldAccent="status" />
             <p className="font-body text-[17px] font-semibold text-vyva-text-1">
               {isAuthError ? t("meds.adherence.authTitle") : t("meds.adherence.errorTitle")}
             </p>
@@ -671,7 +734,7 @@ const AdherenceReportScreen = () => {
 
         {!isLoading && !isError && !hasData && (
           <div className="bg-white rounded-[20px] border border-vyva-border flex flex-col items-center gap-4 px-[24px] py-[48px] text-center" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-            <ClipboardCheck size={44} style={{ color: "#A78BFA" }} />
+            <CanonicalFlowIcon icon={ClipboardCheck} goldAccent="check" />
             <p className="font-body text-[19px] font-bold text-vyva-text-1">{t("meds.adherence.noDataTitle")}</p>
             <p className="font-body text-[15px] text-vyva-text-2 max-w-[280px]">{t("meds.adherence.noDataSub")}</p>
           </div>
@@ -679,87 +742,96 @@ const AdherenceReportScreen = () => {
 
         {!isLoading && !isError && hasData && data && (
           <>
-            <div
-              className="bg-white rounded-[24px] border border-vyva-border overflow-hidden mb-[14px]"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+            <section
+              className="mb-4 overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_14px_34px_rgba(63,45,35,0.08)]"
+              data-testid="card-adherence-do-now"
+              data-accent-contract="ask-dr-ai-surface"
             >
-              <div className="px-[18px] py-[16px] bg-[linear-gradient(135deg,#F8F4EC_0%,#FFFFFF_100%)] border-b border-vyva-border">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-11 h-11 rounded-[14px] flex items-center justify-center flex-shrink-0"
-                    style={{ background: summaryTone.iconBg }}
+              <div className="border-b border-[#EFE5DA] bg-[#FFFCF8] p-3 sm:p-4">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#854F0B]">
+                  {t("meds.adherence.overviewTitle")}
+                </p>
+                <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-start gap-3">
+                      <CanonicalFlowIcon
+                        icon={SummaryIcon}
+                        tone={medicationsNeedingAttention.length === 0 ? "green" : medicationsNeedingAttention.length <= 2 ? "amber" : "red"}
+                        goldAccent={medicationsNeedingAttention.length === 0 ? "check" : "status"}
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[24px]">
+                          {summaryTone.title}
+                        </span>
+                        <span className="mt-1.5 block font-body text-[14px] font-bold leading-snug text-vyva-text-2 sm:mt-2 sm:text-[15px] sm:leading-relaxed">
+                          {summaryTone.subtitle}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/meds")}
+                    data-testid="button-adherence-return-today"
+                    className="vyva-tap inline-flex min-h-[50px] flex-shrink-0 items-center justify-center gap-2 rounded-[16px] bg-vyva-purple px-4 text-center font-body text-[15px] font-black leading-tight text-white shadow-[0_10px_22px_rgba(112,36,196,0.18)] sm:min-h-[54px] sm:rounded-[18px] sm:text-[16px]"
                   >
-                    <SummaryIcon size={22} style={{ color: summaryTone.iconColor }} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2 mb-1">
-                      {t("meds.adherence.overviewTitle")}
-                    </p>
-                    <p className="font-body text-[20px] font-bold text-vyva-text-1 leading-tight">
-                      {summaryTone.title}
-                    </p>
-                    <p className="font-body text-[14px] text-vyva-text-2 mt-1">
-                      {summaryTone.subtitle}
-                    </p>
-                  </div>
+                    <Clock3 size={18} strokeWidth={2.35} aria-hidden="true" />
+                    {todayStillDueCount > 0
+                      ? t("meds.adherenceService.reviewToday", "Review today's medicine")
+                      : t("meds.adherenceService.backToMedicines", "Back to medicines")}
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 px-[18px] py-[16px]">
-                <div className="rounded-[18px] px-3 py-3" style={{ background: miniStatTone(onTrackCount).bg }}>
-                  <p className="font-body text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: miniStatTone(onTrackCount).color }}>
-                    {t("meds.adherence.statOnTrack")}
-                  </p>
-                  <p className="font-body text-[24px] font-bold mt-1" style={{ color: miniStatTone(onTrackCount).color }}>
-                    {onTrackCount}
-                  </p>
-                </div>
-                <div className="rounded-[18px] px-3 py-3" style={{ background: miniStatTone(medicationsNeedingAttention.length, false).bg }}>
-                  <p className="font-body text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: miniStatTone(medicationsNeedingAttention.length, false).color }}>
-                    {t("meds.adherence.statNeedsAttention")}
-                  </p>
-                  <p className="font-body text-[24px] font-bold mt-1" style={{ color: miniStatTone(medicationsNeedingAttention.length, false).color }}>
-                    {medicationsNeedingAttention.length}
-                  </p>
-                </div>
-                <div className="rounded-[18px] px-3 py-3" style={{ background: "#F5F3FF" }}>
-                  <p className="font-body text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: "#6B21A8" }}>
-                    {t("meds.adherence.statBestStreak")}
-                  </p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Flame size={16} style={{ color: "#6B21A8" }} />
-                    <p className="font-body text-[24px] font-bold" style={{ color: "#6B21A8" }}>
-                      {bestStreak}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-[18px] pb-[16px]">
-                <div className="rounded-[18px] border border-vyva-border bg-[#FCFBF8] px-4 py-4">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2">
-                        {t("meds.adherence.todayTitle")}
-                      </p>
-                      <p className="font-body text-[15px] text-vyva-text-1 mt-1">
+              <details className="group border-t border-[#EFE5DA] bg-white" data-testid="adherence-overview-details">
+                <summary className="vyva-tap flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 sm:px-4">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <CanonicalFlowIcon icon={Target} size="compact" goldAccent="target" />
+                    <span className="min-w-0">
+                      <span className="block font-body text-[15px] font-black text-vyva-text-1">
+                        {t("meds.adherence.overviewDetails", "This week's progress")}
+                      </span>
+                      <span className="mt-0.5 block font-body text-[12px] font-bold text-vyva-text-3">
                         {todayStillDueCount > 0
                           ? t("meds.adherence.todayNeedsAttention", { count: todayStillDueCount })
                           : t("meds.adherence.todayAllCovered")}
+                      </span>
+                    </span>
+                  </span>
+                  <ChevronRight className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" size={18} strokeWidth={2.35} aria-hidden="true" />
+                </summary>
+                <div className="grid gap-3 border-t border-[#EFE5DA] p-3 sm:p-4">
+                  <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-[18px] px-3 py-3" style={{ background: miniStatTone(onTrackCount).bg }}>
+                    <p className="font-body text-[10px] font-semibold uppercase tracking-[0.06em]" style={{ color: miniStatTone(onTrackCount).color }}>
+                      {t("meds.adherence.statOnTrack")}
+                    </p>
+                    <p className="mt-1 font-body text-[22px] font-bold" style={{ color: miniStatTone(onTrackCount).color }}>
+                      {onTrackCount}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] px-3 py-3" style={{ background: miniStatTone(medicationsNeedingAttention.length, false).bg }}>
+                    <p className="font-body text-[10px] font-semibold uppercase tracking-[0.06em]" style={{ color: miniStatTone(medicationsNeedingAttention.length, false).color }}>
+                      {t("meds.adherence.statNeedsAttention")}
+                    </p>
+                    <p className="mt-1 font-body text-[22px] font-bold" style={{ color: miniStatTone(medicationsNeedingAttention.length, false).color }}>
+                      {medicationsNeedingAttention.length}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] px-3 py-3" style={{ background: "#F5F3FF" }}>
+                    <p className="font-body text-[10px] font-semibold uppercase tracking-[0.06em]" style={{ color: "#6B21A8" }}>
+                      {t("meds.adherence.statBestStreak")}
+                    </p>
+                    <div className="mt-1 flex items-center gap-1">
+                      <Flame size={15} style={{ color: "#6B21A8" }} />
+                      <p className="font-body text-[22px] font-bold" style={{ color: "#6B21A8" }}>
+                        {bestStreak}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full px-3 py-1 text-[12px] font-medium" style={{ background: "#ECFDF5", color: "#0A7C4E" }}>
-                        {t("meds.adherence.todayDone", { count: todayCompletedCount })}
-                      </span>
-                      <span className="rounded-full px-3 py-1 text-[12px] font-medium" style={{ background: todayStillDueCount > 0 ? "#FEF3C7" : "#F3F4F6", color: todayStillDueCount > 0 ? "#C9890A" : "#6B7280" }}>
-                        {t("meds.adherence.todayLeft", { count: todayStillDueCount })}
-                      </span>
-                    </div>
                   </div>
-
+                  </div>
                   {attentionNames.length > 0 && (
-                    <div className="mt-3 border-t border-vyva-border pt-3">
+                    <div className="rounded-[16px] border border-[#F1E8DE] bg-[#FFFCF8] p-3 sm:rounded-[20px]">
                       <p className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2 mb-1">
                         {t("meds.adherence.attentionTitle")}
                       </p>
@@ -769,45 +841,38 @@ const AdherenceReportScreen = () => {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
+              </details>
+            </section>
 
             <section
-              className="mb-[14px] rounded-[24px] border border-vyva-border bg-white p-[18px]"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+              className="mb-4 rounded-[22px] border border-[#E8DED4] bg-white p-3 shadow-[0_8px_22px_rgba(63,45,35,0.05)]"
               data-testid="panel-adherence-service-actions"
             >
-              <div className="mb-4 flex items-start gap-3">
-                <div
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px]"
-                  style={{ background: "#EDE9FE", color: "#6B21A8" }}
-                >
-                  <Sparkles size={21} />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
-                    {t("meds.adherenceService.kicker", "Fast help")}
-                  </p>
-                  <h2 className="font-body text-[20px] font-bold leading-tight text-vyva-text-1">
-                    {t("meds.adherenceService.title", "Medication help in one tap")}
-                  </h2>
-                  <p className="mt-1 font-body text-[14px] leading-snug text-vyva-text-2">
-                    {t("meds.adherenceService.subtitle", "Refills, doctor contact, and appointment help are ready from this report.")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <details
+                className="group"
+                data-testid="adherence-more-help"
+                open={shouldResumeRefillCanvas && !refillCanvasEnabled}
+              >
+                <summary className="vyva-tap flex cursor-pointer list-none items-center justify-between gap-3 font-body text-vyva-text-1">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <CanonicalFlowIcon icon={Sparkles} goldAccent="spark" />
+                    <span className="min-w-0">
+                      <span className="block text-[16px] font-black leading-tight">
+                        {t("meds.adherenceService.moreHelpTitle", "More medication help")}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[12px] font-bold text-vyva-text-3">
+                        {t("meds.adherenceService.moreHelp", "Refills, doctor contact, and appointment help")}
+                      </span>
+                    </span>
+                  </span>
+                  <ChevronRight className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" size={18} strokeWidth={2.35} aria-hidden="true" />
+                </summary>
+                <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[#EADFD5] pt-3">
                 {serviceActions.map((action) => {
                   const ActionIcon = action.icon;
                   const content = (
                     <>
-                      <span
-                        className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px]"
-                        style={{ background: action.bg, color: action.color }}
-                      >
-                        <ActionIcon size={22} />
-                      </span>
+                      <CanonicalFlowIcon icon={ActionIcon} goldAccent="spark" />
                       <span className="min-w-0 flex-1 text-left">
                         <span className="block font-body text-[15px] font-bold leading-tight text-vyva-text-1">
                           {action.label}
@@ -819,7 +884,7 @@ const AdherenceReportScreen = () => {
                     </>
                   );
 
-                  const className = "vyva-tap flex min-h-[86px] w-full items-center gap-3 rounded-[20px] border border-vyva-border bg-[#FCFBF8] px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(63,45,35,0.10)]";
+                  const className = "vyva-tap flex min-h-[64px] w-full items-center gap-3 rounded-[16px] border border-[#F1E8DE] bg-[#FFFCF8] px-3 py-2.5 text-left transition hover:border-[#B99BCE] hover:bg-white";
                   if (action.href) {
                     return (
                       <a
@@ -844,45 +909,117 @@ const AdherenceReportScreen = () => {
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              </details>
             </section>
 
-            <div
-              className="bg-white rounded-[20px] border border-vyva-border overflow-hidden mb-[14px]"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
-            >
-              <div className="px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
-                <span className="font-body text-[14px] font-medium text-vyva-text-1">{t("meds.adherence.overallStats")}</span>
+            <section className="mb-4 rounded-[22px] border border-[#E8DED4] bg-white p-3 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="adherence-weekly-details">
+              <div className="flex items-center gap-3 font-body text-vyva-text-1">
+                <span className="flex min-w-0 items-center gap-3">
+                  <CanonicalFlowIcon icon={ClipboardCheck} goldAccent="check" />
+                  <span className="min-w-0">
+                    <span className="block text-[16px] font-black leading-tight">
+                      {t("meds.adherence.progressDetails", "Progress and medicine details")}
+                    </span>
+                    <span className="mt-0.5 block text-[12px] font-bold text-vyva-text-3">
+                      {progressPeriodLabel}
+                    </span>
+                  </span>
+                </span>
               </div>
-              <div className="flex justify-around px-[18px] py-[24px]">
-                <PctRing pct={data.weekPct} label={t("meds.adherence.thisWeek")} />
-                <PctRing pct={data.monthPct} label={t("meds.adherence.last30Days")} />
+              <div
+                className="mt-3 grid grid-cols-2 gap-2 border-t border-[#EADFD5] pt-3 sm:grid-cols-4"
+                role="group"
+                aria-label="Progress period"
+                data-testid="adherence-period-filter"
+              >
+                {progressPeriodOptions.map((option) => {
+                  const selected = progressPeriod === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setProgressPeriod(option.value)}
+                      className={`vyva-tap min-h-[44px] rounded-[14px] border px-3 font-body text-[13px] font-black transition ${
+                        selected
+                          ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_7px_16px_rgba(107,33,168,0.16)]"
+                          : "border-[#DED2E7] bg-[#FBF8FD] text-vyva-purple hover:border-[#B99BCE] hover:bg-white"
+                      }`}
+                      data-testid={`button-adherence-period-${option.value}`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {progressPeriod === "custom" && (
+                <div className="mt-3 grid grid-cols-1 gap-3 rounded-[16px] border border-[#E8DED4] bg-[#FFFCF8] p-3 sm:grid-cols-2" data-testid="adherence-custom-range">
+                  <label className="font-body text-[12px] font-bold uppercase tracking-[0.06em] text-vyva-text-2">
+                    Start date
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      max={customEndDate}
+                      onChange={(event) => setCustomStartDate(event.target.value)}
+                      className="mt-1.5 min-h-[44px] w-full rounded-[12px] border border-[#DED2E7] bg-white px-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-violet-100"
+                      data-testid="input-adherence-custom-start"
+                    />
+                  </label>
+                  <label className="font-body text-[12px] font-bold uppercase tracking-[0.06em] text-vyva-text-2">
+                    End date
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      min={customStartDate}
+                      max={todayDateKey}
+                      onChange={(event) => setCustomEndDate(event.target.value)}
+                      className="mt-1.5 min-h-[44px] w-full rounded-[12px] border border-[#DED2E7] bg-white px-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-violet-100"
+                      data-testid="input-adherence-custom-end"
+                    />
+                  </label>
+                </div>
+              )}
+              <div className="mt-3">
+            {progressQuery.isFetching && progressPeriod !== "weekly" && (
+              <p className="mb-3 font-body text-[12px] font-bold text-vyva-purple" role="status">Updating progress…</p>
+            )}
+            <div
+              className="mb-[14px] overflow-hidden rounded-[18px] border border-vyva-border bg-[#FCFBF8]"
+            >
+              <div className="border-b border-vyva-border px-[16px] py-[13px]">
+                <span className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2">{t("meds.adherence.overallStats")}</span>
+              </div>
+              <div className="flex justify-around px-[18px] py-[22px]">
+                <PctRing pct={selectedPeriodPct} label={progressPeriodLabel} />
+                <PctRing
+                  pct={progressPeriod === "weekly" ? data.monthPct : data.weekPct}
+                  label={progressPeriod === "weekly" ? t("meds.adherence.last30Days") : t("meds.adherence.thisWeek")}
+                />
               </div>
             </div>
 
             <div
-              className="bg-white rounded-[20px] border border-vyva-border overflow-hidden mb-[14px]"
-              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+              className="mb-[14px] overflow-hidden rounded-[18px] border border-vyva-border bg-[#FCFBF8]"
             >
-              <div className="px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
-                <span className="font-body text-[14px] font-medium text-vyva-text-1">
+              <div className="border-b border-vyva-border px-[16px] py-[13px]">
+                <span className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2">
                   {t("meds.adherence.insightsTitle")}
                 </span>
               </div>
-              <div className="px-[18px] py-[16px] flex flex-col gap-3">
+              <div className="flex flex-col gap-2 px-3 py-3">
                 {insights.map((item, index) => {
                   const InsightIcon = item.icon;
                   return (
                     <div
                       key={index}
-                      className="rounded-[18px] border border-vyva-border bg-[#FCFBF8] px-4 py-4 flex items-start gap-3"
+                      className="flex items-start gap-3 rounded-[18px] border border-vyva-border bg-white px-4 py-4"
                     >
-                      <div
-                        className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0"
-                        style={{ background: item.iconBg }}
-                      >
-                        <InsightIcon size={18} style={{ color: item.iconColor }} />
-                      </div>
+                      <CanonicalFlowIcon
+                        icon={InsightIcon}
+                        tone={index === 0 ? "amber" : index === 1 ? "green" : "purple"}
+                        goldAccent={index === 1 ? "check" : "spark"}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="font-body text-[13px] font-semibold text-vyva-text-1">
                           {item.title}
@@ -897,15 +1034,14 @@ const AdherenceReportScreen = () => {
               </div>
             </div>
 
-            {data.perMedication.length > 0 && (
+            {progressMedications.length > 0 && (
               <div
-                className="bg-white rounded-[20px] border border-vyva-border overflow-hidden mb-[14px]"
-                style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}
+                className="mb-[14px] overflow-hidden rounded-[18px] border border-vyva-border bg-[#FCFBF8]"
               >
-                <div className="px-[18px] py-[13px] border-b border-vyva-border" style={{ background: "#F5EFE4" }}>
-                  <span className="font-body text-[14px] font-medium text-vyva-text-1">{t("meds.adherence.perMedication")}</span>
+                <div className="border-b border-vyva-border px-[16px] py-[13px]">
+                  <span className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2">{t("meds.adherence.perMedication")}</span>
                 </div>
-                {sortedMedications.map((med, i) => {
+                {sortedProgressMedications.map((med, i) => {
                   const streakLabel =
                     med.streak === 0
                       ? t("meds.adherence.streakZero")
@@ -969,6 +1105,7 @@ const AdherenceReportScreen = () => {
                         />
                       </div>
 
+                      {progressPeriod === "weekly" ? (
                       <div>
                         <p className="font-body text-[12px] text-vyva-text-2 mb-2 font-medium uppercase tracking-wide">
                           {t("meds.adherence.weeklyView")}
@@ -1004,25 +1141,35 @@ const AdherenceReportScreen = () => {
                           </div>
                         </div>
                       </div>
+                      ) : (
+                        <div className="rounded-[14px] bg-[#F7F2FA] px-3 py-2.5">
+                          <p className="font-body text-[12px] font-bold uppercase tracking-[0.06em] text-vyva-purple">
+                            {progressPeriodLabel}
+                          </p>
+                          <p className="mt-1 font-body text-[13px] font-medium text-vyva-text-2">
+                            {med.taken} doses recorded from {med.scheduled} scheduled doses.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
-
-            <button
-              data-testid="button-adherence-share"
-              onClick={handleShare}
-              className="w-full flex items-center justify-center gap-2 rounded-full py-[16px] px-[20px] font-body text-[16px] font-medium text-white min-h-[56px] mb-8"
-              style={{ background: "#6B21A8" }}
-            >
-              <Copy size={18} />
-              {t("meds.adherence.shareButton")}
-            </button>
+              <button
+                data-testid="button-adherence-share"
+                onClick={handleShare}
+                className="vyva-tap flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-4 font-body text-[15px] font-black text-white shadow-[0_10px_22px_rgba(107,33,168,0.18)]"
+              >
+                <Copy size={18} aria-hidden="true" />
+                {t("meds.adherence.shareButton")}
+              </button>
+              </div>
+            </section>
           </>
         )}
       </div>
-    </div>
+    </CanonicalDetailFlowShell>
   );
 };
 

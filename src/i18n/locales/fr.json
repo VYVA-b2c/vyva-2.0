@@ -920,7 +920,32 @@
         "listening": "J'écoute...",
         "voiceUnsupported": "La voix n'est pas disponible dans ce navigateur. Vous pouvez écrire ici.",
         "voiceError": "Je n'ai pas pu activer le micro. Vous pouvez écrire votre réponse.",
-        "errorMsg": "Je suis désolé, j'ai eu du mal à comprendre. Pourriez-vous réessayer ?",
+        "errorMsg": "Nous n’avons pas pu terminer cette vérification. Vos réponses sont enregistrées. Veuillez réessayer.",
+        "retry": "Réessayer",
+        "reviewConfirmTitle": "Est-ce correct ?",
+        "reviewSymptom": "Symptôme",
+        "reviewLocation": "Localisation",
+        "reviewSeverity": "Intensité",
+        "reviewOnset": "Début",
+        "reviewRelatedDetail": "Détail associé",
+        "reviewEdit": "Modifier",
+        "reviewShowGuidance": "Oui, afficher mes conseils",
+        "relatedDetailsTitle": "Un dernier détail",
+        "relatedDetailsHelper": "Choisissez la description qui correspond le mieux.",
+        "checkingSymptoms": "Analyse de vos symptômes",
+        "checkingProfile": "Analyse de votre profil de santé",
+        "checkingSources": "Consultation de plus de 40 millions de sources évaluées par des pairs",
+        "checkingSafety": "Vérification des signaux d’alerte",
+        "checkingStep": "Étape {{current}} sur {{total}}",
+        "urgentTitle": "Demandez une aide urgente maintenant",
+        "urgentHelper": "Appelez les services d’urgence maintenant. N’attendez pas la fin d’une évaluation en ligne.",
+        "urgentStay": "VYVA reste avec vous.",
+        "followGuidanceShort": "Suivez ces conseils.",
+        "reviewAnswerToday": "Aujourd’hui",
+        "reviewAnswerFewDays": "Quelques jours",
+        "reviewAnswerWeekPlus": "Plus de quelques jours",
+        "reviewAnswerNotSure": "Je ne suis pas sûr(e)",
+        "reviewAnswerAfterCare": "Cela a commencé après un médicament, une opération, une hospitalisation ou une chute",
         "quickPain": "Douleur",
         "quickPainValue": "J ai mal.",
         "quickChest": "Gene thoracique",
@@ -1249,8 +1274,8 @@
       "remindersSub": "Revoir le programme du jour et ajouter des rappels.",
       "remindersMobileSub": "Programme du jour",
       "refills": "Renouvellements",
-      "refillsSub": "Preparer ordonnances renouvelees ou livraison.",
-      "refillsMobileSub": "Renouvellements pharmacie",
+      "refillsSub": "Suivre le stock restant et le renouvellement.",
+      "refillsMobileSub": "Verifier le stock restant",
       "interactions": "Interactions",
       "interactionsSub": "Verifier medicaments et complements.",
       "interactionsMobileSub": "Verifier le melange",
@@ -1446,9 +1471,16 @@
     "checkInteractions": {
       "kicker": "Securite des medicaments",
       "title": "Verifier la securite",
+      "intro": "Passez en revue les medicaments et complements enregistres, puis obtenez des conseils clairs sur les questions a poser a un pharmacien ou medecin.",
+      "adviceCta": "Obtenir des conseils sur les associations",
+      "adviceTitle": "Conseils sur les associations de medicaments",
+      "adviceSubtitle": "Des conseils clairs pour les medicaments et complements pris ensemble.",
+      "advicePrompt": "Examinez ensemble ces medicaments et complements : {{medications}}. Expliquez simplement les risques possibles. Ne conseillez pas de commencer, arreter, sauter ou modifier une dose. Indiquez quoi demander a un pharmacien ou medecin et quand une aide urgente peut etre necessaire.",
       "loadingSub": "VYVA verifie votre liste enregistree.",
       "loading": "Verification de votre liste...",
       "error": "Je ne peux pas verifier cela maintenant. Reessayez.",
+      "emptyTitle": "Ajoutez un médicament pour commencer",
+      "emptySub": "VYVA a besoin de votre liste actuelle avant de rechercher les questions utiles à poser.",
       "clearTitle": "Tout semble sur aujourd'hui",
       "clearSub": "Aucune question de securite dans les regles verifiees par VYVA.",
       "flagKicker": "Question de securite",
@@ -1456,8 +1488,10 @@
       "duplicateShort": "Medicaments similaires. Verifiez si les deux sont necessaires.",
       "asked": "J'ai demande",
       "later": "Plus tard",
-      "footer": "{{count}} medicaments verifies. VYVA ne change jamais les doses."
+      "footer": "{{count}} medicaments verifies. VYVA ne change jamais les doses.",
+      "boundary": "Ceci n'est pas une vérification complète des interactions. Consultez un pharmacien ou un médecin pour tout médicament nouveau, modifié ou incertain. VYVA ne modifie jamais les doses."
     },
+    "assistantEmptyFallback": "VYVA n'a pas pu fournir une reponse personnalisee pour le moment. Verifiez les controles actuels et demandez conseil a un pharmacien ou medecin avant de prendre ensemble des medicaments nouveaux, modifies ou incertains. Ne commencez, n'arretez, ne sautez ni ne modifiez une dose sur la base de cet ecran.",
     "takenToastTitle": "Bien joué",
     "takenToastDescription": "{{medicine}} a été marqué comme pris.",
     "allTakenToastDescription": "Toutes les doses d'aujourd'hui sont déjà marquées comme prises.",
@@ -1839,6 +1873,27 @@
     "showers": "Averses",
     "snowShowers": "Averses de neige",
     "thunderstorm": "Orage"
+  },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} niveaux",
+      "milestones": "Parcours d'étapes",
+      "milestone": "Étape",
+      "nextMilestone": "Prochaine étape",
+      "monthlyPracticeHeld": "Pratique mensuelle maintenue",
+      "bands": {
+        "foundation": "Fondation",
+        "build": "Construction",
+        "challenge": "Défi",
+        "mastery": "Maîtrise"
+      },
+      "milestonesByLevel": {
+        "5": "Fondation terminée",
+        "10": "Confiance en progression",
+        "15": "Prêt pour le défi",
+        "20": "Tour de maîtrise"
+      }
+    }
   },
   "companions": {
     "title": "Trouver un Compagnon",
@@ -2260,7 +2315,24 @@
     "cancel": "Annuler",
     "sendNow": "Envoyer l'alerte"
   },
+  "healthHub": {
+    "title": "Ma santé",
+    "askTitle": "Demander au Dr AI",
+    "askSubtitle": "Douleurs ou changements",
+    "start": "Commencer",
+    "longevityTitle": "Longévité",
+    "longevitySubtitle": "Mieux vaut prévenir que guérir",
+    "today": "Aujourd’hui",
+    "vitalsTitle": "Mes constantes",
+    "vitalsSubtitle": "Mesures et tendances",
+    "medicationTitle": "Médicaments",
+    "medicationSubtitle": "Doses et rappels"
+  },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Constantes"
+    },
+    "backToHealth": "Retour à Ma santé",
     "title": "Statut / Constantes",
     "online": "En ligne",
     "offline": "Hors ligne",

@@ -15,6 +15,7 @@ import customFr from "./fr";
 import customDe from "./de";
 import customIt from "./it";
 import customPt from "./pt";
+import { healthDeviceTranslations } from "./healthDevices";
 
 type TranslationValue = string | number | boolean | null | undefined | TranslationTree;
 type TranslationTree = { [key: string]: TranslationValue };
@@ -76,12 +77,12 @@ function deepMerge(base: TranslationTree, extension: TranslationTree): Translati
 }
 
 const dictionaries: DictionaryMap = {
-  es: deepMerge(baseDictionaries.es, overrides.es),
-  en: deepMerge(baseDictionaries.en, overrides.en),
-  fr: deepMerge(baseDictionaries.fr, overrides.fr),
-  de: deepMerge(baseDictionaries.de, overrides.de),
-  it: deepMerge(baseDictionaries.it, overrides.it),
-  pt: deepMerge(baseDictionaries.pt, overrides.pt),
+  es: deepMerge(deepMerge(baseDictionaries.es, overrides.es), { settings: { healthDevices: healthDeviceTranslations.es } }),
+  en: deepMerge(deepMerge(baseDictionaries.en, overrides.en), { settings: { healthDevices: healthDeviceTranslations.en } }),
+  fr: deepMerge(deepMerge(baseDictionaries.fr, overrides.fr), { settings: { healthDevices: healthDeviceTranslations.fr } }),
+  de: deepMerge(deepMerge(baseDictionaries.de, overrides.de), { settings: { healthDevices: healthDeviceTranslations.de } }),
+  it: deepMerge(deepMerge(baseDictionaries.it, overrides.it), { settings: { healthDevices: healthDeviceTranslations.it } }),
+  pt: deepMerge(deepMerge(baseDictionaries.pt, overrides.pt), { settings: { healthDevices: healthDeviceTranslations.pt } }),
 };
 
 const supportedCodes = LANGUAGES.map((language) => language.code);

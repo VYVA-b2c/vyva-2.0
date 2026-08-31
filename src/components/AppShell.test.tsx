@@ -2,7 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import AppShell, { SosSheet } from "./AppShell";
+import {
+  buildVoiceActionRouteState,
+  emergencyProfileContactFromState,
+  getAppShellLayout,
+  isBrainCoachAppRoute,
+  usesBrainCoachDocklessRoute,
+} from "./appShellUtils";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
   VYVA_VOICE_APP_ACTION_EVENT,
@@ -205,10 +212,72 @@ describe("app shell route layout", () => {
     ["/activities/relax-breathe", "fullscreen"],
     ["/memory-games/word_recall", "fullscreen"],
     ["/attention-boosters/rhythm-tap", "fullscreen"],
+    ["/dual-task-walk", "fullscreen"],
     ["/profiles/select", "compact"],
     ["/onboarding/profile/health", "compact"],
   ] as const)("classifies %s as %s", (pathname, layout) => {
     expect(getAppShellLayout(pathname)).toBe(layout);
+  });
+
+  it.each([
+    "/mind-memory",
+    "/mind-memory/cognitive-assessment",
+    "/memory-games",
+    "/memory-games/remember-later",
+    "/attention-boosters",
+    "/executive-function",
+    "/senses",
+    "/senses/listen-closely",
+    "/spatial-navigator",
+    "/face-name-match",
+    "/dual-task-walk",
+  ])("treats %s as a Brain Coach route", (pathname) => {
+    expect(isBrainCoachAppRoute(pathname)).toBe(true);
+  });
+
+  it.each([
+    "/memory-games",
+    "/memory-games/remember-later",
+    "/attention-boosters",
+    "/executive-function",
+    "/senses",
+    "/senses/listen-closely",
+    "/spatial-navigator",
+    "/face-name-match",
+    "/dual-task-walk",
+  ])("removes the global bottom dock on Brain Coach module route %s", (pathname) => {
+    expect(usesBrainCoachDocklessRoute(pathname)).toBe(true);
+  });
+
+  it.each([
+    "/mind-memory",
+    "/mind-memory/cognitive-assessment",
+  ])("keeps the global bottom dock available on Brain Coach entry route %s", (pathname) => {
+    expect(usesBrainCoachDocklessRoute(pathname)).toBe(false);
+  });
+
+  it("renders the bottom dock on the Brain Coach main menu", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
+        <AppShell>
+          <div>Brain menu</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+  });
+
+  it("hides the bottom dock inside Brain Coach module hubs", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games"]}>
+        <AppShell>
+          <div>Memory module</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
   });
 
   it.each([
@@ -372,7 +441,7 @@ describe("app shell voice dock", () => {
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
-    renderShell("/meds");
+    renderShell("/settings");
 
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
@@ -435,17 +504,20 @@ describe("app shell voice dock", () => {
     expect(voiceState.stopVoice).toHaveBeenCalledTimes(1);
   });
 
-  it("uses compact copy when VYVA is speaking from the dock", () => {
+  it("uses compact active voice copy on prototype dock routes", () => {
     voiceState.isSpeaking = true;
     voiceState.voiceSessionPhase = "speaking";
     voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
 
-    renderShell("/meds");
+    renderShell("/mind-memory");
 
     const dock = screen.getByTestId("voice-session-dock");
-    expect(dock).toHaveTextContent("Speaking");
+    expect(dock).toHaveAttribute("data-variant", "home-stop");
+    expect(dock).toHaveTextContent("Voice on");
+    expect(dock).not.toHaveTextContent("Speaking");
     expect(dock).not.toHaveTextContent("VYVA speaking");
-    expect(dock).toHaveTextContent("Try naming three things");
+    expect(dock).not.toHaveTextContent("Try naming three things");
+    expect(screen.getByTestId("button-dock-end-call")).toBeInTheDocument();
   });
 
   it("ignores punctuation-only voice transcript events", () => {

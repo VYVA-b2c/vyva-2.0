@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
+import { HeartPulse } from "lucide-react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE,
@@ -7,6 +8,7 @@ import {
 } from "./SymptomAssessmentPresentation";
 import { SYMPTOM_ASSESSMENT_STAGE_IDS } from "@/design/screenPresentation";
 import { resolveSymptomAssessmentPresentation } from "@/design/screenPresentation";
+import { SymptomChoiceCard } from "./SymptomChoiceCard";
 
 afterEach(() => {
   cleanup();
@@ -248,6 +250,31 @@ describe("SymptomAssessmentPresentation", () => {
     expect(screen.getByText("Follow this guidance and watch for any change in how you feel.")).toHaveClass("hidden", "md:inline");
     expect(screen.getByRole("heading", { name: "Your summary" })).toBeInTheDocument();
     expect(screen.queryByText(/ready to share/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps supporting copy and choice labels at the readable canonical scale", () => {
+    render(
+      <SymptomAssessmentPresentation stageId="related_details" modality="touch">
+        <SymptomChoiceCard
+          Icon={HeartPulse}
+          label="It is mild, usual for me, and improving"
+          onClick={() => undefined}
+        />
+      </SymptomAssessmentPresentation>,
+    );
+
+    expect(screen.getByText("Choose the pattern that fits best.")).toHaveClass(
+      "max-w-[320px]",
+      "text-[16px]",
+    );
+    expect(screen.getByRole("button", { name: /It is mild, usual for me, and improving/i })).toHaveClass(
+      "min-h-[72px]",
+      "py-3.5",
+    );
+    expect(screen.getByText("It is mild, usual for me, and improving")).toHaveClass(
+      "text-[17px]",
+      "leading-[1.42]",
+    );
   });
 
   it("lets a full-bleed report own the single page heading", () => {

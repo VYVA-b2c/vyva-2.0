@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import HomeFastHelpSyncBridge from "@/components/HomeFastHelpSyncBridge";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
+import { LanguageControllerProvider, LanguageFrameBoundary, setLanguage, useLanguage } from "@/i18n";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
@@ -23,6 +23,7 @@ import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRou
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import type { PreventionPlanData } from "./pages/PreventionPlan";
+import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -62,10 +63,11 @@ const SymptomCheckingPreviewScreen = lazy(() => import("./pages/SymptomCheckScre
 const SymptomSeverityPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomSeverityPreviewScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
-const PreventionPlan = lazy(() => import("./pages/PreventionPlan"));
 const LongevityScreen = lazy(() => import("./pages/LongevityScreen"));
+const PreventionPlan = lazy(() => import("./pages/PreventionPlan"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
+const MedicationRefillsScreen = lazy(() => import("./pages/MedicationRefillsScreen"));
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
 const CognitiveAssessmentHubPage = lazy(() => import("./pages/CognitiveAssessmentHubPage"));
 const CognitiveAssessmentReportPage = lazy(() => import("./pages/CognitiveAssessmentReportPage"));
@@ -122,6 +124,97 @@ const PREVENTION_PLAN_PREVIEW: PreventionPlanData = {
   source_signals: { vitals: true, medications: true, cognitive: true, mood: true, symptoms: false },
   trajectory: "first",
 };
+
+const VITALS_PREVIEW_DATA: VitalsTrackerPreviewData = {
+  analysis: {
+    id: "preview-vitals-analysis",
+    analysed_at: "2026-08-28T08:35:00.000Z",
+    safety_status: "steady",
+    recommended_action: "steady",
+    risk_score: 16,
+    risk_tier: "low",
+    senior_message: "Your latest readings look steady. Keep checking them at your usual time.",
+    caregiver_note: "Karim's latest readings are steady, with no new alert.",
+    acknowledged_at: null,
+  },
+  recent_readings: [
+    {
+      signal_type: "resting_hr_bpm",
+      value: 72,
+      recorded_at: "2026-08-28T08:30:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Manual reading",
+      source_context_label: "Morning",
+      deviation_pct: 1.4,
+      context_tag: "morning",
+    },
+    {
+      signal_type: "oxygen_saturation",
+      value: 98,
+      recorded_at: "2026-08-28T08:29:00.000Z",
+      source: "connected_device",
+      capture_method: "web_bluetooth",
+      source_ref: { device_name: "Pulse oximeter" },
+      source_confidence: "high",
+      source_display_label: "Pulse oximeter",
+      source_context_label: "Resting",
+      deviation_pct: 0,
+      context_tag: "resting",
+    },
+    {
+      signal_type: "temperature_c",
+      value: 36.7,
+      recorded_at: "2026-08-28T08:28:00.000Z",
+      source: "connected_device",
+      capture_method: "web_bluetooth",
+      source_ref: { device_name: "Thermometer" },
+      source_confidence: "high",
+      source_display_label: "Thermometer",
+      source_context_label: "Now",
+      deviation_pct: 0,
+      context_tag: "general",
+    },
+    {
+      signal_type: "glucose_mgdl",
+      value: 104,
+      recorded_at: "2026-08-28T07:45:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Glucose meter",
+      source_context_label: "Fasting",
+      deviation_pct: 2.9,
+      context_tag: "fasting",
+    },
+    {
+      signal_type: "mood_score",
+      value: 8,
+      recorded_at: "2026-08-28T08:15:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Daily check-in",
+      source_context_label: "Today",
+      deviation_pct: 0,
+      context_tag: "general",
+    },
+    {
+      signal_type: "sleep_quality_score",
+      value: 7,
+      recorded_at: "2026-08-28T08:10:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Daily check-in",
+      source_context_label: "Last night",
+      deviation_pct: -4.1,
+      context_tag: "general",
+    },
+  ],
+  latest_alert: null,
+};
 const WelcomeScreen = lazy(() => import("./pages/onboarding/WelcomeScreen"));
 const WhoForStep = lazy(() => import("./pages/onboarding/WhoForStep"));
 const BasicsStep = lazy(() => import("./pages/onboarding/BasicsStep"));
@@ -152,7 +245,7 @@ const SymptomCheckScreen = lazy(() => import("./pages/SymptomCheckScreen"));
 const CheckHowIFeelScreen = lazy(() => import("./pages/CheckHowIFeelScreen"));
 const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
-const SignosScreen = lazy(() => import("./pages/SignosScreen"));
+const VitalsScreen = lazy(() => import("./pages/VitalsScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
 const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
 const CompanionsScreen = lazy(() => import("./pages/CompanionsScreen"));
@@ -757,6 +850,18 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
     );
   }
 
+  if (kind === "vitals") {
+    return (
+      <AppShell>
+        <VitalsScreen
+          previewData={VITALS_PREVIEW_DATA}
+          previewConditions={["hypertension"]}
+          backPath="/dev/home-master/health"
+        />
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <PrototypeHealthActionPreviewScreen kind={kind} />
@@ -852,6 +957,21 @@ function PwaInstallPromptGate() {
 
 const showDevelopmentPreviewRoutes = import.meta.env.DEV || import.meta.env.MODE === "development";
 
+function HomeMasterPreviewLanguageSync() {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (!location.pathname.startsWith("/dev/home-master")) return;
+
+    const requestedLanguage = new URLSearchParams(location.search).get("lang");
+    if (!requestedLanguage || !["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) return;
+
+    setLanguage(requestedLanguage);
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageControllerProvider>
@@ -863,6 +983,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter future={routerFutureFlags}>
               <LanguageFrameBoundary>
+                {showDevelopmentPreviewRoutes ? <HomeMasterPreviewLanguageSync /> : null}
                 <VyvaVoiceProvider>
                   <VoiceActionProvider>
                     <VoiceCanvasProvider>
@@ -990,7 +1111,7 @@ const App = () => (
                   <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
+                  <Route path="/health/vitals" element={<AppShell><VitalsScreen /></AppShell>} />
                   <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/informes/brain-coach" element={<AppShell><BrainCoachReportScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
@@ -1009,6 +1130,7 @@ const App = () => (
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/my-medicines" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/interactions" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/refills" element={<AppShell><ServiceGateRoute service="medications"><MedicationRefillsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />

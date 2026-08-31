@@ -7,6 +7,7 @@ import {
   interactionFlagDismissals,
   interactionFlagRules,
   medicationAdherence,
+  medicationInventoryEvents,
   medicationSafetyCaseEvents,
   medicationSafetyCases,
   medicationSafetySignals,
@@ -144,7 +145,7 @@ const medicationSafetyCaseCreateSchema = medicationSafetyCasePatchSchema.extend(
 
 const medicineClassTagSchema = z.enum([...MEDICINE_CLASS_TAGS] as [typeof MEDICINE_CLASS_TAGS[number], ...typeof MEDICINE_CLASS_TAGS[number][]]);
 
-const myMedicineCreateSchema = z.object({
+const myMedicineFieldsSchema = z.object({
   display_name: z.string().trim().min(1).max(160),
   common_name: z.string().trim().max(160).optional().nullable(),
   dose_text: z.string().trim().max(180).optional().nullable(),
@@ -155,10 +156,36 @@ const myMedicineCreateSchema = z.object({
   prescriber_name: z.string().trim().max(160).optional().nullable(),
   refill_due_date: z.string().trim().max(20).optional().nullable(),
   schedule_times: z.array(z.string().trim().max(20)).max(8).optional().nullable(),
+  dose_unit: z.string().trim().min(1).max(40).optional().nullable(),
+  units_per_dose: z.coerce.number().positive().max(1000).optional().nullable(),
+  daily_frequency: z.coerce.number().positive().max(24).optional().nullable(),
+  inventory_tracking_enabled: z.boolean().default(false),
+  refill_alert_days: z.coerce.number().int().min(1).max(90).default(7),
+  initial_quantity: z.coerce.number().nonnegative().max(1_000_000).optional().nullable(),
+  purchased_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   added_via: z.enum(["voice", "manual", "photo", "discharge_flow"]).default("manual"),
 });
 
-const myMedicinePatchSchema = myMedicineCreateSchema.partial().extend({
+const myMedicineCreateSchema = myMedicineFieldsSchema.superRefine((value, context) => {
+  if (!value.inventory_tracking_enabled) return;
+  const required: Array<[keyof typeof value, unknown]> = [
+    ["dose_unit", value.dose_unit],
+    ["units_per_dose", value.units_per_dose],
+    ["daily_frequency", value.daily_frequency],
+    ["initial_quantity", value.initial_quantity],
+    ["purchased_on", value.purchased_on],
+  ];
+  for (const [path, entry] of required) {
+    if (entry === undefined || entry === null || entry === "") {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: "Required when refill tracking is enabled" });
+    }
+  }
+  if (value.purchased_on && value.purchased_on > todayDateString()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["purchased_on"], message: "Purchase date cannot be in the future" });
+  }
+});
+
+const myMedicinePatchSchema = myMedicineFieldsSchema.partial().extend({
   status: z.enum(["active", "paused", "discontinued"]).optional(),
   status_changed_by: z.enum(["user", "caregiver"]).optional(),
 });
@@ -273,10 +300,33 @@ async function ensureMyMedicinesTables() {
       await pool.query(`alter table if exists my_medicines add column if not exists photo_url text`);
       await pool.query(`alter table if exists my_medicines add column if not exists prescriber_name text`);
       await pool.query(`alter table if exists my_medicines add column if not exists refill_due_date date`);
+      await pool.query(`alter table if exists my_medicines add column if not exists dose_unit text`);
+      await pool.query(`alter table if exists my_medicines add column if not exists units_per_dose numeric(10,2)`);
+      await pool.query(`alter table if exists my_medicines add column if not exists daily_frequency numeric(6,2)`);
+      await pool.query(`alter table if exists my_medicines add column if not exists inventory_tracking_enabled boolean not null default false`);
+      await pool.query(`alter table if exists my_medicines add column if not exists refill_alert_days integer not null default 7`);
       await pool.query(`alter table if exists my_medicines add column if not exists schedule_times text[]`);
       await pool.query(`alter table if exists my_medicines add column if not exists status_changed_at timestamptz`);
       await pool.query(`alter table if exists my_medicines add column if not exists status_changed_by text`);
       await pool.query(`alter table if exists my_medicines add column if not exists updated_at timestamptz not null default now()`);
+      await pool.query(`
+        create table if not exists medication_inventory_events (
+          id uuid primary key default gen_random_uuid(),
+          user_id text not null,
+          medicine_id uuid not null references my_medicines(id) on delete cascade,
+          event_type text not null,
+          quantity numeric(12,2) not null,
+          unit text not null,
+          occurred_on date not null,
+          source text not null default 'manual',
+          actor_user_id text not null,
+          actor_role text not null default 'user',
+          actor_name text,
+          metadata jsonb not null default '{}'::jsonb,
+          created_at timestamptz not null default now()
+        )
+      `);
+      await pool.query(`create index if not exists medication_inventory_events_user_medicine_date_idx on medication_inventory_events (user_id, medicine_id, occurred_on desc)`);
       await pool.query(`
         create table if not exists my_medicines_change_log (
           id uuid primary key default gen_random_uuid(),
@@ -460,12 +510,25 @@ function serializeMyMedicine(row: typeof myMedicines.$inferSelect) {
     photo_url: row.photo_url,
     prescriber_name: row.prescriber_name,
     refill_due_date: row.refill_due_date,
+    dose_unit: row.dose_unit,
+    units_per_dose: row.units_per_dose === null ? null : Number(row.units_per_dose),
+    daily_frequency: row.daily_frequency === null ? null : Number(row.daily_frequency),
+    inventory_tracking_enabled: row.inventory_tracking_enabled,
+    refill_alert_days: row.refill_alert_days,
     schedule_times: row.schedule_times ?? [],
     status: row.status,
     added_via: row.added_via,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+function projectedRunOutDate(purchasedOn: string, quantity: number, unitsPerDose: number, dailyFrequency: number) {
+  const dailyUse = unitsPerDose * dailyFrequency;
+  if (dailyUse <= 0) return null;
+  const date = new Date(`${purchasedOn}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + Math.floor(quantity / dailyUse));
+  return date.toISOString().slice(0, 10);
 }
 
 async function backfillMyMedicinesFromLegacy(userId: string) {
@@ -1191,28 +1254,64 @@ router.post("/my-medicines", requireUser, async (req: Request, res: Response) =>
 
   try {
     await ensureMyMedicinesTables();
-    const [created] = await db.insert(myMedicines).values({
-      user_id: userId,
-      display_name: parsed.data.display_name,
-      common_name: emptyToNull(parsed.data.common_name),
-      dose_text: emptyToNull(parsed.data.dose_text),
-      purpose_text: emptyToNull(parsed.data.purpose_text),
-      item_type: parsed.data.item_type,
-      drug_class_tag: parsed.data.drug_class_tag && isMedicineClassTag(parsed.data.drug_class_tag) ? parsed.data.drug_class_tag : null,
-      photo_url: emptyToNull(parsed.data.photo_url),
-      prescriber_name: emptyToNull(parsed.data.prescriber_name),
-      refill_due_date: dateStringOrNull(parsed.data.refill_due_date),
-      schedule_times: cleanScheduleTimes(parsed.data.schedule_times, parsed.data.dose_text),
-      added_via: parsed.data.added_via,
-    }).returning();
-
-    await db.insert(myMedicinesChangeLog).values({
-      user_id: userId,
-      medicine_id: created.id,
-      change_type: "added",
-      previous_value: null,
-      new_value: serializeMyMedicine(created),
-      source: parsed.data.added_via === "voice" ? "voice_update" : "manual_edit",
+    const trackingEnabled = parsed.data.inventory_tracking_enabled;
+    const refillDueDate = trackingEnabled
+      ? projectedRunOutDate(
+        parsed.data.purchased_on!,
+        parsed.data.initial_quantity!,
+        parsed.data.units_per_dose!,
+        parsed.data.daily_frequency!,
+      )
+      : dateStringOrNull(parsed.data.refill_due_date);
+    const [profile] = await db
+      .select({ preferredName: profiles.preferred_name, fullName: profiles.full_name })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+    const created = await db.transaction(async (tx) => {
+      const [medicine] = await tx.insert(myMedicines).values({
+        user_id: userId,
+        display_name: parsed.data.display_name,
+        common_name: emptyToNull(parsed.data.common_name),
+        dose_text: emptyToNull(parsed.data.dose_text),
+        purpose_text: emptyToNull(parsed.data.purpose_text),
+        item_type: parsed.data.item_type,
+        drug_class_tag: parsed.data.drug_class_tag && isMedicineClassTag(parsed.data.drug_class_tag) ? parsed.data.drug_class_tag : null,
+        photo_url: null,
+        prescriber_name: emptyToNull(parsed.data.prescriber_name),
+        refill_due_date: refillDueDate,
+        dose_unit: trackingEnabled ? parsed.data.dose_unit : null,
+        units_per_dose: trackingEnabled ? String(parsed.data.units_per_dose) : null,
+        daily_frequency: trackingEnabled ? String(parsed.data.daily_frequency) : null,
+        inventory_tracking_enabled: trackingEnabled,
+        refill_alert_days: parsed.data.refill_alert_days,
+        schedule_times: cleanScheduleTimes(parsed.data.schedule_times, parsed.data.dose_text),
+        added_via: parsed.data.added_via,
+      }).returning();
+      if (trackingEnabled) {
+        await tx.insert(medicationInventoryEvents).values({
+          user_id: userId,
+          medicine_id: medicine.id,
+          event_type: "purchase",
+          quantity: String(parsed.data.initial_quantity),
+          unit: parsed.data.dose_unit!,
+          occurred_on: parsed.data.purchased_on!,
+          source: parsed.data.added_via === "photo" ? "photo" : "manual",
+          actor_user_id: userId,
+          actor_role: "elder",
+          actor_name: profile?.preferredName || profile?.fullName || null,
+          metadata: { createdWithMedicine: true, imageRetained: false },
+        });
+      }
+      await tx.insert(myMedicinesChangeLog).values({
+        user_id: userId,
+        medicine_id: medicine.id,
+        change_type: "added",
+        previous_value: null,
+        new_value: serializeMyMedicine(medicine),
+        source: parsed.data.added_via === "voice" ? "voice_update" : "manual_edit",
+      });
+      return medicine;
     });
     await syncLegacyMedicationFromMyMedicine(created);
 
@@ -1646,6 +1745,15 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
   const userId = req.user!.id;
 
   try {
+    const periodQuery = z.object({
+      period: z.enum(["weekly", "monthly", "quarterly", "custom"]).default("weekly"),
+      start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }).safeParse(req.query);
+    if (!periodQuery.success) {
+      return res.status(400).json({ error: "Invalid progress period" });
+    }
+
     const sevenDayStart = daysAgo(6);
     const thirtyDayStart = daysAgo(29);
     const threeDayStart = daysAgo(2);
@@ -1653,6 +1761,26 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
     const sevenDayStartDate = dateKeyFor(sevenDayStart);
     const thirtyDayStartDate = dateKeyFor(thirtyDayStart);
     const threeDayStartDate = dateKeyFor(threeDayStart);
+    const { period } = periodQuery.data;
+    let rangeEndDate = today;
+    let rangeStartDate = sevenDayStartDate;
+    if (period === "monthly") rangeStartDate = thirtyDayStartDate;
+    if (period === "quarterly") rangeStartDate = dateKeyFor(daysAgo(89));
+    if (period === "custom") {
+      if (!periodQuery.data.start || !periodQuery.data.end) {
+        return res.status(400).json({ error: "Custom progress requires a start and end date" });
+      }
+      rangeStartDate = periodQuery.data.start;
+      rangeEndDate = periodQuery.data.end;
+      const startTime = new Date(`${rangeStartDate}T00:00:00.000Z`).getTime();
+      const endTime = new Date(`${rangeEndDate}T00:00:00.000Z`).getTime();
+      const rangeDays = Math.floor((endTime - startTime) / 86400000) + 1;
+      if (!Number.isFinite(rangeDays) || rangeDays < 1 || rangeDays > 366 || rangeEndDate > today) {
+        return res.status(400).json({ error: "Custom progress range must be between 1 and 366 days and cannot end in the future" });
+      }
+    }
+    const rangeStart = new Date(`${rangeStartDate}T00:00:00.000Z`);
+    const fetchStart = rangeStart < thirtyDayStart ? rangeStart : thirtyDayStart;
 
     const [adherenceRows, medRows] = await Promise.all([
       db
@@ -1661,16 +1789,20 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
         .where(
           and(
             eq(medicationAdherence.user_id, userId),
-            gte(medicationAdherence.created_at, thirtyDayStart)
+            gte(medicationAdherence.created_at, fetchStart)
           )
         ),
       loadActiveMedicineScheduleRows(userId),
     ]);
 
     const hasLogs = medRows.length > 0 || adherenceRows.length > 0;
-    const rowsLast30 = adherenceRows;
+    const rowsLast30 = adherenceRows.filter((r) => dateKeyFor(r.created_at) >= thirtyDayStartDate);
     const rowsLast7 = adherenceRows.filter((r) => new Date(r.created_at) >= sevenDayStart);
     const rowsLast3 = adherenceRows.filter((r) => new Date(r.created_at) >= threeDayStart);
+    const rangeRows = adherenceRows.filter((r) => {
+      const dateKey = dateKeyFor(r.created_at);
+      return dateKey >= rangeStartDate && dateKey <= rangeEndDate;
+    });
 
     const taken30 = rowsLast30.filter((r) => r.status === "taken").length;
     const taken7 = rowsLast7.filter((r) => r.status === "taken").length;
@@ -1705,6 +1837,16 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
     const weekPct = adherencePct(taken7, scheduled7);
     const monthPct = adherencePct(taken30, scheduled30);
     const threeDayPct = adherencePct(taken3, scheduled3);
+    const rangeTaken = rangeRows.filter((r) => r.status === "taken").length;
+    const scheduledRangeFromMedRows = medRows.reduce(
+      (sum, m) =>
+        sum +
+        dosesPerDay(m.scheduled_times) *
+          activeDaysInWindow(m.created_at, rangeStartDate, rangeEndDate),
+      0
+    );
+    const scheduledRange = medRows.length > 0 ? scheduledRangeFromMedRows : rangeRows.length;
+    const periodPct = adherencePct(rangeTaken, scheduledRange);
 
     const medNamesFromDb = medRows.map((m) => m.medication_name);
     const allMedNames = Array.from(new Set(medNamesFromDb));
@@ -1713,27 +1855,34 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
     for (let i = 6; i >= 0; i--) {
       sevenDayDates.push(daysAgo(i).toISOString().slice(0, 10));
     }
+    const rangeDates: string[] = [];
+    for (let date = rangeStartDate; date <= rangeEndDate; ) {
+      rangeDates.push(date);
+      const next = new Date(`${date}T00:00:00.000Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      date = next.toISOString().slice(0, 10);
+    }
 
     const perMedication = allMedNames.map((name) => {
       const medRow = medRows.find((m) => m.medication_name === name);
       const dosage = medRow?.dosage ?? "";
       const dpd = dosesPerDay(medRow?.scheduled_times);
       const medStartDate = medRow?.created_at ? dateKeyFor(medRow.created_at) : null;
-      const activeDaysInWeek = activeDaysInWindow(medRow?.created_at, sevenDayStartDate, today);
+      const activeDaysInRange = activeDaysInWindow(medRow?.created_at, rangeStartDate, rangeEndDate);
 
-      const medRows7 = rowsLast7.filter((r) => r.medication_name === name);
-      const takenCount = medRows7.filter((r) => r.status === "taken").length;
-      const scheduledCount = medRow ? dpd * activeDaysInWeek : medRows7.length;
+      const medRowsInRange = rangeRows.filter((r) => r.medication_name === name);
+      const takenCount = medRowsInRange.filter((r) => r.status === "taken").length;
+      const scheduledCount = medRow ? dpd * activeDaysInRange : medRowsInRange.length;
 
-      const allMedRows30 = rowsLast30.filter((r) => r.medication_name === name);
+      const allFetchedMedRows = adherenceRows.filter((r) => r.medication_name === name);
       const takenCountsByDate = new Map<string, number>();
-      for (const row of allMedRows30) {
+      for (const row of allFetchedMedRows) {
         if (row.status !== "taken") continue;
         const dateKey = dateKeyFor(row.created_at);
         takenCountsByDate.set(dateKey, (takenCountsByDate.get(dateKey) ?? 0) + 1);
       }
 
-      const dailyStatus = sevenDayDates.map((dateStr) => {
+      const dailyStatus = rangeDates.map((dateStr) => {
         if (medStartDate && dateStr < medStartDate) return "none";
 
         const takenOnDate = takenCountsByDate.get(dateStr) ?? 0;
@@ -1819,8 +1968,16 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       hasLogs,
       weekPct,
       monthPct,
+      period: {
+        key: period,
+        startDate: rangeStartDate,
+        endDate: rangeEndDate,
+        days: rangeDates.length,
+      },
+      periodPct,
       perMedication,
       sevenDayDates,
+      rangeDates,
       latestTaken,
       nextDue: nextDueDose
         ? {

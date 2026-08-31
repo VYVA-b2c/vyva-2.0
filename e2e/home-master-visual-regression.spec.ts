@@ -186,7 +186,7 @@ test.describe("home master visual contract", () => {
 
     await expect(page.getByTestId("prototype-health-screen")).toBeVisible();
     await expect(page.getByTestId("prototype-home-master-topbar")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "My Health", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mi salud", exact: true })).toBeVisible();
     await expect(page.getByTestId("button-health-plan")).toBeVisible();
     await expect(page.getByTestId("button-health-symptom-report")).toBeVisible();
     await expect(page.getByTestId("button-health-vitals")).toBeVisible();

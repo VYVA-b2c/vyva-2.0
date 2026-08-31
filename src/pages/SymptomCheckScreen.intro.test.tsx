@@ -6,6 +6,7 @@ import {
   AssessmentConfidenceTracker,
   IntroScreen,
   SymptomWarningSignsPreviewScreen,
+  VoiceTriageLivePanel,
   symptomAssessmentStageForRuntime,
   symptomCheckHealthReturnPath,
 } from "./SymptomCheckScreen";
@@ -28,7 +29,10 @@ vi.mock("@/contexts/ProfileContext", () => ({
 }));
 
 vi.mock("@/i18n", () => ({
-  useLanguage: () => ({ language: "en" }),
+  useLanguage: () => ({
+    language: "en",
+    t: (_key: string, fallback: string) => fallback,
+  }),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -301,6 +305,137 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
     expect(screen.getByTestId("symptom-check-example-chips")).toBeVisible();
     expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
+  });
+
+  it("keeps the emergency acknowledgement when the intro remounts for voice mode", () => {
+    const onEmergencyModalDismiss = vi.fn();
+    const { rerender } = render(
+      <IntroScreen
+        key="touch"
+        onStart={vi.fn()}
+        showEmergencyModal
+        onEmergencyModalDismiss={onEmergencyModalDismiss}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    expect(onEmergencyModalDismiss).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <IntroScreen
+        key="voice"
+        onStart={vi.fn()}
+        showEmergencyModal={false}
+        onEmergencyModalDismiss={onEmergencyModalDismiss}
+      />,
+    );
+
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
+  it("does not show the emergency modal again when Ask Dr. AI switches to voice", async () => {
+    const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: true, mode: "active" }),
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, queryFn: async () => ({}) },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/health/symptom-check?fresh=1"]}>
+          <SymptomCheckScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to voice mode" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to touch mode" })).toBeInTheDocument());
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
+  it("keeps the canonical symptom choices instead of showing the legacy voice describe panel", () => {
+    const onAnswer = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-describe",
+            status: "active",
+            latest_response: {
+              ok: true,
+              status: "active",
+              spoken_text: "Tell VYVA what has changed today.",
+              question: { stage: "start", text: "Tell VYVA what has changed today.", choices: [] },
+            },
+          }}
+          stageId="describe"
+          modality="voice"
+          onAnswer={onAnswer}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-check-intro")).toBeVisible();
+    expect(screen.getByText("What feels different today?")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Breathing feels different/i })).toBeEnabled();
+    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Breathing feels different/i }));
+    expect(onAnswer).toHaveBeenCalledWith({ utterance: "Breathing feels different" });
+  });
+
+  it("shows the canonical answer summary on the voice review screen", () => {
+    render(
+      <MemoryRouter>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-review",
+            status: "active",
+            latest_response: {
+              ok: true,
+              status: "active",
+              spoken_text: "Does this look right?",
+              question: {
+                stage: "support",
+                text: "Does this look right?",
+                reason: "Review before guidance.",
+                choices: [
+                  { id: "edit_answers", spoken_label: "Edit", value: "Edit my answers." },
+                  { id: "confirm_review", spoken_label: "Yes, show my guidance", value: "Show my guidance." },
+                ],
+              },
+              review_answers: [
+                { id: "breathing", label: "Breathing feels different", value: "Breathing feels different", kind: "symptom" },
+                { id: "severity_5", label: "5", value: "5 out of 10", kind: "severity" },
+                { id: "few_days", label: "Few days", value: "It started a few days ago", kind: "duration" },
+                { id: "mild_improving", label: "Mild and improving", value: "It is mild and improving", kind: "trend" },
+              ],
+            },
+          }}
+          stageId="review"
+          modality="voice"
+          onAnswer={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Breathing feels different");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("5 / 10");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Few days");
+    expect(screen.queryByPlaceholderText("Or type your answer...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Why VYVA is asking this")).not.toBeInTheDocument();
   });
 
   it("leaves the single voice entry point to the shared Home header", () => {

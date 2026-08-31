@@ -20,6 +20,16 @@ const tiers = [
   { tier: 8, min: 220, max: 260, steps: 7, count: 25, matches: [6], symbolCount: 5, duration: 45000 },
   { tier: 9, min: 260, max: 290, steps: 8, count: 28, matches: [6, 7], symbolCount: 5, duration: 50000 },
   { tier: 10, min: 280, max: 300, steps: 8, count: 30, matches: [7, 8], symbolCount: 5, duration: 60000 },
+  { tier: 11, min: 300, max: 340, steps: 8, count: 32, matches: [8], symbolCount: 5, duration: 62000 },
+  { tier: 12, min: 320, max: 360, steps: 8, count: 32, matches: [8, 9], symbolCount: 5, duration: 63000 },
+  { tier: 13, min: 340, max: 390, steps: 9, count: 34, matches: [8, 9], symbolCount: 5, duration: 65000 },
+  { tier: 14, min: 360, max: 420, steps: 9, count: 34, matches: [9], symbolCount: 5, duration: 66000 },
+  { tier: 15, min: 390, max: 460, steps: 9, count: 36, matches: [9, 10], symbolCount: 5, duration: 68000 },
+  { tier: 16, min: 420, max: 500, steps: 9, count: 36, matches: [10], symbolCount: 5, duration: 69000 },
+  { tier: 17, min: 450, max: 540, steps: 10, count: 38, matches: [10, 11], symbolCount: 5, duration: 71000 },
+  { tier: 18, min: 480, max: 580, steps: 10, count: 38, matches: [11], symbolCount: 5, duration: 72000 },
+  { tier: 19, min: 510, max: 610, steps: 10, count: 40, matches: [11, 12], symbolCount: 5, duration: 74000 },
+  { tier: 20, min: 540, max: 640, steps: 10, count: 40, matches: [12], symbolCount: 5, duration: 75000 },
 ];
 
 function mulberry32(seed) {
@@ -194,7 +204,7 @@ CREATE TABLE IF NOT EXISTS public.dual_task_sequences (
   symbol_count        INTEGER NOT NULL,
   match_count         INTEGER NOT NULL,
   round_duration_ms   INTEGER NOT NULL,
-  difficulty_tier     INTEGER NOT NULL CHECK (difficulty_tier BETWEEN 1 AND 10),
+  difficulty_tier     INTEGER NOT NULL CHECK (difficulty_tier BETWEEN 1 AND 20),
   language            TEXT NOT NULL DEFAULT 'es',
   is_active           BOOLEAN NOT NULL DEFAULT TRUE,
   created_at          TIMESTAMPTZ DEFAULT NOW()
@@ -221,7 +231,7 @@ CREATE TABLE IF NOT EXISTS public.dual_task_sessions (
 
 CREATE TABLE IF NOT EXISTS public.dual_task_user_state (
   user_id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  current_tier          INTEGER NOT NULL DEFAULT 1 CHECK (current_tier BETWEEN 1 AND 10),
+  current_tier          INTEGER NOT NULL DEFAULT 1 CHECK (current_tier BETWEEN 1 AND 20),
   sessions_at_tier      INTEGER NOT NULL DEFAULT 0,
   consecutive_wins      INTEGER NOT NULL DEFAULT 0,
   consecutive_losses    INTEGER NOT NULL DEFAULT 0,

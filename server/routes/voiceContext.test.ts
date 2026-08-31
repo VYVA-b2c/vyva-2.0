@@ -1,10 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { resolveVoiceContextDomain } from "./voiceContext";
+import { drAiFirstMessage, resolveVoiceContextDomain } from "./voiceContext";
 
 describe("voice context domain resolution", () => {
   it("keeps onboarding profile voice sessions out of generic social context", () => {
     expect(resolveVoiceContextDomain({ agent_slug: "onboarding-profile" })).toBe("onboarding_profile");
     expect(resolveVoiceContextDomain({ agent_slug: "profile-onboarding" })).toBe("onboarding_profile");
     expect(resolveVoiceContextDomain({ domain: "onboarding_profile" })).toBe("onboarding_profile");
+  });
+
+  it("maps both Dr. AI slugs to the existing health context contract", () => {
+    expect(resolveVoiceContextDomain({ agent_slug: "dr-ai" })).toBe("health");
+    expect(resolveVoiceContextDomain({ agent_slug: "ask-dr-ai" })).toBe("health");
+  });
+});
+
+describe("Dr. AI first message", () => {
+  it("uses the user's name naturally in the selected language", () => {
+    expect(drAiFirstMessage("fr-FR", "Karim")).toBe(
+      "Je suis là avec vous, Karim. Prenez votre temps et dites-moi ce qui vous semble différent aujourd’hui.",
+    );
+  });
+
+  it("keeps a safe generic greeting when no name is available", () => {
+    expect(drAiFirstMessage("en", "")).toBe(
+      "I'm here with you. Tell me what feels different today.",
+    );
   });
 });

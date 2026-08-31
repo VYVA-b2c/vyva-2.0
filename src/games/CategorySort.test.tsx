@@ -40,7 +40,8 @@ describe("CategorySort", () => {
   it("advances practice levels after a strong completed round", () => {
     expect(getNextCategorySortTierAfterRound(1, 75)).toBe(2);
     expect(getNextCategorySortTierAfterRound(1, 74)).toBe(1);
-    expect(getNextCategorySortTierAfterRound(10, 100)).toBe(10);
+    expect(getNextCategorySortTierAfterRound(19, 100)).toBe(20);
+    expect(getNextCategorySortTierAfterRound(20, 100)).toBe(20);
   });
 
   it("varies the local practice rule sequence across levels", () => {

@@ -58,7 +58,7 @@ export function SymptomSafetyChoiceCard({
       >
         <VyvaIcon icon={Icon} accent={accent} size={20} strokeWidth={2.5} tone={iconTone} />
       </span>
-      <span className="min-w-0 flex-1 font-body text-[15px] font-black leading-[1.28]">
+      <span className="min-w-0 flex-1 font-body text-[16px] font-semibold leading-[1.4] tracking-[-0.005em]">
         {label}
       </span>
       <VyvaIcon

@@ -13,7 +13,24 @@
     "concierge": "Concierge",
     "reports": "My Reports"
   },
+  "healthHub": {
+    "title": "My Health",
+    "askTitle": "Ask Dr. AI",
+    "askSubtitle": "Aches or changes",
+    "start": "Start",
+    "longevityTitle": "Longevity",
+    "longevitySubtitle": "Prevention is the best cure",
+    "today": "Today",
+    "vitalsTitle": "My Vitals",
+    "vitalsSubtitle": "Readings and trends",
+    "medicationTitle": "Medication",
+    "medicationSubtitle": "Doses and reminders"
+  },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Vitals"
+    },
+    "backToHealth": "Back to My Health",
     "title": "Status / Vitals",
     "online": "Online",
     "offline": "Offline",
@@ -1045,7 +1062,21 @@
         "listening": "Listening...",
         "voiceUnsupported": "Voice is not available in this browser. You can type here.",
         "voiceError": "I could not start the microphone. You can type your answer.",
-        "errorMsg": "I'm sorry, I had trouble understanding that. Could you try again?",
+        "errorMsg": "We could not complete that check. Your answers are saved. Please try again.",
+        "retry": "Try again",
+        "reviewConfirmTitle": "Does this look right?",
+        "reviewSymptom": "Symptom",
+        "reviewLocation": "Location",
+        "reviewSeverity": "Severity",
+        "reviewOnset": "When it started",
+        "reviewRelatedDetail": "Related detail",
+        "reviewEdit": "Edit",
+        "reviewShowGuidance": "Yes, show my guidance",
+        "reviewAnswerToday": "Started today",
+        "reviewAnswerFewDays": "Few days",
+        "reviewAnswerWeekPlus": "Longer than a few days",
+        "reviewAnswerNotSure": "I am not sure",
+        "reviewAnswerAfterCare": "It started after medicine, surgery, hospital, or a fall",
         "quickPain": "Pain",
         "quickPainValue": "I have pain.",
         "quickChest": "Chest discomfort",
@@ -1392,15 +1423,15 @@
       "reminders": "My Reminders",
       "remindersSub": "Review today's schedule and add medication reminders.",
       "remindersMobileSub": "Today's schedule",
-      "refills": "My Refills",
-      "refillsSub": "Prepare repeat prescriptions or delivery.",
-      "refillsMobileSub": "Pharmacy refills",
-      "checkInteractions": "Safety Check",
-      "checkInteractionsSub": "Medicine mix",
+      "refills": "Refills",
+      "refillsSub": "Track remaining supply and refill timing.",
+      "refillsMobileSub": "Check remaining supply",
+      "checkInteractions": "Drug combinations",
+      "checkInteractionsSub": "Review medicines taken together",
       "interactions": "Interactions",
       "interactionsSub": "Check medicines and supplements.",
       "interactionsMobileSub": "Check the mix",
-      "adherence": "My Adherence",
+      "adherence": "History & progress",
       "adherenceSub": "See progress and missed doses.",
       "adherenceMobileSub": "Daily progress",
       "adherenceToday": "{{value}}% today"
@@ -1422,19 +1453,27 @@
     "toastAddedDefault": "Your medication has been added.",
     "voiceSaveError": "I could not save that medicine. Please try again.",
     "checkInteractions": {
-      "kicker": "Medicine Safety",
-      "title": "Safety Check",
+      "kicker": "Drug combinations",
+      "title": "Check medicines together",
+      "intro": "Review saved medicines and supplements, then get plain-language guidance on questions to raise with a pharmacist or doctor.",
+      "adviceCta": "Get combination advice",
+      "adviceTitle": "Drug combination advice",
+      "adviceSubtitle": "Plain-language guidance for medicines and supplements taken together.",
+      "advicePrompt": "Review these medicines and supplements together: {{medications}}. Explain possible combination concerns in plain language. Do not tell me to start, stop, skip, or change a dose. Tell me what to ask a pharmacist or doctor and when urgent help may be needed.",
       "loadingSub": "VYVA is checking your saved list.",
       "loading": "Checking your list...",
       "error": "I could not check this right now. Please try again.",
-      "clearTitle": "Looks safe today",
-      "clearSub": "No safety questions from the rules VYVA checked.",
+      "emptyTitle": "Add a medicine to start",
+      "emptySub": "VYVA needs your current medicine list before it can look for questions worth asking.",
+      "clearTitle": "No questions found in VYVA's current checks",
+      "clearSub": "The available rules did not flag this saved combination.",
       "flagKicker": "Safety question",
       "ruleShort": "Check before taking together.",
       "duplicateShort": "Similar medicines. Check if both are needed.",
       "asked": "I asked",
       "later": "Later",
-      "footer": "{{count}} medicines checked. VYVA never changes doses."
+      "footer": "{{count}} medicines checked against VYVA's available rules.",
+      "boundary": "This is not a complete interaction review. Ask a pharmacist or doctor about new, changed, or uncertain medicines. VYVA never changes doses."
     },
     "assistant": {
       "interactions": {
@@ -1493,6 +1532,7 @@
     },
     "disclaimer": "This is information only, not medical advice — always check with your doctor or pharmacist.",
     "assistantError": "Something went wrong. Please try again.",
+    "assistantEmptyFallback": "VYVA could not complete a personalised answer just now. Review the current checks and ask a pharmacist or doctor before taking new, changed, or uncertain medicines together. Do not start, stop, skip, or change a dose based on this screen.",
     "assistantPlaceholder": "Ask a follow-up question…",
     "names": {
       "aspirin75": "Aspirin 75mg",
@@ -1516,16 +1556,16 @@
       "statNeedsAttention": "Need attention",
       "statBestStreak": "Best streak",
       "todayTitle": "Today",
-      "todayNeedsAttention": "{{count}} medication still needs attention today.",
+      "todayNeedsAttention": "{{count}} medication still has a dose to record today.",
       "todayAllCovered": "Everything scheduled for today has been covered.",
       "todayDone": "{{count}} done",
       "todayLeft": "{{count}} left",
-      "attentionTitle": "Needs attention",
+      "attentionTitle": "This week's pattern",
       "attentionSubtitle": "This week, keep an eye on {{names}}.",
       "insightsTitle": "Actionable insights",
       "insightNextStepTitle": "Next best step",
-      "insightNextStepSingle": "{{name}} still needs a dose today.",
-      "insightNextStepMultiple": "{{count}} medications still need doses today.",
+      "insightNextStepSingle": "{{name}} still has a dose to record today.",
+      "insightNextStepMultiple": "{{count}} medications still have doses to record today.",
       "insightNextStepReview": "Review {{name}} first because it is driving this week's missed doses.",
       "insightNextStepClear": "No immediate action is needed right now.",
       "insightHabitTitle": "Strongest habit",
@@ -1627,10 +1667,10 @@
       "S"
     ],
     "activities": {
-      "triviaQuiz": "Focus & Attention",
-      "memoryGame": "Memory Game",
+      "triviaQuiz": "Train Reflexes",
+      "memoryGame": "Strengthen Memory",
       "scrabble": "Word & Language",
-      "logicPuzzle": "Brain Training",
+      "logicPuzzle": "Improve Thinking",
       "meditation": "Relax & Breathe",
       "breathing": "Relax & Breathe"
     }
@@ -1959,6 +1999,27 @@
     "showers": "Showers",
     "snowShowers": "Snow showers",
     "thunderstorm": "Thunderstorm"
+  },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} levels",
+      "milestones": "Milestone journey",
+      "milestone": "Milestone",
+      "nextMilestone": "Next milestone",
+      "monthlyPracticeHeld": "Monthly practice held",
+      "bands": {
+        "foundation": "Foundation",
+        "build": "Build",
+        "challenge": "Challenge",
+        "mastery": "Mastery"
+      },
+      "milestonesByLevel": {
+        "5": "Foundation complete",
+        "10": "Building confidence",
+        "15": "Challenge ready",
+        "20": "Mastery round"
+      }
+    }
   },
   "companions": {
     "title": "Find a Companion",

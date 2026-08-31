@@ -13,7 +13,24 @@
     "concierge": "Conserje",
     "reports": "Mis informes"
   },
+  "healthHub": {
+    "title": "Mi salud",
+    "askTitle": "Pregunta al Dr. AI",
+    "askSubtitle": "Dolores o cambios",
+    "start": "Empezar",
+    "longevityTitle": "Longevidad",
+    "longevitySubtitle": "Prevenir es la mejor cura",
+    "today": "Hoy",
+    "vitalsTitle": "Mis signos vitales",
+    "vitalsSubtitle": "Mediciones y tendencias",
+    "medicationTitle": "Medicación",
+    "medicationSubtitle": "Dosis y recordatorios"
+  },
   "statusVitals": {
+    "hub": {
+      "pageTitle": "Signos vitales"
+    },
+    "backToHealth": "Volver a Mi salud",
     "title": "Estado / Signos vitales",
     "online": "En línea",
     "offline": "Sin conexión",
@@ -1046,6 +1063,20 @@
         "voiceUnsupported": "La voz no está disponible en este navegador. Puede escribir aquí.",
         "voiceError": "No he podido activar el micrófono. Puede escribir su respuesta.",
         "errorMsg": "Lo siento, tuve dificultades para entenderte. ¿Podrías intentarlo de nuevo?",
+        "retry": "Intentar de nuevo",
+        "reviewConfirmTitle": "¿Es correcto?",
+        "reviewSymptom": "Síntoma",
+        "reviewLocation": "Ubicación",
+        "reviewSeverity": "Intensidad",
+        "reviewOnset": "Cuándo empezó",
+        "reviewRelatedDetail": "Detalle relacionado",
+        "reviewEdit": "Editar",
+        "reviewShowGuidance": "Sí, mostrar mi orientación",
+        "reviewAnswerToday": "Empezó hoy",
+        "reviewAnswerFewDays": "Hace unos días",
+        "reviewAnswerWeekPlus": "Hace más de unos días",
+        "reviewAnswerNotSure": "No estoy seguro/a",
+        "reviewAnswerAfterCare": "Empezó tras un medicamento, una cirugía, una hospitalización o una caída",
         "quickPain": "Dolor",
         "quickPainValue": "Tengo dolor.",
         "quickChest": "Molestia en el pecho",
@@ -1372,8 +1403,8 @@
       "remindersSub": "Revisa el horario de hoy y anade recordatorios de medicacion.",
       "remindersMobileSub": "Horario de hoy",
       "refills": "Mis reposiciones",
-      "refillsSub": "Prepara recetas repetidas o entregas.",
-      "refillsMobileSub": "Farmacia",
+      "refillsSub": "Controla lo que queda y cuando reponer.",
+      "refillsMobileSub": "Revisar existencias",
       "checkInteractions": "Revisar seguridad",
       "checkInteractionsSub": "Mezcla de medicinas",
       "interactions": "Interacciones",
@@ -1424,9 +1455,16 @@
     "checkInteractions": {
       "kicker": "Seguridad de medicinas",
       "title": "Revisar seguridad",
+      "intro": "Revisa los medicamentos y suplementos guardados y recibe orientacion clara sobre que preguntar a un farmaceutico o medico.",
+      "adviceCta": "Obtener consejos sobre combinaciones",
+      "adviceTitle": "Consejos sobre combinaciones de medicamentos",
+      "adviceSubtitle": "Orientacion clara para medicamentos y suplementos que se toman juntos.",
+      "advicePrompt": "Revisa juntos estos medicamentos y suplementos: {{medications}}. Explica posibles dudas sobre la combinacion con palabras sencillas. No indiques iniciar, suspender, omitir ni cambiar una dosis. Dime que preguntar a un farmaceutico o medico y cuando buscar ayuda urgente.",
       "loadingSub": "VYVA esta revisando tu lista guardada.",
       "loading": "Revisando tu lista...",
       "error": "No pude revisar esto ahora. Intentalo de nuevo.",
+      "emptyTitle": "Añade un medicamento para empezar",
+      "emptySub": "VYVA necesita tu lista actual antes de buscar preguntas que convenga consultar.",
       "clearTitle": "Parece seguro hoy",
       "clearSub": "No hay preguntas de seguridad segun las reglas que reviso VYVA.",
       "flagKicker": "Pregunta de seguridad",
@@ -1434,7 +1472,8 @@
       "duplicateShort": "Medicinas parecidas. Revisa si necesitas las dos.",
       "asked": "Ya pregunte",
       "later": "Luego",
-      "footer": "{{count}} medicinas revisadas. VYVA nunca cambia dosis."
+      "footer": "{{count}} medicinas revisadas. VYVA nunca cambia dosis.",
+      "boundary": "Esta no es una revisión completa de interacciones. Consulta a un farmacéutico o médico sobre medicamentos nuevos, modificados o dudosos. VYVA nunca cambia dosis."
     },
     "assistant": {
       "interactions": {
@@ -1486,6 +1525,7 @@
         "sub": "Apoyo para pedir"
       }
     },
+    "assistantEmptyFallback": "VYVA no pudo completar una respuesta personalizada ahora. Revisa las comprobaciones actuales y consulta a un farmaceutico o medico antes de combinar medicamentos nuevos, modificados o dudosos. No inicies, suspendas, omitas ni cambies una dosis basandote en esta pantalla.",
     "notes": {
       "takenMorning": "Tomado esta mañana con el desayuno",
       "takenAt9": "Tomado a las 9:00",
@@ -1959,6 +1999,27 @@
     "showers": "Chubascos",
     "snowShowers": "Chubascos de nieve",
     "thunderstorm": "Tormenta"
+  },
+  "brainCoach": {
+    "progression": {
+      "twentyLevels": "{{count}} niveles",
+      "milestones": "Ruta de hitos",
+      "milestone": "Hito",
+      "nextMilestone": "Siguiente hito",
+      "monthlyPracticeHeld": "Práctica mensual mantenida",
+      "bands": {
+        "foundation": "Base",
+        "build": "Construcción",
+        "challenge": "Reto",
+        "mastery": "Maestría"
+      },
+      "milestonesByLevel": {
+        "5": "Base completada",
+        "10": "Confianza en desarrollo",
+        "15": "Listo para el reto",
+        "20": "Ronda de maestría"
+      }
+    }
   },
   "companions": {
     "title": "Encontrar un Compañero",

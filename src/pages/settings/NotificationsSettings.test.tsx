@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import NotificationsSettings from "./NotificationsSettings";
 import { apiFetch } from "@/lib/queryClient";
 import { enablePreventiveWebPush } from "@/lib/preventiveWebPush";
+import { enableMedicationRefillPush } from "@/lib/medicationRefillPush";
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
@@ -28,8 +29,14 @@ vi.mock("@/lib/preventiveWebPush", () => ({
   disablePreventiveWebPush: vi.fn(),
 }));
 
+vi.mock("@/lib/medicationRefillPush", () => ({
+  enableMedicationRefillPush: vi.fn(),
+  disableMedicationRefillPush: vi.fn(),
+}));
+
 const apiFetchMock = vi.mocked(apiFetch);
 const enablePreventiveWebPushMock = vi.mocked(enablePreventiveWebPush);
+const enableMedicationRefillPushMock = vi.mocked(enableMedicationRefillPush);
 
 const preferences = {
   preferred_checkin_channel: "voice_outbound",
@@ -42,6 +49,7 @@ const preferences = {
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
   concierge_task_notifications_enabled: true,
+  medication_refill_push_enabled: false,
   preventive_web_push_enabled: false,
 };
 
@@ -68,6 +76,7 @@ describe("NotificationsSettings", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
     enablePreventiveWebPushMock.mockReset();
+    enableMedicationRefillPushMock.mockReset();
     enablePreventiveWebPushMock.mockResolvedValue({
       consentEnabled: true,
       consentRevision: 1,
@@ -79,6 +88,11 @@ describe("NotificationsSettings", () => {
         publicKey: "B".repeat(87),
       },
     });
+    enableMedicationRefillPushMock.mockResolvedValue({
+      consentEnabled: true,
+      subscribed: true,
+      config: { supported: true, enabled: true, reason: "available", publicKey: "B".repeat(87) },
+    });
     apiFetchMock.mockResolvedValue({ ok: true, json: async () => ({
       ...preferences,
       concierge_task_notifications_enabled: false,
@@ -88,6 +102,7 @@ describe("NotificationsSettings", () => {
   it("lets a user turn Concierge task alerts off and saves the preference", async () => {
     renderPage();
     const toggle = await screen.findByTestId("switch-concierge-task-notifications");
+    await waitFor(() => expect(toggle).not.toBeDisabled());
     expect(toggle).toHaveAttribute("data-state", "checked");
     fireEvent.click(toggle);
     fireEvent.click(screen.getByRole("button", { name: "settings.notifications.savePreferences" }));
@@ -106,5 +121,13 @@ describe("NotificationsSettings", () => {
     fireEvent.click(toggle);
     await waitFor(() => expect(enablePreventiveWebPushMock).toHaveBeenCalledTimes(1));
     expect(apiFetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("enables medication refill push only through its explicit opt-in helper", async () => {
+    renderPage();
+    const toggle = await screen.findByTestId("switch-medication-refill-push");
+    expect(toggle).toHaveAttribute("data-state", "unchecked");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(enableMedicationRefillPushMock).toHaveBeenCalledTimes(1));
   });
 });

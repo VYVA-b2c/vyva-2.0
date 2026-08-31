@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Activity, AlertTriangle, ArrowLeft, Bell, Calendar, Car, Check, HeartPulse, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Sparkles, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Bell, Bluetooth, Calendar, Car, Check, ChevronDown, HeartPulse, Keyboard, Loader2, Mail, Moon, PhoneCall, Pill, Plus, RefreshCw, Scale, Share2, ShieldCheck, Smile, Stethoscope, Thermometer, UserPlus, Users, Wind, Zap } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
+import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/components/VitalsAddReadingFlow";
+import { VyvaIcon } from "@/components/brand/VyvaIcon";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
 
 type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
 type Screen = "dashboard" | "add";
@@ -10,12 +14,14 @@ type SignalKey = keyof typeof SIGNAL_CONFIG;
 interface Props {
   userId: string;
   userConditions: string[];
+  previewData?: VitalsTrackerPreviewData;
   language?: Language;
   country?: string | null;
   gpName?: string | null;
   gpPhone?: string | null;
   gpEmail?: string | null;
   caregiverContact?: string | null;
+  onBackActionChange?: (handler: (() => void) | null) => void;
 }
 
 interface LatestAnalysis {
@@ -64,9 +70,12 @@ interface RecentReading {
   source_context_label?: string;
   deviation_pct: string | number | null;
   context_tag: string | null;
+  capture_method?: string | null;
+  unit?: string | null;
+  source_ref?: Record<string, unknown> | null;
 }
 
-interface LatestResponse {
+export interface VitalsTrackerPreviewData {
   analysis: LatestAnalysis | null;
   recent_readings: RecentReading[];
   latest_alert?: LatestAlert | null;
@@ -76,7 +85,7 @@ const COPY = {
   es: {
     logo: "VYVA",
     add: "Añadir dato",
-    analyse: "Analizar ahora",
+    analyse: "Actualizar evaluación",
     analysing: "Analizando...",
     loading: "Preparando tus signos...",
     back: "Volver",
@@ -111,18 +120,18 @@ const COPY = {
     confidenceLow: "Baja",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Calidad de los datos",
-    evidenceBody: "VYVA combina estimaciones del telefono con datos que introduces de dispositivos. Las estimaciones ayudan con tendencias; los dispositivos y lecturas clinicas pesan mas.",
-    evidencePhone: "Telefono: pulso y respiracion estimados",
-    evidenceManual: "Manual: dolor, animo, energia, sueno y medicacion",
-    evidenceDevice: "Dispositivo: oxigeno, temperatura, tension, glucosa y peso",
+    evidenceTitle: "Cómo conecta VYVA tus datos",
+    evidenceBody: "VYVA reúne tus constantes y las compara con tu referencia personal: lo que es habitual para ti. Analiza cómo cambian con el tiempo y qué señales se mueven juntas para detectar tendencias, patrones y posibles riesgos antes de que resulten evidentes.",
+    evidencePhone: "Aprende tu referencia: reconoce lo que es habitual para ti",
+    evidenceManual: "Conecta las señales: constantes, síntomas, sueño, ánimo y medicación",
+    evidenceDevice: "Se anticipa: usa patrones emergentes para prever posibles resultados y señalar riesgos",
     addEvidenceNote: "Introduce el numero tal como aparece en tu dispositivo, o registra como te sientes. Esto ayuda a VYVA a refinar la evaluacion.",
     sourceClinical: "ClÃ­nico",
   },
   de: {
     logo: "VYVA",
     add: "Wert hinzufügen",
-    analyse: "Jetzt analysieren",
+    analyse: "Bewertung aktualisieren",
     analysing: "Analysiere...",
     loading: "Werte werden vorbereitet...",
     back: "Zurück",
@@ -157,18 +166,18 @@ const COPY = {
     confidenceLow: "Niedrig",
     confidenceMedium: "Mittel",
     confidenceHigh: "Hoch",
-    evidenceTitle: "Datenqualitat",
-    evidenceBody: "VYVA kombiniert Telefonschatzungen mit Werten, die Sie von Geraten eingeben. Schatzungen helfen bei Trends; Gerate- und klinische Werte zahlen starker.",
-    evidencePhone: "Telefon: geschatzter Puls und Atmung",
-    evidenceManual: "Manuell: Schmerz, Stimmung, Energie, Schlaf und Medikamente",
-    evidenceDevice: "Gerat: Sauerstoff, Temperatur, Blutdruck, Glukose und Gewicht",
+    evidenceTitle: "Wie VYVA Ihre Daten verbindet",
+    evidenceBody: "VYVA führt Ihre Vitalwerte zusammen und vergleicht sie mit Ihrem persönlichen Ausgangswert – also mit dem, was für Sie üblich ist. Es analysiert Veränderungen im Zeitverlauf und gemeinsam auftretende Signale, um Trends, Muster und mögliche Risiken frühzeitig zu erkennen.",
+    evidencePhone: "Lernt Ihren Ausgangswert: erkennt, was für Sie üblich ist",
+    evidenceManual: "Verbindet die Signale: Vitalwerte, Symptome, Schlaf, Stimmung und Medikamente",
+    evidenceDevice: "Blickt voraus: nutzt neue Muster, um mögliche Entwicklungen vorherzusehen und Risiken zu melden",
     addEvidenceNote: "Geben Sie den Wert so ein, wie er auf dem Gerat steht, oder erfassen Sie, wie Sie sich fuhlen. Das hilft VYVA, die Einschatzung zu verfeinern.",
     sourceClinical: "Klinisch",
   },
   en: {
     logo: "VYVA",
     add: "Add reading",
-    analyse: "Analyse now",
+    analyse: "Refresh assessment",
     analysing: "Analysing...",
     loading: "Preparing your vitals...",
     back: "Back",
@@ -203,11 +212,11 @@ const COPY = {
     confidenceLow: "Low",
     confidenceMedium: "Medium",
     confidenceHigh: "High",
-    evidenceTitle: "Reading quality",
-    evidenceBody: "VYVA combines phone estimates with numbers you enter from devices. Estimates help spot trends; device and clinical readings carry stronger weight.",
-    evidencePhone: "Phone: estimated pulse and breathing",
-    evidenceManual: "Manual: pain, mood, energy, sleep and medication",
-    evidenceDevice: "Device: oxygen, temperature, blood pressure, glucose and weight",
+    evidenceTitle: "How VYVA connects your health signals",
+    evidenceBody: "VYVA brings your readings together and compares them with your personal baseline—what is usual for you. It analyses changes over time and signals that move together to identify trends, patterns and possible risks before they become obvious.",
+    evidencePhone: "Learns your baseline: understands what is usual for you",
+    evidenceManual: "Connects the signals: vitals, symptoms, sleep, mood and medication",
+    evidenceDevice: "Looks ahead: uses emerging patterns to anticipate possible outcomes and flag risks",
     addEvidenceNote: "Enter the number exactly as it appears on your device, or record how you feel. This helps VYVA refine the assessment.",
     sourceClinical: "Clinical",
   },
@@ -269,53 +278,61 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   fr: {
     add: "Ajouter une mesure",
-    analyse: "Analyser maintenant",
-    analysing: "Analyse...",
-    loading: "Preparation de vos constantes...",
+    analyse: "Actualiser l’évaluation",
+    analysing: "Analyse en cours…",
+    loading: "Préparation de vos constantes…",
     back: "Retour",
     save: "Enregistrer la mesure",
-    saving: "Enregistrement...",
-    lastAnalysis: "Derniere analyse",
+    saving: "Enregistrement…",
+    lastAnalysis: "Dernière analyse",
     noAnalysis: "Aucune analyse encore",
     now: "Maintenant",
     normal: "Normal",
     today: "Aujourd'hui",
     yes: "Oui, pris",
     no: "Pas encore",
-    messageFallback: "Bonjour. VYVA est prete a revoir vos constantes avec vous.",
-    safetyTitle: "Controle quotidien",
-    safetyAck: "Enregistre",
-    recheck: "Verifier a nouveau",
+    messageFallback: "Bonjour. VYVA est prête à revoir vos constantes avec vous.",
+    safetyTitle: "Contrôle quotidien",
+    safetyAck: "Enregistré",
+    recheck: "Vérifier à nouveau",
     share: "Partager",
-    doctor: "Medecin",
+    doctor: "Médecin",
     urgent: "Urgent",
-    sourceEstimated: "Estime",
+    call: "Appeler",
+    callGp: "Appeler le médecin",
+    emailGp: "Envoyer un e-mail au médecin",
+    doctorHelp: "Aide médicale",
+    addDoctor: "Ajouter un médecin",
+    appointment: "Prendre rendez-vous",
+    ride: "Trouver un transport",
+    shareSummary: "Partager le résumé",
+    sourceEstimated: "Estimé",
     sourceManual: "Manuel",
     sourceDevice: "Appareil",
     confidenceLow: "Faible",
     confidenceMedium: "Moyenne",
-    confidenceHigh: "Elevee",
-    evidenceTitle: "Qualite des donnees",
-    evidenceBody: "VYVA combine les estimations du telephone avec les valeurs saisies depuis des appareils. Les estimations aident a voir les tendances; les appareils et mesures cliniques ont plus de poids.",
-    evidencePhone: "Telephone : pouls et respiration estimes",
-    evidenceManual: "Manuel : douleur, humeur, energie, sommeil et medication",
-    evidenceDevice: "Appareil : oxygene, temperature, tension, glycemie et poids",
+    confidenceHigh: "Élevée",
+    evidenceTitle: "Comment VYVA relie vos données de santé",
+    evidenceBody: "VYVA rassemble vos mesures et les compare à votre référence personnelle : ce qui est habituel pour vous. Elle analyse leur évolution et les signaux qui changent ensemble afin de repérer les tendances, les schémas et les risques possibles avant qu’ils ne deviennent évidents.",
+    evidencePhone: "Apprend votre référence : comprend ce qui est habituel pour vous",
+    evidenceManual: "Relie les signaux : constantes, symptômes, sommeil, humeur et médicaments",
+    evidenceDevice: "Anticipe : utilise les schémas émergents pour prévoir les évolutions possibles et signaler les risques",
     addEvidenceNote: "Saisissez le nombre tel qu'il apparait sur votre appareil, ou notez comment vous vous sentez. Cela aide VYVA a affiner l'evaluation.",
     sourceClinical: "Clinique",
     loadError: "Impossible de charger vos constantes maintenant.",
     saveError: "Impossible d'enregistrer cette mesure.",
     analysisError: "L'analyse n'a pas pu se terminer.",
     actionError: "Impossible d'enregistrer cette action.",
-    checkConnectedSensor: "Verifier le capteur connecte",
-    manualGlucoseEntry: "Saisie manuelle de glycemie",
-    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycemie.",
-    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycemie pour l'enregistrer avec vos constantes.",
-    whenReading: "Quand cette mesure a-t-elle ete prise?",
+    checkConnectedSensor: "Vérifier le capteur connecté",
+    manualGlucoseEntry: "Saisie manuelle de glycémie",
+    connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycémie.",
+    manualGlucoseHelp: "Saisissez le nombre du lecteur de glycémie pour l'enregistrer avec vos constantes.",
+    whenReading: "Quand cette mesure a-t-elle été prise ?",
     ok: "OK",
   },
   it: {
     add: "Aggiungi lettura",
-    analyse: "Analizza ora",
+    analyse: "Aggiorna valutazione",
     analysing: "Analisi...",
     loading: "Preparazione dei parametri...",
     back: "Indietro",
@@ -341,11 +358,11 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Bassa",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Qualita dei dati",
-    evidenceBody: "VYVA combina stime del telefono con valori inseriti da dispositivi. Le stime aiutano con i trend; dispositivi e letture cliniche hanno piu peso.",
-    evidencePhone: "Telefono: polso e respirazione stimati",
-    evidenceManual: "Manuale: dolore, umore, energia, sonno e farmaci",
-    evidenceDevice: "Dispositivo: ossigeno, temperatura, pressione, glucosio e peso",
+    evidenceTitle: "Come VYVA collega i tuoi dati di salute",
+    evidenceBody: "VYVA riunisce le tue misurazioni e le confronta con il tuo riferimento personale: ciò che è abituale per te. Analizza i cambiamenti nel tempo e i segnali che variano insieme per individuare tendenze, schemi e possibili rischi prima che diventino evidenti.",
+    evidencePhone: "Impara il tuo riferimento: comprende ciò che è abituale per te",
+    evidenceManual: "Collega i segnali: parametri vitali, sintomi, sonno, umore e farmaci",
+    evidenceDevice: "Guarda avanti: usa gli schemi emergenti per anticipare possibili esiti e segnalare i rischi",
     addEvidenceNote: "Inserisci il numero esattamente come appare sul dispositivo, o registra come ti senti. Questo aiuta VYVA a perfezionare la valutazione.",
     sourceClinical: "Clinico",
     loadError: "Impossibile caricare i parametri ora.",
@@ -361,7 +378,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
   },
   pt: {
     add: "Adicionar leitura",
-    analyse: "Analisar agora",
+    analyse: "Atualizar avaliação",
     analysing: "A analisar...",
     loading: "A preparar os seus sinais...",
     back: "Voltar",
@@ -387,11 +404,11 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     confidenceLow: "Baixa",
     confidenceMedium: "Media",
     confidenceHigh: "Alta",
-    evidenceTitle: "Qualidade dos dados",
-    evidenceBody: "A VYVA combina estimativas do telefone com valores introduzidos de dispositivos. As estimativas ajudam nas tendencias; dispositivos e leituras clinicas tem mais peso.",
-    evidencePhone: "Telefone: pulso e respiracao estimados",
-    evidenceManual: "Manual: dor, humor, energia, sono e medicacao",
-    evidenceDevice: "Dispositivo: oxigenio, temperatura, tensao, glicose e peso",
+    evidenceTitle: "Como a VYVA liga os seus dados de saúde",
+    evidenceBody: "A VYVA reúne as suas medições e compara-as com a sua referência pessoal: aquilo que é habitual para si. Analisa alterações ao longo do tempo e sinais que mudam em conjunto para identificar tendências, padrões e possíveis riscos antes de se tornarem evidentes.",
+    evidencePhone: "Aprende a sua referência: compreende o que é habitual para si",
+    evidenceManual: "Liga os sinais: sinais vitais, sintomas, sono, humor e medicação",
+    evidenceDevice: "Antecipa: usa padrões emergentes para prever possíveis resultados e sinalizar riscos",
     addEvidenceNote: "Introduza o numero exatamente como aparece no dispositivo, ou registe como se sente. Isto ajuda a VYVA a refinar a avaliacao.",
     sourceClinical: "Clinico",
     loadError: "Nao foi possivel carregar os seus sinais agora.",
@@ -760,26 +777,54 @@ function signalContextLabel(signalKey: SignalKey, context: { key: string; label:
   return SIGNAL_TRANSLATIONS[language]?.[signalKey]?.contexts?.[context.key] ?? textFor(context.label, language);
 }
 
-const DASHBOARD_SIGNALS: SignalKey[] = ["resting_hr_bpm", "oxygen_saturation", "temperature_c", "glucose_mgdl", "mood_score", "sleep_quality_score"];
+const DISPLAY_GROUP_ORDER: VitalsDisplayGroup[] = ["heart", "breathing", "blood", "body", "wellbeing", "activity", "labs"];
+
+const DISPLAY_GROUP_LABELS: Record<VitalsDisplayGroup, Record<Language, string>> = {
+  heart: { en: "Heart", es: "Corazon", de: "Herz", fr: "Coeur", it: "Cuore", pt: "Coracao" },
+  breathing: { en: "Breathing", es: "Respiracion", de: "Atmung", fr: "Respiration", it: "Respirazione", pt: "Respiracao" },
+  blood: { en: "Blood", es: "Sangre", de: "Blut", fr: "Sang", it: "Sangue", pt: "Sangue" },
+  body: { en: "Body", es: "Cuerpo", de: "Korper", fr: "Corps", it: "Corpo", pt: "Corpo" },
+  wellbeing: { en: "Wellbeing", es: "Bienestar", de: "Wohlbefinden", fr: "Bien-etre", it: "Benessere", pt: "Bem-estar" },
+  activity: { en: "Activity", es: "Actividad", de: "Aktivitat", fr: "Activite", it: "Attivita", pt: "Atividade" },
+  labs: { en: "Labs", es: "Analisis", de: "Labor", fr: "Analyses", it: "Esami", pt: "Analises" },
+};
+
+const DASHBOARD_LABELS: Record<Language, { latest: string; more: string; risk: string; lower: string }> = {
+  en: { latest: "Latest readings", more: "More vitals", risk: "Risk score", lower: "Lower is better" },
+  es: { latest: "Últimas mediciones", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor" },
+  de: { latest: "Letzte Messwerte", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser" },
+  fr: { latest: "Dernières mesures", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux" },
+  it: { latest: "Ultime letture", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio" },
+  pt: { latest: "Leituras recentes", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor" },
+};
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
-  const common = `h-8 w-8 ${className}`;
-  if (type === "heart") return <HeartPulse className={common} />;
-  if (type === "wind") return <Wind className={common} />;
-  if (type === "oxygen") return <Activity className={common} />;
-  if (type === "thermometer") return <Thermometer className={common} />;
-  if (type === "scale") return <Scale className={common} />;
-  if (type === "energy") return <Zap className={common} />;
-  if (type === "stethoscope") return <Stethoscope className={common} />;
-  if (type === "moon") return <Moon className={common} />;
-  if (type === "pill") return <Pill className={common} />;
-  if (type === "smile") return <Smile className={common} />;
-  return <Activity className={common} />;
+  if (type === "heart") return <VyvaIcon icon={HeartPulse} accent="pulse" size={28} className={className} />;
+  if (type === "wind") return <VyvaIcon icon={Wind} accent="signal" size={28} className={className} />;
+  if (type === "oxygen") return <VyvaIcon icon={Activity} accent="pulse" size={28} className={className} />;
+  if (type === "thermometer") return <VyvaIcon icon={Thermometer} accent="dot" size={28} className={className} />;
+  if (type === "scale") return <VyvaIcon icon={Scale} accent="divider" size={28} className={className} />;
+  if (type === "energy") return <VyvaIcon icon={Zap} accent="spark" size={28} className={className} />;
+  if (type === "stethoscope") return <VyvaIcon icon={Stethoscope} accent="scope" size={28} className={className} />;
+  if (type === "moon") return <VyvaIcon icon={Moon} accent="spark" size={28} className={className} />;
+  if (type === "pill") return <VyvaIcon icon={Pill} accent="divider" size={28} className={className} />;
+  if (type === "smile") return <VyvaIcon icon={Smile} accent="smile" size={28} className={className} />;
+  return <VyvaIcon icon={Activity} accent="pulse" size={28} className={className} />;
 }
 
 function numberValue(value: unknown): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readingValueDisplay(signalKey: SignalKey, reading: RecentReading): string {
+  const value = numberValue(reading.value);
+  if (signalKey === "medication_confirmed") {
+    return value === 1 ? "✓" : value === 0 ? "—" : "--";
+  }
+  if (value == null) return "--";
+  const unit = reading.unit || VITALS_SIGNAL_CATALOG[signalKey].unit;
+  return `${value}${unit ? ` ${unit}` : ""}`;
 }
 
 function getRiskColor(score: number) {
@@ -847,9 +892,9 @@ function safetyLabel(status: SafetyStatus, language: Language) {
     },
     fr: {
       steady: "Stable",
-      recheck: "Verifier a nouveau",
+      recheck: "Vérifier à nouveau",
       share_with_caregiver: "Partager avec l'aidant",
-      contact_doctor: "Contacter le medecin",
+      contact_doctor: "Contacter le médecin",
       urgent_help: "Aide urgente",
     },
     it: {
@@ -868,6 +913,35 @@ function safetyLabel(status: SafetyStatus, language: Language) {
     },
   };
   return labels[language][status];
+}
+
+const FRENCH_SAFETY_MESSAGES: Record<SafetyStatus, string> = {
+  steady: "Vos mesures récentes semblent stables. Gardez vos habitudes et vérifiez à nouveau si quelque chose change.",
+  recheck: "VYVA vous recommande de reprendre cette mesure afin de confirmer le changement.",
+  share_with_caregiver: "VYVA a détecté un changement. Il serait prudent d’en parler à votre aidant et de reprendre la mesure.",
+  contact_doctor: "VYVA a détecté un changement qui mérite un avis médical aujourd’hui. Partagez ce résumé si vous le pouvez.",
+  urgent_help: "VYVA a détecté un signal de sécurité important. Si cela se produit maintenant, demandez une aide urgente ou appelez les secours.",
+};
+
+function isKnownEnglishSafetyMessage(message: string) {
+  return /^(VYVA noticed|VYVA recommends|Complete today's check|Your recent check|Your latest readings|Please speak with your doctor|Your readings need urgent support)/i.test(message.trim());
+}
+
+function seniorMessageForDisplay(message: string | null | undefined, status: SafetyStatus, language: Language) {
+  if (!message?.trim()) return copyFor(language).messageFallback;
+  if (language === "fr" && isKnownEnglishSafetyMessage(message)) return FRENCH_SAFETY_MESSAGES[status];
+  return message.trim();
+}
+
+function alertMessageForDisplay(alert: LatestAlert, status: SafetyStatus, language: Language) {
+  if (language !== "fr") return alert.message;
+
+  const symptomMatch = alert.message.match(/(?:Symptom report|Rapport de symptômes)\s*:\s*([^\n]+)/i);
+  if (symptomMatch?.[1]?.trim()) return `Rapport de symptômes : ${symptomMatch[1].trim()}`;
+
+  if (status === "urgent_help") return "Un signal récent nécessite une aide urgente. Consultez immédiatement les recommandations enregistrées.";
+  if (status === "contact_doctor") return "Un signal récent mérite un avis médical aujourd’hui. Consultez le rapport enregistré.";
+  return "Un signal récent est disponible dans vos rapports.";
 }
 
 function sanitizePhoneHref(phone?: string | null): string {
@@ -944,10 +1018,21 @@ function buildVitalsContext({
   recentReadings: RecentReading[];
   language: Language;
 }) {
+  const status = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
+  const localizedMessage = seniorMessageForDisplay(analysis?.senior_message, status, language);
+  const contextLabels: Record<Language, { title: string; note: string; risk: string }> = {
+    en: { title: "VYVA vitals summary", note: "VYVA note", risk: "Risk score" },
+    es: { title: "Resumen de signos VYVA", note: "Nota VYVA", risk: "Nivel" },
+    de: { title: "VYVA Vitalwerte", note: "VYVA Hinweis", risk: "Risikowert" },
+    fr: { title: "Résumé des constantes VYVA", note: "Note VYVA", risk: "Score de risque" },
+    it: { title: "Riepilogo dei parametri VYVA", note: "Nota VYVA", risk: "Punteggio di rischio" },
+    pt: { title: "Resumo dos sinais VYVA", note: "Nota VYVA", risk: "Pontuação de risco" },
+  };
+  const labels = contextLabels[language];
   const lines = [
-    language === "de" ? "VYVA Vitalwerte" : language === "en" ? "VYVA vitals summary" : "Resumen de signos VYVA",
-    analysis?.senior_message ? `${language === "en" ? "VYVA note" : "Nota VYVA"}: ${analysis.senior_message}` : "",
-    analysis?.risk_score != null ? `${language === "en" ? "Risk score" : "Nivel"}: ${analysis.risk_score}/100` : "",
+    labels.title,
+    analysis?.senior_message ? `${labels.note}: ${localizedMessage}` : "",
+    analysis?.risk_score != null ? `${labels.risk}: ${analysis.risk_score}/100` : "",
     ...recentReadings.slice(0, 5).map((reading) => `${reading.signal_type}: ${reading.value}${reading.context_tag ? ` (${reading.context_tag})` : ""}`),
   ];
   return lines.filter(Boolean).join("\n");
@@ -964,10 +1049,10 @@ function readingSourceBadge(reading: RecentReading | undefined, language: Langua
       : confidence === "low"
         ? copy.confidenceLow
         : copy.confidenceMedium;
-  if (source === "phone_estimate") return { label: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
-  if (source === "connected_device") return { label: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
-  if (source === "clinical") return { label: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
-  return { label: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
+  if (source === "phone_estimate") return { shortLabel: copy.sourceEstimated, fullLabel: `${copy.sourceEstimated} - ${confidenceLabel}`, bg: "#F5F3FF", color: "#6B21A8" };
+  if (source === "connected_device") return { shortLabel: copy.sourceDevice, fullLabel: `${copy.sourceDevice} - ${confidenceLabel}`, bg: "#D1FAE5", color: "#047857" };
+  if (source === "clinical") return { shortLabel: copy.sourceClinical, fullLabel: `${copy.sourceClinical} - ${confidenceLabel}`, bg: "#E0F2FE", color: "#0369A1" };
+  return { shortLabel: copy.sourceManual, fullLabel: `${copy.sourceManual} - ${confidenceLabel}`, bg: "#FEF3C7", color: "#92400E" };
 }
 
 function relativeTime(iso: string | null | undefined, language: Language) {
@@ -1001,38 +1086,55 @@ function relativeTime(iso: string | null | undefined, language: Language) {
 export default function VitalsTracker({
   userId,
   userConditions,
+  previewData,
   language = "es",
   country,
   gpName,
   gpPhone,
   gpEmail,
   caregiverContact,
+  onBackActionChange,
 }: Props) {
   const navigate = useNavigate();
+  const { isDark } = useHomeMasterTheme();
   const [searchParams] = useSearchParams();
   const [screen, setScreen] = useState<Screen>("dashboard");
-  const [analysis, setAnalysis] = useState<LatestAnalysis | null>(null);
-  const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
-  const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [analysis, setAnalysis] = useState<LatestAnalysis | null>(previewData?.analysis ?? null);
+  const [recentReadings, setRecentReadings] = useState<RecentReading[]>(previewData?.recent_readings ?? []);
+  const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(previewData?.latest_alert ?? null);
+  const [loading, setLoading] = useState(!previewData);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [heroMarkerIndex, setHeroMarkerIndex] = useState(0);
 
-  const [selectedSignal, setSelectedSignal] = useState<SignalKey>("resting_hr_bpm");
-  const [inputValue, setInputValue] = useState("");
-  const [selectedContext, setSelectedContext] = useState("general");
-  const [saving, setSaving] = useState(false);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
+  const showDashboard = useCallback(() => setScreen("dashboard"), []);
+  const showAddReading = useCallback(() => setScreen("add"), []);
 
   const copy = useMemo(() => copyFor(language), [language]);
   const gpCallLabel = gpName?.trim() ? `${copy.call} ${gpName.trim()}` : copy.callGp;
   const visibleSignals = useMemo(() => getVisibleSignals(userConditions), [userConditions]);
-  const selectedConfig = SIGNAL_CONFIG[selectedSignal];
+  const heroMarkers = useMemo(() => {
+    const seen = new Set<SignalKey>();
+    return recentReadings.filter((reading) => {
+      if (!(reading.signal_type in SIGNAL_CONFIG)) return false;
+      const signalKey = reading.signal_type as SignalKey;
+      if (seen.has(signalKey)) return false;
+      seen.add(signalKey);
+      return true;
+    }).slice(0, 4);
+  }, [recentReadings]);
+  const heroMetricCount = heroMarkers.length + 1;
   const riskScore = analysis?.risk_score ?? 0;
   const riskColor = getRiskColor(riskScore);
   const safetyStatus = normalizeSafetyStatus(analysis?.recommended_action ?? analysis?.safety_status);
   const addSource = searchParams.get("source");
-  const openedFromGlucoseAction = (searchParams.get("add") === "glucose" || searchParams.get("add") === "glucose_mgdl") && selectedSignal === "glucose_mgdl";
+  const requestedAddSignal = searchParams.get("add");
+  const initialAddSignal = requestedAddSignal === "glucose"
+    ? "glucose_mgdl"
+    : requestedAddSignal && requestedAddSignal in SIGNAL_CONFIG
+      ? requestedAddSignal as SignalKey
+      : null;
   const safety = safetyTone(safetyStatus);
   const SafetyIcon = safety.Icon;
   const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
@@ -1056,22 +1158,39 @@ export default function VitalsTracker({
   });
 
   useEffect(() => {
-    const signalParam = searchParams.get("add");
-    if (signalParam === "glucose" || signalParam === "glucose_mgdl") {
-      setSelectedSignal("glucose_mgdl");
-      setSelectedContext("general");
-      setScreen("add");
-    }
-  }, [searchParams]);
+    if (initialAddSignal) setScreen("add");
+  }, [initialAddSignal]);
+
+  useEffect(() => {
+    if (screen === "dashboard") onBackActionChange?.(null);
+  }, [onBackActionChange, screen]);
+
+  useEffect(() => {
+    setHeroMarkerIndex(0);
+    if (screen !== "dashboard" || heroMetricCount < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setHeroMarkerIndex((current) => (current + 1) % heroMetricCount);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, [heroMetricCount, screen]);
 
   const loadDashboard = useCallback(async () => {
+    if (previewData) {
+      setAnalysis(previewData.analysis ?? null);
+      setRecentReadings(previewData.recent_readings ?? []);
+      setLatestAlert(previewData.latest_alert ?? null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
       const response = await apiFetch("/api/vitals-engine/latest");
       if (!response.ok) throw new Error("Dashboard load failed");
-      const data = await response.json() as LatestResponse;
+      const data = await response.json() as VitalsTrackerPreviewData;
       setAnalysis(data.analysis ?? null);
       setRecentReadings(data.recent_readings ?? []);
       setLatestAlert(data.latest_alert ?? null);
@@ -1080,42 +1199,10 @@ export default function VitalsTracker({
     } finally {
       setLoading(false);
     }
-  }, [copy.loadError, userId]);
-
-  async function saveReading() {
-    const numeric = selectedConfig.isBinary ? Number(inputValue) : Number(inputValue);
-    if (!Number.isFinite(numeric)) return;
-
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await apiFetch("/api/vitals-engine/reading", {
-        method: "POST",
-        credentials: "include",
-        body: JSON.stringify({
-          signal_type: selectedSignal,
-          value: numeric,
-          source: "manual_entry",
-          context_tag: selectedContext,
-          condition_tags: userConditions,
-        }),
-      });
-      if (!response.ok) throw new Error("Save failed");
-      const data = await response.json() as { deviation_pct?: number | null };
-      setScreen("dashboard");
-      setInputValue("");
-      await loadDashboard();
-      if (data.deviation_pct != null && Math.abs(Number(data.deviation_pct)) > 25) {
-        await triggerAnalysis();
-      }
-    } catch {
-      setError(copy.saveError);
-    } finally {
-      setSaving(false);
-    }
-  }
+  }, [copy.loadError, previewData, userId]);
 
   async function triggerAnalysis() {
+    if (previewData) return;
     setAnalysing(true);
     setError(null);
     try {
@@ -1178,12 +1265,16 @@ export default function VitalsTracker({
         ? "Bitte hilf mir, eine sichere Fahrt wegen meiner VYVA Vitalwerte zu organisieren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
           ? "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before contacting anyone."
-          : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
+          : language === "fr"
+            ? "Aidez-moi à trouver un transport sûr en fonction de mes constantes VYVA. Demandez ma confirmation avant de contacter qui que ce soit."
+            : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
       : language === "de"
         ? "Bitte hilf mir, einen Arzttermin wegen meiner VYVA Vitalwerte zu vereinbaren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
           ? "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."
-          : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
+          : language === "fr"
+            ? "Aidez-moi à prendre rendez-vous avec un médecin en fonction de mes constantes VYVA. Demandez ma confirmation avant de réserver."
+            : "Ayudame a programar una cita medica segun mis signos de VYVA. Pideme confirmacion antes de reservar.";
 
     void acknowledgeSafety(safetyStatus === "urgent_help" ? "urgent_guidance_followed" : "contacted_doctor");
     navigate("/concierge", {
@@ -1212,12 +1303,6 @@ export default function VitalsTracker({
     }
   }
 
-  function selectSignal(key: SignalKey) {
-    setSelectedSignal(key);
-    setSelectedContext(SIGNAL_CONFIG[key].contexts[0]?.key ?? "general");
-    setInputValue("");
-  }
-
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
@@ -1226,12 +1311,6 @@ export default function VitalsTracker({
     window.addEventListener("vyva:vitals-updated", loadDashboard);
     return () => window.removeEventListener("vyva:vitals-updated", loadDashboard);
   }, [loadDashboard]);
-
-  useEffect(() => {
-    if (!visibleSignals.some(([key]) => key === selectedSignal)) {
-      selectSignal(visibleSignals[0]?.[0] ?? "resting_hr_bpm");
-    }
-  }, [visibleSignals, selectedSignal]);
 
   const safetyActionBaseClass = "flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-bold transition active:scale-[0.98] disabled:opacity-60";
 
@@ -1384,7 +1463,7 @@ export default function VitalsTracker({
           type="button"
           onClick={() => {
             void acknowledgeSafety("recheck");
-            setScreen("add");
+            showAddReading();
           }}
           disabled={acknowledging !== null}
           className={`${safetyActionBaseClass} bg-[#0369A1] text-white`}
@@ -1400,218 +1479,156 @@ export default function VitalsTracker({
   }
 
   // TODO: Device connection settings screen for Apple Health / LibreView / Withings.
-  // TODO: Nightly cron job should call POST /api/vitals/baseline/update for active users.
   // TODO: Caregiver dashboard can read vyva_pattern_windows.caregiver_note.
   // TODO: VYVA voice can read senior_message aloud after analysis.
   // TODO: Optional 40Hz gamma audio layer under daily check-in audio.
 
   if (screen === "add") {
-    const isBinary = selectedConfig.isBinary === true;
-    const canSave = isBinary ? inputValue === "1" || inputValue === "0" : inputValue.trim().length > 0 && Number.isFinite(Number(inputValue));
-
     return (
-      <section className="rounded-[28px] border border-[#E8DED4] bg-[#FAF9F6] p-5 shadow-[0_14px_34px_rgba(63,45,35,0.08)]" data-testid="vitals-engine-add">
-        <button
-          type="button"
-          onClick={() => setScreen("dashboard")}
-          className="mb-6 flex min-h-[64px] items-center gap-3 rounded-full bg-white px-5 font-body text-[18px] font-bold text-[#3B2C25] shadow-[0_6px_18px_rgba(63,45,35,0.07)]"
-        >
-          <ArrowLeft className="h-6 w-6" />
-          {copy.back}
-        </button>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {visibleSignals.map(([key, cfg]) => {
-            const active = key === selectedSignal;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => selectSignal(key)}
-                className="flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[24px] border px-3 text-center font-body text-[18px] font-bold transition active:scale-[0.98]"
-                style={{
-                  background: active ? "#6B21A8" : "#FFFFFF",
-                  borderColor: active ? "#6B21A8" : "#E8DED4",
-                  color: active ? "#FFFFFF" : "#3B2C25",
-                }}
-              >
-                <SignalIcon type={cfg.icon} className={active ? "text-white" : "text-[#6B21A8]"} />
-                {signalLabel(key, cfg, language)}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="my-7 h-px bg-[#E8DED4]" />
-
-        <h2 className="font-display text-[30px] italic leading-tight text-[#2F241F]">
-          {signalQuestion(selectedSignal, selectedConfig, language)}
-        </h2>
-        <p className="mt-3 rounded-[20px] border border-[#DDD6FE] bg-white px-4 py-3 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
-          {copy.addEvidenceNote}
-        </p>
-
-        {openedFromGlucoseAction ? (
-          <div className="mt-5 rounded-[24px] border border-[#DDD6FE] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-            <div className="flex items-start gap-3">
-              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
-                <Activity className="h-6 w-6" />
-              </span>
-              <div>
-                <p className="font-body text-[19px] font-black leading-tight text-[#2F241F]">
-                  {addSource === "connected" ? copy.checkConnectedSensor : copy.manualGlucoseEntry}
-                </p>
-                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#6B5B52]">
-                  {addSource === "connected" ? copy.connectedGlucoseHelp : copy.manualGlucoseHelp}
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {isBinary ? (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setInputValue("1")}
-              className="flex min-h-[96px] items-center justify-center gap-3 rounded-[24px] border px-5 font-body text-[22px] font-bold"
-              style={{
-                background: inputValue === "1" ? "#ECFDF5" : "#FFFFFF",
-                borderColor: inputValue === "1" ? "#22C55E" : "#E8DED4",
-                color: "#14532D",
-              }}
-            >
-              <Check className="h-7 w-7" />
-              {copy.yes}
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputValue("0")}
-              className="flex min-h-[96px] items-center justify-center rounded-[24px] border px-5 font-body text-[22px] font-bold"
-              style={{
-                background: inputValue === "0" ? "#FFF7ED" : "#FFFFFF",
-                borderColor: inputValue === "0" ? "#F59E0B" : "#E8DED4",
-                color: "#92400E",
-              }}
-            >
-              {copy.no}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-6 flex items-end gap-3 rounded-[28px] border-2 border-[#E8DED4] bg-white px-5 py-4">
-            <input
-              type="number"
-              inputMode="decimal"
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              placeholder={selectedConfig.placeholder}
-              className="min-w-0 flex-1 bg-transparent font-body text-[72px] font-bold leading-none text-[#2F241F] outline-none placeholder:text-[#D6C7BA]"
-            />
-            <span className="pb-3 font-body text-[22px] font-bold text-[#7A6A60]">{selectedConfig.unit}</span>
-          </div>
-        )}
-
-        <p className="mt-7 font-body text-[20px] font-bold text-[#3B2C25]">
-          {copy.whenReading}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {selectedConfig.contexts.map((context) => {
-            const active = selectedContext === context.key;
-            return (
-              <button
-                key={context.key}
-                type="button"
-                onClick={() => setSelectedContext(context.key)}
-                className="min-h-[64px] rounded-full border px-4 font-body text-[18px] font-bold"
-                style={{
-                  background: active ? "#F59E0B" : "#FFFFFF",
-                  borderColor: active ? "#F59E0B" : "#E8DED4",
-                  color: active ? "#2F241F" : "#6B5B52",
-                }}
-              >
-                {signalContextLabel(selectedSignal, context, language)}
-              </button>
-            );
-          })}
-        </div>
-
-        {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
-
-        <button
-          type="button"
-          onClick={saveReading}
-          disabled={!canSave || saving}
-          className="mt-7 flex min-h-[72px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B21A8] px-6 font-body text-[22px] font-bold text-white shadow-[0_12px_26px_rgba(107,33,168,0.24)] disabled:opacity-50"
-        >
-          {saving && <Loader2 className="h-6 w-6 animate-spin" />}
-          {saving ? copy.saving : copy.save}
-        </button>
-      </section>
+      <VitalsAddReadingFlow
+        previewMode={Boolean(previewData)}
+        previewContext={previewData ? previewAcquisitionContext(previewData.recent_readings) : undefined}
+        initialSignal={initialAddSignal}
+        language={language}
+        onBack={showDashboard}
+        onBackActionChange={onBackActionChange}
+        onSaved={async () => {
+          showDashboard();
+          await loadDashboard();
+        }}
+      />
     );
+
   }
 
   const latestBySignal = latestReadingMap(recentReadings);
+  const activeHeroMetricIndex = heroMarkerIndex % heroMetricCount;
+  const activeHeroMarker = activeHeroMetricIndex === 0 ? undefined : heroMarkers[activeHeroMetricIndex - 1];
+  const activeHeroSignal = activeHeroMarker?.signal_type as SignalKey | undefined;
+  const activeHeroConfig = activeHeroSignal ? SIGNAL_CONFIG[activeHeroSignal] : null;
+  const activeHeroDeviation = numberValue(activeHeroMarker?.deviation_pct);
+  const visibleSignalEntries = visibleSignals.filter(([key]) => !VITALS_SIGNAL_CATALOG[key].futureReady);
+  const readingGroups = DISPLAY_GROUP_ORDER.flatMap((group) => {
+    const signals = visibleSignalEntries.filter(([key]) => VITALS_SIGNAL_CATALOG[key].displayGroup === group);
+    return signals.length ? [{ group, signals }] : [];
+  });
+  const trackedReadingGroups = readingGroups.flatMap(({ group, signals }) => {
+    const trackedSignals = signals.filter(([key]) => Boolean(latestBySignal[key]));
+    return trackedSignals.length ? [{ group, signals: trackedSignals }] : [];
+  });
+  const untrackedReadingGroups = readingGroups.flatMap(({ group, signals }) => {
+    const untrackedSignals = signals.filter(([key]) => !latestBySignal[key]);
+    return untrackedSignals.length ? [{ group, signals: untrackedSignals }] : [];
+  });
+  const dashboardLabels = DASHBOARD_LABELS[language];
+  const seniorMessage = previewData && language !== "en" && language !== "fr"
+    ? copy.messageFallback
+    : seniorMessageForDisplay(analysis?.senior_message, safetyStatus, language);
+  const safetyHeroAccent =
+    safetyStatus === "steady"
+      ? "border-l-[#047857]"
+      : safetyStatus === "recheck" || safetyStatus === "share_with_caregiver"
+        ? "border-l-[#D97706]"
+        : "border-l-[#B91C1C]";
+  const dashboardPanel = isDark
+    ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_18px_38px_rgba(0,0,0,0.2)]"
+    : "border-[#E6DCEB] bg-white text-[#241238] shadow-[0_16px_40px_rgba(63,45,75,0.08)]";
+  const dashboardDisclosure = isDark
+    ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_14px_30px_rgba(0,0,0,0.18)]"
+    : "border-[#E8DED4] bg-white text-[#3B2C25] shadow-[0_8px_20px_rgba(63,45,35,0.05)]";
+  const groupDivider = isDark ? "border-white/[0.12]" : "border-[#E1D6E7]";
+  const rowDivider = isDark ? "divide-white/[0.1]" : "divide-[#EFE7F3]";
 
   return (
-    <section className="rounded-[28px] border border-[#E8DED4] bg-[#FAF9F6] p-5 shadow-[0_14px_34px_rgba(63,45,35,0.08)]" data-testid="vitals-engine-dashboard">
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <div className="font-display text-[30px] italic leading-none text-[#6B21A8]">{copy.logo}</div>
-        <button
-          type="button"
-          onClick={triggerAnalysis}
-          disabled={analysing}
-          className="flex min-h-[64px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[18px] font-bold text-[#6B21A8]"
-        >
-          {analysing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-          {analysing ? copy.analysing : copy.analyse}
-        </button>
-      </div>
-
+    <section className="-mx-2 w-[calc(100%+1rem)] max-w-[760px] space-y-3 sm:mx-auto sm:w-full sm:space-y-4" data-testid="vitals-engine-dashboard">
       {loading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-[26px] bg-white">
-          <div className="text-center font-body text-[20px] font-bold text-[#6B5B52]">
+        <div className={`flex min-h-[260px] items-center justify-center rounded-[30px] border ${dashboardPanel}`}>
+          <div className={`text-center font-body text-[20px] font-bold ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>
             <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-[#6B21A8]" />
             {copy.loading}
           </div>
         </div>
       ) : (
         <>
-          <div className="flex flex-col items-center rounded-[28px] bg-white px-5 py-7 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
-            <div
-              className="flex h-[190px] w-[190px] items-center justify-center rounded-full"
-              style={{ background: `conic-gradient(${riskColor} ${riskScore * 3.6}deg, #EEE6DE 0deg)` }}
-              aria-label={`${riskScore}, ${getRiskLabel(riskScore, language)}`}
+          <div className="-mx-2 sm:-mx-4 lg:-mx-14" data-testid="vitals-hero">
+            <section
+              aria-label={safetyLabel(safetyStatus, language)}
+              className={`relative overflow-hidden rounded-[26px] border border-l-[5px] px-4 py-4 pr-[76px] sm:rounded-[30px] sm:border-l-[6px] sm:px-[22px] sm:py-5 sm:pr-[88px] ${dashboardPanel} ${safetyHeroAccent}`}
             >
-              <div className="flex h-[142px] w-[142px] flex-col items-center justify-center rounded-full bg-[#FAF9F6] text-center">
-                <span className="font-body text-[50px] font-bold leading-none text-[#2F241F]">{riskScore}</span>
-                <span className="mt-2 font-body text-[18px] font-bold text-[#6B5B52]">/100</span>
+              <div data-testid="vitals-hero-metric">
+                {activeHeroMetricIndex === 0 ? (
+                  <div
+                    className="flex min-h-[68px] items-center gap-3 sm:mx-auto sm:w-[380px]"
+                    data-testid="vitals-risk-score"
+                    aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
+                  >
+                    <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                      <VyvaIcon icon={ShieldCheck} accent="trend" size={25} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className={`font-body text-[10px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
+                      <div className="mt-0.5 flex items-baseline gap-1.5">
+                        <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.05em] sm:text-[46px]" style={{ color: riskColor }}>{riskScore}</span>
+                        <span className={`font-body text-[13px] font-black sm:text-[15px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
+                        <span className={`ml-1 font-body text-[11px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
+                  <div className="min-w-0 sm:mx-auto sm:w-[380px]" data-testid="vitals-hero-marker">
+                    <div className="flex min-h-[68px] min-w-0 items-center gap-3">
+                      <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
+                        <SignalIcon type={activeHeroConfig.icon} className="h-[25px] w-[25px]" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate font-body text-[10px] font-black uppercase tracking-[0.11em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>
+                          {signalLabel(activeHeroSignal, activeHeroConfig, language)}
+                        </p>
+                        <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+                          <span className={`truncate font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                            {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
+                          </span>
+                          {activeHeroDeviation != null && activeHeroDeviation !== 0 ? (
+                            <span className={`shrink-0 font-body text-[11px] font-black ${activeHeroDeviation > 0 ? "text-[#D97706]" : activeHeroDeviation < 0 ? "text-[#047857]" : isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>
+                              {activeHeroDeviation > 0 ? "+" : ""}{activeHeroDeviation}% {activeHeroDeviation > 0 ? "↑" : activeHeroDeviation < 0 ? "↓" : ""}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                {heroMetricCount > 1 ? (
+                  <div className="mt-2 flex items-center gap-1 sm:mx-auto sm:w-[380px]" aria-label={dashboardLabels.latest}>
+                    {["risk", ...heroMarkers.map((marker) => marker.signal_type)].map((metricKey, index) => (
+                      <button
+                        key={metricKey}
+                        type="button"
+                        aria-label={index === 0 ? dashboardLabels.risk : `${dashboardLabels.latest} ${index}`}
+                        aria-current={index === activeHeroMetricIndex ? "true" : undefined}
+                        onClick={() => setHeroMarkerIndex(index)}
+                        className="vyva-tap grid h-5 !min-h-5 w-5 place-items-center rounded-full"
+                      >
+                        <span className={`h-1.5 rounded-full transition-all ${index === activeHeroMetricIndex ? "w-4 bg-[#F8AE1B]" : isDark ? "w-1.5 bg-white/30" : "w-1.5 bg-[#C9BDD6]"}`} />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            </div>
-            <p className="mt-4 font-display text-[30px] italic leading-tight text-[#2F241F]">
-              {getRiskLabel(riskScore, language)}
-            </p>
+
+              <button
+                type="button"
+                aria-label={copy.add}
+                onClick={showAddReading}
+                className="vyva-tap absolute right-6 top-[26px] grid h-[52px] !min-h-[52px] w-[52px] place-items-center rounded-full bg-[#7024C4] text-white shadow-[0_8px_20px_rgba(112,36,196,0.28)] transition hover:bg-[#5E1DA8] active:scale-[0.96] sm:right-8"
+                data-testid="button-vitals-hero-add"
+              >
+                <Plus className="h-7 w-7 text-[#F8AE1B]" strokeWidth={2.7} aria-hidden="true" />
+              </button>
+            </section>
           </div>
 
-          <div className="mt-4 rounded-[26px] border border-[#DDD6FE] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-evidence-guide">
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-                <ShieldCheck className="h-7 w-7" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#6B21A8]">{copy.evidenceTitle}</p>
-                <p className="mt-2 font-body text-[17px] font-bold leading-snug text-[#3B2C25]">{copy.evidenceBody}</p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-[18px] bg-[#FAF9F6] px-4 py-3 font-body text-[15px] font-bold text-[#6B5B52]">
-                  <Check className="h-5 w-5 flex-shrink-0 text-[#047857]" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
+          {(safetyStatus !== "steady" || latestAlert) ? (
           <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
             <div className="flex items-start gap-4">
               <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
@@ -1630,11 +1647,11 @@ export default function VitalsTracker({
                   )}
                 </div>
                 <p className="mt-3 font-body text-[20px] font-bold leading-relaxed text-[#2F241F]">
-                  {analysis?.senior_message ?? copy.messageFallback}
+                  {seniorMessage}
                 </p>
                 {latestAlert && !latestAlert.resolved_at && (
                   <p className="mt-3 rounded-[18px] bg-[#FFF7ED] p-3 font-body text-[15px] font-bold text-[#92400E]">
-                    {latestAlert.message}
+                    {alertMessageForDisplay(latestAlert, safetyStatus, language)}
                   </p>
                 )}
               </div>
@@ -1650,44 +1667,119 @@ export default function VitalsTracker({
                   className="min-h-[58px] rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 font-body text-[17px] font-bold text-[#6B5B52] disabled:opacity-60"
                   data-testid="button-safety-dismiss"
                 >
-                  {acknowledging === "dismissed" ? copy.safetyAck : "OK"}
+                  {acknowledging === "dismissed" ? copy.safetyAck : copy.ok}
                 </button>
               </div>
             )}
           </div>
+          ) : null}
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {DASHBOARD_SIGNALS.map((key) => (
-              <SignalCard
-                key={key}
-                signalKey={key}
-                reading={latestBySignal[key]}
-                language={language}
-                normalLabel={copy.normal}
-                todayLabel={copy.today}
-              />
-            ))}
-          </div>
+          {trackedReadingGroups.length ? (
+            <section className="mt-5 sm:mt-7" data-testid="vitals-reading-groups" aria-labelledby="vitals-latest-readings">
+              <h2 id="vitals-latest-readings" className={`mb-3 font-body text-[13px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
+                {dashboardLabels.latest}
+              </h2>
+              <div className={`overflow-hidden rounded-[24px] border sm:rounded-[30px] ${dashboardPanel}`}>
+                {trackedReadingGroups.map(({ group, signals }, groupIndex) => (
+                  <section key={group} aria-labelledby={`vitals-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
+                    <h3 id={`vitals-group-${group}`} className={`px-4 pb-0 pt-2 font-body text-[9px] font-black uppercase tracking-[0.14em] sm:px-5 sm:pb-1 sm:pt-3 sm:text-[11px] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
+                      {DISPLAY_GROUP_LABELS[group][language]}
+                    </h3>
+                    <div className={`divide-y ${rowDivider}`}>
+                      {signals.map(([key]) => (
+                        <SignalCard
+                          key={key}
+                          signalKey={key}
+                          reading={latestBySignal[key]}
+                          language={language}
+                          normalLabel={copy.normal}
+                          todayLabel={copy.today}
+                          isDark={isDark}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {untrackedReadingGroups.length ? (
+            <details className={`group rounded-[20px] border sm:rounded-[24px] ${dashboardDisclosure}`} data-testid="vitals-more-readings">
+              <summary className="vyva-tap flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-3 font-body text-[15px] font-black sm:min-h-[64px] sm:px-4 sm:text-[16px] [&::-webkit-details-marker]:hidden">
+                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+                  <VyvaIcon icon={Activity} accent="signal" size={21} />
+                </span>
+                <span className="min-w-0 flex-1">{dashboardLabels.more}</span>
+                <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
+              </summary>
+              <div className={`border-t ${groupDivider}`}>
+                {untrackedReadingGroups.map(({ group, signals }, groupIndex) => (
+                  <section key={group} aria-labelledby={`vitals-more-group-${group}`} className={groupIndex ? `border-t ${groupDivider}` : ""}>
+                    <h3 id={`vitals-more-group-${group}`} className={`px-5 pb-1 pt-3 font-body text-[11px] font-black uppercase tracking-[0.14em] ${isDark ? "text-[#C9BDD6]" : "text-[#6B5B72]"}`}>
+                      {DISPLAY_GROUP_LABELS[group][language]}
+                    </h3>
+                    <div className={`divide-y ${rowDivider}`}>
+                      {signals.map(([key]) => (
+                        <SignalCard
+                          key={key}
+                          signalKey={key}
+                          language={language}
+                          normalLabel={copy.normal}
+                          todayLabel={copy.today}
+                          isDark={isDark}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
+          <details className={`group rounded-[20px] border sm:rounded-[24px] ${dashboardDisclosure}`} data-testid="vitals-evidence-guide">
+            <summary className="vyva-tap flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-3 font-body text-[15px] font-black sm:min-h-[64px] sm:px-4 sm:text-[16px] [&::-webkit-details-marker]:hidden">
+              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+                <VyvaIcon icon={ShieldCheck} accent="check" size={21} />
+              </span>
+              <span className="min-w-0 flex-1">{copy.evidenceTitle}</span>
+              <ChevronDown className="h-5 w-5 text-[#6B21A8] transition-transform group-open:rotate-180" />
+            </summary>
+            <div className={`border-t px-4 pb-4 pt-3 ${groupDivider}`}>
+              <p className={`font-body text-[16px] font-bold leading-relaxed ${isDark ? "text-[#D8CDE4]" : "text-[#5D4D64]"}`}>{copy.evidenceBody}</p>
+              <div className="mt-3 grid gap-2">
+                {[copy.evidencePhone, copy.evidenceManual, copy.evidenceDevice].map((item) => (
+                  <div key={item} className={`flex min-h-[48px] items-center gap-3 border-b px-1 py-2 last:border-b-0 font-body text-[14px] font-bold ${isDark ? "border-white/[0.1] text-[#D8CDE4]" : "border-[#F0E7F4] text-[#6B5B52]"}`}>
+                    <Check className="h-4 w-4 flex-shrink-0 text-[#047857]" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
 
           {!analysis?.senior_message && recentReadings.length === 0 && (
-            <div className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-5">
-              <p className="font-body text-[20px] font-bold leading-relaxed text-[#6B5B52]">{copy.messageFallback}</p>
+            <div className={`mt-5 rounded-[26px] border p-5 ${dashboardPanel}`}>
+              <p className={`font-body text-[20px] font-bold leading-relaxed ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{copy.messageFallback}</p>
             </div>
           )}
 
           {error && <p className="mt-4 rounded-[18px] bg-[#FEF2F2] p-4 font-body text-[18px] font-bold text-[#B91C1C]">{error}</p>}
 
-          <button
-            type="button"
-            onClick={() => setScreen("add")}
-            className="mt-6 flex min-h-[76px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#6B21A8] px-6 font-body text-[24px] font-bold text-white shadow-[0_12px_26px_rgba(107,33,168,0.24)]"
-          >
-            <Plus className="h-7 w-7" />
-            {copy.add}
-          </button>
-          <p className="mt-4 text-center font-body text-[18px] font-bold text-[#7A6A60]">
-            {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
-          </p>
+          <div className={`mt-2 flex flex-col items-stretch justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center ${isDark ? "border-white/[0.12]" : "border-[#E7DDF0]"}`}>
+            <p className={`font-body text-[15px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>
+              {copy.lastAnalysis}: {relativeTime(analysis?.analysed_at, language)}
+            </p>
+            <button
+              type="button"
+              onClick={triggerAnalysis}
+              disabled={analysing}
+              className={`vyva-tap flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] border px-5 font-body text-[15px] font-black disabled:opacity-60 sm:w-auto ${isDark ? "border-white/[0.14] bg-white/[0.07] text-[#C4A7FF]" : "border-[#DDD6FE] bg-white text-[#6B21A8]"}`}
+            >
+              {analysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {analysing ? copy.analysing : copy.analyse}
+            </button>
+          </div>
         </>
       )}
     </section>
@@ -1711,20 +1803,55 @@ function latestReadingMap(readings: RecentReading[]): Partial<Record<SignalKey, 
   return map;
 }
 
+function previewAcquisitionContext(readings: RecentReading[]): VitalsAcquisitionContext {
+  const currentReadings = readings.flatMap((reading) => {
+    if (!(reading.signal_type in VITALS_SIGNAL_CATALOG)) return [];
+    if (reading.source !== "connected_device" && reading.source !== "clinical") return [];
+    const signalType = reading.signal_type as SignalKey;
+    return [{
+      signalType,
+      value: Number(reading.value),
+      unit: reading.unit || VITALS_SIGNAL_CATALOG[signalType].unit,
+      recordedAt: reading.recorded_at,
+      source: reading.source,
+      captureMethod: (reading.capture_method || (reading.source === "clinical" ? "clinical_import" : "web_bluetooth")) as VitalsCaptureMethod,
+      confidence: "high" as const,
+      qualityFlag: "clean",
+      sourceRef: reading.source_ref,
+      freshness: "current" as const,
+    }];
+  });
+  return {
+    readings: currentReadings,
+    signals: currentReadings.map((reading) => ({
+      signal_type: reading.signalType,
+      current_reading: reading,
+      compatible_methods: [],
+    })),
+    devices: currentReadings.map((reading) => ({
+      deviceName: typeof reading.sourceRef?.device_name === "string" ? reading.sourceRef.device_name : null,
+      capabilities: [reading.signalType],
+    })),
+  };
+}
+
 function SignalCard({
   signalKey,
   reading,
   language,
   normalLabel,
   todayLabel,
+  isDark,
 }: {
   signalKey: SignalKey;
   reading?: RecentReading;
   language: Language;
   normalLabel: string;
   todayLabel: string;
+  isDark: boolean;
 }) {
   const cfg = SIGNAL_CONFIG[signalKey];
+  const meta = VITALS_SIGNAL_CATALOG[signalKey];
   const value = numberValue(reading?.value);
   const deviation = numberValue(reading?.deviation_pct);
   const display =
@@ -1736,7 +1863,7 @@ function SignalCard({
           : "--"
       : value == null
         ? "--"
-        : `${value}${cfg.unit ? ` ${cfg.unit}` : ""}`;
+        : `${value}${meta.unit ? ` ${meta.unit}` : ""}`;
   const subLabel =
     signalKey === "medication_confirmed"
       ? value === 1
@@ -1747,22 +1874,56 @@ function SignalCard({
         : `${deviation > 0 ? "+" : ""}${deviation}% ${deviation > 0 ? "↑" : "↓"}`;
 
   const sourceBadge = readingSourceBadge(reading, language);
+  const SourceIcon = reading?.source === "connected_device"
+    ? Bluetooth
+    : reading?.source === "clinical"
+      ? Stethoscope
+      : reading?.source === "phone_estimate"
+        ? Activity
+        : Keyboard;
+
+  const rowContent = (
+    <>
+        <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] sm:h-12 sm:w-12 sm:rounded-[16px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F5F3FF]"}`}>
+          <SignalIcon type={cfg.icon} className="h-[21px] w-[21px] sm:h-6 sm:w-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`font-body text-[14px] font-bold leading-tight sm:text-[16px] ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B52]"}`}>{signalLabel(signalKey, cfg, language)}</p>
+          <p className={`mt-0.5 font-body text-[20px] font-black leading-tight sm:mt-1 sm:text-[22px] ${isDark ? "text-[#FFF8FF]" : "text-[#2F241F]"}`}>{display}</p>
+        </div>
+        <div className="flex flex-shrink-0 flex-col items-end gap-1.5 text-right sm:gap-2">
+          {sourceBadge ? (
+            <span className="flex h-7 min-w-7 items-center justify-center gap-1 rounded-full px-1.5 font-body text-[10px] font-black sm:h-auto sm:min-w-0 sm:px-2 sm:py-1" style={{ background: sourceBadge.bg, color: sourceBadge.color }} title={sourceBadge.fullLabel} aria-label={sourceBadge.fullLabel}>
+              <SourceIcon className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">{sourceBadge.shortLabel}</span>
+            </span>
+          ) : null}
+          <p className={`font-body text-[12px] font-bold sm:text-[14px] ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A60]"}`}>{subLabel}</p>
+        </div>
+    </>
+  );
+
+  if (!sourceBadge) {
+    return (
+      <article className="flex min-h-[76px] items-center gap-3 px-3 py-2.5 sm:min-h-[88px] sm:px-5 sm:py-3">
+        {rowContent}
+      </article>
+    );
+  }
 
   return (
-    <article className="min-h-[152px] rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-          <SignalIcon type={cfg.icon} className="h-7 w-7" />
+    <article className="px-3 sm:px-5">
+      <details className="group">
+        <summary className="vyva-tap flex min-h-[76px] cursor-pointer list-none items-center gap-3 py-2.5 sm:min-h-[88px] sm:py-3 [&::-webkit-details-marker]:hidden">
+          {rowContent}
+          <ChevronDown className="h-[18px] w-[18px] flex-shrink-0 text-[#7C3AED] transition-transform group-open:rotate-180 sm:h-5 sm:w-5" aria-hidden="true" />
+          <span className="sr-only">Reading details</span>
+        </summary>
+        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 border-t pb-3 pt-2 font-body text-[12px] ${isDark ? "border-white/[0.1] text-[#C9BDD6]" : "border-[#F0E7F4] text-[#6B5B72]"}`}>
+          <span className="font-bold">Source: {sourceBadge.fullLabel}</span>
+          {reading?.recorded_at ? <span>{relativeTime(reading.recorded_at, language)}</span> : null}
         </div>
-        {sourceBadge && (
-          <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ background: sourceBadge.bg, color: sourceBadge.color }}>
-            {sourceBadge.label}
-          </span>
-        )}
-      </div>
-      <p className="font-body text-[18px] font-bold text-[#6B5B52]">{signalLabel(signalKey, cfg, language)}</p>
-      <p className="mt-1 font-body text-[24px] font-bold leading-tight text-[#2F241F]">{display}</p>
-      <p className="mt-2 font-body text-[18px] font-bold text-[#7A6A60]">{subLabel}</p>
+      </details>
     </article>
   );
 }

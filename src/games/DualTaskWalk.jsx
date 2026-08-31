@@ -7,13 +7,18 @@ import {
   ChevronUp,
   CircleHelp,
   Eye,
-  Loader2,
   Square,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const SYMBOLS = ["★", "●", "▲", "■", "♦"];
@@ -502,7 +507,7 @@ export default function DualTaskWalk({ userId, onExit }) {
     let currentTier = current.current_tier ?? 1;
     let sessionsAtTier = (current.sessions_at_tier ?? 0) + 1;
 
-    if (consecutiveWins >= 3 && currentTier < 10) {
+    if (consecutiveWins >= 3 && currentTier < BRAIN_COACH_MAX_LEVEL) {
       currentTier += 1;
       consecutiveWins = 0;
       consecutiveLosses = 0;
@@ -526,7 +531,7 @@ export default function DualTaskWalk({ userId, onExit }) {
 
     const payload = {
       user_id: userId,
-      current_tier: clamp(currentTier, 1, 10),
+      current_tier: clamp(currentTier, 1, BRAIN_COACH_MAX_LEVEL),
       sessions_at_tier: sessionsAtTier,
       consecutive_wins: consecutiveWins,
       consecutive_losses: consecutiveLosses,
@@ -786,7 +791,8 @@ export default function DualTaskWalk({ userId, onExit }) {
   const resultToneGreat = (sessionResult?.dual_task_score ?? 0) >= 600;
   const lastThreeMath = serial7sLog.slice(-3);
   const progressToPromotion = clamp(((userState?.consecutive_wins ?? 0) / 3) * 100, 0, 100);
-  const nextTier = clamp((userState?.current_tier ?? currentSequence.difficulty_tier) + 1, 1, 10);
+  const currentBand = getBrainCoachLevelBand(currentSequence.difficulty_tier ?? 1);
+  const nextTier = clamp((userState?.current_tier ?? currentSequence.difficulty_tier) + 1, 1, BRAIN_COACH_MAX_LEVEL);
 
   const shellStyle = {
     background: BRAND.bg,
@@ -800,18 +806,27 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <div className="flex h-[100dvh] items-center justify-center overflow-hidden px-8" style={fixedShellStyle}>
-        <div className="text-center">
-          <Loader2 className="mx-auto h-20 w-20 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-8 text-[28px] font-semibold">{text.loading}</p>
-        </div>
-      </div>
+      <BrainCoachLoadingState
+        title={text.title}
+        label={text.loading}
+        testId="dual-task-walk-flow-shell"
+        presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.loading.touch"
+        sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
+      />
     );
   }
 
   if (screen === "intro") {
     return (
-      <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={fixedShellStyle}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="dual-task-walk-flow-shell"
+        presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.intro.touch"
+        sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
+        sceneKind="intro"
+        sceneLayout="dual_task_preview"
+      >
+        <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={fixedShellStyle}>
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
           <div className="flex shrink-0 items-center justify-between gap-3">
             <button
@@ -823,7 +838,7 @@ export default function DualTaskWalk({ userId, onExit }) {
               {text.back}
             </button>
             <div className="flex min-h-[64px] items-center rounded-full px-5 text-[22px] font-bold text-white shadow-vyva-card" style={{ background: BRAND.gold }}>
-              {text.level} {currentSequence.difficulty_tier}
+              {text.level} {currentSequence.difficulty_tier} - {currentBand.label}
             </div>
             {tutorialSeen ? (
               <button
@@ -870,13 +885,22 @@ export default function DualTaskWalk({ userId, onExit }) {
             {text.start}
           </button>
         </div>
-      </div>
+        </div>
+      </BrainCoachFullscreenActivity>
     );
   }
 
   if (screen === "tutorial") {
     return (
-      <div className="h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={fixedShellStyle}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="dual-task-walk-flow-shell"
+        presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.tutorial.touch"
+        sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
+        sceneKind="tutorial"
+        sceneLayout="dual_task_example"
+      >
+        <div className="h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={fixedShellStyle}>
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
           <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3">
             <h1 className="min-w-0 font-display text-[34px] font-bold leading-tight sm:text-[40px]">{text.tutorialTitle}</h1>
@@ -941,7 +965,8 @@ export default function DualTaskWalk({ userId, onExit }) {
             {text.tutorialUnderstand}
           </button>
         </div>
-      </div>
+        </div>
+      </BrainCoachFullscreenActivity>
     );
   }
 
@@ -949,7 +974,15 @@ export default function DualTaskWalk({ userId, onExit }) {
     const mathDone = serial7sStep >= serialSteps;
 
     return (
-      <div className="h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={fixedShellStyle}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="dual-task-walk-flow-shell"
+        presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.playing.touch"
+        sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
+        sceneKind="playing"
+        sceneLayout="dual_task_board"
+      >
+        <div className="h-[100dvh] overflow-hidden px-3 sm:px-4 md:px-5" style={fixedShellStyle}>
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col gap-2">
           <header className="shrink-0">
             <div className="flex min-h-[52px] items-center justify-between gap-3 sm:min-h-[64px]">
@@ -1068,7 +1101,8 @@ export default function DualTaskWalk({ userId, onExit }) {
             </section>
           </main>
         </div>
-      </div>
+        </div>
+      </BrainCoachFullscreenActivity>
     );
   }
 
@@ -1076,7 +1110,13 @@ export default function DualTaskWalk({ userId, onExit }) {
   const mathMarks = result.serial7s_log.map((entry) => (entry.correct ? "OK" : text.almost)).join(" ");
   const completedTier = currentSequence.difficulty_tier;
   const adaptiveTier = userState?.current_tier ?? completedTier;
+  const adaptiveBand = getBrainCoachLevelBand(adaptiveTier);
   const resultWasPromoted = adaptiveTier > completedTier;
+  const resultSummary = resultWasPromoted
+    ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: completedTier })
+    : result.dual_task_score >= 600
+      ? `${text.totalScore}: ${result.dual_task_score}`
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(adaptiveTier))
     : text.continueAction;
@@ -1086,65 +1126,19 @@ export default function DualTaskWalk({ userId, onExit }) {
       : `${text.keepGoing} ${text.level} ${nextTier}`;
 
   return (
-    <div className="h-[100dvh] overflow-hidden px-4 sm:px-6 md:px-8" style={fixedShellStyle}>
-      <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="text-center text-[64px] leading-none sm:text-[82px]">{resultToneGreat ? "🎉" : "😊"}</div>
-          <h1 className="mt-3 text-center font-display text-[38px] font-bold leading-[1.1] sm:mt-5 sm:text-[44px]">
-            {resultToneGreat ? text.resultGreat : text.resultGood}
-          </h1>
-
-          <section className="mt-5 rounded-[8px] border-2 bg-white p-4 shadow-vyva-card sm:mt-8 sm:p-6" style={{ borderColor: BRAND.border }}>
-            <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2 sm:gap-5">
-              <div>
-                <p className="text-[24px] font-bold text-[#5B4B71]">{text.mathTask}</p>
-                <p className="mt-2 text-[42px] font-bold" style={{ color: BRAND.purple }}>{Math.round(result.serial7s_accuracy_pct)}%</p>
-              </div>
-              <div>
-                <p className="text-[24px] font-bold text-[#5B4B71]">{text.visualTask}</p>
-                <p className="mt-2 text-[42px] font-bold" style={{ color: BRAND.purple }}>{Math.round(result.tap_accuracy_pct)}%</p>
-              </div>
-              <div>
-                <p className="text-[24px] font-bold text-[#5B4B71]">{text.totalScore}</p>
-                <p className="mt-2 text-[42px] font-bold" style={{ color: BRAND.gold }}>{result.dual_task_score}</p>
-              </div>
-              <div>
-                <p className="text-[24px] font-bold text-[#5B4B71]">{text.streak}</p>
-                <p className="mt-2 text-[42px] font-bold" style={{ color: BRAND.gold }}>
-                  {userState?.streak_days ?? 0} <span className="text-[24px]">{text.days}</span>
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:mt-6 sm:grid-cols-2 sm:gap-5">
-            <div className="rounded-[8px] border-2 bg-white p-4 sm:p-5" style={{ borderColor: BRAND.border }}>
-              <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
-                <div className="h-full" style={{ width: `${result.serial7s_accuracy_pct}%`, background: BRAND.purple }} />
-              </div>
-              <p className="mt-4 text-[24px] font-bold">{text.mathLine}: {mathMarks || "—"}</p>
-            </div>
-            <div className="rounded-[8px] border-2 bg-white p-4 sm:p-5" style={{ borderColor: BRAND.border }}>
-              <div className="h-4 overflow-hidden rounded-full bg-[#EDE6F4]">
-                <div className="h-full" style={{ width: `${result.tap_accuracy_pct}%`, background: BRAND.gold }} />
-              </div>
-              <p className="mt-4 text-[24px] font-bold">
-                {text.visualLine}: {text.hits} {result.tap_hits} · {text.almost} {result.tap_false_positives + result.tap_misses}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-[8px] border-2 bg-white p-4 sm:mt-6 sm:p-5" style={{ borderColor: BRAND.border }}>
-            <p className="text-[24px] font-bold">{promotionLabel}</p>
-            <div className="mt-4 h-5 overflow-hidden rounded-full bg-[#EDE6F4]">
-              <div className="h-full" style={{ width: `${progressToPromotion}%`, background: BRAND.purple }} />
-            </div>
-          </div>
-        </div>
-
+    <BrainCoachFullscreenActivity
+      title={text.title}
+      testId="dual-task-walk-flow-shell"
+      presentationId="brain_coach.activity_session.train_reflexes.dual_task_walk.result.touch"
+      sceneId="brain_coach.activity_session.train_reflexes.dual_task_walk"
+      sceneKind="completion"
+      sceneLayout="modal_actions"
+      state="complete"
+    >
+      <div className="min-h-[100dvh]" style={shellStyle}>
         <BrainGameCompletionDialog
           title={resultToneGreat ? text.resultGreat : text.resultGood}
-          summary={`${text.totalScore}: ${result.dual_task_score}`}
+          summary={resultSummary}
           metrics={[
             { label: text.mathTask, value: `${Math.round(result.serial7s_accuracy_pct)}%` },
             { label: text.visualTask, value: `${Math.round(result.tap_accuracy_pct)}%` },
@@ -1157,9 +1151,49 @@ export default function DualTaskWalk({ userId, onExit }) {
           onContinue={handleContinue}
           onReplay={handlePlayAgain}
           onAnother={handleExit}
+          details={
+            <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                    <span>{text.mathTask}</span>
+                    <span>{Math.round(result.serial7s_accuracy_pct)}%</span>
+                  </div>
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                    <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${result.serial7s_accuracy_pct}%` }} />
+                  </div>
+                  <p className="mt-2 text-[14px] font-bold text-vyva-text-2">{text.mathLine}: {mathMarks || "-"}</p>
+                </div>
+                <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                    <span>{text.visualTask}</span>
+                    <span>{Math.round(result.tap_accuracy_pct)}%</span>
+                  </div>
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                    <div className="h-full rounded-full bg-vyva-gold" style={{ width: `${result.tap_accuracy_pct}%` }} />
+                  </div>
+                  <p className="mt-2 text-[14px] font-bold text-vyva-text-2">
+                    {text.visualLine}: {text.hits} {result.tap_hits} | {text.almost} {result.tap_false_positives + result.tap_misses}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                  <span>{promotionLabel}</span>
+                  <span>{Math.round(progressToPromotion)}%</span>
+                </div>
+                <p className="mt-1 text-[14px] font-bold text-vyva-text-2">
+                  {text.level} {adaptiveTier} - {adaptiveBand.label}
+                </p>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                  <div className="h-full rounded-full bg-vyva-purple" style={{ width: `${progressToPromotion}%` }} />
+                </div>
+              </div>
+            </div>
+          }
         />
       </div>
-    </div>
+    </BrainCoachFullscreenActivity>
   );
 }
 

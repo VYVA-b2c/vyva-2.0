@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Check,
   Droplets,
   Flower2,
   Info,
   Leaf,
-  Loader2,
   Play,
   Sparkles,
   Volume2,
@@ -14,9 +12,11 @@ import {
   Waves,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { VyvaMark } from "@/components/VyvaMark";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { apiFetch } from "@/lib/queryClient";
 import { GARDEN_THEMES, getBreathGardenTheme, isBreathGardenTheme } from "./shared/breathGardenThemes";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
+import { getBrainCoachMilestoneJourney } from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -586,36 +586,37 @@ export default function BreathGarden({
   };
 
   const closeMinutes = Math.max(1, Math.round((finalMetrics?.sessionDurationSeconds ?? 0) / 60));
+  const milestoneJourney = getBrainCoachMilestoneJourney(userState?.streak_days ?? 1);
+  const nextMilestoneValue = milestoneJourney.next
+    ? `${milestoneJourney.next.label} (${milestoneJourney.next.count} days)`
+    : t("brainCoach.progression.monthlyPracticeHeld", "Monthly practice held");
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="text-center">
-          <Loader2 className="mx-auto h-14 w-14 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-5 text-[26px] font-black">{t("games.breathGarden.preparing", "Preparing your garden...")}</p>
-        </section>
-      </main>
+      <BrainCoachLoadingState
+        title={t("games.breathGarden.title", "Breath Garden")}
+        label={t("games.breathGarden.preparing", "Preparing your garden...")}
+        testId="breath-garden-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.breath_garden.loading.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.breath_garden"
+      />
     );
   }
 
   return (
-    <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-      <div className="mx-auto w-full max-w-[780px]">
-        <header className="flex items-center justify-between gap-4">
-          <VyvaMark className="h-12 w-12" />
-          {screen !== "close" ? (
-            <button
-              type="button"
-              onClick={() => void exitGame()}
-              disabled={saving}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
-            >
-              <ArrowLeft size={24} aria-hidden="true" />
-              {t("common.exit", "Exit")}
-            </button>
-          ) : null}
-        </header>
-
+    <BrainCoachActivityShell
+      title={t("games.breathGarden.title", "Breath Garden")}
+      backLabel={t("common.exit", "Exit")}
+      onBack={() => void exitGame()}
+      showHeader={screen !== "close"}
+      testId="breath-garden-flow-shell"
+      presentationId={`brain_coach.activity_session.sharpen_senses.breath_garden.${screen}.touch`}
+      sceneId="brain_coach.activity_session.sharpen_senses.breath_garden"
+      sceneKind={screen === "close" ? "completion" : screen}
+      sceneLayout={screen === "playing" ? "breathing_tap" : screen === "close" ? "modal_actions" : "activity_panel"}
+      state={screen === "close" ? "complete" : "default"}
+    >
+      <div className="mx-auto w-full max-w-[780px]" style={{ color: BRAND.ink }}>
         {screen === "theme" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softGold, color: BRAND.gold }}>
@@ -786,50 +787,33 @@ export default function BreathGarden({
         ) : null}
 
         {screen === "close" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
-              <Check size={54} aria-hidden="true" />
-            </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.breathGarden.closeTitle", "Today's garden")}</h1>
-            <div className="mx-auto mt-5 h-[320px] max-w-[620px] overflow-hidden rounded-[34px]">
-              <GardenVisual themeId={theme} bloomLevel={5} complete />
-            </div>
-            <p className="mt-5 text-[25px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.closeSummary", "You breathed calmly for {n} minutes.", { n: closeMinutes })}
-            </p>
-            <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full px-5 py-3 text-[22px] font-black" style={{ background: "#FEF3C7", color: "#92400E" }}>
-              <Check size={24} aria-hidden="true" />
-              {t("games.breathGarden.streakLabel", "{n} days tending your garden", { n: userState?.streak_days ?? 1 })}
-            </p>
-            {saveWarning ? <p className="mt-4 text-[20px] font-bold text-[#92400E]">{saveWarning}</p> : null}
-            {assessmentPractice ? (
-              <div className="mt-5 rounded-[22px] border px-4 py-4 text-left" style={{ borderColor: "#A7F3D0", background: "#ECFDF5", color: BRAND.teal }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.05em]">{t("brainGames.resultActions.assessmentPractice", "Assessment practice")}</p>
-                <p className="mt-1 text-[21px] font-extrabold leading-snug" style={{ color: BRAND.ink }}>
-                  {t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")}
-                </p>
-                <button
-                  type="button"
-                  onClick={onAssessmentPracticeReturn}
-                  disabled={!onAssessmentPracticeReturn}
-                  className="mt-4 min-h-[62px] w-full rounded-full px-5 text-[21px] font-black text-white shadow-vyva-card disabled:opacity-60"
-                  style={{ background: BRAND.teal }}
-                >
-                  {t("brainGames.resultActions.backToResults", "Back to my results")}
-                </button>
-              </div>
-            ) : null}
-            <button
-              type="button"
-              onClick={onExit}
-              className="mt-7 min-h-[72px] w-full rounded-full px-6 text-[24px] font-black text-white shadow-vyva-card"
-              style={{ background: BRAND.purple }}
-            >
-              {t("common.finish", "Finish")}
-            </button>
-          </section>
+          <BrainGameCompletionDialog
+            title={t("games.breathGarden.closeTitle", "Today's garden")}
+            summary={t("games.breathGarden.closeSummary", "You breathed calmly for {n} minutes.", { n: closeMinutes })}
+            metrics={[
+              { label: t("games.breathGarden.streak", "Streak"), value: t("games.breathGarden.streakLabel", "{n} days tending your garden", { n: userState?.streak_days ?? 1 }) },
+              { label: t("brainCoach.progression.milestone", "Milestone"), value: milestoneJourney.current.label },
+              { label: t("brainCoach.progression.nextMilestone", "Next milestone"), value: nextMilestoneValue },
+            ]}
+            details={saveWarning ? <p className="text-[15px] font-bold text-[#92400E]">{saveWarning}</p> : null}
+            continueLabel={t("common.finish", "Finish")}
+            replayLabel={t("common.playAgain", "Play again")}
+            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+            assessmentReturnHint={
+              assessmentPractice
+                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+                : undefined
+            }
+            onContinue={onExit}
+            onReplay={() => {
+              setSoundOn(false);
+              setScreen("intro");
+            }}
+            onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+            disabled={saving}
+          />
         ) : null}
       </div>
-    </main>
+    </BrainCoachActivityShell>
   );
 }

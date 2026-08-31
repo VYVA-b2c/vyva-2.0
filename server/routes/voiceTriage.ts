@@ -10,9 +10,49 @@ import { recordVoiceTimelineEvents } from "../lib/voiceTimelineEvents.js";
 import { runTriageStep, type TriageStepResponse } from "./triage.js";
 import { recordTriageReportHandoff, saveTriageReport } from "./reports.js";
 import { logSymptomOutcomeForUser } from "./symptoms.js";
+import {
+  buildVoiceConsultationSummary,
+  persistVoiceConsultationSummary,
+} from "../lib/voiceConsultationContinuity.js";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type VoiceTriageStatus = "active" | "emergency" | "complete" | "abandoned" | "failed";
+
+const SAFE_FAILURE_COPY: Record<string, string> = {
+  en: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+  es: "Tengo problemas para comprobar esto de forma segura. Si parece urgente, llama ahora a emergencias. Si no, inténtalo de nuevo o pide ayuda a alguien cercano.",
+  fr: "J’ai du mal à vérifier cela en toute sécurité. Si la situation semble urgente, appelez les services d’urgence maintenant. Sinon, réessayez ou demandez de l’aide à une personne proche.",
+  de: "Ich kann dies gerade nicht sicher prüfen. Wenn es dringend wirkt, rufen Sie jetzt den Notdienst. Versuchen Sie es sonst erneut oder bitten Sie eine Person in Ihrer Nähe um Hilfe.",
+  it: "Non riesco a verificare la situazione in modo sicuro. Se sembra urgente, chiama subito i servizi di emergenza. Altrimenti, riprova o chiedi aiuto a una persona vicina.",
+  pt: "Estou com dificuldade para verificar isto com segurança. Se parecer urgente, ligue agora para os serviços de emergência. Caso contrário, tente novamente ou peça ajuda a alguém próximo.",
+};
+
+function safeFailureCopy(locale: string | undefined) {
+  const language = locale?.trim().toLowerCase().split(/[-_]/)[0] || "en";
+  return SAFE_FAILURE_COPY[language] ?? SAFE_FAILURE_COPY.en;
+}
+
+export function retainedMessagesForStatus(status: VoiceTriageStatus, messages: ChatMessage[]) {
+  return status === "active" ? messages : [];
+}
+
+export function structuredConsultationEvidence(
+  status: "complete" | "emergency",
+  wizard: TriageWizardContext,
+) {
+  return status === "emergency"
+    ? { answers: [] as TriageWizardAnswer[], vitals: {} as TriageWizardContext["vitals"] }
+    : { answers: wizard.quickAnswers ?? [], vitals: wizard.vitals ?? {} };
+}
+
+export function terminalVoiceTriageResponse(session: {
+  status?: unknown;
+  latest_response_json?: unknown;
+}) {
+  if (session.status !== "complete" && session.status !== "emergency") return null;
+  const latestResponse = safeObject(session.latest_response_json);
+  return Object.keys(latestResponse).length ? latestResponse : null;
+}
 
 const voiceTriageToolSchema = z.object({
   user_id: z.string().min(1),
@@ -32,6 +72,27 @@ const voiceTriageAnswerSchema = z.object({
 });
 
 let ensureVoiceTriageSessionsPromise: Promise<void> | null = null;
+const voiceTriageTurnTails = new Map<string, Promise<void>>();
+
+export async function serializeVoiceTriageTurn<T>(conversationId: string, task: () => Promise<T>): Promise<T> {
+  const previous = voiceTriageTurnTails.get(conversationId) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const tail = previous.catch(() => undefined).then(() => current);
+  voiceTriageTurnTails.set(conversationId, tail);
+
+  await previous.catch(() => undefined);
+  try {
+    return await task();
+  } finally {
+    releaseCurrent();
+    if (voiceTriageTurnTails.get(conversationId) === tail) {
+      voiceTriageTurnTails.delete(conversationId);
+    }
+  }
+}
 
 function safeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -97,7 +158,7 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function latestChoices(response: unknown): TriageWizardAnswer[] {
+export function latestChoices(response: unknown): TriageWizardAnswer[] {
   const record = safeObject(response);
   const question = safeObject(record.question);
   const questionChoices = Array.isArray(question.choices)
@@ -106,9 +167,9 @@ function latestChoices(response: unknown): TriageWizardAnswer[] {
   const quickReplies = Array.isArray(record.quickReplies)
     ? record.quickReplies
     : [];
-  const rawChoices = questionChoices.length ? questionChoices : quickReplies;
+  const rawChoices = [...questionChoices, ...quickReplies];
 
-  return rawChoices
+  const choices = rawChoices
     .map((item) => {
       const choice = safeObject(item);
       const id = typeof choice.id === "string" ? choice.id : "";
@@ -122,9 +183,102 @@ function latestChoices(response: unknown): TriageWizardAnswer[] {
       return id && label ? { id, label, value, kind } : null;
     })
     .filter((item): item is TriageWizardAnswer => Boolean(item));
+
+  return choices.filter((choice, index) => (
+    choices.findIndex((candidate) => candidate.id === choice.id) === index
+  ));
 }
 
-function selectChoiceFromVoice(input: {
+function consultationSymptomId(response: TriageStepResponse, wizard: TriageWizardContext) {
+  return response.wizardSymptomId
+    || [...(wizard.quickAnswers ?? [])].reverse().find((answer) => answer.kind === "symptom")?.id
+    || "unknown";
+}
+
+async function recordTerminalConsultation(input: {
+  userId: string;
+  conversationId: string;
+  channel: string;
+  locale: string;
+  status: "complete" | "emergency";
+  response: TriageStepResponse;
+  wizard: TriageWizardContext;
+  reportId?: string | null;
+  startedAt: Date;
+}) {
+  const summary = input.response.summary;
+  const safety = input.response.safetyAlert;
+  const concern = summary?.chiefComplaint
+    || safety?.label
+    || [...(input.wizard.quickAnswers ?? [])].reverse().find((answer) => answer.kind === "symptom")?.label
+    || input.response.wizardSymptomId
+    || "Voice symptom check";
+  const urgency = summary?.urgency || (input.status === "emergency" ? "emergency" : "unknown");
+  const nextStep = summary?.nextStepLabel
+    || safety?.recommendation
+    || summary?.recommendations?.[0]
+    || null;
+  const evidence = structuredConsultationEvidence(input.status, input.wizard);
+
+  return persistVoiceConsultationSummary(buildVoiceConsultationSummary({
+    userId: input.userId,
+    conversationId: input.conversationId,
+    triageReportId: input.reportId,
+    channel: input.channel,
+    locale: input.locale,
+    status: input.status,
+    canonicalSymptomId: consultationSymptomId(input.response, input.wizard),
+    concern,
+    answers: evidence.answers,
+    vitals: evidence.vitals,
+    urgency,
+    guidanceOutcome: input.response.content,
+    nextStep,
+    startedAt: input.startedAt,
+    completedAt: new Date(),
+  }));
+}
+
+const SPOKEN_SEVERITY_SCORES = new Map<string, number>([
+  ["zero", 0], ["oh", 0], ["cero", 0],
+  ["one", 1], ["un", 1], ["une", 1], ["uno", 1], ["una", 1],
+  ["two", 2], ["deux", 2], ["dos", 2],
+  ["three", 3], ["trois", 3], ["tres", 3],
+  ["four", 4], ["quatre", 4], ["cuatro", 4],
+  ["five", 5], ["cinq", 5], ["cinco", 5],
+  ["six", 6], ["seis", 6],
+  ["seven", 7], ["sept", 7], ["siete", 7],
+  ["eight", 8], ["huit", 8], ["ocho", 8],
+  ["nine", 9], ["neuf", 9], ["nueve", 9],
+  ["ten", 10], ["dix", 10], ["diez", 10],
+]);
+
+function spokenSeverityScore(utterance: string) {
+  const digit = utterance.match(/\b(10|[0-9])\b/);
+  if (digit) return Number(digit[1]);
+
+  const outOfTen = utterance.match(/\b([a-z]+)\s+(?:sur|out\s+of|de|von)\s+(?:dix|ten|diez)\b/);
+  if (outOfTen) {
+    const score = SPOKEN_SEVERITY_SCORES.get(outOfTen[1]);
+    if (score !== undefined) return score;
+  }
+
+  const tokens = utterance.split(" ").filter(Boolean);
+  const matches = tokens
+    .map((token) => ({ token, score: SPOKEN_SEVERITY_SCORES.get(token) }))
+    .filter((item): item is { token: string; score: number } => item.score !== undefined);
+  if (matches.length !== 1) return null;
+
+  const match = matches[0];
+  // French "un" is commonly an article. Only interpret it as a score when
+  // it is the complete answer or is explicitly framed as one out of ten.
+  if (match.token === "un" && utterance !== "un" && !/\bun\s+sur\s+dix\b/.test(utterance)) {
+    return null;
+  }
+  return match.score;
+}
+
+export function selectChoiceFromVoice(input: {
   choiceId?: string | null;
   utterance: string;
   latestResponse: unknown;
@@ -139,6 +293,16 @@ function selectChoiceFromVoice(input: {
 
   const utterance = normalizeText(input.utterance);
   if (!utterance) return null;
+  const severityChoices = choices.filter((choice) => (
+    choice.kind === "severity" && /^severity_(?:10|[0-9])$/.test(choice.id)
+  ));
+  if (severityChoices.length) {
+    const severityScore = spokenSeverityScore(utterance);
+    if (severityScore !== null) {
+      const severityChoice = severityChoices.find((choice) => choice.id === `severity_${severityScore}`);
+      if (severityChoice) return severityChoice;
+    }
+  }
   const exact = choices.find((choice) => {
     const label = normalizeText(choice.label);
     const value = normalizeText(choice.value);
@@ -190,7 +354,11 @@ function parseVitalsText(vitalsText?: string | null): TriageWizardContext["vital
   return vitals;
 }
 
-function voiceQuestionFor(response: TriageStepResponse) {
+export function voiceQuestionFor(response: TriageStepResponse) {
+  const replies = response.quickReplies ?? [];
+  const visibleReplies = response.wizardStage === "severity"
+    ? replies
+    : replies.slice(0, 3);
   return response.done
     ? undefined
     : {
@@ -198,13 +366,28 @@ function voiceQuestionFor(response: TriageStepResponse) {
       text: response.content,
       reason: response.questionReason ?? null,
       profile_context_used: Boolean(response.profileContextUsed),
-      choices: (response.quickReplies ?? []).slice(0, 3).map((reply) => ({
+      choices: visibleReplies.map((reply) => ({
         id: reply.id,
         spoken_label: reply.label,
         value: reply.value,
         kind: reply.kind,
       })),
     };
+}
+
+const REVIEW_ANSWER_KINDS = new Set(["symptom", "location", "severity", "duration", "trend"]);
+
+export function voiceReviewAnswers(wizard: TriageWizardContext | undefined) {
+  const answers = wizard?.quickAnswers ?? [];
+  const latestByKind = new Map<string, TriageWizardAnswer>();
+  answers.forEach((answer) => {
+    if (answer.kind && REVIEW_ANSWER_KINDS.has(answer.kind)) {
+      latestByKind.set(answer.kind, answer);
+    }
+  });
+  return ["symptom", "location", "severity", "duration", "trend"]
+    .map((kind) => latestByKind.get(kind))
+    .filter((answer): answer is TriageWizardAnswer => Boolean(answer));
 }
 
 function actionOptionsFor(input: {
@@ -251,6 +434,7 @@ function actionOptionsFor(input: {
 function toolResponseFor(input: {
   response: TriageStepResponse;
   status: VoiceTriageStatus;
+  wizard?: TriageWizardContext;
   reportId?: string | null;
   sentTo?: string[];
   staffReviewRequested?: boolean;
@@ -270,6 +454,9 @@ function toolResponseFor(input: {
       route: "/health/symptom-check",
       show_live_voice_check: true,
     },
+    ...(input.response.wizardStage === "support" ? {
+      review_answers: voiceReviewAnswers(input.wizard),
+    } : {}),
     ...(input.response.summary ? {
       report: {
         triage_report_id: input.reportId ?? null,
@@ -387,7 +574,7 @@ async function upsertStartedSession(params: {
       title: "Voice triage started",
       sessionId: params.conversationId,
       domain: "health",
-      agentSlug: "health",
+      agentSlug: "dr-ai",
       route: "/health/symptom-check",
       payload: { channel: params.channel, locale: params.locale },
     }],
@@ -466,7 +653,7 @@ async function recordEmergencyVoiceHandoff(input: {
   return { sentTo: sent.sentTo, staffReviewRequested: sent.staffReviewRequested };
 }
 
-async function runVoiceTriageSessionTurn(input: {
+type VoiceTriageSessionTurnInput = {
   userId: string;
   conversationId: string;
   channel: string;
@@ -475,7 +662,9 @@ async function runVoiceTriageSessionTurn(input: {
   choiceId?: string | null;
   vitalsText?: string | null;
   timelineSource: string;
-}) {
+};
+
+async function runVoiceTriageSessionTurnUnlocked(input: VoiceTriageSessionTurnInput) {
   const healthMemory = await healthMemoryForUser(input.userId);
   const session = await upsertStartedSession({
     userId: input.userId,
@@ -484,6 +673,8 @@ async function runVoiceTriageSessionTurn(input: {
     locale: input.locale,
     healthMemory,
   });
+  const terminalResponse = terminalVoiceTriageResponse(session);
+  if (terminalResponse) return terminalResponse;
 
   const priorMessages = safeMessages(session.messages_json);
   const priorWizard = safeWizard(session.wizard_json);
@@ -534,19 +725,36 @@ async function runVoiceTriageSessionTurn(input: {
   const toolResponse = toolResponseFor({
     response,
     status,
+    wizard: nextWizard,
     reportId: completion.reportId,
     sentTo,
     staffReviewRequested,
   });
+
+  if (status === "complete" || status === "emergency") {
+    await recordTerminalConsultation({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      channel: input.channel,
+      locale: input.locale,
+      status,
+      response,
+      wizard: nextWizard,
+      reportId: completion.reportId,
+      startedAt: session.started_at,
+    }).catch((err) => {
+      console.error("[voice-triage consultation continuity]", err);
+    });
+  }
 
   await db
     .update(voiceTriageSessions)
     .set({
       status,
       locale: input.locale,
-      messages_json: nextMessages,
-      wizard_json: nextWizard,
-      health_memory_json: healthMemory,
+      messages_json: retainedMessagesForStatus(status, nextMessages),
+      wizard_json: status === "active" ? nextWizard : {},
+      health_memory_json: status === "active" ? healthMemory : {},
       latest_response_json: toolResponse,
       triage_report_id: completion.reportId,
       updated_at: sql`now()`,
@@ -569,7 +777,7 @@ async function runVoiceTriageSessionTurn(input: {
       severity: status === "emergency" ? "error" : status === "complete" ? "success" : "info",
       sessionId: input.conversationId,
       domain: "health",
-      agentSlug: "health",
+      agentSlug: "dr-ai",
       route: "/health/symptom-check",
       payload: {
         status,
@@ -584,6 +792,10 @@ async function runVoiceTriageSessionTurn(input: {
   }).catch((err) => console.warn("[voice-triage timeline]", err));
 
   return toolResponse;
+}
+
+async function runVoiceTriageSessionTurn(input: VoiceTriageSessionTurnInput) {
+  return serializeVoiceTriageTurn(input.conversationId, () => runVoiceTriageSessionTurnUnlocked(input));
 }
 
 export async function elevenLabsTriageStepToolHandler(req: Request, res: Response) {
@@ -618,16 +830,20 @@ export async function elevenLabsTriageStepToolHandler(req: Request, res: Respons
     return res.json(toolResponse);
   } catch (err) {
     console.error("[elevenlabs tool triage-step]", err);
+    const fallbackText = safeFailureCopy(parsed.data.locale);
     await ensureVoiceTriageSessionsTable().catch(() => undefined);
     await db
       .update(voiceTriageSessions)
       .set({
         status: "failed",
+        messages_json: [],
+        wizard_json: {},
+        health_memory_json: {},
         updated_at: sql`now()`,
         latest_response_json: {
           ok: false,
           status: "failed",
-          spoken_text: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+          spoken_text: fallbackText,
         },
       })
       .where(and(
@@ -647,7 +863,7 @@ export async function elevenLabsTriageStepToolHandler(req: Request, res: Respons
         severity: "error",
         sessionId: parsed.data.conversation_id,
         domain: "health",
-        agentSlug: "health",
+        agentSlug: "dr-ai",
         route: "/health/symptom-check",
       }],
     }).catch(() => undefined);
@@ -656,7 +872,7 @@ export async function elevenLabsTriageStepToolHandler(req: Request, res: Respons
       ok: false,
       status: "failed",
       safety_level: "fallback",
-      spoken_text: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+      spoken_text: fallbackText,
     });
   }
 }
@@ -710,11 +926,54 @@ export async function voiceTriageSessionAnswerHandler(req: Request, res: Respons
     return res.json(toolResponse);
   } catch (err) {
     console.error("[voice-triage/session answer]", err);
+    const fallbackText = safeFailureCopy(parsed.data.locale);
     return res.status(500).json({
       ok: false,
       status: "failed",
-      spoken_text: "I'm having trouble checking this safely. If this feels urgent, call emergency services now. Otherwise, please try again or ask someone nearby for help.",
+      spoken_text: fallbackText,
     });
+  }
+}
+
+export async function voiceTriageSessionEndHandler(req: Request, res: Response) {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  const conversationId = typeof req.params.conversation_id === "string"
+    ? req.params.conversation_id.trim()
+    : "";
+  if (!conversationId) return res.status(400).json({ error: "Missing conversation id" });
+
+  try {
+    await ensureVoiceTriageSessionsTable();
+    const [session] = await db
+      .select()
+      .from(voiceTriageSessions)
+      .where(and(
+        eq(voiceTriageSessions.user_id, userId),
+        eq(voiceTriageSessions.conversation_id, conversationId),
+      ))
+      .limit(1);
+    if (!session) return res.status(404).json({ error: "Voice triage session not found" });
+
+    if (session.status === "active" || session.status === "failed") {
+      await db
+        .update(voiceTriageSessions)
+        .set({
+          status: "abandoned",
+          messages_json: [],
+          wizard_json: {},
+          health_memory_json: {},
+          updated_at: sql`now()`,
+          completed_at: sql`now()`,
+        })
+        .where(eq(voiceTriageSessions.id, session.id));
+      return res.json({ ok: true, status: "abandoned" });
+    }
+
+    return res.json({ ok: true, status: session.status });
+  } catch (err) {
+    console.error("[voice-triage/session end]", err);
+    return res.status(500).json({ error: "Failed to end voice triage session" });
   }
 }
 

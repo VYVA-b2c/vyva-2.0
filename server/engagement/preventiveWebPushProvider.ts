@@ -36,10 +36,16 @@ export type PreventiveWebPushProvider = Readonly<{
   }): Promise<PreventiveWebPushProviderSendResult>;
 }>;
 
-export type PreventiveWebPushNotificationPayload = Readonly<{
-  type: "vyva.preventive_check";
-  token: string;
-}>;
+export type PreventiveWebPushNotificationPayload =
+  | Readonly<{
+      type: "vyva.preventive_check";
+      token: string;
+    }>
+  | Readonly<{
+      type: "vyva.medication_refill";
+      deliveryId: string;
+      alertId: string;
+    }>;
 
 type WebPushSender = Readonly<{
   setVapidDetails(subject: string, publicKey: string, privateKey: string): void;
@@ -141,6 +147,7 @@ export function createPreventiveWebPushProvider(input: {
         },
       };
       try {
+        const isRefill = payload.type === "vyva.medication_refill";
         const result = await sender.sendNotification(
           providerSubscription,
           JSON.stringify(payload),
@@ -148,7 +155,7 @@ export function createPreventiveWebPushProvider(input: {
             TTL: 30 * 60,
             contentEncoding: subscription.contentEncoding,
             urgency: "normal",
-            topic: "vyva-preventive-check",
+            topic: isRefill ? `vyva-refill-${payload.alertId}` : "vyva-preventive-check",
           },
         );
         return {

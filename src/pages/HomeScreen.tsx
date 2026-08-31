@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, ALargeSmall, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, type LucideIcon } from "lucide-react";
+import { Activity, ALargeSmall, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import MedicationRefillAlertCard, { type MedicationRefillAlertResponse } from "@/features/medications/MedicationRefillAlertCard";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
@@ -24,6 +25,7 @@ import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useLanguage } from "@/i18n";
+import { LONGEVITY_FOCUS_API_ROUTE, LONGEVITY_ROUTE } from "@/lib/homeNavPrototypeRoutes";
 import { displayFirstName } from "@/lib/displayIdentity";
 import { hasSeenVoiceOrbHint } from "@/lib/voiceOrbHint";
 import {
@@ -1030,6 +1032,14 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     retry: false,
   });
 
+  const { data: refillAlertHomeSignal } = useQuery<MedicationRefillAlertResponse>({
+    queryKey: ["/api/meds/refills/me"],
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    retry: false,
+  });
+  const activeHomeRefillAlert = refillAlertHomeSignal?.alerts?.[0] ?? null;
+
   const { data: latestVitalsHomeSignal } = useQuery<LatestVitalsHomeSignal>({
     queryKey: ["/api/vitals-engine/latest"],
     staleTime: 60 * 1000,
@@ -1038,7 +1048,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
   });
 
   const { data: preventionHomeSignal } = useQuery<PreventionHomeSignal>({
-    queryKey: ["/api/health/prevention"],
+    queryKey: [LONGEVITY_FOCUS_API_ROUTE],
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
     retry: false,
@@ -1337,6 +1347,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "health",
       icon: Heart,
+      iconAccent: "pulse",
       title: t("home.master.cards.healthShortTitle", "My Health"),
       detail: t("home.master.cards.healthDetailShort", "Check-ins, vitals, medicines"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
@@ -1349,6 +1360,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-memory",
       icon: Brain,
+      iconAccent: "bridge",
       title: t("home.master.cards.mindMemoryShortTitle", "My Brain"),
       detail: t("home.master.cards.mindMemoryDetailShort", "Memory, focus, calm"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
@@ -1361,6 +1373,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "social",
       icon: Users,
+      iconAccent: "link",
       title: t("home.master.cards.communityShortTitle", "Community"),
       detail: t("home.master.cards.communityDetailShort", "Rooms and support"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
@@ -1373,6 +1386,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "concierge",
       icon: ConciergeBell,
+      iconAccent: "clapper",
       title: t("home.master.cards.conciergeShortTitle", "Concierge"),
       detail: t("home.master.cards.conciergeDetailShort", "Everyday help"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
@@ -1436,7 +1450,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
       title: t("home.master.healthIntent.prevention", "Prevention"),
       detail: t("home.master.healthIntent.preventionDetail", "Stay well today"),
       tone: { iconBg: "#FFF7ED", iconColor: "#C15B08", border: "#FED7AA", surface: "#FFFFFF" },
-      onClick: () => openHealthPath("/health/prevention"),
+      onClick: () => openHealthPath(LONGEVITY_ROUTE),
       testId: "card-home-health-prevention",
     },
     {
@@ -1458,7 +1472,8 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
   const homeMasterMindCards: MasterDashboardCard[] = [
     {
       id: "mind-memory",
-      icon: BrainCircuit,
+      icon: Brain,
+      iconAccent: "bridge",
       title: t("mindMemory.cards.strengthenMemory", "Strengthen Memory"),
       detail: t("mindMemory.cards.strengthenMemoryDetail", "Practice recall, matching, and daily routines."),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
@@ -1468,6 +1483,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-reflexes",
       icon: Zap,
+      iconAccent: "pulse",
       title: t("mindMemory.cards.trainReflexes", "Train Reflexes"),
       detail: t("mindMemory.cards.trainReflexesDetail", "Build faster focus and response."),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
@@ -1477,8 +1493,9 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-focus",
       icon: Puzzle,
-      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
-      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
+      iconAccent: "knobs",
+      title: t("mindMemory.cards.improveThinking", "Improve Thinking"),
+      detail: t("mindMemory.cards.improveThinkingDetail", "Challenge logic, planning, and problem solving."),
       tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/executive-function"),
       testId: "card-home-mind-focus",
@@ -1486,6 +1503,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "mind-senses",
       icon: Headphones,
+      iconAccent: "signal",
       title: t("mindMemory.cards.sharpenSenses", "Sharpen Senses"),
       detail: t("mindMemory.cards.sharpenSensesDetail", "Practice sound, breath, and sensory recall."),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
@@ -1741,6 +1759,22 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
         intentTags: ["health", "checkin"],
       });
     }
+    const refillAlert = refillAlertHomeSignal?.alerts?.[0];
+    if (refillAlert) {
+      messages.push({
+        id: `refill:${refillAlert.id}`,
+        kind: "reminder",
+        title: refillAlert.title,
+        supportingText: refillAlert.message,
+        actionLabel: t("home.context.refill.update", "Update supply"),
+        actionRoute: "/meds/refills",
+        dismissible: refillAlert.status !== "refill_now",
+        priority: refillAlert.status === "refill_now" ? 82 : 78,
+        repeatAfterMs: refillAlert.status === "refill_now" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+        category: "medication",
+        intentTags: ["health", "medication", "refill"],
+      });
+    }
     if (nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0) {
       const doseDueAt = conciergeClockMs + nextMedicineMinutes * 60 * 1000;
       messages.push({
@@ -1852,7 +1886,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
         title: t("home.context.prevention.title", "A small prevention step is ready."),
         supportingText: t("home.context.prevention.support", "See today's gentle health suggestion."),
         actionLabel: t("home.context.actions.view", "View"),
-        actionRoute: "/health/prevention",
+        actionRoute: LONGEVITY_ROUTE,
         dismissible: true,
         priority: 25,
         repeatAfterMs: 24 * 60 * 60 * 1000,
@@ -1914,6 +1948,7 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     nextConciergeTask,
     nextScheduledEvent,
     preventionHomeSignal,
+    refillAlertHomeSignal,
     reusableConciergeHomeTask,
     reusableConciergeReceipt,
     greetingText,
@@ -2369,10 +2404,10 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
     {
       id: "stay-well",
       icon: ShieldCheck,
-      label: t("home.master.fastHelp.stayWell", "Age Well"),
-      detail: t("home.master.fastHelp.stayWellDetail", "Prevention tips"),
+      label: t("home.master.fastHelp.stayWell", "Longevity"),
+      detail: t("home.master.fastHelp.stayWellDetail", "Your plan for today"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => launchHomeFastHelp("stay-well", "/health/prevention"),
+      onClick: () => launchHomeFastHelp("stay-well", LONGEVITY_ROUTE),
       testId: "button-home-fast-stay-well",
     },
     {
@@ -3232,12 +3267,24 @@ const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {
       }}
       cards={homeMasterVisibleCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={activeCompletionAction ? (
-        <CrossPillarSubflowCanvas
-          actionId={activeCompletionAction}
-          onContinue={continueCrossPillarSubflow}
-          onCancel={() => setHomeSubflow(null)}
-        />
+      beforeFastHelp={activeHomeRefillAlert || activeCompletionAction ? (
+        <div className="flex flex-col gap-4">
+          {activeHomeRefillAlert ? (
+            <MedicationRefillAlertCard
+              alert={activeHomeRefillAlert}
+              canManage={refillAlertHomeSignal?.permissions.manage_inventory !== false}
+              onOpen={() => handleNavigate("/meds/refills")}
+              testId="home-refill-alert"
+            />
+          ) : null}
+          {activeCompletionAction ? (
+            <CrossPillarSubflowCanvas
+              actionId={activeCompletionAction}
+              onContinue={continueCrossPillarSubflow}
+              onCancel={() => setHomeSubflow(null)}
+            />
+          ) : null}
+        </div>
       ) : null}
     />
   );

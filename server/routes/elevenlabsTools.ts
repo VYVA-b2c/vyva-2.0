@@ -17,12 +17,18 @@ import {
   recordVoiceRecommendationFeedback,
   VOICE_RECOMMENDATION_ACTIONS,
 } from "../lib/voiceRecommendationFeedback.js";
+import {
+  consultationContinuityCue,
+  recentVoiceConsultations,
+} from "../lib/voiceConsultationContinuity.js";
 
 const retrieveMedicalProfileSchema = z.object({
   user_id: z.string().min(1),
   conversation_id: z.string().min(1),
   context_token: z.string().min(1).optional(),
   medical_profile_token: z.string().min(1).optional(),
+  current_symptom_id: z.string().trim().max(120).optional().nullable(),
+  locale: z.string().trim().max(24).optional().nullable(),
 });
 
 const voiceRecommendationFeedbackSchema = z.object({
@@ -355,15 +361,49 @@ export async function retrieveMedicalProfileToolHandler(req: Request, res: Respo
   }
 
   try {
-    const medicalProfile = await getDoctorMedicalProfileVariables(user_id);
+    const medicalProfile = await getDoctorMedicalProfileVariables(user_id, {
+      flowInstanceId: conversation_id,
+    });
+    const consultationHistory = await recentVoiceConsultations({
+      userId: user_id,
+      currentConversationId: conversation_id,
+      currentSymptomId: parsed.data.current_symptom_id,
+    }).catch((err) => {
+      console.warn("[elevenlabs tool consultation continuity]", err);
+      return { recentConsultations: [], relevantPriorConsultation: null };
+    });
+    const consultationLocale = String(parsed.data.locale || medicalProfile.preferred_language || "en");
+    const relevantPriorConsultation = consultationHistory.relevantPriorConsultation
+      ? {
+          ...consultationHistory.relevantPriorConsultation,
+          spoken_cue: consultationContinuityCue(
+            consultationHistory.relevantPriorConsultation,
+            consultationLocale,
+            new Date(),
+            String(medicalProfile.timezone || "UTC"),
+          ),
+        }
+      : null;
     return res.json({
       ok: true,
       user_id,
       conversation_id,
+      user_profile: {
+        preferred_name: medicalProfile.preferred_name,
+        first_name: medicalProfile.first_name,
+        full_name: medicalProfile.full_name,
+        age_years: medicalProfile.age_years,
+        preferred_language: medicalProfile.preferred_language,
+        timezone: medicalProfile.timezone,
+        city: medicalProfile.city,
+      },
       medical_profile: medicalProfile.health_context,
+      memory_context: medicalProfile.memory_block,
       health_conditions: medicalProfile.health_conditions,
       allergies: medicalProfile.allergies,
       medications: medicalProfile.medications,
+      devices: medicalProfile.devices,
+      care_context: medicalProfile.care_context,
       gp_details: medicalProfile.gp_details,
       care_team: medicalProfile.care_team,
       emergency_contact: medicalProfile.emergency_contact,
@@ -377,10 +417,13 @@ export async function retrieveMedicalProfileToolHandler(req: Request, res: Respo
       recent_symptom_reports: medicalProfile.recent_symptom_reports,
       medication_adherence_summary: medicalProfile.medication_adherence_summary,
       medication_interaction_context: medicalProfile.medication_interaction_context,
+      checkin_context: medicalProfile.checkin_context,
       latest_medical_visit: medicalProfile.latest_medical_visit,
       upcoming_medical_appointment: medicalProfile.upcoming_medical_appointment,
       health_session_context: medicalProfile.health_session_context,
       medical_profile_last_updated: medicalProfile.medical_profile_last_updated,
+      recent_consultations: consultationHistory.recentConsultations,
+      relevant_prior_consultation: relevantPriorConsultation,
     });
   } catch (err) {
     console.error("[elevenlabs tool retrieve_medical_profile]", err);

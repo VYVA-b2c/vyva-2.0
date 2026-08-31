@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, MousePointer2, Play, Route, Smile, Sparkles, Square, Timer, Zap } from "lucide-react";
+import { ArrowLeft, MousePointer2, Play, Route, Smile, Sparkles, Square, Timer, Zap } from "lucide-react";
 import { useLanguage } from "@/i18n";
+import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
+import {
+  BRAIN_COACH_MAX_LEVEL,
+  getBrainCoachLevelBand,
+  getBrainCoachSupportiveProgressCopy,
+} from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -56,6 +62,16 @@ const TIER_SETTINGS = [
   { trailType: "alternating", nodeCount: 14, parSeconds: 85 },
   { trailType: "alternating", nodeCount: 18, parSeconds: 110 },
   { trailType: "alternating", nodeCount: 25, parSeconds: 150 },
+  { trailType: "numeric", nodeCount: 18, parSeconds: 95 },
+  { trailType: "numeric", nodeCount: 20, parSeconds: 105 },
+  { trailType: "alternating", nodeCount: 18, parSeconds: 105 },
+  { trailType: "alternating", nodeCount: 20, parSeconds: 118 },
+  { trailType: "alternating", nodeCount: 22, parSeconds: 132 },
+  { trailType: "numeric", nodeCount: 22, parSeconds: 105 },
+  { trailType: "alternating", nodeCount: 22, parSeconds: 118 },
+  { trailType: "numeric", nodeCount: 25, parSeconds: 120 },
+  { trailType: "alternating", nodeCount: 24, parSeconds: 128 },
+  { trailType: "alternating", nodeCount: 25, parSeconds: 136 },
 ];
 
 let localTrailCounter = 0;
@@ -852,7 +868,7 @@ export default function NumberTrails({
     let currentTier = Number(previous.current_tier ?? 1);
     let sessionsAtTier = Number(previous.sessions_at_tier ?? 0) + 1;
 
-    if (consecutiveWins >= 3 && currentTier < 10) {
+    if (consecutiveWins >= 3 && currentTier < BRAIN_COACH_MAX_LEVEL) {
       currentTier += 1;
       sessionsAtTier = 0;
       consecutiveWins = 0;
@@ -875,7 +891,7 @@ export default function NumberTrails({
     const next = {
       ...previous,
       user_id: userId,
-      current_tier: clamp(currentTier, 1, 10),
+      current_tier: clamp(currentTier, 1, BRAIN_COACH_MAX_LEVEL),
       sessions_at_tier: sessionsAtTier,
       consecutive_wins: consecutiveWins,
       consecutive_losses: consecutiveLosses,
@@ -1177,15 +1193,17 @@ export default function NumberTrails({
   const progress = nodes.length ? currentTargetIndex / nodes.length : 0;
   const parSeconds = Number(config?.par_time_seconds ?? 30);
   const currentTier = Number(config?.difficulty_tier ?? userState?.current_tier ?? 1);
+  const currentTierBand = getBrainCoachLevelBand(currentTier);
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center" style={{ background: BRAND.bg }}>
-        <div className="flex h-[96px] w-[96px] items-center justify-center rounded-full text-white shadow-vyva-hero" style={{ background: BRAND.purple }}>
-          <Loader2 size={48} className="animate-spin" />
-        </div>
-        <p className="text-[24px] font-bold leading-[1.25]" style={{ color: BRAND.ink }}>{text.preparing}</p>
-      </main>
+      <BrainCoachLoadingState
+        title={text.title}
+        label={text.preparing}
+        testId="number-trails-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.number_trails.loading.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.number_trails"
+      />
     );
   }
 
@@ -1195,7 +1213,15 @@ export default function NumberTrails({
       : formatTemplate(text.instruction, { n: nodes[nodes.length - 1]?.label ?? nodes.length });
 
     return (
-      <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="number-trails-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.number_trails.intro.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.number_trails"
+        sceneKind="intro"
+        sceneLayout="trail_preview"
+      >
+        <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
           <div className="flex items-center justify-between gap-4">
             <VyvaWordmark className="h-auto w-[108px] sm:w-[136px]" />
@@ -1220,7 +1246,7 @@ export default function NumberTrails({
 
               <div className="mt-5 flex flex-wrap justify-center gap-3">
                 <span className="rounded-full px-5 py-3 text-[22px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                  {text.level} {currentTier}
+                  {text.level} {currentTier} - {currentTierBand.label}
                 </span>
                 <span className="rounded-full px-5 py-3 text-[22px] font-extrabold" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
                   {trailTypeLabel}
@@ -1254,7 +1280,8 @@ export default function NumberTrails({
             </p>
           </section>
         </div>
-      </main>
+        </main>
+      </BrainCoachFullscreenActivity>
     );
   }
 
@@ -1263,7 +1290,15 @@ export default function NumberTrails({
     const handNode = tutorialAnimating ? TUTORIAL_NODES[tutorialIndex] : null;
 
     return (
-      <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="number-trails-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.number_trails.tutorial.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.number_trails"
+        sceneKind="tutorial"
+        sceneLayout="trail_example"
+      >
+        <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
           <div className="flex items-center justify-between gap-4 rounded-[8px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <h1 className="text-[26px] font-extrabold leading-[1.15]" style={{ color: BRAND.ink }}>{text.example}</h1>
@@ -1294,13 +1329,22 @@ export default function NumberTrails({
             </div>
           </section>
         </div>
-      </main>
+        </main>
+      </BrainCoachFullscreenActivity>
     );
   }
 
   if (screen === "playing") {
     return (
-      <main className="min-h-screen px-4 pb-6 pt-4" style={{ background: BRAND.bg }}>
+      <BrainCoachFullscreenActivity
+        title={text.title}
+        testId="number-trails-flow-shell"
+        presentationId="brain_coach.activity_session.improve_thinking.number_trails.playing.touch"
+        sceneId="brain_coach.activity_session.improve_thinking.number_trails"
+        sceneKind="playing"
+        sceneLayout="trail_canvas"
+      >
+        <main className="min-h-screen px-4 pb-6 pt-4" style={{ background: BRAND.bg }}>
         <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
           <header className="rounded-[8px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1350,7 +1394,8 @@ export default function NumberTrails({
             )}
           </footer>
         </div>
-      </main>
+        </main>
+      </BrainCoachFullscreenActivity>
     );
   }
 
@@ -1366,98 +1411,81 @@ export default function NumberTrails({
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
     : text.nextTrail;
-  const nextTier = clamp(resultTier + 1, 1, 10);
+  const resultTierBand = getBrainCoachLevelBand(resultTier);
+  const nextTier = clamp(resultTier + 1, 1, BRAIN_COACH_MAX_LEVEL);
+  const resultProgressSummary = resultWasPromoted
+    ? getBrainCoachSupportiveProgressCopy({ advanced: true, level: completedTier })
+    : resultIsGood
+      ? `${formatTemplate(text.completedIn, { n: completionSeconds })} | ${formatTemplate(text.parTime, { n: parSeconds })}`
+      : getBrainCoachSupportiveProgressCopy({ advanced: false, level: completedTier });
   const promotionProgress = clamp(Number(resultState.consecutive_wins ?? 0) / 3, 0, 1);
 
   return (
-    <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
-      <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
-        <section className="rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <div className="mx-auto flex h-[84px] w-[84px] items-center justify-center rounded-[8px]" style={{ background: resultIsGood ? "#FEF3C7" : BRAND.softPurple, color: resultIsGood ? "#92400E" : BRAND.purple }}>
-            {resultIsGood ? <Sparkles size={48} /> : <Smile size={48} />}
-          </div>
-          <h1 className="mt-5 font-display text-[42px] font-bold leading-[1.1]" style={{ color: BRAND.ink }}>
-            {resultIsGood ? text.resultGood : text.resultTry}
-          </h1>
-
-          <div className="mt-6">
-            <TrailCanvas
-              nodes={nodes}
-              completedLabels={new Set(nodes.map((node) => node.label))}
-              lines={drawnLines}
-              mode="result"
-              showAllLines
-            />
-          </div>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 rounded-[8px] border p-4" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
-            {[
-              { label: text.accuracy, value: `${Math.round(result?.accuracy_pct ?? 0)}%` },
-              { label: text.speed, value: `${Math.round(result?.speed_pct ?? 0)}%` },
-              { label: text.score, value: score },
-              { label: text.streak, value: `${resultState.streak_days ?? 0} ${text.days}` },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[8px] bg-white px-3 py-4 shadow-sm">
-                <p className="text-[22px] font-bold leading-[1.2]" style={{ color: BRAND.muted }}>{item.label}</p>
-                <p className="mt-2 text-[32px] font-extrabold leading-[1.05]" style={{ color: BRAND.ink }}>{item.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 text-[22px] font-bold leading-[1.35]" style={{ color: BRAND.ink }}>
-            <span>{formatTemplate(text.completedIn, { n: completionSeconds })}</span>
-            <span> - </span>
-            <span>{formatTemplate(text.parTime, { n: parSeconds })}</span>
-          </div>
-
-          {fasterThanPar && (
-            <p className="mt-3 inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-[22px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
-              <Zap size={26} />
-              {text.fasterThanPar}
-            </p>
-          )}
-
-          {!resultWasPromoted && (
-            <div className="mt-6 text-left">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[22px] font-extrabold" style={{ color: BRAND.ink }}>
-                  {formatTemplate(text.nextLevel, { n: nextTier })}
+    <BrainCoachFullscreenActivity
+      title={text.title}
+      testId="number-trails-flow-shell"
+      presentationId="brain_coach.activity_session.improve_thinking.number_trails.result.touch"
+      sceneId="brain_coach.activity_session.improve_thinking.number_trails"
+      sceneKind="completion"
+      sceneLayout="modal_actions"
+      state="complete"
+    >
+      <div className="min-h-[100dvh]" style={{ background: BRAND.bg }}>
+        <BrainGameCompletionDialog
+          title={resultIsGood ? text.resultGood : text.resultTry}
+          summary={resultProgressSummary}
+          metrics={[
+            { label: text.accuracy, value: `${Math.round(result?.accuracy_pct ?? 0)}%` },
+            { label: text.speed, value: `${Math.round(result?.speed_pct ?? 0)}%` },
+            { label: text.score, value: score },
+            { label: text.streak, value: `${resultState.streak_days ?? 0} ${text.days}` },
+          ]}
+          continueLabel={continueLabel}
+          replayLabel={text.tryThisTrail}
+          anotherLabel={text.playAnotherGame}
+          assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+          assessmentReturnHint={
+            assessmentPractice
+              ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+              : undefined
+          }
+          onContinue={() => loadGame(resultState)}
+          onReplay={replayCurrentTrail}
+          onAnother={handleExit}
+          onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
+          disabled={savingResult}
+          details={
+            <div className="grid gap-3">
+              <div className="rounded-[18px] border border-[#EADFF8] bg-[#FFF9F1] px-4 py-3 text-center">
+                <p className="text-[15px] font-extrabold text-vyva-text-1">
+                  {formatTemplate(text.completedIn, { n: completionSeconds })}
+                  <span> | </span>
+                  {formatTemplate(text.parTime, { n: parSeconds })}
                 </p>
-                <p className="text-[22px] font-extrabold" style={{ color: BRAND.purple }}>
-                  {Math.round(promotionProgress * 3)}/3
+                {fasterThanPar && (
+                  <p className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#FEF3C7] px-4 py-2 text-[15px] font-black text-[#92400E]">
+                    <Zap size={18} />
+                    {text.fasterThanPar}
+                  </p>
+                )}
+                <p className="mt-2 text-[14px] font-bold text-vyva-text-2">
+                  {text.level} {resultTier} - {resultTierBand.label}
                 </p>
               </div>
-              <div className="mt-3 h-4 overflow-hidden rounded-full bg-[#F0E7F8]">
-                <div className="h-full rounded-full transition-all" style={{ width: `${promotionProgress * 100}%`, background: BRAND.gold }} />
-              </div>
+              {!resultWasPromoted && (
+                <div className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 text-[15px] font-black text-vyva-text-1">
+                    <span>{formatTemplate(text.nextLevel, { n: nextTier })}</span>
+                    <span>{Math.round(promotionProgress * 3)}/3</span>
+                  </div>
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#EDE6F4]">
+                    <div className="h-full rounded-full bg-vyva-gold" style={{ width: `${promotionProgress * 100}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-
-          <BrainGameCompletionDialog
-            title={resultIsGood ? text.resultGood : text.resultTry}
-            summary={`${formatTemplate(text.completedIn, { n: completionSeconds })} | ${formatTemplate(text.parTime, { n: parSeconds })}`}
-            metrics={[
-              { label: text.accuracy, value: `${Math.round(result?.accuracy_pct ?? 0)}%` },
-              { label: text.speed, value: `${Math.round(result?.speed_pct ?? 0)}%` },
-              { label: text.score, value: score },
-              { label: text.streak, value: `${resultState.streak_days ?? 0} ${text.days}` },
-            ]}
-            continueLabel={continueLabel}
-            replayLabel={text.tryThisTrail}
-            anotherLabel={text.playAnotherGame}
-            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
-            assessmentReturnHint={
-              assessmentPractice
-                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
-                : undefined
-            }
-            onContinue={() => loadGame(resultState)}
-            onReplay={replayCurrentTrail}
-            onAnother={handleExit}
-            onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
-            disabled={savingResult}
-          />
-        </section>
+          }
+        />
       </div>
 
       <style>{`
@@ -1500,6 +1528,6 @@ export default function NumberTrails({
           }
         }
       `}</style>
-    </main>
+    </BrainCoachFullscreenActivity>
   );
 }

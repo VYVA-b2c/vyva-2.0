@@ -419,6 +419,32 @@ describe("triage route wizard questions", () => {
     ]);
   });
 
+  it("returns French protocol questions and labels while keeping stable answer values", async () => {
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "fr",
+        messages: [{ role: "user", content: "Je suis essoufflé" }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: [
+            { id: "breathing", label: "Respiration", value: "I feel short of breath.", kind: "symptom" },
+          ],
+        },
+      })
+      .expect(200);
+
+    expect(res.body.content).toBe("Comment respirez-vous en ce moment ?");
+    expect(res.body.wizardStageLabel).toBe("Vérification de sécurité");
+    expect(res.body.quickReplies).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "worse_but_speaking",
+        label: "Pire que d’habitude, mais je peux parler",
+        value: "Breathing is worse than usual, but I can speak.",
+      }),
+    ]));
+  });
+
   it("keeps generic other trend wording coherent when there is no anxiety context", async () => {
     const res = await request(app())
       .post("/api/triage/message")
@@ -791,6 +817,44 @@ describe("triage route wizard questions", () => {
 
     expect(res.body.done).toBe(true);
     expect(res.body.medicalFollowups).toEqual([]);
+    expect(openAiCreateMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      { timeout: 7_000 },
+    );
+  });
+
+  it("returns the deterministic safety summary when the AI provider fails", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("MEDISEARCH_API_KEY", "");
+    openAiCreateMock.mockRejectedValueOnce(new Error("provider unavailable"));
+
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "fr",
+        messages: [{ role: "user", content: "Je me sens étourdi" }],
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: completedAnswers([
+            { id: "dizzy", label: "Vertiges ou malaise", value: "I feel dizzy or close to fainting.", kind: "symptom" },
+            { id: "no_red_flag", label: "Non, aucun signe d’alerte", value: "No warning signs.", kind: "red_flag" },
+            { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
+            { id: "few_days", label: "Quelques jours", value: "It has been going on for a few days.", kind: "duration" },
+            { id: "after_medicine_surgery_fall", label: "Après un médicament ou des soins", value: "It started after medicine, surgery, a hospital stay, or a fall.", kind: "trend" },
+          ]),
+        },
+      })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ done: true, wizardStage: "complete" });
+    expect(res.body.summary).toBeDefined();
+    expect(res.body.quickReplies).toEqual([]);
+    expect(res.body.content).toMatch(/^Vos réponses/);
+    expect(res.body.summary.nextStepLabel).toMatch(/médecin|urgence|Surveillez/);
+    expect(res.body.summary.watchSigns).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Vous|vertiges|faiblesse/i),
+    ]));
+    expect(JSON.stringify(res.body.summary)).not.toMatch(/Talk to a doctor|Monitor at home|Dizziness gets worse/);
   });
 
   it("returns a refined report instead of a safety prompt when a post-report vital is added", async () => {
