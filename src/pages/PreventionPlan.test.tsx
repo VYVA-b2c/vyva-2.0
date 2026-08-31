@@ -38,6 +38,54 @@ const plan: PreventionPlanData = {
   trajectory: "first",
 };
 
+const companion = {
+  plan,
+  todayFocus: {
+    pillar: "brain",
+    label: "Brain and memory",
+    headline: "Karim, restart Brain Coach gently today",
+    summary: "No recent Brain Coach sessions are logged.",
+  },
+  whyToday: "Brain and memory comes first today because no recent Brain Coach sessions are logged.",
+  primaryAction: {
+    action_key: "brain:try-ten-minutes-of-brain-coach-daily",
+    title: "Try ten minutes of Brain Coach daily",
+    detail: "A short daily practice supports continuity.",
+    pillar: "brain",
+    route: "/mind",
+    prompt: "Help me with today's longevity step: Try ten minutes of Brain Coach daily.",
+    source: "monthly_plan",
+  },
+  supportAction: {
+    action_key: "brain:one-familiar-brain-coach-round",
+    title: "One familiar Brain Coach round",
+    detail: "A familiar activity keeps the effort low today.",
+    pillar: "brain",
+    route: "/mind",
+    prompt: "Help me choose an easy Brain Coach round today.",
+    source: "daily_content",
+  },
+  careSummary: {
+    title: "Longevity summary for Karim",
+    bullets: [
+      "Brain and memory comes first today because no recent Brain Coach sessions are logged.",
+      "Next step: Try ten minutes of Brain Coach daily.",
+      "Support step: One familiar Brain Coach round.",
+    ],
+    share_text: "Longevity summary for Karim\n- Brain and memory comes first today because no recent Brain Coach sessions are logged.",
+  },
+  signalsUsed: [{
+    id: "brain-no-sessions",
+    label: "Brain Coach",
+    detail: "No recent Brain Coach sessions are logged.",
+    source: "brain",
+    pillar: "brain",
+    tone: "attention",
+  }],
+  dailyContent: { exercise: null, meal: null, tip: null, articles: [] },
+  feedbackHistory: [],
+};
+
 function renderPlan() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -55,11 +103,18 @@ function renderPlan() {
 describe("PreventionPlan", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
-    apiFetchMock.mockResolvedValue({ ok: true, json: async () => plan });
+    apiFetchMock.mockImplementation((url: string) => {
+      if (url === "/api/prevention/feedback") return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
+      return Promise.resolve({ ok: true, json: async () => companion });
+    });
   });
 
-  it("renders five pillars and exactly one priority explanation", async () => {
+  it("renders a specific companion focus with lightweight pillars", async () => {
     renderPlan();
+    expect(await screen.findByRole("heading", { name: "Karim, restart Brain Coach gently today" })).toBeVisible();
+    expect(screen.getByText(/Brain Coach: No recent Brain Coach sessions are logged/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Try ten minutes of Brain Coach daily/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /One familiar Brain Coach round/ })).toBeVisible();
     expect(await screen.findByText("Pillars")).toBeVisible();
     expect(screen.getByText("Heart & circulation")).toBeVisible();
     expect(screen.getByText("Brain & memory")).toBeVisible();
@@ -67,11 +122,10 @@ describe("PreventionPlan", () => {
     expect(screen.getByText("Nourishment")).toBeVisible();
     expect(screen.getByText("Calm & recovery")).toBeVisible();
     expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Brain & memory");
-    expect(screen.getAllByText(/A short daily practice supports continuity/)).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "Ask VYVA" })).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Ask VYVA about my plan" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ask VYVA about this plan" })).not.toBeInTheDocument();
-    expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/plan/11111111-1111-4111-8111-111111111111");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/companion/11111111-1111-4111-8111-111111111111");
   });
 
   it("routes Brain Coach actions to the canonical brain destination alias", async () => {
@@ -79,6 +133,17 @@ describe("PreventionPlan", () => {
     const action = await screen.findAllByRole("button", { name: /Try ten minutes of Brain Coach daily/ });
     fireEvent.click(action[0]);
     await waitFor(() => expect(screen.getByText("Brain destination")).toBeVisible());
+  });
+
+  it("posts feedback for the primary longevity action", async () => {
+    renderPlan();
+    fireEvent.click(await screen.findByRole("button", { name: "Done" }));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("\"eventType\":\"done\""),
+    })));
+    expect(screen.getByText("Saved as done")).toBeVisible();
   });
 
   it("renders representative preview data without replacing the production query path", async () => {
@@ -91,7 +156,7 @@ describe("PreventionPlan", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Karim, try ten minutes of Brain Coach daily" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Karim, restart Brain Coach gently today" })).toBeVisible();
     expect(screen.getByTestId("prevention-plan-screen")).toHaveAttribute("data-home-master-theme", "light");
     expect(apiFetchMock).not.toHaveBeenCalled();
   });

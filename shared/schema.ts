@@ -1917,6 +1917,28 @@ export const insertLongevitySynthesisEventSchema = createInsertSchema(longevityS
 export type InsertLongevitySynthesisEvent = z.infer<typeof insertLongevitySynthesisEventSchema>;
 export type LongevitySynthesisEvent = typeof longevitySynthesisEvents.$inferSelect;
 
+export const longevityActionEvents = pgTable("longevity_action_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  plan_id: uuid("plan_id").references(() => longevityPreventionPlans.id, { onDelete: "set null" }),
+  pillar: text("pillar"),
+  action_key: text("action_key").notNull(),
+  action_title: text("action_title").notNull(),
+  event_type: text("event_type").notNull(),
+  barrier: text("barrier"),
+  source_context: jsonb("source_context").notNull().default({}),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_longevity_action_events_user_created").on(t.user_id, t.created_at.desc()),
+  index("idx_longevity_action_events_user_action_created").on(t.user_id, t.action_key, t.created_at.desc()),
+  check("lae_pillar_check", sql`${t.pillar} is null or ${t.pillar} in ('heart','brain','strength','nourishment','calm')`),
+  check("lae_event_type_check", sql`${t.event_type} in ('shown','opened','done','too_hard','not_relevant')`),
+]);
+
+export const insertLongevityActionEventSchema = createInsertSchema(longevityActionEvents).omit({ id: true, created_at: true });
+export type InsertLongevityActionEvent = z.infer<typeof insertLongevityActionEventSchema>;
+export type LongevityActionEvent = typeof longevityActionEvents.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: vitals_readings — persisted heart rate readings per user
@@ -4532,6 +4554,7 @@ export const schema = {
   longevityDailyContent,
   longevityDailyContentLog,
   longevitySynthesisEvents,
+  longevityActionEvents,
   vitalsReadings,
   vyvaSignalReadings,
   vyvaUserBaselines,
