@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
   Bluetooth,
   Camera,
   Check,
   ChevronRight,
+  Droplet,
   FileImage,
   HeartPulse,
   Keyboard,
   Loader2,
   Mic,
+  Moon,
+  Pill,
   RefreshCw,
+  Scale,
   ShieldCheck,
+  Smile,
+  Thermometer,
+  Wind,
+  Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import VitalsScan from "@/components/VitalsScan";
@@ -65,8 +75,8 @@ const FRENCH_GROUP_LABELS: Record<VitalsDisplayGroup, string> = {
 const FRENCH_SIGNAL_LABELS: Partial<Record<VitalsSignalKey, string>> = {
   resting_hr_bpm: "Pouls",
   respiratory_rate: "Fréquence respiratoire",
-  bp_systolic: "Tension artérielle — chiffre supérieur",
-  bp_diastolic: "Tension artérielle — chiffre inférieur",
+  bp_systolic: "Tension systolique",
+  bp_diastolic: "Tension diastolique",
   oxygen_saturation: "Saturation en oxygène",
   temperature_c: "Température",
   glucose_mgdl: "Glycémie",
@@ -77,6 +87,75 @@ const FRENCH_SIGNAL_LABELS: Partial<Record<VitalsSignalKey, string>> = {
   sleep_quality_score: "Sommeil",
   medication_confirmed: "Médicament pris",
 };
+
+const SIGNAL_PICKER_ICONS: Partial<Record<VitalsSignalKey, typeof Activity>> = {
+  resting_hr_bpm: HeartPulse,
+  respiratory_rate: Wind,
+  bp_systolic: ArrowUp,
+  bp_diastolic: ArrowDown,
+  oxygen_saturation: Droplet,
+  temperature_c: Thermometer,
+  glucose_mgdl: Droplet,
+  weight_kg: Scale,
+  pain_score: Activity,
+  mood_score: Smile,
+  energy_level: Zap,
+  sleep_quality_score: Moon,
+  medication_confirmed: Pill,
+};
+
+const SIGNAL_PICKER_ACCENTS: Partial<Record<VitalsSignalKey, VyvaIconAccent>> = {
+  resting_hr_bpm: "pulse",
+  respiratory_rate: "signal",
+  bp_systolic: "trend",
+  bp_diastolic: "trend",
+  oxygen_saturation: "dot",
+  temperature_c: "dot",
+  glucose_mgdl: "dot",
+  weight_kg: "dot",
+  pain_score: "pulse",
+  mood_score: "smile",
+  energy_level: "spark",
+  sleep_quality_score: "spark",
+  medication_confirmed: "check",
+};
+
+const BLOOD_PRESSURE_PICKER_LABELS: Record<VitalsFlowLanguage, string> = {
+  en: "Blood pressure",
+  fr: "Tension artérielle",
+  es: "Tensión arterial",
+  de: "Blutdruck",
+  it: "Pressione arteriosa",
+  pt: "Pressão arterial",
+};
+
+const BLOOD_PRESSURE_ACCESSIBLE_LABELS: Record<
+  VitalsFlowLanguage,
+  { systolic: string; diastolic: string }
+> = {
+  en: { systolic: "Systolic blood pressure", diastolic: "Diastolic blood pressure" },
+  fr: { systolic: "Tension artérielle systolique", diastolic: "Tension artérielle diastolique" },
+  es: { systolic: "Presión arterial sistólica", diastolic: "Presión arterial diastólica" },
+  de: { systolic: "Systolischer Blutdruck", diastolic: "Diastolischer Blutdruck" },
+  it: { systolic: "Pressione arteriosa sistolica", diastolic: "Pressione arteriosa diastolica" },
+  pt: { systolic: "Pressão arterial sistólica", diastolic: "Pressão arterial diastólica" },
+};
+
+function pickerSignalLabel(signal: VitalsSignalKey, language: VitalsFlowLanguage) {
+  if (signal === "bp_systolic" || signal === "bp_diastolic") {
+    return BLOOD_PRESSURE_PICKER_LABELS[language];
+  }
+  if (language === "fr") {
+    return FRENCH_SIGNAL_LABELS[signal] ?? VITALS_SIGNAL_CATALOG[signal].label;
+  }
+  return VITALS_SIGNAL_CATALOG[signal].label;
+}
+
+function pickerSignalAccessibleLabel(signal: VitalsSignalKey, language: VitalsFlowLanguage) {
+  if (signal === "bp_systolic") return BLOOD_PRESSURE_ACCESSIBLE_LABELS[language].systolic;
+  if (signal === "bp_diastolic") return BLOOD_PRESSURE_ACCESSIBLE_LABELS[language].diastolic;
+  return pickerSignalLabel(signal, language);
+}
 
 const FRENCH_METHOD_DETAILS: Record<VitalsCaptureMethod, { label: string; hint: string }> = {
   web_bluetooth: { label: "Appareil Bluetooth", hint: "Lire directement un appareil compatible à proximité" },
@@ -560,12 +639,22 @@ export default function VitalsAddReadingFlow({
                 <div className={`grid grid-cols-1 divide-y overflow-hidden rounded-[20px] border sm:grid-cols-2 sm:gap-2 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 ${isDark ? "divide-white/[0.1] border-white/[0.12] bg-[#2B2035]" : "divide-[#EEE5F2] border-[#E5D9EA] bg-white"}`}>
                   {signals.map((signal, index) => {
                     const meta = VITALS_SIGNAL_CATALOG[signal];
+                    const SignalIcon = SIGNAL_PICKER_ICONS[signal] ?? Activity;
                     const balancesOddGroup = signals.length % 2 === 1 && index === 0;
                     return (
-                      <button key={signal} type="button" onClick={() => chooseSignal(signal)} className={`flex min-h-[60px] items-center gap-3 px-3 text-left transition-colors sm:min-h-[66px] sm:rounded-[20px] sm:border sm:px-4 ${balancesOddGroup ? "sm:col-span-2" : ""} ${isDark ? "hover:bg-white/[0.04] sm:border-white/[0.13] sm:bg-[#352842] sm:shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "hover:bg-[#FCF9FD] sm:border-[#E7DDF0] sm:bg-white sm:shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`} data-testid={`button-vital-${signal}`}>
-                        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}><VyvaIcon icon={HeartPulse} accent="pulse" size={20} /></span>
+                      <button
+                        key={signal}
+                        type="button"
+                        aria-label={`${pickerSignalAccessibleLabel(signal, language)} ${meta.unit || flowCopy.yesNo}`}
+                        onClick={() => chooseSignal(signal)}
+                        className={`flex min-h-[58px] items-center gap-3 px-3 text-left transition-colors sm:min-h-[66px] sm:rounded-[20px] sm:border sm:px-4 ${balancesOddGroup ? "sm:col-span-2" : ""} ${isDark ? "hover:bg-white/[0.04] sm:border-white/[0.13] sm:bg-[#352842] sm:shadow-[0_7px_20px_rgba(0,0,0,0.14)]" : "hover:bg-[#FCF9FD] sm:border-[#E7DDF0] sm:bg-white sm:shadow-[0_5px_16px_rgba(53,28,87,0.04)]"}`}
+                        data-testid={`button-vital-${signal}`}
+                      >
+                        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] sm:h-10 sm:w-10 sm:rounded-[14px] ${isDark ? "bg-[#49355E]" : "bg-[#F3E8FF]"}`}>
+                          <VyvaIcon icon={SignalIcon} accent={SIGNAL_PICKER_ACCENTS[signal] ?? "dot"} size={20} />
+                        </span>
                         <span className="min-w-0 flex-1">
-                          <span className={`block font-body text-[15px] font-black leading-tight sm:text-[16px] ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{isFrench ? FRENCH_SIGNAL_LABELS[signal] ?? meta.label : meta.label}</span>
+                          <span className={`block font-body text-[15px] font-black leading-tight sm:text-[16px] ${isDark ? "text-[#FFF8FF]" : "text-[#27152F]"}`}>{pickerSignalLabel(signal, language)}</span>
                           <span className={`block font-body text-[12px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#7A6A80]"}`}>{meta.unit || flowCopy.yesNo}</span>
                         </span>
                         <ChevronRight className={`h-5 w-5 ${isDark ? "text-[#C4A7FF]" : "text-[#A78BBA]"}`} />

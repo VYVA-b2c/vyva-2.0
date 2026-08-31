@@ -25,11 +25,28 @@ function substitute(value, replacements) {
 function validateManifest(value) {
   requireString(value.name, "manifest.name");
   requireString(value.slug, "manifest.slug");
-  if (!Array.isArray(value.tools) || value.tools.length !== 2) throw new Error("manifest.tools must contain exactly two tools");
+  if (!Array.isArray(value.tools) || value.tools.length !== 3) throw new Error("manifest.tools must contain exactly three tools");
   const names = value.tools.map((tool) => tool?.tool_config?.name).sort();
-  if (names.join(",") !== "sync_dr_ai_screen,vyva_triage_step") throw new Error("Dr. AI requires sync_dr_ai_screen and vyva_triage_step");
+  if (names.join(",") !== "retrieve_medical_profile,sync_dr_ai_screen,vyva_triage_step") {
+    throw new Error("Dr. AI requires retrieve_medical_profile, sync_dr_ai_screen, and vyva_triage_step");
+  }
   const sync = value.tools.find((tool) => tool.tool_config.name === "sync_dr_ai_screen")?.tool_config;
   if (!sync?.expects_response) throw new Error("sync_dr_ai_screen must wait for the client response");
+  const prompt = requireString(value.conversation_config?.agent?.prompt?.prompt, "Dr. AI system prompt");
+  const requiredConversationRules = [
+    "Be warm, calm, patient, and unhurried",
+    "say it only once",
+    "Do not repeat a question that has already been answered",
+    "call vyva_triage_step again for that completed session",
+    "call retrieve_medical_profile exactly once",
+    "Address the user by name naturally",
+    "Policy-filtered memory may support continuity",
+    "Do not mention unrelated consultation history proactively",
+    "Never claim access to raw audio or transcripts",
+  ];
+  for (const rule of requiredConversationRules) {
+    if (!prompt.includes(rule)) throw new Error(`Dr. AI system prompt is missing required conversation rule: ${rule}`);
+  }
   if (value.privacy?.record_voice !== false || value.privacy?.retention_days !== 0 || value.privacy?.delete_audio !== true) {
     throw new Error("Dr. AI manifest must use maximum privacy defaults");
   }

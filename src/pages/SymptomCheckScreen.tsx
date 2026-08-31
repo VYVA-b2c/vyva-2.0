@@ -243,6 +243,12 @@ type VoiceTriageLatestResponse = {
   emergencyContact?: EmergencyContact | null;
   staff_review_requested?: boolean;
   action_options?: VoiceTriageActionOption[];
+  review_answers?: Array<{
+    id: string;
+    label: string;
+    value: string;
+    kind?: string;
+  }>;
   guidancePlan?: {
     confidence?: TriageSummary["contextConfidence"];
     usefulSignals?: TriageSummary["contextSignals"];
@@ -751,6 +757,21 @@ export function VoiceTriageLivePanel({
   }));
   const usesNumericSeverityScale = stageId === "severity"
     && isNumericSeverityScaleChoices(severityChoices);
+  const reviewLabelByKind: Record<string, string> = {
+    symptom: t("health.symptomCheck.chat.reviewSymptom", "Symptom"),
+    location: t("health.symptomCheck.chat.reviewLocation", "Location"),
+    severity: t("health.symptomCheck.chat.reviewSeverity", "Severity"),
+    duration: t("health.symptomCheck.chat.reviewOnset", "When it started"),
+    trend: t("health.symptomCheck.chat.reviewRelatedDetail", "Related detail"),
+  };
+  const voiceReviewItems = (latest?.review_answers ?? [])
+    .filter((answer) => Boolean(answer.kind && reviewLabelByKind[answer.kind]))
+    .map((answer) => ({
+      label: reviewLabelByKind[answer.kind ?? ""],
+      value: answer.kind === "severity" && /^severity_(?:10|[0-9])$/.test(answer.id)
+        ? `${answer.id.replace("severity_", "")} / 10`
+        : localizeTriageAnswerLabel(activeLanguage, answer.label),
+    }));
   const usesRuntimeQuestion = [
     "safety_check",
     "symptom_selection",
@@ -818,6 +839,7 @@ export function VoiceTriageLivePanel({
             : usesRuntimeQuestion && !usesNumericSeverityScale
               ? ""
               : undefined}
+        reviewItems={stageId === "review" ? voiceReviewItems : []}
       >
         {usesNumericSeverityScale ? (
           <SeverityScaleControl
@@ -897,7 +919,7 @@ export function VoiceTriageLivePanel({
           </div>
         ) : null}
 
-        {stageId !== "checking" && !isEmergency && !isComplete && !isFailed ? (
+        {stageId !== "checking" && stageId !== "review" && !isEmergency && !isComplete && !isFailed ? (
           <div className={`rounded-[18px] border p-2 ${isDark ? "border-white/[0.14] bg-[#352842]" : "border-[#D9CFE0] bg-white"}`}>
             <label className="sr-only" htmlFor="voice-triage-typed-answer">
               {t("health.symptomCheck.voicePanel.typeAnother", "Type another answer")}
@@ -960,7 +982,7 @@ export function VoiceTriageLivePanel({
           </div>
         ) : null}
 
-        {question?.reason ? (
+        {stageId !== "review" && question?.reason ? (
           <details className={`mt-4 rounded-[18px] border px-4 py-3 ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#E7DDE6] bg-white"}`}>
             <summary className={`cursor-pointer list-none font-body text-[13px] font-black ${isDark ? "text-[#D8CDE4]" : "text-vyva-text-2"}`}>
               {t("health.symptomCheck.voicePanel.whyAsking", "Why VYVA is asking this")}

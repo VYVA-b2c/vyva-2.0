@@ -57,6 +57,7 @@ describe("VitalsScreen", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Vitals" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Vitals" })).toHaveClass("font-display", "font-semibold");
     expect(screen.getByTestId("vitals-tracker")).toBeVisible();
     expect(screen.queryByText("Longevity Plan")).not.toBeInTheDocument();
     expect(mocks.trackerProps).toHaveBeenCalledWith(expect.objectContaining({

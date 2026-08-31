@@ -10,6 +10,10 @@ import { recordVoiceTimelineEvents } from "../lib/voiceTimelineEvents.js";
 import { runTriageStep, type TriageStepResponse } from "./triage.js";
 import { recordTriageReportHandoff, saveTriageReport } from "./reports.js";
 import { logSymptomOutcomeForUser } from "./symptoms.js";
+import {
+  buildVoiceConsultationSummary,
+  persistVoiceConsultationSummary,
+} from "../lib/voiceConsultationContinuity.js";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type VoiceTriageStatus = "active" | "emergency" | "complete" | "abandoned" | "failed";
@@ -30,6 +34,24 @@ function safeFailureCopy(locale: string | undefined) {
 
 export function retainedMessagesForStatus(status: VoiceTriageStatus, messages: ChatMessage[]) {
   return status === "active" ? messages : [];
+}
+
+export function structuredConsultationEvidence(
+  status: "complete" | "emergency",
+  wizard: TriageWizardContext,
+) {
+  return status === "emergency"
+    ? { answers: [] as TriageWizardAnswer[], vitals: {} as TriageWizardContext["vitals"] }
+    : { answers: wizard.quickAnswers ?? [], vitals: wizard.vitals ?? {} };
+}
+
+export function terminalVoiceTriageResponse(session: {
+  status?: unknown;
+  latest_response_json?: unknown;
+}) {
+  if (session.status !== "complete" && session.status !== "emergency") return null;
+  const latestResponse = safeObject(session.latest_response_json);
+  return Object.keys(latestResponse).length ? latestResponse : null;
 }
 
 const voiceTriageToolSchema = z.object({
@@ -165,6 +187,56 @@ export function latestChoices(response: unknown): TriageWizardAnswer[] {
   return choices.filter((choice, index) => (
     choices.findIndex((candidate) => candidate.id === choice.id) === index
   ));
+}
+
+function consultationSymptomId(response: TriageStepResponse, wizard: TriageWizardContext) {
+  return response.wizardSymptomId
+    || [...(wizard.quickAnswers ?? [])].reverse().find((answer) => answer.kind === "symptom")?.id
+    || "unknown";
+}
+
+async function recordTerminalConsultation(input: {
+  userId: string;
+  conversationId: string;
+  channel: string;
+  locale: string;
+  status: "complete" | "emergency";
+  response: TriageStepResponse;
+  wizard: TriageWizardContext;
+  reportId?: string | null;
+  startedAt: Date;
+}) {
+  const summary = input.response.summary;
+  const safety = input.response.safetyAlert;
+  const concern = summary?.chiefComplaint
+    || safety?.label
+    || [...(input.wizard.quickAnswers ?? [])].reverse().find((answer) => answer.kind === "symptom")?.label
+    || input.response.wizardSymptomId
+    || "Voice symptom check";
+  const urgency = summary?.urgency || (input.status === "emergency" ? "emergency" : "unknown");
+  const nextStep = summary?.nextStepLabel
+    || safety?.recommendation
+    || summary?.recommendations?.[0]
+    || null;
+  const evidence = structuredConsultationEvidence(input.status, input.wizard);
+
+  return persistVoiceConsultationSummary(buildVoiceConsultationSummary({
+    userId: input.userId,
+    conversationId: input.conversationId,
+    triageReportId: input.reportId,
+    channel: input.channel,
+    locale: input.locale,
+    status: input.status,
+    canonicalSymptomId: consultationSymptomId(input.response, input.wizard),
+    concern,
+    answers: evidence.answers,
+    vitals: evidence.vitals,
+    urgency,
+    guidanceOutcome: input.response.content,
+    nextStep,
+    startedAt: input.startedAt,
+    completedAt: new Date(),
+  }));
 }
 
 const SPOKEN_SEVERITY_SCORES = new Map<string, number>([
@@ -303,6 +375,21 @@ export function voiceQuestionFor(response: TriageStepResponse) {
     };
 }
 
+const REVIEW_ANSWER_KINDS = new Set(["symptom", "location", "severity", "duration", "trend"]);
+
+export function voiceReviewAnswers(wizard: TriageWizardContext | undefined) {
+  const answers = wizard?.quickAnswers ?? [];
+  const latestByKind = new Map<string, TriageWizardAnswer>();
+  answers.forEach((answer) => {
+    if (answer.kind && REVIEW_ANSWER_KINDS.has(answer.kind)) {
+      latestByKind.set(answer.kind, answer);
+    }
+  });
+  return ["symptom", "location", "severity", "duration", "trend"]
+    .map((kind) => latestByKind.get(kind))
+    .filter((answer): answer is TriageWizardAnswer => Boolean(answer));
+}
+
 function actionOptionsFor(input: {
   response: TriageStepResponse;
   status: VoiceTriageStatus;
@@ -347,6 +434,7 @@ function actionOptionsFor(input: {
 function toolResponseFor(input: {
   response: TriageStepResponse;
   status: VoiceTriageStatus;
+  wizard?: TriageWizardContext;
   reportId?: string | null;
   sentTo?: string[];
   staffReviewRequested?: boolean;
@@ -366,6 +454,9 @@ function toolResponseFor(input: {
       route: "/health/symptom-check",
       show_live_voice_check: true,
     },
+    ...(input.response.wizardStage === "support" ? {
+      review_answers: voiceReviewAnswers(input.wizard),
+    } : {}),
     ...(input.response.summary ? {
       report: {
         triage_report_id: input.reportId ?? null,
@@ -582,6 +673,8 @@ async function runVoiceTriageSessionTurnUnlocked(input: VoiceTriageSessionTurnIn
     locale: input.locale,
     healthMemory,
   });
+  const terminalResponse = terminalVoiceTriageResponse(session);
+  if (terminalResponse) return terminalResponse;
 
   const priorMessages = safeMessages(session.messages_json);
   const priorWizard = safeWizard(session.wizard_json);
@@ -632,10 +725,27 @@ async function runVoiceTriageSessionTurnUnlocked(input: VoiceTriageSessionTurnIn
   const toolResponse = toolResponseFor({
     response,
     status,
+    wizard: nextWizard,
     reportId: completion.reportId,
     sentTo,
     staffReviewRequested,
   });
+
+  if (status === "complete" || status === "emergency") {
+    await recordTerminalConsultation({
+      userId: input.userId,
+      conversationId: input.conversationId,
+      channel: input.channel,
+      locale: input.locale,
+      status,
+      response,
+      wizard: nextWizard,
+      reportId: completion.reportId,
+      startedAt: session.started_at,
+    }).catch((err) => {
+      console.error("[voice-triage consultation continuity]", err);
+    });
+  }
 
   await db
     .update(voiceTriageSessions)

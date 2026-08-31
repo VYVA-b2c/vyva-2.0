@@ -57,7 +57,7 @@ export function HomeMasterDetailShell({
             >
               <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
             </button>
-            <h1 className="truncate text-center font-body text-[24px] font-extrabold leading-tight tracking-[-0.025em] text-inherit">
+            <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
               {title}
             </h1>
             <div className="flex justify-end">{action}</div>
