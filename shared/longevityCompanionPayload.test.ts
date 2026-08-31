@@ -2,9 +2,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 let composeLongevityCompanionPayload: typeof import("../server/routes/healthInsightsReport.js").composeLongevityCompanionPayload;
 
+type ComposeInput = Parameters<typeof composeLongevityCompanionPayload>[0];
+type Pillar = NonNullable<ComposeInput["plan"]["priority_pillar"]>;
+type DailyContent = ComposeInput["dailyContent"];
+type DailyContentRow = DailyContent["byPillar"][Pillar][number];
+
 const userId = "11111111-1111-4111-8111-111111111111";
 
-const basePlan = {
+const basePlan: ComposeInput["plan"] = {
   id: "22222222-2222-4222-8222-222222222222",
   user_id: userId,
   generated_at: "2026-08-01T09:00:00.000Z",
@@ -22,10 +27,14 @@ const basePlan = {
   pillar_calm_signals: null,
   cross_pillar_patterns: [],
   recommendations: {
+    heart: [{ action: "Walk after lunch", why: "A walk tied to lunch is easier to remember." }],
     brain: [
       { action: "Open Brain Coach once each day", why: "Small sessions support continuity." },
       { action: "Call someone you enjoy this week", why: "Connection keeps the mind engaged." },
     ],
+    strength: [{ action: "Clear one walking path", why: "A clear route makes movement easier." }],
+    nourishment: [{ action: "Choose protein with your next meal", why: "Protein with a meal is a clear nourishment step." }],
+    calm: [{ action: "Open a two-minute breathing reset", why: "Two minutes is enough to start." }],
   },
   priority_intervention: "Open Brain Coach once each day",
   priority_why: "Small sessions support continuity.",
@@ -37,9 +46,9 @@ const basePlan = {
   confidence: 0.7,
   priority_pillar: "brain",
   status: "active",
-} as const;
+};
 
-const emptyDailyContent = {
+const emptyDailyContent: DailyContent = {
   exercise: null,
   meal: null,
   tip: null,
@@ -54,12 +63,12 @@ const emptyDailyContent = {
 };
 
 function dailyRow(
-  pillar: "heart" | "brain" | "strength" | "nourishment" | "calm",
+  pillar: Pillar,
   title: string,
   description: string,
   id = `${pillar}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
   rotationWeight = 3,
-) {
+): DailyContentRow {
   return {
     id,
     content_type: "tip" as const,
@@ -76,7 +85,7 @@ function dailyRow(
   };
 }
 
-const fivePillarDailyContent = {
+const fivePillarDailyContent: DailyContent = {
   ...emptyDailyContent,
   byPillar: {
     heart: [dailyRow("heart", "Walk after lunch", "Tie ten easy minutes to a meal so circulation support is simple to remember.")],
@@ -91,11 +100,11 @@ describe("longevity companion payload", () => {
   beforeAll(async () => {
     process.env.DATABASE_URL ??= "postgresql://user:pass@127.0.0.1:1/vyva_test";
     ({ composeLongevityCompanionPayload } = await import("../server/routes/healthInsightsReport.js"));
-  });
+  }, 30000);
 
   it("returns five pillar actions and promotes the priority pillar action", () => {
     const payload = composeLongevityCompanionPayload({
-      plan: basePlan as any,
+      plan: basePlan,
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
       conditions: ["memory support"],
       vitals: null,
@@ -122,7 +131,7 @@ describe("longevity companion payload", () => {
 
   it("turns recent user signals into a specific why-today explanation", () => {
     const payload = composeLongevityCompanionPayload({
-      plan: basePlan as any,
+      plan: basePlan,
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
       conditions: ["memory support"],
       vitals: null,
@@ -142,7 +151,7 @@ describe("longevity companion payload", () => {
   });
 
   it("rotates each pillar from its own content pool deterministically by date", () => {
-    const dailyContent = {
+    const dailyContent: DailyContent = {
       ...emptyDailyContent,
       byPillar: {
         heart: [
@@ -160,7 +169,7 @@ describe("longevity companion payload", () => {
     };
 
     const payloadA = composeLongevityCompanionPayload({
-      plan: basePlan as any,
+      plan: basePlan,
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
       conditions: [],
       vitals: null,
@@ -173,7 +182,7 @@ describe("longevity companion payload", () => {
       rotationDate: "2026-08-31",
     });
     const payloadB = composeLongevityCompanionPayload({
-      plan: basePlan as any,
+      plan: basePlan,
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
       conditions: [],
       vitals: null,
@@ -196,7 +205,7 @@ describe("longevity companion payload", () => {
 
   it("suppresses actions recently marked not relevant", () => {
     const payload = composeLongevityCompanionPayload({
-      plan: basePlan as any,
+      plan: basePlan,
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
       conditions: [],
       vitals: null,
@@ -232,7 +241,7 @@ describe("longevity companion payload", () => {
 
   it("uses an easier per-pillar action after too-hard feedback", () => {
     const payload = composeLongevityCompanionPayload({
-      plan: { ...basePlan, priority_pillar: "strength", pillar_brain: "steady", pillar_strength: "priority_focus" } as any,
+      plan: { ...basePlan, priority_pillar: "strength", pillar_brain: "steady", pillar_strength: "priority_focus" },
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
       conditions: [],
       vitals: null,
