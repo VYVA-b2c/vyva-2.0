@@ -547,6 +547,8 @@ export const myMedicines = pgTable("my_medicines", {
   refill_due_date:   date("refill_due_date"),
   dose_unit:         text("dose_unit"),
   units_per_dose:    numeric("units_per_dose", { precision: 10, scale: 2 }),
+  inventory_unit:    text("inventory_unit"),
+  inventory_units_per_dose: numeric("inventory_units_per_dose", { precision: 10, scale: 2 }),
   daily_frequency:   numeric("daily_frequency", { precision: 6, scale: 2 }),
   inventory_tracking_enabled: boolean("inventory_tracking_enabled").notNull().default(false),
   refill_alert_days: integer("refill_alert_days").notNull().default(7),
