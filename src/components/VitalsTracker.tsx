@@ -234,6 +234,7 @@ interface ExtraTrackerCopy {
   connectedGlucoseHelp: string;
   manualGlucoseHelp: string;
   whenReading: string;
+  moreOptions: string;
   ok: string;
 }
 
@@ -250,6 +251,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     connectedGlucoseHelp: "Si no hay lectura automatica disponible, introduce el numero del glucometro aqui.",
     manualGlucoseHelp: "Escribe el numero del glucometro para guardarlo con tus signos.",
     whenReading: "Cuando fue esta medicion?",
+    moreOptions: "Mas opciones",
     ok: "OK",
   },
   de: {
@@ -262,6 +264,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     connectedGlucoseHelp: "Wenn kein automatischer Wert verfugbar ist, geben Sie den Wert vom Glukosemessgerat hier ein.",
     manualGlucoseHelp: "Geben Sie den Wert vom Glukosemessgerat ein, um ihn mit Ihren Vitalwerten zu speichern.",
     whenReading: "Wann war diese Messung?",
+    moreOptions: "Weitere Optionen",
     ok: "OK",
   },
   en: {
@@ -274,6 +277,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     connectedGlucoseHelp: "If no automatic reading is available, enter the number from the glucose meter here.",
     manualGlucoseHelp: "Type the number from the glucose meter to save it with your vitals.",
     whenReading: "When was this reading?",
+    moreOptions: "More options",
     ok: "OK",
   },
   fr: {
@@ -328,6 +332,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     connectedGlucoseHelp: "Si aucune mesure automatique n'est disponible, saisissez ici le nombre du lecteur de glycémie.",
     manualGlucoseHelp: "Saisissez le nombre du lecteur de glycémie pour l'enregistrer avec vos constantes.",
     whenReading: "Quand cette mesure a-t-elle été prise ?",
+    moreOptions: "Autres options",
     ok: "OK",
   },
   it: {
@@ -374,6 +379,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     connectedGlucoseHelp: "Se non e disponibile una lettura automatica, inserisci qui il numero del glucometro.",
     manualGlucoseHelp: "Digita il numero del glucometro per salvarlo con i tuoi parametri.",
     whenReading: "Quando e stata presa questa misura?",
+    moreOptions: "Altre opzioni",
     ok: "OK",
   },
   pt: {
@@ -420,6 +426,7 @@ const COPY_OVERRIDES: Record<Language, Partial<typeof COPY.en> & ExtraTrackerCop
     connectedGlucoseHelp: "Se nao houver leitura automatica disponivel, introduza aqui o numero do medidor de glicose.",
     manualGlucoseHelp: "Digite o numero do medidor de glicose para guardar com os seus sinais.",
     whenReading: "Quando foi esta medicao?",
+    moreOptions: "Mais opções",
     ok: "OK",
   },
 };
@@ -1156,6 +1163,8 @@ export default function VitalsTracker({
     hasGpEmail: Boolean(gpEmailHref),
     hasCaregiverContact: Boolean(caregiverHref),
   });
+  const primarySafetyAction = safetyActionKinds[0];
+  const secondarySafetyActions = safetyActionKinds.slice(1);
 
   useEffect(() => {
     if (initialAddSignal) setScreen("add");
@@ -1312,7 +1321,10 @@ export default function VitalsTracker({
     return () => window.removeEventListener("vyva:vitals-updated", loadDashboard);
   }, [loadDashboard]);
 
-  const safetyActionBaseClass = "flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-bold transition active:scale-[0.98] disabled:opacity-60";
+  const safetyActionBaseClass = "flex min-h-[54px] items-center justify-center gap-2 rounded-[17px] px-3 text-center font-body text-[15px] font-bold transition active:scale-[0.98] disabled:opacity-60 sm:min-h-[58px] sm:px-4 sm:text-[16px]";
+  const safetySecondaryActionClass = isDark
+    ? "border border-white/[0.16] bg-white/[0.07] text-[#E9D7FF]"
+    : "border border-[#DDD6FE] bg-white text-[#6B21A8]";
 
   function renderSafetyAction(kind: VitalsSafetyActionKind) {
     if (kind === "call_emergency" && emergencyContact?.telHref) {
@@ -1383,7 +1395,7 @@ export default function VitalsTracker({
           key={kind}
           type="button"
           onClick={openDoctorContactSetup}
-          className={`${safetyActionBaseClass} border border-[#E8DED4] bg-white text-[#6B21A8]`}
+          className={`${safetyActionBaseClass} ${safetySecondaryActionClass}`}
           data-testid="button-safety-add-doctor"
         >
           <UserPlus className="h-5 w-5" />
@@ -1399,7 +1411,7 @@ export default function VitalsTracker({
           type="button"
           onClick={() => openConciergeService("appointment")}
           disabled={acknowledging !== null}
-          className={`${safetyActionBaseClass} border border-[#DDD6FE] bg-white text-[#6B21A8]`}
+          className={`${safetyActionBaseClass} ${safetySecondaryActionClass}`}
           data-testid="button-safety-schedule-appointment"
         >
           <Calendar className="h-5 w-5" />
@@ -1536,6 +1548,17 @@ export default function VitalsTracker({
   const dashboardDisclosure = isDark
     ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_14px_30px_rgba(0,0,0,0.18)]"
     : "border-[#E8DED4] bg-white text-[#3B2C25] shadow-[0_8px_20px_rgba(63,45,35,0.05)]";
+  const safetyPanel = isDark
+    ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_16px_34px_rgba(0,0,0,0.2)]"
+    : "border-[#E8DED4] bg-white text-[#2F241F] shadow-[0_10px_28px_rgba(63,45,35,0.07)]";
+  const safetyMutedText = isDark ? "text-[#CFC2D8]" : "text-[#7A6A60]";
+  const safetyBodyText = isDark ? "text-[#FFF8FF]" : "text-[#2F241F]";
+  const safetyAlertPanel = isDark
+    ? "border border-[#F8AE1B]/25 bg-[#F8AE1B]/10 text-[#FFD99A]"
+    : "bg-[#FFF7ED] text-[#92400E]";
+  const safetyDismissButton = isDark
+    ? "border-white/[0.16] bg-white/[0.06] text-[#D8CDE4]"
+    : "border-[#E8DED4] bg-[#FAF9F6] text-[#6B5B52]";
   const groupDivider = isDark ? "border-white/[0.12]" : "border-[#E1D6E7]";
   const rowDivider = isDark ? "divide-white/[0.1]" : "divide-[#EFE7F3]";
 
@@ -1629,15 +1652,15 @@ export default function VitalsTracker({
           </div>
 
           {(safetyStatus !== "steady" || latestAlert) ? (
-          <div className="mt-4 rounded-[26px] border border-[#EDE5DB] bg-white p-5 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="daily-safety-check">
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
-                <SafetyIcon className="h-7 w-7" />
+          <div className={`mt-3 rounded-[24px] border p-4 sm:mt-4 sm:rounded-[28px] sm:p-5 ${safetyPanel}`} data-testid="daily-safety-check">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] sm:h-14 sm:w-14 sm:rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
+                <SafetyIcon className="h-6 w-6 sm:h-7 sm:w-7" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-[#7A6A60]">{copy.safetyTitle}</p>
-                  <span className="rounded-full px-3 py-1 font-body text-[12px] font-bold" style={{ background: safety.bg, color: safety.color }}>
+                  <p className={`font-body text-[11px] font-bold uppercase tracking-[0.11em] sm:text-[13px] sm:tracking-[0.12em] ${safetyMutedText}`}>{copy.safetyTitle}</p>
+                  <span className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold sm:px-3 sm:text-[12px]" style={{ background: safety.bg, color: safety.color }}>
                     {safetyLabel(safetyStatus, language)}
                   </span>
                   {safetyAcknowledged && (
@@ -1646,11 +1669,11 @@ export default function VitalsTracker({
                     </span>
                   )}
                 </div>
-                <p className="mt-3 font-body text-[20px] font-bold leading-relaxed text-[#2F241F]">
+                <p className={`mt-2 font-body text-[17px] font-bold leading-[1.45] sm:mt-3 sm:text-[20px] sm:leading-relaxed ${safetyBodyText}`}>
                   {seniorMessage}
                 </p>
                 {latestAlert && !latestAlert.resolved_at && (
-                  <p className="mt-3 rounded-[18px] bg-[#FFF7ED] p-3 font-body text-[15px] font-bold text-[#92400E]">
+                  <p className={`mt-3 rounded-[16px] p-3 font-body text-[14px] font-bold leading-relaxed sm:rounded-[18px] sm:text-[15px] ${safetyAlertPanel}`}>
                     {alertMessageForDisplay(latestAlert, safetyStatus, language)}
                   </p>
                 )}
@@ -1658,17 +1681,26 @@ export default function VitalsTracker({
             </div>
 
             {!safetyAcknowledged && (
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {safetyActionKinds.map(renderSafetyAction)}
-                <button
-                  type="button"
-                  onClick={() => acknowledgeSafety("dismissed")}
-                  disabled={acknowledging !== null}
-                  className="min-h-[58px] rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 font-body text-[17px] font-bold text-[#6B5B52] disabled:opacity-60"
-                  data-testid="button-safety-dismiss"
-                >
-                  {acknowledging === "dismissed" ? copy.safetyAck : copy.ok}
-                </button>
+              <div className="mt-4 grid gap-2.5 sm:mt-5">
+                {primarySafetyAction ? renderSafetyAction(primarySafetyAction) : null}
+                <details className={`group overflow-hidden rounded-[17px] border ${isDark ? "border-white/[0.14] bg-white/[0.04]" : "border-[#E8DED4] bg-[#FAF9F6]"}`}>
+                  <summary className={`vyva-tap flex min-h-[48px] cursor-pointer list-none items-center justify-center gap-2 px-3 font-body text-[14px] font-bold [&::-webkit-details-marker]:hidden ${isDark ? "text-[#D8CDE4]" : "text-[#6B5B72]"}`}>
+                    {copy.moreOptions}
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <div className={`grid gap-2.5 border-t p-2.5 sm:grid-cols-2 ${isDark ? "border-white/[0.12]" : "border-[#E8DED4]"}`}>
+                    {secondarySafetyActions.map(renderSafetyAction)}
+                    <button
+                      type="button"
+                      onClick={() => acknowledgeSafety("dismissed")}
+                      disabled={acknowledging !== null}
+                      className={`min-h-[54px] rounded-[17px] border px-3 font-body text-[15px] font-bold disabled:opacity-60 sm:min-h-[58px] sm:rounded-[18px] sm:px-4 sm:text-[17px] ${safetyDismissButton}`}
+                      data-testid="button-safety-dismiss"
+                    >
+                      {acknowledging === "dismissed" ? copy.safetyAck : copy.ok}
+                    </button>
+                  </div>
+                </details>
               </div>
             )}
           </div>

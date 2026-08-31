@@ -21,6 +21,7 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
+import { writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import type { PreventionPlanData } from "./pages/PreventionPlan";
 import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
@@ -214,6 +215,24 @@ const VITALS_PREVIEW_DATA: VitalsTrackerPreviewData = {
     },
   ],
   latest_alert: null,
+};
+
+const VITALS_CONTACT_DOCTOR_PREVIEW_DATA: VitalsTrackerPreviewData = {
+  ...VITALS_PREVIEW_DATA,
+  analysis: {
+    ...VITALS_PREVIEW_DATA.analysis,
+    id: "preview-vitals-contact-doctor-analysis",
+    safety_status: "contact_doctor",
+    recommended_action: "contact_doctor",
+    risk_score: 62,
+    risk_tier: "high",
+    senior_message: "VYVA noticed a change worth same-day medical advice. Share this summary if you can.",
+  },
+  latest_alert: {
+    id: "preview-vitals-contact-doctor-alert",
+    severity: "warning",
+    message: "Symptom report: Douleur à la tête ou au cou",
+  },
 };
 const WelcomeScreen = lazy(() => import("./pages/onboarding/WelcomeScreen"));
 const WhoForStep = lazy(() => import("./pages/onboarding/WhoForStep"));
@@ -851,10 +870,11 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
   }
 
   if (kind === "vitals") {
+    const scenario = new URLSearchParams(location.search).get("scenario");
     return (
       <AppShell>
         <VitalsScreen
-          previewData={VITALS_PREVIEW_DATA}
+          previewData={scenario === "contact-doctor" ? VITALS_CONTACT_DOCTOR_PREVIEW_DATA : VITALS_PREVIEW_DATA}
           previewConditions={["hypertension"]}
           backPath="/dev/home-master/health"
         />
@@ -963,10 +983,16 @@ function HomeMasterPreviewLanguageSync() {
   React.useEffect(() => {
     if (!location.pathname.startsWith("/dev/home-master")) return;
 
-    const requestedLanguage = new URLSearchParams(location.search).get("lang");
-    if (!requestedLanguage || !["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) return;
+    const searchParams = new URLSearchParams(location.search);
+    const requestedLanguage = searchParams.get("lang");
+    if (requestedLanguage && ["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) {
+      setLanguage(requestedLanguage);
+    }
 
-    setLanguage(requestedLanguage);
+    const requestedTheme = searchParams.get("theme");
+    if (requestedTheme === "light" || requestedTheme === "dark") {
+      writeHomeMasterTheme(requestedTheme);
+    }
   }, [location.pathname, location.search]);
 
   return null;

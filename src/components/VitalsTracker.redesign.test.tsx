@@ -120,6 +120,7 @@ describe("VitalsTracker redesign", () => {
     expect(screen.getByTestId("button-safety-call-gp")).toHaveTextContent("Appeler Quiron");
     expect(screen.getByTestId("button-safety-email-gp")).toHaveTextContent("Envoyer un e-mail au médecin");
     expect(screen.getByTestId("button-safety-doctor-help")).toHaveTextContent("Aide médicale");
+    expect(screen.getByText("Autres options")).toBeVisible();
     expect(screen.getByTestId("button-safety-schedule-appointment")).toHaveTextContent("Prendre rendez-vous");
     expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Trouver un transport");
     expect(screen.queryByText(/VYVA noticed|Symptom report|Next:|Doctor help|Book appointment|Find transport/i)).not.toBeInTheDocument();
