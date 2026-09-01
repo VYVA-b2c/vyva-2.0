@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import VitalsTracker, { type VitalsTrackerPreviewData } from "./VitalsTracker";
@@ -34,10 +34,10 @@ const previewData: VitalsTrackerPreviewData = {
   latest_alert: null,
 };
 
-function renderTracker() {
+function renderTracker(onVoiceStateChange?: Parameters<typeof VitalsTracker>[0]["onVoiceStateChange"]) {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <VitalsTracker userId="preview-user" userConditions={[]} language="en" previewData={previewData} />
+      <VitalsTracker userId="preview-user" userConditions={[]} language="en" previewData={previewData} onVoiceStateChange={onVoiceStateChange} />
     </MemoryRouter>,
   );
 }
@@ -99,6 +99,7 @@ describe("VitalsTracker redesign", () => {
   });
 
   it("uses the Rouast camera UI to return heart rate and breathing together", async () => {
+    const onVoiceStateChange = vi.fn();
     (window as Window & { __VYVA_FACE_SCAN_TEST_DURATION_MS?: number }).__VYVA_FACE_SCAN_TEST_DURATION_MS = 1;
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -148,7 +149,7 @@ describe("VitalsTracker redesign", () => {
       needs_confirmation: true,
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
 
-    renderTracker();
+    renderTracker(onVoiceStateChange);
     fireEvent.click(screen.getByTestId("button-vitals-hero-add"));
     fireEvent.click(screen.getByTestId("button-vital-resting_hr_bpm"));
     fireEvent.click(screen.getByTestId("button-method-phone_camera"));
@@ -161,6 +162,18 @@ describe("VitalsTracker redesign", () => {
     expect(confirmation).toHaveTextContent("Pulse: 70 bpm");
     expect(confirmation).toHaveTextContent("Breathing: 15 /min");
     expect(apiFetchMock).toHaveBeenCalledWith("/api/vitals-engine/face-scan", expect.objectContaining({ method: "POST" }));
+    await waitFor(() => expect(onVoiceStateChange).toHaveBeenCalledWith(expect.objectContaining({
+      view: "add_reading",
+      stage: "confirm",
+      selectedSignal: "resting_hr_bpm",
+      selectedSignalLabel: "Heart rate",
+      captureMethod: "phone_camera",
+      scanStatus: "complete",
+      pendingReadings: expect.arrayContaining([
+        expect.objectContaining({ signal: "resting_hr_bpm", value: 70 }),
+        expect.objectContaining({ signal: "respiratory_rate", value: 15 }),
+      ]),
+    })));
   });
 
   it("localizes saved English safety and alert copy when the account language is French", () => {

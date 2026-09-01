@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +11,14 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
+import {
+  initialVitalsVoiceUiState,
+  vitalsVoiceContextHint,
+  vitalsVoiceContextUpdate,
+  vitalsVoiceDynamicVariables,
+  type VitalsVoiceUiState,
+} from "@/lib/vitalsVoiceContext";
 
 type PersonalisationProfile = {
   conditions: string[];
@@ -32,6 +40,7 @@ export default function VitalsScreen({
   const { user } = useAuth();
   const { profile } = useProfile();
   const { language } = useLanguage();
+  const voice = useOptionalVyvaVoice();
   const headerTitle = t("statusVitals.hub.pageTitle", "Vitals");
   const shellContract: CanonicalDetailFlowShellContract = {
     shellId: "home.production",
@@ -42,6 +51,7 @@ export default function VitalsScreen({
     composer: "hidden",
   };
   const [flowBackAction, setFlowBackAction] = useState<(() => void) | null>(null);
+  const [voiceUiState, setVoiceUiState] = useState<VitalsVoiceUiState>(initialVitalsVoiceUiState);
   const handleBackActionChange = useCallback((handler: (() => void) | null) => {
     setFlowBackAction(() => handler);
   }, []);
@@ -51,6 +61,20 @@ export default function VitalsScreen({
     staleTime: 10 * 60 * 1000,
     retry: false,
   });
+  const baseVoiceContext = t(
+    "statusVitals.hub.voiceContext",
+    "Vitals support. Help me review recent readings, understand changes from my baseline, or add a new measurement safely.",
+  );
+  const voiceContext = vitalsVoiceContextHint(baseVoiceContext, voiceUiState);
+  const voiceDynamicVariables = vitalsVoiceDynamicVariables(voiceUiState);
+  const liveVoiceContext = vitalsVoiceContextUpdate(voiceUiState);
+  const voiceStatus = voice?.status;
+  const sendVoiceContextUpdate = voice?.sendContextUpdate;
+
+  useEffect(() => {
+    if (voiceStatus !== "connected" || !sendVoiceContextUpdate) return;
+    sendVoiceContextUpdate(liveVoiceContext);
+  }, [liveVoiceContext, sendVoiceContextUpdate, voiceStatus]);
 
   return (
     <CanonicalDetailFlowShell
@@ -59,12 +83,9 @@ export default function VitalsScreen({
       headerAction={(
         <CanonicalVoiceButton
           label={t("statusVitals.hub.voiceLabel", "Talk to VYVA")}
-          contextHint={t(
-            "statusVitals.hub.voiceContext",
-            "Vitals support. Help me review recent readings, understand changes from my baseline, or add a new measurement safely.",
-          )}
+          contextHint={voiceContext}
           agentSlug="health"
-          dynamicVariables={{ app_entrypoint: "vitals_canonical_header", health_focus: "vitals" }}
+          dynamicVariables={voiceDynamicVariables}
           testId="button-vitals-header-voice"
         />
       )}
@@ -83,6 +104,7 @@ export default function VitalsScreen({
         gpEmail={profile?.gpEmail}
         caregiverContact={profile?.caregiverContact}
         onBackActionChange={handleBackActionChange}
+        onVoiceStateChange={setVoiceUiState}
       />
     </CanonicalDetailFlowShell>
   );

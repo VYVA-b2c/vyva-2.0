@@ -7,21 +7,23 @@ import { apiFetch } from "@/lib/queryClient";
 import { captureVitalLensPayload } from "@/lib/vitalLens";
 import type { ProposedVitalsReading, VitalsParsingResult } from "../../shared/vitalsParsing";
 
-type ScanStatus = "idle" | "camera" | "scanning" | "reading" | "not_configured" | "failed";
+export type VitalLensScanStatus = "idle" | "camera" | "scanning" | "reading" | "not_configured" | "failed";
 
 export default function VitalLensFaceScan({
   onReadings,
   onLocalFallback,
+  onStatusChange,
 }: {
   onReadings: (readings: ProposedVitalsReading[]) => void;
   onLocalFallback: () => void;
+  onStatusChange?: (status: VitalLensScanStatus) => void;
 }) {
   const { t } = useTranslation();
   const { isDark } = useHomeMasterTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [status, setStatus] = useState<ScanStatus>("idle");
+  const [status, setStatus] = useState<VitalLensScanStatus>("idle");
   const [message, setMessage] = useState("");
 
   const stopCamera = useCallback(() => {
@@ -30,6 +32,10 @@ export default function VitalLensFaceScan({
   }, []);
 
   useEffect(() => stopCamera, [stopCamera]);
+
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [onStatusChange, status]);
 
   const startScan = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {

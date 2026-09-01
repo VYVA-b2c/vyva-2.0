@@ -39,6 +39,7 @@ import {
 } from "../../shared/vitalsSignalCatalog";
 import { compatibleCaptureMethods, type VitalsMeasurementEnvelope } from "../../shared/vitalsAcquisition";
 import { formatVitalsReadingDisplay, type ProposedVitalsReading, type VitalsParsingResult } from "../../shared/vitalsParsing";
+import type { VitalsVoiceFlowState, VitalsVoiceScanStatus, VitalsVoiceStage } from "@/lib/vitalsVoiceContext";
 
 const GROUP_ORDER: VitalsDisplayGroup[] = ["heart", "breathing", "blood", "body", "wellbeing", "activity", "labs"];
 const GROUP_LABELS: Record<VitalsDisplayGroup, string> = {
@@ -307,8 +308,6 @@ export type VitalsAcquisitionContext = {
   }>;
 };
 
-type Stage = "vital" | "tracked" | "method" | "capture" | "confirm";
-
 type SpeechRecognitionEventLike = {
   results?: ArrayLike<ArrayLike<{ transcript?: string }>>;
 };
@@ -376,6 +375,7 @@ export default function VitalsAddReadingFlow({
   previewContext,
   initialSignal,
   onBackActionChange,
+  onVoiceStateChange,
   language = "en",
 }: {
   onBack: () => void;
@@ -384,12 +384,13 @@ export default function VitalsAddReadingFlow({
   previewContext?: VitalsAcquisitionContext | null;
   initialSignal?: VitalsSignalKey | null;
   onBackActionChange?: (handler: (() => void) | null) => void;
+  onVoiceStateChange?: (state: VitalsVoiceFlowState) => void;
   language?: VitalsFlowLanguage;
 }) {
   const { isDark } = useHomeMasterTheme();
   const isFrench = language === "fr";
   const flowCopy = isFrench ? FLOW_COPY.fr : FLOW_COPY.en;
-  const [stage, setStage] = useState<Stage>("vital");
+  const [stage, setStage] = useState<VitalsVoiceStage>("vital");
   const [context, setContext] = useState<VitalsAcquisitionContext | null>(previewContext ?? null);
   const [selectedSignal, setSelectedSignal] = useState<VitalsSignalKey | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<VitalsCaptureMethod | null>(null);
@@ -400,6 +401,7 @@ export default function VitalsAddReadingFlow({
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
   const [useLocalCameraEstimate, setUseLocalCameraEstimate] = useState(false);
+  const [vitalLensStatus, setVitalLensStatus] = useState<VitalsVoiceScanStatus>("idle");
 
   const activeSignals = useMemo(
     () => VITALS_SIGNAL_KEYS.filter((key) => !VITALS_SIGNAL_CATALOG[key].futureReady),
@@ -449,6 +451,7 @@ export default function VitalsAddReadingFlow({
     setProposed([]);
     setError("");
     setUseLocalCameraEstimate(false);
+    setVitalLensStatus("idle");
     const tracked = context?.signals.find((item) => item.signal_type === signal)?.current_reading;
     setStage(tracked && (tracked.source === "connected_device" || tracked.source === "clinical") ? "tracked" : "method");
   }, [context]);
@@ -463,6 +466,7 @@ export default function VitalsAddReadingFlow({
     setProposed([]);
     setError("");
     setUseLocalCameraEstimate(false);
+    setVitalLensStatus("idle");
     setStage("capture");
     if (method === "web_bluetooth") void startBluetooth();
   };
@@ -608,6 +612,7 @@ export default function VitalsAddReadingFlow({
     setProposed([]);
     setError("");
     setUseLocalCameraEstimate(false);
+    setVitalLensStatus("idle");
   }, []);
 
   const back = useCallback(() => {
@@ -635,6 +640,29 @@ export default function VitalsAddReadingFlow({
     ? CAMERA_RESULT_TITLES[language]
     : selectedLabel;
   const configuredBluetoothDevice = configuredDeviceForSignal(context, selectedSignal);
+  const voicePendingReadings = useMemo(() => proposed.map((reading) => ({
+    signal: reading.signal_type,
+    value: reading.value,
+    unit: reading.unit ?? null,
+    source: reading.source ?? null,
+    confidence: reading.confidence ?? null,
+  })), [proposed]);
+  const voiceScanStatus: VitalsVoiceScanStatus | null = selectedMethod === "phone_camera"
+    ? useLocalCameraEstimate ? "local_estimate" : vitalLensStatus
+    : null;
+
+  useEffect(() => {
+    onVoiceStateChange?.({
+      stage,
+      selectedSignal,
+      selectedSignalLabel: selectedLabel ?? null,
+      captureMethod: selectedMethod,
+      scanStatus: voiceScanStatus,
+      pendingReadings: voicePendingReadings,
+      busy,
+      listening,
+    });
+  }, [busy, listening, onVoiceStateChange, selectedLabel, selectedMethod, selectedSignal, stage, voicePendingReadings, voiceScanStatus]);
 
   return (
     <section className={`-mx-2 w-[calc(100%+1rem)] sm:mx-0 sm:w-auto sm:rounded-[30px] sm:border sm:p-5 ${isDark ? "text-[#FFF8FF] sm:border-white/[0.14] sm:bg-[#2B2035] sm:shadow-[0_22px_48px_rgba(0,0,0,0.22)]" : "text-[#241238] sm:border-[#E6DCEB] sm:bg-[#FFFCF8] sm:shadow-[0_16px_40px_rgba(63,45,75,0.08)]"}`} data-testid="vitals-add-flow">
@@ -742,9 +770,11 @@ export default function VitalsAddReadingFlow({
             <VitalLensFaceScan
               onReadings={(readings) => {
                 setProposed(readings);
+                setVitalLensStatus("complete");
                 setStage("confirm");
               }}
               onLocalFallback={() => setUseLocalCameraEstimate(true)}
+              onStatusChange={setVitalLensStatus}
             />
           )}
         </div>
