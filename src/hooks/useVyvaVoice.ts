@@ -646,6 +646,20 @@ function voiceTriageTouchContext(detail: VoiceTriageTouchAnswerDetail) {
   ].join(" ");
 }
 
+function voiceTriageTouchContinuation(detail: VoiceTriageTouchAnswerDetail) {
+  const status = detail.status?.trim();
+
+  if (status === "complete") {
+    return "Continue from the VYVA app selection that was already processed. The triage flow is complete, so explain the saved guidance now without restarting the questions or submitting the selected answer again.";
+  }
+
+  if (status === "emergency") {
+    return "Continue from the VYVA app selection that was already processed. Speak the emergency guidance already supplied in context now, without restarting the questions or submitting the selected answer again.";
+  }
+
+  return "Continue from the VYVA app selection that was already processed. Ask only the current next question supplied in context, and do not submit the selected answer again.";
+}
+
 function createVoiceInstanceId() {
   return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
@@ -1225,6 +1239,9 @@ function useVyvaVoiceController() {
 
       try {
         conversationRef.current.sendContextualUpdate(voiceTriageTouchContext(detail));
+        const continuation = voiceTriageTouchContinuation(detail);
+        hiddenOutgoingMessagesRef.current.push(normalizeTranscriptText(continuation));
+        conversationRef.current.sendUserMessage(continuation);
       } catch (error) {
         console.warn("[VYVA] Failed to sync touch answer into voice session:", error);
       }
