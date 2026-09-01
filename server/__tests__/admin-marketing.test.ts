@@ -867,6 +867,7 @@ describe("admin marketing router", () => {
       })
       .expect(201);
 
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_ENABLED", "true");
     const result = await runMarketingEmailSchedulerOnce(new Date("2026-07-05T10:00:00.000Z"));
 
     expect(result).toMatchObject({
