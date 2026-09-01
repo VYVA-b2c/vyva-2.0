@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
+import VitalLensFaceScan from "@/components/VitalLensFaceScan";
 import VitalsScan from "@/components/VitalsScan";
 import { VyvaIcon, type VyvaIconAccent } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
@@ -127,6 +128,15 @@ const BLOOD_PRESSURE_PICKER_LABELS: Record<VitalsFlowLanguage, string> = {
   de: "Blutdruck",
   it: "Pressione arteriosa",
   pt: "Pressão arterial",
+};
+
+const CAMERA_RESULT_TITLES: Record<VitalsFlowLanguage, string> = {
+  en: "Heart rate & breathing",
+  fr: "Pouls et respiration",
+  es: "Frecuencia cardíaca y respiración",
+  de: "Herzfrequenz und Atmung",
+  it: "Frequenza cardiaca e respirazione",
+  pt: "Frequência cardíaca e respiração",
 };
 
 const BLOOD_PRESSURE_ACCESSIBLE_LABELS: Record<
@@ -389,6 +399,7 @@ export default function VitalsAddReadingFlow({
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
+  const [useLocalCameraEstimate, setUseLocalCameraEstimate] = useState(false);
 
   const activeSignals = useMemo(
     () => VITALS_SIGNAL_KEYS.filter((key) => !VITALS_SIGNAL_CATALOG[key].futureReady),
@@ -437,6 +448,7 @@ export default function VitalsAddReadingFlow({
     setInputText("");
     setProposed([]);
     setError("");
+    setUseLocalCameraEstimate(false);
     const tracked = context?.signals.find((item) => item.signal_type === signal)?.current_reading;
     setStage(tracked && (tracked.source === "connected_device" || tracked.source === "clinical") ? "tracked" : "method");
   }, [context]);
@@ -450,6 +462,7 @@ export default function VitalsAddReadingFlow({
     setSelectedMethod(method);
     setProposed([]);
     setError("");
+    setUseLocalCameraEstimate(false);
     setStage("capture");
     if (method === "web_bluetooth") void startBluetooth();
   };
@@ -594,6 +607,7 @@ export default function VitalsAddReadingFlow({
     setInputText("");
     setProposed([]);
     setError("");
+    setUseLocalCameraEstimate(false);
   }, []);
 
   const back = useCallback(() => {
@@ -617,6 +631,9 @@ export default function VitalsAddReadingFlow({
   const selectedLabel = selectedSignal && isFrench
     ? FRENCH_SIGNAL_LABELS[selectedSignal] ?? selectedMeta?.label
     : selectedMeta?.label;
+  const headingLabel = selectedMethod === "phone_camera" && proposed.length > 1
+    ? CAMERA_RESULT_TITLES[language]
+    : selectedLabel;
   const configuredBluetoothDevice = configuredDeviceForSignal(context, selectedSignal);
 
   return (
@@ -624,7 +641,7 @@ export default function VitalsAddReadingFlow({
       <header className="mb-4 px-1 sm:mb-6 sm:px-0">
         <p className={`font-body text-[11px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{flowCopy.addReading}</p>
         <h2 className={`mt-1 max-w-[310px] font-body text-[27px] font-extrabold leading-[1.08] tracking-[-0.025em] sm:max-w-none sm:text-[31px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
-          {stage === "vital" ? flowCopy.pickerTitle : selectedLabel}
+          {stage === "vital" ? flowCopy.pickerTitle : headingLabel}
         </h2>
       </header>
 
@@ -706,18 +723,30 @@ export default function VitalsAddReadingFlow({
       ) : null}
 
       {stage === "capture" && selectedMethod === "phone_camera" && selectedSignal ? (
-        <div className={`overflow-hidden rounded-[24px] border p-3 ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#E0D1EC] bg-white"}`}>
+        <div className="space-y-3">
           <p className="mb-3 rounded-[16px] bg-[#FFF7ED] px-4 py-3 font-body text-[13px] font-bold text-[#92400E]">{flowCopy.phoneWarning}</p>
-          <VitalsScan
-            saveReading={false}
-            onComplete={(bpm, respiratoryRate) => {
-              const now = new Date().toISOString();
-              const rows: ProposedVitalsReading[] = [];
-              if (selectedSignal === "resting_hr_bpm" && bpm != null) rows.push({ signal_type: selectedSignal, value: bpm, unit: "bpm", context_tag: "resting", recorded_at: now, source: "phone_estimate", capture_method: "phone_camera", confidence: "low", explanation: flowCopy.phoneEstimate });
-              if (selectedSignal === "respiratory_rate" && respiratoryRate != null) rows.push({ signal_type: selectedSignal, value: respiratoryRate, unit: "/min", context_tag: "resting", recorded_at: now, source: "phone_estimate", capture_method: "phone_camera", confidence: "low", explanation: flowCopy.phoneEstimate });
-              if (rows.length) { setProposed(rows); setStage("confirm"); }
-            }}
-          />
+          {useLocalCameraEstimate ? (
+            <div className={`overflow-hidden rounded-[24px] border p-3 ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#E0D1EC] bg-white"}`} data-testid="local-camera-estimate">
+              <VitalsScan
+                saveReading={false}
+                onComplete={(bpm, respiratoryRate) => {
+                  const now = new Date().toISOString();
+                  const rows: ProposedVitalsReading[] = [];
+                  if (selectedSignal === "resting_hr_bpm" && bpm != null) rows.push({ signal_type: selectedSignal, value: bpm, unit: "bpm", context_tag: "resting", recorded_at: now, source: "phone_estimate", capture_method: "phone_camera", confidence: "low", explanation: flowCopy.phoneEstimate });
+                  if (selectedSignal === "respiratory_rate" && respiratoryRate != null) rows.push({ signal_type: selectedSignal, value: respiratoryRate, unit: "/min", context_tag: "resting", recorded_at: now, source: "phone_estimate", capture_method: "phone_camera", confidence: "low", explanation: flowCopy.phoneEstimate });
+                  if (rows.length) { setProposed(rows); setStage("confirm"); }
+                }}
+              />
+            </div>
+          ) : (
+            <VitalLensFaceScan
+              onReadings={(readings) => {
+                setProposed(readings);
+                setStage("confirm");
+              }}
+              onLocalFallback={() => setUseLocalCameraEstimate(true)}
+            />
+          )}
         </div>
       ) : null}
 
