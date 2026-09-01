@@ -28,7 +28,9 @@
   },
   "statusVitals": {
     "hub": {
-      "pageTitle": "Vitals"
+      "pageTitle": "Vitals",
+      "voiceLabel": "Talk to VYVA",
+      "voiceContext": "Vitals support. Help me review recent readings, understand changes from my baseline, or add a new measurement safely."
     },
     "backToHealth": "Back to My Health",
     "title": "Status / Vitals",

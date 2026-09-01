@@ -2330,7 +2330,9 @@
   },
   "statusVitals": {
     "hub": {
-      "pageTitle": "Constantes"
+      "pageTitle": "Constantes",
+      "voiceLabel": "Parler à VYVA",
+      "voiceContext": "Aide pour les constantes. Aidez-moi à revoir mes mesures récentes, à comprendre les changements par rapport à ma référence ou à ajouter une mesure en toute sécurité."
     },
     "backToHealth": "Retour à Ma santé",
     "title": "Statut / Constantes",

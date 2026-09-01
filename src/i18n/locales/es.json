@@ -28,7 +28,9 @@
   },
   "statusVitals": {
     "hub": {
-      "pageTitle": "Signos vitales"
+      "pageTitle": "Signos vitales",
+      "voiceLabel": "Hablar con VYVA",
+      "voiceContext": "Ayuda con signos vitales. Ayúdame a revisar mediciones recientes, comprender cambios respecto a mi referencia o añadir una nueva medición de forma segura."
     },
     "backToHealth": "Volver a Mi salud",
     "title": "Estado / Signos vitales",

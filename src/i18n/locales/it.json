@@ -28,7 +28,9 @@
   },
   "statusVitals": {
     "hub": {
-      "pageTitle": "Parametri vitali"
+      "pageTitle": "Parametri vitali",
+      "voiceLabel": "Parla con VYVA",
+      "voiceContext": "Supporto per i parametri vitali. Aiutami a rivedere le misurazioni recenti, capire i cambiamenti rispetto al mio riferimento o aggiungere una nuova misurazione in sicurezza."
     },
     "backToHealth": "Torna a La mia salute",
     "title": "Stato / Parametri vitali",

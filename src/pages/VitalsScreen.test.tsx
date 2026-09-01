@@ -13,7 +13,8 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: () => ({ data: { conditions: ["hypertension"] } }),
 }));
 
@@ -58,6 +59,9 @@ describe("VitalsScreen", () => {
 
     expect(screen.getByRole("heading", { name: "Vitals" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Vitals" })).toHaveClass("font-display", "font-semibold");
+    expect(screen.getByTestId("vitals-page")).toHaveAttribute("data-header-contract", "detail.voice-touch");
+    expect(screen.getByTestId("vitals-page")).toHaveAttribute("data-shell-contract", "home.production");
+    expect(screen.getByTestId("button-vitals-header-voice")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("vitals-tracker")).toBeVisible();
     expect(screen.queryByText("Longevity Plan")).not.toBeInTheDocument();
     expect(mocks.trackerProps).toHaveBeenCalledWith(expect.objectContaining({

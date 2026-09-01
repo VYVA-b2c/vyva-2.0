@@ -2319,7 +2319,9 @@
   },
   "statusVitals": {
     "hub": {
-      "pageTitle": "Vitalwerte"
+      "pageTitle": "Vitalwerte",
+      "voiceLabel": "Mit VYVA sprechen",
+      "voiceContext": "Unterstützung bei Vitalwerten. Hilf mir, aktuelle Messwerte zu prüfen, Veränderungen gegenüber meinem persönlichen Ausgangswert zu verstehen oder sicher einen neuen Messwert hinzuzufügen."
     },
     "backToHealth": "Zurück zu Meine Gesundheit",
     "title": "Status / Vitalzeichen",
