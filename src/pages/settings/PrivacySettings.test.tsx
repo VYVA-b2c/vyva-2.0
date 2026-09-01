@@ -168,7 +168,7 @@ describe("PrivacySettings Brain Coach caregiver consent", () => {
       expect(lastPatchBody()).toEqual(emptyPermissions);
     });
     await waitFor(() => {
-      expect(screen.getByText("No Brain Coach access")).toBeInTheDocument();
+      expect(screen.getByText("No access")).toBeInTheDocument();
     });
   });
 });

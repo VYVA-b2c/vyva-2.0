@@ -1,5 +1,7 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import type { ReactNode } from "react";
+import "@testing-library/react/dont-cleanup-after-each";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { flushSync } from "react-dom";
+import { type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
 import {
@@ -14,11 +16,19 @@ import {
   VYVA_VOICE_HOME_INTENT_EVENT,
   VYVA_VOICE_HOME_SUBFLOW_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
+  VOICE_HOME_SUBFLOW_PILLARS,
 } from "@/lib/voiceNavigation";
+import { CROSS_PILLAR_COMPLETION_ACTIONS } from "@/components/voice-canvas/CrossPillarSubflowCanvas";
 import {
   HOME_CONTEXT_ACTION_HISTORY_KEY,
   type HomeContextMessageActionHistory,
 } from "@/lib/homeContextMessages";
+import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  readLatestHomeModeControl,
+  type HomeInteractionMode,
+} from "@/lib/homeModeControl";
+import { VOICE_ORB_HINT_SEEN_STORAGE_KEY } from "@/lib/voiceOrbHint";
 
 const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
@@ -127,17 +137,27 @@ vi.mock("@/components/VyvaSessionCta", () => ({
     className,
     supportingLabel,
     visual,
+    voiceOrbCaptionTestId,
+    onFirstVoiceOrbActivation,
   }: {
     label?: string;
     testId?: string;
     className?: string;
     supportingLabel?: string;
     visual?: string;
+    voiceOrbCaptionTestId?: string;
+    onFirstVoiceOrbActivation?: () => void;
   }) => (
-    <button type="button" data-testid={testId} className={className} aria-label={visual === "voiceRail" ? supportingLabel : label}>
+    <button
+      type="button"
+      data-testid={testId}
+      className={className}
+      aria-label={visual === "voiceRail" ? supportingLabel : label}
+      onClick={onFirstVoiceOrbActivation}
+    >
       {visual === "voiceOrb" ? <span data-testid="home-dormant-zamora-orb" /> : null}
       {visual === "voiceRail" ? null : label}
-      {visual === "voiceOrb" ? supportingLabel : null}
+      {visual === "voiceOrb" ? <span data-testid={voiceOrbCaptionTestId}>{supportingLabel}</span> : null}
     </button>
   ),
 }));
@@ -147,6 +167,8 @@ const labels: Record<string, string> = {
   "home.mode.label": "Choose how to talk with VYVA",
   "home.mode.type": "Type",
   "home.mode.voice": "Voice",
+  "home.mode.switchToTouch": "Switch to touch",
+  "home.mode.switchToVoice": "Switch to voice",
   "home.mode.voiceCta": "Talk to VYVA",
   "home.master.chooseCategory": "Today tray",
   "home.master.heroSubtitle": "VYVA is ready when you are.",
@@ -154,15 +176,27 @@ const labels: Record<string, string> = {
   "home.master.proactiveGreeting.morning": "How are you feeling?",
   "home.master.proactiveGreeting.afternoon": "How are you feeling?",
   "home.master.proactiveGreeting.evening": "How are you feeling?",
-  "home.master.voiceSupport": "Tap the orb to begin.",
+  "home.master.voiceSupport": "Touch the orb to begin.",
   "home.master.healthIntent.title": "Are you OK?",
   "home.master.healthIntent.more": "More health options",
+  "home.master.healthIntent.moreCompact": "More",
+  "home.master.healthIntent.dormantSubtitle": "Choose a health option, or touch the orb.",
+  "home.master.healthIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.master.mindIntent.title": "What would you like to exercise?",
   "home.master.mindIntent.more": "More mind activities",
+  "home.master.mindIntent.moreCompact": "More",
+  "home.master.mindIntent.dormantSubtitle": "Choose an activity, or touch the orb.",
+  "home.master.mindIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.master.communityIntent.title": "How would you like to connect?",
   "home.master.communityIntent.more": "More community options",
+  "home.master.communityIntent.moreCompact": "More",
+  "home.master.communityIntent.dormantSubtitle": "Choose a way to connect, or touch the orb.",
+  "home.master.communityIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.master.conciergeIntent.title": "What can VYVA help arrange?",
   "home.master.conciergeIntent.more": "More concierge services",
+  "home.master.conciergeIntent.moreCompact": "Other",
+  "home.master.conciergeIntent.dormantSubtitle": "Choose a service, or touch the orb.",
+  "home.master.conciergeIntent.voiceSubtitle": "Touch the orb to begin.",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
   "home.greeting.evening.withName.1": "Good evening, {{name}}",
@@ -254,6 +288,14 @@ const labels: Record<string, string> = {
   "home.voiceCards.concierge.title": "My Concierge",
   "home.voiceCards.concierge.subtitle": "Bookings, errands and support",
   "home.voiceCards.concierge.micLabel": "Ask for help by voice",
+  "home.master.cards.healthShortTitle": "My Health",
+  "home.master.cards.healthDetailShort": "Check-ins, vitals, medicines",
+  "home.master.cards.mindMemoryShortTitle": "My Brain",
+  "home.master.cards.mindMemoryDetailShort": "Memory, focus, calm",
+  "home.master.cards.communityShortTitle": "Community",
+  "home.master.cards.communityDetailShort": "Rooms and support",
+  "home.master.cards.conciergeShortTitle": "Concierge",
+  "home.master.cards.conciergeDetailShort": "Everyday help",
 };
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -270,6 +312,33 @@ vi.mock("react-i18next", async (importOriginal) => {
     }),
   };
 });
+
+const HomeScreenWithModeControl = ({ menuPath }: { menuPath?: string }) => <HomeScreen menuPath={menuPath} />;
+
+const renderHomeScreen = (props?: { menuPath?: string }) => render(<HomeScreenWithModeControl {...props} />);
+
+const expectHomeModeControl = (
+  mode: HomeInteractionMode,
+  testId: "button-home-mode-touch" | "button-home-mode-voice",
+  label: string,
+) => {
+  expect(readLatestHomeModeControl()).toMatchObject({
+    label,
+    mode,
+    testId,
+    visible: true,
+  });
+};
+
+const switchHomeMode = (mode: HomeInteractionMode) => {
+  act(() => {
+    flushSync(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, {
+        detail: { mode },
+      }));
+    });
+  });
+};
 
 describe("Home fast service actions", () => {
   beforeEach(() => {
@@ -300,51 +369,99 @@ describe("Home fast service actions", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => {
+      await Promise.resolve();
+    });
+    try {
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+    } catch {
+      // Some tests use real timers; only fake-timer tests need a drain.
+    }
+    cleanup();
     vi.useRealTimers();
   });
 
-  it("renders the four pillar launcher without the old movement routine card", () => {
+  it("keeps top-level Home focused on the greeting orb and sends destinations to Menu", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
     profileMock.firstName = "karim";
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
+    const voiceLayout = screen.getByTestId("home-master-layout");
+    expect(voiceLayout).toBeInTheDocument();
+    expect(voiceLayout).toHaveAttribute("data-screen-contract", "home");
+    expect(voiceLayout).toHaveAttribute("data-screen-mode", "voice");
+    expect(voiceLayout).toHaveAttribute("data-primary-surface", "orb");
+    expect(voiceLayout).toHaveAttribute("data-cards", "hidden");
+    expect(voiceLayout).toHaveAttribute("data-chips", "hidden");
+    expect(voiceLayout).toHaveAttribute("data-bottom-nav-clearance", "112");
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("How are you feeling?");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
-    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveClass("hover:-translate-y-0.5");
+    expect(screen.getByTestId("home-topbar")).toBeInTheDocument();
+    const actionPill = within(screen.getByTestId("home-topbar-action-pill"));
+    const profileButton = screen.getByTestId("button-home-profile");
+    const manualButton = actionPill.getByTestId("button-home-mode-touch");
+    expect(profileButton).toHaveAccessibleName("Open profile and settings");
+    expect(profileButton).toHaveClass("h-9");
+    expect(profileButton).toHaveClass("w-9");
+    expect(profileButton).toHaveClass("!min-h-9");
+    expect(manualButton).toHaveAccessibleName("Open manual menu");
+    expect(manualButton).toHaveClass("h-9");
+    expect(manualButton).toHaveClass("w-9");
+    expect(manualButton).toHaveClass("!min-h-9");
+    expect(screen.getByTestId("home-dayline")).toBeEmptyDOMElement();
     fireEvent.click(screen.getByTestId("button-home-mode-touch"));
-    expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-home-hero-talk")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-dormant-zamora-orb")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
+    expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+    const profileMenu = screen.getByTestId("home-profile-menu");
+    expect(profileMenu).toBeInTheDocument();
+    expect(profileMenu).toHaveTextContent("Profile & settings");
+    expect(profileMenu).toHaveClass("md:max-w-[720px]");
+    expect(profileMenu).toHaveClass("md:top-1/2");
+    expect(profileMenu).toHaveClass("md:-translate-y-1/2");
+    expect(screen.getByTestId("home-profile-menu-links")).toHaveClass("md:grid-cols-2");
+    expect(screen.getByTestId("button-home-profile-menu-backdrop")).toHaveClass("md:backdrop-blur-[3px]");
+    expect(screen.getByTestId("button-home-profile-account")).toHaveTextContent("Account details");
+    expect(screen.getByTestId("button-home-profile-health")).toHaveTextContent("Health profile");
+    expect(screen.getByTestId("button-home-profile-medications")).toHaveTextContent("My Medication");
+    expect(screen.getByTestId("button-home-profile-emergency")).toHaveTextContent("Emergency contact");
+    expect(screen.getByTestId("button-home-profile-care-team")).toHaveTextContent("Care team");
+    expect(screen.getByTestId("button-home-profile-providers")).toHaveTextContent("Doctors & providers");
+    fireEvent.click(screen.getByTestId("button-home-profile-account"));
+    expect(guardPathMock).toHaveBeenCalledWith("/settings/account", undefined);
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    switchHomeMode("touch");
+    const touchLayout = screen.getByTestId("home-master-layout");
+    expect(touchLayout).toHaveAttribute("data-screen-mode", "touch");
+    expect(touchLayout).toHaveAttribute("data-primary-surface", "orb");
+    expect(touchLayout).toHaveAttribute("data-cards", "hidden");
+    expect(touchLayout).toHaveAttribute("data-chips", "hidden");
+    expect(touchLayout).toHaveAttribute("data-heading-detail", "visible");
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("button-home-hero-talk")).toBeInTheDocument();
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
+    expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
+    expect(actionPill.getByTestId("button-home-mode-touch")).toHaveAccessibleName("Open manual menu");
+    expect(screen.queryByTestId("home-touch-subheading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("home-pillar-cards")).getAllByRole("button")).toHaveLength(4);
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Health assistance");
-    expect(within(screen.getByTestId("card-home-agent-health")).getByText("Health assistance")).toHaveClass(
-      "hidden",
-      "md:block",
-    );
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Cognitive exercises");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Connect with others");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Bookings and services");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-meds")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-agent-doctor")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("home-master-orb-message")).not.toBeInTheDocument();
-    expect(screen.getByTestId("home-pillar-cards")).toHaveTextContent("Today tray");
-    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
-    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes");
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
@@ -352,7 +469,162 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-start-nudge-voice")).not.toBeInTheDocument();
   });
 
-  it("uses live signals for concise pillar card nudges", () => {
+  it("routes the topbar hand control to the manual Menu instead of changing modes", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen();
+
+    const actionPill = within(screen.getByTestId("home-topbar-action-pill"));
+    fireEvent.click(actionPill.getByTestId("button-home-mode-touch"));
+
+    expect(screen.getByTestId("home-master-layout")).toHaveAttribute("data-screen-mode", "voice");
+    expect(guardPathMock).toHaveBeenCalledWith("/menu", undefined);
+    expect(guardPathMock).not.toHaveBeenCalledWith("/login", expect.anything());
+    expect(guardPathMock).not.toHaveBeenCalledWith("/settings/account", expect.anything());
+    expect(guardPathMock).not.toHaveBeenCalledWith("/", expect.anything());
+  });
+
+  it("can route the topbar menu button to the public preview menu without changing production default", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen({ menuPath: "/dev/home-master/menu" });
+
+    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/dev/home-master/menu", undefined);
+    expect(guardPathMock).not.toHaveBeenCalledWith("/login", expect.anything());
+  });
+
+  it("uses the existing profile editors from the Home profile menu", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen();
+
+    const openProfileMenu = () => fireEvent.click(screen.getByTestId("button-home-profile"));
+    const expectProfileRoute = (testId: string, path: string) => {
+      guardPathMock.mockClear();
+      openProfileMenu();
+      fireEvent.click(screen.getByTestId(testId));
+      expect(guardPathMock).toHaveBeenCalledWith(path, undefined);
+    };
+
+    expectProfileRoute("button-home-profile-account", "/settings/account");
+    expectProfileRoute("button-home-profile-health", "/onboarding/profile/health");
+    expectProfileRoute("button-home-profile-medications", "/onboarding/profile/medications");
+    expectProfileRoute("button-home-profile-emergency", "/onboarding/profile/emergency");
+    expectProfileRoute("button-home-profile-care-team", "/onboarding/profile/care-team");
+    expectProfileRoute("button-home-profile-providers", "/onboarding/profile/providers");
+
+    openProfileMenu();
+    expect(screen.getByTestId("button-home-profile-text-size")).toHaveTextContent("Text size");
+    expect(screen.getByTestId("button-home-profile-theme")).toHaveTextContent("Theme");
+    expect(screen.getByTestId("button-home-profile-mode")).toHaveTextContent("Mode");
+  });
+
+  it("shows the next display preference target instead of the current state", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen();
+
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+
+    const textSizeButton = screen.getByTestId("button-home-profile-text-size");
+    const themeButton = screen.getByTestId("button-home-profile-theme");
+    const modeButton = screen.getByTestId("button-home-profile-mode");
+
+    // Defaults are large text, dark theme, and voice mode, so each tile offers the opposite action.
+    expect(textSizeButton).toHaveTextContent("Normal");
+    expect(textSizeButton).not.toHaveTextContent("Large");
+    expect(themeButton).toHaveTextContent("Light");
+    expect(themeButton).not.toHaveTextContent("Dark");
+    expect(modeButton).toHaveTextContent("Touch");
+    expect(modeButton).not.toHaveTextContent("Voice");
+
+    fireEvent.click(textSizeButton);
+    fireEvent.click(themeButton);
+
+    expect(textSizeButton).toHaveTextContent("Large");
+    expect(textSizeButton).not.toHaveTextContent("Normal");
+    expect(themeButton).toHaveTextContent("Dark");
+    expect(themeButton).not.toHaveTextContent("Light");
+    expect(modeButton).toHaveTextContent("Touch");
+    expect(modeButton).not.toHaveTextContent("Voice");
+  });
+
+  it("opens the manual Menu when the profile settings mode target is Touch", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    renderHomeScreen({ menuPath: "/dev/home-master/menu" });
+
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+    const modeButton = screen.getByTestId("button-home-profile-mode");
+
+    expect(modeButton).toHaveTextContent("Touch");
+
+    fireEvent.click(modeButton);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/dev/home-master/menu", undefined);
+    expect(screen.queryByTestId("home-profile-menu")).not.toBeInTheDocument();
+  });
+
+  it("returns the profile settings mode target to Voice after touch mode is active", () => {
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+    window.localStorage.setItem("vyva:home-interaction-mode:v1", "touch");
+    renderHomeScreen();
+
+    fireEvent.click(screen.getByTestId("button-home-profile"));
+    const modeButton = screen.getByTestId("button-home-profile-mode");
+
+    expect(modeButton).toHaveTextContent("Voice");
+    expect(modeButton).not.toHaveTextContent("Touch");
+
+    fireEvent.click(modeButton);
+
+    expect(guardPathMock).not.toHaveBeenCalledWith("/menu", expect.anything());
+    expect(screen.queryByTestId("home-profile-menu")).not.toBeInTheDocument();
+  });
+
+  it("keeps top-level Home on the greeting orb after switching to touch mode", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+    profileMock.firstName = "karim";
+    window.localStorage.setItem(VOICE_ORB_HINT_SEEN_STORAGE_KEY, "true");
+
+    renderHomeScreen();
+
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
+    expect(screen.getByTestId("home-dormant-zamora-orb")).toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-master-start-nudge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
+    expect(screen.queryByText("VYVA understood")).not.toBeInTheDocument();
+
+    switchHomeMode("touch");
+
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expectHomeModeControl("touch", "button-home-mode-voice", "Switch to voice");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
+  });
+
+  it("keeps voice mode on the orb cue after activation", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T10:00:00"));
+
+    renderHomeScreen();
+
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
+
+    fireEvent.click(screen.getByTestId("button-home-hero-talk"));
+
+    expect(screen.getByTestId("home-master-hero-subtitle")).toHaveTextContent("Touch the orb to begin.");
+  });
+
+  it("keeps live-signal pillar cards out of top-level Home", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -383,16 +655,17 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    renderHomeScreen();
+    switchHomeMode("touch");
 
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-health")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-cognitive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-social")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
   });
 
-  it("shows timely schedule nudges before voice starts so the user can act on them", () => {
+  it("keeps timely schedule nudges out of the voice surface until touch mode", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -408,9 +681,16 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+    expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();
+
+    switchHomeMode("touch");
+
+    expect(screen.queryByTestId("home-touch-subheading")).not.toBeInTheDocument();
   });
 
   it("quietly updates an active voice session when the selected Home message changes", () => {
@@ -428,29 +708,29 @@ describe("Home fast service actions", () => {
 
     voiceMock.status = "connecting";
     voiceMock.isConnecting = true;
-    const view = render(<HomeScreen />);
+    const view = renderHomeScreen();
 
     voiceMock.status = "connected";
     voiceMock.isConnecting = false;
-    view.rerender(<HomeScreen />);
+    view.rerender(<HomeScreenWithModeControl />);
     expect(voiceMock.sendContextUpdate).not.toHaveBeenCalled();
 
     medicineData = {
       todaySummary: { scheduled: 1, remaining: 1 },
       nextDose: { name: "Monoprost", minutesUntil: 25 },
     };
-    view.rerender(<HomeScreen />);
+    view.rerender(<HomeScreenWithModeControl />);
 
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledWith(
       expect.stringContaining("Monoprost"),
     );
 
-    view.rerender(<HomeScreen />);
+    view.rerender(<HomeScreenWithModeControl />);
     expect(voiceMock.sendContextUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("opens the visible Home message when the user gives a short voice reply", () => {
+  it("opens the hidden Home context when the user gives a short voice reply", () => {
     voiceMock.status = "connected";
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
@@ -467,8 +747,10 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
-    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("In 25 min: Monoprost.");
+    renderHomeScreen();
+    expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("Monoprost");
+    expect(screen.queryByTestId("button-home-context-action")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-context-dismiss")).not.toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
@@ -503,7 +785,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_APP_ACTION_RESULT_EVENT, {
         detail: {
@@ -579,7 +861,7 @@ describe("Home fast service actions", () => {
       resumeRoute: "/scam-guard",
     }]));
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.queryByTestId("home-fast-help")).not.toBeInTheDocument();
     expect(screen.queryByTestId("card-home-concierge-resume")).not.toBeInTheDocument();
@@ -631,7 +913,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.queryByTestId("card-home-agent-concierge")).not.toBeInTheDocument();
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Waiting for Saved Plumber");
@@ -663,7 +945,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Ready to review");
@@ -714,7 +996,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const card = screen.getByTestId("card-home-concierge-resume");
     expect(card).toHaveAttribute("data-resume-kind", "form");
@@ -762,7 +1044,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveAttribute("data-resume-kind", "provider_setup");
     fireEvent.click(screen.getByTestId("button-home-concierge-open"));
@@ -806,7 +1088,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("VYVA prepared this");
@@ -852,7 +1134,7 @@ describe("Home fast service actions", () => {
       },
     ]));
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const nudge = screen.getByTestId("card-home-show-vyva-review-resume");
     expect(nudge).toHaveTextContent("Recent Show VYVA");
@@ -899,7 +1181,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Saved shortlist");
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your saved options");
@@ -940,7 +1222,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Review your home service");
@@ -991,7 +1273,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Review your admin task");
     expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Nothing is called, sent, booked, or shared before you confirm.");
@@ -1032,7 +1314,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const card = screen.getByTestId("card-home-concierge-reuse");
     expect(card).toHaveTextContent("Useful again");
@@ -1093,7 +1375,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Waiting");
@@ -1138,7 +1420,7 @@ describe("Home fast service actions", () => {
   });
 
   it("does not render the legacy Home chat nudge", () => {
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
@@ -1148,13 +1430,13 @@ describe("Home fast service actions", () => {
   it.skip("renders three contextual Fast help actions that stay stable throughout the day", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T08:00:00.000Z"));
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
     const initialActions = within(fastHelp).getAllByRole("button").map((button) => button.dataset.testid);
     expect(initialActions).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
+    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Ask Dr. AI");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
     const initialImpressions = JSON.parse(
@@ -1181,7 +1463,7 @@ describe("Home fast service actions", () => {
   it.skip("opens Find Care as a structured Concierge provider search", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-17T14:00:00.000Z"));
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     fireEvent.click(screen.getByTestId("button-home-fast-find-care"));
 
@@ -1235,7 +1517,7 @@ describe("Home fast service actions", () => {
       reason: "returned_home",
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const recovery = screen.getByTestId("card-home-fast-help-recovery");
     expect(recovery).toHaveTextContent("Continue where you left off");
@@ -1290,7 +1572,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveAttribute("data-resume-kind", "fast_help");
     expect(screen.queryByTestId("card-home-concierge-resume")).not.toBeInTheDocument();
@@ -1330,7 +1612,7 @@ describe("Home fast service actions", () => {
       }],
     }]);
 
-    render(<HomeScreen />);
+    renderHomeScreen();
     fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
@@ -1362,7 +1644,7 @@ describe("Home fast service actions", () => {
       reason: "service_not_ready",
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.queryByTestId("button-home-fast-find-care")).not.toBeInTheDocument();
     expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("One quick step first");
@@ -1383,18 +1665,18 @@ describe("Home fast service actions", () => {
       occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
     });
 
-    const first = render(<HomeScreen />);
+    const first = renderHomeScreen();
     fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-later"));
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
     first.unmount();
 
     vi.setSystemTime(new Date(now.getTime() + 11 * 60 * 60 * 1000));
-    const beforeCooldown = render(<HomeScreen />);
+    const beforeCooldown = renderHomeScreen();
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
     beforeCooldown.unmount();
 
     vi.setSystemTime(new Date(now.getTime() + 13 * 60 * 60 * 1000));
-    render(<HomeScreen />);
+    renderHomeScreen();
     expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Continue where you left off");
   });
 
@@ -1412,13 +1694,13 @@ describe("Home fast service actions", () => {
       occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
     });
 
-    const first = render(<HomeScreen />);
+    const first = renderHomeScreen();
     fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-dismiss"));
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
     first.unmount();
 
     vi.setSystemTime(new Date("2026-07-25T14:00:00.000Z"));
-    render(<HomeScreen />);
+    renderHomeScreen();
     expect(screen.queryByTestId("card-home-fast-help-recovery")).not.toBeInTheDocument();
   });
 
@@ -1437,7 +1719,7 @@ describe("Home fast service actions", () => {
       occurredAtMs: now.getTime() - 13 * 60 * 60 * 1000 + 30_000,
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
     expect(screen.getByTestId("card-home-fast-help-recovery")).toHaveTextContent("Add a trusted transport provider");
     fireEvent.click(screen.getByTestId("button-home-fast-help-recovery-continue"));
 
@@ -1475,7 +1757,7 @@ describe("Home fast service actions", () => {
       return { data: null, isError: false, error: null };
     });
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     const actions = within(screen.getByTestId("home-fast-help")).getAllByRole("button");
     expect(actions[0]).toHaveAttribute("data-testid", "button-home-fast-feel-better");
@@ -1492,7 +1774,7 @@ describe("Home fast service actions", () => {
       occurredAt: "2026-07-17T13:30:00.000Z",
     }]));
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("button-home-fast-book-ride")).toHaveTextContent("Your transport setup is ready");
     expect(screen.queryByTestId("button-home-fast-feel-better")).not.toBeInTheDocument();
@@ -1500,7 +1782,7 @@ describe("Home fast service actions", () => {
   });
 
   it("renders the session-aware main hero CTA", () => {
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Talk to VYVA");
     expect(screen.getByTestId("button-home-hero-talk")).toHaveTextContent("Talk to VYVA");
@@ -1511,7 +1793,7 @@ describe("Home fast service actions", () => {
     vi.setSystemTime(new Date("2026-06-26T14:00:00"));
     window.sessionStorage.setItem("home.greetingVariant", "1");
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good afternoon, Karim");
     expect(voiceHeroMock).not.toHaveBeenCalled();
@@ -1521,7 +1803,7 @@ describe("Home fast service actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T22:00:00"));
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good evening, Karim");
   });
@@ -1530,7 +1812,7 @@ describe("Home fast service actions", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-26T16:59:30"));
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good afternoon, Karim");
 
@@ -1547,7 +1829,7 @@ describe("Home fast service actions", () => {
     window.sessionStorage.setItem("home.greetingVariant", "1");
     profileMock.firstName = "qm@4cksa.com";
 
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Good afternoon");
     expect(screen.getByTestId("home-master-hero")).not.toHaveTextContent("qm@4cksa.com");
@@ -1557,11 +1839,13 @@ describe("Home fast service actions", () => {
     ["cognitive", "mind", ["memory", "reflexes", "focus", "senses"], "/mind-memory"],
     ["social", "community", ["friends", "experts", "share", "activities"], "/social-rooms"],
     ["concierge", "concierge", ["home", "care", "order", "book"], "/concierge"],
-  ] as const)("opens the four %s choices before routing to the full pillar", (masterCard, intent, cardIds, route) => {
-    render(<HomeScreen />);
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+  ] as const)("opens the four %s choices before routing to the full pillar", (_masterCard, intent, cardIds, route) => {
+    renderHomeScreen();
 
-    fireEvent.click(screen.getByTestId(`card-home-agent-${masterCard}`));
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
+    });
+    switchHomeMode("touch");
 
     expect(guardPathMock).not.toHaveBeenCalled();
     for (const cardId of cardIds) {
@@ -1573,10 +1857,12 @@ describe("Home fast service actions", () => {
   });
 
   it("opens a focused Health intent layer before routing to health actions", () => {
-    render(<HomeScreen />);
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    renderHomeScreen();
 
-    fireEvent.click(screen.getByTestId("card-home-agent-health"));
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
+    });
+    switchHomeMode("touch");
 
     expect(guardPathMock).not.toHaveBeenCalledWith("/health", undefined);
     expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
@@ -1626,48 +1912,69 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-master-intent-back")).not.toBeInTheDocument();
   });
 
-  it("opens the Health choices when voice detects the broad Health intent", () => {
-    render(<HomeScreen />);
+  it("keeps broad Health choices hidden in voice mode until touch mode", () => {
+    renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "health" }));
     });
 
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("home-master-hero")).toHaveTextContent("Touch the orb to begin.");
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-health-symptoms")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-health-more")).not.toBeInTheDocument();
+    expect(guardPathMock).not.toHaveBeenCalled();
+
+    switchHomeMode("touch");
+
     expect(screen.queryByTestId("home-master-hero")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("home-touch-heading")).toHaveTextContent("Are you OK?");
     expect(screen.getByTestId("card-home-health-symptoms")).toBeInTheDocument();
     expect(screen.getByTestId("button-home-health-more")).toHaveTextContent("More health options");
-    expect(guardPathMock).not.toHaveBeenCalled();
   });
 
   it.each([
     ["mind", ["memory", "reflexes", "focus", "senses"]],
     ["community", ["friends", "experts", "share", "activities"]],
     ["concierge", ["home", "care", "order", "book"]],
-  ] as const)("opens the broad %s voice intent choices without leaving Home", (intent, cardIds) => {
-    render(<HomeScreen />);
+  ] as const)("keeps broad %s voice intent choices hidden until touch mode", (intent, cardIds) => {
+    renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: intent }));
     });
 
     expect(guardPathMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-pillar-cards")).not.toBeInTheDocument();
+    for (const cardId of cardIds) {
+      expect(screen.queryByTestId(`card-home-${intent}-${cardId}`)).not.toBeInTheDocument();
+    }
+
+    switchHomeMode("touch");
+
     for (const cardId of cardIds) {
       expect(screen.getByTestId(`card-home-${intent}-${cardId}`)).toBeInTheDocument();
     }
   });
 
-  it("restores the active pillar choices after leaving and returning Home", () => {
-    const firstRender = render(<HomeScreen />);
+  it("restores the active pillar context without showing cards until touch mode", () => {
+    const firstRender = renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "mind" }));
     });
-    expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-mind-memory")).not.toBeInTheDocument();
 
     firstRender.unmount();
-    render(<HomeScreen />);
+    renderHomeScreen();
+
+    expect(screen.getByTestId("home-master-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-home-mind-memory")).not.toBeInTheDocument();
+
+    switchHomeMode("touch");
 
     expect(screen.getByTestId("card-home-mind-memory")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-mind-senses")).toBeInTheDocument();
@@ -1675,7 +1982,7 @@ describe("Home fast service actions", () => {
   });
 
   it("highlights the exact action understood from voice and restores it on return", () => {
-    const firstRender = render(<HomeScreen />);
+    const firstRender = renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
@@ -1683,21 +1990,29 @@ describe("Home fast service actions", () => {
       }));
     });
 
+    expect(screen.queryByTestId("card-home-health-vitals")).not.toBeInTheDocument();
+    expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
+
+    switchHomeMode("touch");
+
     const selectedCard = screen.getByTestId("card-home-health-vitals");
     expect(selectedCard).toHaveAttribute("aria-current", "true");
     expect(selectedCard).toHaveTextContent("VYVA understood");
     expect(screen.getByTestId("card-home-health-symptoms")).not.toHaveAttribute("aria-current");
-    expect(screen.getByTestId("button-home-mode-touch")).toHaveAttribute("aria-pressed", "true");
+    switchHomeMode("voice");
 
     firstRender.unmount();
-    render(<HomeScreen />);
+    renderHomeScreen();
+
+    expect(screen.queryByTestId("card-home-health-vitals")).not.toBeInTheDocument();
+    switchHomeMode("touch");
 
     expect(screen.getByTestId("card-home-health-vitals")).toHaveAttribute("aria-current", "true");
     expect(guardPathMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the selected action while switching between voice and touch modes", () => {
-    render(<HomeScreen />);
+  it("keeps the selected action while hiding it in voice mode and showing it in touch mode", () => {
+    renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
@@ -1705,14 +2020,40 @@ describe("Home fast service actions", () => {
       }));
     });
 
+    expect(screen.queryByTestId("card-home-community-activities")).not.toBeInTheDocument();
+    switchHomeMode("touch");
     expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
-    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
-    fireEvent.click(screen.getByTestId("button-home-mode-touch"));
+    switchHomeMode("voice");
+    expect(screen.queryByTestId("card-home-community-activities")).not.toBeInTheDocument();
+    switchHomeMode("touch");
     expect(screen.getByTestId("card-home-community-activities")).toHaveAttribute("aria-current", "true");
   });
 
+  it.each(CROSS_PILLAR_COMPLETION_ACTIONS)(
+    "keeps Voice mode and opens the exact canvas for %s",
+    (actionId) => {
+      renderHomeScreen();
+
+      act(() => {
+        window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_SUBFLOW_EVENT, {
+          detail: {
+            actionId,
+            pillar: VOICE_HOME_SUBFLOW_PILLARS[actionId],
+          },
+        }));
+      });
+
+      expectHomeModeControl("voice", "button-home-mode-touch", "Switch to touch");
+      expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+        "data-action-id",
+        actionId,
+      );
+      expect(guardPathMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("ignores malformed and duplicate broad voice intent events", () => {
-    render(<HomeScreen />);
+    renderHomeScreen();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_HOME_INTENT_EVENT, { detail: "unknown" }));
@@ -1721,6 +2062,8 @@ describe("Home fast service actions", () => {
     });
 
     expect(guardPathMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("card-home-community-friends")).not.toBeInTheDocument();
+    switchHomeMode("touch");
     expect(screen.getByTestId("card-home-community-friends")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-community-activities")).toBeInTheDocument();
   });

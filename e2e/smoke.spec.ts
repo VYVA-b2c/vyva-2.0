@@ -199,6 +199,12 @@ async function continuePastSymptomEmergencyModal(page: Page) {
   }
 }
 
+async function startSymptomCheckWithTypedClue(page: Page, clue: string) {
+  await page.getByTestId("button-symptom-other").click();
+  await page.getByTestId("input-symptom-clue").fill(clue);
+  await page.getByTestId("button-symptom-check-start").click();
+}
+
 async function recordWindowOpen(page: Page) {
   await page.addInitScript(() => {
     const win = window as typeof window & { __vyvaOpenedUrls?: OpenedWindowRecord[] };
@@ -328,20 +334,19 @@ test("login screen scales from mobile card to tablet and desktop auth layout", a
   await expectNoHorizontalOverflow(page);
 });
 
-test("home screen renders core cards and opens concierge choices", async ({ page }) => {
+test("home screen opens the approved Menu and reaches Concierge", async ({ page }) => {
   await mockApi(page, true);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: "Touch" }).click();
 
-  await expect(page.getByTestId("card-home-agent-health")).toBeVisible();
-  await expect(page.getByTestId("card-home-agent-concierge")).toBeVisible();
+  await expect(page.getByTestId("home-master-hero")).toBeVisible();
+  await expect(page.getByTestId("home-pillar-cards")).toHaveCount(0);
+  await page.getByTestId("button-home-mode-touch").click();
+  await expect(page).toHaveURL(/\/menu$/);
+  await expect(page.getByTestId("menu-tile-grid").getByRole("button")).toHaveCount(4);
 
-  await page.getByTestId("card-home-agent-concierge").click();
-  await expect(page.getByTestId("card-home-concierge-home")).toBeVisible();
-  await page.getByTestId("card-home-concierge-home").click();
-  await expect(page.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute("data-action-id", "concierge-home");
-  await expect(page.getByText("Use my saved provider")).toBeVisible();
-  await expect(page.getByText("Find options")).toBeVisible();
+  await page.getByTestId("menu-tile-concierge").click();
+  await expect(page).toHaveURL(/\/concierge$/);
+  await expect(page.getByTestId("app-shell")).toBeVisible();
 });
 
 test("concierge shopping helper recommends and saves a choice", async ({ page }) => {
@@ -1163,7 +1168,7 @@ test("service setup guidance is visible and responsive", async ({ page }) => {
   }
 });
 
-test("symptom check replaces repeated thinking with review guidance", async ({ page }) => {
+test("symptom check replaces repeated thinking with the canonical checking scene", async ({ page }) => {
   await mockApi(page, true);
   await page.route("**/api/triage/context", async (route) => {
     await fulfillJson(route, 200, {
@@ -1209,26 +1214,27 @@ test("symptom check replaces repeated thinking with review guidance", async ({ p
     await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
     await continuePastSymptomEmergencyModal(page);
 
-    await page.getByTestId("input-symptom-clue").fill("bad headache");
-    await page.getByTestId("button-symptom-check-start").click();
+    await startSymptomCheckWithTypedClue(page, "bad headache");
     await expect.poll(() => triageRequestCount).toBe(1);
 
-    const reviewPanel = page.getByTestId("triage-review-panel");
-    await expect(reviewPanel).toBeVisible();
-    await expect(page.getByTestId("triage-review-headline")).toContainText(
-      /Checking your next step|Reviewing trusted medical guidance|Checking your answers for red flags|Considering your health profile and medications|Preparing clear next steps/,
+    const checkingScene = page.getByTestId("symptom-presentation-checking-touch");
+    await expect(checkingScene).toBeVisible();
+    const checkingProgress = page.getByTestId("symptom-scene-progress");
+    await expect(checkingProgress).toBeVisible();
+    await expect(checkingProgress.getByRole("heading")).toHaveText(
+      /Reviewing your symptoms|Reviewing your health profile|Searching 40M\+ peer-reviewed sources|Checking safety signals/,
     );
-    await expect(reviewPanel).toContainText("Reviewing trusted medical guidance");
-    await expect(reviewPanel).toContainText("Checking your answers for red flags");
     await expect(page.getByText("VYVA is thinkingâ€¦")).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
 
     releaseTriage?.();
-    await expect(page.getByText("How strong is it?")).toBeVisible();
+    const symptomScene = page.getByTestId("symptom-presentation-symptom_selection-touch");
+    await expect(symptomScene).toBeVisible();
+    await expect(symptomScene.getByRole("button", { name: "Mild" })).toBeVisible();
   }
 });
 
-test("symptom check resumes an unfinished chat and can start over", async ({ page }) => {
+test("symptom check resumes an unfinished chat and restarts from the canonical header", async ({ page }) => {
   await mockApi(page, true);
   await page.evaluate((key) => sessionStorage.removeItem(key), symptomCheckDraftKey).catch(() => undefined);
   await page.route("**/api/triage/context", async (route) => {
@@ -1255,22 +1261,24 @@ test("symptom check resumes an unfinished chat and can start over", async ({ pag
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
-  await page.getByTestId("input-symptom-clue").fill("bad headache");
-  await page.getByTestId("button-symptom-check-start").click();
-  await expect(page.getByText("How strong is it?")).toBeVisible();
+  await startSymptomCheckWithTypedClue(page, "bad headache");
+  await expect(page.getByTestId("symptom-presentation-symptom_selection-touch")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mild" })).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.step, symptomCheckDraftKey)).toBe("chat");
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
 
-  await expect(page.getByText("How strong is it?")).toBeVisible();
-  await expect(page.getByTestId("button-symptom-check-start-over")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-symptom_selection-touch")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mild" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
   await expect(page.getByTestId("input-symptom-clue")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 
-  await page.getByTestId("button-symptom-check-start-over").click();
-  await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByTestId("button-symptom-other")).toBeVisible();
+  await expect(page.getByTestId("input-symptom-clue")).toHaveCount(0);
   await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
 });
 
@@ -1307,10 +1315,10 @@ test("symptom check resumes and retries a pending review", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
-  await page.getByTestId("input-symptom-clue").fill("bad headache");
-  await page.getByTestId("button-symptom-check-start").click();
+  await startSymptomCheckWithTypedClue(page, "bad headache");
   await expect.poll(() => requestCount).toBe(1);
-  await expect(page.getByTestId("triage-review-panel")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-checking-touch")).toBeVisible();
+  await expect(page.getByTestId("symptom-scene-progress")).toBeVisible();
   await expect.poll(async () => page.evaluate((key) => JSON.parse(sessionStorage.getItem(key) ?? "null")?.chatDraft?.pendingRequest, symptomCheckDraftKey)).toBe(true);
 
   await page.goto("/health", { waitUntil: "domcontentloaded" });
@@ -1318,9 +1326,11 @@ test("symptom check resumes and retries a pending review", async ({ page }) => {
   await continuePastSymptomEmergencyModal(page);
 
   await expect.poll(() => requestCount).toBe(2);
-  await expect(page.getByTestId("triage-review-panel")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-checking-touch")).toBeVisible();
+  await expect(page.getByTestId("symptom-scene-progress")).toBeVisible();
   releaseSecond?.();
-  await expect(page.getByText("How strong is it?")).toBeVisible();
+  await expect(page.getByTestId("symptom-presentation-symptom_selection-touch")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mild" })).toBeVisible();
   releaseFirst?.();
   await expectNoHorizontalOverflow(page);
 });
@@ -1361,9 +1371,10 @@ test("symptom check restores a completed report until done", async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
-  await page.getByTestId("input-symptom-clue").fill("bad headache");
-  await page.getByTestId("button-symptom-check-start").click();
+  await startSymptomCheckWithTypedClue(page, "bad headache");
   await expect(page.getByTestId("button-report-done")).toBeVisible();
+  await page.getByTestId("report-result-details").locator(":scope > summary").click();
+  await page.getByTestId("button-report-detail-share").click();
   await expect(page.getByTestId("button-report-add-doctor-contact")).toBeVisible();
   await expect(page.getByTestId("button-report-doctor-help-inline")).toBeVisible();
   await expect(page.getByTestId("link-report-share-doctor")).toHaveCount(0);
@@ -1378,7 +1389,8 @@ test("symptom check restores a completed report until done", async ({ page }) =>
   await page.getByTestId("button-report-done").click();
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
-  await expect(page.getByTestId("input-symptom-clue")).toBeVisible();
+  await expect(page.getByTestId("button-symptom-other")).toBeVisible();
+  await expect(page.getByTestId("input-symptom-clue")).toHaveCount(0);
   await expect.poll(async () => page.evaluate((key) => sessionStorage.getItem(key), symptomCheckDraftKey)).toBeNull();
 });
 
@@ -1418,8 +1430,9 @@ test("symptom check prepares a direct doctor share link when a doctor contact is
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
-  await page.getByTestId("input-symptom-clue").fill("bad headache");
-  await page.getByTestId("button-symptom-check-start").click();
+  await startSymptomCheckWithTypedClue(page, "bad headache");
+  await page.getByTestId("report-result-details").locator(":scope > summary").click();
+  await page.getByTestId("button-report-detail-share").click();
 
   const shareDoctorLink = page.getByTestId("link-report-share-doctor");
   await expect(shareDoctorLink).toBeVisible();

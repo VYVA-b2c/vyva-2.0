@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import HomeFastHelpSyncBridge from "@/components/HomeFastHelpSyncBridge";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { LanguageControllerProvider, LanguageFrameBoundary, useLanguage } from "@/i18n";
+import { LanguageControllerProvider, LanguageFrameBoundary, setLanguage, useLanguage } from "@/i18n";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
@@ -21,11 +21,15 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
+import { writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
+import type { PreventionPlanData } from "./pages/PreventionPlan";
+import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OnboardingGuard from "./components/OnboardingGuard";
+import MenuScreen from "./pages/MenuScreen";
 import VyvaDemoEntry, {
   VyvaCaregiverDashboard,
   VyvaCaregiverSeniorDetail,
@@ -43,11 +47,28 @@ const AccessLinkPage = lazy(() => import("@/pages/AccessLinkPage"));
 const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
 const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
+const PrototypeHomeScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHomeScreen })));
+const PrototypeMenuScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeMenuScreen })));
+const PrototypeCheckInScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCheckInScreen })));
+const PrototypeHealthScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthScreen })));
+const PrototypeBrainScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeBrainScreen })));
+const PrototypeCommunityScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeCommunityScreen })));
+const PrototypeConciergeScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeConciergeScreen })));
+const PrototypeReportsScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeReportsScreen })));
+const PrototypeProfileScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileScreen })));
+const PrototypeHealthActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeHealthActionPreviewScreen })));
+const PrototypeProfileActionPreviewScreen = lazy(() => import("./pages/HomeNavPrototypeScreens").then((module) => ({ default: module.PrototypeProfileActionPreviewScreen })));
+const PrototypeSymptomReportPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomReportPreviewScreen })));
+const SymptomWarningSignsPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomWarningSignsPreviewScreen })));
+const SymptomCheckingPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomCheckingPreviewScreen })));
+const SymptomSeverityPreviewScreen = lazy(() => import("./pages/SymptomCheckScreen").then((module) => ({ default: module.SymptomSeverityPreviewScreen })));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
-const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
+const LongevityScreen = lazy(() => import("./pages/LongevityScreen"));
+const PreventionPlan = lazy(() => import("./pages/PreventionPlan"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
+const MedicationRefillsScreen = lazy(() => import("./pages/MedicationRefillsScreen"));
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
 const CognitiveAssessmentHubPage = lazy(() => import("./pages/CognitiveAssessmentHubPage"));
 const CognitiveAssessmentReportPage = lazy(() => import("./pages/CognitiveAssessmentReportPage"));
@@ -77,6 +98,142 @@ const CuriousMinds = lazy(() => import("./games/CuriousMinds"));
 const ScentMemory = lazy(() => import("./games/ScentMemory"));
 const ListenClosely = lazy(() => import("./games/ListenClosely"));
 const BreathGarden = lazy(() => import("./games/BreathGarden"));
+
+const PREVENTION_PLAN_PREVIEW: PreventionPlanData = {
+  id: "preview-longevity-plan",
+  generated_at: "2026-08-01T09:00:00.000Z",
+  pillar_heart: "steady",
+  pillar_brain: "priority_focus",
+  pillar_strength: "steady",
+  pillar_nourishment: "thriving",
+  pillar_calm: "needs_attention",
+  priority_pillar: "brain",
+  priority_intervention: "Try ten minutes of Brain Coach daily",
+  priority_why: "A short daily practice supports continuity and makes it easier to build a lasting routine.",
+  plan_narrative_senior: "Karim, this month we are keeping your plan simple and practical. One clear focus comes first, while the other pillars stay visible.",
+  plan_narrative_caregiver: "Monthly wellness plan generated from Karim's recent VYVA signals, with brain and memory selected as the current priority.",
+  recommendations: {
+    heart: [{ action: "Keep your daily walk going", why: "Consistency supports your heart and circulation." }],
+    brain: [
+      { action: "Try ten minutes of Brain Coach daily", why: "A regular short practice is easier to sustain." },
+      { action: "Choose one familiar Brain Coach activity", why: "Familiarity lowers the effort needed to begin." },
+    ],
+    strength: [{ action: "Keep moving every day", why: "Any comfortable movement helps preserve stability." }],
+    nourishment: [{ action: "Keep water within easy reach", why: "Hydration supports energy and concentration." }],
+    calm: [{ action: "Open the Breath Garden for two minutes", why: "Slow breathing can support recovery." }],
+  },
+  source_signals: { vitals: true, medications: true, cognitive: true, mood: true, symptoms: false },
+  trajectory: "first",
+};
+
+const VITALS_PREVIEW_DATA: VitalsTrackerPreviewData = {
+  analysis: {
+    id: "preview-vitals-analysis",
+    analysed_at: "2026-08-28T08:35:00.000Z",
+    safety_status: "steady",
+    recommended_action: "steady",
+    risk_score: 16,
+    risk_tier: "low",
+    senior_message: "Your latest readings look steady. Keep checking them at your usual time.",
+    caregiver_note: "Karim's latest readings are steady, with no new alert.",
+    acknowledged_at: null,
+  },
+  recent_readings: [
+    {
+      signal_type: "resting_hr_bpm",
+      value: 72,
+      recorded_at: "2026-08-28T08:30:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Manual reading",
+      source_context_label: "Morning",
+      deviation_pct: 1.4,
+      context_tag: "morning",
+    },
+    {
+      signal_type: "oxygen_saturation",
+      value: 98,
+      recorded_at: "2026-08-28T08:29:00.000Z",
+      source: "connected_device",
+      capture_method: "web_bluetooth",
+      source_ref: { device_name: "Pulse oximeter" },
+      source_confidence: "high",
+      source_display_label: "Pulse oximeter",
+      source_context_label: "Resting",
+      deviation_pct: 0,
+      context_tag: "resting",
+    },
+    {
+      signal_type: "temperature_c",
+      value: 36.7,
+      recorded_at: "2026-08-28T08:28:00.000Z",
+      source: "connected_device",
+      capture_method: "web_bluetooth",
+      source_ref: { device_name: "Thermometer" },
+      source_confidence: "high",
+      source_display_label: "Thermometer",
+      source_context_label: "Now",
+      deviation_pct: 0,
+      context_tag: "general",
+    },
+    {
+      signal_type: "glucose_mgdl",
+      value: 104,
+      recorded_at: "2026-08-28T07:45:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Glucose meter",
+      source_context_label: "Fasting",
+      deviation_pct: 2.9,
+      context_tag: "fasting",
+    },
+    {
+      signal_type: "mood_score",
+      value: 8,
+      recorded_at: "2026-08-28T08:15:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Daily check-in",
+      source_context_label: "Today",
+      deviation_pct: 0,
+      context_tag: "general",
+    },
+    {
+      signal_type: "sleep_quality_score",
+      value: 7,
+      recorded_at: "2026-08-28T08:10:00.000Z",
+      source: "manual_entry",
+      capture_method: "manual",
+      source_confidence: "high",
+      source_display_label: "Daily check-in",
+      source_context_label: "Last night",
+      deviation_pct: -4.1,
+      context_tag: "general",
+    },
+  ],
+  latest_alert: null,
+};
+
+const VITALS_CONTACT_DOCTOR_PREVIEW_DATA: VitalsTrackerPreviewData = {
+  ...VITALS_PREVIEW_DATA,
+  analysis: {
+    ...VITALS_PREVIEW_DATA.analysis,
+    id: "preview-vitals-contact-doctor-analysis",
+    safety_status: "contact_doctor",
+    recommended_action: "contact_doctor",
+    risk_score: 62,
+    risk_tier: "high",
+    senior_message: "VYVA noticed a change worth same-day medical advice. Share this summary if you can.",
+  },
+  latest_alert: {
+    id: "preview-vitals-contact-doctor-alert",
+    severity: "warning",
+    message: "Symptom report: Douleur à la tête ou au cou",
+  },
+};
 const WelcomeScreen = lazy(() => import("./pages/onboarding/WelcomeScreen"));
 const WhoForStep = lazy(() => import("./pages/onboarding/WhoForStep"));
 const BasicsStep = lazy(() => import("./pages/onboarding/BasicsStep"));
@@ -107,7 +264,7 @@ const SymptomCheckScreen = lazy(() => import("./pages/SymptomCheckScreen"));
 const CheckHowIFeelScreen = lazy(() => import("./pages/CheckHowIFeelScreen"));
 const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
-const SignosScreen = lazy(() => import("./pages/SignosScreen"));
+const VitalsScreen = lazy(() => import("./pages/VitalsScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
 const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
 const CompanionsScreen = lazy(() => import("./pages/CompanionsScreen"));
@@ -118,6 +275,7 @@ const AccountSettings = lazy(() => import("./pages/settings/AccountSettings"));
 const HealthDevicesSettings = lazy(() => import("./pages/settings/HealthDevicesSettings"));
 const NotificationsSettings = lazy(() => import("./pages/settings/NotificationsSettings"));
 const ScheduledSupportSettings = lazy(() => import("./pages/settings/ScheduledSupportSettings"));
+const TrustedHelpSettings = lazy(() => import("./pages/settings/TrustedHelpSettings"));
 const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage"));
 const SocialHub = lazy(() => import("./social/SocialHub"));
 const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
@@ -127,6 +285,8 @@ const AdvisorHub = lazy(() => import("./social/AdvisorHub"));
 const AdvisorChat = lazy(() => import("./social/AdvisorChat"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
+const ScreenContactSheet = lazy(() => import("./pages/dev/ScreenContactSheet"));
+const AdminModulesPage = lazy(() => import("./pages/admin/AdminModulesPage"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
 const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
 const AdminActivityPage = lazy(() => import("./pages/admin/AdminActivityPage"));
@@ -139,6 +299,7 @@ const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessA
 const WorkflowCoverageAdminPage = lazy(() => import("./pages/admin/WorkflowCoverageAdminPage"));
 const ConciergeReadinessAdminPage = lazy(() => import("./pages/admin/ConciergeReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
+const TrustedHelpPartnersAdminPage = lazy(() => import("./pages/admin/TrustedHelpPartnersAdminPage"));
 const ConciergeQueueAdminPage = lazy(() => import("./pages/admin/ConciergeQueueAdminPage"));
 const ConciergeInboundRepliesAdminPage = lazy(() => import("./pages/admin/ConciergeInboundRepliesAdminPage"));
 const ProviderDirectoryAdminPage = lazy(() => import("./pages/admin/ProviderDirectoryAdminPage"));
@@ -533,7 +694,7 @@ function RootRoute() {
   );
 }
 
-function HomeMasterPreviewRoute() {
+function primeHomeMasterPreviewData() {
   queryClient.setQueryData(["/api/profile"], {
     firstName: "Karim",
     lastName: "",
@@ -560,10 +721,194 @@ function HomeMasterPreviewRoute() {
       minutesUntil: 25,
     },
   });
+}
+
+function HomeMasterPreviewRoute() {
+  primeHomeMasterPreviewData();
 
   return (
     <AppShell>
-      <HomeScreen />
+      <PrototypeHomeScreen />
+    </AppShell>
+  );
+}
+
+function HomeMasterMenuPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeMenuScreen />
+    </AppShell>
+  );
+}
+
+function HomeMasterHealthPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeHealthScreen
+        checkInPath="/dev/home-master/check-in"
+        healthPlanPath="/dev/home-master/health-plan"
+        askDrAiPath="/dev/home-master/ask-dr-ai?fresh=1"
+        vitalsPath="/dev/home-master/vitals"
+        medicinesPath="/dev/home-master/medicines"
+        voicePath="/dev/home-master"
+        profilePath="/dev/home-master/profile"
+        contained
+      />
+    </AppShell>
+  );
+}
+
+function HealthHubRoute() {
+  return (
+    <AppShell>
+      <PrototypeHealthScreen
+        healthPlanPath="/health/prevention-plan"
+        askDrAiPath="/health/symptom-check?fresh=1"
+        vitalsPath="/health/vitals"
+        medicinesPath="/meds/my-medicines"
+        voicePath="/"
+        profilePath="/settings/account"
+        backPath="/menu"
+        contained
+      />
+    </AppShell>
+  );
+}
+
+function HomeMasterBrainPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeBrainScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterCommunityPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeCommunityScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterConciergePreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeConciergeScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterReportsPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeReportsScreen voicePath="/dev/home-master" profilePath="/dev/home-master/profile" />
+    </AppShell>
+  );
+}
+
+function HomeMasterProfilePreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeProfileScreen returnPath="/dev/home-master" />
+    </AppShell>
+  );
+}
+
+function HomeMasterCheckInPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeCheckInScreen
+        returnPath="/dev/home-master/health"
+      />
+    </AppShell>
+  );
+}
+
+function HomeMasterSymptomReportPreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <PrototypeSymptomReportPreviewScreen />
+    </AppShell>
+  );
+}
+
+function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" | "medicines" }) {
+  primeHomeMasterPreviewData();
+  const location = useLocation();
+
+  if (kind === "plan") {
+    const requestedTheme = new URLSearchParams(location.search).get("theme");
+    return (
+      <AppShell>
+        <PreventionPlan
+          previewPlan={PREVENTION_PLAN_PREVIEW}
+          firstNameOverride="Karim"
+          backPath="/dev/home-master/health"
+          themeOverride={requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : undefined}
+        />
+      </AppShell>
+    );
+  }
+
+  if (kind === "vitals") {
+    const scenario = new URLSearchParams(location.search).get("scenario");
+    return (
+      <AppShell>
+        <VitalsScreen
+          previewData={scenario === "contact-doctor" ? VITALS_CONTACT_DOCTOR_PREVIEW_DATA : VITALS_PREVIEW_DATA}
+          previewConditions={["hypertension"]}
+          backPath="/dev/home-master/health"
+        />
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell>
+      <PrototypeHealthActionPreviewScreen kind={kind} />
+    </AppShell>
+  );
+}
+
+function HomeMasterProfileActionPreviewRoute({ kind }: { kind: "account" | "health" | "medicines" | "emergency" | "care-team" | "providers" | "accessibility" }) {
+  primeHomeMasterPreviewData();
+
+  if (kind === "account") {
+    return (
+      <AppShell>
+        <AccountSettings />
+      </AppShell>
+    );
+  }
+
+  if (kind === "health") return <ConditionsSection />;
+  if (kind === "medicines") return <MedicationsSection />;
+  if (kind === "emergency") return <EmergencySection />;
+  if (kind === "care-team") return <CareTeamFlow />;
+  if (kind === "providers") return <ProvidersSection />;
+
+  return (
+    <AppShell>
+      <PrototypeProfileActionPreviewScreen kind={kind} />
     </AppShell>
   );
 }
@@ -630,6 +975,29 @@ function PwaInstallPromptGate() {
   return <PwaInstallPrompt />;
 }
 
+const showDevelopmentPreviewRoutes = import.meta.env.DEV || import.meta.env.MODE === "development";
+
+function HomeMasterPreviewLanguageSync() {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (!location.pathname.startsWith("/dev/home-master")) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    const requestedLanguage = searchParams.get("lang");
+    if (requestedLanguage && ["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) {
+      setLanguage(requestedLanguage);
+    }
+
+    const requestedTheme = searchParams.get("theme");
+    if (requestedTheme === "light" || requestedTheme === "dark") {
+      writeHomeMasterTheme(requestedTheme);
+    }
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageControllerProvider>
@@ -641,6 +1009,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter future={routerFutureFlags}>
               <LanguageFrameBoundary>
+                {showDevelopmentPreviewRoutes ? <HomeMasterPreviewLanguageSync /> : null}
                 <VyvaVoiceProvider>
                   <VoiceActionProvider>
                     <VoiceCanvasProvider>
@@ -665,24 +1034,46 @@ const App = () => (
                 <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey" element={<VyvaCaregiverDashboard />} />
                 <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                {showDevelopmentPreviewRoutes ? (
+                  <>
+                    <Route path="/dev/home-master" element={<HomeMasterPreviewRoute />} />
+                    <Route path="/dev/home-master/menu" element={<HomeMasterMenuPreviewRoute />} />
+                    <Route path="/dev/home-master/health" element={<HomeMasterHealthPreviewRoute />} />
+                    <Route path="/dev/home-master/brain" element={<HomeMasterBrainPreviewRoute />} />
+                    <Route path="/dev/home-master/community" element={<HomeMasterCommunityPreviewRoute />} />
+                    <Route path="/dev/home-master/concierge" element={<HomeMasterConciergePreviewRoute />} />
+                    <Route path="/dev/home-master/reports" element={<HomeMasterReportsPreviewRoute />} />
+                    <Route path="/dev/home-master/profile" element={<HomeMasterProfilePreviewRoute />} />
+                    <Route path="/dev/home-master/profile/account" element={<HomeMasterProfileActionPreviewRoute kind="account" />} />
+                    <Route path="/dev/home-master/profile/health" element={<HomeMasterProfileActionPreviewRoute kind="health" />} />
+                    <Route path="/dev/home-master/profile/medicines" element={<HomeMasterProfileActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/home-master/profile/emergency" element={<HomeMasterProfileActionPreviewRoute kind="emergency" />} />
+                    <Route path="/dev/home-master/profile/care-team" element={<HomeMasterProfileActionPreviewRoute kind="care-team" />} />
+                    <Route path="/dev/home-master/profile/providers" element={<HomeMasterProfileActionPreviewRoute kind="providers" />} />
+                    <Route path="/dev/home-master/profile/preferences" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
+                    <Route path="/dev/home-master/profile/accessibility" element={<HomeMasterProfileActionPreviewRoute kind="accessibility" />} />
+                    <Route path="/dev/home-master/check-in" element={<HomeMasterCheckInPreviewRoute />} />
+                    <Route path="/dev/home-master/symptom-report" element={<HomeMasterSymptomReportPreviewRoute />} />
+                    <Route path="/dev/home-master/symptom-warning" element={<AppShell><SymptomWarningSignsPreviewScreen /></AppShell>} />
+                    <Route path="/dev/home-master/ask-dr-ai" element={<AppShell><SymptomCheckScreen /></AppShell>} />
+                    <Route path="/dev/home-master/ask-dr-ai-checking" element={<AppShell><SymptomCheckingPreviewScreen /></AppShell>} />
+                    <Route path="/dev/home-master/ask-dr-ai-next" element={<AppShell><SymptomSeverityPreviewScreen /></AppShell>} />
+                    <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />
+                    <Route path="/dev/home-master/vitals" element={<HomeMasterHealthActionPreviewRoute kind="vitals" />} />
+                    <Route path="/dev/home-master/medicines" element={<HomeMasterHealthActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />
+                    <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
+                    <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
+                    <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
+                    <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
+                    <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
+                    <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
+                    <Route path="/dev/trusted-help" element={<TrustedHelpSettings />} />
+                    <Route path="/dev/trusted-help-partners" element={<TrustedHelpPartnersAdminPage />} />
+                    <Route path="/dev/admin-modules" element={<AdminModulesPage />} />
+                  </>
                 ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
-                ) : null}
-                {import.meta.env.DEV ? (
-                  <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
-                ) : null}
+                <Route path="/admin" element={<AdminRoute><AdminModulesPage /></AdminRoute>} />
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
@@ -691,10 +1082,12 @@ const App = () => (
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/marketing" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
+                <Route path="/admin/marketing/:marketingTab" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
                 <Route path="/admin/workflows" element={<AdminRoute><WorkflowCoverageAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-readiness" element={<AdminRoute><ConciergeReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/trusted-help-partners" element={<AdminRoute><TrustedHelpPartnersAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-queue" element={<AdminRoute><ConciergeQueueAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-email-replies" element={<AdminRoute><ConciergeInboundRepliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/providers" element={<AdminRoute><ProviderDirectoryAdminPage /></AdminRoute>} />
@@ -729,14 +1122,22 @@ const App = () => (
                   <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
+                  <Route path="/settings/trusted-help" element={<AppShell><TrustedHelpSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
-                  <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
+                  <Route path="/menu" element={<AppShell><MenuScreen /></AppShell>} />
+                  <Route path="/health" element={<HealthHubRoute />} />
+                  <Route path="/health/dashboard" element={<AppShell><HealthScreen /></AppShell>} />
+                  <Route path="/health/prevention" element={<AppShell><LongevityScreen /></AppShell>} />
+                  <Route path="/health/prevention-plan" element={<AppShell><PreventionPlan /></AppShell>} />
+                  <Route path="/health/exercises/gentle-walk" element={<Navigate to="/activity?focus=gentle-walk" replace />} />
+                  <Route path="/mind" element={<Navigate to="/mind-memory" replace />} />
+                  <Route path="/games/breath-garden" element={<Navigate to="/senses/breath-garden" replace />} />
+                  <Route path="/health/medications" element={<Navigate to="/meds" replace />} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/check-in" element={<AppShell><CheckHowIFeelScreen /></AppShell>} />
+                  <Route path="/health/check-in" element={<AppShell><PrototypeCheckInScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
-                  <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
+                  <Route path="/health/vitals" element={<AppShell><VitalsScreen /></AppShell>} />
                   <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/informes/brain-coach" element={<AppShell><BrainCoachReportScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
@@ -755,6 +1156,7 @@ const App = () => (
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/my-medicines" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/interactions" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/refills" element={<AppShell><ServiceGateRoute service="medications"><MedicationRefillsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />

@@ -1439,7 +1439,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       ? "register"
       : null;
   const rawFrom = (location.state as { from?: string })?.from;
-  const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
+  const from = adminOnly ? "/admin" : normalizeReturnPath(rawFrom);
   const explicitInviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
   const storedCareTeamInviteReturnPath = adminOnly ? null : currentCareTeamInviteReturnPath();
   const inviteReturnPath = explicitInviteReturnPath ?? storedCareTeamInviteReturnPath;
@@ -1569,7 +1569,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     if (isLoading) return;
     if (!user) return;
     if (adminOnly) {
-      navigate("/admin/lifecycle", { replace: true });
+      navigate("/admin", { replace: true });
       return;
     }
     const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, user);

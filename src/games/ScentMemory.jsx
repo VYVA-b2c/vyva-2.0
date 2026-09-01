@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Flower2, Info, Loader2, MessageCircle, RefreshCw } from "lucide-react";
+import { Check, Flower2, Info, MessageCircle, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { VyvaMark } from "@/components/VyvaMark";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import foodImage from "@/assets/scent-memory/food.jpg";
 import breadImage from "@/assets/scent-memory/fresh-bread.jpg";
 import homeImage from "@/assets/scent-memory/home.jpg";
@@ -11,6 +11,8 @@ import placeImage from "@/assets/scent-memory/place.jpg";
 import seasonImage from "@/assets/scent-memory/season.jpg";
 import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
+import { getBrainCoachMilestoneJourney } from "./shared/brainCoachProgression";
 import { normalizeGameLanguage } from "./shared/language";
 import { APP_WORKFLOW_REFERENCES } from "../../shared/workflowRegistry";
 import { buildWorkflowReceiptMoment } from "../../shared/workflowReceiptMoments";
@@ -212,6 +214,10 @@ export default function ScentMemory({ userId, onExit }) {
     workflowReference: APP_WORKFLOW_REFERENCES.gameScentMemory,
     locale: language === "es" ? "es" : "en",
   }), [language]);
+  const milestoneJourney = getBrainCoachMilestoneJourney(userState?.streak_days ?? 1);
+  const nextMilestoneValue = milestoneJourney.next
+    ? `${milestoneJourney.next.label} (${milestoneJourney.next.count} days)`
+    : t("brainCoach.progression.monthlyPracticeHeld", "Monthly practice held");
 
   const loadTodaysPrompt = useCallback(async () => {
     if (!userId) {
@@ -364,33 +370,30 @@ export default function ScentMemory({ userId, onExit }) {
 
   if (screen === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-        <section className="text-center">
-          <Loader2 className="mx-auto h-14 w-14 animate-spin" style={{ color: BRAND.purple }} />
-          <p className="mt-5 text-[26px] font-black">{t("games.scentMemory.preparing", "Preparing a memory...")}</p>
-        </section>
-      </main>
+      <BrainCoachLoadingState
+        title={t("games.scentMemory.title", "Scent Memory")}
+        label={t("games.scentMemory.preparing", "Preparing a memory...")}
+        testId="scent-memory-flow-shell"
+        presentationId="brain_coach.activity_session.sharpen_senses.scent_memory.loading.touch"
+        sceneId="brain_coach.activity_session.sharpen_senses.scent_memory"
+      />
     );
   }
 
   return (
-    <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-      <div className="mx-auto w-full max-w-[780px]">
-        <header className="flex items-center justify-between gap-4">
-          <VyvaMark className="h-12 w-12" />
-          {screen !== "close" ? (
-            <button
-              type="button"
-              onClick={() => void exitGame()}
-              disabled={saving}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
-            >
-              <ArrowLeft size={24} aria-hidden="true" />
-              {t("common.exit", "Exit")}
-            </button>
-          ) : null}
-        </header>
-
+    <BrainCoachActivityShell
+      title={t("games.scentMemory.title", "Scent Memory")}
+      backLabel={t("common.exit", "Exit")}
+      onBack={() => void exitGame()}
+      showHeader={screen !== "close"}
+      testId="scent-memory-flow-shell"
+      presentationId={`brain_coach.activity_session.sharpen_senses.scent_memory.${screen}.touch`}
+      sceneId="brain_coach.activity_session.sharpen_senses.scent_memory"
+      sceneKind={screen === "close" ? "completion" : screen}
+      sceneLayout={screen === "scent" ? "reflection_prompt" : screen === "close" ? "modal_actions" : "activity_panel"}
+      state={screen === "close" ? "complete" : "default"}
+    >
+      <div className="mx-auto w-full max-w-[780px]" style={{ color: BRAND.ink }}>
         {screen === "error" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
@@ -532,46 +535,40 @@ export default function ScentMemory({ userId, onExit }) {
         ) : null}
 
         {screen === "close" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
-              <Check size={54} aria-hidden="true" />
-            </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.scentMemory.thanksForSharing", "Thanks for sharing that.")}</h1>
-            {responseText.trim() ? (
-              <p className="mx-auto mt-4 max-w-[620px] text-[24px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-                {t("games.scentMemory.gentleReflection", "A memory worth keeping close.")}
-              </p>
-            ) : (
-              <p className="mx-auto mt-4 max-w-[620px] text-[24px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-                {t("games.scentMemory.skipReflection", "Some memories come quietly. That is fine.")}
-              </p>
-            )}
-            <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full px-5 py-3 text-[22px] font-black" style={{ background: "#FEF3C7", color: "#92400E" }}>
-              <Check size={24} aria-hidden="true" />
-              {t("games.scentMemory.streakLabel", "{n} days reflecting", { n: userState?.streak_days ?? 1 })}
-            </p>
-            <div
-              className="mx-auto mt-5 max-w-[620px] rounded-[22px] border px-5 py-4 text-left"
-              style={{ background: "#F8FFFC", borderColor: "#BFE9DC", color: BRAND.ink }}
-              data-testid="scent-memory-receipt"
-            >
-              <p className="text-[18px] font-black" style={{ color: BRAND.teal }}>{completionReceipt.title}</p>
-              <p className="mt-1 text-[17px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-                {completionReceipt.message}
-              </p>
-            </div>
-            {saveWarning ? <p className="mt-4 text-[20px] font-bold text-[#92400E]">{saveWarning}</p> : null}
-            <button
-              type="button"
-              onClick={onExit}
-              className="mt-7 min-h-[72px] w-full rounded-full px-6 text-[24px] font-black text-white shadow-vyva-card"
-              style={{ background: BRAND.purple }}
-            >
-              {t("common.finish", "Finish")}
-            </button>
-          </section>
+          <BrainGameCompletionDialog
+            title={t("games.scentMemory.thanksForSharing", "Thanks for sharing that.")}
+            summary={
+              responseText.trim()
+                ? t("games.scentMemory.gentleReflection", "A memory worth keeping close.")
+                : t("games.scentMemory.skipReflection", "Some memories come quietly. That is fine.")
+            }
+            metrics={[
+              { label: t("games.scentMemory.streak", "Streak"), value: t("games.scentMemory.streakLabel", "{n} days reflecting", { n: userState?.streak_days ?? 1 }) },
+              { label: t("brainCoach.progression.milestone", "Milestone"), value: milestoneJourney.current.label },
+              { label: t("brainCoach.progression.nextMilestone", "Next milestone"), value: nextMilestoneValue },
+            ]}
+            details={
+              <>
+                <div
+                  className="rounded-[20px] border border-[#BFE9DC] bg-[#F8FFFC] px-4 py-4 text-left text-vyva-text-1"
+                  data-testid="scent-memory-receipt"
+                >
+                  <p className="text-[15px] font-black text-[#0F766E]">{completionReceipt.title}</p>
+                  <p className="mt-1 text-[15px] font-bold leading-snug text-vyva-text-2">
+                    {completionReceipt.message}
+                  </p>
+                </div>
+                {saveWarning ? <p className="mt-3 text-[15px] font-bold text-[#92400E]">{saveWarning}</p> : null}
+              </>
+            }
+            continueLabel={t("common.finish", "Finish")}
+            replayLabel={t("common.playAgain", "Play again")}
+            onContinue={onExit}
+            onReplay={() => void loadGame()}
+            disabled={saving}
+          />
         ) : null}
       </div>
-    </main>
+    </BrainCoachActivityShell>
   );
 }

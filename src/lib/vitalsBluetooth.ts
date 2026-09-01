@@ -1,7 +1,7 @@
 import type { ProposedVitalsReading } from "../../shared/vitalsParsing";
 import { buildProposedVitalsReading } from "../../shared/vitalsParsing";
 import type { VitalsSignalKey } from "../../shared/vitalsSignalCatalog";
-import type { VitalsDeviceCatalogItem } from "./vitalsDeviceCatalog";
+import type { VitalsDeviceCatalogItem, VitalsDeviceModel } from "./vitalsDeviceCatalog";
 
 export type BluetoothCaptureState =
   | "supported"
@@ -24,8 +24,34 @@ export type BluetoothReadResult = {
   deviceName: string;
   serviceUuid: number;
   characteristicUuid: number;
+  parserVersion: string;
+  modelId?: string;
+  supportLevel: "pilot_candidate" | "tested" | "experimental";
   readings: ProposedVitalsReading[];
 };
+
+export type BluetoothReadErrorCode =
+  | "unsupported"
+  | "user_cancelled"
+  | "connection_failed"
+  | "service_unavailable"
+  | "measurement_timeout"
+  | "empty_measurement"
+  | "parse_failed";
+
+export class BluetoothReadError extends Error {
+  readonly code: BluetoothReadErrorCode;
+
+  constructor(code: BluetoothReadErrorCode, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "BluetoothReadError";
+    this.code = code;
+  }
+}
+
+export function bluetoothReadErrorCode(error: unknown): BluetoothReadErrorCode | null {
+  return error instanceof BluetoothReadError ? error.code : null;
+}
 
 type BluetoothRequestOptions = {
   filters?: Array<{ services: number[] }>;
@@ -63,7 +89,7 @@ type NavigatorWithBluetooth = Navigator & {
   };
 };
 
-const PARSER_VERSION = "vyva-ble-standard-gatt-v1";
+export const VITALS_BLUETOOTH_PARSER_VERSION = "vyva-ble-standard-gatt-v1";
 const NOTIFICATION_TIMEOUT_MS = 20_000;
 
 function roundOne(value: number) {
@@ -206,30 +232,32 @@ export function parseBluetoothCharacteristic(characteristicUuid: number, value: 
 
 function bluetoothSourceRef(params: {
   device: VitalsDeviceCatalogItem;
+  model?: VitalsDeviceModel;
   serviceUuid: number;
   characteristicUuid: number;
   deviceName: string;
-  deviceId?: string;
 }) {
   return {
     provider: "web_bluetooth",
     device_type: params.device.id,
     device_label: params.device.label,
     device_name: params.deviceName,
-    device_id: params.deviceId,
+    model_id: params.model?.id,
+    model_label: params.model?.label,
+    support_level: params.model?.supportLevel ?? "experimental",
     service_uuid: `0x${params.serviceUuid.toString(16)}`,
     characteristic_uuid: `0x${params.characteristicUuid.toString(16)}`,
-    parser_version: PARSER_VERSION,
+    parser_version: VITALS_BLUETOOTH_PARSER_VERSION,
   };
 }
 
 export function buildBluetoothProposedReadings(params: {
   device: VitalsDeviceCatalogItem;
+  model?: VitalsDeviceModel;
   parsed: ParsedBluetoothReading[];
   serviceUuid: number;
   characteristicUuid: number;
   deviceName: string;
-  deviceId?: string;
   now?: Date;
 }): ProposedVitalsReading[] {
   const sourceRef = bluetoothSourceRef(params);
@@ -252,21 +280,32 @@ export function buildBluetoothProposedReadings(params: {
 
 async function readCharacteristicValue(characteristic: BluetoothCharacteristicLike): Promise<DataView> {
   try {
-    return await characteristic.readValue();
+    const value = await characteristic.readValue();
+    if (!value.byteLength) {
+      throw new BluetoothReadError("empty_measurement", "The Bluetooth device returned an empty measurement.");
+    }
+    return value;
   } catch (readError) {
-    if (!characteristic.startNotifications || !characteristic.addEventListener) throw readError;
-    await characteristic.startNotifications();
+    if (readError instanceof BluetoothReadError) throw readError;
+    if (!characteristic.startNotifications || !characteristic.addEventListener) {
+      throw new BluetoothReadError("connection_failed", "Could not read from this Bluetooth device.", { cause: readError });
+    }
+    try {
+      await characteristic.startNotifications();
+    } catch (notificationError) {
+      throw new BluetoothReadError("connection_failed", "Could not start Bluetooth measurement notifications.", { cause: notificationError });
+    }
     return new Promise<DataView>((resolve, reject) => {
-      const timer = window.setTimeout(() => {
+      const timer = globalThis.setTimeout(() => {
         characteristic.removeEventListener?.("characteristicvaluechanged", handler);
-        reject(new Error("Timed out waiting for Bluetooth measurement"));
+        reject(new BluetoothReadError("measurement_timeout", "Timed out waiting for a Bluetooth measurement."));
       }, NOTIFICATION_TIMEOUT_MS);
       const handler = (event: Event) => {
-        window.clearTimeout(timer);
+        globalThis.clearTimeout(timer);
         characteristic.removeEventListener?.("characteristicvaluechanged", handler);
         const target = event.target as BluetoothCharacteristicLike | null;
-        if (target?.value) resolve(target.value);
-        else reject(new Error("Bluetooth measurement was empty"));
+        if (target?.value?.byteLength) resolve(target.value);
+        else reject(new BluetoothReadError("empty_measurement", "The Bluetooth device returned an empty measurement."));
       };
       characteristic.addEventListener("characteristicvaluechanged", handler);
     });
@@ -280,38 +319,67 @@ export function isWebBluetoothSupported() {
 export async function readStandardBluetoothDevice(
   device: VitalsDeviceCatalogItem,
   onState?: (state: BluetoothCaptureState) => void,
+  model?: VitalsDeviceModel,
 ): Promise<BluetoothReadResult> {
   const bluetooth = (navigator as NavigatorWithBluetooth).bluetooth;
   if (!bluetooth?.requestDevice) {
     onState?.("unsupported");
-    throw new Error("Bluetooth is not available in this browser.");
+    throw new BluetoothReadError("unsupported", "Bluetooth is not available in this browser.");
   }
 
+  const services = model?.bleServices ?? device.bleServices;
+  const characteristics = model?.bleCharacteristics ?? device.bleCharacteristics;
+
   onState?.("searching");
-  const bluetoothDevice = await bluetooth.requestDevice({
-    filters: device.bleServices.map((serviceUuid) => ({ services: [serviceUuid] })),
-    optionalServices: device.bleServices,
-  });
-  const server = await bluetoothDevice.gatt?.connect();
-  if (!server) throw new Error("Could not connect to this Bluetooth device.");
+  let bluetoothDevice: BluetoothDeviceLike;
+  try {
+    bluetoothDevice = await bluetooth.requestDevice({
+      filters: services.map((serviceUuid) => ({ services: [serviceUuid] })),
+      optionalServices: services,
+    });
+  } catch (error) {
+    const name = error && typeof error === "object" && "name" in error ? String(error.name) : "";
+    if (name === "NotFoundError") {
+      throw new BluetoothReadError("user_cancelled", "Device selection was cancelled.", { cause: error });
+    }
+    throw new BluetoothReadError("connection_failed", "Could not start Bluetooth device setup.", { cause: error });
+  }
+
+  let server: BluetoothServerLike | undefined;
+  try {
+    server = await bluetoothDevice.gatt?.connect();
+  } catch (error) {
+    throw new BluetoothReadError("connection_failed", "Could not connect to this Bluetooth device.", { cause: error });
+  }
+  if (!server) throw new BluetoothReadError("connection_failed", "Could not connect to this Bluetooth device.");
   onState?.("connected");
 
-  for (const serviceUuid of device.bleServices) {
+  let foundService = false;
+  let foundCharacteristic = false;
+  let lastReadError: BluetoothReadError | null = null;
+
+  for (const serviceUuid of services) {
     try {
       const service = await server.getPrimaryService(serviceUuid);
-      for (const characteristicUuid of device.bleCharacteristics) {
+      foundService = true;
+      for (const characteristicUuid of characteristics) {
         try {
           const characteristic = await service.getCharacteristic(characteristicUuid);
+          foundCharacteristic = true;
           onState?.("waiting");
           const value = await readCharacteristicValue(characteristic);
           const parsed = parseBluetoothCharacteristic(characteristicUuid, value);
+          if (!parsed.length) {
+            lastReadError = new BluetoothReadError("parse_failed", "The Bluetooth measurement format was not recognised.");
+            continue;
+          }
           const readings = buildBluetoothProposedReadings({
             device,
+            model,
             parsed,
             serviceUuid,
             characteristicUuid,
             deviceName: bluetoothDevice.name || device.label,
-            deviceId: bluetoothDevice.id,
           });
           if (readings.length > 0) {
             onState?.("reading_found");
@@ -320,10 +388,14 @@ export async function readStandardBluetoothDevice(
               deviceName: bluetoothDevice.name || device.label,
               serviceUuid,
               characteristicUuid,
+              parserVersion: VITALS_BLUETOOTH_PARSER_VERSION,
+              modelId: model?.id,
+              supportLevel: model?.supportLevel ?? "experimental",
               readings,
             };
           }
-        } catch {
+        } catch (error) {
+          if (error instanceof BluetoothReadError) lastReadError = error;
           // Try the next characteristic or service.
         }
       }
@@ -333,5 +405,9 @@ export async function readStandardBluetoothDevice(
   }
 
   onState?.("failed");
-  throw new Error("No supported Bluetooth measurement was found.");
+  if (lastReadError) throw lastReadError;
+  if (!foundService || !foundCharacteristic) {
+    throw new BluetoothReadError("service_unavailable", "This device did not expose the expected standard Bluetooth measurement service.");
+  }
+  throw new BluetoothReadError("parse_failed", "No supported Bluetooth measurement was found.");
 }

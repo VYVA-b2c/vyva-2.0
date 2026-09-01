@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VYVA — Home Redesign v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Figtree:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#241C30;
+    --ink-soft:#9A90A5;
+    --purple:#7C3AED;
+    --hero-a:#8B5CF6; --hero-b:#5B21B6;
+    --sky-a:#F4EAFB; --sky-b:#FCF8F2;
+    --green-deep:#0F7A50;
+  }
+  body[data-time="morning"]{ --sky-a:#FDEFE1; --sky-b:#FDF8EF; --hero-a:#9D6BEE; --hero-b:#6425C4; }
+  body[data-time="evening"]{ --sky-a:#E5D8F6; --sky-b:#F1EAF7; --hero-a:#6B3AC2; --hero-b:#3E1A82; }
+  body[data-time="night"]{   --sky-a:#DAD0EE; --sky-b:#E9E3F3; --hero-a:#4C2496; --hero-b:#2A1160; }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(120% 90% at 50% 0%, var(--sky-a) 0%, var(--sky-b) 65%);
+    font-family:'Figtree', system-ui, sans-serif;
+    color:var(--ink);
+    display:flex; justify-content:center;
+    padding:28px 12px 60px;
+    min-height:100vh;
+    transition: background 0.8s ease;
+  }
+  .phone{
+    width:100%; max-width:430px;
+    background: radial-gradient(120% 90% at 50% 0%, var(--sky-a) 0%, var(--sky-b) 65%);
+    border-radius:40px; overflow:hidden;
+    box-shadow:0 14px 34px -14px rgba(51,18,94,0.22);
+    border:10px solid #fff;
+    position:relative; min-height:840px;
+    display:flex; flex-direction:column;
+  }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{
+    padding:24px 26px 0;
+    display:flex; align-items:center; justify-content:space-between;
+    flex-shrink:0;
+  }
+  .topbar .day{ font-size:12.5px; font-weight:800; letter-spacing:0.09em; color:var(--ink-soft); text-transform:uppercase; }
+  .topbar-left{ display:flex; align-items:center; gap:10px; }
+  .profile-btn{ min-width:40px; min-height:40px; display:flex; align-items:center; justify-content:center; opacity:0.75; }
+
+  /* ---------- AMBIENT PRESENCE ZONE ---------- */
+  .presence{
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding: 10px 34px 0;
+    text-align:center;
+  }
+  .greet{
+    font-family:'Fraunces', serif; font-weight:600; font-size:19px; color:var(--ink-soft);
+    margin-bottom: 26px;
+  }
+
+  .orb-wrap{ position:relative; width:172px; height:172px; margin-bottom:18px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .orb-glow{
+    position:absolute; inset:-14px; border-radius:50%;
+    background: radial-gradient(circle, var(--hero-a) 0%, transparent 70%);
+    opacity:0.35;
+    animation: glow 10s ease-in-out infinite;
+  }
+  .orb{
+    position:absolute; inset:0; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, var(--hero-a), var(--hero-b) 75%);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 18px 40px -14px rgba(91,33,182,0.55);
+    animation: breathe 10s ease-in-out infinite;
+    transition: box-shadow .4s ease;
+  }
+  @keyframes breathe{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.035); }
+  }
+  @keyframes glow{
+    0%,100%{ transform:scale(1); opacity:0.3; }
+    50%{ transform:scale(1.15); opacity:0.5; }
+  }
+  @media (prefers-reduced-motion: reduce){ .orb, .orb-glow, .sound-ring{ animation:none !important; } }
+
+  /* ---------- LISTENING STATE ---------- */
+  .sound-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border: 2.5px solid var(--gold, #E8A33D);
+    opacity:0;
+  }
+  .orb-wrap.listening .orb{
+    animation: none;
+    box-shadow: 0 18px 44px -12px rgba(232,163,61,0.55);
+  }
+  .orb-wrap.listening .orb-glow{
+    background: radial-gradient(circle, #E8A33D 0%, transparent 70%);
+    animation: glowFast 1.6s ease-in-out infinite;
+  }
+  .orb-wrap.listening .sound-ring{
+    border-color: #E8A33D;
+    animation: ripple 1.8s ease-out infinite;
+  }
+  .orb-wrap.responding .orb{
+    animation: none;
+    box-shadow: 0 18px 44px -12px rgba(124,58,237,0.55);
+  }
+  .orb-wrap.responding .orb-glow{
+    background: radial-gradient(circle, #7C3AED 0%, transparent 70%);
+    animation: glowFast 2s ease-in-out infinite;
+  }
+  .orb-wrap.responding .sound-ring{
+    border-color: #7C3AED;
+    animation: ripple 2.2s ease-out infinite;
+  }
+  @keyframes glowFast{
+    0%,100%{ transform:scale(1); opacity:0.4; }
+    50%{ transform:scale(1.2); opacity:0.65; }
+  }
+  .orb-wrap.listening .sound-ring.r2{ animation-delay:.5s; }
+  .orb-wrap.listening .sound-ring.r3{ animation-delay:1s; }
+  .orb-wrap.responding .sound-ring.r2{ animation-delay:.6s; }
+  .orb-wrap.responding .sound-ring.r3{ animation-delay:1.2s; }
+  @keyframes ripple{
+    0%{ transform:scale(0.82); opacity:0.55; }
+    100%{ transform:scale(1.55); opacity:0; }
+  }
+  .mic-bars{ display:flex; align-items:center; gap:4px; height:34px; }
+  .mic-bars span{
+    display:block; width:5px; border-radius:3px; background:#fff;
+    animation: bar 1s ease-in-out infinite;
+  }
+  .mic-bars span:nth-child(1){ height:14px; animation-delay:0s; }
+  .mic-bars span:nth-child(2){ height:28px; animation-delay:.15s; }
+  .mic-bars span:nth-child(3){ height:18px; animation-delay:.3s; }
+  .mic-bars span:nth-child(4){ height:26px; animation-delay:.45s; }
+  .mic-bars span:nth-child(5){ height:12px; animation-delay:.6s; }
+  @keyframes bar{
+    0%,100%{ transform:scaleY(0.5); }
+    50%{ transform:scaleY(1); }
+  }
+
+  .tap-caption{
+    font-size:14px; font-weight:700; color:var(--ink-soft); margin-bottom:30px;
+    transition: color .3s ease;
+  }
+  .tap-caption.listening{ color:#B8791F; }
+
+  .moment-tag{
+    display:none; align-items:center; gap:6px;
+    font-size:12px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;
+    color:#B8791F; background:#FBF1E3; padding:5px 12px; border-radius:999px;
+    margin-bottom:12px;
+  }
+  .moment-text{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:23px;
+    line-height:1.42;
+    letter-spacing:-0.005em;
+    color:var(--ink);
+    min-height:130px;
+    transition:opacity .25s ease;
+    max-width: 330px;
+    cursor:pointer;
+  }
+  .moment-text b{ color:var(--hero-b); font-weight:700; }
+
+  .moment-dots{ display:flex; gap:6px; justify-content:center; margin-top:22px; }
+  .moment-dots span{ width:6px; height:6px; border-radius:50%; background:#DCCFEF; }
+  .moment-dots span.active{ background:var(--purple); width:18px; border-radius:4px; transition:all .3s; }
+
+  /* ---------- UNIFIED NAVIGATION DOCK (replaces grid + separate bottom nav) ---------- */
+  .dock{
+    flex-shrink:0;
+    background:#fff;
+    border-top:1px solid #F2EEF8;
+    display:flex; align-items:flex-end; justify-content:center;
+    gap: clamp(10px, 4vw, 26px);
+    padding:16px 14px 22px;
+    position:relative;
+  }
+  .dock-item{
+    display:flex; flex-direction:column; align-items:center; gap:7px;
+    min-width:64px; min-height:64px; justify-content:flex-end;
+  }
+  .dock-item .chip{
+    width:46px; height:46px; border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .dock-item span{ font-size:13px; font-weight:700; color:var(--ink-soft); line-height:1.1; }
+  .dock-item.active span{ color:var(--purple); font-weight:800; }
+
+  .sos-slot{ display:flex; flex-direction:column; align-items:center; min-width:64px; }
+  .sos-btn{
+    width:58px; height:58px; border-radius:50%;
+    background:linear-gradient(160deg,#EB756E,#E05B52);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 8px 20px rgba(224,91,82,0.45);
+    margin-top:-30px; border:4px solid #fff;
+  }
+  .sos-slot span{ font-size:13px; font-weight:800; color:#E05B52; margin-top:7px; }
+
+  /* ================= SCREEN SWITCHING ================= */
+  .home-screen, .detail-screen{ display:flex; flex-direction:column; height:100%; }
+  .detail-screen{ display:none; position:absolute; inset:0; background:var(--sky-b); }
+  .detail-screen.visible{ display:flex; }
+  .home-screen.hidden{ display:none; }
+
+  .topbar.detail{ justify-content:space-between; }
+  .back-btn{
+    width:40px; height:40px; border-radius:50%; border:none; background:#fff;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 3px 10px rgba(0,0,0,0.06);
+  }
+  .screen-title{ font-family:'Fraunces', serif; font-weight:700; font-size:19px; }
+
+  .health-scroll{ flex:1; overflow-y:auto; padding: 2px 26px 20px; scrollbar-width:none; }
+  .health-scroll::-webkit-scrollbar{ display:none; }
+
+  .health-hero{ display:flex; flex-direction:column; align-items:center; text-align:center; padding: 18px 0 30px; }
+  .ring-lg{ width:132px; height:132px; border-width:7px; flex-direction:column; }
+  .ring{
+    border-radius:50%; border-style:solid;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    animation: ringBreatheDetail 10s ease-in-out infinite;
+  }
+  .ring .num{ font-family:'Fraunces', serif; font-weight:800; color:var(--ink); }
+  @keyframes ringBreatheDetail{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.03); }
+  }
+  @media (prefers-reduced-motion: reduce){ .ring{ animation:none !important; } }
+  .hero-timestamp{ font-size:13px; color:var(--ink-soft); font-weight:600; margin-top:14px; }
+  .num-lg{ font-size:34px; }
+  .ring .unit{ font-size:13px; font-weight:700; color:var(--ink-soft); margin-top:-2px; }
+  .health-hero-text{
+    font-family:'Fraunces', serif; font-weight:600; font-size:19px; line-height:1.4;
+    margin-top:18px; max-width:280px; color:var(--ink);
+  }
+  .health-hero-text b{ color:var(--green-deep); }
+
+  .vital-list{ margin: 6px 0 34px; }
+  .vital-row{
+    display:flex; align-items:center; gap:14px;
+    padding: 18px 0; border-bottom:1px solid #EFE9F7;
+  }
+  .vital-row:last-child{ border-bottom:none; }
+  .vr-icon{ width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .vr-body{ flex:1; }
+  .vr-label{ font-size:16.5px; font-weight:700; color:var(--ink); }
+  .vr-meta{ font-size:13.5px; color:var(--ink-soft); font-weight:600; margin-top:2px; }
+  .vr-meta.amber{ color:#B8791F; }
+  .vr-value{ font-size:20px; font-weight:800; color:var(--ink); }
+  .vr-unit{ font-size:13px; color:var(--ink-soft); font-weight:700; }
+  .alert-row{ background:#FBF1E3; margin:0 -14px; padding:16px 14px; border-radius:18px; border-bottom:none; }
+  .vr-action{
+    background:#fff; border:none; border-radius:14px; padding:11px 16px;
+    font-size:14px; font-weight:800; color:#B8791F;
+    box-shadow:0 3px 8px rgba(0,0,0,0.06);
+  }
+
+  .vital-list-more{ max-height:0; overflow:hidden; transition:max-height .35s ease; }
+  .vital-list-more.expanded{ max-height:400px; }
+  .show-more-btn{
+    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+    background:none; border:none; padding:16px 0 8px;
+    font-size:14.5px; font-weight:800; color:#8A4FE0; cursor:pointer;
+  }
+  .show-more-btn.open svg{ transform:rotate(180deg); }
+
+  .trend-block{ margin-bottom:34px; }
+  .trend-title{ font-size:13px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:16px; }
+  .trend-bars{ display:flex; align-items:flex-end; justify-content:space-between; height:110px; gap:8px; }
+  .trend-interpreted{ font-size:16px; font-weight:700; color:var(--ink); line-height:1.4; margin-bottom:14px; }
+  .trend-interpreted b{ color:var(--green-deep); }
+  .sparkline-wrap{ background:#fff; border-radius:16px; padding:14px 16px 10px; }
+  .sparkline{ width:100%; height:40px; display:block; }
+  .trend-days-row{ display:flex; justify-content:space-between; margin-top:6px; padding:0 2px; }
+  .trend-days-row span{ font-size:11px; font-weight:700; color:var(--ink-soft); }
+
+  .symptom-progress{ display:flex; gap:8px; padding:18px 26px 6px; }
+  .symptom-progress span{ flex:1; height:4px; border-radius:2px; background:#EFE6FA; }
+  .symptom-progress span.done{ background:#8A4FE0; }
+  .symptom-progress span.active{ background:#C9AEF0; }
+
+  .symptom-scroll{ flex:1; overflow-y:auto; padding:8px 26px 28px; scrollbar-width:none; }
+  .symptom-scroll::-webkit-scrollbar{ display:none; }
+
+  .symptom-avatar{ width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,var(--hero-a),var(--hero-b)); display:flex; align-items:center; justify-content:center; margin-bottom:16px; }
+  .symptom-question{ font-family:'Fraunces', serif; font-weight:600; font-size:22px; line-height:1.35; margin-bottom:24px; color:var(--ink); min-height:60px; }
+
+  .symptom-option{
+    width:100%; display:flex; align-items:center; justify-content:space-between;
+    background:#fff; border:1.5px solid #EFE9F7; border-radius:16px;
+    padding:16px 18px; margin-bottom:12px; min-height:60px;
+    font-family:inherit; font-size:17px; font-weight:700; color:var(--ink);
+    cursor:pointer; text-align:left;
+  }
+  .symptom-option.selected{ border-color:#8A4FE0; background:#F8F4FD; color:#5B21B6; }
+  .symptom-option .check{ width:22px; height:22px; border-radius:50%; border:2px solid #DCD0EE; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .symptom-option.selected .check{ background:#8A4FE0; border-color:#8A4FE0; }
+
+  .symptom-continue{
+    width:100%; min-height:60px; border-radius:16px; border:none; margin-top:8px;
+    background:linear-gradient(120deg,var(--hero-a),var(--hero-b)); color:#fff;
+    font-size:17px; font-weight:800; opacity:0.4; pointer-events:none; transition:opacity .2s ease;
+  }
+  .symptom-continue.enabled{ opacity:1; pointer-events:auto; }
+  .safety-link{ display:block; margin:18px auto 0; background:none; border:none; font-size:14px; font-weight:700; color:var(--ink-soft); text-decoration:underline; cursor:pointer; }
+
+  .result-icon{ width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:8px auto 20px; }
+  .result-headline{ font-family:'Fraunces', serif; font-weight:600; font-size:23px; line-height:1.4; text-align:center; margin-bottom:14px; }
+  .result-sub{ font-size:16px; color:var(--ink-soft); font-weight:600; text-align:center; line-height:1.5; margin-bottom:28px; }
+  .result-action{
+    width:100%; min-height:64px; border-radius:18px; border:none; margin-bottom:12px;
+    font-size:17px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .trend-bar-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end; }
+  .trend-bar{ width:100%; max-width:26px; border-radius:8px; background:linear-gradient(180deg, var(--hero-a), var(--hero-b)); }
+  .trend-bar.today{ background:linear-gradient(180deg, #0F7A50, #0B5C3C); }
+  .trend-day{ font-size:12px; font-weight:700; color:var(--ink-soft); }
+
+  .ask-vyva-btn{
+    width:100%; min-height:64px; border-radius:20px; border:none;
+    background: linear-gradient(120deg, var(--hero-a), var(--hero-b));
+    color:#fff; font-size:17px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    box-shadow:0 12px 22px -10px rgba(91,33,182,0.45);
+    margin-bottom: 8px;
+  }
+  .ask-mic{ width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; }
+
+  .avatar-ring{
+    width:132px; height:132px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-weight:700; font-size:44px; color:#fff;
+    box-shadow: 0 18px 34px -14px rgba(51,18,94,0.35);
+  }
+  .status-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; }
+
+  .picker-tiles{ padding-top:14px; }
+  .picker-tile{
+    width:100%; display:flex; align-items:center; gap:18px;
+    background:#fff; border:none; border-radius:22px;
+    padding:22px 20px; margin-bottom:16px;
+    box-shadow:0 8px 22px -14px rgba(51,18,94,0.18);
+    min-height:88px; text-align:left; cursor:pointer;
+  }
+  .picker-chip{ width:58px; height:58px; border-radius:17px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .picker-text{ flex:1; }
+  .picker-text h3{ font-family:'Fraunces', serif; font-size:20px; font-weight:800; margin:0 0 3px; }
+  .picker-text p{ font-size:14.5px; color:var(--ink-soft); font-weight:600; margin:0; }
+</style>
+</head>
+<body>
+<div class="phone">
+<div class="home-screen" id="homeScreen">
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="profile-btn" id="profileBtn" style="cursor:pointer;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9A90A5" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      </div>
+      <span class="day" id="dayline"></span>
+    </div>
+    <div class="profile-btn" id="menuBtn" style="cursor:pointer;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9A90A5" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </div>
+  </div>
+
+  <div class="presence">
+    <div class="greet" id="greet"></div>
+
+    <div class="orb-wrap" id="orbWrap">
+      <div class="orb-glow"></div>
+      <div class="sound-ring r1"></div>
+      <div class="sound-ring r2"></div>
+      <div class="sound-ring r3"></div>
+      <div class="orb">
+        <svg id="micIcon" width="46" height="46" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/><path d="M18.5 11a6.5 6.5 0 01-13 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M12 17.5V21" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div class="mic-bars" id="micBars" style="display:none;">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+    <div class="tap-caption" id="tapCaption">Tap the circle to talk</div>
+
+    <span class="moment-tag" id="momentTag"></span>
+    <div class="moment-text" id="momentText"></div>
+    <div class="moment-dots" id="momentDots"></div>
+  </div>
+
+  <div class="dock" id="dock"></div>
+</div>
+
+  <!-- ================= SCREEN 2: HEALTH DETAIL ================= -->
+  <div class="screen detail-screen" id="healthScreen">
+    <div class="topbar detail">
+      <button class="back-btn" id="backBtn" data-back data-back-to="menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span class="screen-title">Health</span>
+      <div style="width:40px;"></div>
+    </div>
+
+    <div class="health-scroll">
+      <div class="health-hero" style="padding:2px 0 20px;">
+        <div class="orb-wrap" id="orbWrapHealth" style="width:118px;height:118px;margin-bottom:14px;">
+          <div class="orb-glow"></div>
+          <div class="sound-ring r1"></div>
+          <div class="sound-ring r2"></div>
+          <div class="sound-ring r3"></div>
+          <div class="orb">
+            <svg id="micIconHealth" width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/><path d="M18.5 11a6.5 6.5 0 01-13 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <div class="mic-bars" id="micBarsHealth" style="display:none;">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="tap-caption" id="tapCaptionHealth">Tap to ask VYVA</div>
+        <div class="moment-text" id="healthMomentText" style="font-size:17px;min-height:auto;max-width:300px;margin-top:10px;">Right where it usually is — <b>steady all day</b>.</div>
+      </div>
+
+      <button class="vital-row symptom-entry-row" id="symptomEntryBtn" style="width:100%;border:none;border-bottom:none;background:#F1EBFB;border-radius:16px;padding:14px 14px;margin-bottom:22px;cursor:pointer;text-align:left;font-family:inherit;font-size:inherit;color:inherit;">
+        <div class="vr-icon" style="background:#fff;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A4FE0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <div class="vr-body">
+          <div class="vr-label" style="color:#5B21B6;">Quick check-in</div>
+          <div class="vr-meta">A gentle preventive check with VYVA</div>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A4FE0" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" id="vrHeart"></div>
+          <div class="vr-body">
+            <div class="vr-label">Heart rate</div>
+            <div class="vr-meta">Last measured 4 min ago</div>
+          </div>
+          <div class="vr-value">72<span class="vr-unit"> bpm</span></div>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" id="vrOxygen"></div>
+          <div class="vr-body">
+            <div class="vr-label">Oxygen</div>
+            <div class="vr-meta">Last checked 4 min ago</div>
+          </div>
+          <div class="vr-value">97<span class="vr-unit">%</span></div>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" id="vrMed"></div>
+          <div class="vr-body">
+            <div class="vr-label">Blood pressure tablet</div>
+            <div class="vr-meta">Taken this morning at 8:02 AM</div>
+          </div>
+          <div class="vr-value" style="font-size:15px;">2:00<span class="vr-unit"> PM next</span></div>
+        </div>
+        <div class="vital-row alert-row">
+          <div class="vr-icon" id="vrO2low"></div>
+          <div class="vr-body">
+            <div class="vr-label">Oxygen — this morning</div>
+            <div class="vr-meta amber">A little lower than usual · 9:10 AM</div>
+          </div>
+          <button class="vr-action" id="vrRecheck" data-response="Let's check now. Take a slow breath for me... and there we are — ninety-eight percent. All good, Carmen.">Recheck</button>
+        </div>
+
+        <div class="vital-list-more" id="moreMetrics">
+          <div class="vital-row">
+            <div class="vr-icon" id="vrBP"></div>
+            <div class="vr-body">
+              <div class="vr-label">Blood pressure</div>
+              <div class="vr-meta">Checked yesterday, 7:40 PM</div>
+            </div>
+            <div class="vr-value" style="font-size:17px;">128<span class="vr-unit">/82</span></div>
+          </div>
+          <div class="vital-row">
+            <div class="vr-icon" id="vrSleep"></div>
+            <div class="vr-body">
+              <div class="vr-label">Sleep last night</div>
+              <div class="vr-meta">A bit more than your average</div>
+            </div>
+            <div class="vr-value" style="font-size:17px;">7.2<span class="vr-unit">hrs</span></div>
+          </div>
+        </div>
+
+        <button class="show-more-btn" id="showMoreBtn">
+          <span id="showMoreLabel">Show 2 more metrics</span>
+          <svg id="showMoreChevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A4FE0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .25s ease;"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="trend-block">
+        <div class="trend-title">Heart rate — this week</div>
+        <div class="trend-interpreted" id="trendInterpreted"></div>
+        <div class="sparkline-wrap">
+          <svg class="sparkline" id="trendSparkline" viewBox="0 0 280 40" preserveAspectRatio="none"></svg>
+          <div class="trend-days-row"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>Today</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dock" id="dockHealth"></div>
+  </div>
+
+  <!-- ================= SCREEN 3: MY BRAIN DETAIL ================= -->
+  <div class="screen detail-screen" id="brainScreen">
+    <div class="topbar detail">
+      <button class="back-btn" data-back data-back-to="menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">My Brain</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="health-scroll">
+      <div class="health-hero" style="padding:2px 0 20px;">
+        <div class="orb-wrap" id="orbWrapBrain" style="width:118px;height:118px;margin-bottom:14px;">
+          <div class="orb-glow"></div>
+          <div class="sound-ring r1"></div>
+          <div class="sound-ring r2"></div>
+          <div class="sound-ring r3"></div>
+          <div class="orb">
+            <svg id="micIconBrain" width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/><path d="M18.5 11a6.5 6.5 0 01-13 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <div class="mic-bars" id="micBarsBrain" style="display:none;">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="tap-caption" id="tapCaptionBrain">Tap to ask VYVA</div>
+        <div class="moment-text" id="brainMomentText" style="font-size:17px;min-height:auto;max-width:300px;margin-top:10px;">Five days strong — <b style="color:var(--purple);">keep it going</b>.</div>
+      </div>
+
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#EFE4FF;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Rhythm Tap</div><div class="vr-meta">84% accuracy yesterday — your best this month</div></div>
+          <button class="vr-action" data-play="Rhythm Tap">Play</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E6EEFC;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F66D0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="8" rx="2"/><rect x="13" y="4" width="8" height="8" rx="2"/><rect x="3" y="14" width="8" height="8" rx="2"/><rect x="13" y="14" width="8" height="8" rx="2"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Face-Name Match</div><div class="vr-meta">Not played yet today</div></div>
+          <button class="vr-action" data-play="Face-Name Match">Play</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#FBF1E3;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8791F" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 10.5h.01M15.5 10.5h.01M8 15c1.2 1 2.7 1 4 1s2.8 0 4-1"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Mood check-in</div><div class="vr-meta">How are you feeling today?</div></div>
+          <button class="vr-action" data-play="Mood check-in">Check in</button>
+        </div>
+      </div>
+
+      <div class="trend-block">
+        <div class="trend-title">Rhythm Tap accuracy — this week</div>
+        <div class="trend-interpreted" id="brainTrendInterpreted"></div>
+        <div class="sparkline-wrap">
+          <svg class="sparkline" id="brainTrendSparkline" viewBox="0 0 280 40" preserveAspectRatio="none"></svg>
+          <div class="trend-days-row"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>Today</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="dock" id="dockBrain"></div>
+  </div>
+
+  <!-- ================= SCREEN 4: COMMUNITY DETAIL ================= -->
+  <div class="screen detail-screen" id="communityScreen">
+    <div class="topbar detail">
+      <button class="back-btn" data-back data-back-to="menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">Community</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="health-scroll">
+      <div class="health-hero" style="padding:2px 0 20px;">
+        <div class="orb-wrap" id="orbWrapCommunity" style="width:118px;height:118px;margin-bottom:14px;">
+          <div class="orb-glow"></div>
+          <div class="sound-ring r1"></div>
+          <div class="sound-ring r2"></div>
+          <div class="sound-ring r3"></div>
+          <div class="orb">
+            <svg id="micIconCommunity" width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/><path d="M18.5 11a6.5 6.5 0 01-13 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <div class="mic-bars" id="micBarsCommunity" style="display:none;">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="tap-caption" id="tapCaptionCommunity">Tap to ask VYVA</div>
+        <div class="moment-text" id="communityMomentText" style="font-size:17px;min-height:auto;max-width:300px;margin-top:10px;">Elena replied in your <b style="color:#2F66D0;">Book Club room</b>.</div>
+      </div>
+
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E6EEFC;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F66D0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4V5z"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Book Club</div><div class="vr-meta"><span class="status-dot" style="background:#2F66D0;"></span>Elena: "Loved that ending!" · 9 min ago</div></div>
+          <button class="vr-action" data-open-room="Book Club">Open</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#FCEBEA;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E05B52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.4"/><path d="M2.5 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5"/><path d="M14.5 15c2.5 0 5 1.6 5 5"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Family Chat</div><div class="vr-meta">Sofía: "Call me when you're free" · yesterday</div></div>
+          <button class="vr-action" data-open-room="Family Chat">Open</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E4F6EE;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4V5z"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Neighbors Group</div><div class="vr-meta">3 new messages this week</div></div>
+          <button class="vr-action" data-open-room="Neighbors Group">Open</button>
+        </div>
+      </div>
+    </div>
+    <div class="dock" id="dockCommunity"></div>
+  </div>
+
+  <!-- ================= SCREEN 5: CONCIERGE DETAIL ================= -->
+  <div class="screen detail-screen" id="conciergeScreen">
+    <div class="topbar detail">
+      <button class="back-btn" data-back data-back-to="menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">Concierge</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="health-scroll">
+      <div class="health-hero" style="padding:2px 0 20px;">
+        <div class="orb-wrap" id="orbWrapConcierge" style="width:118px;height:118px;margin-bottom:14px;">
+          <div class="orb-glow"></div>
+          <div class="sound-ring r1"></div>
+          <div class="sound-ring r2"></div>
+          <div class="sound-ring r3"></div>
+          <div class="orb">
+            <svg id="micIconConcierge" width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/><path d="M18.5 11a6.5 6.5 0 01-13 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <div class="mic-bars" id="micBarsConcierge" style="display:none;">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="tap-caption" id="tapCaptionConcierge">Tap to ask VYVA</div>
+        <div class="moment-text" id="conciergeMomentText" style="font-size:17px;min-height:auto;max-width:300px;margin-top:10px;">Your ride to Dr. Reyes is <b style="color:#0F7A50;">confirmed</b>.</div>
+      </div>
+
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E4F6EE;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16V12l2-5h14l2 5v4"/><path d="M3 16h18M7 16v2M17 16v2"/><circle cx="7" cy="18" r="1"/><circle cx="17" cy="18" r="1"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Ride to Dr. Reyes</div><div class="vr-meta"><span class="status-dot" style="background:#0F7A50;"></span>Confirmed · Friday, 10:00 AM</div></div>
+          <button class="vr-action" data-detail="Ride to Dr. Reyes">Details</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#FBF1E3;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8791F" stroke-width="2" stroke-linecap="round"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-30 12 12)"/><path d="M9 9l6 6" transform="rotate(-30 12 12)"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Pharmacy refill</div><div class="vr-meta"><span class="status-dot" style="background:#E8A33D;"></span>Ready for pickup Thursday</div></div>
+          <button class="vr-action" data-detail="Pharmacy refill">Details</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E6EEFC;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F66D0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2l1.5 5M18 2l-1.5 5M4 7h16l-1.5 12h-13L4 7z"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Grocery delivery</div><div class="vr-meta">Scheduled Saturday, 2:00 PM</div></div>
+          <button class="vr-action" data-detail="Grocery delivery">Details</button>
+        </div>
+      </div>
+    </div>
+    <div class="dock" id="dockConcierge"></div>
+  </div>
+
+  <!-- ================= SYMPTOM CHECK (guided, calm, non-diagnostic) ================= -->
+  <div class="screen detail-screen" id="symptomScreen">
+    <div class="topbar detail">
+      <button class="back-btn" id="symptomBackBtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">Check-in</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="symptom-progress" id="symptomProgress"></div>
+    <div class="symptom-scroll" id="symptomScroll"></div>
+  </div>
+
+  <!-- ================= SAFETY (interrupts the check-in from any question, not a step within it) ================= -->
+  <div class="screen detail-screen" id="safetyScreen">
+    <div class="symptom-scroll" style="display:flex;flex-direction:column;justify-content:center;padding:0 30px;">
+      <div class="result-icon" style="background:#FCEBEA;width:76px;height:76px;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#C23B32" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>
+      </div>
+      <div class="result-headline">Let's get you help right now, Carmen.</div>
+      <div class="result-sub">I've paused the check-in. Tap below and I'll connect you right away.</div>
+      <button class="result-action" id="safetyGetHelpBtn" style="background:linear-gradient(160deg,#EB756E,#C23B32);color:#fff;">Get help now</button>
+      <button class="result-action" id="safetyCancelBtn" style="background:#F3EFF9;color:var(--ink);">I'm okay — go back</button>
+    </div>
+  </div>
+
+  <!-- ================= MENU (flat — no category headers) ================= -->
+  <div class="screen detail-screen" id="menuScreen">
+    <div class="topbar detail">
+      <button class="back-btn" data-back data-back-to="home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">Menu</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="health-scroll">
+      <div class="picker-tiles">
+        <button class="picker-tile" data-goto="health">
+          <div class="picker-chip" style="background:#FCEBEA;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E05B52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.6-4.7-10-9.2C.4 8 1.8 4.3 5.4 3.5c2.1-.5 4.2.4 5.4 2.1C11.9 3.9 14 3 16.1 3.5c3.6.8 5 4.5 3.4 7.8-2.4 4.5-7.5 9.2-7.5 9.2z"/></svg></div>
+          <div class="picker-text"><h3>Health</h3><p>Your vitals and symptoms</p></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9BEDB" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button class="picker-tile" data-goto="brain">
+          <div class="picker-chip" style="background:#EFE4FF;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5a2.5 2.5 0 00-2.5 2.5c0 .3 0 .6.1.9A3 3 0 005 10.5c0 1 .5 1.9 1.3 2.4A3 3 0 007 18.5a2.5 2.5 0 002.5 2 2.5 2.5 0 002.5-2.5V7A2.5 2.5 0 009 4.5z"/><path d="M15 4.5A2.5 2.5 0 0117.5 7c0 .3 0 .6-.1.9A3 3 0 0119 10.5c0 1-.5 1.9-1.3 2.4A3 3 0 0117 18.5 2.5 2.5 0 0114.5 20.5 2.5 2.5 0 0112 18V7a2.5 2.5 0 013-2.5z"/></svg></div>
+          <div class="picker-text"><h3>My Brain</h3><p>Games, memory and mood</p></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9BEDB" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button class="picker-tile" data-goto="community">
+          <div class="picker-chip" style="background:#E6EEFC;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2F66D0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.4"/><path d="M2.5 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5"/><path d="M14.5 15c2.5 0 5 1.6 5 5"/></svg></div>
+          <div class="picker-text"><h3>Community</h3><p>Rooms, friends and chats</p></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9BEDB" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <button class="picker-tile" data-goto="concierge">
+          <div class="picker-chip" style="background:#E4F6EE;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10.5a6 6 0 0112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14.5 6 10.5z"/><path d="M10 19a2 2 0 004 0"/></svg></div>
+          <div class="picker-text"><h3>Concierge</h3><p>Rides, errands and bookings</p></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9BEDB" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="dock" id="dockMenu"></div>
+  </div>
+
+  <!-- ================= MY REPORTS (Carmen's own weekly recap) ================= -->
+  <div class="screen detail-screen" id="reportsScreen">
+    <div class="topbar detail">
+      <button class="back-btn" data-back data-back-to="home"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">My Reports</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="health-scroll">
+      <div class="health-hero" style="padding:2px 0 20px;">
+        <div class="orb-wrap" id="orbWrapReports" style="width:118px;height:118px;margin-bottom:14px;">
+          <div class="orb-glow"></div>
+          <div class="sound-ring r1"></div>
+          <div class="sound-ring r2"></div>
+          <div class="sound-ring r3"></div>
+          <div class="orb">
+            <svg id="micIconReports" width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/><path d="M18.5 11a6.5 6.5 0 01-13 0" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+            <div class="mic-bars" id="micBarsReports" style="display:none;">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+        <div class="tap-caption" id="tapCaptionReports">Tap to ask VYVA</div>
+        <div class="moment-text" id="reportsMomentText" style="font-size:17px;min-height:auto;max-width:300px;margin-top:10px;">A good week, <b style="color:#7C5CBF;">Carmen</b>.</div>
+      </div>
+
+      <div class="trend-title">This week</div>
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E6EEFC;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F66D0" stroke-width="2" stroke-linecap="round"><ellipse cx="7.5" cy="7" rx="2.3" ry="3"/><ellipse cx="16.5" cy="15" rx="2.3" ry="3"/><path d="M6 12v3M9 12v3M15 20v-2M18 20v-2"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Steps</div><div class="vr-meta">Most active week this month</div></div>
+          <div class="vr-value">12,460</div>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#EFE4FF;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Rhythm Tap</div><div class="vr-meta">Played 6 of 7 days</div></div>
+          <div class="vr-value">79<span class="vr-unit">% avg</span></div>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#FCEBEA;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E05B52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.4"/><path d="M2.5 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5"/><path d="M14.5 15c2.5 0 5 1.6 5 5"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Conversations</div><div class="vr-meta">Elena, Sofía, and the Book Club room</div></div>
+          <div class="vr-value">9</div>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E4F6EE;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16V12l2-5h14l2 5v4"/><path d="M3 16h18M7 16v2M17 16v2"/><circle cx="7" cy="18" r="1"/><circle cx="17" cy="18" r="1"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Appointments kept</div><div class="vr-meta">All bookings this week, on time</div></div>
+          <div class="vr-value">2<span class="vr-unit">/2</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="dock" id="dockReports"></div>
+  </div>
+
+  <!-- ================= SCREEN 6: MY PROFILE ================= -->
+  <div class="screen detail-screen" id="profileScreen">
+    <div class="topbar detail">
+      <button class="back-btn" data-back><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span class="screen-title">My Profile</span>
+      <div style="width:40px;"></div>
+    </div>
+    <div class="health-scroll">
+      <div class="health-hero">
+        <div class="avatar-ring" style="background:linear-gradient(135deg,var(--hero-a),var(--hero-b));">C</div>
+        <div class="health-hero-text">Carmen Delgado<br><span style="font-size:15px; font-weight:600; color:var(--ink-soft); font-family:'Figtree',sans-serif;">Tarifa, Spain</span></div>
+      </div>
+
+      <div class="trend-title" style="margin-top:6px;">Who's looking out for you</div>
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E6EEFC; font-family:'Fraunces',serif; font-weight:700; color:#2F66D0; font-size:16px;">S</div>
+          <div class="vr-body"><div class="vr-label">Sofía — daughter</div><div class="vr-meta">Can see your health and daily activity</div></div>
+          <button class="vr-action" data-detail="Sofía's access">Manage</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#FCEBEA; font-family:'Fraunces',serif; font-weight:700; color:#E05B52; font-size:16px;">P</div>
+          <div class="vr-body"><div class="vr-label">Dr. Pablo Rossi — care team</div><div class="vr-meta">Reviews your health reports monthly</div></div>
+          <button class="vr-action" data-detail="Dr. Rossi's access">Manage</button>
+        </div>
+      </div>
+
+      <div class="trend-title">Make VYVA easier to use</div>
+      <div class="vital-list">
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#EFE4FF;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 011-1h14a1 1 0 011 1v2M12 4v16M9 20h6"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Text size</div><div class="vr-meta">Large</div></div>
+          <button class="vr-action" data-detail="Text size">Change</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#E4F6EE;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round"><path d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3z"/><path d="M19 11a7 7 0 01-14 0"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Voice & language</div><div class="vr-meta">English (US) · Calm, unhurried pace</div></div>
+          <button class="vr-action" data-detail="Voice and language">Change</button>
+        </div>
+        <div class="vital-row">
+          <div class="vr-icon" style="background:#FBF1E3;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8791F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10.5a6 6 0 0112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14.5 6 10.5z"/><path d="M10 19a2 2 0 004 0"/></svg></div>
+          <div class="vr-body"><div class="vr-label">Reminder gentleness</div><div class="vr-meta">A few, quiet check-ins</div></div>
+          <button class="vr-action" data-detail="Reminder gentleness">Change</button>
+        </div>
+      </div>
+
+      <button class="ask-vyva-btn" data-ask data-response="Connecting you with support now. Stay with me a moment, Carmen." style="background:linear-gradient(120deg,#8A94A6,#5D6B84); box-shadow:0 12px 22px -10px rgba(93,107,132,0.35);">
+        <span class="ask-mic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h4l1.5 4.5L9 9.5c1 2.7 2.8 4.5 5.5 5.5l2-2.5L21 14v4a2 2 0 01-2 2C10.5 20 4 13.5 4 5a2 2 0 012-2z"/></svg></span>
+        Call support
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ICON = {
+    menu: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>`,
+    home: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>`,
+    heart: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.6-4.7-10-9.2C.4 8 1.8 4.3 5.4 3.5c2.1-.5 4.2.4 5.4 2.1C11.9 3.9 14 3 16.1 3.5c3.6.8 5 4.5 3.4 7.8-2.4 4.5-7.5 9.2-7.5 9.2z"/></svg>`,
+    brain: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5a2.5 2.5 0 00-2.5 2.5c0 .3 0 .6.1.9A3 3 0 005 10.5c0 1 .5 1.9 1.3 2.4A3 3 0 007 18.5a2.5 2.5 0 002.5 2 2.5 2.5 0 002.5-2.5V7A2.5 2.5 0 009 4.5z"/><path d="M15 4.5A2.5 2.5 0 0117.5 7c0 .3 0 .6-.1.9A3 3 0 0119 10.5c0 1-.5 1.9-1.3 2.4A3 3 0 0117 18.5 2.5 2.5 0 0114.5 20.5 2.5 2.5 0 0112 18V7a2.5 2.5 0 013-2.5z"/></svg>`,
+    people: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.4"/><path d="M2.5 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5"/><path d="M14.5 15c2.5 0 5 1.6 5 5"/></svg>`,
+    bell: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10.5a6 6 0 0112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14.5 6 10.5z"/><path d="M10 19a2 2 0 004 0"/></svg>`,
+    reports: c => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>`,
+  };
+  const chip = (n,c) => ICON[n](c);
+
+  const hour = new Date().getHours();
+  let timeKey='afternoon', part='afternoon';
+  if(hour<12){timeKey='morning';part='morning';}
+  else if(hour<18){timeKey='afternoon';part='afternoon';}
+  else if(hour<22){timeKey='evening';part='evening';}
+  else{timeKey='night';part='evening';}
+  document.body.setAttribute('data-time', timeKey);
+
+  const greetWord = part==='morning' ? 'Good morning, Carmen' : part==='evening' ? 'Good evening, Carmen' : 'Good afternoon, Carmen';
+  document.getElementById('greet').textContent = greetWord;
+  document.getElementById('dayline').textContent = new Date().toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'});
+
+  // Each moment now knows what tapping it should DO (act), whether it's urgent
+  // (leads the rotation, gets a quiet "Now" tag — never a loud alarm), and what
+  // to say while acting. This replaces the old "tap just advances" behavior,
+  // which made action-worthy messages (like Elena's reply) feel like dead ends.
+  const moments = [
+    {
+      urgent: true, tag: 'Now',
+      html: `Your blood pressure tablet is due in <b>40 minutes</b>, around 2:00&nbsp;PM.`,
+      action: 'listen', actingLabel: 'Setting a reminder…',
+      response: `Got it. I'll remind you again in forty minutes. You're doing wonderfully today, Carmen.`
+    },
+    {
+      html: `Your heart's been <b>steady</b> all day, and you've taken <b>1,840 steps</b> so far.`,
+      action: 'open', dest: 'Health', actingLabel: 'Opening Health…'
+    },
+    {
+      html: `You scored <b>84%</b> on Rhythm Tap yesterday — your best this month.`,
+      action: 'open', dest: 'My Brain', actingLabel: 'Opening My Brain…'
+    },
+    {
+      html: `Elena wrote back in your Book Club room: <b>"Loved that ending!"</b>`,
+      action: 'open', dest: 'Community', actingLabel: 'Opening Community…'
+    },
+    {
+      html: `Your ride to Dr. Reyes is confirmed for Friday at <b>10:00&nbsp;AM</b>.`,
+      action: 'open', dest: 'Concierge', actingLabel: 'Opening Concierge…'
+    },
+    {
+      html: `Sofía checked in this morning — she can see you're doing well today.`,
+      action: 'none', actingLabel: null
+    },
+    {
+      html: `It's <b>27°</b> and clear in Tarifa — lovely for the garden.`,
+      action: 'none', actingLabel: null
+    },
+  ];
+  // A calm, non-alarming version of what an out-of-range reading looks like —
+  // swap the first item for this to preview the alert state:
+  const alertExample = {
+    urgent: true, tag: 'Worth a look',
+    html: `Your oxygen reading was a <b>little lower</b> than usual earlier. Let's check it again together?`,
+    action: 'listen', actingLabel: 'Let\u2019s check together…',
+    response: `Let's check now. Take a slow breath for me... and there we are — ninety-eight percent. All good, Carmen.`
+  };
+  moments.sort((a,b) => (b.urgent?1:0) - (a.urgent?1:0));
+
+  let idx=0;
+  const momentText=document.getElementById('momentText');
+  const dotsWrap=document.getElementById('momentDots');
+  const tagWrap=document.getElementById('momentTag');
+  moments.forEach((_,i)=>{ const d=document.createElement('span'); if(i===0)d.className='active'; dotsWrap.appendChild(d); });
+
+  function show(i){
+    momentText.style.opacity=0;
+    setTimeout(()=>{
+      momentText.innerHTML=moments[i].html;
+      tagWrap.style.display = moments[i].tag ? 'inline-flex' : 'none';
+      tagWrap.textContent = moments[i].tag || '';
+      momentText.style.opacity=1;
+      [...dotsWrap.children].forEach((d,j)=>d.className=j===i?'active':'');
+    },200);
+  }
+  show(0);
+
+  let timer;
+  function startAuto(){ clearInterval(timer); timer=setInterval(()=>{ idx=(idx+1)%moments.length; show(idx); },8500); }
+
+  // Tapping the MESSAGE now acts on it — opens the relevant area, or asks VYVA
+  // to help directly for health/medication items. It no longer just advances.
+  momentText.addEventListener('click', ()=>{
+    const m = moments[idx];
+    if(m.action === 'listen'){ startListening(m.response); return; }
+    if(m.action === 'open'){
+      const destMap = { 'Health':'health', 'My Brain':'brain', 'Community':'community', 'Concierge':'concierge' };
+      if(destMap[m.dest]){ goToScreen(destMap[m.dest]); return; }
+    }
+  });
+  startAuto();
+
+  // ---------- Screen switching ----------
+  const homeScreen = document.getElementById('homeScreen');
+  const detailScreens = {
+    health: document.getElementById('healthScreen'),
+    brain: document.getElementById('brainScreen'),
+    community: document.getElementById('communityScreen'),
+    concierge: document.getElementById('conciergeScreen'),
+    reports: document.getElementById('reportsScreen'),
+    profile: document.getElementById('profileScreen'),
+    menu: document.getElementById('menuScreen'),
+    symptom: document.getElementById('symptomScreen'),
+    safety: document.getElementById('safetyScreen'),
+  };
+  function goToScreen(name){
+    Object.values(detailScreens).forEach(s => s.classList.remove('visible'));
+    if(name === 'home'){
+      homeScreen.classList.remove('hidden');
+    } else {
+      homeScreen.classList.add('hidden');
+      if(detailScreens[name]) detailScreens[name].classList.add('visible');
+    }
+  }
+  document.querySelectorAll('[data-back]').forEach(btn => btn.addEventListener('click', ()=> goToScreen(btn.dataset.backTo || 'home')));
+  document.getElementById('profileBtn').addEventListener('click', ()=> goToScreen('profile'));
+  document.getElementById('menuBtn').addEventListener('click', ()=> goToScreen('menu'));
+
+  // ---------- Symptom Check flow ----------
+  // Non-diagnostic by design: VYVA never names a condition, only routes to
+  // rest/self-care, a call to the care team, or urgent help — same principle
+  // as the medication interaction flags elsewhere in the product.
+  // ---------- Preventive Check-in flow (health.preventive_check@1.0.0 UI) ----------
+  // Frontend only — this represents Flow states, not the Flow itself. Voice
+  // and touch are two ways to advance the SAME state, not separate journeys:
+  // each question is "spoken" (via the synced-reveal caption, same engine as
+  // the rest of the app) and answerable by tap at the same time, on the same
+  // screen. Safety is a persistent escape hatch on every question — reaching
+  // it stops the check-in outright, it is not another answer in the sequence.
+  // No caregiver notification, no external actions (booking/calling/contact),
+  // no scheduling, and no clinical severity scoring — per spec.
+  const checkinQuestions = [
+    {
+      key: 'feeling', voice: "How are you feeling today, Carmen?",
+      options: ['Great', 'Okay', 'Not my best', "Something's bothering me"],
+      skipRestIf: ['Great', 'Okay']
+    },
+    {
+      key: 'detail', voice: 'Want to tell me a bit more?',
+      options: ['Tired or low energy', 'Aches or discomfort', 'Trouble sleeping', 'Just an off day', 'Something else']
+    }
+  ];
+  let checkinStep = 0;
+  let checkinAnswers = {};
+
+  function renderCheckinProgress(){
+    const wrap = document.getElementById('symptomProgress');
+    const total = checkinQuestions.length;
+    wrap.innerHTML = checkinQuestions.map((_, i) => {
+      const cls = i < checkinStep ? 'done' : i === checkinStep ? 'active' : '';
+      return `<span class="${cls}"></span>`;
+    }).join('');
+    wrap.style.display = 'flex';
+  }
+
+  function renderCheckinStep(){
+    if(checkinStep >= checkinQuestions.length){ renderCheckinSummary(); return; }
+    renderCheckinProgress();
+    const q = checkinQuestions[checkinStep];
+    const scroll = document.getElementById('symptomScroll');
+    scroll.innerHTML = `
+      <div class="symptom-avatar" id="checkinAvatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/></svg></div>
+      <div class="symptom-question" id="checkinQuestionText"></div>
+      <div id="checkinOptions" style="opacity:0;transition:opacity .25s ease;"></div>
+      <button class="safety-link" id="safetyLink">If this feels urgent, tap here</button>
+    `;
+    // Voice asks first (same caption-reveal engine as the rest of the app) —
+    // touch options appear once VYVA finishes, but both represent the SAME
+    // collecting state, not a voice mode and a separate touch mode.
+    const qTextEl = document.getElementById('checkinQuestionText');
+    revealInSyncOn(qTextEl, q.voice, () => {
+      const optWrap = document.getElementById('checkinOptions');
+      optWrap.style.opacity = 1;
+      optWrap.innerHTML = q.options.map((opt, i) => `
+        <button class="symptom-option" data-opt="${i}">
+          <span>${opt}</span>
+          <span class="check"></span>
+        </button>`).join('');
+      optWrap.querySelectorAll('.symptom-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if(optWrap.classList.contains('locked')) return; // ignore double-taps during the confirm delay
+          optWrap.classList.add('locked');
+          const label = q.options[+btn.dataset.opt];
+          btn.classList.add('selected');
+          checkinAnswers[q.key] = label;
+          setTimeout(() => {
+            if(q.skipRestIf && q.skipRestIf.includes(label)){
+              checkinStep = checkinQuestions.length; // shortcut straight to summary
+            } else {
+              checkinStep++;
+            }
+            renderCheckinStep();
+          }, 380); // brief visible confirmation before advancing — the actual "answered by touch" moment
+        });
+      });
+    });
+
+    document.getElementById('safetyLink').addEventListener('click', goToSafety);
+  }
+
+  function goToSafety(){
+    goToScreen('safety');
+  }
+
+  function renderCheckinSummary(){
+    document.getElementById('symptomProgress').style.display = 'none';
+    const rows = Object.entries(checkinAnswers).map(([key, val]) => {
+      const label = key === 'feeling' ? 'How you\u2019re feeling' : 'A bit more detail';
+      return `<div class="vital-row" style="padding:14px 0;"><div class="vr-body"><div class="vr-label" style="font-size:15px;">${label}</div></div><div class="vr-value" style="font-size:15px;">${val}</div></div>`;
+    }).join('');
+    document.getElementById('symptomScroll').innerHTML = `
+      <div class="result-icon" style="background:#E4F6EE;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="result-headline">Here's what you told VYVA.</div>
+      <div class="result-sub">Thanks for checking in, Carmen.</div>
+      <div class="vital-list" style="margin-bottom:24px;">${rows}</div>
+      <button class="result-action" id="checkinDoneBtn" style="background:linear-gradient(120deg,var(--hero-a),var(--hero-b));color:#fff;">Done</button>
+    `;
+    document.getElementById('checkinDoneBtn').addEventListener('click', () => goToScreen('health'));
+  }
+
+  function startCheckin(){
+    checkinStep = 0;
+    checkinAnswers = {};
+    goToScreen('symptom');
+    renderCheckinStep();
+  }
+  document.getElementById('symptomEntryBtn').addEventListener('click', startCheckin);
+  document.getElementById('symptomBackBtn').addEventListener('click', () => {
+    goToScreen('health'); // Back exits the check-in; no partial re-entry modeled in this UI pass
+  });
+  document.getElementById('safetyGetHelpBtn').addEventListener('click', () => goToScreen('health'));
+  document.getElementById('safetyCancelBtn').addEventListener('click', () => {
+    goToScreen('symptom');
+    renderCheckinStep(); // resumes at the current question, not restarted
+  });
+  document.querySelectorAll('[data-goto]').forEach(btn => btn.addEventListener('click', ()=> goToScreen(btn.dataset.goto)));
+
+  // ---------- Health detail screen content ----------
+  document.getElementById('vrHeart').style.background = '#E9F7F1';
+  document.getElementById('vrHeart').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.6-4.7-10-9.2C.4 8 1.8 4.3 5.4 3.5c2.1-.5 4.2.4 5.4 2.1C11.9 3.9 14 3 16.1 3.5c3.6.8 5 4.5 3.4 7.8-2.4 4.5-7.5 9.2-7.5 9.2z"/></svg>`;
+  document.getElementById('vrOxygen').style.background = '#E9F7F1';
+  document.getElementById('vrOxygen').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F7A50" stroke-width="2" stroke-linecap="round"><path d="M2 12c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4.5 0 3 3 4.5 0"/></svg>`;
+  document.getElementById('vrMed').style.background = '#F1EBFB';
+  document.getElementById('vrMed').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8A4FE0" stroke-width="2" stroke-linecap="round"><rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-30 12 12)"/><path d="M9 9l6 6" transform="rotate(-30 12 12)"/></svg>`;
+  document.getElementById('vrBP').style.background = '#FCEBEA';
+  document.getElementById('vrBP').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E05B52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.6-4.7-10-9.2C.4 8 1.8 4.3 5.4 3.5c2.1-.5 4.2.4 5.4 2.1C11.9 3.9 14 3 16.1 3.5c3.6.8 5 4.5 3.4 7.8-2.4 4.5-7.5 9.2-7.5 9.2z"/></svg>`;
+  document.getElementById('vrSleep').style.background = '#E6EEFC';
+  document.getElementById('vrSleep').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F66D0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></svg>`;
+
+  // Progressive disclosure for additional metrics — keeps the default screen
+  // short for Carmen, but lets a caregiver or power user reveal more without
+  // leaving the page or adding a second screen to navigate.
+  const moreMetrics = document.getElementById('moreMetrics');
+  const showMoreBtn = document.getElementById('showMoreBtn');
+  const showMoreLabel = document.getElementById('showMoreLabel');
+  let metricsExpanded = false;
+  showMoreBtn.addEventListener('click', ()=>{
+    metricsExpanded = !metricsExpanded;
+    moreMetrics.classList.toggle('expanded', metricsExpanded);
+    showMoreBtn.classList.toggle('open', metricsExpanded);
+    showMoreLabel.textContent = metricsExpanded ? 'Show less' : 'Show 2 more metrics';
+  });
+  document.getElementById('vrO2low').style.background = '#FDECD3';
+  document.getElementById('vrO2low').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8791F" stroke-width="2" stroke-linecap="round"><path d="M2 12c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4.5 0 3 3 4.5 0"/></svg>`;
+
+  // Health now has its own orb — voice happens in place instead of redirecting
+  // to Home, closing the gap where "Ask VYVA inside Health" used to just jump
+  // you away from the screen you were looking at.
+  const orbWrapHealth = document.getElementById('orbWrapHealth');
+  const tapCaptionHealth = document.getElementById('tapCaptionHealth');
+  const micIconHealth = document.getElementById('micIconHealth');
+  const micBarsHealth = document.getElementById('micBarsHealth');
+  const healthMomentText = document.getElementById('healthMomentText');
+  const healthDefaultText = healthMomentText.innerHTML;
+  const healthTarget = { orbEl: orbWrapHealth, captionEl: tapCaptionHealth, micIconEl: micIconHealth, micBarsEl: micBarsHealth, textEl: healthMomentText };
+  const healthDefaultResponse = "Your heart's been steady all day, and your last oxygen reading was ninety-eight percent. You're doing well today, Carmen.";
+  const healthOpts = {
+    idleCaption: 'Tap to ask VYVA',
+    onIdle: ()=> { healthMomentText.innerHTML = healthDefaultText; healthMomentText.style.opacity = 1; }
+  };
+
+  orbWrapHealth.addEventListener('click', ()=>{
+    if(healthTarget._active) cancelListeningOn(healthTarget);
+    else startListeningOn(healthTarget, healthDefaultResponse, healthOpts);
+  });
+
+  document.getElementById('vrRecheck').addEventListener('click', function(){
+    if(healthTarget._active) cancelListeningOn(healthTarget);
+    else startListeningOn(healthTarget, this.dataset.response, healthOpts);
+  });
+
+  // Same in-place voice pattern, now applied consistently to every screen —
+  // no more screens stuck redirecting to Home just to talk to VYVA. Tapping
+  // the orb again while active cancels back to idle, same as Home/Health.
+  function wireScreenOrb(key, response){
+    const orbEl = document.getElementById('orbWrap' + key);
+    const captionEl = document.getElementById('tapCaption' + key);
+    const micIconEl = document.getElementById('micIcon' + key);
+    const micBarsEl = document.getElementById('micBars' + key);
+    const textEl = document.getElementById(key.charAt(0).toLowerCase() + key.slice(1) + 'MomentText');
+    const defaultText = textEl.innerHTML;
+    const target = { orbEl, captionEl, micIconEl, micBarsEl, textEl };
+    const opts = {
+      idleCaption: 'Tap to ask VYVA',
+      onIdle: ()=> { textEl.innerHTML = defaultText; textEl.style.opacity = 1; }
+    };
+    orbEl.addEventListener('click', ()=>{
+      if(target._active) cancelListeningOn(target);
+      else startListeningOn(target, response, opts);
+    });
+  }
+  wireScreenOrb('Brain', "Let's do Rhythm Tap — yesterday you scored eighty-four percent, your best this month. Ready when you are.");
+  wireScreenOrb('Community', "Elena wrote in your Book Club room: she loved the ending. Want me to read the rest of what she said?");
+  wireScreenOrb('Concierge', "Your ride to Dr. Reyes is booked for Friday at ten. Just tell me if you'd like anything else arranged.");
+  wireScreenOrb('Reports', "What a good week, Carmen. Twelve thousand steps, six Rhythm Tap sessions, and nine conversations with the people you love.");
+
+  // Renders a small, secondary sparkline (not the headline) and lets an
+  // interpreted sentence carry the actual meaning — the CarePredict pattern:
+  // say what it means first, keep the raw shape available but de-emphasized.
+  function renderSparkline(svgId, values, color){
+    const svg = document.getElementById(svgId);
+    const w = 280, h = 40, pad = 4;
+    const min = Math.min(...values), max = Math.max(...values);
+    const range = (max - min) || 1;
+    const pts = values.map((v, i) => {
+      const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+      const y = h - pad - ((v - min) / range) * (h - pad * 2);
+      return [x, y];
+    });
+    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const last = pts[pts.length - 1];
+    svg.innerHTML = `
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+      <circle cx="${last[0]}" cy="${last[1]}" r="4" fill="${color}"/>`;
+  }
+
+  const trendData = [44, 58, 50, 66, 52, 38, 72];
+  document.getElementById('trendInterpreted').innerHTML =
+    `Your heart rate has stayed close to normal all week — <b>today's the steadiest yet</b>.`;
+  renderSparkline('trendSparkline', trendData, '#0F7A50');
+
+  const brainTrend = [61, 68, 59, 74, 70, 65, 84];
+  document.getElementById('brainTrendInterpreted').innerHTML =
+    `Your accuracy has been climbing all week — <b style="color:var(--purple);">today's your best score yet</b>.`;
+  renderSparkline('brainTrendSparkline', brainTrend, '#7C3AED');
+
+  // Small, calm confirmation toast — reused for actions that don't have a
+  // deeper screen built yet in this mockup (Play, Open room, Details).
+  function showToast(label){
+    const toast = document.createElement('div');
+    toast.textContent = label;
+    toast.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#241C30;color:#fff;padding:12px 20px;border-radius:14px;font-weight:700;font-size:15px;z-index:10;box-shadow:0 10px 24px rgba(0,0,0,0.2);max-width:80%;text-align:center;';
+    document.querySelector('.phone').appendChild(toast);
+    setTimeout(()=> toast.remove(), 1300);
+  }
+  document.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', ()=> showToast(`Starting ${b.dataset.play}…`)));
+  document.querySelectorAll('[data-open-room]').forEach(b => b.addEventListener('click', ()=> showToast(`Opening ${b.dataset.openRoom}…`)));
+  document.querySelectorAll('[data-detail]').forEach(b => b.addEventListener('click', ()=> showToast(`${b.dataset.detail} — details`)));
+  document.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', function(){ const r=this.dataset.response; goToScreen('home'); setTimeout(()=>startListening(r), 350); }));
+
+  const orbWrap = document.getElementById('orbWrap');
+  const tapCaption = document.getElementById('tapCaption');
+  const micIcon = document.getElementById('micIcon');
+  const micBars = document.getElementById('micBars');
+
+  // Generalized engine: any screen's orb (element set + text target) can run
+  // the same listening -> responding -> idle sequence. Home wraps this below;
+  // Health gets its own instance so voice can happen in place, not just on Home.
+  //
+  // `target` must be a STABLE object reference (not recreated per-call) —
+  // cancel state (_gen/_active/_timeout) lives on it between calls.
+  function startListeningOn(target, responseText, opts){
+    opts = opts || {};
+    const response = responseText || "I'm here, Carmen. What can I help with?";
+    const { orbEl, captionEl, micIconEl, micBarsEl, textEl } = target;
+    clearTimeout(target._timeout);
+    target._gen = (target._gen || 0) + 1;
+    const gen = target._gen;
+    target._active = true;
+    target._opts = opts; // cancelListeningOn reuses these for consistent idle restoration
+    if(opts.onStart) opts.onStart();
+
+    orbEl.classList.add('listening');
+    captionEl.classList.add('listening');
+    micIconEl.style.display = 'none';
+    micBarsEl.style.display = 'flex';
+    captionEl.textContent = 'Listening…';
+    if(textEl) textEl.style.opacity = 0.3;
+    if(opts.dotsEl) opts.dotsEl.style.opacity = 0;
+
+    target._timeout = setTimeout(()=>{
+      if(target._gen !== gen) return; // cancelled or superseded — abort
+      captionEl.textContent = 'One moment…';
+      setTimeout(()=>{
+        if(target._gen !== gen) return;
+        orbEl.classList.remove('listening');
+        orbEl.classList.add('responding');
+        captionEl.classList.remove('listening');
+        captionEl.textContent = 'VYVA';
+        if(textEl) textEl.style.opacity = 1;
+
+        revealInSyncOn(textEl, response, ()=>{
+          if(target._gen !== gen) return;
+          setTimeout(()=>{
+            if(target._gen !== gen) return;
+            orbEl.classList.remove('responding');
+            micIconEl.style.display = 'block';
+            micBarsEl.style.display = 'none';
+            captionEl.textContent = opts.idleCaption || 'Tap the circle to talk';
+            if(opts.dotsEl) opts.dotsEl.style.opacity = 1;
+            target._active = false;
+            if(opts.onIdle) opts.onIdle();
+          }, 1700); // hold VYVA's answer on screen a beat before resuming
+        });
+      }, 650);
+    }, 2200);
+  }
+
+  // Tapping the orb again while it's listening or responding CANCELS back to
+  // idle immediately — it does not restart the sequence. This was a real gap:
+  // previously the only way out of an accidental orb tap was to wait ~4s for
+  // the full sequence to finish. Confirmed decision: cancel, not restart.
+  function cancelListeningOn(target){
+    if(!target._active) return;
+    target._gen = (target._gen || 0) + 1; // invalidates any in-flight timeouts/reveals
+    clearTimeout(target._timeout);
+    target._active = false;
+    const { orbEl, captionEl, micIconEl, micBarsEl } = target;
+    const opts = target._opts || {};
+    orbEl.classList.remove('listening', 'responding');
+    captionEl.classList.remove('listening');
+    micIconEl.style.display = 'block';
+    micBarsEl.style.display = 'none';
+    captionEl.textContent = opts.idleCaption || 'Tap the circle to talk';
+    if(opts.dotsEl) opts.dotsEl.style.opacity = 1;
+    if(opts.onIdle) opts.onIdle(); // restores default text (Home resumes rotation, detail screens restore default)
+  }
+
+  // Home's target is a single stable object reused by every call — required
+  // for cancel to work (see comment on startListeningOn above).
+  const homeTarget = { orbEl: orbWrap, captionEl: tapCaption, micIconEl: micIcon, micBarsEl: micBars, textEl: null };
+  function startListening(responseText){
+    homeTarget.textEl = momentText; // momentText is declared later in this script; assign at call time
+    startListeningOn(homeTarget, responseText, {
+      dotsEl: dotsWrap,
+      onStart: ()=> clearInterval(timer),
+      onIdle: ()=> { show(idx); startAuto(); }
+    });
+  }
+
+  document.getElementById('orbWrap').addEventListener('click', ()=>{
+    if(homeTarget._active){
+      cancelListeningOn(homeTarget);
+    } else {
+      startListening();
+    }
+  });
+
+  // Reveals text word-by-word at a natural spoken pace (~230ms/word ≈ 260wpm,
+  // adjusted slightly for punctuation pauses) so the caption feels like it's
+  // arriving in sync with speech rather than appearing all at once.
+  function revealInSyncOn(textEl, text, onDone){
+    const words = text.split(' ');
+    textEl.innerHTML = words
+      .map(w => `<span style="opacity:0;transition:opacity .22s ease;">${w}</span>`)
+      .join(' ');
+    const spans = textEl.querySelectorAll('span');
+    let elapsed = 0;
+    spans.forEach((s, i) => {
+      const word = words[i];
+      const pause = /[,]$/.test(word) ? 160 : /[.!?]$/.test(word) ? 280 : 0;
+      setTimeout(()=>{ s.style.opacity = 1; }, elapsed);
+      elapsed += 230 + pause;
+    });
+    if(onDone) setTimeout(onDone, elapsed + 300);
+  }
+
+  // Single unified dock — this replaces BOTH the old 2x2 pillar grid and the
+  // separate bottom nav bar. One navigation system, not two. Rendered into
+  // both screens so the active state always matches where you are.
+  // Dock is now Home / SOS / Reports. Menu (Health, My Brain, Community,
+  // Concierge) moved to the top-right hamburger icon — it's a browsing
+  // destination, not a peer of Home/Reports in daily-use frequency.
+  function buildDock(activeKey){
+    const isHome = activeKey === 'home';
+    const home = { key:'home', color:'#7C3AED', bg:'transparent', icon:'home', label:'Home' };
+    const reports = { key:'reports', color:'#7C5CBF', bg:'#F1EBFB', icon:'reports', label:'Reports' };
+    const render = item => `<div class="dock-item ${item.key===activeKey?'active':''}" data-key="${item.key}">
+      <div class="chip" style="background:${item.bg};">${chip(item.icon,item.color)}</div>
+      <span>${item.label}</span>
+    </div>`;
+    const homeMarkup = isHome
+      ? `<div class="dock-item inert" data-key="home">
+          <div class="chip" style="background:transparent;">${chip('home', '#C7BEDA')}</div>
+          <span style="color:#C7BEDA;">Home</span>
+        </div>`
+      : render(home);
+    return homeMarkup +
+      `<div class="sos-slot">
+        <div class="sos-btn">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 4v9"/><circle cx="12" cy="18.2" r="0.4" fill="#fff"/></svg>
+        </div>
+        <span>SOS</span>
+      </div>` +
+      render(reports);
+  }
+  function wireDock(el){
+    el.querySelectorAll('.dock-item:not(.inert)').forEach(item=>{
+      item.addEventListener('click', ()=> goToScreen(item.dataset.key));
+    });
+  }
+  document.getElementById('dock').innerHTML = buildDock('home');
+  document.getElementById('dockHealth').innerHTML = buildDock(null);
+  document.getElementById('dockBrain').innerHTML = buildDock(null);
+  document.getElementById('dockCommunity').innerHTML = buildDock(null);
+  document.getElementById('dockConcierge').innerHTML = buildDock(null);
+  document.getElementById('dockReports').innerHTML = buildDock('reports');
+  document.getElementById('dockMenu').innerHTML = buildDock(null);
+  document.querySelectorAll('.dock').forEach(wireDock);
+</script>
+</body>
+</html>

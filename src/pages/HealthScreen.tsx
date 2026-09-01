@@ -56,6 +56,7 @@ import ProviderSetupFallbackPanel from "@/components/ProviderSetupFallbackPanel"
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useScreenPresentation } from "@/design/screenPresentation";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { saveShowVyvaActionExecutionPlan } from "@/lib/showVyvaActionExecutorClient";
 import { markShowVyvaReviewHistoryActionSaved } from "@/lib/showVyvaReviewHistory";
@@ -1172,7 +1173,7 @@ export function DailyCheckinCard({
     checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Scheduled for later today.") :
     t("health.dailyCheckin.messages.notScheduled", "Pick a daily check-in time.");
   const primaryLabel =
-    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "My Health Plan") :
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "Longevity Plan") :
     checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check early") :
     checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up") :
     t("health.dailyCheckin.actions.primary", "Check in");
@@ -1225,7 +1226,7 @@ export function DailyCheckinCard({
             onClick={onHistory}
             className="vyva-secondary-action min-h-[58px] text-[17px]"
           >
-            {t("health.dailyCheckin.history", "My Health Plan")}
+            {t("health.dailyCheckin.history", "Longevity Plan")}
           </button>
         ) : null}
       </div>
@@ -1600,6 +1601,7 @@ const HealthScreen = () => {
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
   const { firstName, profile } = useProfile();
+  const healthPresentation = useScreenPresentation({ screenId: "health" });
   const navigate = useNavigate();
   const { guardPath, canUseService } = useServiceGate();
   const location = useLocation();
@@ -2941,7 +2943,7 @@ const HealthScreen = () => {
     {
       id: "plan",
       Icon: ClipboardList,
-      label: t("health.homeTools.plan.label", "Health Plan"),
+      label: t("health.homeTools.plan.label", "Longevity Plan"),
       detail: planToolDetail,
       iconBg: "#F5F3FF",
       iconColor: "#6B21A8",
@@ -2991,16 +2993,14 @@ const HealthScreen = () => {
       },
     },
   ];
-  const preventionCardDetail = preventionFocus?.headline ?? (latestTriage?.chief_complaint
-    ? t("health.master.cards.preventionLatest", "Follow-up: {{topic}}", { topic: latestTriage.chief_complaint })
-    : t("health.master.cards.preventionDetail", "Risks and next steps"));
-  const preventionCardAccent = preventionFocus?.focus ?? t("health.master.cards.preventionReady", "Plan");
+  const preventionCardDetail = t("health.master.cards.longevityDetail", "Prevention is the best cure");
+  const preventionCardAccent = preventionCardDetail;
 
   const healthMasterCards: MasterDashboardCard[] = [
     {
       id: "feel-better",
       icon: HeartPulse,
-      title: t("health.master.cards.feelBetter", "Symptoms Check"),
+      title: t("health.master.cards.feelBetter", "Ask Dr. AI"),
       detail: t("health.homeTools.symptoms.detail", "Start check"),
       accent: t("health.master.cards.symptomsStart", "Start"),
       tone: {
@@ -3016,22 +3016,22 @@ const HealthScreen = () => {
       testId: "button-health-tool-feel-better",
     },
     {
-      id: "my-medication",
-      icon: Pill,
-      title: t("health.master.cards.myMedication", "My Medication"),
-      detail: medicineToolDetail,
-      accent: medicineCardAccent,
+      id: "stay-well",
+      icon: ShieldCheck,
+      title: t("health.master.cards.stayWell", "Longevity"),
+      detail: preventionCardDetail,
+      accent: preventionCardAccent,
       tone: {
-        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
-        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
-        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
+        iconBg: "#ECFDF5",
+        iconColor: "#047857",
+        border: "#BBF7D0",
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to open medicines");
-        guardPath("/meds");
+        sendDoctorUserMessage("I want to review my prevention focus");
+        navigate("/health/prevention-plan");
       },
-      testId: "button-health-tool-my-medication",
+      testId: "button-health-tool-stay-well",
     },
     {
       id: "my-vitals",
@@ -3052,22 +3052,22 @@ const HealthScreen = () => {
       testId: "button-health-tool-my-vitals",
     },
     {
-      id: "stay-well",
-      icon: ShieldCheck,
-      title: t("health.master.cards.stayWell", "Age Well"),
-      detail: preventionCardDetail,
-      accent: preventionCardAccent,
+      id: "my-medication",
+      icon: Pill,
+      title: t("health.master.cards.myMedication", "Medication"),
+      detail: medicineToolDetail,
+      accent: medicineCardAccent,
       tone: {
-        iconBg: "#ECFDF5",
-        iconColor: "#047857",
-        border: "#BBF7D0",
+        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
+        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
+        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to review my prevention focus");
-        navigate("/health/prevention");
+        sendDoctorUserMessage("I want to open medicines");
+        guardPath("/meds");
       },
-      testId: "button-health-tool-stay-well",
+      testId: "button-health-tool-my-medication",
     },
   ];
 
@@ -3212,13 +3212,15 @@ const HealthScreen = () => {
     <>
       <MasterDashboardLayout
         testId="health-master-layout"
+        presentationAttributes={healthPresentation.dataAttributes}
+        presentationClassName={healthPresentation.bottomNavClearanceClassName}
         cardGridTestId="health-master-cards"
         fastHelpTestId="health-fast-help"
         fastHelpTitle={t("health.fastHelp.kicker", "Fast help")}
         hero={{
           icon: Stethoscope,
-          eyebrow: t("health.master.heroEyebrow", "Health Plan"),
-          title: t("health.master.heroTitle", "Health Plan Ready"),
+          eyebrow: t("health.master.heroEyebrow", "Longevity"),
+          title: t("health.master.heroTitle", "Your plan is ready"),
           action: {
             kind: "voice",
             label: t("health.master.talkToVyva", "Talk to VYVA"),

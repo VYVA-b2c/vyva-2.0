@@ -233,7 +233,7 @@ describe("Vitals Hub V1 routes", () => {
       .expect(201);
 
     expect(res.body.saved_count).toBe(2);
-    expect(dbExecuteMock).toHaveBeenCalledTimes(4);
+    expect(dbExecuteMock).toHaveBeenCalledTimes(5);
   });
 
   it("rejects impossible vital values before saving", async () => {
@@ -268,6 +268,60 @@ describe("Vitals Hub V1 routes", () => {
       .expect(201);
 
     expect(res.body.saved_count).toBe(1);
-    expect(dbExecuteMock).toHaveBeenCalledTimes(2);
+    expect(dbExecuteMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("rebuilds the personal baseline and backfills readings without a baseline", async () => {
+    dbExecuteMock
+      .mockResolvedValueOnce({ rows: [{ signal_type: "resting_hr_bpm", context_tag: "resting" }] })
+      .mockResolvedValueOnce({ rows: [60, 62, 64, 66, 68, 70, 72, 74, 76, 78].map((value) => ({ value })) })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .post("/api/vitals-engine/baseline/update")
+      .set("x-user-id", "11111111-1111-4111-8111-111111111111")
+      .send({})
+      .expect(200);
+
+    expect(res.body).toEqual({ updated: 1 });
+    expect(dbExecuteMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps a provisional baseline from affecting readings before ten samples", async () => {
+    dbExecuteMock
+      .mockResolvedValueOnce({ rows: [{ signal_type: "resting_hr_bpm", context_tag: "resting" }] })
+      .mockResolvedValueOnce({ rows: [{ value: 68 }, { value: 70 }, { value: 72 }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .post("/api/vitals-engine/baseline/update")
+      .set("x-user-id", "11111111-1111-4111-8111-111111111111")
+      .send({})
+      .expect(200);
+
+    expect(res.body).toEqual({ updated: 1 });
+    expect(dbExecuteMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps a saved reading when the derived baseline refresh is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    dbExecuteMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "reading-safe", signal_type: "resting_hr_bpm", value: 72 }] })
+      .mockRejectedValueOnce(new Error("baseline unavailable"));
+
+    const res = await request(app)
+      .post("/api/vitals-engine/readings")
+      .set("x-user-id", "11111111-1111-4111-8111-111111111111")
+      .send({ readings: [{ signal_type: "resting_hr_bpm", value: 72 }] })
+      .expect(201);
+
+    expect(res.body.saved_count).toBe(1);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[vitals-engine baseline refresh after save]",
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
   });
 });

@@ -57,6 +57,31 @@ type AgeWellAction = {
   tier_min: number;
 };
 
+type DailyContentType = "exercise" | "meal" | "tip" | "article";
+type DailyContentRow = {
+  id: string;
+  content_type: DailyContentType;
+  title: string;
+  description: string;
+  detail_text: string | null;
+  source_label: string | null;
+  source_url: string | null;
+  condition_tags: string[];
+  pillar_tag: PreventionPillar | null;
+  time_of_day: string | null;
+  language: string;
+  rotation_weight: number;
+};
+
+type PreventionRefreshTrigger =
+  | "symptom_logged"
+  | "vitals_deviation"
+  | "adherence_drop"
+  | "cognitive_drop"
+  | "mood_decline"
+  | "user_requested"
+  | "scheduled";
+
 type RealtimeSignals = {
   tierRaise: number;
   urgentFlags: string[];
@@ -96,6 +121,128 @@ type PendingOutcome = {
   tier_at_generation: number;
   delivered_surface: DeliveredSurface;
 };
+
+type PreventionPillar = "heart" | "brain" | "strength" | "nourishment" | "calm";
+type PreventionPillarStatus = "thriving" | "steady" | "needs_attention" | "priority_focus";
+type PreventionPillarScores = Record<PreventionPillar, PreventionPillarStatus>;
+type PreventionRecommendation = { action: string; why: string };
+type PreventionRecommendations = Record<PreventionPillar, PreventionRecommendation[]>;
+type CrossPillarPattern = {
+  pattern: string;
+  fired: boolean;
+  severity: "needs_attention" | "priority_focus";
+  pillars_affected: PreventionPillar[];
+};
+
+type LongevityPreventionPlan = {
+  id: string | null;
+  user_id: string;
+  generated_at: Date | string | null;
+  period_start: Date;
+  period_end: Date;
+  pillar_heart: PreventionPillarStatus;
+  pillar_brain: PreventionPillarStatus;
+  pillar_strength: PreventionPillarStatus;
+  pillar_nourishment: PreventionPillarStatus;
+  pillar_calm: PreventionPillarStatus;
+  pillar_heart_signals: SummaryMap;
+  pillar_brain_signals: SummaryMap;
+  pillar_strength_signals: SummaryMap;
+  pillar_nourishment_signals: SummaryMap;
+  pillar_calm_signals: SummaryMap;
+  cross_pillar_patterns: CrossPillarPattern[];
+  recommendations: PreventionRecommendations;
+  priority_intervention: string | null;
+  priority_why: string | null;
+  plan_narrative_senior: string | null;
+  plan_narrative_caregiver: string | null;
+  plan_abstract_gp: string | null;
+  trajectory: "improving" | "stable" | "declining" | "first";
+  source_signals: Record<string, boolean>;
+  confidence: string | number | null;
+  priority_pillar: PreventionPillar | null;
+  status: "active" | "superseded" | "archived";
+};
+
+type LongevityActionEventType = "shown" | "opened" | "done" | "too_hard" | "not_relevant";
+
+type LongevityActionEventRow = {
+  action_key: string;
+  action_title: string;
+  event_type: LongevityActionEventType;
+  pillar: PreventionPillar | null;
+  barrier: string | null;
+  source_context: Record<string, unknown> | null;
+  created_at: Date | string;
+};
+
+type LongevityCompanionSignal = {
+  id: string;
+  label: string;
+  detail: string;
+  source: "profile" | "medication" | "brain" | "check-in" | "symptom" | "vitals" | "feedback";
+  pillar: PreventionPillar | null;
+  tone: "steady" | "attention" | "positive";
+};
+
+type LongevityCompanionAction = {
+  action_key: string;
+  content_id?: string | null;
+  title: string;
+  detail: string;
+  pillar: PreventionPillar | null;
+  route: string | null;
+  prompt: string;
+  source: "monthly_plan" | "daily_content" | "feedback_memory" | "fallback";
+};
+
+type LongevityCareSummary = {
+  title: string;
+  bullets: string[];
+  share_text: string;
+};
+
+type LongevityCompanionPayload = {
+  plan: LongevityPreventionPlan;
+  todayFocus: {
+    pillar: PreventionPillar | null;
+    label: string;
+    headline: string;
+    summary: string;
+  };
+  whyToday: string;
+  primaryAction: LongevityCompanionAction;
+  supportAction: LongevityCompanionAction;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
+  careSummary: LongevityCareSummary;
+  signalsUsed: LongevityCompanionSignal[];
+  dailyContent: {
+    exercise: DailyContentRow | null;
+    meal: DailyContentRow | null;
+    tip: DailyContentRow | null;
+    articles: DailyContentRow[];
+    byPillar: Record<PreventionPillar, DailyContentRow[]>;
+  };
+  feedbackHistory: LongevityActionEventRow[];
+};
+
+const PREVENTION_PILLARS: PreventionPillar[] = ["heart", "brain", "strength", "nourishment", "calm"];
+const PREVENTION_STATUS_RANK: Record<PreventionPillarStatus, number> = {
+  thriving: 0,
+  steady: 1,
+  needs_attention: 2,
+  priority_focus: 3,
+};
+
+function emptyDailyContentBundle(): LongevityCompanionPayload["dailyContent"] {
+  return {
+    exercise: null,
+    meal: null,
+    tip: null,
+    articles: [],
+    byPillar: Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [pillar, []])) as Record<PreventionPillar, DailyContentRow[]>,
+  };
+}
 
 const FALLBACK_PROFILE: ProfileSummary = {
   first_name: "there",
@@ -248,9 +395,7 @@ async function resolveProfileId(req: Request, res: Response, requestedUserId?: s
   return activeProfileId;
 }
 
-function storageUserId(profileId: string, accountUserId?: string): string {
-  if (isUuid(profileId)) return profileId;
-  if (isUuid(accountUserId)) return accountUserId;
+function storageUserId(profileId: string, _accountUserId?: string): string {
   return profileId;
 }
 
@@ -318,6 +463,187 @@ async function getUserConditions(userId: string): Promise<string[]> {
     ...conditionRows.map((row) => row.condition),
     ...profileConditions,
   ].filter(Boolean)));
+}
+
+function dailyContentTagsFor(conditions: string[], includeAll = true): string[] {
+  const tags = new Set<string>();
+  if (includeAll) tags.add("all");
+
+  for (const condition of conditions) {
+    const normalized = normalizeConditionTag(condition);
+    if (!normalized) continue;
+    tags.add(normalized);
+    if (normalized === "alzheimers") tags.add("brain");
+    if (normalized === "falls") tags.add("strength");
+    if (normalized === "anxiety") tags.add("calm");
+  }
+
+  return Array.from(tags);
+}
+
+function todaySeed(timezone?: string | null): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en", {
+      timeZone: timezone || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const value = (type: string) => parts.find((part) => part.type === type)?.value;
+    const year = value("year");
+    const month = value("month");
+    const day = value("day");
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {
+    // Fall through to UTC when a stored timezone is invalid.
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
+function normalizeLanguage(value: string | null | undefined): string {
+  const language = String(value ?? "es").trim().toLowerCase().slice(0, 2);
+  return language || "es";
+}
+
+async function getRecentDailyContentIds(userId: string): Promise<string[]> {
+  const rows = await optionalQuery<{ content_id: string }>("longevity_daily_content_log", `
+    select content_id::text as content_id
+    from public.longevity_daily_content_log
+    where user_id = $1 and shown_on >= current_date - interval '14 days'
+  `, [userId]);
+  return rows.map((row) => row.content_id).filter(Boolean);
+}
+
+async function pickDailyContentRows(input: {
+  type?: DailyContentType;
+  types?: DailyContentType[];
+  language: string;
+  conditionTags: string[];
+  recentIds: string[];
+  daySeed: string;
+  allowAllFallback: boolean;
+  limit: number;
+  pillarTag?: PreventionPillar | null;
+  excludeRecent?: boolean;
+}): Promise<DailyContentRow[]> {
+  const tags = input.conditionTags.length > 0 ? input.conditionTags : ["__none__"];
+  const types = input.types ?? (input.type ? [input.type] : ["exercise", "meal", "tip"]);
+  const recentIds = input.excludeRecent === false ? [] : input.recentIds;
+  const rows = await optionalQuery<DailyContentRow>("longevity_daily_content", `
+    select id::text, content_type, title, description, detail_text, source_label, source_url,
+           condition_tags, pillar_tag, time_of_day, language, rotation_weight
+    from public.longevity_daily_content
+    where content_type = any($1::text[])
+      and language = $2
+      and is_active = true
+      and ($8::text is null or pillar_tag = $8::text)
+      and (
+        condition_tags && $3::text[]
+        or ($6::boolean = true and 'all' = any(condition_tags))
+      )
+      and (coalesce(array_length($4::uuid[], 1), 0) = 0 or id <> all($4::uuid[]))
+    order by
+      case when condition_tags && $3::text[] and not ('all' = any(condition_tags)) then 0 else 1 end,
+      (abs(hashtext(id::text || $5::text))::double precision / greatest(rotation_weight, 1)) asc
+    limit $7
+  `, [types, input.language, tags, recentIds, input.daySeed, input.allowAllFallback, input.limit, input.pillarTag ?? null]);
+
+  if (rows.length > 0 || input.language === "es") return rows;
+  return pickDailyContentRows({ ...input, language: "es" });
+}
+
+async function pickDailyContentRowsWithRecentFallback(input: Parameters<typeof pickDailyContentRows>[0]): Promise<DailyContentRow[]> {
+  const freshRows = await pickDailyContentRows({ ...input, excludeRecent: true });
+  if (freshRows.length > 0) return freshRows;
+  return pickDailyContentRows({ ...input, excludeRecent: false });
+}
+
+function logDailyContentShown(userId: string, rows: DailyContentRow[]): void {
+  const shownIds = rows.map((row) => row.id).filter(Boolean);
+  if (shownIds.length === 0) return;
+  void optionalQuery("longevity_daily_content_log", `
+    insert into public.longevity_daily_content_log (user_id, content_id, shown_on)
+    select $1, unnest($2::uuid[]), current_date
+    on conflict (user_id, content_id, shown_on) do nothing
+  `, [userId, shownIds]);
+}
+
+async function getDailyContentBundle(userId: string, conditions: string[], profile: ProfileSummary) {
+  const [recentIds] = await Promise.all([getRecentDailyContentIds(userId)]);
+  const language = normalizeLanguage(profile.language_preference);
+  const conditionTags = dailyContentTagsFor(conditions, false);
+  const seed = todaySeed(profile.timezone);
+
+  const [exerciseRows, mealRows, tipRows, articleRows, pillarEntries] = await Promise.all([
+    pickDailyContentRowsWithRecentFallback({ type: "exercise", language, conditionTags, recentIds, daySeed: `${userId}:exercise:${seed}`, allowAllFallback: true, limit: 1 }),
+    pickDailyContentRowsWithRecentFallback({ type: "meal", language, conditionTags, recentIds, daySeed: `${userId}:meal:${seed}`, allowAllFallback: true, limit: 1 }),
+    pickDailyContentRowsWithRecentFallback({ type: "tip", language, conditionTags, recentIds, daySeed: `${userId}:tip:${seed}`, allowAllFallback: true, limit: 1 }),
+    conditionTags.length > 0
+      ? pickDailyContentRowsWithRecentFallback({ type: "article", language, conditionTags, recentIds, daySeed: `${userId}:article:${seed}`, allowAllFallback: false, limit: 2 })
+      : Promise.resolve([]),
+    Promise.all(PREVENTION_PILLARS.map(async (pillar) => [
+      pillar,
+      await pickDailyContentRowsWithRecentFallback({
+        types: ["exercise", "meal", "tip"],
+        language,
+        conditionTags,
+        recentIds,
+        daySeed: `${userId}:${pillar}:${seed}`,
+        allowAllFallback: true,
+        limit: 5,
+        pillarTag: pillar,
+      }),
+    ] as const)),
+  ]);
+
+  return {
+    exercise: exerciseRows[0] ?? null,
+    meal: mealRows[0] ?? null,
+    tip: tipRows[0] ?? null,
+    articles: articleRows.slice(0, 2),
+    byPillar: Object.fromEntries(pillarEntries) as Record<PreventionPillar, DailyContentRow[]>,
+  };
+}
+
+function uniqueDailyContentRows(rows: DailyContentRow[]): DailyContentRow[] {
+  return Array.from(new Map(rows.map((row) => [row.id, row])).values());
+}
+
+function dailyContentRowsForActions(
+  dailyContent: LongevityCompanionPayload["dailyContent"],
+  actions: LongevityCompanionAction[],
+): DailyContentRow[] {
+  const selectedIds = new Set(actions.map((action) => action.content_id).filter((id): id is string => Boolean(id)));
+  if (selectedIds.size === 0) return [];
+  const availableRows = uniqueDailyContentRows([
+    dailyContent.exercise,
+    dailyContent.meal,
+    dailyContent.tip,
+    ...dailyContent.articles,
+    ...Object.values(dailyContent.byPillar).flat(),
+  ].filter((row): row is DailyContentRow => Boolean(row)));
+  return availableRows.filter((row) => selectedIds.has(row.id));
+}
+
+function worstPreventionPillar(scores: PreventionPillarScores): PreventionPillar | null {
+  return [...PREVENTION_PILLARS]
+    .sort((a, b) => PREVENTION_STATUS_RANK[scores[b]] - PREVENTION_STATUS_RANK[scores[a]])[0] ?? null;
+}
+
+const PREVENTION_REFRESH_TRIGGERS = new Set<PreventionRefreshTrigger>([
+  "symptom_logged",
+  "vitals_deviation",
+  "adherence_drop",
+  "cognitive_drop",
+  "mood_decline",
+  "user_requested",
+  "scheduled",
+]);
+
+function normalizePreventionRefreshTrigger(value: unknown): PreventionRefreshTrigger {
+  return PREVENTION_REFRESH_TRIGGERS.has(value as PreventionRefreshTrigger)
+    ? value as PreventionRefreshTrigger
+    : "user_requested";
 }
 
 async function getConditionProfile(conditions: string[]): Promise<ConditionProfile> {
@@ -1008,6 +1334,926 @@ async function getActiveUserIds(): Promise<string[]> {
   return Array.from(new Set(sources.flat().map((row) => row.user_id).filter(isUuid)));
 }
 
+function asSummary(value: SummaryMap): Record<string, unknown> {
+  return value ?? {};
+}
+
+function numericValue(value: unknown, fallback = 0): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function conditionIncludes(conditions: string[], name: string): boolean {
+  return conditions.some((condition) => normalizeConditionTag(condition) === name || condition.toLowerCase().includes(name));
+}
+
+export function scorePillarHeart(input: {
+  vitals: SummaryMap;
+  meds: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.vitals && !input.meds) return "steady";
+  const vitals = asSummary(input.vitals);
+  const meds = asSummary(input.meds);
+  let score = 0;
+  if (vitals.hr_trend === "elevated") score += 2;
+  if (vitals.hr_trend === "significantly_elevated") score += 3;
+  if (vitals.hrv_trend === "declining") score += 2;
+  if (vitals.bp_deviation === true) score += 2;
+  const adherence = numericValue(meds.cardiac_adherence_pct ?? meds.adherence_pct, 100);
+  if (adherence < 70) score += 2;
+  if (adherence < 50) score += 1;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.vitals, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 6) return "priority_focus";
+  if (weighted >= 3) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarBrain(input: {
+  cognitive: SummaryMap;
+  mood: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.cognitive && !input.mood) return "steady";
+  const cognitive = asSummary(input.cognitive);
+  const mood = asSummary(input.mood);
+  let score = 0;
+  if (cognitive.accuracy_trend === "declining") score += 2;
+  if (numericValue(cognitive.tier_delta) < -1) score += 2;
+  const sessions = numericValue(cognitive.sessions_this_month ?? cognitive.sessions_this_week);
+  if (sessions < 4) score += 1;
+  if (sessions === 0) score += 2;
+  if (mood.trend === "negative") score += 1;
+  if (mood.trend === "significantly_negative") score += 2;
+  if (sessions === 0 && numericValue(mood.check_ins_logged) < 4) score += 2;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.cognitive, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 6) return "priority_focus";
+  if (weighted >= 3) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarStrength(input: {
+  vitals: SummaryMap;
+  conditions: string[];
+  symptoms: SummaryMap;
+  medicationCount: number;
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.vitals && !input.symptoms && input.conditions.length === 0 && input.medicationCount === 0) return "steady";
+  const symptoms = asSummary(input.symptoms);
+  let score = conditionIncludes(input.conditions, "falls") ? 2 : 0;
+  const symptomText = `${String(symptoms.latest_chief_complaint ?? "")} ${JSON.stringify(symptoms.episodes ?? [])}`.toLowerCase();
+  const matches = symptomText.match(/dizz|weak|unstead|fall/g) ?? [];
+  if (matches.length > 0) score += 2;
+  if (matches.length > 2) score += 1;
+  if (input.medicationCount >= 5) score += 1;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.move, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 5) return "priority_focus";
+  if (weighted >= 2) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarNourishment(input: {
+  meds: SummaryMap;
+  mood: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.meds && !input.mood && input.conditions.length === 0) return "steady";
+  const meds = asSummary(input.meds);
+  const mood = asSummary(input.mood);
+  const active = Array.isArray(meds.active) ? meds.active as Array<Record<string, unknown>> : [];
+  let score = active.some((med) => String(med.name ?? "").toLowerCase().includes("metformin")) ? 1 : 0;
+  if (active.some((med) => String(med.therapeutic_class ?? "").toLowerCase().includes("diuretic"))) score += 1;
+  if (mood.trend === "negative" && mood.fatigue_signals === true) score += 1;
+  if (conditionIncludes(input.conditions, "oncology")) score += 2;
+  const weighted = score
+    * numericValue(input.conditionProfile.weighted_domains.eat, 1)
+    * numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  if (weighted >= 4) return "priority_focus";
+  if (weighted >= 2) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function scorePillarCalm(input: {
+  mood: SummaryMap;
+  vitals: SummaryMap;
+  conditions: string[];
+  conditionProfile: ConditionProfile;
+}): PreventionPillarStatus {
+  if (!input.mood && !input.vitals && input.conditions.length === 0) return "steady";
+  const mood = asSummary(input.mood);
+  const vitals = asSummary(input.vitals);
+  let score = 0;
+  if (mood.trend === "negative") score += 2;
+  if (mood.trend === "significantly_negative") score += 3;
+  const checkIns = numericValue(mood.check_ins_logged);
+  if (checkIns < 4) score += 1;
+  if (checkIns === 0) score += 2;
+  if (vitals.hrv_trend === "declining") score += 1;
+  const baseSensitivity = numericValue(input.conditionProfile.escalation_sensitivity, 1);
+  const sensitivity = conditionIncludes(input.conditions, "anxiety") ? Math.min(baseSensitivity, 0.8) : baseSensitivity;
+  const weighted = score * numericValue(input.conditionProfile.weighted_domains.mood, 1) * sensitivity;
+  if (weighted >= 5) return "priority_focus";
+  if (weighted >= 2) return "needs_attention";
+  if (weighted === 0) return "thriving";
+  return "steady";
+}
+
+export function detectCrossPillarPatterns(input: {
+  pillarScores: PreventionPillarScores;
+  vitals: SummaryMap;
+  meds: SummaryMap;
+  cognitive: SummaryMap;
+  mood: SummaryMap;
+  symptoms: SummaryMap;
+}): CrossPillarPattern[] {
+  const vitals = asSummary(input.vitals);
+  const meds = asSummary(input.meds);
+  const cognitive = asSummary(input.cognitive);
+  const mood = asSummary(input.mood);
+  const sessions = numericValue(cognitive.sessions_this_month ?? cognitive.sessions_this_week);
+  const activeCount = numericValue(meds.active_count ?? meds.active_medications);
+  const adherence = numericValue(meds.overall_adherence_pct ?? meds.adherence_pct, 100);
+  return [
+    { pattern: "silent_withdrawal_spiral", fired: sessions === 0 && mood.trend === "negative" && numericValue(mood.check_ins_logged) < 3, severity: "priority_focus", pillars_affected: ["brain", "calm"] },
+    { pattern: "sleep_cognitive_loop", fired: numericValue(mood.morning_vs_evening_delta) < -1.5 && cognitive.accuracy_trend === "declining", severity: "needs_attention", pillars_affected: ["brain", "calm"] },
+    { pattern: "medication_cascade", fired: activeCount >= 5 && adherence < 70 && mood.trend === "negative", severity: "needs_attention", pillars_affected: ["nourishment", "calm"] },
+    { pattern: "cardiovascular_cognitive_convergence", fired: vitals.hr_trend === "elevated" && cognitive.accuracy_trend === "declining", severity: "needs_attention", pillars_affected: ["heart", "brain"] },
+    { pattern: "nutritional_decline", fired: mood.fatigue_signals === true && activeCount >= 3 && mood.trend === "negative", severity: "needs_attention", pillars_affected: ["nourishment", "strength"] },
+  ];
+}
+
+export function resolvePriorityPillar(scores: PreventionPillarScores, conditions: string[]): PreventionPillar | null {
+  const candidates = PREVENTION_PILLARS.filter((pillar) => scores[pillar] === "priority_focus");
+  if (candidates.length === 0) return null;
+  const preferred = conditionIncludes(conditions, "alzheimers") ? "brain"
+    : conditionIncludes(conditions, "heart") ? "heart"
+      : conditionIncludes(conditions, "falls") ? "strength"
+        : null;
+  return preferred && candidates.includes(preferred) ? preferred : candidates[0];
+}
+
+export function enforceSinglePriority(scores: PreventionPillarScores, priority: PreventionPillar | null): PreventionPillarScores {
+  return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [
+    pillar,
+    scores[pillar] === "priority_focus" && pillar !== priority ? "needs_attention" : scores[pillar],
+  ])) as PreventionPillarScores;
+}
+
+function computePreventionTrajectory(scores: PreventionPillarScores, previous: LongevityPreventionPlan | null): LongevityPreventionPlan["trajectory"] {
+  if (!previous) return "first";
+  const currentTotal = PREVENTION_PILLARS.reduce((total, pillar) => total + PREVENTION_STATUS_RANK[scores[pillar]], 0);
+  const previousTotal = PREVENTION_PILLARS.reduce((total, pillar) => total + PREVENTION_STATUS_RANK[previous[`pillar_${pillar}`]], 0);
+  if (currentTotal < previousTotal) return "improving";
+  if (currentTotal > previousTotal) return "declining";
+  return "stable";
+}
+
+const PREVENTION_RECOMMENDATIONS: Record<PreventionPillar, Record<PreventionPillarStatus, PreventionRecommendation[]>> = {
+  heart: {
+    thriving: [{ action: "Keep your daily walk going", why: "Consistency supports your heart over time." }, { action: "Keep medicine timing consistent", why: "A regular routine makes daily care easier." }],
+    steady: [{ action: "Walk after lunch four days this week", why: "A steady walk supports circulation and energy." }, { action: "Use less salt at one meal each day", why: "Small changes can support your heart." }],
+    needs_attention: [{ action: "Take a steady walk four days this week", why: "Regular movement is a strong heart-health habit." }, { action: "Set a daily medicine reminder", why: "A simple reminder supports consistency." }],
+    priority_focus: [{ action: "Start with a gentle walk today", why: "Movement is the most useful step for this month." }, { action: "Check today's medicine routine", why: "Consistency matters most right now." }],
+  },
+  brain: {
+    thriving: [{ action: "Keep up your Brain Coach sessions", why: "Regular challenge supports the progress you have built." }, { action: "Call someone you enjoy this week", why: "Connection supports memory and wellbeing." }],
+    steady: [{ action: "Try Brain Coach each day this week", why: "Regularity matters more than duration." }, { action: "Aim for the same bedtime each night", why: "Rest supports attention and memory." }],
+    needs_attention: [{ action: "Try ten minutes of Brain Coach daily", why: "A short streak can rebuild momentum." }, { action: "Plan one meaningful conversation", why: "Social connection keeps the mind engaged." }],
+    priority_focus: [{ action: "Set a consistent bedtime starting tonight", why: "Rest is the foundation for this month's brain focus." }, { action: "Open Brain Coach once each day", why: "Small, regular sessions support continuity." }],
+  },
+  strength: {
+    thriving: [{ action: "Keep moving every day", why: "Any comfortable movement counts." }, { action: "Include protein at each meal", why: "Daily protein supports muscle." }],
+    steady: [{ action: "Try ten minutes of chair exercises daily", why: "Seated strength work supports stability." }, { action: "Clear your walking path tonight", why: "A clear route makes movement easier and safer." }],
+    needs_attention: [{ action: "Do chair exercises each morning", why: "A routine is easier to maintain than occasional exercise." }, { action: "Walk through your home and remove obstacles", why: "A clear home supports confident movement." }],
+    priority_focus: [{ action: "Begin with ten minutes of seated strength work", why: "Strength is the most useful focus this month." }, { action: "Arrange a home safety check this week", why: "Practical changes can support stability." }],
+  },
+  nourishment: {
+    thriving: [{ action: "Keep adding colour to your plate", why: "Variety supports balanced eating." }, { action: "Keep water within easy reach", why: "Regular hydration supports energy and clarity." }],
+    steady: [{ action: "Add a protein food to each meal", why: "Daily protein supports strength and recovery." }, { action: "Set simple water reminders", why: "A prompt makes hydration easier to remember." }],
+    needs_attention: [{ action: "Choose protein first at each meal", why: "This is a simple way to support daily nourishment." }, { action: "Ask VYVA for an easy meal idea", why: "A little planning can make meals easier." }],
+    priority_focus: [{ action: "Plan protein and water for today", why: "These are the most useful nourishment steps this month." }, { action: "Ask Concierge to help plan this week's food", why: "Practical support can make the plan easier." }],
+  },
+  calm: {
+    thriving: [{ action: "Repeat the wind-down that worked recently", why: "Keeping the same cue protects a routine that already feels manageable." }, { action: "Keep one quiet pause in the day", why: "A familiar pause is easier to keep than a new habit." }],
+    steady: [{ action: "Open the Breath Garden for two minutes", why: "A short reset fits days when calm support is useful." }, { action: "Choose tonight's wind-down time", why: "A predictable evening gives the day a softer landing." }],
+    needs_attention: [{ action: "Start with one two-minute Breath Garden reset", why: "The step stays small while mood or rest signals need support." }, { action: "Message someone who lifts your spirits", why: "Connection can make a difficult day feel lighter." }],
+    priority_focus: [{ action: "Pick one calm reset after breakfast", why: "Anchoring the step to an existing moment makes it easier to repeat." }, { action: "Make one meaningful social contact today", why: "Connection supports emotional wellbeing." }],
+  },
+};
+
+const PILLAR_LABELS: Record<PreventionPillar, string> = {
+  heart: "Heart and circulation",
+  brain: "Brain and memory",
+  strength: "Strength and stability",
+  nourishment: "Nourishment",
+  calm: "Calm and recovery",
+};
+
+function lowerFirstText(value: string): string {
+  return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function sentence(value: string): string {
+  const clean = oneLine(value);
+  if (!clean) return clean;
+  return /[.!?]$/.test(clean) ? clean : clean + ".";
+}
+
+function actionKeyFor(pillar: PreventionPillar | null, title: string): string {
+  const slug = oneLine(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
+  return `${pillar ?? "general"}:${slug || "action"}`;
+}
+
+function deterministicScore(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function statusForPillar(plan: LongevityPreventionPlan, pillar: PreventionPillar): PreventionPillarStatus {
+  return plan[`pillar_${pillar}`];
+}
+
+function priorityPillarForPlan(plan: LongevityPreventionPlan): PreventionPillar | null {
+  if (plan.priority_pillar) return plan.priority_pillar;
+  return worstPreventionPillar({
+    heart: plan.pillar_heart,
+    brain: plan.pillar_brain,
+    strength: plan.pillar_strength,
+    nourishment: plan.pillar_nourishment,
+    calm: plan.pillar_calm,
+  });
+}
+
+function pillarRecommendationOptions(plan: LongevityPreventionPlan, pillar: PreventionPillar): PreventionRecommendation[] {
+  const planned = safeJson<PreventionRecommendations>(plan.recommendations, {} as PreventionRecommendations)[pillar] ?? [];
+  const fromPriority = plan.priority_pillar === pillar && plan.priority_intervention
+    ? [{ action: plan.priority_intervention, why: plan.priority_why ?? planned[0]?.why ?? "This is the current priority step." }]
+    : [];
+  return [...fromPriority, ...planned];
+}
+
+function conditionTagLabel(tag: string): string {
+  if (tag === "alzheimers") return "memory";
+  if (tag === "falls") return "mobility";
+  if (tag === "heart") return "heart";
+  if (tag === "diabetes") return "glucose";
+  if (tag === "anxiety") return "calm";
+  if (tag === "oncology") return "oncology";
+  return tag;
+}
+
+function signal(
+  id: string,
+  label: string,
+  detail: string,
+  source: LongevityCompanionSignal["source"],
+  pillar: PreventionPillar | null,
+  tone: LongevityCompanionSignal["tone"] = "attention",
+): LongevityCompanionSignal {
+  return { id, label, detail: sentence(detail), source, pillar, tone };
+}
+
+function buildCompanionSignals(input: {
+  conditions: string[];
+  vitals: SummaryMap;
+  meds: SummaryMap;
+  cognitive: SummaryMap;
+  mood: SummaryMap;
+  symptoms: SummaryMap;
+  feedbackHistory: LongevityActionEventRow[];
+}): LongevityCompanionSignal[] {
+  const signals: LongevityCompanionSignal[] = [];
+  const conditionTags = Array.from(new Set(input.conditions.map(normalizeConditionTag).filter((tag): tag is string => Boolean(tag))));
+  if (conditionTags.length > 0) {
+    const labels = conditionTags.slice(0, 3).map(conditionTagLabel).join(", ");
+    signals.push(signal("profile-conditions", "Profile context", `Your profile includes ${labels} context`, "profile", null, "steady"));
+  }
+
+  const meds = asSummary(input.meds);
+  const missedDoses = numericValue(meds.missed_doses);
+  const activeMeds = numericValue(meds.active_medications);
+  if (missedDoses > 0) {
+    signals.push(signal("meds-missed", "Medicine routine", `${missedDoses} missed or late medicine logs appeared in the recent window`, "medication", "heart"));
+  } else if (activeMeds > 0) {
+    signals.push(signal("meds-active", "Medicine routine", `${activeMeds} active medicines are part of the plan context`, "medication", "heart", "steady"));
+  }
+
+  const cognitive = asSummary(input.cognitive);
+  const sessions = numericValue(cognitive.sessions_this_week ?? cognitive.sessions_this_month);
+  if (input.cognitive && sessions === 0) {
+    signals.push(signal("brain-no-sessions", "Brain Coach", "No recent Brain Coach sessions are logged", "brain", "brain"));
+  } else if (input.cognitive && sessions > 0) {
+    signals.push(signal("brain-sessions", "Brain Coach", `${sessions} recent Brain Coach sessions are logged`, "brain", "brain", "positive"));
+  }
+  if (cognitive.accuracy_trend === "declining") {
+    signals.push(signal("brain-trend", "Brain Coach", "Recent Brain Coach accuracy has been lower", "brain", "brain"));
+  }
+
+  const mood = asSummary(input.mood);
+  const poorSleep = numericValue(mood.poor_sleep_count);
+  const checkIns = numericValue(mood.check_ins_logged);
+  if (poorSleep > 0) {
+    signals.push(signal("sleep-checkins", "Sleep check-ins", `${poorSleep} poor-sleep check-ins are in the recent window`, "check-in", "calm"));
+  }
+  if (mood.trend === "negative") {
+    signals.push(signal("mood-trend", "Check-ins", "Recent check-ins point to lower energy or mood", "check-in", "calm"));
+  } else if (checkIns > 0) {
+    signals.push(signal("checkins-present", "Check-ins", `${checkIns} recent check-ins are available`, "check-in", "calm", "steady"));
+  }
+
+  const symptoms = asSummary(input.symptoms);
+  const complaint = oneLine(String(symptoms.latest_chief_complaint ?? ""));
+  if (complaint) {
+    signals.push(signal("latest-symptom", "Recent symptom", `Latest symptom report: ${complaint}`, "symptom", "strength"));
+  }
+
+  const vitals = asSummary(input.vitals);
+  const latestMessage = oneLine(String(vitals.latest_message ?? ""));
+  const patterns = arrayOfText(vitals.pattern_labels);
+  if (latestMessage) {
+    signals.push(signal("vitals-message", "Vitals", latestMessage, "vitals", "heart"));
+  } else if (patterns.length > 0) {
+    signals.push(signal("vitals-patterns", "Vitals", `Recent readings include ${patterns.slice(0, 2).join(" and ")}`, "vitals", "heart"));
+  }
+
+  const recentHard = input.feedbackHistory.find((event) => event.event_type === "too_hard");
+  const recentIrrelevant = input.feedbackHistory.find((event) => event.event_type === "not_relevant");
+  if (recentHard) {
+    signals.push(signal("feedback-hard", "Your feedback", `"${recentHard.action_title}" was marked too hard recently`, "feedback", recentHard.pillar, "steady"));
+  } else if (recentIrrelevant) {
+    signals.push(signal("feedback-not-relevant", "Your feedback", `"${recentIrrelevant.action_title}" was marked not relevant recently`, "feedback", recentIrrelevant.pillar, "steady"));
+  }
+
+  return signals.slice(0, 8);
+}
+
+function eventAgeDays(event: LongevityActionEventRow): number {
+  const date = new Date(event.created_at);
+  if (Number.isNaN(date.getTime())) return 999;
+  return (Date.now() - date.getTime()) / (24 * 60 * 60 * 1000);
+}
+
+function suppressedActionKeys(feedbackHistory: LongevityActionEventRow[]): Set<string> {
+  const keys = new Set<string>();
+  for (const event of feedbackHistory) {
+    const age = eventAgeDays(event);
+    if (event.event_type === "not_relevant" && age <= 30) keys.add(event.action_key);
+    if (event.event_type === "too_hard" && age <= 7) keys.add(event.action_key);
+    if (event.event_type === "done" && age <= 1) keys.add(event.action_key);
+  }
+  return keys;
+}
+
+function routeForCompanionAction(title: string, pillar: PreventionPillar | null): string | null {
+  const text = title.toLowerCase();
+  if (text.includes("brain coach") || pillar === "brain") return "/mind";
+  if (text.includes("breath") || text.includes("breathing") || pillar === "calm") return "/games/breath-garden";
+  if (text.includes("walk") || text.includes("chair") || text.includes("strength") || pillar === "strength") return "/health/exercises/gentle-walk";
+  if (text.includes("medicine") || text.includes("medication")) return "/health/medications";
+  if (text.includes("food") || text.includes("protein") || text.includes("water") || pillar === "nourishment") return null;
+  if (text.includes("concierge")) return "/concierge";
+  return null;
+}
+
+function fallbackRecommendationForPillar(pillar: PreventionPillar | null): PreventionRecommendation {
+  if (pillar === "brain") return { action: "Open one familiar Brain Coach round", why: "One familiar round keeps the step small and specific." };
+  if (pillar === "heart") return { action: "Take a short walk after lunch", why: "A walk tied to lunch is easier to remember." };
+  if (pillar === "strength") return { action: "Do one supported chair-strength round", why: "Supported movement keeps the step practical." };
+  if (pillar === "nourishment") return { action: "Choose protein with your next meal", why: "Protein with a meal is a clear nourishment step." };
+  if (pillar === "calm") return { action: "Open a two-minute breathing reset", why: "Two minutes is enough to start." };
+  return { action: "Choose one small wellbeing step", why: "One clear step makes the plan easier to begin." };
+}
+
+function bestSignalForPillar(signals: LongevityCompanionSignal[], pillar: PreventionPillar | null): LongevityCompanionSignal | null {
+  return signals.find((item) => item.pillar === pillar && item.source !== "feedback")
+    ?? signals.find((item) => item.pillar === pillar)
+    ?? signals.find((item) => item.source !== "profile")
+    ?? signals[0]
+    ?? null;
+}
+
+function recommendationToAction(
+  recommendation: PreventionRecommendation,
+  pillar: PreventionPillar | null,
+  signals: LongevityCompanionSignal[],
+  whyToday: string,
+): LongevityCompanionAction {
+  const actionSignal = bestSignalForPillar(signals, pillar);
+  const detail = recommendation.why || actionSignal?.detail || whyToday;
+  return {
+    action_key: actionKeyFor(pillar, recommendation.action),
+    title: recommendation.action,
+    detail: sentence(detail),
+    pillar,
+    route: routeForCompanionAction(recommendation.action, pillar),
+    prompt: `Help me with today's longevity step: ${recommendation.action}. Context: ${whyToday}`,
+    source: "monthly_plan",
+  };
+}
+
+function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar | null, whyToday: string): LongevityCompanionAction {
+  const actionPillar = content.pillar_tag ?? pillar;
+  return {
+    action_key: actionKeyFor(actionPillar, content.title),
+    content_id: content.id,
+    title: content.title,
+    detail: sentence(content.description),
+    pillar: actionPillar,
+    route: routeForCompanionAction(content.title, actionPillar),
+    prompt: `Help me make this longevity step easy today: ${content.title}. Context: ${whyToday}`,
+    source: "daily_content",
+  };
+}
+
+function dailyContentOptionsForPillar(dailyContent: LongevityCompanionPayload["dailyContent"], pillar: PreventionPillar): DailyContentRow[] {
+  const pillarRows = dailyContent.byPillar[pillar] ?? [];
+  if (pillarRows.length > 0) return pillarRows;
+  return [dailyContent.tip, dailyContent.exercise, dailyContent.meal]
+    .filter((item): item is DailyContentRow => Boolean(item) && item.pillar_tag === pillar);
+}
+
+function rotatedDailyContentOptions(input: {
+  rows: DailyContentRow[];
+  userId: string;
+  pillar: PreventionPillar;
+  rotationDate: string;
+}): DailyContentRow[] {
+  return [...input.rows].sort((a, b) => {
+    const aScore = deterministicScore(`${input.userId}:${input.pillar}:${input.rotationDate}:${a.id}`) / Math.max(1, a.rotation_weight);
+    const bScore = deterministicScore(`${input.userId}:${input.pillar}:${input.rotationDate}:${b.id}`) / Math.max(1, b.rotation_weight);
+    return aScore - bScore;
+  });
+}
+
+function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityActionEventRow, whyToday: string): LongevityCompanionAction {
+  const titleByPillar: Record<PreventionPillar, string> = {
+    heart: "Make the heart step smaller",
+    brain: "Make the Brain Coach step smaller",
+    strength: "Make the movement step smaller",
+    nourishment: "Make the food step simpler",
+    calm: "Make the calm step shorter",
+  };
+  const detailByPillar: Record<PreventionPillar, string> = {
+    heart: `You marked "${recentHard.action_title}" too hard, so try one easier cue today.`,
+    brain: `You marked "${recentHard.action_title}" too hard, so start with one familiar round only.`,
+    strength: `You marked "${recentHard.action_title}" too hard, so do the supported version only.`,
+    nourishment: `You marked "${recentHard.action_title}" too hard, so choose the simplest version at your next meal.`,
+    calm: `You marked "${recentHard.action_title}" too hard, so start with two quiet minutes only.`,
+  };
+  return {
+    action_key: actionKeyFor(pillar, titleByPillar[pillar]),
+    title: titleByPillar[pillar],
+    detail: detailByPillar[pillar],
+    pillar,
+    route: routeForCompanionAction(titleByPillar[pillar], pillar),
+    prompt: `Make a smaller ${PILLAR_LABELS[pillar]} step for today. Context: ${whyToday}`,
+    source: "feedback_memory",
+  };
+}
+
+function buildPillarAction(input: {
+  plan: LongevityPreventionPlan;
+  pillar: PreventionPillar;
+  signals: LongevityCompanionSignal[];
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate: string;
+}): LongevityCompanionAction {
+  const suppressed = suppressedActionKeys(input.feedbackHistory);
+  const whyForPillar = buildWhyToday(input.pillar, input.signals, input.plan);
+  const recentHard = input.feedbackHistory.find((event) =>
+    event.event_type === "too_hard"
+    && event.pillar === input.pillar
+    && eventAgeDays(event) <= 7);
+  if (recentHard) return smallerActionForPillar(input.pillar, recentHard, whyForPillar);
+
+  const contentCandidates = rotatedDailyContentOptions({
+    rows: dailyContentOptionsForPillar(input.dailyContent, input.pillar),
+    userId: input.plan.user_id,
+    pillar: input.pillar,
+    rotationDate: input.rotationDate,
+  }).map((content) => dailyContentToAction(content, input.pillar, whyForPillar));
+
+  const recommendationCandidates = pillarRecommendationOptions(input.plan, input.pillar)
+    .map((recommendation) => recommendationToAction(recommendation, input.pillar, input.signals, whyForPillar));
+
+  const candidates = [...contentCandidates, ...recommendationCandidates];
+  return candidates.find((action) => !suppressed.has(action.action_key))
+    ?? recommendationToAction(fallbackRecommendationForPillar(input.pillar), input.pillar, input.signals, whyForPillar);
+}
+
+function buildPillarActions(input: {
+  plan: LongevityPreventionPlan;
+  signals: LongevityCompanionSignal[];
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate: string;
+}): Record<PreventionPillar, LongevityCompanionAction> {
+  return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [
+    pillar,
+    buildPillarAction({ ...input, pillar }),
+  ])) as Record<PreventionPillar, LongevityCompanionAction>;
+}
+
+function buildWhyToday(pillar: PreventionPillar | null, signals: LongevityCompanionSignal[], plan: LongevityPreventionPlan): string {
+  const label = pillar ? PILLAR_LABELS[pillar] : "Longevity";
+  const strongest = bestSignalForPillar(signals, pillar);
+  if (strongest) {
+    return sentence(`${label} comes first today because ${lowerFirstText(strongest.detail)}`);
+  }
+  if (plan.priority_why) return sentence(plan.priority_why);
+  return sentence(`${label} is the current monthly focus, so VYVA is starting with one small action today`);
+}
+
+function buildCareSummary(input: {
+  profile: ProfileSummary;
+  whyToday: string;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
+  signals: LongevityCompanionSignal[];
+}): LongevityCareSummary {
+  const title = `Longevity summary for ${input.profile.first_name}`;
+  const bullets = [
+    input.whyToday,
+    ...PREVENTION_PILLARS.map((pillar) => `${PILLAR_LABELS[pillar]}: ${input.pillarActions[pillar].title}.`),
+    ...input.signals.slice(0, 3).map((item) => `${item.label}: ${item.detail}`),
+  ].map(sentence);
+  return {
+    title,
+    bullets,
+    share_text: [title, ...bullets.map((item) => "- " + item)].join("\n"),
+  };
+}
+
+function buildTodayFocusHeadline(profile: ProfileSummary, pillar: PreventionPillar | null, strongestSignal: LongevityCompanionSignal | null): string {
+  const lead = profile.first_name ? `${profile.first_name}, ` : "";
+  if (pillar === "brain") {
+    if (strongestSignal?.id === "brain-no-sessions") return `${lead}restart Brain Coach gently today`;
+    if (strongestSignal?.id === "brain-trend") return `${lead}keep memory practice small today`;
+    return `${lead}keep memory practice simple today`;
+  }
+  if (pillar === "heart") {
+    if (strongestSignal?.id === "meds-missed") return `${lead}steady the medicine routine today`;
+    return `${lead}support circulation with one small step`;
+  }
+  if (pillar === "strength") {
+    if (strongestSignal?.id === "latest-symptom") return `${lead}keep movement practical today`;
+    return `${lead}support stability with one small move`;
+  }
+  if (pillar === "nourishment") return `${lead}make food and water easier today`;
+  if (pillar === "calm") {
+    if (strongestSignal?.id === "sleep-checkins") return `${lead}make today easier on rest`;
+    return `${lead}start with one calmer moment today`;
+  }
+  return `${lead}start with one useful step today`;
+}
+
+function fallbackPreventionPlan(userId: string): LongevityPreventionPlan {
+  return {
+    id: null,
+    user_id: userId,
+    generated_at: null,
+    period_start: daysAgo(90),
+    period_end: new Date(),
+    pillar_heart: "steady",
+    pillar_brain: "steady",
+    pillar_strength: "steady",
+    pillar_nourishment: "steady",
+    pillar_calm: "steady",
+    pillar_heart_signals: null,
+    pillar_brain_signals: null,
+    pillar_strength_signals: null,
+    pillar_nourishment_signals: null,
+    pillar_calm_signals: null,
+    cross_pillar_patterns: [],
+    recommendations: preventionRecommendations({ heart: "steady", brain: "steady", strength: "steady", nourishment: "steady", calm: "steady" }),
+    priority_intervention: null,
+    priority_why: null,
+    plan_narrative_senior: null,
+    plan_narrative_caregiver: null,
+    plan_abstract_gp: null,
+    trajectory: "first",
+    source_signals: {},
+    confidence: 0.25,
+    priority_pillar: null,
+    status: "active",
+  };
+}
+
+export function composeLongevityCompanionPayload(input: {
+  plan: LongevityPreventionPlan;
+  profile: ProfileSummary;
+  conditions: string[];
+  vitals: SummaryMap;
+  meds: SummaryMap;
+  cognitive: SummaryMap;
+  mood: SummaryMap;
+  symptoms: SummaryMap;
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate?: string;
+}): LongevityCompanionPayload {
+  const priorityPillar = priorityPillarForPlan(input.plan);
+  const signals = buildCompanionSignals(input);
+  const whyToday = buildWhyToday(priorityPillar, signals, input.plan);
+  const rotationDate = input.rotationDate ?? todaySeed(input.profile.timezone);
+  const pillarActions = buildPillarActions({
+    plan: input.plan,
+    signals,
+    dailyContent: input.dailyContent,
+    feedbackHistory: input.feedbackHistory,
+    rotationDate,
+  });
+  const primaryAction = priorityPillar ? pillarActions[priorityPillar] : pillarActions.brain;
+  const supportPillar = [...PREVENTION_PILLARS]
+    .filter((pillar) => pillar !== primaryAction.pillar)
+    .sort((a, b) => PREVENTION_STATUS_RANK[statusForPillar(input.plan, b)] - PREVENTION_STATUS_RANK[statusForPillar(input.plan, a)])[0] ?? "heart";
+  const supportAction = pillarActions[supportPillar];
+  const focusLabel = priorityPillar ? PILLAR_LABELS[priorityPillar] : "Longevity";
+  const strongestSignal = bestSignalForPillar(signals, priorityPillar);
+  const headline = buildTodayFocusHeadline(input.profile, priorityPillar, strongestSignal);
+
+  return {
+    plan: input.plan,
+    todayFocus: {
+      pillar: priorityPillar,
+      label: focusLabel,
+      headline,
+      summary: strongestSignal?.detail ?? whyToday,
+    },
+    whyToday,
+    primaryAction,
+    supportAction,
+    pillarActions,
+    careSummary: buildCareSummary({ profile: input.profile, whyToday, pillarActions, signals }),
+    signalsUsed: signals,
+    dailyContent: input.dailyContent,
+    feedbackHistory: input.feedbackHistory,
+  };
+}
+
+async function getRecentPlanActionEvents(userId: string): Promise<LongevityActionEventRow[]> {
+  return optionalQuery<LongevityActionEventRow>("longevity_action_events", `
+    select action_key, action_title, event_type, pillar, barrier, source_context, created_at
+    from public.longevity_action_events
+    where user_id = $1
+      and created_at >= now() - interval '30 days'
+    order by created_at desc
+    limit 40
+  `, [userId]);
+}
+
+async function getFreshPreventionPlan(userId: string): Promise<LongevityPreventionPlan> {
+  const stored = await getLatestPreventionPlan(userId);
+  if (stored && stored.generated_at && Date.now() - new Date(stored.generated_at).getTime() < 35 * 24 * 60 * 60 * 1000) {
+    return stored;
+  }
+  return runPreventionPlanSynthesis(userId);
+}
+
+function normalizePreventionPillar(value: unknown): PreventionPillar | null {
+  return PREVENTION_PILLARS.includes(value as PreventionPillar) ? value as PreventionPillar : null;
+}
+
+function normalizeLongevityActionEventType(value: unknown): LongevityActionEventType | null {
+  return ["shown", "opened", "done", "too_hard", "not_relevant"].includes(String(value))
+    ? value as LongevityActionEventType
+    : null;
+}
+
+async function recordLongevityActionEvent(input: {
+  userId: string;
+  planId: string | null;
+  pillar: PreventionPillar | null;
+  actionKey: string;
+  actionTitle: string;
+  eventType: LongevityActionEventType;
+  barrier: string | null;
+  sourceContext: Record<string, unknown>;
+}): Promise<void> {
+  await optionalQuery("longevity_action_events", `
+    insert into public.longevity_action_events
+      (user_id, plan_id, pillar, action_key, action_title, event_type, barrier, source_context)
+    values ($1, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb)
+  `, [
+    input.userId,
+    input.planId,
+    input.pillar,
+    input.actionKey,
+    input.actionTitle,
+    input.eventType,
+    input.barrier,
+    JSON.stringify(input.sourceContext),
+  ]);
+}
+
+async function getLatestPreventionPlan(userId: string): Promise<LongevityPreventionPlan | null> {
+  const rows = await optionalQuery<LongevityPreventionPlan>("longevity_prevention_plans", `
+    select * from public.longevity_prevention_plans
+    where user_id = $1 and status = 'active'
+    order by generated_at desc limit 1
+  `, [userId]);
+  return rows[0] ?? null;
+}
+
+function preventionRecommendations(scores: PreventionPillarScores): PreventionRecommendations {
+  return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [pillar, PREVENTION_RECOMMENDATIONS[pillar][scores[pillar]]])) as PreventionRecommendations;
+}
+
+async function synthesizePreventionPlan(input: {
+  pillarScores: PreventionPillarScores;
+  priorityPillar: PreventionPillar | null;
+  crossPillarPatterns: CrossPillarPattern[];
+  conditionProfile: ConditionProfile;
+  profile: ProfileSummary;
+}): Promise<{
+  recommendations: PreventionRecommendations;
+  seniorNarrative: string;
+  caregiverNarrative: string;
+  gpAbstract: string;
+  priorityIntervention: string;
+  priorityWhy: string;
+}> {
+  const recommendations = preventionRecommendations(input.pillarScores);
+  const focus = input.priorityPillar ?? [...PREVENTION_PILLARS].sort((a, b) => PREVENTION_STATUS_RANK[input.pillarScores[b]] - PREVENTION_STATUS_RANK[input.pillarScores[a]])[0];
+  const first = recommendations[focus][0];
+  const fallback = {
+    recommendations,
+    seniorNarrative: `${input.profile.first_name}, this month we are keeping your plan simple and practical. Your main focus is ${focus}, with small steps you can build into your day. Start with one action and add more only when it feels comfortable.`,
+    caregiverNarrative: `Monthly wellness plan generated from available 90-day signals. Primary lifestyle domain: ${focus}.`,
+    gpAbstract: `A 90-day general-wellness summary was generated across heart, cognitive, strength, nourishment, and calm domains. The current lifestyle focus is ${focus}.`,
+    priorityIntervention: first?.action ?? "Choose one small wellbeing action today",
+    priorityWhy: first?.why ?? "One clear step makes the plan easier to begin.",
+  };
+  if (!process.env.ANTHROPIC_API_KEY) return fallback;
+
+  const fired = input.crossPillarPatterns.filter((pattern) => pattern.fired).map((pattern) => pattern.pattern);
+  const system = `You write VYVA monthly longevity wellness plans for adults 65+.
+Condition context: ${input.conditionProfile.framing_note}
+Never diagnose, predict illness, recommend medication changes, or use these words in senior-facing text: risk, elevated, abnormal, diagnosis, critical, dangerous.
+Every recommendation is a lifestyle action. For clinical matters say "worth discussing with your doctor."
+Senior text: warm, personal, 3-5 sentences, first name ${input.profile.first_name}, language ${input.profile.language_preference || "es"}.
+Caregiver and GP text: factual, in English. The deterministic statuses are fixed and must not be changed.`;
+  const prompt = `Pillar statuses: ${JSON.stringify(input.pillarScores)}
+Priority pillar: ${focus}
+Patterns: ${fired.length ? fired.join(", ") : "none"}
+Actions: ${JSON.stringify(recommendations)}
+Produce exactly:
+SENIOR_NARRATIVE: [text]
+PRIORITY_INTERVENTION: [one verb-led sentence]
+PRIORITY_WHY: [one sentence]
+CAREGIVER_NARRATIVE: [text]
+GP_ABSTRACT: [one paragraph]`;
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 600,
+      system,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const block = response.content[0];
+    const text = block?.type === "text" ? block.text : "";
+    const read = (label: string, next?: string) => text.match(new RegExp(`${label}:\\s*([\\s\\S]+?)${next ? `(?=${next}:|$)` : "$"}`, "i"))?.[1]?.trim() ?? "";
+    return {
+      recommendations,
+      seniorNarrative: read("SENIOR_NARRATIVE", "PRIORITY_INTERVENTION") || fallback.seniorNarrative,
+      priorityIntervention: read("PRIORITY_INTERVENTION", "PRIORITY_WHY") || fallback.priorityIntervention,
+      priorityWhy: read("PRIORITY_WHY", "CAREGIVER_NARRATIVE") || fallback.priorityWhy,
+      caregiverNarrative: read("CAREGIVER_NARRATIVE", "GP_ABSTRACT") || fallback.caregiverNarrative,
+      gpAbstract: read("GP_ABSTRACT") || fallback.gpAbstract,
+    };
+  } catch (err) {
+    console.error("[PreventionPlan] LLM synthesis failed:", err);
+    return fallback;
+  }
+}
+
+export async function runPreventionPlanSynthesis(userId: string): Promise<LongevityPreventionPlan> {
+  if (!userId.trim()) throw new Error("A profile ID is required for prevention plan synthesis");
+  const periodEnd = new Date();
+  const periodStart = daysAgo(90);
+  const [vitals, meds, cognitive, mood, symptoms, conditions, profile] = await Promise.all([
+    getVitalsSummary(userId, periodStart),
+    getMedicationSummary(userId, periodStart),
+    getCognitiveSummary(userId, periodStart),
+    getMoodSummary(userId, periodStart),
+    getSymptomSummary(userId, periodStart),
+    getUserConditions(userId),
+    getUserProfile(userId),
+  ]);
+  const conditionProfile = await getConditionProfile(conditions);
+  const medicationCount = numericValue(asSummary(meds).active_medications);
+  const scores: PreventionPillarScores = {
+    heart: scorePillarHeart({ vitals, meds, conditions, conditionProfile }),
+    brain: scorePillarBrain({ cognitive, mood, conditions, conditionProfile }),
+    strength: scorePillarStrength({ vitals, conditions, symptoms, medicationCount, conditionProfile }),
+    nourishment: scorePillarNourishment({ meds, mood, conditions, conditionProfile }),
+    calm: scorePillarCalm({ mood, vitals, conditions, conditionProfile }),
+  };
+  const patterns = detectCrossPillarPatterns({ pillarScores: scores, vitals, meds, cognitive, mood, symptoms });
+  const priorityPillar = resolvePriorityPillar(scores, conditions);
+  const finalScores = enforceSinglePriority(scores, priorityPillar);
+  const synthesis = await synthesizePreventionPlan({ pillarScores: finalScores, priorityPillar, crossPillarPatterns: patterns, conditionProfile, profile });
+  const previous = await getLatestPreventionPlan(userId);
+  const trajectory = computePreventionTrajectory(finalScores, previous);
+  const sourceSignals = { vitals: vitals !== null, medications: meds !== null, cognitive: cognitive !== null, mood: mood !== null, symptoms: symptoms !== null };
+
+  await pool.query("update public.longevity_prevention_plans set status = 'superseded' where user_id = $1 and status = 'active'", [userId]);
+  const result = await pool.query<LongevityPreventionPlan>(`
+    insert into public.longevity_prevention_plans (
+      user_id, period_start, period_end, pillar_heart, pillar_brain, pillar_strength, pillar_nourishment, pillar_calm,
+      pillar_heart_signals, pillar_brain_signals, pillar_strength_signals, pillar_nourishment_signals, pillar_calm_signals,
+      cross_pillar_patterns, recommendations, priority_intervention, priority_why, priority_pillar,
+      plan_narrative_senior, plan_narrative_caregiver, plan_abstract_gp, trajectory, source_signals, confidence, status
+    ) values (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,
+      $14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23::jsonb,$24,'active'
+    ) returning *
+  `, [
+    userId, periodStart, periodEnd, finalScores.heart, finalScores.brain, finalScores.strength, finalScores.nourishment, finalScores.calm,
+    JSON.stringify(vitals), JSON.stringify(cognitive), JSON.stringify({ vitals, symptoms }), JSON.stringify({ meds, mood }), JSON.stringify({ mood, vitals }),
+    JSON.stringify(patterns), JSON.stringify(synthesis.recommendations), synthesis.priorityIntervention, synthesis.priorityWhy, priorityPillar,
+    synthesis.seniorNarrative, synthesis.caregiverNarrative, synthesis.gpAbstract, trajectory, JSON.stringify(sourceSignals), computeConfidence(sourceSignals),
+  ]);
+  return result.rows[0];
+}
+
+export async function triggerPreventionPlanRefresh(input: {
+  userId: string;
+  triggerType?: unknown;
+  triggerData?: unknown;
+}): Promise<{ ran: boolean; reason?: "debounced" | "missing_user" }> {
+  const userId = input.userId.trim();
+  if (!userId) return { ran: false, reason: "missing_user" };
+
+  const triggerType = normalizePreventionRefreshTrigger(input.triggerType);
+  const recentRun = await optionalQuery<{ id: string }>("longevity_synthesis_events", `
+    select id
+    from public.longevity_synthesis_events
+    where user_id = $1
+      and synthesis_ran = true
+      and created_at > now() - interval '6 hours'
+    limit 1
+  `, [userId]);
+
+  const shouldRun = recentRun.length === 0;
+  await optionalQuery("longevity_synthesis_events", `
+    insert into public.longevity_synthesis_events (user_id, trigger_type, trigger_data, synthesis_ran)
+    values ($1, $2, $3::jsonb, $4)
+  `, [userId, triggerType, JSON.stringify(input.triggerData ?? {}), shouldRun]);
+
+  if (!shouldRun) return { ran: false, reason: "debounced" };
+
+  void runPreventionPlanSynthesis(userId).catch((err) => {
+    console.error(`[PreventionPlan] Event-driven synthesis failed for ${userId}:`, err);
+  });
+
+  return { ran: true };
+}
+
+async function hasAtLeastThirtyDaysOfData(userId: string): Promise<boolean> {
+  const candidates = await Promise.all([
+    optionalQuery<{ first_at: Date | null }>("vyva_signal_readings", "select min(recorded_at) as first_at from public.vyva_signal_readings where user_id::text = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("medication_adherence", "select min(created_at) as first_at from public.medication_adherence where user_id = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("triage_reports", "select min(created_at) as first_at from public.triage_reports where user_id = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("checkin_sessions", "select min(completed_at) as first_at from public.checkin_sessions where user_id = $1", [userId]),
+    optionalQuery<{ first_at: Date | null }>("cognitive_session_index", "select min(played_at) as first_at from public.cognitive_session_index where user_id = $1", [userId]),
+  ]);
+  return candidates.some((rows) => rows[0]?.first_at && new Date(rows[0].first_at).getTime() <= daysAgo(30).getTime());
+}
+
+async function wasPlanNudgeShownThisMonth(userId: string): Promise<boolean> {
+  const rows = await optionalQuery<{ count: string | number }>("insight_outcomes", `
+    select count(*)::int from public.insight_outcomes
+    where user_id = $1::uuid and delivered_surface = 'smart_nudge' and action_taken = 'other'
+      and delivered_at >= date_trunc('month', now())
+  `, [userId]);
+  return numericValue(rows[0]?.count) > 0;
+}
+
+async function markPlanNudgeShown(userId: string): Promise<void> {
+  await optionalQuery("insight_outcomes", `
+    insert into public.insight_outcomes (user_id, tier_at_generation, delivered_surface, action_taken)
+    values ($1::uuid, 1, 'smart_nudge', 'other')
+  `, [userId]);
+}
+
 async function runLLMSynthesis(input: {
   severity_tier: number;
   focus_domain: string;
@@ -1208,7 +2454,212 @@ async function resolvePendingOutcomes(): Promise<void> {
   }
 }
 
-router.get("/agewell/today/:userId", async (req: Request, res: Response) => {
+router.get("/prevention/plan/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+  try {
+    return res.json(await getFreshPreventionPlan(userId));
+  } catch (err) {
+    console.error("[PreventionPlan] GET error:", err);
+    return res.json(fallbackPreventionPlan(userId));
+  }
+});
+
+router.get("/prevention/companion/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+  const periodStart = daysAgo(14);
+
+  try {
+    const plan = await getFreshPreventionPlan(userId);
+    const [profile, conditions, vitals, meds, cognitive, mood, symptoms, feedbackHistory] = await Promise.all([
+      getUserProfile(userId),
+      getUserConditions(userId),
+      getVitalsSummary(userId, periodStart),
+      getMedicationSummary(userId, periodStart),
+      getCognitiveSummary(userId, periodStart),
+      getMoodSummary(userId, periodStart),
+      getSymptomSummary(userId, periodStart),
+      getRecentPlanActionEvents(userId),
+    ]);
+    const dailyContent = await getDailyContentBundle(userId, conditions, profile);
+    const payload = composeLongevityCompanionPayload({
+      plan,
+      profile,
+      conditions,
+      vitals,
+      meds,
+      cognitive,
+      mood,
+      symptoms,
+      dailyContent,
+      feedbackHistory,
+    });
+    logDailyContentShown(userId, dailyContentRowsForActions(dailyContent, Object.values(payload.pillarActions)));
+    return res.json(payload);
+  } catch (err) {
+    console.error("[PreventionCompanion] GET error:", err);
+    const profile = await getUserProfile(userId).catch(() => FALLBACK_PROFILE);
+    const plan = fallbackPreventionPlan(userId);
+    return res.json(composeLongevityCompanionPayload({
+      plan,
+      profile,
+      conditions: [],
+      vitals: null,
+      meds: null,
+      cognitive: null,
+      mood: null,
+      symptoms: null,
+      dailyContent: emptyDailyContentBundle(),
+      feedbackHistory: [],
+    }));
+  }
+});
+
+router.get("/prevention/daily-content/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+
+  try {
+    const [conditions, profile] = await Promise.all([
+      getUserConditions(userId),
+      getUserProfile(userId),
+    ]);
+    const dailyContent = await getDailyContentBundle(userId, conditions, profile);
+    logDailyContentShown(userId, uniqueDailyContentRows([
+      dailyContent.exercise,
+      dailyContent.meal,
+      dailyContent.tip,
+      ...dailyContent.articles,
+    ].filter((row): row is DailyContentRow => Boolean(row))));
+    return res.json(dailyContent);
+  } catch (err) {
+    console.error("[DailyContent] GET error:", err);
+    return res.json(emptyDailyContentBundle());
+  }
+});
+
+router.post("/prevention/feedback", async (req: Request, res: Response) => {
+  const rawUserId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
+  const profileId = await resolveProfileId(req, res, rawUserId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+  const eventType = normalizeLongevityActionEventType(req.body?.eventType);
+  const actionKey = oneLine(typeof req.body?.actionKey === "string" ? req.body.actionKey : "");
+  const actionTitle = oneLine(typeof req.body?.actionTitle === "string" ? req.body.actionTitle : "");
+  const barrier = typeof req.body?.barrier === "string" && req.body.barrier.trim() ? truncate(req.body.barrier, 160) : null;
+  const sourceContext = typeof req.body?.sourceContext === "object" && req.body.sourceContext !== null
+    ? req.body.sourceContext as Record<string, unknown>
+    : {};
+
+  if (!eventType || !actionKey || !actionTitle) {
+    return res.status(400).json({ success: false, error: "Invalid feedback payload" });
+  }
+
+  try {
+    await recordLongevityActionEvent({
+      userId,
+      planId: isUuid(req.body?.planId) ? req.body.planId : null,
+      pillar: normalizePreventionPillar(req.body?.pillar),
+      actionKey: truncate(actionKey, 96),
+      actionTitle: truncate(actionTitle, 180),
+      eventType,
+      barrier,
+      sourceContext,
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[PreventionFeedback] POST error:", err);
+    return res.status(500).json({ success: false });
+  }
+});
+
+router.post("/prevention/daily-content/engage", async (req: Request, res: Response) => {
+  const rawUserId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
+  const profileId = await resolveProfileId(req, res, rawUserId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+  const contentId = typeof req.body?.contentId === "string" ? req.body.contentId : "";
+
+  if (!isUuid(contentId)) {
+    return res.status(400).json({ success: false, error: "Invalid content id" });
+  }
+
+  try {
+    await optionalQuery("longevity_daily_content_log", `
+      update public.longevity_daily_content_log
+      set engaged = true
+      where user_id = $1 and content_id = $2::uuid and shown_on = current_date
+    `, [userId, contentId]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[DailyContent] engage error:", err);
+    return res.json({ success: false });
+  }
+});
+
+router.get("/prevention/pillar-status/:userId", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req, res, req.params.userId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+
+  try {
+    const periodStart = daysAgo(14);
+    const [vitals, meds, cognitive, mood, symptoms, conditions] = await Promise.all([
+      getVitalsSummary(userId, periodStart),
+      getMedicationSummary(userId, periodStart),
+      getCognitiveSummary(userId, periodStart),
+      getMoodSummary(userId, periodStart),
+      getSymptomSummary(userId, periodStart),
+      getUserConditions(userId),
+    ]);
+    const conditionProfile = await getConditionProfile(conditions);
+    const medicationCount = numericValue(asSummary(meds).active_medications);
+    const scores: PreventionPillarScores = {
+      heart: scorePillarHeart({ vitals, meds, conditions, conditionProfile }),
+      brain: scorePillarBrain({ cognitive, mood, conditions, conditionProfile }),
+      strength: scorePillarStrength({ vitals, conditions, symptoms, medicationCount, conditionProfile }),
+      nourishment: scorePillarNourishment({ meds, mood, conditions, conditionProfile }),
+      calm: scorePillarCalm({ mood, vitals, conditions, conditionProfile }),
+    };
+    const priorityPillar = resolvePriorityPillar(scores, conditions) ?? worstPreventionPillar(scores);
+    const statuses = enforceSinglePriority(scores, priorityPillar);
+
+    return res.json({ statuses, priority_pillar: priorityPillar });
+  } catch (err) {
+    console.error("[PillarStatus] GET error:", err);
+    return res.json({
+      statuses: { heart: "steady", brain: "steady", strength: "steady", nourishment: "steady", calm: "steady" },
+      priority_pillar: null,
+    });
+  }
+});
+
+router.post("/prevention/refresh", async (req: Request, res: Response) => {
+  const rawUserId = typeof req.body?.userId === "string" ? req.body.userId : undefined;
+  const profileId = await resolveProfileId(req, res, rawUserId);
+  if (!profileId) return;
+  const userId = storageUserId(profileId, req.user?.id);
+
+  try {
+    const result = await triggerPreventionPlanRefresh({
+      userId,
+      triggerType: req.body?.triggerType,
+      triggerData: req.body?.triggerData,
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error("[PreventionPlan] refresh error:", err);
+    return res.status(500).json({ ran: false, error: "Failed to refresh plan" });
+  }
+});
+
+// Longevity is canonical; /agewell remains a compatibility alias for already
+// deployed clients and database delivery records.
+router.get(["/longevity/today/:userId", "/agewell/today/:userId"], async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req, res, req.params.userId);
   if (!profileId) return;
   const userId = storageUserId(profileId, req.user?.id);
@@ -1243,12 +2694,12 @@ router.get("/agewell/today/:userId", async (req: Request, res: Response) => {
       report_generated_at: latestReport?.generated_at ?? null,
     });
   } catch (err) {
-    console.error("[AgeWell] /today error:", err);
+    console.error("[Longevity] /today error:", err);
     res.json(safeFallbackToday());
   }
 });
 
-router.post("/agewell/feedback", async (req: Request, res: Response) => {
+router.post(["/longevity/feedback", "/agewell/feedback"], async (req: Request, res: Response) => {
   const { userId: rawUserId, actionId, outcome, reportId } = req.body ?? {};
   const profileId = await resolveProfileId(req, res, rawUserId);
   if (!profileId) return;
@@ -1263,7 +2714,7 @@ router.post("/agewell/feedback", async (req: Request, res: Response) => {
     await updateFeedback(userId, actionId, outcome, reportId);
     res.json({ success: true });
   } catch (err) {
-    console.error("[AgeWell] /feedback error:", err);
+    console.error("[Longevity] /feedback error:", err);
     res.status(500).json({ success: false });
   }
 });
@@ -1335,6 +2786,21 @@ router.get("/smart-nudge/current/:userId", async (req: Request, res: Response) =
       });
     }
 
+    const now = new Date();
+    if (now.getDay() === 1 && now.getDate() <= 7) {
+      const latestPlan = await getLatestPreventionPlan(userId);
+      if (latestPlan && !(await wasPlanNudgeShownThisMonth(userId))) {
+        const profile = await getUserProfile(userId);
+        await markPlanNudgeShown(userId);
+        return res.json({
+          type: "prevention_plan",
+          color: "#6B21A8",
+          message: `Tu plan del mes está listo, ${profile.first_name}.`,
+          action_route: "/health/prevention-plan",
+        });
+      }
+    }
+
     if (report && report.severity_tier === 2 && !(await wasNudgeShownToday(userId, report.id))) {
       await logDelivery(userId, report.id, null, "smart_nudge", 2);
       return res.json({
@@ -1395,6 +2861,15 @@ export function registerHealthInsightsJobs(): void {
       } catch (err) {
         console.error(`[InsightsEngine] Monthly failed for ${userId}:`, err);
       }
+      try {
+        if (await hasAtLeastThirtyDaysOfData(userId)) {
+          await runPreventionPlanSynthesis(userId);
+        } else {
+          console.log(`[PreventionPlan] Skipped ${userId}; fewer than 30 days of data.`);
+        }
+      } catch (err) {
+        console.error(`[PreventionPlan] Monthly synthesis failed for ${userId}:`, err);
+      }
     }
     console.log("[InsightsEngine] Monthly deep report complete.");
   }, { timezone });
@@ -1406,10 +2881,14 @@ export function registerHealthInsightsJobs(): void {
   }, { timezone });
 }
 
-// TODO: Wire SignosScreen.tsx to /api/agewell/today/:userId.
+// TODO: Wire the Longevity UI to /api/longevity/today/:userId.
 // TODO: ElevenLabs voice delivery for synthesized senior recommendations.
 // TODO: GP-ready PDF export from monthly health_insight_reports.
 // TODO: Caregiver dashboard report view from health_insight_reports.
 // TODO: Aggregate operator view grouped by report_type, generated_at, and severity_tier.
+// TODO: GP-ready PDF export from plan_abstract_gp in the care-team accordion.
+// TODO: ElevenLabs voice delivery for the senior narrative and pillar actions.
+// TODO: Month-over-month trajectory visualisation after at least two stored plans.
+// TODO: Outcome learning from Done and Skip feedback after at least three months.
 
 export default router;

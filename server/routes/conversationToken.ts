@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { getSocialRoomBySlug, resolveSocialRoomSlug } from "../lib/socialRoomsSeed.js";
+import { isDrAiAgentSlug, resolveDrAiVoiceAccess } from "../lib/drAiVoiceFeature.js";
 
 const ROOM_AGENT_ENV_KEYS: Record<string, string[]> = {
   "garden-corner": [
@@ -165,6 +166,8 @@ const TOP_LEVEL_AGENT_ENV_KEYS: Record<string, string[]> = {
   ],
   health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
   "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
+  "dr-ai": ["ELEVENLABS_DR_AI_AGENT_ID"],
+  "ask-dr-ai": ["ELEVENLABS_DR_AI_AGENT_ID"],
   doctor: ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   "medical-doctor": ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   meds: ["ELEVENLABS_MEDS_AGENT_ID", "ELEVENLABS_MEDICATION_AGENT_ID", "ELEVENLABS_MEDICATIONS_AGENT_ID"],
@@ -175,6 +178,12 @@ const TOP_LEVEL_AGENT_ENV_KEYS: Record<string, string[]> = {
   "brain-coach": ["ELEVENLABS_BRAIN_COACH_AGENT_ID", "ELEVENLABS_BRAIN_AGENT_ID", "ELEVENLABS_ACTIVITIES_AGENT_ID"],
   brain_coach: ["ELEVENLABS_BRAIN_COACH_AGENT_ID", "ELEVENLABS_BRAIN_AGENT_ID", "ELEVENLABS_ACTIVITIES_AGENT_ID"],
   companion: ["ELEVENLABS_COMPANION_AGENT_ID", "ELEVENLABS_SOCIAL_AGENT_ID", "ELEVENLABS_AGENT_VYVA"],
+  "onboarding-profile": [
+    "ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID",
+    "ELEVENLABS_PROFILE_ONBOARDING_AGENT_ID",
+    "ELEVENLABS_ONBOARDING_AGENT_ID",
+    "VITE_ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID",
+  ],
   "login-guide": [
     "ELEVENLABS_LOGIN_GUIDE_AGENT_ID",
     "VITE_ELEVENLABS_LOGIN_GUIDE_AGENT_ID",
@@ -198,6 +207,8 @@ const DEFAULT_AGENT_ENV_KEYS = [
   "VITE_ELEVENLABS_SOCIAL_AGENT_ID",
   "VITE_ELEVENLABS_AGENT_ID",
 ];
+
+const DEDICATED_AGENT_SLUGS = new Set(["dr-ai", "ask-dr-ai"]);
 
 function readFirstEnv(keys: string[]) {
   for (const key of [...new Set(keys)]) {
@@ -277,7 +288,9 @@ export function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
     `VITE_ELEVENLABS_AGENT_${slugKey}`,
     `VITE_ELEVENLABS_SOCIAL_AGENT_${slugKey}`,
   ];
-  const keys = fixedAgentId ? explicitSlugKeys : [...explicitSlugKeys, ...DEFAULT_AGENT_ENV_KEYS];
+  const keys = fixedAgentId || DEDICATED_AGENT_SLUGS.has(resolvedSlug)
+    ? explicitSlugKeys
+    : [...explicitSlugKeys, ...DEFAULT_AGENT_ENV_KEYS];
 
   return {
     agentId: fixedAgentId ?? readFirstEnv(keys),
@@ -285,6 +298,18 @@ export function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
     source: fixedAgentId ? "fixed-slug" : "slug",
     expectedKeys: keys,
   };
+}
+
+function sendDrAiDisabledResponse(req: Request, res: Response, resolvedSlug?: string) {
+  if (!isDrAiAgentSlug(resolvedSlug)) return false;
+  const access = resolveDrAiVoiceAccess({ userId: req.user?.id, env: process.env });
+  if (access.enabled) return false;
+  res.status(403).json({
+    error: "Dr. AI voice is not enabled for this account.",
+    code: "DR_AI_VOICE_NOT_ENABLED",
+    mode: access.mode,
+  });
+  return true;
 }
 
 function resolveConversationAgent(body: {
@@ -342,6 +367,8 @@ export async function conversationReadinessHandler(req: Request, res: Response) 
     room_slug?: string;
   });
 
+  if (sendDrAiDisabledResponse(req, res, resolved.resolvedSlug)) return;
+
   if (!resolved.agentId) {
     return sendMissingAgentResponse(res, { agentSlug, roomSlug, resolved });
   }
@@ -374,6 +401,8 @@ export async function conversationTokenHandler(req: Request, res: Response) {
   };
 
   const { normalizedRoomSlug, resolved } = resolveConversationAgent({ agent_id, agent_slug, room_slug });
+
+  if (sendDrAiDisabledResponse(req, res, resolved.resolvedSlug)) return;
 
   if (!resolved.agentId) {
     return sendMissingAgentResponse(res, { agentSlug: agent_slug, roomSlug: room_slug, resolved });

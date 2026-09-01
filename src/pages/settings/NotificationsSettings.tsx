@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { friendlyError } from "@/lib/apiError";
 import { normalizeContactChannel, type ContactChannelId } from "@/lib/contactChannels";
+import { disablePreventiveWebPush, enablePreventiveWebPush } from "@/lib/preventiveWebPush";
+import { disableMedicationRefillPush, enableMedicationRefillPush } from "@/lib/medicationRefillPush";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 
 type SupportMode = "ai_powered" | "human_supported";
@@ -29,6 +31,8 @@ type ChannelPreferences = {
   max_outbound_calls_per_day: number | null;
   max_whatsapp_messages_per_day: number | null;
   concierge_task_notifications_enabled: boolean;
+  medication_refill_push_enabled: boolean;
+  preventive_web_push_enabled: boolean;
 };
 
 const DEFAULT_PREFERENCES: ChannelPreferences = {
@@ -42,6 +46,8 @@ const DEFAULT_PREFERENCES: ChannelPreferences = {
   max_outbound_calls_per_day: 1,
   max_whatsapp_messages_per_day: 5,
   concierge_task_notifications_enabled: true,
+  medication_refill_push_enabled: false,
+  preventive_web_push_enabled: false,
 };
 
 const SUPPORT_MODE_OPTIONS: Array<{
@@ -106,6 +112,12 @@ function normalizePreferences(data?: Partial<ChannelPreferences> | null): Channe
     concierge_task_notifications_enabled:
       data?.concierge_task_notifications_enabled
       ?? DEFAULT_PREFERENCES.concierge_task_notifications_enabled,
+    medication_refill_push_enabled:
+      data?.medication_refill_push_enabled
+      ?? DEFAULT_PREFERENCES.medication_refill_push_enabled,
+    preventive_web_push_enabled:
+      data?.preventive_web_push_enabled
+      ?? DEFAULT_PREFERENCES.preventive_web_push_enabled,
   };
 }
 
@@ -215,6 +227,61 @@ export default function NotificationsSettings() {
     },
   });
 
+  const preventiveWebPushMutation = useMutation({
+    mutationFn: async (enabled: boolean) => enabled ? enablePreventiveWebPush() : disablePreventiveWebPush(),
+    onSuccess: (status) => {
+      setDraft((current) => ({
+        ...current,
+        preventive_web_push_enabled: status.consentEnabled && status.subscribed,
+      }));
+      queryClient.setQueryData<Partial<ChannelPreferences> | null>(
+        ["/api/profile/channel-preferences"],
+        (current) => ({
+          ...normalizePreferences(current),
+          preventive_web_push_enabled: status.consentEnabled && status.subscribed,
+        }),
+      );
+      toast({
+        title: status.consentEnabled
+          ? t("settings.notifications.preventiveWebPushEnabled", "Daily check-in push enabled")
+          : t("settings.notifications.preventiveWebPushDisabled", "Daily check-in push disabled"),
+      });
+    },
+    onError: (error) => {
+      setDraft((current) => ({ ...current, preventive_web_push_enabled: false }));
+      toast({
+        title: t("settings.notifications.preventiveWebPushError", "Could not update daily check-in push"),
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const medicationRefillPushMutation = useMutation({
+    mutationFn: async (enabled: boolean) => enabled ? enableMedicationRefillPush() : disableMedicationRefillPush(),
+    onSuccess: (status) => {
+      const enabled = status.consentEnabled && status.subscribed;
+      setDraft((current) => ({ ...current, medication_refill_push_enabled: enabled }));
+      queryClient.setQueryData<Partial<ChannelPreferences> | null>(
+        ["/api/profile/channel-preferences"],
+        (current) => ({ ...normalizePreferences(current), medication_refill_push_enabled: enabled }),
+      );
+      toast({
+        title: enabled
+          ? t("settings.notifications.medicationRefillPushEnabled", "Medicine refill push enabled")
+          : t("settings.notifications.medicationRefillPushDisabled", "Medicine refill push disabled"),
+      });
+    },
+    onError: (error) => {
+      setDraft((current) => ({ ...current, medication_refill_push_enabled: false }));
+      toast({
+        title: t("settings.notifications.medicationRefillPushError", "Could not update refill push"),
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    },
+  });
+
   const setQuietStart = (value: string) => {
     setDraft((current) => ({
       ...current,
@@ -231,7 +298,7 @@ export default function NotificationsSettings() {
     }));
   };
 
-  const isBusy = preferencesQuery.isLoading || saveMutation.isPending;
+  const isBusy = preferencesQuery.isLoading || saveMutation.isPending || preventiveWebPushMutation.isPending || medicationRefillPushMutation.isPending;
 
   return (
     <PhoneFrame subtitle={t("settings.notifications.title")} showBack onBack={() => navigate("/settings")}>
@@ -258,6 +325,31 @@ export default function NotificationsSettings() {
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className={settingsKickerClassName}>
+                {t("settings.notifications.medicationRefillPush", "Medicine refill push")}
+              </p>
+              <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t(
+                  "settings.notifications.medicationRefillPushHint",
+                  "Get one browser reminder per medicine when the estimated supply enters its refill window.",
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.medication_refill_push_enabled}
+              disabled={medicationRefillPushMutation.isPending}
+              onCheckedChange={(medication_refill_push_enabled) =>
+                medicationRefillPushMutation.mutate(medication_refill_push_enabled)
+              }
+              aria-label={t("settings.notifications.medicationRefillPush", "Medicine refill push")}
+              data-testid="switch-medication-refill-push"
+            />
+          </div>
+        </section>
+
+        <section className={settingsPanelClassName}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={settingsKickerClassName}>
                 {t("settings.notifications.conciergeUpdates", "Concierge task updates")}
               </p>
               <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
@@ -269,11 +361,37 @@ export default function NotificationsSettings() {
             </div>
             <Switch
               checked={draft.concierge_task_notifications_enabled}
+              disabled={preferencesQuery.isLoading}
               onCheckedChange={(concierge_task_notifications_enabled) =>
                 setDraft((current) => ({ ...current, concierge_task_notifications_enabled }))
               }
               aria-label={t("settings.notifications.conciergeUpdates", "Concierge task updates")}
               data-testid="switch-concierge-task-notifications"
+            />
+          </div>
+        </section>
+
+        <section className={settingsPanelClassName}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className={settingsKickerClassName}>
+                {t("settings.notifications.preventiveWebPush", "Daily check-in push")}
+              </p>
+              <p className="mt-1 font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t(
+                  "settings.notifications.preventiveWebPushHint",
+                  "Allow VYVA to send a browser notification that opens your daily wellbeing check-in.",
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.preventive_web_push_enabled}
+              disabled={preventiveWebPushMutation.isPending}
+              onCheckedChange={(preventive_web_push_enabled) =>
+                preventiveWebPushMutation.mutate(preventive_web_push_enabled)
+              }
+              aria-label={t("settings.notifications.preventiveWebPush", "Daily check-in push")}
+              data-testid="switch-preventive-web-push"
             />
           </div>
         </section>

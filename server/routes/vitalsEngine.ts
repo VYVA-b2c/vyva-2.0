@@ -26,6 +26,7 @@ import {
   teamInvitations,
   triageReports,
   userHealthConditions,
+  userDeviceConnections,
   userMedications,
 } from "../../shared/schema.js";
 import {
@@ -44,6 +45,7 @@ import {
   type VitalsCaptureMethod,
   type VitalsSignalKey,
 } from "../../shared/vitalsSignalCatalog.js";
+import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
 import {
   buildProposedVitalsReading,
   normalizeParsedReading,
@@ -51,6 +53,12 @@ import {
   type ProposedVitalsReading,
   type VitalsParsingResult,
 } from "../../shared/vitalsParsing.js";
+import {
+  TRIAGE_VITAL_SIGNAL_MAP,
+  compatibleCaptureMethods,
+  measurementEnvelope,
+  newestReadingBySignal,
+} from "../../shared/vitalsAcquisition.js";
 
 const router = Router();
 router.use(requireUser);
@@ -73,6 +81,7 @@ const signalReadingSchema = z.object({
   source_ref: z.record(z.unknown()).optional(),
   recorded_at: z.string().datetime().optional(),
   condition_tags: z.array(z.string()).optional().default([]),
+  assessment_session_id: z.string().max(160).optional(),
 });
 
 const readingSchema = signalReadingSchema.extend({
@@ -112,13 +121,27 @@ const acknowledgeSchema = z.object({
 
 type RiskTier = "none" | "watch" | "notify" | "urgent";
 
+function preventionRiskTierRank(value: unknown): number {
+  const tier = String(value ?? "").toLowerCase();
+  if (tier === "urgent") return 5;
+  if (tier === "notify") return 4;
+  if (tier === "watch") return 3;
+  return 1;
+}
+
 type SignalReadingRow = {
+  id?: string;
   signal_type: string;
   context_tag: string | null;
   value: string | number;
   recorded_at: Date | string;
   source: string;
   deviation_pct: string | number | null;
+  capture_method?: string | null;
+  unit?: string | null;
+  source_ref?: Record<string, unknown> | null;
+  quality_flag?: string | null;
+  assessment_session_id?: string | null;
 };
 
 type SignalReadingResponse = SignalReadingRow & {
@@ -314,7 +337,8 @@ async function resolveProfileId(req: Request): Promise<string> {
 
 async function getRecentReadings(userId: string, hours = 72): Promise<SignalReadingRow[]> {
   const result = await db.execute(sql`
-    SELECT signal_type, value, recorded_at, source, deviation_pct, context_tag
+    SELECT id, signal_type, value, recorded_at, source, deviation_pct, context_tag,
+           capture_method, unit, source_ref, quality_flag, assessment_session_id
     FROM vyva_signal_readings
     WHERE user_id = ${userId}
       AND recorded_at >= ${daysAgo(hours)}
@@ -670,6 +694,7 @@ async function saveSignalReading(params: {
   sourceRef?: Record<string, unknown>;
   recordedAt?: string;
   conditionTags: string[];
+  assessmentSessionId?: string;
 }) {
   const baselineResult = await db.execute(sql`
     SELECT baseline_mean
@@ -677,6 +702,7 @@ async function saveSignalReading(params: {
     WHERE user_id = ${params.userId}
       AND signal_type = ${params.signalType}
       AND context_tag = ${params.contextTag}
+      AND is_established = true
     LIMIT 1
   `);
   const baseline = queryRows<{ baseline_mean: string | number }>(baselineResult)[0];
@@ -693,6 +719,7 @@ async function saveSignalReading(params: {
       capture_method,
       unit,
       source_ref,
+      assessment_session_id,
       context_tag,
       baseline_ref,
       deviation_pct,
@@ -707,6 +734,7 @@ async function saveSignalReading(params: {
       ${params.captureMethod},
       ${params.unit ?? unitForSignal(params.signalType)},
       ${params.sourceRef ? JSON.stringify(params.sourceRef) : null}::jsonb,
+      ${params.assessmentSessionId ?? null},
       ${params.contextTag},
       ${baselineMean},
       ${deviationPct},
@@ -720,11 +748,125 @@ async function saveSignalReading(params: {
   };
 }
 
+type BaselineRefreshResult = {
+  updated: number;
+  meansBySignalContext: Map<string, number>;
+};
+
+async function refreshVitalsBaselines(profileId: string): Promise<BaselineRefreshResult> {
+  const combosResult = await db.execute(sql`
+    SELECT DISTINCT signal_type, context_tag
+    FROM vyva_signal_readings
+    WHERE user_id = ${profileId}
+      AND quality_flag = 'clean'
+      AND source <> 'phone_estimate'
+      AND recorded_at >= ${daysAgo(14 * 24)}
+  `);
+  const combos = queryRows<{ signal_type: string; context_tag: string | null }>(combosResult);
+  let updated = 0;
+  const meansBySignalContext = new Map<string, number>();
+
+  for (const combo of combos) {
+    const contextTag = combo.context_tag ?? "general";
+    const readingsResult = await db.execute(sql`
+      SELECT value
+      FROM vyva_signal_readings
+      WHERE user_id = ${profileId}
+        AND signal_type = ${combo.signal_type}
+        AND COALESCE(context_tag, 'general') = ${contextTag}
+        AND quality_flag = 'clean'
+        AND source <> 'phone_estimate'
+        AND recorded_at >= ${daysAgo(14 * 24)}
+    `);
+
+    const values = queryRows<{ value: string | number }>(readingsResult)
+      .map((reading) => numberOrNull(reading.value))
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+
+    if (values.length < 3) continue;
+
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+    const stddev = Math.sqrt(variance);
+    const p25 = values[Math.floor((values.length - 1) * 0.25)];
+    const p75 = values[Math.floor((values.length - 1) * 0.75)];
+    const roundedMean = roundOne(mean);
+    const isEstablished = values.length >= 10;
+    if (isEstablished) {
+      meansBySignalContext.set(`${combo.signal_type}|${contextTag}`, roundedMean);
+    }
+
+    await db.execute(sql`
+      INSERT INTO vyva_user_baselines (
+        user_id,
+        signal_type,
+        context_tag,
+        baseline_mean,
+        baseline_stddev,
+        baseline_p25,
+        baseline_p75,
+        sample_count,
+        is_established,
+        computed_at
+      )
+      VALUES (
+        ${profileId},
+        ${combo.signal_type},
+        ${contextTag},
+        ${roundedMean},
+        ${roundOne(stddev)},
+        ${roundOne(p25)},
+        ${roundOne(p75)},
+        ${values.length},
+        ${isEstablished},
+        NOW()
+      )
+      ON CONFLICT (user_id, signal_type, context_tag)
+      DO UPDATE SET
+        baseline_mean = EXCLUDED.baseline_mean,
+        baseline_stddev = EXCLUDED.baseline_stddev,
+        baseline_p25 = EXCLUDED.baseline_p25,
+        baseline_p75 = EXCLUDED.baseline_p75,
+        sample_count = EXCLUDED.sample_count,
+        is_established = EXCLUDED.is_established,
+        computed_at = NOW()
+    `);
+
+    if (isEstablished) {
+      await db.execute(sql`
+        UPDATE vyva_signal_readings
+        SET baseline_ref = ${roundedMean},
+            deviation_pct = CASE
+              WHEN ${roundedMean} = 0 THEN NULL
+              ELSE ROUND((((value - ${roundedMean}) / ABS(${roundedMean})) * 100)::numeric, 1)
+            END
+        WHERE user_id = ${profileId}
+          AND signal_type = ${combo.signal_type}
+          AND COALESCE(context_tag, 'general') = ${contextTag}
+          AND baseline_ref IS NULL
+          AND quality_flag = 'clean'
+          AND source <> 'phone_estimate'
+          AND recorded_at >= ${daysAgo(14 * 24)}
+      `);
+    }
+    updated += 1;
+  }
+
+  return { updated, meansBySignalContext };
+}
+
 async function saveValidatedReadings(
   profileId: string,
   readings: z.infer<typeof signalReadingSchema>[],
 ) {
   const saved: Array<{ reading: Record<string, unknown>; deviation_pct: number | null }> = [];
+  const savedSignalContexts: Array<{
+    signalType: VitalsSignalKey;
+    contextTag: string;
+    source: VitalsReadingSource;
+    value: number;
+  }> = [];
   let shouldAnalyse = false;
 
   for (const reading of readings) {
@@ -735,26 +877,42 @@ async function saveValidatedReadings(
       throw err;
     }
 
+    const source = normalizedSource(reading.source);
+    const contextTag = reading.context_tag || defaultContextForSignal(signalType);
     const result = await saveSignalReading({
       userId: profileId,
       signalType,
       value: reading.value,
-      source: normalizedSource(reading.source),
+      source,
       captureMethod: normalizedCaptureMethod(reading.capture_method),
-      contextTag: reading.context_tag || defaultContextForSignal(signalType),
+      contextTag,
       unit: reading.unit ?? unitForSignal(signalType),
       sourceRef: reading.source_ref,
       recordedAt: reading.recorded_at,
       conditionTags: reading.condition_tags,
+      assessmentSessionId: reading.assessment_session_id,
     });
     saved.push(result);
-    if (result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
+    savedSignalContexts.push({ signalType, contextTag, source, value: reading.value });
+    if (source !== "phone_estimate" && result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
       shouldAnalyse = true;
     }
   }
 
+  const baselineRefresh = await refreshVitalsBaselines(profileId).catch((err) => {
+    console.error("[vitals-engine baseline refresh after save]", err);
+    return { updated: 0, meansBySignalContext: new Map<string, number>() };
+  });
+  if (!shouldAnalyse) {
+    shouldAnalyse = savedSignalContexts.some(({ signalType, contextTag, source, value }) => {
+      if (source === "phone_estimate") return false;
+      const mean = baselineRefresh.meansBySignalContext.get(`${signalType}|${contextTag}`);
+      return mean !== undefined && mean !== 0 && Math.abs(((value - mean) / Math.abs(mean)) * 100) > 25;
+    });
+  }
+
   if (shouldAnalyse) {
-    runAnalysis(profileId).catch((err) => console.error("[vitals-engine analysis trigger]", err));
+    runAnalysis(profileId, { refreshBaselines: false }).catch((err) => console.error("[vitals-engine analysis trigger]", err));
   }
 
   return saved;
@@ -1053,6 +1211,69 @@ router.get("/latest/:requestedUserId", async (req: Request, res: Response) => {
   return sendLatestVitalsIntelligence(profileId, res);
 });
 
+router.get("/acquisition-context", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req);
+  const requestedSignals = String(req.query.signals ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(isVitalsSignalKey);
+  const signalTypes: VitalsSignalKey[] = requestedSignals.length
+    ? requestedSignals
+    : [...new Set(Object.values(TRIAGE_VITAL_SIGNAL_MAP).flat())];
+
+  try {
+    const [readingRows, deviceRows] = await Promise.all([
+      getRecentReadings(profileId, 24),
+      db.select().from(userDeviceConnections).where(and(
+        eq(userDeviceConnections.user_id, profileId),
+        eq(userDeviceConnections.is_active, true),
+      )),
+    ]);
+    const readings = readingRows
+      .filter((reading) => isVitalsSignalKey(reading.signal_type) && signalTypes.includes(reading.signal_type))
+      .map((reading) => measurementEnvelope({
+        id: reading.id,
+        signalType: reading.signal_type as VitalsSignalKey,
+        value: reading.value,
+        unit: reading.unit,
+        recordedAt: reading.recorded_at,
+        source: reading.source,
+        captureMethod: reading.capture_method,
+        qualityFlag: reading.quality_flag,
+        sourceRef: reading.source_ref,
+        assessmentSessionId: reading.assessment_session_id,
+      }));
+    const latestBySignal = newestReadingBySignal(readings);
+
+    return res.json({
+      signals: signalTypes.map((signalType) => {
+        const latestReading = latestBySignal.get(signalType) ?? null;
+        return {
+          signal_type: signalType,
+          current_reading: latestReading?.freshness === "current" ? latestReading : null,
+          latest_reading: latestReading,
+          compatible_methods: compatibleCaptureMethods(signalType),
+        };
+      }),
+      readings,
+      devices: deviceRows.map((row) => ({
+        id: row.device_kind,
+        provider: row.provider,
+        deviceName: row.device_label,
+        status: row.status,
+        capabilities: row.capabilities ?? [],
+        connectedAt: row.connected_at,
+        lastSyncedAt: row.last_synced_at,
+        metadata: row.metadata ?? {},
+      })),
+      policy: { current_minutes: 30, context_hours: 24, hrv_triage_enabled: false },
+    });
+  } catch (err) {
+    console.error("[vitals-engine acquisition-context]", err);
+    return res.status(500).json({ error: "Failed to load vitals acquisition context" });
+  }
+});
+
 router.get("/history", async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req);
   try {
@@ -1095,87 +1316,20 @@ router.post("/baseline/update", async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req);
 
   try {
-    const combosResult = await db.execute(sql`
-      SELECT DISTINCT signal_type, context_tag
-      FROM vyva_signal_readings
-      WHERE user_id = ${profileId}
-        AND quality_flag = 'clean'
-        AND recorded_at >= ${daysAgo(14 * 24)}
-    `);
-    const combos = queryRows<{ signal_type: string; context_tag: string | null }>(combosResult);
-    let updated = 0;
-
-    for (const combo of combos) {
-      const contextTag = combo.context_tag ?? "general";
-      const readingsResult = await db.execute(sql`
-        SELECT value
-        FROM vyva_signal_readings
-        WHERE user_id = ${profileId}
-          AND signal_type = ${combo.signal_type}
-          AND context_tag = ${contextTag}
-          AND quality_flag = 'clean'
-          AND recorded_at >= ${daysAgo(14 * 24)}
-      `);
-
-      const values = queryRows<{ value: string | number }>(readingsResult)
-        .map((reading) => numberOrNull(reading.value))
-        .filter((value): value is number => value !== null)
-        .sort((a, b) => a - b);
-
-      if (values.length < 3) continue;
-
-      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-      const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
-      const stddev = Math.sqrt(variance);
-      const p25 = values[Math.floor((values.length - 1) * 0.25)];
-      const p75 = values[Math.floor((values.length - 1) * 0.75)];
-
-      await db.execute(sql`
-        INSERT INTO vyva_user_baselines (
-          user_id,
-          signal_type,
-          context_tag,
-          baseline_mean,
-          baseline_stddev,
-          baseline_p25,
-          baseline_p75,
-          sample_count,
-          is_established,
-          computed_at
-        )
-        VALUES (
-          ${profileId},
-          ${combo.signal_type},
-          ${contextTag},
-          ${roundOne(mean)},
-          ${roundOne(stddev)},
-          ${roundOne(p25)},
-          ${roundOne(p75)},
-          ${values.length},
-          ${values.length >= 10},
-          NOW()
-        )
-        ON CONFLICT (user_id, signal_type, context_tag)
-        DO UPDATE SET
-          baseline_mean = EXCLUDED.baseline_mean,
-          baseline_stddev = EXCLUDED.baseline_stddev,
-          baseline_p25 = EXCLUDED.baseline_p25,
-          baseline_p75 = EXCLUDED.baseline_p75,
-          sample_count = EXCLUDED.sample_count,
-          is_established = EXCLUDED.is_established,
-          computed_at = NOW()
-      `);
-      updated += 1;
-    }
-
-    return res.json({ updated });
+    const result = await refreshVitalsBaselines(profileId);
+    return res.json({ updated: result.updated });
   } catch (err) {
     console.error("[vitals-engine baseline]", err);
     return res.status(500).json({ error: "Failed to update vitals baselines" });
   }
 });
 
-export async function runAnalysis(userId: string) {
+export async function runAnalysis(userId: string, options: { refreshBaselines?: boolean } = {}) {
+  if (options.refreshBaselines !== false) {
+    await refreshVitalsBaselines(userId).catch((err) => {
+      console.error("[vitals-engine baseline refresh before analysis]", err);
+    });
+  }
   const context = await loadAnalysisContext(userId);
   const deterministic = buildDailySafetyCheck({
     signalSummary: context.signalSummary,
@@ -1209,6 +1363,18 @@ export async function runAnalysis(userId: string) {
       WHERE id = ${stored.id}
         AND user_id = ${userId}
     `);
+  }
+
+  if (preventionRiskTierRank(analysis.risk_tier) >= 3) {
+    void triggerPreventionPlanRefresh({
+      userId,
+      triggerType: "vitals_deviation",
+      triggerData: {
+        risk_tier: analysis.risk_tier,
+        pattern_labels: analysis.pattern_labels,
+        pattern_window_id: stored?.id ?? null,
+      },
+    }).catch((err) => console.error("[vitals-engine prevention refresh]", err));
   }
 
   return {

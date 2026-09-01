@@ -1,5 +1,5 @@
-export type TriageWizardMatrixStage = "symptom" | "red_flag" | "duration" | "severity" | "trend";
-export type TriageWizardMatrixKind = "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
+export type TriageWizardMatrixStage = "symptom" | "location" | "red_flag" | "duration" | "severity" | "trend";
+export type TriageWizardMatrixKind = "symptom" | "location" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
 export type TriageWizardMatrixIcon = "heart" | "wind" | "thermometer" | "activity" | "alert" | "help";
 export type TriageWizardMatrixTone = "purple" | "red" | "blue" | "amber" | "green";
 
@@ -88,6 +88,17 @@ const symptomNode: TriageWizardMatrixNode = {
     r("skin", "symptom", "Skin or wound", "Piel o herida", "I have a skin or wound problem.", "Tengo problema de piel o herida.", "help", "amber"),
     r("confusion", "symptom", "Confusion or memory", "Confusion o memoria", "I feel confused or not like myself.", "Tengo confusion o no me siento como siempre.", "alert", "red"),
     r("other", "symptom", "Something else", "Otra cosa", "Something else is bothering me.", "Me pasa otra cosa.", "help", "purple"),
+  ],
+};
+
+const painLocationNode: TriageWizardMatrixNode = {
+  question: t("Where is the main pain?", "Donde esta el dolor principal?"),
+  replies: [
+    r("head_neck_pain", "location", "Head or neck", "Cabeza o cuello", "The pain is mainly in my head or neck.", "El dolor es sobre todo en cabeza o cuello.", "activity", "amber"),
+    r("back_pain", "location", "Back", "Espalda", "The pain is mainly in my back.", "El dolor es sobre todo en la espalda.", "activity", "amber"),
+    r("belly_side_pain", "location", "Belly or side", "Barriga o lado", "The pain is mainly in my belly or side.", "El dolor es sobre todo en barriga o lado.", "activity", "amber"),
+    r("limb_joint_pain", "location", "Arm, leg, or joint", "Brazo, pierna o articulacion", "The pain is in my arm, leg, or joint.", "El dolor esta en brazo, pierna o articulacion.", "activity", "blue"),
+    r("other_pain_location", "location", "Somewhere else", "Otro lugar", "The pain is somewhere else.", "El dolor esta en otro lugar.", "help", "purple"),
   ],
 };
 
@@ -194,10 +205,49 @@ const redFlag: StageMatrix = {
   other: {
     question: t("Do any of these warning signs apply?", "Aplica alguna de estas senales de alerta?"),
     replies: [
-      r("chest_pain", "red_flag", "Chest pain, hard breathing, or blue/grey/pale skin", "Pecho, respiracion o piel azul/gris/palida", "I have chest pain, trouble breathing, or blue/grey/pale skin.", "Tengo dolor de pecho, dificultad para respirar o piel azul/gris/palida.", "alert", "red"),
-      r("stroke_sign", "red_flag", "Face/arm weakness, speech/vision trouble, seizure, or fainted", "Cara/brazo, habla/vision, convulsion o desmayo", "I have face or arm weakness, speech or vision trouble, seizure, or fainted.", "Tengo debilidad en cara o brazo, problema de habla o vision, convulsion o desmayo.", "alert", "red"),
-      r("new_confusion", "red_flag", "Very confused, hard to wake, heavy bleeding, severe pain, or allergy swelling", "Confusion, despertar, sangrado, dolor o alergia", "I am very confused, hard to wake, heavily bleeding, in severe pain, or have allergy swelling.", "Tengo mucha confusion, cuesta despertarme, sangrado fuerte, dolor fuerte o hinchazon alergica.", "alert", "red"),
+      r("chest_pain", "red_flag", "Chest pain, breathing trouble, or pale/blue skin", "Pecho, respiracion o piel azul/gris/palida", "I have chest pain, trouble breathing, or blue/grey/pale skin.", "Tengo dolor de pecho, dificultad para respirar o piel azul/gris/palida.", "alert", "red"),
+      r("stroke_sign", "red_flag", "Face/arm weakness, speech or vision trouble, seizure, or fainting", "Cara/brazo, habla/vision, convulsion o desmayo", "I have face or arm weakness, speech or vision trouble, seizure, or fainted.", "Tengo debilidad en cara o brazo, problema de habla o vision, convulsion o desmayo.", "alert", "red"),
+      r("new_confusion", "red_flag", "Confusion, hard to wake, heavy bleeding, severe pain, or swelling", "Confusion, despertar, sangrado, dolor o alergia", "I am very confused, hard to wake, heavily bleeding, in severe pain, or have allergy swelling.", "Tengo mucha confusion, cuesta despertarme, sangrado fuerte, dolor fuerte o hinchazon alergica.", "alert", "red"),
       r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these apply.", "Nada de esto aplica.", "help", "green"),
+    ],
+  },
+};
+
+const painRedFlagVariants: Record<"head_neck_pain" | "back_pain" | "belly_side_pain" | "limb_joint_pain", TriageWizardMatrixNode> = {
+  head_neck_pain: {
+    question: t("Does the head or neck pain include any warning signs?", "El dolor de cabeza o cuello tiene alguna senal de alerta?"),
+    replies: [
+      r("sudden_severe", "red_flag", "Sudden or worst-ever pain", "Dolor repentino o el peor", "The head or neck pain was sudden or is the worst ever.", "El dolor de cabeza o cuello fue repentino o es el peor.", "alert", "red"),
+      r("stroke_sign", "red_flag", "Weakness, speech, or vision change", "Debilidad, habla o vision", "I have weakness, speech trouble, or a vision change.", "Tengo debilidad, dificultad al hablar o cambio de vision.", "alert", "red"),
+      r("headache_fever_stiff", "red_flag", "Fever, stiff neck, confusion, or injury", "Fiebre, cuello rigido, confusion o golpe", "The pain comes with fever, a stiff neck, confusion, or a recent head injury.", "El dolor viene con fiebre, cuello rigido, confusion o un golpe reciente en la cabeza.", "alert", "red"),
+      r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these warning signs apply.", "Ninguna de estas senales aplica.", "help", "green"),
+    ],
+  },
+  back_pain: {
+    question: t("Does the back pain include any warning signs?", "El dolor de espalda tiene alguna senal de alerta?"),
+    replies: [
+      r("sudden_severe", "red_flag", "Sudden or extremely severe", "Repentino o muy fuerte", "The back pain was sudden or is extremely severe.", "El dolor de espalda fue repentino o es muy fuerte.", "alert", "red"),
+      r("back_bladder_weakness", "red_flag", "Bladder, bowel, numbness, or leg weakness", "Vejiga, intestino, adormecimiento o pierna debil", "Back pain comes with bladder or bowel changes, numbness, or leg weakness.", "Dolor de espalda con cambios de vejiga o intestino, adormecimiento o debilidad de pierna.", "alert", "red"),
+      r("hip_back_after_fall", "red_flag", "After a fall, or unable to stand", "Tras caida o no puedo estar de pie", "The pain followed a fall, or I cannot stand safely.", "El dolor empezo tras una caida o no puedo estar de pie con seguridad.", "alert", "red"),
+      r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these warning signs apply.", "Ninguna de estas senales aplica.", "help", "green"),
+    ],
+  },
+  belly_side_pain: {
+    question: t("Does the belly or side pain include any warning signs?", "El dolor de barriga o lado tiene alguna senal de alerta?"),
+    replies: [
+      r("severe_abdominal", "red_flag", "Sudden or severe belly pain", "Dolor de barriga repentino o fuerte", "The belly or side pain is sudden or severe.", "El dolor de barriga o lado es repentino o fuerte.", "alert", "red"),
+      r("blood_vomit_stool", "red_flag", "Vomiting blood or black/bloody stool", "Vomito con sangre o heces negras/con sangre", "I am vomiting blood or have black or bloody stool.", "Vomito sangre o tengo heces negras o con sangre.", "alert", "red"),
+      r("collapsed_stomach", "red_flag", "Fainted, very pale, or cannot keep fluids down", "Desmayo, mucha palidez o no retengo liquidos", "I fainted, look very pale, or cannot keep fluids down.", "Me desmaye, estoy muy palido o no puedo retener liquidos.", "alert", "red"),
+      r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these warning signs apply.", "Ninguna de estas senales aplica.", "help", "green"),
+    ],
+  },
+  limb_joint_pain: {
+    question: t("Does the arm, leg, or joint pain include any warning signs?", "El dolor de brazo, pierna o articulacion tiene alguna senal de alerta?"),
+    replies: [
+      r("deformed_limb", "red_flag", "Cannot use it or it looks deformed", "No puedo usarlo o se ve deformado", "I cannot use it, or it looks deformed.", "No puedo usarlo o se ve deformado.", "alert", "red"),
+      r("limb_cold_blue", "red_flag", "Cold, blue, numb, or very swollen", "Frio, azul, dormido o muy hinchado", "The limb is cold, blue, numb, or very swollen.", "La extremidad esta fria, azul, dormida o muy hinchada.", "alert", "red"),
+      r("one_calf_swollen", "red_flag", "One leg suddenly swollen, red, or hot", "Una pierna hinchada, roja o caliente", "One leg is suddenly swollen, red, or hot.", "Una pierna esta de repente hinchada, roja o caliente.", "alert", "red"),
+      r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these warning signs apply.", "Ninguna de estas senales aplica.", "help", "green"),
     ],
   },
 };
@@ -597,12 +647,12 @@ const otherMedicationVariants: Partial<Record<TriageWizardMatrixStage, TriageWiz
 
 const painTrendVariants: Record<"head_neck_pain" | "back_pain" | "limb_joint_pain", TriageWizardMatrixNode> = {
   head_neck_pain: {
-    question: t("Does the head or neck pain have any of these signs?", "El dolor de cabeza o cuello tiene estas senales?"),
+    question: t("Has anything made it better or worse?", "Algo hizo que mejorara o empeorara?"),
     replies: [
-      r("headache_fever_stiff", "trend", "Fever, stiff neck, rash, confusion, seizure, or double vision", "Fiebre, cuello rigido, erupcion, confusion, convulsion o vision doble", "Headache comes with fever, stiff neck, rash, confusion, seizure, or double vision.", "El dolor de cabeza viene con fiebre, cuello rigido, erupcion, confusion, convulsion o vision doble.", "alert", "red"),
-      r("after_fall", "trend", "Started after head injury", "Tras golpe en cabeza", "It started after a head injury.", "Empezo tras un golpe en la cabeza.", "alert", "amber"),
-      r("new_headache_after_50", "trend", "New or very different for me", "Nuevo o muy diferente", "This is new or very different for me.", "Es nuevo o muy diferente para mi.", "activity", "amber"),
-      r("better", "trend", "Mild, familiar, improving", "Leve, conocido, mejora", "It is mild, familiar, and improving.", "Es leve, conocido y mejora.", "help", "green"),
+      r("better", "trend", "Rest or medicine helped", "Descanso o medicina ayudo", "Rest or medicine made it feel better.", "El descanso o la medicina hizo que mejorara.", "help", "purple"),
+      r("worse", "trend", "Activity, light, or noise made it worse", "Actividad, luz o ruido lo empeoro", "Activity, light, or noise made it feel worse.", "La actividad, la luz o el ruido hizo que empeorara.", "activity", "purple"),
+      r("headache_fever_stiff", "trend", "An injury or other symptoms affected it", "Una lesion u otros sintomas lo afectaron", "An injury, fever, stiff neck, or other new symptoms affected it.", "Una lesion, fiebre, cuello rigido u otros sintomas nuevos lo afectaron.", "alert", "purple"),
+      r("same", "trend", "Nothing clearly changed it", "Nada lo cambio claramente", "Nothing clearly made it better or worse.", "Nada hizo claramente que mejorara o empeorara.", "help", "purple"),
     ],
   },
   back_pain: {
@@ -625,7 +675,7 @@ const painTrendVariants: Record<"head_neck_pain" | "back_pain" | "limb_joint_pai
   },
 };
 
-export const TRIAGE_WIZARD_MATRIX: Record<TriageWizardMatrixStage, StageMatrix | { symptom: TriageWizardMatrixNode }> = {
+export const TRIAGE_WIZARD_MATRIX: Record<Exclude<TriageWizardMatrixStage, "location">, StageMatrix | { symptom: TriageWizardMatrixNode }> = {
   symptom: { symptom: symptomNode },
   red_flag: redFlag,
   duration,
@@ -639,6 +689,7 @@ export function triageWizardNodeFor(
   answerIds: Set<string> = new Set(),
 ): TriageWizardMatrixNode {
   if (stage === "symptom") return symptomNode;
+  if (stage === "location") return painLocationNode;
   if (symptomId === "other" && answerIds.has("anxiety_context")) {
     const anxietyNode = otherAnxietyVariants[stage];
     if (anxietyNode) return anxietyNode;
@@ -650,6 +701,11 @@ export function triageWizardNodeFor(
   if (stage === "trend" && symptomId === "pain") {
     for (const id of Object.keys(painTrendVariants) as Array<keyof typeof painTrendVariants>) {
       if (answerIds.has(id)) return painTrendVariants[id];
+    }
+  }
+  if (stage === "red_flag" && symptomId === "pain") {
+    for (const id of Object.keys(painRedFlagVariants) as Array<keyof typeof painRedFlagVariants>) {
+      if (answerIds.has(id)) return painRedFlagVariants[id];
     }
   }
   const matrix = TRIAGE_WIZARD_MATRIX[stage] as StageMatrix;
@@ -685,9 +741,15 @@ export function emergencyContactForCountry(countryCode?: string | null): Emergen
 
 export function triageWizardMatrixPromptText(): string {
   const lines = TRIAGE_SYMPTOM_IDS.map((symptomId) => {
-    const stages = (["red_flag", "duration", "severity", "trend"] as const)
+    const matrixStages: TriageWizardMatrixStage[] = symptomId === "pain"
+      ? ["location", "red_flag", "severity", "duration", "trend"]
+      : ["red_flag", "severity", "duration", "trend"];
+    const stages = matrixStages
       .map((stage) => {
-        const node = triageWizardNodeFor(stage, symptomId);
+        const answerIds = stage === "red_flag" && symptomId === "pain"
+          ? new Set(["head_neck_pain"])
+          : new Set<string>();
+        const node = triageWizardNodeFor(stage, symptomId, answerIds);
         const labels = node.replies.map((reply) => reply.label.en).join(" | ");
         return `${stage}: ${node.question.en} [${labels}]`;
       })

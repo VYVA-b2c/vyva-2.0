@@ -14,7 +14,8 @@ const client = new Client({
   ssl: { rejectUnauthorized: false },
 });
 
-const sql = await readFile(new URL("../schema/concierge_layer1.sql", import.meta.url), "utf8");
+const layerOneSql = await readFile(new URL("../schema/concierge_layer1.sql", import.meta.url), "utf8");
+const shoppingSql = await readFile(new URL("../schema/concierge_shopping.sql", import.meta.url), "utf8");
 
 function stripSupabaseRls(input) {
   return input
@@ -30,26 +31,22 @@ function stripSupabaseRls(input) {
 
 try {
   await client.connect();
-  await client.query(sql);
+  try {
+    await client.query(layerOneSql);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('schema "auth" does not exist')) throw error;
+
+    await client.query(stripSupabaseRls(layerOneSql));
+    console.log("Applied concierge layer without Supabase RLS policies because the local database has no auth schema.");
+  }
+  await client.query(shoppingSql);
   console.log("Concierge schema applied successfully.");
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-
-  if (message.includes('schema "auth" does not exist')) {
-    try {
-      await client.query(stripSupabaseRls(sql));
-      console.log("Concierge schema applied successfully.");
-      console.log("Applied without Supabase RLS policies because the local database has no auth schema.");
-    } catch (retryError) {
-      console.error("Failed to apply concierge schema.");
-      console.error(retryError instanceof Error ? retryError.message : retryError);
-      process.exitCode = 1;
-    }
-  } else {
-    console.error("Failed to apply concierge schema.");
-    console.error(message);
-    process.exitCode = 1;
-  }
+  console.error("Failed to apply concierge schema.");
+  console.error(message);
+  process.exitCode = 1;
 } finally {
   await client.end().catch(() => {});
 }

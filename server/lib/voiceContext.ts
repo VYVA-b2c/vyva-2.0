@@ -24,6 +24,10 @@ import {
 } from "../../shared/schema.js";
 import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
 import { formatMemoryBlock, searchMemories } from "./mem0.js";
+import {
+  buildHealthPolicyFilteredMemoryBlock,
+  type HealthSemanticMemoryOutboxStore,
+} from "../memory/healthSemanticMemory.js";
 import { extractBrainCoachPreferences } from "./brainCoachPlan.js";
 import { buildBrainCoachVoiceContext, type BrainCoachVoiceContext } from "./brainCoachVoiceContext.js";
 import { buildPersistedBrainCoachPlan } from "./brainCoachPlanLifecycle.js";
@@ -48,6 +52,7 @@ export type VoiceContextDomain =
   | "health"
   | "concierge"
   | "brain_coach"
+  | "onboarding_profile"
   | "companion"
   | "doctor"
   | "social";
@@ -58,6 +63,7 @@ const VOICE_CONTEXT_DOMAINS: readonly VoiceContextDomain[] = [
   "health",
   "concierge",
   "brain_coach",
+  "onboarding_profile",
   "companion",
   "doctor",
   "social",
@@ -69,6 +75,13 @@ export type ConversationTurn = { role: "user" | "assistant"; content: string };
 type BuildVoiceContextOptions = {
   appEntrypoint?: string;
   priorVoiceExchangeCount?: number;
+  healthMemoryPolicy?: {
+    enabled: boolean;
+    flowInstanceId?: string;
+    env?: Readonly<Record<string, string | undefined>>;
+    store?: HealthSemanticMemoryOutboxStore;
+    now?: Date;
+  };
 };
 
 type SignalReadingRow = {
@@ -1208,6 +1221,10 @@ function domainAllows(domain: VoiceContextDomain, category: "medical" | "social"
   return allowed[category].includes(domain);
 }
 
+function isOnboardingProfileDomain(domain: VoiceContextDomain) {
+  return domain === "onboarding_profile";
+}
+
 export async function buildVoiceContext(
   userId: string,
   domain: VoiceContextDomain,
@@ -1329,10 +1346,28 @@ export async function buildVoiceContext(
   const contactSupportMode = asString(communicationPreferencesSection.contact_support_mode);
   const contactSupportModeLabel = contactSupportMode === "human_supported" ? "Human-supported" : "AI-powered";
   const mem0UserId = profile?.mem0_user_id?.trim() || userId;
-  const memories = memoryQuery
+  const policyMemoryEnabled = domain === "health" && options.healthMemoryPolicy?.enabled === true;
+  const policyMemory = policyMemoryEnabled
+    ? await buildHealthPolicyFilteredMemoryBlock({
+        userId,
+        flowInstanceId: options.healthMemoryPolicy?.flowInstanceId,
+        profileConsent: consent,
+        env: options.healthMemoryPolicy?.env,
+        store: options.healthMemoryPolicy?.store,
+        now: options.healthMemoryPolicy?.now,
+      }).catch(() => ({
+        memoryBlock: "",
+        reasonCodes: ["health_memory_policy_read_failed"],
+        allowedCategories: [],
+        flagReasonCode: "health_memory_policy_resolution_failed",
+      }))
+    : null;
+  const memories = !policyMemoryEnabled && memoryQuery
     ? await searchMemories(memoryQuery, mem0UserId).catch(() => [])
     : [];
-  const memoryBlock = formatMemoryBlock(memories);
+  const memoryBlock = policyMemoryEnabled
+    ? policyMemory?.memoryBlock ?? ""
+    : formatMemoryBlock(memories);
   const recentHealthEvents = [
     ...latestReports.map(formatTriageReport),
     ...latestSignalReadings.slice(0, 8).map(formatSignalReading),
@@ -1505,10 +1540,20 @@ export async function buildVoiceContext(
   const preferredLanguage = normalizeAppLanguage(profile?.language_preference ?? profile?.language, "en");
 
   const variables: VoiceDynamicVariables = {
-    user_id: userId,
+    user_id: isOnboardingProfileDomain(domain) ? "app-managed-profile" : userId,
     agent_domain: domain,
-    agent_operating_rules: buildAgentOperatingRules(domain),
-    conversation_plan: formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain),
+    agent_operating_rules: isOnboardingProfileDomain(domain)
+      ? [
+          "You are inside VYVA onboarding profile collection.",
+          "Use only the app-provided active_section_* variables and onboarding schema.",
+          "Do not ask the user for account ID, profile ID, user ID, app IDs, API keys, or setup credentials.",
+          "Do not tell the user to navigate elsewhere or open another app; the current page already provides the needed context.",
+          "Return onboarding drafts only through the record_onboarding_profile_output client tool for local review.",
+        ].join("\n")
+      : buildAgentOperatingRules(domain),
+    conversation_plan: isOnboardingProfileDomain(domain)
+      ? "Collect details for the active onboarding section only, then return a local review draft. Never save profile data or request internal IDs."
+      : formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain),
     ...conversationPlanToVariables(conversationPlan),
     is_first_voice_session: priorVoiceExchangeCount === 0,
     prior_voice_exchange_count: priorVoiceExchangeCount,
@@ -1532,6 +1577,10 @@ export async function buildVoiceContext(
       profile?.city || profile?.country_code ? `Location: ${valueList([profile.city, profile.country_code])}` : "",
     ], 900),
     memory_block: memoryBlock || "(no memory retrieved)",
+    health_memory_policy_mode: policyMemoryEnabled ? "policy_filtered" : "legacy",
+    health_memory_policy_reason_codes: policyMemory?.reasonCodes.join(",") ?? "",
+    health_memory_policy_allowed_categories: policyMemory?.allowedCategories.join(",") ?? "",
+    health_memory_policy_flag_reason: policyMemory?.flagReasonCode ?? "",
     last_app_visit_at: formatDateTime(appLastSeenAt),
     time_since_last_app_visit: formatRelativeTime(appLastSeenAt, now),
     last_voice_session_at: formatDateTime(lastVoiceSessionAt),
@@ -1541,25 +1590,33 @@ export async function buildVoiceContext(
     app_insight_context: appInsightContext,
     orchestrator_context: orchestratorContext,
     personalisation_opportunities: personalisationOpportunities,
-    next_best_conversation: nextBestConversation.brief,
-    next_best_conversation_id: nextBestConversation.top?.id ?? "",
-    next_best_conversation_domain: nextBestConversation.top?.domain ?? "",
-    next_best_conversation_priority: nextBestConversation.top?.priority ?? "",
-    next_best_conversation_score: nextBestConversation.top?.score ?? "",
-    next_best_conversation_title: nextBestConversation.top?.title ?? "",
-    next_best_conversation_reason: nextBestConversation.top?.reason ?? "",
-    next_best_conversation_opening_cue: nextBestConversation.top?.openingCue ?? "",
-    next_best_conversation_suggested_action: nextBestConversation.top?.suggestedAction ?? "",
-    next_best_conversation_candidates: nextBestConversation.candidateList,
-    next_best_conversation_feedback: recommendationFeedbackSummary.promptBlock,
+    next_best_conversation: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.brief,
+    next_best_conversation_id: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.id ?? "",
+    next_best_conversation_domain: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.domain ?? "",
+    next_best_conversation_priority: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.priority ?? "",
+    next_best_conversation_score: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.score ?? "",
+    next_best_conversation_title: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.title ?? "",
+    next_best_conversation_reason: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.reason ?? "",
+    next_best_conversation_opening_cue: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.openingCue ?? "",
+    next_best_conversation_suggested_action: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.top?.suggestedAction ?? "",
+    next_best_conversation_candidates: isOnboardingProfileDomain(domain) ? "" : nextBestConversation.candidateList,
+    next_best_conversation_feedback: isOnboardingProfileDomain(domain) ? "" : recommendationFeedbackSummary.promptBlock,
     voice_recommendation_feedback_tool:
-      "When the user clearly accepts, dismisses, or completes the recommended next step, call record_voice_recommendation_feedback with action accepted, dismissed, or completed. Do not mention the tool to the user.",
+      isOnboardingProfileDomain(domain)
+        ? "Unavailable in onboarding profile sessions. Do not call recommendation feedback tools."
+        : "When the user clearly accepts, dismisses, or completes the recommended next step, call record_voice_recommendation_feedback with action accepted, dismissed, or completed. Do not mention the tool to the user.",
     voice_app_action_tool:
-      "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. For a broad pillar request with no specific task, call open_app_action with only the matching domain: health for Health, brain_coach for Mind, social for Community, or concierge for Concierge. Do not invent a route or action_type; the app owns the correct visual destination. Use specific actions for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. For home-service requests such as plumber or electrician, ask the relevant service-specific questions first, then call open_app_action with action_type concierge.home_service and simple fields such as service_type, urgency, problem_summary, problem_type, criteria, and intake_origin=voice. Do not mention the tool to the user.",
+      isOnboardingProfileDomain(domain)
+        ? "Unavailable in onboarding profile sessions. Do not call app navigation tools or ask the user to navigate."
+        : "When the app should open a relevant page or show visual context, call open_app_action with domain, route or action_type, title, summary, cue, and reason. For a broad pillar request with no specific task, call open_app_action with only the matching domain: health for Health, brain_coach for Mind, social for Community, or concierge for Concierge. Do not invent a route or action_type; the app owns the correct visual destination. Use specific actions for medication reports, vitals, symptoms, concierge tasks, safety, brain activities, social rooms, and reports. For home-service requests such as plumber or electrician, ask the relevant service-specific questions first, then call open_app_action with action_type concierge.home_service and simple fields such as service_type, urgency, problem_summary, problem_type, criteria, and intake_origin=voice. Do not mention the tool to the user.",
     voice_action_result_tool:
-      "When the user accepts, dismisses, or completes an app-visible step, call record_action_result with action accepted, dismissed, or completed, plus action_id or recommendation_id when available. Do not mention the tool to the user.",
+      isOnboardingProfileDomain(domain)
+        ? "Unavailable in onboarding profile sessions. Local review and save are app-owned."
+        : "When the user accepts, dismisses, or completes an app-visible step, call record_action_result with action accepted, dismissed, or completed, plus action_id or recommendation_id when available. Do not mention the tool to the user.",
     voice_specialist_transfer_tool:
-      "When the user needs another VYVA specialist, call request_specialist_transfer with domain safety, meds, health, doctor, concierge, brain_coach, social, or companion, plus a short reason and context_hint. Only transfer after a brief spoken handoff.",
+      isOnboardingProfileDomain(domain)
+        ? "Unavailable in onboarding profile sessions. Stay on the current onboarding section unless urgent safety language requires safe escalation guidance."
+        : "When the user needs another VYVA specialist, call request_specialist_transfer with domain safety, meds, health, doctor, concierge, brain_coach, social, or companion, plus a short reason and context_hint. Only transfer after a brief spoken handoff.",
     upcoming_events: joinList(upcomingEvents),
     recent_activity_summary: recentActivitySummary,
     social_activity_summary: socialActivitySummary,

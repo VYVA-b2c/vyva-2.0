@@ -42,3 +42,355 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  task10-postgres-freeze-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vyva_task10_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vyva_task10_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TASK10_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/vyva_task10_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vyva_task10_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report PostgreSQL version
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK10_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            const version = await client.query("select version()");
+            console.log(`[task10-postgres-ci] ${version.rows[0]?.version ?? "unknown"}`);
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Run Task 10 migration PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            migrations/0079_preventive_web_push_entry.test.ts
+
+      - name: Run Task 10 store PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            server/engagement/preventiveWebPushStore.postgres.test.ts
+
+      - name: Reset disposable schema before baseline bootstrap
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK10_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            await client.query("drop schema if exists public cascade");
+            await client.query("create schema public");
+            await client.query("grant all on schema public to postgres");
+            await client.query("grant all on schema public to public");
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Apply authoritative baseline schema
+        run: npm run db:push:manual -- --force
+
+      - name: Run profile channel preferences PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            server/__tests__/profile-channel-preferences.test.ts
+
+  task11-postgres-freeze-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vyva_task11_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vyva_task11_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TASK11_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/vyva_task11_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vyva_task11_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report PostgreSQL version
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK11_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            const version = await client.query("select version()");
+            console.log(`[task11-postgres-ci] ${version.rows[0]?.version ?? "unknown"}`);
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Run Task 11 migration PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            migrations/0080_preventive_outbound_call_entry.test.ts
+
+      - name: Run Task 11 store PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            server/engagement/preventiveOutboundCallStore.postgres.test.ts
+
+      - name: Reset disposable schema before baseline bootstrap
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK11_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            await client.query("drop schema if exists public cascade");
+            await client.query("create schema public");
+            await client.query("grant all on schema public to postgres");
+            await client.query("grant all on schema public to public");
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Apply authoritative baseline schema
+        run: npm run db:push:manual -- --force
+
+      - name: Run Task 11 route PostgreSQL test after baseline bootstrap
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            server/routes/preventiveOutboundCall.postgres.test.ts
+
+  task13-postgres-freeze-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vyva_task13_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vyva_task13_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TASK13_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/vyva_task13_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vyva_task13_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report PostgreSQL version
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK13_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            const version = await client.query("select version()");
+            console.log(`[task13-postgres-ci] ${version.rows[0]?.version ?? "unknown"}`);
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Run Task 13 migration PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            migrations/0081_health_semantic_memory_outbox.test.ts
+
+      - name: Reset disposable schema before baseline bootstrap
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK13_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            await client.query("drop schema if exists public cascade");
+            await client.query("create schema public");
+            await client.query("grant all on schema public to postgres");
+            await client.query("grant all on schema public to public");
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Apply authoritative baseline schema
+        run: npm run db:push:manual -- --force
+
+      - name: Run Task 13 store PostgreSQL test after baseline bootstrap
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            server/memory/healthSemanticMemory.postgres.test.ts
+
+  task14-postgres-freeze-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vyva_task14_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vyva_task14_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TASK14_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/vyva_task14_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vyva_task14_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Report PostgreSQL version
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK14_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            const version = await client.query("select version()");
+            console.log(`[task14-postgres-ci] ${version.rows[0]?.version ?? "unknown"}`);
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Run Task 14 migration PostgreSQL test
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            migrations/0082_health_caregiver_operator_escalation_projections.test.ts
+
+      - name: Reset disposable schema before baseline bootstrap
+        run: |
+          node --input-type=module <<'NODE'
+          import pg from "pg";
+
+          const client = new pg.Client({
+            connectionString: process.env.TASK14_POSTGRES_URL,
+          });
+
+          await client.connect();
+          try {
+            await client.query("drop schema if exists public cascade");
+            await client.query("create schema public");
+            await client.query("grant all on schema public to postgres");
+            await client.query("grant all on schema public to public");
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Apply authoritative baseline schema
+        run: npm run db:push:manual -- --force
+
+      - name: Run Task 14 projection PostgreSQL test after baseline bootstrap
+        run: |
+          node ./scripts/run-vitest.mjs \
+            --testTimeout=180000 \
+            server/caregiverOperator/healthEscalationProjection.postgres.test.ts

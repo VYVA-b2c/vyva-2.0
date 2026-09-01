@@ -20,13 +20,19 @@ import {
   toolResultForVoiceHomeSubflow,
 } from "@/lib/voiceNavigation";
 import {
+  readActiveVoiceCanvasSceneProvenance,
+  type VoiceCanvasSceneProvenance,
+} from "@/lib/voiceCanvasBridge";
+import {
   ensureVoiceSessionId,
   readVoiceSessionId,
+  requestDrAiScreenSync,
   VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
   type VoiceTriageTouchAnswerDetail,
 } from "@/lib/voiceSessionBridge";
 import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
+import { dispatchOnboardingElevenLabsOutput } from "@/lib/onboardingElevenLabsRuntimeAdapter";
 import {
   selectSpeechVoice,
   supportsSpeechPlayback,
@@ -280,6 +286,7 @@ type StartVoiceOptions = {
   roomSlug?: string;
   skipMicrophone?: boolean;
   autoStartListening?: boolean;
+  forceRestart?: boolean;
   dynamicVariables?: Record<string, string | number | boolean>;
 };
 
@@ -293,6 +300,19 @@ export type VoiceResolvedSessionContext = {
   appEntrypoint?: string;
   conversationPlanId?: string;
   dynamicVariables: Record<string, string | number | boolean>;
+};
+
+export type OnboardingVoiceLiveDiagnostic = {
+  phase: "starting" | "connected" | "starter_sent" | "tool_received" | "error";
+  sectionId?: string;
+  sectionLabel?: string;
+  agentSlug?: string;
+  connected: boolean;
+  starterSent: boolean;
+  clientToolReceived: boolean;
+  lastEvent?: string;
+  error?: string;
+  updatedAt: number;
 };
 
 type SendTextOptions = {
@@ -626,6 +646,20 @@ function voiceTriageTouchContext(detail: VoiceTriageTouchAnswerDetail) {
   ].join(" ");
 }
 
+function voiceTriageTouchContinuation(detail: VoiceTriageTouchAnswerDetail) {
+  const status = detail.status?.trim();
+
+  if (status === "complete") {
+    return "Continue from the VYVA app selection that was already processed. The triage flow is complete, so explain the saved guidance now without restarting the questions or submitting the selected answer again.";
+  }
+
+  if (status === "emergency") {
+    return "Continue from the VYVA app selection that was already processed. Speak the emergency guidance already supplied in context now, without restarting the questions or submitting the selected answer again.";
+  }
+
+  return "Continue from the VYVA app selection that was already processed. Ask only the current next question supplied in context, and do not submit the selected answer again.";
+}
+
 function createVoiceInstanceId() {
   return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
@@ -716,6 +750,101 @@ function isUserVoiceMessage(payload: unknown) {
     Boolean(record.tentative_user_transcription_event);
 }
 
+type UserVoiceTranscriptPhase = "tentative" | "final" | "generic";
+
+type UserVoiceUtteranceCorrelation = {
+  voiceUtteranceId: string;
+  canvasProvenance: VoiceCanvasSceneProvenance | null;
+  createdAt: number;
+};
+
+const MAX_USER_VOICE_UTTERANCE_CORRELATIONS = 40;
+
+function userVoiceTranscriptPhase(payload: unknown): UserVoiceTranscriptPhase {
+  const record = asRecord(payload);
+  if (!record) return "generic";
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+
+  if (
+    type.includes("tentative_user_transcript") ||
+    Boolean(record.tentative_user_transcription_event)
+  ) {
+    return "tentative";
+  }
+  if (
+    type.includes("user_transcript") ||
+    Boolean(record.user_transcription_event)
+  ) {
+    return "final";
+  }
+  return "generic";
+}
+
+function normalizeProviderEventIdentifier(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 128) return null;
+  return /^[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+}
+
+function userVoiceProviderEventId(payload: unknown): string | null {
+  const record = asRecord(payload);
+  if (!record) return null;
+  const nestedRecords = [
+    record,
+    asRecord(record.user_transcription_event),
+    asRecord(record.tentative_user_transcription_event),
+  ].filter(Boolean) as Record<string, unknown>[];
+  const keys = [
+    "event_id",
+    "eventId",
+    "message_id",
+    "messageId",
+    "id",
+  ];
+
+  for (const candidateRecord of nestedRecords) {
+    for (const key of keys) {
+      const eventId = normalizeProviderEventIdentifier(candidateRecord[key]);
+      if (eventId) return eventId;
+    }
+  }
+  return null;
+}
+
+function safeVoiceUtteranceIdSegment(value: string) {
+  return value.replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 128) || "unknown";
+}
+
+function providerVoiceUtteranceId(voiceSessionId: string, providerEventId: string) {
+  return [
+    "elevenlabs-user",
+    safeVoiceUtteranceIdSegment(voiceSessionId),
+    safeVoiceUtteranceIdSegment(providerEventId),
+  ].join(":");
+}
+
+function localVoiceUtteranceId(voiceSessionId: string, sequence: number) {
+  return [
+    "elevenlabs-user-local",
+    safeVoiceUtteranceIdSegment(voiceSessionId),
+    String(sequence),
+  ].join(":");
+}
+
+function rememberUserVoiceUtteranceCorrelation(
+  correlations: Map<string, UserVoiceUtteranceCorrelation>,
+  providerEventId: string,
+  correlation: UserVoiceUtteranceCorrelation,
+) {
+  if (!correlations.has(providerEventId) && correlations.size >= MAX_USER_VOICE_UTTERANCE_CORRELATIONS) {
+    const oldestKey = correlations.keys().next().value;
+    if (oldestKey) correlations.delete(oldestKey);
+  }
+  if (!correlations.has(providerEventId)) correlations.set(providerEventId, correlation);
+}
+
 function isAgentVoiceDebugEvent(payload: unknown) {
   const record = asRecord(payload);
   if (!record) return false;
@@ -731,10 +860,11 @@ function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
-  if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
+  if (agentSlug === "health" || agentSlug === "health-assistant" || agentSlug === "dr-ai" || agentSlug === "ask-dr-ai") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";
   if (agentSlug === "safety" || agentSlug === "safe-home" || agentSlug === "sos") return "safety";
   if (agentSlug === "concierge") return "concierge";
+  if (agentSlug === "onboarding-profile") return "onboarding_profile";
   if (agentSlug === "brain-coach" || agentSlug === "brain_coach") return "brain_coach";
   if (options?.roomSlug || agentSlug) return "social";
   return undefined;
@@ -748,6 +878,89 @@ function dynamicString(
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return "";
+}
+
+function onboardingFirstMessage(dynamicVariables: Record<string, string | number | boolean>) {
+  const sectionLabel = dynamicString(dynamicVariables, "active_section_label");
+  return sectionLabel
+    ? `I'm ready for ${sectionLabel}. Tell me what you'd like me to add.`
+    : "I'm ready for this profile section. Tell me what you'd like me to add.";
+}
+
+function onboardingStarterUserMessage(dynamicVariables: Record<string, string | number | boolean>) {
+  const sectionLabel = dynamicString(dynamicVariables, "active_section_label");
+  const sectionText = sectionLabel || "this profile section";
+  return [
+    `Start ${sectionText} now.`,
+    "Speak one short prompt to the user, then listen for their answer.",
+    "Use the active app section and client tool to create a local review draft.",
+    "Do not ask for account ID, profile ID, user ID, app IDs, API keys, credentials, or setup details.",
+  ].join(" ");
+}
+
+function isOnboardingVoiceStart(options: StartVoiceOptions | undefined) {
+  return inferVoiceContextDomain(options) === "onboarding_profile" ||
+    dynamicString(options?.dynamicVariables, "conversation_plan_id") === "onboarding_profile_collection_v1" ||
+    dynamicString(options?.dynamicVariables, "app_entrypoint") === "onboarding-profile";
+}
+
+function onboardingLiveDiagnosticFromVariables(
+  phase: OnboardingVoiceLiveDiagnostic["phase"],
+  variables: Record<string, string | number | boolean>,
+  patch: Partial<Omit<OnboardingVoiceLiveDiagnostic, "phase" | "updatedAt">> = {},
+): OnboardingVoiceLiveDiagnostic {
+  return {
+    phase,
+    sectionId: dynamicString(variables, "active_section_id") || undefined,
+    sectionLabel: dynamicString(variables, "active_section_label") || undefined,
+    agentSlug: "onboarding-profile",
+    connected: false,
+    starterSent: false,
+    clientToolReceived: false,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+}
+
+function sessionOverridesForResolvedContext(
+  sessionOptions: PartialOptions,
+  resolvedSystemPrompt: string | undefined,
+  resolvedDomain: string | undefined,
+  resolvedDynamicVariables: Record<string, string | number | boolean>,
+): PartialOptions["overrides"] {
+  const existing = sessionOptions.overrides;
+  const drAiFirstMessage = dynamicString(resolvedDynamicVariables, "dr_ai_first_message");
+  if (resolvedDomain === "health" && drAiFirstMessage) {
+    const language = dynamicString(resolvedDynamicVariables, "language")
+      || dynamicString(resolvedDynamicVariables, "preferred_language")
+      || "en";
+    return {
+      ...existing,
+      agent: {
+        ...existing?.agent,
+        language,
+      },
+    };
+  }
+  if (resolvedDomain !== "onboarding_profile") return existing;
+
+  const prompt = resolvedSystemPrompt?.trim();
+
+  return {
+    ...existing,
+    agent: {
+      ...existing?.agent,
+      ...(prompt
+        ? {
+            prompt: {
+              ...existing?.agent?.prompt,
+              prompt,
+            },
+          }
+        : {}),
+      firstMessage: onboardingFirstMessage(resolvedDynamicVariables),
+    },
+  };
 }
 
 function toolParameters(parameters: unknown): Record<string, unknown> {
@@ -807,6 +1020,8 @@ function useVyvaVoiceController() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastErrorCode, setLastErrorCode] = useState<VoiceConnectionErrorCode | null>(null);
   const [voiceDiagnostics, setVoiceDiagnostics] = useState<VoiceDiagnosticStep[]>(() => createVoiceDiagnostics({ skipMicrophone: false }));
+  const [onboardingVoiceLiveDiagnostic, setOnboardingVoiceLiveDiagnostic] =
+    useState<OnboardingVoiceLiveDiagnostic | null>(null);
   const [hasMicrophone, setHasMicrophone] = useState(false);
   const systemPromptRef = useRef<string | undefined>(undefined);
   const statusRef = useRef<"idle" | "connecting" | "connected">("idle");
@@ -823,6 +1038,8 @@ function useVyvaVoiceController() {
   const voiceInstanceIdRef = useRef(createVoiceInstanceId());
   const activeRecommendationRef = useRef<ActiveVoiceRecommendation | null>(null);
   const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
+  const userVoiceUtteranceSequenceRef = useRef(0);
+  const userVoiceUtteranceCorrelationsRef = useRef<Map<string, UserVoiceUtteranceCorrelation>>(new Map());
 
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
@@ -956,6 +1173,7 @@ function useVyvaVoiceController() {
     hiddenOutgoingMessagesRef.current = [];
     streamingVyvaTranscriptRef.current = "";
     streamingVyvaTranscriptShouldAppendRef.current = false;
+    userVoiceUtteranceCorrelationsRef.current.clear();
     activeRecommendationRef.current = null;
     recordedRecommendationActionsRef.current.clear();
     setIsConnecting(false);
@@ -1021,6 +1239,9 @@ function useVyvaVoiceController() {
 
       try {
         conversationRef.current.sendContextualUpdate(voiceTriageTouchContext(detail));
+        const continuation = voiceTriageTouchContinuation(detail);
+        hiddenOutgoingMessagesRef.current.push(normalizeTranscriptText(continuation));
+        conversationRef.current.sendUserMessage(continuation);
       } catch (error) {
         console.warn("[VYVA] Failed to sync touch answer into voice session:", error);
       }
@@ -1243,7 +1464,16 @@ function useVyvaVoiceController() {
       systemPrompt?: string,
       options?: StartVoiceOptions,
     ) => {
-      if (statusRef.current !== "idle" || isPreparingRef.current) return;
+      const shouldForceRestart = options?.forceRestart === true && isOnboardingVoiceStart(options);
+      if (statusRef.current !== "idle" || isPreparingRef.current) {
+        if (!shouldForceRestart) return;
+        userClosingRef.current = true;
+        teardown();
+        userClosingRef.current = false;
+        releaseVoiceInstance(voiceInstanceIdRef.current);
+        setVoiceStatus("idle");
+        setHasEnded(false);
+      }
       // Manual teardown invalidates old callbacks before they can clear this flag.
       userClosingRef.current = false;
       const sessionGeneration = sessionGenerationRef.current + 1;
@@ -1255,8 +1485,21 @@ function useVyvaVoiceController() {
       replaceTranscript([]);
       streamingVyvaTranscriptRef.current = "";
       streamingVyvaTranscriptShouldAppendRef.current = false;
+      userVoiceUtteranceCorrelationsRef.current.clear();
       setLastError(null);
       setLastErrorCode(null);
+      if (isOnboardingVoiceStart(options)) {
+        setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+          "starting",
+          options?.dynamicVariables ?? {},
+          {
+            agentSlug: options?.agentSlug,
+            lastEvent: "start requested",
+          },
+        ));
+      } else {
+        setOnboardingVoiceLiveDiagnostic(null);
+      }
       setHasMicrophone(false);
       setIsMicMuted(true);
       const voiceSessionId = getVoiceSessionId();
@@ -1295,6 +1538,17 @@ function useVyvaVoiceController() {
         const errorCode = voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED");
         setLastError(detail);
         setLastErrorCode(errorCode);
+        if (isOnboardingVoiceStart(options)) {
+          setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+            "error",
+            options?.dynamicVariables ?? {},
+            {
+              agentSlug: options?.agentSlug,
+              error: detail,
+              lastEvent: "readiness failed",
+            },
+          ));
+        }
         markVoiceDiagnosticFailure(errorCode, detail);
         setVoiceStatus("idle");
         setVoicePreparing(false);
@@ -1333,6 +1587,17 @@ function useVyvaVoiceController() {
           const errorCode = voiceConnectionErrorCode(err, "MICROPHONE_ACCESS_FAILED");
           setLastError(detail);
           setLastErrorCode(errorCode);
+          if (isOnboardingVoiceStart(options)) {
+            setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+              "error",
+              options?.dynamicVariables ?? {},
+              {
+                agentSlug: options?.agentSlug,
+                error: detail,
+                lastEvent: "microphone failed",
+              },
+            ));
+          }
           markVoiceDiagnosticFailure(errorCode, detail);
           setVoiceStatus("idle");
           setVoicePreparing(false);
@@ -1360,6 +1625,16 @@ function useVyvaVoiceController() {
         dynamicString(resolvedDynamicVariables, "routing_domain")
         || dynamicString(resolvedDynamicVariables, "transfer_domain")
         || inferVoiceContextDomain(options);
+      if (resolvedDomain === "onboarding_profile") {
+        setOnboardingVoiceLiveDiagnostic(onboardingLiveDiagnosticFromVariables(
+          "starting",
+          resolvedDynamicVariables,
+          {
+            agentSlug: options?.agentSlug,
+            lastEvent: "context resolved",
+          },
+        ));
+      }
       const resolvedAppEntrypoint =
         dynamicString(resolvedDynamicVariables, "app_entrypoint")
         || dynamicString(options?.dynamicVariables, "app_entrypoint")
@@ -1437,15 +1712,36 @@ function useVyvaVoiceController() {
         if (!isCurrentSession()) return;
 
         updateVoiceDiagnostic("elevenlabs_session", "running", "Opening browser voice session");
+        const initialSessionOverrides = sessionOverridesForResolvedContext(
+          sessionOptions,
+          resolvedSystemPrompt,
+          resolvedDomain,
+          resolvedDynamicVariables,
+        );
         const conversation = await Conversation.startSession({
           ...sessionOptions,
           textOnly: skipMicrophone,
+          ...(initialSessionOverrides ? { overrides: initialSessionOverrides } : {}),
           dynamicVariables: {
             ...getAgentAppContextVariables(),
             ...resolvedDynamicVariables,
           },
           clientTools: {
             ...(sessionOptions.clientTools ?? {}),
+            sync_dr_ai_screen: async (parameters: unknown) => {
+              const params = toolParameters(parameters);
+              const conversationId = toolString(params, "conversation_id") || readVoiceSessionId();
+              if (!conversationId) {
+                return JSON.stringify({ ok: false, rendered: false, reason: "missing_conversation_id" });
+              }
+              const rendered = await requestDrAiScreenSync(conversationId);
+              return JSON.stringify({
+                ok: rendered,
+                rendered,
+                conversation_id: conversationId,
+                ...(rendered ? {} : { reason: "screen_sync_timeout" }),
+              });
+            },
             open_app_action: async (parameters: unknown) => {
               const params = toolParameters(parameters);
               const homeSubflow = homeSubflowForVoiceToolCall(params);
@@ -1562,6 +1858,27 @@ function useVyvaVoiceController() {
                 ? `Recorded ${rawAction} feedback for ${recommendationId}.`
                 : "Feedback could not be recorded.";
             },
+            record_onboarding_profile_output: async (parameters: unknown) => {
+              setOnboardingVoiceLiveDiagnostic((current) => current
+                ? {
+                    ...current,
+                    phase: "tool_received",
+                    clientToolReceived: true,
+                    lastEvent: "client tool received",
+                    updatedAt: Date.now(),
+                  }
+                : onboardingLiveDiagnosticFromVariables("tool_received", resolvedDynamicVariables, {
+                    agentSlug: options?.agentSlug,
+                    connected: true,
+                    starterSent: true,
+                    clientToolReceived: true,
+                    lastEvent: "client tool received",
+                  }));
+              const result = dispatchOnboardingElevenLabsOutput(parameters);
+              return result.ok
+                ? `Onboarding ${result.event.type} was shared with the app for local review.`
+                : `Onboarding output was rejected: ${result.reason}`;
+            },
           },
           onConversationCreated: (createdConversation) => {
             if (!isCurrentSession()) {
@@ -1584,11 +1901,52 @@ function useVyvaVoiceController() {
             setIsMicMuted(skipMicrophone ? true : !autoStartListening);
             setIsTransferring(false);
             transferPendingRef.current = false;
+            if (resolvedDomain === "onboarding_profile") {
+              setOnboardingVoiceLiveDiagnostic((current) => ({
+                ...onboardingLiveDiagnosticFromVariables("connected", resolvedDynamicVariables, {
+                  agentSlug: options?.agentSlug,
+                  connected: true,
+                  lastEvent: "ElevenLabs connected",
+                }),
+                ...current,
+                phase: "connected",
+                connected: true,
+                lastEvent: "ElevenLabs connected",
+                updatedAt: Date.now(),
+              }));
+            }
             if (resolvedSystemPrompt?.trim()) {
               try {
                 conversationRef.current?.sendContextualUpdate(resolvedSystemPrompt);
               } catch (error) {
                 console.warn("[VYVA] Failed to send initial voice context:", error);
+              }
+            }
+            if (resolvedDomain === "onboarding_profile") {
+              const starterMessage = onboardingStarterUserMessage(resolvedDynamicVariables);
+              try {
+                hiddenOutgoingMessagesRef.current.push(normalizeTranscriptText(starterMessage));
+                conversationRef.current?.sendUserMessage(starterMessage);
+                conversationRef.current?.sendUserActivity();
+                setOnboardingVoiceLiveDiagnostic((current) => ({
+                  ...onboardingLiveDiagnosticFromVariables("starter_sent", resolvedDynamicVariables, {
+                    agentSlug: options?.agentSlug,
+                    connected: true,
+                    starterSent: true,
+                    lastEvent: "starter sent",
+                  }),
+                  ...current,
+                  phase: "starter_sent",
+                  connected: true,
+                  starterSent: true,
+                  lastEvent: "starter sent",
+                  updatedAt: Date.now(),
+                }));
+              } catch (error) {
+                hiddenOutgoingMessagesRef.current = hiddenOutgoingMessagesRef.current.filter(
+                  (entry) => entry !== normalizeTranscriptText(starterMessage),
+                );
+                console.warn("[VYVA] Failed to send onboarding voice starter:", error);
               }
             }
             recordVoiceTimelineEvent({
@@ -1623,6 +1981,20 @@ function useVyvaVoiceController() {
               console.warn("[VYVA] Voice session closed:", details);
               setLastError(message);
               setLastErrorCode("VOICE_SESSION_CLOSED");
+              if (resolvedDomain === "onboarding_profile") {
+                setOnboardingVoiceLiveDiagnostic((current) => ({
+                  ...onboardingLiveDiagnosticFromVariables("error", resolvedDynamicVariables, {
+                    agentSlug: options?.agentSlug,
+                    error: message,
+                    lastEvent: "session closed",
+                  }),
+                  ...current,
+                  phase: "error",
+                  error: message,
+                  lastEvent: "session closed",
+                  updatedAt: Date.now(),
+                }));
+              }
               markVoiceDiagnosticFailure("VOICE_SESSION_CLOSED", message);
               recordVoiceTimelineEvent({
                 kind: "session_error",
@@ -1648,6 +2020,20 @@ function useVyvaVoiceController() {
             console.error("[VYVA] Voice session error:", message, context);
             setLastError(message);
             setLastErrorCode("VOICE_SESSION_ERROR");
+            if (resolvedDomain === "onboarding_profile") {
+              setOnboardingVoiceLiveDiagnostic((current) => ({
+                ...onboardingLiveDiagnosticFromVariables("error", resolvedDynamicVariables, {
+                  agentSlug: options?.agentSlug,
+                  error: message,
+                  lastEvent: "session error",
+                }),
+                ...current,
+                phase: "error",
+                error: message,
+                lastEvent: "session error",
+                updatedAt: Date.now(),
+              }));
+            }
             markVoiceDiagnosticFailure("VOICE_SESSION_ERROR", message);
             setIsTransferring(false);
             transferPendingRef.current = false;
@@ -1686,12 +2072,36 @@ function useVyvaVoiceController() {
             const message = textFromUnknown(payload);
             if (!message?.trim()) return;
             if (isUserVoiceMessage(payload)) {
+              const transcriptPhase = userVoiceTranscriptPhase(payload);
+              const providerEventId = userVoiceProviderEventId(payload);
               const normalized = normalizeTranscriptText(message);
               const hiddenIndex = hiddenOutgoingMessagesRef.current.findIndex((entry) => entry === normalized);
               if (hiddenIndex !== -1) {
                 hiddenOutgoingMessagesRef.current.splice(hiddenIndex, 1);
                 return;
               }
+              if (transcriptPhase === "tentative") {
+                if (providerEventId) {
+                  rememberUserVoiceUtteranceCorrelation(
+                    userVoiceUtteranceCorrelationsRef.current,
+                    providerEventId,
+                    {
+                      voiceUtteranceId: providerVoiceUtteranceId(voiceSessionId, providerEventId),
+                      canvasProvenance: readActiveVoiceCanvasSceneProvenance(),
+                      createdAt: Date.now(),
+                    },
+                  );
+                }
+                return;
+              }
+              const correlation = providerEventId
+                ? userVoiceUtteranceCorrelationsRef.current.get(providerEventId) ?? null
+                : null;
+              userVoiceUtteranceSequenceRef.current += 1;
+              const voiceUtteranceId = correlation?.voiceUtteranceId
+                ?? (providerEventId
+                  ? providerVoiceUtteranceId(voiceSessionId, providerEventId)
+                  : localVoiceUtteranceId(voiceSessionId, userVoiceUtteranceSequenceRef.current));
               const transcriptEntry = { from: "user" as const, text: message, timestamp: Date.now() };
               appendTranscript(transcriptEntry);
               const inferredAction = inferRecommendationFeedbackAction(message);
@@ -1701,7 +2111,14 @@ function useVyvaVoiceController() {
                   user_message_preview: message.slice(0, 160),
                 });
               }
-              emitVoiceUserMessage({ text: message, transcriptEntry });
+              emitVoiceUserMessage({
+                text: message,
+                transcriptEntry,
+                at: new Date(transcriptEntry.timestamp).toISOString(),
+                voiceUtteranceId,
+                canvasProvenance: correlation?.canvasProvenance ?? null,
+                allowCanvasProvenanceFallback: false,
+              });
               return;
             }
             streamingVyvaTranscriptRef.current = "";
@@ -1741,6 +2158,20 @@ function useVyvaVoiceController() {
         const errorCode = voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED");
         setLastError(detail);
         setLastErrorCode(errorCode);
+        if (resolvedDomain === "onboarding_profile") {
+          setOnboardingVoiceLiveDiagnostic((current) => ({
+            ...onboardingLiveDiagnosticFromVariables("error", resolvedDynamicVariables, {
+              agentSlug: options?.agentSlug,
+              error: detail,
+              lastEvent: "session start failed",
+            }),
+            ...current,
+            phase: "error",
+            error: detail,
+            lastEvent: "session start failed",
+            updatedAt: Date.now(),
+          }));
+        }
         markVoiceDiagnosticFailure(errorCode, detail);
         setVoiceStatus("idle");
         setIsConnecting(false);
@@ -1895,6 +2326,7 @@ function useVyvaVoiceController() {
     lastError,
     lastErrorCode,
     voiceDiagnostics,
+    onboardingVoiceLiveDiagnostic,
     transcript,
     lastResolvedSessionContext,
     systemPromptRef,

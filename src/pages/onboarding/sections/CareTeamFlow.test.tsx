@@ -20,6 +20,22 @@ vi.mock("@/components/onboarding/SpeakItOverlay", () => ({
   default: () => null,
 }));
 
+vi.mock("@/components/onboarding/useOnboardingAgent", () => ({
+  useOnboardingAgent: () => ({
+    mode: "touch",
+    setMode: vi.fn(),
+    setGuidance: vi.fn(),
+    clearGuidance: vi.fn(),
+    registerVoiceAction: vi.fn(() => () => undefined),
+  }),
+}));
+
+vi.mock("@/components/onboarding/useOnboardingElevenLabsSectionRuntime", () => ({
+  useOnboardingElevenLabsSectionRuntime: () => ({
+    startRuntimeCapture: vi.fn(async () => false),
+  }),
+}));
+
 vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));

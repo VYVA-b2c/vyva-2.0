@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import TriageChat from "./TriageChat";
+import TriageChat, { stepBackTriageDraft, type TriageChatDraft } from "./TriageChat";
 import { apiFetch } from "@/lib/queryClient";
 import { setLanguage } from "@/i18n";
 
@@ -133,6 +133,25 @@ describe("TriageChat MediSearch follow-ups", () => {
     await screen.findByText("Bien");
   });
 
+  it("obeys the registry composer contract", async () => {
+    await renderTriageChat({ languageReady: false, composerVisibility: "hidden" });
+
+    expect(screen.queryByTestId("input-triage-message")).not.toBeInTheDocument();
+  });
+
+  it("renders the canonical checking scene while the triage request is pending", async () => {
+    apiFetchMock.mockImplementationOnce(() => new Promise<Response>(() => undefined));
+
+    await renderTriageChat({
+      presentationStage: "checking",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByTestId("symptom-presentation-checking-touch")).toBeVisible();
+    expect(screen.getByTestId("symptom-scene-progress")).toBeVisible();
+    expect(screen.queryByTestId("triage-review-panel")).not.toBeInTheDocument();
+  });
+
   it("rotates the review headline through VYVA thinking steps", async () => {
     vi.useFakeTimers();
 
@@ -183,6 +202,321 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByText("Could caffeine make anxiety worse?")).toBeVisible();
   });
 
+  it("uses readable stacked safety cards without a false selected state", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Are any warning signs present?",
+      done: false,
+      quickReplies: [
+        { id: "cannot_speak", label: "Gasping or cannot speak", value: "I am gasping or cannot speak.", icon: "help", tone: "red", kind: "red_flag" },
+        { id: "worse_but_speaking", label: "Worse than usual, but I can speak", value: "Breathing is worse than usual.", icon: "activity", tone: "amber", kind: "red_flag" },
+        { id: "walking_only", label: "Mild or only with activity", value: "It is mild or only with activity.", icon: "help", tone: "green", kind: "red_flag" },
+        { id: "no_red_flag", label: "No, none of these", value: "No warning signs.", icon: "help", tone: "green", kind: "red_flag" },
+      ],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "safety_check",
+      composerVisibility: "hidden",
+    });
+
+    const warningChoice = await screen.findByRole("button", { name: "Gasping or cannot speak" });
+    const cautionChoice = screen.getByRole("button", { name: "Worse than usual, but I can speak" });
+    const mildChoice = screen.getByRole("button", { name: "Mild or only with activity" });
+    const clearChoice = screen.getByRole("button", { name: "No, none of these" });
+
+    expect(warningChoice).toHaveClass("symptom-canonical-choice", "w-full", "rounded-[18px]", "bg-[#3A242E]", "text-left");
+    expect(warningChoice).toHaveAttribute("data-safety-tone", "warning");
+    expect(cautionChoice).toHaveAttribute("data-safety-tone", "caution");
+    expect(mildChoice).toHaveAttribute("data-safety-tone", "clear");
+    expect(clearChoice).toHaveAttribute("data-safety-tone", "clear");
+    expect(clearChoice).not.toHaveClass("bg-[#7024C4]");
+    expect(warningChoice.querySelector('[data-vyva-accent="signal"]')).toBeInTheDocument();
+  });
+
+  it("recovers from a failed triage request with saved answers and an explicit retry", async () => {
+    const onStageChange = vi.fn();
+    apiFetchMock
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Are any warning signs present?",
+        done: false,
+        quickReplies,
+        evidenceSources: [],
+      }));
+
+    await renderTriageChat({
+      presentationStage: "safety_check",
+      composerVisibility: "hidden",
+      onStageChange,
+    });
+
+    const alert = await screen.findByTestId("triage-request-error");
+    expect(alert).toHaveTextContent(/try again/i);
+    expect(alert).toHaveClass("scroll-mb-[calc(9rem+env(safe-area-inset-bottom))]");
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveClass("w-full");
+    expect(onStageChange).toHaveBeenNthCalledWith(1, "checking");
+    expect(onStageChange).toHaveBeenLastCalledWith("red_flag");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText("Are any warning signs present?");
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("triage-request-error")).not.toBeInTheDocument();
+  });
+
+  it("does not abort a slow but valid 16-second triage response", async () => {
+    vi.useFakeTimers();
+    let requestSignal: AbortSignal | undefined;
+    apiFetchMock.mockImplementationOnce((_url, init) => {
+      requestSignal = init?.signal as AbortSignal;
+      return new Promise<Response>((resolve) => {
+        window.setTimeout(() => resolve(triageResponse({
+          role: "assistant",
+          content: "The check completed safely.",
+          done: false,
+          quickReplies,
+          evidenceSources: [],
+        })), 16_000);
+      });
+    });
+
+    await renderTriageChat();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(requestSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(16_000);
+      await Promise.resolve();
+    });
+    expect(requestSignal?.aborted).toBe(false);
+
+    await act(async () => {
+      vi.advanceTimersByTime(4_000);
+      await Promise.resolve();
+    });
+    expect(requestSignal?.aborted).toBe(false);
+  });
+
+  it("renders a compact accessible severity slider with one primary continuation", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "How strong is it from 0 to 10?",
+      done: false,
+      quickReplies: Array.from({ length: 11 }, (_, value) => ({
+        id: `severity-${value}`,
+        label: String(value),
+        value: String(value),
+        icon: "help",
+        tone: "purple",
+        kind: "severity",
+      })),
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "severity",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByTestId("symptom-severity-scale")).toBeVisible();
+    expect(screen.getByRole("slider", { name: "Symptom severity from 0 to 10" })).toHaveValue("5");
+    expect(screen.getByTestId("symptom-severity-continue")).toHaveClass("vyva-primary-action");
+    expect(screen.queryByRole("button", { name: "5" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the approved related-detail question with matching factor answers", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "A runtime trend prompt that should not replace the approved scene copy.",
+      done: false,
+      quickReplies: [
+        { id: "better", label: "Rest or medicine helped", value: "Rest or medicine helped.", icon: "help", tone: "purple", kind: "trend" },
+        { id: "worse", label: "Activity, light, or noise made it worse", value: "Activity, light, or noise made it worse.", icon: "activity", tone: "purple", kind: "trend" },
+        { id: "same", label: "Nothing clearly changed it", value: "Nothing clearly changed it.", icon: "help", tone: "purple", kind: "trend" },
+      ],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "related_details",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByRole("heading", { name: "One more detail" })).toBeVisible();
+    expect(screen.getByText("Choose the pattern that fits best.")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "A runtime trend prompt that should not replace the approved scene copy." })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rest or medicine helped" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Activity, light, or noise made it worse" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Nothing clearly changed it" })).toBeVisible();
+  });
+
+  it("uses choice cards when a severity-stage question is not a numeric scale", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Where is the pain mainly?",
+      done: false,
+      quickReplies: [
+        { id: "head", label: "Head or neck", value: "Head or neck.", icon: "help", tone: "purple", kind: "severity" },
+        { id: "back", label: "Back", value: "Back.", icon: "help", tone: "purple", kind: "severity" },
+        { id: "joint", label: "Arm, leg, or joint", value: "Arm, leg, or joint.", icon: "help", tone: "purple", kind: "severity" },
+      ],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      presentationStage: "severity",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByRole("heading", { name: "Where is the pain mainly?" })).toBeVisible();
+    expect(screen.queryByTestId("symptom-severity-scale")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Head or neck" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Back" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Arm, leg, or joint" })).toBeVisible();
+  });
+
+  it("keeps the reported symptom in review and ignores the no-additional-symptoms answer", async () => {
+    await renderTriageChat({
+      initialClue: "I have a headache",
+      presentationStage: "review",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Does this summary look right?" }],
+        selectedQuickAnswers: [
+          { id: "no-additional-symptoms", label: "Nothing else", value: "No other symptoms.", kind: "symptom" },
+          { id: "severity-5", label: "5", value: "5", kind: "severity" },
+          { id: "today", label: "Today", value: "Today", kind: "duration" },
+          { id: "same", label: "Nothing clearly changed it", value: "Nothing clearly changed it", kind: "trend" },
+        ],
+        apiQuickReplies: [
+          { id: "confirm", label: "Yes, it is right", value: "Yes.", icon: "help", tone: "purple", kind: "review" },
+          { id: "change", label: "Change something", value: "Change something.", icon: "help", tone: "purple", kind: "review" },
+        ],
+      },
+    });
+
+    const review = await screen.findByTestId("symptom-scene-review");
+    expect(review).toHaveTextContent("I have a headache");
+    expect(review).not.toHaveTextContent("Nothing else");
+    expect(review).toHaveTextContent("When it started");
+    expect(review).toHaveTextContent("Related detail");
+  });
+
+  it("localizes the French review chrome without changing the submitted answer values", async () => {
+    setLanguage("fr");
+
+    await renderTriageChat({
+      initialClue: "Je me sens étourdi ou proche du malaise",
+      presentationStage: "review",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Does this look right?" }],
+        selectedQuickAnswers: [
+          { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
+          { id: "few_days", label: "Few days", value: "It has been going on for a few days.", kind: "duration" },
+          { id: "ongoing_not_improving", label: "It is ongoing and not improving", value: "It is ongoing and not improving.", kind: "trend" },
+        ],
+        apiQuickReplies: [
+          { id: "edit_answers", label: "Edit", value: "I want to edit my answers.", icon: "activity", tone: "purple", kind: "support" },
+          { id: "confirm_review", label: "Yes, show my guidance", value: "These answers are correct. Show my guidance.", icon: "help", tone: "purple", kind: "support" },
+        ],
+      },
+    });
+
+    const review = await screen.findByTestId("symptom-scene-review");
+    expect(screen.getByRole("heading", { name: "Est-ce correct ?" })).toBeVisible();
+    expect(review).toHaveTextContent("Symptôme");
+    expect(review).toHaveTextContent("Intensité");
+    expect(review).toHaveTextContent("Quelques jours");
+    expect(review).toHaveTextContent("Cela persiste sans s’améliorer");
+    expect(screen.getByRole("button", { name: "Modifier" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Oui, afficher mes conseils" })).toBeVisible();
+  });
+
+  it("localizes French protocol questions and choices but submits the original clinical value", async () => {
+    setLanguage("fr");
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "When did the breathing change start?",
+      done: false,
+      wizardStage: "duration",
+      quickReplies: [],
+      evidenceSources: [],
+    }));
+
+    await renderTriageChat({
+      initialClue: "Je suis essoufflé",
+      presentationStage: "safety_check",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "How is your breathing right now?" }],
+        selectedQuickAnswers: [{ id: "breathing", label: "Breathing", value: "I feel short of breath.", kind: "symptom" }],
+        apiQuickReplies: [
+          { id: "worse_but_speaking", label: "Worse than usual, but I can speak", value: "My breathing is worse than usual, but I can speak.", icon: "wind", tone: "amber", kind: "red_flag" },
+        ],
+      },
+    });
+
+    expect(screen.getByRole("heading", { name: "Comment respirez-vous en ce moment ?" })).toBeVisible();
+    const answer = screen.getByRole("button", { name: "Pire que d’habitude, mais je peux parler" });
+    fireEvent.click(answer);
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const requestBody = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(requestBody.messages.at(-1).content).toBe("My breathing is worse than usual, but I can speak.");
+    expect(requestBody.wizard.quickAnswers.at(-1)).toEqual(expect.objectContaining({
+      id: "worse_but_speaking",
+      value: "My breathing is worse than usual, but I can speak.",
+    }));
+  });
+
+  it("returns to severity when the user edits the review", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "How strong is it?",
+      done: false,
+      wizardStage: "severity",
+      quickReplies: Array.from({ length: 11 }, (_, value) => ({
+        id: `severity_${value}`,
+        label: String(value),
+        value: `The symptom feels ${value} out of 10.`,
+        icon: "activity",
+        tone: "purple",
+        kind: "severity",
+      })),
+    }));
+
+    await renderTriageChat({
+      initialClue: "I have a headache",
+      presentationStage: "review",
+      composerVisibility: "hidden",
+      initialDraft: {
+        messages: [{ role: "assistant", content: "Does this look right?" }],
+        selectedQuickAnswers: [
+          { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+          { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" },
+          { id: "severity_5", label: "5", value: "The symptom feels 5 out of 10.", kind: "severity" },
+          { id: "today", label: "Today", value: "Today", kind: "duration" },
+          { id: "same", label: "Nothing changed", value: "Nothing changed.", kind: "trend" },
+        ],
+        apiQuickReplies: [
+          { id: "edit_answers", label: "Edit", value: "I want to edit my answers.", icon: "activity", tone: "purple", kind: "support" },
+          { id: "confirm_review", label: "Confirm", value: "These answers are correct.", icon: "help", tone: "purple", kind: "support" },
+        ],
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
+    const requestBody = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(requestBody.wizard.quickAnswers).toEqual([
+      expect.objectContaining({ id: "pain", kind: "symptom" }),
+      expect.objectContaining({ id: "no_red_flag", kind: "red_flag" }),
+    ]);
+  });
+
   it("shows simple question progress without the confidence tracker by default", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
@@ -209,7 +543,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByText("Choose the closest answer")).toBeInTheDocument();
   });
 
-  it("shows a quiet question reason and contextual vitals prompt without a signal dashboard", async () => {
+  it("keeps question rationale out of the flow and offers contextual readings compactly", async () => {
     apiFetchMock
       .mockResolvedValueOnce(triageResponse({
         role: "assistant",
@@ -232,24 +566,13 @@ describe("TriageChat MediSearch follow-ups", () => {
         evidenceSources: [],
       }))
       .mockResolvedValueOnce(triageResponse({
-        role: "assistant",
-        content: "Thanks. If you have the number, type it here.",
-        done: false,
-        quickReplies,
-        wizardStage: "severity",
-        wizardStageLabel: "More details",
-        questionReason: "How strong it feels helps choose the safest next step.",
-        profileContextUsed: true,
-        guidancePlan: {
-          ...dizzinessGuidancePlan,
-          confidence: { ...dizzinessGuidancePlan.confidence, score: 5, label: "High confidence", missing: [] },
-          usefulSignals: [
-            { id: "pulse", label: "Pulse", status: "available" },
-            { id: "blood_pressure", label: "Blood pressure", status: "missing" },
-          ],
-        },
-        vitalsPrompt: null,
-        evidenceSources: [],
+        readings: [],
+        signals: [
+          { signal_type: "resting_hr_bpm", current_reading: null, compatible_methods: ["web_bluetooth", "phone_camera", "device_photo", "voice", "manual"] },
+          { signal_type: "bp_systolic", current_reading: null, compatible_methods: ["web_bluetooth", "device_photo", "voice", "manual"] },
+          { signal_type: "bp_diastolic", current_reading: null, compatible_methods: ["web_bluetooth", "device_photo", "voice", "manual"] },
+        ],
+        devices: [],
       }));
 
     renderTriageChat({ initialClue: "I feel dizzy" });
@@ -259,26 +582,28 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(screen.getByTestId("triage-guidance-confidence")).toHaveTextContent("Strong confidence - 4/5");
     expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Profile-aware");
     expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Dizziness and faintness");
-    expect(screen.getByTestId("triage-question-reason")).toHaveTextContent("Why VYVA is asking this");
+    expect(screen.queryByTestId("triage-question-reason")).not.toBeInTheDocument();
+    expect(screen.queryByText("Why this question?")).not.toBeInTheDocument();
+    expect(screen.queryByText("How strong it feels helps choose the safest next step.")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("triage-guidance-plan")).not.toBeInTheDocument();
+    expect(screen.getByTestId("triage-contextual-vitals-prompt")).toHaveTextContent("Add a reading");
+    expect(screen.getByTestId("triage-contextual-vitals-prompt")).toHaveTextContent("Optional");
+    expect(screen.getByTestId("triage-contextual-vitals-prompt")).not.toHaveAttribute("open");
 
-    fireEvent.click(screen.getByText("Why VYVA is asking this"));
+    fireEvent.click(screen.getByText("Add a reading"));
 
-    expect(screen.getByText("How strong it feels helps choose the safest next step.")).toBeVisible();
-    expect(screen.getByText("VYVA quietly used your health profile to choose this question.")).toBeVisible();
-    expect(screen.getByTestId("triage-guidance-plan")).toHaveTextContent("Checking whether dizziness is strong enough");
-    expect(screen.getByTestId("triage-guidance-plan")).toHaveTextContent("Confidence improves with: optional useful reading");
-    expect(screen.getByTestId("triage-contextual-vitals-prompt")).toHaveTextContent("If you can, one reading may help");
+    expect(screen.getByText("Use a device reading if you have one nearby. You can skip this.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Pulse" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Blood pressure" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Pulse" }));
 
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(2));
-    const secondBody = JSON.parse((apiFetchMock.mock.calls[1]?.[1] as RequestInit).body as string);
-    expect(secondBody.messages.at(-1)).toEqual({
-      role: "user",
-      content: "I can check my pulse if that would help.",
-    });
+    expect(await screen.findByRole("button", { name: "Bluetooth device" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Camera scan" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Scan device screen" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Speak reading" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Type reading" })).toBeVisible();
+    expect(apiFetchMock.mock.calls.filter(([url]) => url === "/api/triage/message")).toHaveLength(1);
   });
 
   it("shows only four answer buttons until More choices is opened", async () => {
@@ -305,6 +630,42 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     expect(screen.getByRole("button", { name: "Fifth answer" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Sixth answer" })).toBeVisible();
+  });
+
+  it("does not ask for an initial symptom a second time", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Which symptom is closest?",
+      done: false,
+      quickReplies: [
+        { id: "headache", label: "Headache", value: "Headache", icon: "help", tone: "purple", kind: "symptom" },
+        { id: "dizziness", label: "Dizziness", value: "Dizziness", icon: "help", tone: "purple", kind: "symptom" },
+        { id: "nausea", label: "Nausea", value: "Nausea", icon: "help", tone: "purple", kind: "symptom" },
+      ],
+      guidancePlan: {
+        stage: "symptom",
+        priorityLabel: "Safety first",
+        protocolLabel: "Symptom assessment",
+        nextQuestionFocus: "Choose symptoms",
+        usefulSignals: [],
+        confidence: { score: 3, label: "Building", reasons: [], missing: [] },
+      },
+    }));
+
+    await renderTriageChat({
+      initialClue: "Pain or headache",
+      presentationStage: "symptom_selection",
+      composerVisibility: "hidden",
+    });
+
+    expect(await screen.findByRole("heading", { name: "Anything else?" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Headache" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dizziness" })).toBeVisible();
+    const dizzinessChoice = screen.getByRole("button", { name: "Dizziness" });
+    expect(dizzinessChoice).toHaveClass("w-full", "rounded-[18px]", "text-left");
+    expect(dizzinessChoice.querySelectorAll("svg")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Nausea" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Nothing else" })).toBeVisible();
   });
 
   it("sends follow-up chips as free text without adding quickAnswers", async () => {
@@ -353,6 +714,119 @@ describe("TriageChat MediSearch follow-ups", () => {
     expect(secondBody.medisearchConversationId).toBe("conversation-1");
   });
 
+  it("restores the previous question without sending another triage request", async () => {
+    let backHandler: (() => boolean) | null = null;
+    apiFetchMock
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Do any warning signs apply?",
+        done: false,
+        quickReplies,
+        wizardStage: "red_flag",
+        wizardStageLabel: "Safety check",
+      }))
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "When did this begin?",
+        done: false,
+        quickReplies: [
+          { id: "today", label: "Today", value: "It started today.", icon: "calendar", tone: "purple", kind: "duration" },
+        ],
+        wizardStage: "duration",
+        wizardStageLabel: "When it started",
+      }));
+
+    await renderTriageChat({
+      onBackHandlerChange: (handler) => {
+        backHandler = handler;
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "No warning signs" }));
+    await screen.findByText("When did this begin?");
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      expect(backHandler).not.toBeNull();
+      expect(backHandler!()).toBe(true);
+    });
+
+    expect(await screen.findByText("Do any warning signs apply?")).toBeVisible();
+    expect(screen.getByRole("button", { name: "No warning signs" })).toBeVisible();
+    expect(screen.queryByText("When did this begin?")).not.toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      expect(backHandler!()).toBe(false);
+    });
+  });
+
+  it("cancels an in-flight next question when returning to the previous turn", async () => {
+    let backHandler: (() => boolean) | null = null;
+    let pendingSignal: AbortSignal | undefined;
+    apiFetchMock
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Do any warning signs apply?",
+        done: false,
+        quickReplies,
+        wizardStage: "red_flag",
+        wizardStageLabel: "Safety check",
+      }))
+      .mockImplementationOnce((_url, init) => {
+        pendingSignal = init?.signal as AbortSignal;
+        return new Promise<Response>((_resolve, reject) => {
+          pendingSignal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        });
+      });
+
+    await renderTriageChat({
+      onBackHandlerChange: (handler) => {
+        backHandler = handler;
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "No warning signs" }));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      expect(backHandler!()).toBe(true);
+      await Promise.resolve();
+    });
+
+    expect(pendingSignal?.aborted).toBe(true);
+    expect(await screen.findByText("Do any warning signs apply?")).toBeVisible();
+    expect(screen.getByRole("button", { name: "No warning signs" })).toBeEnabled();
+    expect(screen.queryByTestId("triage-request-error")).not.toBeInTheDocument();
+  });
+
+  it("restores the final review turn from a completed draft", () => {
+    const reviewTurn: NonNullable<TriageChatDraft["backStack"]>[number] = {
+      messages: [{ role: "assistant", content: "Does this look right?" }],
+      selectedQuickAnswers: [{ id: "today", label: "Today", value: "Today", kind: "duration" }],
+      presentationStage: "review",
+    };
+    const result = stepBackTriageDraft({
+      assessmentSessionId: "assessment-1",
+      messages: [...reviewTurn.messages, { role: "user", content: "Show my guidance" }],
+      selectedQuickAnswers: reviewTurn.selectedQuickAnswers,
+      backStack: [reviewTurn],
+      pendingRequest: false,
+    });
+
+    expect(result).toEqual({
+      draft: {
+        assessmentSessionId: "assessment-1",
+        ...reviewTurn,
+        backStack: [],
+        pendingRequest: false,
+      },
+      presentationStage: "review",
+    });
+  });
+
   it("does not show MediSearch follow-up chips during a safety alert", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
@@ -398,10 +872,10 @@ describe("TriageChat MediSearch follow-ups", () => {
     });
 
     expect(screen.getByTestId("triage-optional-scan")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Comprobacion opcional"));
+    fireEvent.click(screen.getByText("Anadir una medicion rapida"));
     expect(screen.getByTestId("triage-scan-card")).toBeVisible();
     expect(screen.getByText("Revisar pulso y respiracion")).toBeInTheDocument();
-    expect(screen.getByText("Tu decides")).toBeInTheDocument();
+    expect(screen.queryByText("Tu decides")).not.toBeInTheDocument();
     expect(screen.getByText("Ahora no")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-triage-scan-skip"));

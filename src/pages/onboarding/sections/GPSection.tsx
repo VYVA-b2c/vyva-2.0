@@ -1,8 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Stethoscope } from "lucide-react";
+import { ChevronLeft, Mic, Stethoscope } from "lucide-react";
+import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlacesSearch, PlaceResult } from "@/components/onboarding/PlacesSearch";
@@ -10,6 +17,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
+import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 
 type GpProfile = {
   gp_name?: string;
@@ -19,6 +27,12 @@ type GpProfile = {
   gp_maps_url?: string;
   gp_place_id?: string;
 };
+
+const GP_COMPANION_TARGETS = {
+  addByVoice: "gp-add-by-voice",
+  draftReview: "gp-draft-review",
+  reviewSave: "gp-review-save",
+} as const;
 
 const GPSection = () => {
   const navigate = useNavigate();
@@ -33,6 +47,31 @@ const GPSection = () => {
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [isChangingGP, setIsChangingGP] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const gpAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "gp",
+        sectionLabel: "GP details",
+        voicePrompt: "Tell VYVA your GP or practice name and any contact details you know.",
+        expectedFields: ["name", "address", "phone", "email"],
+        draftRowLabels: {
+          name: "Practice / Surgery name",
+          address: "Address",
+          phone: "Phone",
+          email: "Email",
+        },
+        targetIds: GP_COMPANION_TARGETS,
+      }),
+    [],
+  );
 
   const gpDataRef = useRef({ manualName, manualAddress, manualPhone, manualEmail, place });
   useEffect(() => {
@@ -90,6 +129,118 @@ const GPSection = () => {
   );
 
   const usingSearch = !!place;
+
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: gpAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => {
+      const current = gpDataRef.current;
+      return [
+        current.manualName ? `Current GP: ${current.manualName}` : "",
+        current.manualAddress ? `Address: ${current.manualAddress}` : "",
+        current.manualPhone ? `Phone: ${current.manualPhone}` : "",
+        current.manualEmail ? `Email: ${current.manualEmail}` : "",
+      ].filter(Boolean).join(". ") || undefined;
+    },
+    activeDraftId: () => voiceDraft?.id,
+  });
+
+  const startVoiceGpCapture = useCallback(() => {
+    void startRuntimeCapture({
+      fallback: () =>
+        toast({
+          title: "Voice is not ready",
+          description: "Use the fields below, then save when the details look right.",
+        }),
+    });
+  }, [startRuntimeCapture, toast]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-gp-voice-capture",
+        label: "Tell VYVA",
+        description: "Say the GP or practice name and contact details.",
+        sectionId: "gp",
+        sectionLabel: gpAgentSectionConfig.sectionLabel,
+        targetId: gpAgentSectionConfig.targetIds?.addByVoice,
+        sectionConfig: gpAgentSectionConfig,
+        onStart: startVoiceGpCapture,
+      }),
+    [gpAgentSectionConfig, registerVoiceAction, startVoiceGpCapture],
+  );
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: gpAgentSectionConfig.sectionId,
+      currentSectionLabel: gpAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft
+        ? "Review these GP details before adding them locally."
+        : gpAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? gpAgentSectionConfig.targetIds?.draftReview
+        : gpAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, gpAgentSectionConfig, setGuidance, voiceDraft]);
+
+  const gpDraftRow = useCallback((draft: ProfileVoiceDraft, ids: string[]) => {
+    const normalizedIds = new Set(ids.map((id) => id.toLowerCase()));
+    return draft.rows.find((row) => normalizedIds.has(row.id.toLowerCase()))?.value ?? "";
+  }, []);
+
+  const confirmVoiceDraft = useCallback(() => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    const name =
+      metadata.name ||
+      metadata.gp_name ||
+      metadata.practice ||
+      metadata.provider ||
+      gpDraftRow(voiceDraft, ["name", "gp_name", "practice", "provider"]) ||
+      voiceDraft.values[0] ||
+      "";
+
+    if (!name.trim()) {
+      setGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        currentSectionId: gpAgentSectionConfig.sectionId,
+        currentSectionLabel: gpAgentSectionConfig.sectionLabel,
+        currentPrompt: "Please tell VYVA the GP or practice name before adding it.",
+        activeTargetId: gpAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+
+    cancelAutoSave();
+    setPlace(null);
+    setManualName(name);
+    setManualAddress(metadata.address || metadata.gp_address || gpDraftRow(voiceDraft, ["address", "gp_address"]));
+    setManualPhone(metadata.phone || metadata.gp_phone || gpDraftRow(voiceDraft, ["phone", "gp_phone"]));
+    setManualEmail(metadata.email || metadata.gp_email || gpDraftRow(voiceDraft, ["email", "gp_email"]));
+    setIsChangingGP(true);
+    setVoiceDraft(null);
+    setGuidance({
+      voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
+      currentSectionId: gpAgentSectionConfig.sectionId,
+      currentSectionLabel: gpAgentSectionConfig.sectionLabel,
+      currentPrompt: "I added the GP details locally. Review them, then save when ready.",
+      activeTargetId: gpAgentSectionConfig.targetIds?.reviewSave,
+    });
+  }, [cancelAutoSave, gpAgentSectionConfig, gpDraftRow, setGuidance, voiceDraft]);
 
   const handleSelect = (p: PlaceResult | null) => {
     if (!p) {
@@ -218,6 +369,22 @@ const GPSection = () => {
       </div>
 
       <div className="flex-1 px-5 space-y-7">
+        <OnboardingCompanionModeChip
+          compactLabel="VYVA mode"
+          voiceLabel="Voice"
+          voiceDescription="VYVA can talk you through this page."
+          tactileLabel="Tactile"
+          tactileDescription="Use touch or keyboard controls quietly."
+          accessibleLabel="Choose voice or tactile help for GP details"
+          statusLabels={{
+            idle: "Ready",
+            listening: "Listening",
+            speaking: "Speaking",
+            thinking: "Thinking",
+            error: "Needs attention",
+          }}
+        />
+
         <ProfileSectionHero
           icon={Stethoscope}
           title="Doctor details"
@@ -231,6 +398,47 @@ const GPSection = () => {
           iconBgClassName="bg-[#1D4ED8]"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-gp-autosave" }}
         />
+
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId={GP_COMPANION_TARGETS.addByVoice}>
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Tell VYVA your GP details"
+              description="Say the practice name, phone, email, or address."
+              onClick={startVoiceGpCapture}
+              testId="button-gp-voice"
+              tone="purple"
+              className="bg-white shadow-[0_8px_18px_rgba(53,28,87,0.06)]"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId={GP_COMPANION_TARGETS.draftReview}>
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Add these details"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={() => {
+                setVoiceDraft(null);
+                startVoiceGpCapture();
+              }}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) =>
+                setVoiceDraft((current) => current
+                  ? {
+                      ...current,
+                      rows: current.rows.filter((row) => row.value !== value),
+                      values: current.values.filter((rowValue) => rowValue !== value),
+                    }
+                  : current)
+              }
+              testId="panel-gp-elevenlabs-confirm"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {showSavedCard ? (
           /* Saved GP summary card  server is not touched when navigating away */
@@ -405,15 +613,17 @@ const GPSection = () => {
 
       <div className="px-5 py-6 space-y-3">
         {!showSavedCard && (
-          <button
-            data-testid="button-gp-save"
-            onClick={handleSave}
-            disabled={!canSave || saving}
-            className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
-            style={{ background: "#6B21A8" }}
-          >
-            {saving ? "Saving..." : "Save GP details"}
-          </button>
+          <OnboardingCompanionTarget targetId={GP_COMPANION_TARGETS.reviewSave}>
+            <button
+              data-testid="button-gp-save"
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
+              style={{ background: "#6B21A8" }}
+            >
+              {saving ? "Saving..." : "Save GP details"}
+            </button>
+          </OnboardingCompanionTarget>
         )}
         {isChangingGP && (
           <button

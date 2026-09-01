@@ -2,6 +2,7 @@ import {
   clearVoiceCanvasScene,
   emitVoiceCanvasResponse,
   emitVoiceCanvasScene,
+  readActiveVoiceCanvasSceneProvenance,
   voiceCanvasClearMatchesScene,
   voiceCanvasResponseMatchesScene,
   VYVA_VOICE_CANVAS_CLEAR_EVENT,
@@ -35,6 +36,28 @@ describe("voiceCanvasBridge", () => {
     expect((cleared.mock.calls[0][0] as CustomEvent).detail).toEqual({ owner: "concierge_ride" });
     window.removeEventListener(VYVA_VOICE_CANVAS_PRESENT_EVENT, presented);
     window.removeEventListener(VYVA_VOICE_CANVAS_CLEAR_EVENT, cleared);
+  });
+
+  it("captures and clears a privacy-safe active scene provenance snapshot", () => {
+    emitVoiceCanvasScene({
+      ...scene,
+      questionId: "health.preventive_check.energy",
+      sceneInstanceId: "health-session-a",
+    });
+
+    expect(readActiveVoiceCanvasSceneProvenance()).toEqual({
+      owner: "concierge_ride",
+      sceneId: "ride-destination",
+      revision: 3,
+      flowReference: "CONCIERGE_TRANSPORT_V1",
+      actionId: undefined,
+      pendingId: undefined,
+      questionId: "health.preventive_check.energy",
+      sceneInstanceId: "health-session-a",
+    });
+
+    clearVoiceCanvasScene({ sceneId: "ride-destination" });
+    expect(readActiveVoiceCanvasSceneProvenance()).toBeNull();
   });
 
   it("emits touch responses with their scene revision", () => {

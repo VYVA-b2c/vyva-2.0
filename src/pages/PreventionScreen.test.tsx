@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import PreventionScreen from "./PreventionScreen";
+import LongevityScreen from "./LongevityScreen";
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -31,8 +31,16 @@ vi.mock("react-router-dom", async (importOriginal) => {
   };
 });
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: tMock }),
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...actual,
+    useTranslation: () => ({ t: tMock }),
+  };
+});
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: { id: "user-1" } }),
 }));
 
 vi.mock("@/hooks/useServiceGate", () => ({
@@ -55,17 +63,23 @@ function renderPrevention() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <PreventionScreen />
+        <LongevityScreen />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe("PreventionScreen", () => {
+describe("LongevityScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
     mocks.apiFetch.mockResolvedValue(new Response(JSON.stringify({
+      tier: 2,
+      focus_label: "Heart health",
+      hero_copy: "Heart check today.",
+      insight_text: "A recent blood pressure reading was high.",
+      data_completeness: { blood_pressure: true, health_profile: true },
+      report_generated_at: "2026-07-02T10:00:00.000Z",
       focus: "Heart",
       headline: "Heart check today.",
       why: ["A recent blood pressure reading was high.", "Your profile includes blood pressure context."],
@@ -395,20 +409,34 @@ describe("PreventionScreen", () => {
       },
       actions: [
         {
-          id: "heart-food",
-          label: "Food ideas",
-          detail: "Low-salt meals for today",
-          route: "/health/doctor",
-          priority: "primary",
-          mode: "voice",
+          id: "heart-low-salt-meal",
+          category: "eat",
+          label: "Low-salt meal",
+          description: "Recipe, groceries, or prepared meal help.",
+          destination_type: "navigate",
+          destination_path: "/concierge/shopping",
+          condition_tags: ["heart"],
+          tier_min: 1,
         },
         {
-          id: "heart-move",
-          label: "Movement plan",
-          detail: "Gentle exercise I can do",
-          route: "/health/doctor",
-          priority: "secondary",
-          mode: "voice",
+          id: "heart-calm-breathing",
+          category: "move",
+          label: "3-minute breathing",
+          description: "Start calm breathing before the next check.",
+          destination_type: "navigate",
+          destination_path: "/activities/relax-breathe",
+          condition_tags: ["heart"],
+          tier_min: 1,
+        },
+        {
+          id: "heart-bp-check",
+          category: "check",
+          label: "BP after rest",
+          description: "Sit quietly, then add or review a reading.",
+          destination_type: "navigate",
+          destination_path: "/health/vitals",
+          condition_tags: ["heart"],
+          tier_min: 1,
         },
       ],
       personalizationSummary: ["Blood pressure profile", "High blood pressure", "Medicine routine"],
@@ -433,30 +461,34 @@ describe("PreventionScreen", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders focus, why, today action, help signs, and Talk to VYVA", async () => {
+  it("renders a concise prevention plan with one header voice entry", async () => {
     renderPrevention();
 
     expect(await screen.findByTestId("prevention-page")).toBeInTheDocument();
+    expect(screen.getByTestId("prevention-topbar")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Longevity" })).toBeInTheDocument();
+    expect(screen.getByTestId("button-prevention-back")).toBeInTheDocument();
+    expect(screen.getByTestId("button-prevention-header-talk")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Heart check today."));
-    expect(screen.getByTestId("prevention-personalization")).toHaveTextContent("Blood pressure profile");
-    expect(screen.getByTestId("prevention-personalization")).not.toHaveTextContent("BP 168/96");
+    expect(screen.queryByTestId("prevention-personalization")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Blood pressure profile");
     expect(screen.getByTestId("prevention-guidance-panel")).toHaveTextContent("Today's 3 moves");
-    expect(screen.getByTestId("prevention-loop-summary")).toHaveTextContent("Why today: A recent blood pressure reading was high.");
+    expect(screen.queryByTestId("prevention-loop-summary")).not.toBeInTheDocument();
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Low-salt meal");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("3-minute breathing");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("BP after rest");
     expect(screen.getByTestId("prevention-feedback-row-heart-low-salt-meal")).toHaveTextContent("Too hard");
     expect(screen.getByTestId("prevention-feedback-row-heart-low-salt-meal")).not.toHaveTextContent("Remind me");
     expect(screen.getByTestId("prevention-feedback-row-heart-low-salt-meal")).not.toHaveTextContent("Ask VYVA");
-    expect(screen.getByTestId("prevention-weekly-memory")).toHaveTextContent("VYVA is building on what worked.");
+    expect(screen.getByTestId("prevention-weekly-memory")).toHaveTextContent("Mark what works or feels hard");
     expect(screen.getByTestId("prevention-learning")).toHaveTextContent("New options to ask about");
-    expect(screen.getByTestId("prevention-learning")).toHaveTextContent("DASH-style meals");
-    expect(screen.getByTestId("prevention-actions")).toHaveTextContent("Food ideas");
-    expect(screen.getByTestId("prevention-actions")).toHaveTextContent("Movement plan");
-    expect(screen.getByTestId("prevention-help-signs")).toHaveTextContent("Chest pain");
-    expect(screen.getByTestId("button-prevention-talk")).toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("prevention-learning")).toHaveTextContent("Vaccines, screenings, strength routines");
+    expect(screen.getByTestId("prevention-actions")).toHaveTextContent("Low-salt meal");
+    expect(screen.getByTestId("prevention-actions")).toHaveTextContent("3-minute breathing");
+    expect(screen.getByTestId("prevention-help-signs")).toHaveTextContent("Sudden chest pain");
+    expect(screen.queryByTestId("button-prevention-talk")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("button-prevention-talk"));
+    fireEvent.click(screen.getByTestId("button-prevention-header-talk"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
       state: expect.objectContaining({ autoStartVoice: true }),
     }));
@@ -469,6 +501,12 @@ describe("PreventionScreen", () => {
 
   it("turns a symptom follow-up into direct next steps", async () => {
     mocks.apiFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      tier: 2,
+      focus_label: "Follow-up",
+      hero_copy: "Symptom follow-up today.",
+      insight_text: "Latest symptom report: urinary pain.",
+      data_completeness: { symptom_report: true, health_profile: true },
+      report_generated_at: "2026-07-02T10:00:00.000Z",
       focus: "Follow-up",
       headline: "Symptom follow-up today.",
       why: ["Latest symptom report: Pain when urinating with back or side pain.", "The report suggested follow-up."],
@@ -496,26 +534,33 @@ describe("PreventionScreen", () => {
       actions: [
         {
           id: "follow-up-context",
-          label: "Ask VYVA",
-          detail: "Use symptoms, medicines, and profile",
-          route: "/health/doctor",
-          priority: "primary",
-          mode: "voice",
+          category: "follow-up",
+          label: "Check the pattern",
+          description: "Symptoms, medicine, and BP 168/96 together.",
+          destination_type: "voice",
+          destination_path: "/health/doctor",
+          condition_tags: ["follow-up"],
+          tier_min: 1,
         },
         {
-          id: "follow-up-symptoms",
-          label: "Check symptoms",
-          detail: "Review signs to watch",
-          route: "/health/symptom-check",
-          priority: "secondary",
+          id: "follow-up-watch-signs",
+          category: "check",
+          label: "Watch urinary changes",
+          description: "Fever, Back pain worse, Blood",
+          destination_type: "navigate",
+          destination_path: "/health/symptom-check",
+          condition_tags: ["follow-up"],
+          tier_min: 1,
         },
         {
           id: "follow-up-summary",
-          label: "Make summary",
-          detail: "Prepare a clear note",
-          route: "/health/doctor",
-          priority: "secondary",
-          mode: "voice",
+          category: "follow-up",
+          label: "Save a summary",
+          description: "Keep symptoms, readings, and medicine together.",
+          destination_type: "voice",
+          destination_path: "/health/doctor",
+          condition_tags: ["follow-up"],
+          tier_min: 1,
         },
       ],
       dailyActions: [
@@ -611,7 +656,7 @@ describe("PreventionScreen", () => {
     renderPrevention();
 
     await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Urinary pain follow-up"));
-    expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Follow-up from 2 Jul");
+    expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Latest symptom report: urinary pain.");
     expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Urinary pain today");
     expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Age Well Today");
     expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Let's make sense");
@@ -620,7 +665,7 @@ describe("PreventionScreen", () => {
     expect(screen.getByTestId("prevention-guidance-panel")).toHaveTextContent("VYVA can help");
     expect(screen.getByTestId("prevention-daily-actions")).not.toHaveTextContent("RIGHT NOW");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Check the pattern");
-    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Symptoms + medicine + BP 168/96");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Symptoms + medicine");
     expect(screen.queryByTestId("prevention-daily-chips-follow-up-context")).not.toBeInTheDocument();
     expect(screen.getByTestId("prevention-daily-actions")).not.toHaveTextContent("WATCH FOR");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Watch urinary changes");
@@ -665,7 +710,7 @@ describe("PreventionScreen", () => {
     fireEvent.click(screen.getByTestId("button-prevention-daily-follow-up-watch-signs"));
     expect(mocks.navigate).toHaveBeenCalledWith("/health/symptom-check", expect.objectContaining({
       state: expect.objectContaining({
-        initialClue: expect.stringContaining("Pain when urinating with back or side pain"),
+        initialClue: expect.stringContaining("urinary pain"),
       }),
     }));
 
@@ -674,8 +719,8 @@ describe("PreventionScreen", () => {
       state: expect.objectContaining({ autoStartVoice: true }),
     }));
 
-    fireEvent.click(screen.getByTestId("button-prevention-resolve-follow-up"));
-    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:dismissed-followups") ?? "[]")).toContain("triage-uti");
+    expect(screen.queryByTestId("button-prevention-resolve-follow-up")).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:dismissed-followups") ?? "[]")).not.toContain("triage-uti");
   });
 
   it("sends local prevention learning context to the endpoint", async () => {
@@ -695,22 +740,21 @@ describe("PreventionScreen", () => {
 
     await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalled());
     const url = String(mocks.apiFetch.mock.calls[0][0]);
-    expect(url).toContain("/api/health/prevention?learning=");
-    const encoded = url.split("learning=")[1];
-    const decoded = JSON.parse(decodeURIComponent(encoded));
-    expect(decoded.recentFeedback[0]).toMatchObject({ actionId: "heart-low-salt-meal", feedback: "shown" });
-    expect(decoded.dismissedFollowUpIds).toEqual(["triage-uti"]);
+    expect(url).toContain("/api/longevity/today/user-1");
+    expect(url).not.toContain("learning=");
+    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:history") ?? "[]")[0]).toMatchObject({ actionId: "heart-low-salt-meal", feedback: "shown" });
+    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:dismissed-followups") ?? "[]")).toEqual(["triage-uti"]);
   });
 
   it("opens VYVA with the weekly prevention summary", async () => {
     renderPrevention();
 
-    await waitFor(() => expect(screen.getByTestId("prevention-weekly-memory")).toHaveTextContent("Calm breathing worked"));
+    await waitFor(() => expect(screen.getByTestId("prevention-weekly-memory")).toHaveTextContent("Mark what works or feels hard"));
     fireEvent.click(screen.getByTestId("button-prevention-weekly-summary"));
 
     expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
       state: expect.objectContaining({
-        latestSymptomReport: expect.stringContaining("Today's suggested moves"),
+        latestSymptomReport: expect.stringContaining("No weekly prevention feedback yet"),
       }),
     }));
   });
@@ -722,9 +766,10 @@ describe("PreventionScreen", () => {
     fireEvent.click(screen.getByTestId("button-prevention-feedback-heart-low-salt-meal-done"));
 
     expect(screen.getByTestId("prevention-feedback-heart-low-salt-meal")).toHaveTextContent("Done");
-    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-feedback:Heart:2026-07-02") ?? "{}")).toMatchObject({
-      "heart-low-salt-meal": "done",
-    });
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith("/api/longevity/feedback", {
+      method: "POST",
+      body: JSON.stringify({ userId: "user-1", actionId: "heart-low-salt-meal", outcome: "done" }),
+    }));
     expect(screen.getByTestId("prevention-loop-summary")).toHaveTextContent("Nice. One move done.");
   });
 
@@ -738,22 +783,16 @@ describe("PreventionScreen", () => {
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Easier version");
     expect(screen.getByTestId("prevention-barrier-row-heart-low-salt-meal")).toHaveTextContent("Cooking");
     fireEvent.click(screen.getByTestId("button-prevention-barrier-heart-low-salt-meal-cooking"));
-    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-barriers:Heart:2026-07-02") ?? "{}")).toMatchObject({
-      "heart-low-salt-meal": "cooking",
-    });
+    expect(screen.getByTestId("prevention-barrier-row-heart-low-salt-meal")).toHaveTextContent("Cooking");
     expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:history") ?? "[]")[0]).toMatchObject({
       actionId: "heart-low-salt-meal",
-      feedback: "too_hard",
-      barrier: "cooking",
+      feedback: "shown",
     });
-    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-feedback:Heart:2026-07-02") ?? "{}")).toMatchObject({
-      "heart-low-salt-meal": "too_hard",
-    });
-    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:last-feedback") ?? "{}")).toMatchObject({
-      focus: "Heart",
-      actionId: "heart-low-salt-meal",
-      feedback: "too_hard",
-    });
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith("/api/longevity/feedback", {
+      method: "POST",
+      body: JSON.stringify({ userId: "user-1", actionId: "heart-low-salt-meal", outcome: "hard" }),
+    }));
+    expect(window.localStorage.getItem("vyva-prevention-loop:last-feedback")).toBeNull();
 
     fireEvent.click(screen.getByTestId("button-prevention-daily-heart-low-salt-meal"));
     expect(screen.getByTestId("prevention-action-sheet")).toHaveTextContent("Easier version");
@@ -798,19 +837,11 @@ describe("PreventionScreen", () => {
     fireEvent.click(await screen.findByTestId("button-prevention-daily-heart-low-salt-meal"));
 
     expect(screen.getByTestId("prevention-action-sheet")).toHaveTextContent("Low-salt meal");
-    expect(screen.getByTestId("prevention-action-sheet-recipes")).toHaveTextContent("Lemon chicken with vegetables");
-    expect(screen.getByTestId("prevention-action-sheet-recipes")).toHaveTextContent("White bean vegetable soup");
+    expect(screen.getByTestId("prevention-action-sheet")).toHaveTextContent("Recipe, groceries, or prepared meal help.");
+    expect(screen.queryByTestId("prevention-action-sheet-recipes")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-prevention-sheet-primary"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/concierge/shopping", {
-      state: {
-        shoppingPrefill: expect.objectContaining({
-          category: "groceries",
-          priorities: ["diet", "simplicity", "delivery"],
-          constraints: expect.arrayContaining(["low salt"]),
-        }),
-      },
-    });
+    expect(mocks.navigate).toHaveBeenCalledWith("/concierge/shopping");
   });
 
   it("opens actionable movement guidance and routes to breathing", async () => {
@@ -833,7 +864,7 @@ describe("PreventionScreen", () => {
     renderPrevention();
 
     await waitFor(() => expect(screen.getByTestId("prevention-fallback-note")).toHaveTextContent("Using a simple plan"));
-    expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Prevention ready.");
+    expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Longevity ready.");
     expect(screen.getByTestId("prevention-guidance-panel")).toHaveTextContent("Today's 3 moves");
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Steady meal");
     expect(screen.getByTestId("button-prevention-secondary")).toHaveTextContent("Build my day");
@@ -847,7 +878,7 @@ describe("PreventionScreen", () => {
 
     renderPrevention();
 
-    await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Prevention ready."));
+    await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Longevity ready."));
     expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Steady meal");
   });
 });

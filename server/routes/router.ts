@@ -29,14 +29,44 @@ import {
   recordShownVoiceRecommendation,
   recordVoiceRecommendationFeedback,
 } from "../lib/voiceRecommendationFeedback.js";
+import {
+  resolveHealthMemoryPolicyFlag,
+  type HealthMemoryPolicyFlagResolution,
+} from "../memory/healthMemoryPolicy.js";
+import { buildBrainCoachSpecialistRouteAugmentation } from "../brainCoach/brainCoachRouterAdapter.js";
+import { buildMentalWellbeingSpecialistRouteAugmentation } from "../mentalWellbeing/mentalWellbeingRouterAdapter.js";
+import { buildMedicationSpecialistRouteAugmentation } from "../medication/medicationRouterAdapter.js";
+import { buildConciergeSpecialistRouteAugmentation } from "../concierge/conciergeRouterAdapter.js";
+import { buildSocialSupportSpecialistRouteAugmentation } from "../socialSupport/socialSupportRouterAdapter.js";
 
-type RoutingDomain =
+export type RoutingDomain =
   | "safety"
   | "meds"
   | "health"
   | "concierge"
   | "brain_coach"
   | "companion";
+
+export function resolveRouterHealthMemoryPolicyFlag(input: {
+  domain: RoutingDomain;
+  userId: string;
+  env?: Readonly<Record<string, string | undefined>>;
+}): HealthMemoryPolicyFlagResolution | null {
+  return input.domain === "health"
+    ? resolveHealthMemoryPolicyFlag({
+        env: input.env ?? process.env,
+        userRef: input.userId,
+        cohortKey: input.userId,
+      })
+    : null;
+}
+
+export function shouldUseLegacyRouterMem0(
+  domain: RoutingDomain,
+  healthMemoryFlag: HealthMemoryPolicyFlagResolution | null,
+): boolean {
+  return !(domain === "health" && healthMemoryFlag?.effectiveMode === "pilot");
+}
 
 type ConversationTurn = { role: "user" | "assistant"; content: string };
 
@@ -72,15 +102,57 @@ const SAFETY_PHRASES = [
   "cant breathe",
   "call ambulance",
   "hurt myself",
+  "harm myself",
+  "self harm",
+  "self-harm",
+  "suicide",
+  "suicidal",
+  "kill myself",
+  "end my life",
+  "want to die",
+  "wish i was dead",
   "not responding",
-  "vyva help",
   "i've had a fall",
   "i think i fell",
   "they asked for my bank",
   "someone is trying to trick me",
 ];
 const SAFETY_TOKENS = ["emergency", "unconscious", "ambulance", "scam", "sos"];
-const SAFETY_WORDS_BOUNDARY = /\b(help|fallen|fall)\b/i;
+const SAFETY_WORDS_BOUNDARY = /\b(fallen|fall)\b/i;
+const SAFETY_DISTRESS_HELP = /^\s*(?:help|help me|please help|help please|vyva help|i need help(?:\s+now)?|i really need help(?:\s+now)?)\s*[.!?]*\s*$/i;
+const SAFETY_BREATHING_DISTRESS_PATTERNS = [
+  /\b(?:i|we|he|she|they|someone)\s+(?:can't|cant|cannot|can not)\s+breathe\b/i,
+  /\b(?:i|we|he|she|they|someone)\s+(?:can\s+)?(?:barely|hardly)\s+breathe\b/i,
+  /\b(?:i(?:'m| am)?|we(?:'re| are)?|he(?:'s| is)?|she(?:'s| is)?|they(?:'re| are)?|someone(?: is)?)\s+(?:unable|struggling)\s+to\s+breathe\b/i,
+];
+const SAFETY_OVERDOSE_PATTERNS = [
+  /\bi\s+(?:think\s+i\s+)?overdosed\b/i,
+  /\bi(?:'ve| have)\s+overdosed\b/i,
+  /\bi\s+(?:may|might)\s+have\s+overdosed\b/i,
+  /\bi\s+(?:think\s+i\s+)?took\s+an\s+overdose\b/i,
+];
+const SAFETY_MEDICATION_RISK_PATTERNS = [
+  /\bi\s+(?:think\s+i\s+)?(?:took|taken|had|swallowed)\s+(?:too\s+much|too\s+many)\b/i,
+  /\b(?:too\s+much|too\s+many)\s+(?:medicine|medication|pills?|tablets?|doses?)\b/i,
+  /\b(?:double|extra)\s+dose\b/i,
+  /\b(?:accidentally\s+)?(?:took|taken|had|swallowed)\s+(?:two|double|extra)\s+(?:doses?|pills?|tablets?)\b/i,
+  /\b(?:allergic|adverse)\s+reaction\b/i,
+  /\b(?:severe\s+)?dizz(?:y|iness)\s+(?:after|from|because\s+of)\s+(?:my\s+)?(?:medicine|medication|pills?|tablets?|dose)\b/i,
+  /\b(?:fainted|fainting|passed\s+out)\s+(?:after|from|because\s+of)\s+(?:my\s+)?(?:medicine|medication|pills?|tablets?|dose)\b/i,
+  /\bdangerous\s+(?:drug\s+)?interaction\b/i,
+  /\b(?:mixed|mixing|combine|combined|taking)\s+(?:my\s+)?(?:medicine|medication|pills?)\s+with\s+alcohol\b/i,
+  /\balcohol\s+with\s+(?:my\s+)?(?:medicine|medication|pills?)\b/i,
+  /\b(?:suicide|suicidal|kill myself|end my life).*(?:overdose|medicine|medication|pills?)\b/i,
+];
+const SAFETY_DANGER_PATTERNS = [
+  /\b(?:i(?:'m| am)?|we(?:'re| are)?|someone(?: is)?|they(?:'re| are)?|he(?:'s| is)?|she(?:'s| is)?)\s+in\s+(?:immediate\s+)?danger\b/i,
+];
+const SAFETY_DEATH_INTENT_PATTERNS = [
+  /\bi(?:'m| am)\s+(?:depressed|sad|down|low|upset|scared|worried|anxious|overwhelmed)\s+and\s+thinking\s+(?:about|of)\s+dying\b/i,
+  /\bi(?:'ve| have)\s+been\s+thinking\s+(?:about|of)\s+dying\b/i,
+  /\bi\s+keep\s+thinking\s+(?:about|of)\s+dying\b/i,
+  /\bi(?:'m| am)\s+thinking\s+(?:about|of)\s+dying\b/i,
+];
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -91,16 +163,22 @@ function isSafetyUtterance(utterance: string): boolean {
   for (const p of SAFETY_PHRASES) {
     if (t.includes(p)) return true;
   }
+  if (SAFETY_BREATHING_DISTRESS_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_OVERDOSE_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_MEDICATION_RISK_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_DANGER_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
+  if (SAFETY_DEATH_INTENT_PATTERNS.some((pattern) => pattern.test(utterance))) return true;
   for (const w of SAFETY_TOKENS) {
     if (new RegExp(`\\b${escapeRegExp(w)}\\b`, "i").test(utterance)) return true;
   }
-  return SAFETY_WORDS_BOUNDARY.test(utterance);
+  return SAFETY_DISTRESS_HELP.test(utterance) || SAFETY_WORDS_BOUNDARY.test(utterance);
 }
 
 const MEDS_KEYWORDS = [
   "reorder prescription", "drug interaction", "side effect", "time for my",
   "missed my", "prescription", "medication", "medicine", "metformin",
   "lisinopril", "aspirin", "remind", "tablet", "pill", "dose", "taken", "forgot",
+  "medication schedule", "medication inventory", "medication refill", "adherence report",
 ];
 const HEALTH_KEYWORDS = [
   "worried about my health", "i think i might have", "not feeling well",
@@ -135,11 +213,17 @@ const BRAIN_COACH_KEYWORDS = [
 ];
 const STORY_FOR_COMPANION = ["tell me a story", "read me", "\\bstory\\b"];
 
+const TRUSTED_HELP_SETUP_NAVIGATION_PATTERN =
+  /^(?:open|show|view|go to|take me to|set up|setup) (?:my )?trusted help(?: settings| setup)?[.!?]?$/i;
+
+const SOCIAL_SUPPORT_NAVIGATION_PATTERN =
+  /^(?:(?:open|show|view|go to|take me to|join) (?:my )?(?:community|community hub|social|social hub|social rooms|community room|community rooms|community activities|social activities)(?: page| hub)?|(?:i want to do|i'd like to do|let's do|lets do) (?:a )?social activit(?:y|ies))[.!?]?$/i;
+
 const THRESHOLD = 0.55;
 
 const ROUTING_HINTS: Array<{ domain: RoutingDomain; patterns: string[] }> = [
   { domain: "safety", patterns: ["urgent health", "emergency help", "safety", "scam guard"] },
-  { domain: "meds", patterns: ["medication", "medicine", "meds", "prescription", "pill", "tablet"] },
+  { domain: "meds", patterns: ["medication", "medicine", "meds", "prescription", "pill", "tablet", "adherence report"] },
   { domain: "health", patterns: ["health", "doctor", "medical", "vitals", "vital signs", "signos", "symptom", "allergy", "allergies"] },
   { domain: "concierge", patterns: ["concierge", "appointment", "schedule", "taxi", "shopping"] },
   { domain: "brain_coach", patterns: ["brain", "cognitive", "cognition", "memory", "activity", "activities"] },
@@ -184,6 +268,12 @@ function healthDisallowedTiredOnly(utterance: string): boolean {
 function classifyRoutingHint(utterance: string): RoutingDomain | null {
   const normalized = utterance.toLowerCase().replace(/\s+/g, " ").trim();
   if (!normalized) return null;
+  if (TRUSTED_HELP_SETUP_NAVIGATION_PATTERN.test(normalized)) {
+    return "concierge";
+  }
+  if (SOCIAL_SUPPORT_NAVIGATION_PATTERN.test(normalized)) {
+    return "companion";
+  }
   for (const hint of ROUTING_HINTS) {
     if (hint.patterns.some((pattern) => normalized === pattern || normalized.includes(pattern))) {
       return hint.domain;
@@ -698,8 +788,14 @@ export async function routerHandler(req: Request, res: Response) {
 
   const mem0Key = getMem0ApiKey();
   const mem0UserId = profile?.mem0_user_id?.trim() || user_id;
+  const healthMemoryFlag = resolveRouterHealthMemoryPolicyFlag({
+    domain,
+    userId: user_id,
+    env: process.env,
+  });
+  const useLegacyRouterMem0 = shouldUseLegacyRouterMem0(domain, healthMemoryFlag);
   let memories: Mem0Memory[] = [];
-  if (mem0Key) {
+  if (mem0Key && useLegacyRouterMem0) {
     memories = await searchMemories(utterance, mem0UserId, mem0Key).catch(() => []);
   }
 
@@ -712,7 +808,6 @@ export async function routerHandler(req: Request, res: Response) {
   const first = firstName(profile?.full_name ?? null);
   const gender = profileGender(profile);
   const now = new Date();
-  const memoryBlock = formatMemoryBlock(memories);
 
   const lastTopic = sessionRow?.last_intent ?? sessionRow?.last_agent ?? "general chat";
   const sessionBlockLines = [
@@ -738,10 +833,23 @@ export async function routerHandler(req: Request, res: Response) {
   const voiceContext = await buildVoiceContext(user_id, domain, utterance, {
     appEntrypoint,
     priorVoiceExchangeCount,
+    ...(healthMemoryFlag?.effectiveMode === "pilot"
+      ? {
+          healthMemoryPolicy: {
+            enabled: true,
+            flowInstanceId: session_id,
+            env: process.env,
+          },
+        }
+      : {}),
   }).catch((err) => {
     console.warn("[router] voice context unavailable:", err);
     return {};
   });
+  const policyMemoryBlock = contextValue(voiceContext.memory_block);
+  const memoryBlock = healthMemoryFlag?.effectiveMode === "pilot"
+    ? (policyMemoryBlock === "(no memory retrieved)" ? "" : policyMemoryBlock)
+    : formatMemoryBlock(memories);
   await recordRecommendationResponseFromUtterance({
     userId: user_id,
     sessionId: session_id,
@@ -753,6 +861,63 @@ export async function routerHandler(req: Request, res: Response) {
     sessionId: session_id,
     voiceContext,
     source: "router",
+  });
+
+  const newTurn = (sessionRow?.turn_count ?? 0) + 1;
+  const brainCoachSpecialist = buildBrainCoachSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
+  const medicationSpecialist = buildMedicationSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
+  const mentalWellbeingSpecialist = buildMentalWellbeingSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
+  const conciergeSpecialist = buildConciergeSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
+  });
+  const socialSupportSpecialist = buildSocialSupportSpecialistRouteAugmentation({
+    domain,
+    userId: user_id,
+    sessionId: session_id,
+    utterance,
+    turnCount: newTurn,
+    confidence,
+    now,
+    env: process.env,
+    currentRoute: appEntrypoint,
   });
 
   const system_prompt_override = [
@@ -767,9 +932,13 @@ export async function routerHandler(req: Request, res: Response) {
     `SESSION BLOCK:\n${sessionBlockLines.join("\n")}`,
     "",
     `CONVERSATION PLAN:\n${formatConversationPlanPrompt(conversationPlan) || buildConversationPlan(domain)}`,
+    brainCoachSpecialist ? ["", brainCoachSpecialist.promptBlock].join("\n") : "",
+    medicationSpecialist ? ["", medicationSpecialist.promptBlock].join("\n") : "",
+    mentalWellbeingSpecialist ? ["", mentalWellbeingSpecialist.promptBlock].join("\n") : "",
+    conciergeSpecialist ? ["", conciergeSpecialist.promptBlock].join("\n") : "",
+    socialSupportSpecialist ? ["", socialSupportSpecialist.promptBlock].join("\n") : "",
   ].join("\n");
 
-  const newTurn = (sessionRow?.turn_count ?? 0) + 1;
   const lastAgentBefore = sessionRow?.current_agent ?? null;
   const persistNext = resolveEscalationDomain(body.store_next_turn_override);
   const nextOverrideAfter =
@@ -787,7 +956,7 @@ export async function routerHandler(req: Request, res: Response) {
     }),
   ]);
 
-  if (mem0Key) scheduleMem0Add(mem0UserId, buildMem0Messages(history, utterance), mem0Key);
+  if (mem0Key && useLegacyRouterMem0) scheduleMem0Add(mem0UserId, buildMem0Messages(history, utterance), mem0Key);
 
   const agent_id = agentIdForDomain(domain);
   if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain]}`);
@@ -831,7 +1000,33 @@ export async function routerHandler(req: Request, res: Response) {
           }
         : { conversation_id: session_id }),
       ...(feedbackToken ? { voice_recommendation_feedback_token: feedbackToken } : {}),
+      ...(brainCoachSpecialist ? brainCoachSpecialist.dynamicVariables : {}),
+      ...(medicationSpecialist ? medicationSpecialist.dynamicVariables : {}),
+      ...(mentalWellbeingSpecialist ? mentalWellbeingSpecialist.dynamicVariables : {}),
+      ...(conciergeSpecialist ? conciergeSpecialist.dynamicVariables : {}),
+      ...(socialSupportSpecialist ? socialSupportSpecialist.dynamicVariables : {}),
     },
-    session_data: { domain, intent_confidence: confidence, session_id, turn_count: newTurn, last_agent: lastAgentBefore },
+    session_data: {
+      domain,
+      intent_confidence: confidence,
+      session_id,
+      turn_count: newTurn,
+      last_agent: lastAgentBefore,
+      ...(brainCoachSpecialist
+        ? { brain_coach_specialist: brainCoachSpecialist.sessionData }
+        : {}),
+      ...(medicationSpecialist
+        ? { medication_specialist: medicationSpecialist.sessionData }
+        : {}),
+      ...(mentalWellbeingSpecialist
+        ? { mental_wellbeing_specialist: mentalWellbeingSpecialist.sessionData }
+        : {}),
+      ...(conciergeSpecialist
+        ? { concierge_specialist: conciergeSpecialist.sessionData }
+        : {}),
+      ...(socialSupportSpecialist
+        ? { social_support_specialist: socialSupportSpecialist.sessionData }
+        : {}),
+    },
   });
 }

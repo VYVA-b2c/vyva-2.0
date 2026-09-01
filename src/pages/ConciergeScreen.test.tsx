@@ -1339,6 +1339,18 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-fast-safe-home")).toHaveTextContent("Safe Home");
     expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Paperwork Help");
     expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Find Plumber");
+    expect(screen.getByTestId("panel-concierge-trusted-help")).toHaveTextContent("My Trusted Help");
+  });
+
+  it("opens Trusted Help setup from Concierge", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-trusted-help"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/settings/trusted-help");
+    });
   });
 
   it("routes delivery through the shopping helper", async () => {
@@ -8686,8 +8698,12 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
-    expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA is handling this");
+    const missionPanel = await screen.findByTestId("panel-concierge-appointment-mission");
+    expect(missionPanel).toHaveTextContent("Form in progress");
+    expect(missionPanel).toHaveTextContent("VYVA is handling this");
+    expect(missionPanel).toHaveAttribute("data-presentation-step", "active-mission");
+    expect(missionPanel).toHaveAttribute("data-presentation-status", "form_in_progress");
+    expect(missionPanel).toHaveAttribute("data-external-action-boundary", "waitingForUserConfirmation");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Request started");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Add missing details");
     expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");

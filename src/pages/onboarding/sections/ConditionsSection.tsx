@@ -1,33 +1,49 @@
 // src/pages/onboarding/sections/ConditionsSection.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { BadgeCheck, CheckCircle2, ChevronDown, HeartPulse, Home, Mic, PersonStanding, Search } from "lucide-react";
+import { BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, HeartPulse, Home, Mic, PersonStanding, Search, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { ProfileSectionHero } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileQuestionLayout } from "@/components/onboarding/ProfileQuestionLayout";
+import { ProfileCompletionBar } from "@/components/onboarding/ProfileSectionControls";
 import { SeniorChoiceChips, type SeniorChoiceOption } from "@/components/onboarding/SeniorChoiceChips";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
-import { Button } from "@/components/ui/button";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { useTranslation } from "react-i18next";
+import { getLanguageSnapshot } from "@/i18n";
+import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
+import {
+  onboardingVoiceUiStateContextUpdate,
+} from "@/lib/onboardingVoiceUiState";
+import {
+  createOnboardingElevenLabsRuntimeStartRequest,
+  subscribeOnboardingElevenLabsRuntimeEvents,
+} from "@/lib/onboardingElevenLabsRuntimeAdapter";
+import { buildHealthOnboardingVoiceUiState } from "./conditionsVoiceUiState";
 
-const CATEGORIES: { id: string; marker: string; label: string }[] = [
-  { id: "heart",       marker: "HEART", label: "Heart & circulation" },
-  { id: "metabolic",   marker: "MET", label: "Metabolic & hormonal" },
-  { id: "respiratory", marker: "AIR", label: "Respiratory" },
-  { id: "musculo",     marker: "MOVE", label: "Joints, bones & muscles" },
-  { id: "neuro",       marker: "BRAIN", label: "Neurological" },
-  { id: "mental",      marker: "MOOD", label: "Mental health" },
-  { id: "cancer",      marker: "CARE", label: "Cancer & oncology" },
-  { id: "kidney",      marker: "RENAL", label: "Kidney & urinary" },
-  { id: "digestive",   marker: "GUT", label: "Digestive & gut" },
-  { id: "sensory",     marker: "SENSE", label: "Sensory & skin" },
-  { id: "other",       marker: "MORE", label: "Other" },
+const CATEGORIES: { id: string; label: string }[] = [
+  { id: "heart",       label: "Heart & circulation" },
+  { id: "metabolic",   label: "Metabolic & hormonal" },
+  { id: "respiratory", label: "Respiratory" },
+  { id: "musculo",     label: "Joints, bones & muscles" },
+  { id: "neuro",       label: "Neurological" },
+  { id: "mental",      label: "Mental health" },
+  { id: "cancer",      label: "Cancer & oncology" },
+  { id: "kidney",      label: "Kidney & urinary" },
+  { id: "digestive",   label: "Digestive & gut" },
+  { id: "sensory",     label: "Sensory & skin" },
+  { id: "other",       label: "Other" },
 ];
 
 const CONDITION_GROUPS: { cat: string; items: string[] }[] = [
@@ -116,27 +132,12 @@ function matchConditionsFromTranscript(transcript: string): string[] {
   return Array.from(matched);
 }
 
-const MOBILITY_OPTIONS = [
-  { value: "independent",          label: " Fully independent",      sub: "No aids needed" },
-  { value: "stick_or_frame",       label: " Uses a stick or frame",   sub: "" },
-  { value: "wheelchair_part_time", label: " Wheelchair (part-time)",  sub: "For longer distances" },
-  { value: "wheelchair_full_time", label: " Wheelchair (full-time)",  sub: "Primary mode of movement" },
-  { value: "housebound",           label: " Housebound",              sub: "Unable to leave home independently" },
-];
-
 const MOBILITY_CHOICES: SeniorChoiceOption[] = [
   { value: "independent", label: "Independent", description: "No aids needed", icon: <PersonStanding size={17} /> },
   { value: "stick_or_frame", label: "Stick or frame", icon: <PersonStanding size={17} /> },
   { value: "wheelchair_part_time", label: "Wheelchair sometimes", description: "For longer distances", icon: <BadgeCheck size={17} /> },
   { value: "wheelchair_full_time", label: "Wheelchair daily", description: "Primary way to move", icon: <BadgeCheck size={17} /> },
   { value: "housebound", label: "Mostly at home", description: "Needs help to leave home", icon: <Home size={17} /> },
-];
-
-const LIVING_OPTIONS = [
-  { value: "alone",        label: " Lives alone" },
-  { value: "with_partner", label: " With partner" },
-  { value: "with_family",  label: " With family" },
-  { value: "care_home",    label: " Care home" },
 ];
 
 const LIVING_CHOICES: SeniorChoiceOption[] = [
@@ -153,6 +154,7 @@ export default function ConditionsSection() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const vyvaVoice = useOptionalVyvaVoice();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [noKnownConditions, setNoKnownConditions] = useState(false);
@@ -162,9 +164,128 @@ export default function ConditionsSection() {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [speakItMatches, setSpeakItMatches] = useState<string[]>([]);
+  const [elevenLabsDraft, setElevenLabsDraft] = useState<ProfileVoiceDraft | null>(null);
+  const selectedRef = useRef<string[]>([]);
+  const elevenLabsDraftIdRef = useRef<string | undefined>(undefined);
+  const [showDailyLifeContext, setShowDailyLifeContext] = useState(false);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const healthAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "health",
+        sectionLabel: t("onboarding.conditions.title", "Health profile"),
+        voicePrompt: t(
+          "onboarding.conditions.voiceGuidance.speakPrompt",
+          "Tell VYVA one or more health conditions.",
+        ),
+        expectedFields: ["conditions", "mobility", "living_situation"],
+        draftRowLabels: {
+          condition: t("onboarding.conditions.voiceDraft.conditionLabel", "Condition"),
+        },
+        targetIds: {
+          addByVoice: "health-add-by-voice",
+          draftReview: "health-speak-confirm",
+          reviewSave: "health-review-save",
+        },
+      }),
+    [t],
+  );
 
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current); }, []);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  useEffect(() => {
+    elevenLabsDraftIdRef.current = elevenLabsDraft?.id;
+  }, [elevenLabsDraft?.id]);
+
+  const setVoiceGuidance = useCallback((
+    guidance: Parameters<typeof setGuidance>[0],
+  ) => {
+    if (companionMode !== "voice") return;
+    setGuidance(guidance);
+  }, [companionMode, setGuidance]);
+
+  useEffect(
+    () =>
+      subscribeOnboardingElevenLabsRuntimeEvents(healthAgentSectionConfig.sectionId, (event) => {
+        if (event.type === "draft") {
+          setSpeakItOpen(false);
+          setSpeakItMatches([]);
+          setElevenLabsDraft(event.draft);
+          vyvaVoice?.sendContextUpdate(onboardingVoiceUiStateContextUpdate({
+            ...buildHealthOnboardingVoiceUiState({
+              sectionConfig: healthAgentSectionConfig,
+              selectedCount: event.draft.values.length || event.draft.rows.length,
+              noKnownConditions: false,
+              reviewCardVisible: true,
+            }),
+            selectedCount: event.draft.values.length || event.draft.rows.length,
+          }));
+          setVoiceGuidance({
+            voiceStatus: "thinking",
+            draftStatus: "parsed-draft",
+            currentSectionId: event.sectionId,
+            currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+            currentPrompt: healthAgentSectionConfig.voicePrompt,
+            activeTargetId: healthAgentSectionConfig.targetIds?.draftReview,
+          });
+          return;
+        }
+
+        if (event.type === "clarification") {
+          setVoiceGuidance({
+            voiceStatus: "speaking",
+            draftStatus: "needs-clarification",
+            currentSectionId: event.sectionId,
+            currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+            currentPrompt: event.question,
+            activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+          });
+          return;
+        }
+
+        if (event.type === "status") {
+          setVoiceGuidance({
+            voiceStatus: event.voiceStatus,
+            draftStatus: event.voiceStatus === "error" ? "needs-clarification" : "listening",
+            currentSectionId: event.sectionId,
+            currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+            currentPrompt: event.message ?? healthAgentSectionConfig.voicePrompt,
+            activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+          });
+        }
+      }),
+    [healthAgentSectionConfig, setVoiceGuidance, vyvaVoice],
+  );
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: "idle",
+      currentSectionId: healthAgentSectionConfig.sectionId,
+      currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.startPrompt",
+        "Tell VYVA, search by name, or choose no known conditions.",
+      ),
+      activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, healthAgentSectionConfig, setGuidance, t]);
 
   const buildConditionsPayload = () => ({
     health_conditions: selected,
@@ -185,22 +306,11 @@ export default function ConditionsSection() {
       : "/onboarding/complete/conditions";
   };
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave, setAutoSaveStatus } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/conditions", {
-        method: "POST",
-        body: JSON.stringify(buildConditionsPayload()),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    },
-    2000,
-  );
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
 
   const { data, isLoading } = useQuery<{
     profile: { conditions?: SavedCondition[]; mobility_level?: string; living_situation?: string; no_known_conditions?: boolean } | null;
@@ -221,12 +331,23 @@ export default function ConditionsSection() {
   const toggleCondition = (name: string) => {
     setNoKnownConditions(false);
     setSelected((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
-    scheduleAutoSave();
+    setVoiceGuidance({
+      voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.reviewPrompt",
+        "Review your selected conditions, then save when ready.",
+      ),
+      lastHeardText: t("onboarding.conditions.voiceGuidance.selected", {
+        name,
+        defaultValue: `Selected ${name}`,
+      }),
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+    });
   };
 
   const removeSelected = (name: string) => {
     setSelected((prev) => prev.filter((x) => x !== name));
-    scheduleAutoSave();
   };
 
   const toggleNoKnownConditions = () => {
@@ -237,30 +358,155 @@ export default function ConditionsSection() {
       setSearch("");
       setSpeakItMatches([]);
     }
-    scheduleAutoSave();
+    setVoiceGuidance({
+      voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.noKnownPrompt",
+        "No known conditions is selected. Save when you are ready.",
+      ),
+      lastHeardText: next
+        ? t(
+            "onboarding.conditions.voiceGuidance.noKnownSelected",
+            "Selected no known conditions",
+          )
+        : undefined,
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+    });
   };
 
-  const handleMobility = (value: string) => { setMobility(value); scheduleAutoSave(); };
-  const handleLiving   = (value: string) => { setLiving(value);   scheduleAutoSave(); };
+  const handleMobility = (value: string) => { setMobility(value); };
+  const handleLiving   = (value: string) => { setLiving(value); };
   const hasHealthSectionContent = selected.length > 0 || Boolean(mobility) || Boolean(living) || noKnownConditions;
+  const mobilityLabel = MOBILITY_CHOICES.find((option) => option.value === mobility)?.label;
+  const livingLabel = LIVING_CHOICES.find((option) => option.value === living)?.label;
+  const dailyLifeSummary = [mobilityLabel, livingLabel].filter(Boolean).join(" / ");
 
   const handleSpeakItDone = (transcript: string) => {
     setSpeakItOpen(false);
     if (!transcript) return;
     const matches = matchConditionsFromTranscript(transcript);
     if (matches.length === 0) {
+      setVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        currentPrompt: t(
+          "onboarding.conditions.voiceGuidance.tryAgainPrompt",
+          "Try speaking again, search by name, or choose manually.",
+        ),
+        error: t(
+          "onboarding.conditions.voiceGuidance.noMatch",
+          "No condition was recognised.",
+        ),
+        activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+      });
       toast({ title: "No conditions recognised", description: "Try speaking more slowly or select conditions manually below." });
       return;
     }
     setSpeakItMatches(matches);
+    setVoiceGuidance({
+      voiceStatus: "thinking",
+      draftStatus: "parsed-draft",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.confirmMatchesPrompt",
+        "Review what VYVA heard, then add these if correct.",
+      ),
+      lastHeardText: t("onboarding.conditions.voiceGuidance.heardConditions", {
+        conditions: matches.join(", "),
+        defaultValue: `Heard: ${matches.join(", ")}`,
+      }),
+      activeTargetId: healthAgentSectionConfig.targetIds?.draftReview,
+    });
   };
+
+  const startVoiceConditionCapture = useCallback(async () => {
+    const reviewVisible = Boolean(elevenLabsDraftIdRef.current);
+    const selectedCount = selectedRef.current.length;
+    const healthUiState = buildHealthOnboardingVoiceUiState({
+      sectionConfig: healthAgentSectionConfig,
+      selectedCount,
+      noKnownConditions,
+      reviewCardVisible: reviewVisible,
+    });
+    const guidance = {
+      voiceStatus: "listening",
+      draftStatus: "listening",
+      currentSectionId: healthAgentSectionConfig.sectionId,
+      currentSectionLabel: healthAgentSectionConfig.sectionLabel,
+      currentPrompt: healthAgentSectionConfig.voicePrompt,
+      activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+    } as const;
+    if (companionMode === "voice") {
+      setGuidance(guidance);
+    } else {
+      setCompanionMode("voice");
+      window.setTimeout(() => setGuidance(guidance), 0);
+    }
+    setSpeakItMatches([]);
+    setSpeakItOpen(true);
+    if (vyvaVoice) {
+      const startRequest = createOnboardingElevenLabsRuntimeStartRequest({
+        sectionConfig: healthAgentSectionConfig,
+        language: getLanguageSnapshot().language,
+        mode: "voice",
+        existingProfileSummary: selectedRef.current.length
+          ? `Current health conditions selected in app: ${selectedRef.current.join(", ")}`
+          : undefined,
+        activeDraftId: elevenLabsDraftIdRef.current,
+        uiState: healthUiState,
+      });
+      void vyvaVoice.startVoice(
+        startRequest.contextHint,
+        startRequest.systemPrompt,
+        { ...startRequest.options, forceRestart: true },
+      ).catch(() => {
+        setVoiceGuidance({
+          voiceStatus: "listening",
+          draftStatus: "listening",
+          currentPrompt: healthAgentSectionConfig.voicePrompt,
+          activeTargetId: healthAgentSectionConfig.targetIds?.addByVoice,
+        });
+      });
+    }
+  }, [companionMode, healthAgentSectionConfig, noKnownConditions, setCompanionMode, setGuidance, setVoiceGuidance, vyvaVoice]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-health-voice-capture",
+        label: t("onboarding.conditions.tellVyva", "Tell VYVA"),
+        description: t(
+          "onboarding.conditions.tellVyvaDescription",
+          "Say one or more health conditions.",
+        ),
+        sectionId: "health",
+        sectionLabel: healthAgentSectionConfig.sectionLabel,
+        targetId: healthAgentSectionConfig.targetIds?.addByVoice,
+        sectionConfig: healthAgentSectionConfig,
+        onStart: startVoiceConditionCapture,
+      }),
+    [healthAgentSectionConfig, registerVoiceAction, startVoiceConditionCapture, t],
+  );
 
   const confirmSpeakItMatches = () => {
     const newSelected = Array.from(new Set([...selected, ...speakItMatches]));
+    const addedNames = speakItMatches.join(", ");
     setNoKnownConditions(false);
     setSelected(newSelected);
     setSpeakItMatches([]);
-    scheduleAutoSave();
+    setVoiceGuidance({
+      voiceStatus: "speaking",
+      draftStatus: "confirmed-locally",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.reviewPrompt",
+        "Review your selected conditions, then save when ready.",
+      ),
+      lastHeardText: t("onboarding.conditions.voiceGuidance.addedConditions", {
+        conditions: addedNames,
+        defaultValue: `Added: ${addedNames}`,
+      }),
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+    });
     toast({
       title: t("onboarding.toast.healthConditionsUpdated.title", "Health conditions updated"),
       description: t("onboarding.toast.healthConditionsUpdated.description", {
@@ -270,11 +516,87 @@ export default function ConditionsSection() {
     });
   };
 
+  const confirmElevenLabsDraft = () => {
+    if (!elevenLabsDraft) return;
+    const values = elevenLabsDraft.values.length
+      ? elevenLabsDraft.values
+      : elevenLabsDraft.rows.map((row) => row.value);
+    const newSelected = Array.from(new Set([...selected, ...values]));
+    setNoKnownConditions(false);
+    setSelected(newSelected);
+    setElevenLabsDraft(null);
+    vyvaVoice?.sendContextUpdate(onboardingVoiceUiStateContextUpdate({
+      pagePath: "/onboarding/profile/health",
+      sectionId: "health",
+      sectionLabel: healthAgentSectionConfig.sectionLabel,
+      phase: "confirmed-locally",
+      visibleTask: "The draft has been added locally; the user must press Save and continue to persist it.",
+      missingFields: [],
+      reviewCardVisible: false,
+      allowedActions: ["press_save_button", "switch_mode"],
+      forbiddenActions: [
+        "ask_account_id",
+        "ask_profile_id",
+        "ask_user_id",
+        "navigate_away",
+        "save_without_button_press",
+        "external_action",
+      ],
+      suggestedPrompt: "Tell the user the conditions are added locally and they should press Save and continue when ready.",
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+      selectedCount: newSelected.length,
+      visibleDataSummary: `${newSelected.length} health condition${newSelected.length === 1 ? "" : "s"} selected in the app.`,
+    }));
+    setVoiceGuidance({
+      voiceStatus: "speaking",
+      draftStatus: "confirmed-locally",
+      currentPrompt: t(
+        "onboarding.conditions.voiceGuidance.reviewPrompt",
+        "Review your selected conditions, then save when ready.",
+      ),
+      lastHeardText: t("onboarding.conditions.voiceGuidance.addedConditions", {
+        conditions: values.join(", "),
+        defaultValue: `Added: ${values.join(", ")}`,
+      }),
+      activeTargetId: healthAgentSectionConfig.targetIds?.reviewSave,
+    });
+    toast({
+      title: t("onboarding.toast.healthConditionsUpdated.title", "Health conditions updated"),
+      description: t("onboarding.toast.healthConditionsUpdated.description", {
+        count: values.length,
+        defaultValue: "{{count}} condition was added to your profile.",
+      }),
+    });
+  };
+
+  const speakItDraft: ProfileVoiceDraft | null = speakItMatches.length > 0
+    ? {
+        id: `health:${speakItMatches.join("|").toLowerCase()}`,
+        section: "health",
+        kind: "health-conditions",
+        title: t("onboarding.conditions.voiceDraft.title", "Review health conditions"),
+        helper: t(
+          "onboarding.conditions.voiceDraft.helper",
+          "VYVA found these from what you said. Add them only if they look right.",
+        ),
+        values: speakItMatches,
+        rows: speakItMatches.map((name) => ({
+          id: name.toLowerCase().replace(/\s+/g, "-"),
+          label: t("onboarding.conditions.voiceDraft.rowLabel", "Condition"),
+          value: name,
+        })),
+      }
+    : null;
+
   const toggleCat = (catId: string) => {
     setOpenCat((prev) => (prev === catId ? null : catId));
   };
 
-  const isSearching = search.trim().length > 0;
+  const normalizedSearch = search.trim().toLowerCase();
+  const isSearching = normalizedSearch.length > 0;
+  const hasSearchMatches = CONDITION_GROUPS.some((group) =>
+    group.items.some((item) => item.toLowerCase().includes(normalizedSearch)),
+  );
 
   const handleSave = async () => {
     if (saving) return;
@@ -290,9 +612,10 @@ export default function ConditionsSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/personalisation"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-      setAutoSaveStatus("saved");
-      navigating = true;
+        await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
+        setAutoSaveStatus("saved");
+        setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
+        navigating = true;
       navTimerRef.current = setTimeout(() => navigate(completePath()), 300);
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -303,65 +626,102 @@ export default function ConditionsSection() {
   };
 
   return (
-    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
-      <div className="flex flex-col gap-7 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+    <PhoneFrame subtitle="Health conditions" showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <div className="flex flex-col gap-5 px-1 pb-6 pt-4 sm:px-2 md:px-3">
         <ProfileSectionHero
+          compact
           icon={HeartPulse}
-          title="Health profile"
-          kicker="Better guidance"
-          description="Choose the conditions VYVA should know about so reminders, doctor notes, and health conversations are safer."
-          badges={[
-            { label: "Doctor context", color: "blue" },
-            { label: "Reminder support", color: "purple" },
-            { label: "Safer triage", color: "red" },
-          ]}
+          title={t("onboarding.conditions.title", "Tell us about your health")}
+          kicker="A quick question"
+          description={t(
+            "onboarding.conditions.description",
+            "Pick what fits. You can change it anytime.",
+          )}
           iconBgClassName="bg-[#B0355A]"
+          className="!rounded-[22px] !p-4 [&_h2]:!text-[30px] sm:!p-5 sm:[&_h2]:!text-[34px] [&_p]:!text-[16px]"
           autoSave={{ autoSaveStatus, savedFading, retryCountdown, onRetryNow: retryNow, testId: "status-conditions-autosave" }}
         />
 
-        {/* Speak it banner */}
-        <button
-          type="button"
-          data-testid="button-conditions-speak-it"
-          onClick={() => setSpeakItOpen(true)}
-          className="flex min-h-[96px] w-full items-center gap-5 rounded-[28px] border border-[#EDE9FE] bg-[#F5F3FF] px-5 py-5 text-left shadow-[0_16px_36px_rgba(107,33,168,0.10)] transition hover:-translate-y-0.5"
-          style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
-        >
-          <div
-            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
-            style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
-          >
-            <Mic size={16} className="text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-body text-[21px] font-black leading-tight" style={{ color: "#6B21A8" }}>Add by voice</p>
-            <p className="mt-1 font-body text-[16px] leading-snug" style={{ color: "#7C3AED" }}>Tell VYVA your health history. It will select matching conditions.</p>
-          </div>
-        </button>
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="health-add-by-voice">
+            <button
+              type="button"
+              data-testid="button-conditions-speak-it"
+              onClick={startVoiceConditionCapture}
+              className={cn(
+                "group flex min-h-[72px] w-full items-center gap-3.5 rounded-[20px] border border-[#DCC8FF] bg-white px-4 py-3 text-left text-vyva-purple shadow-[0_8px_18px_rgba(53,28,87,0.06)] transition hover:bg-[#F8F3FF] focus:outline-none focus:ring-4 focus:ring-vyva-purple/20",
+              )}
+            >
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F3E8FF]">
+                <Mic size={20} className="text-vyva-purple" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[18px] font-black leading-tight text-vyva-purple">
+                  {t("onboarding.conditions.tellVyva", "Tell VYVA")}
+                </p>
+                <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                  {t(
+                    "onboarding.conditions.tellVyvaDescription",
+                    "Say one or more health conditions.",
+                  )}
+                </p>
+              </div>
+              <ChevronRight
+                size={22}
+                className="shrink-0 text-vyva-purple/65 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </button>
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {/* Speak-it confirmation */}
-        {speakItMatches.length > 0 && (
-          <div
-            className="rounded-[14px] px-4 py-3"
-            style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}
-            data-testid="panel-conditions-speak-it-confirm"
-          >
-            <p className="font-body text-[13px] font-semibold text-green-800 mb-2">
-              VYVA found {speakItMatches.length} condition{speakItMatches.length > 1 ? "s" : ""}:
-            </p>
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {speakItMatches.map((name) => (
-                <span key={name} className="inline-flex items-center gap-1 bg-white text-green-800 text-[11px] px-2.5 py-1 rounded-full border border-green-200 font-medium">
-                  <CheckCircle2 size={10} className="text-green-600" />
-                  {name}
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setSpeakItMatches([])} className="flex-1 py-2 rounded-full font-body text-[13px] font-medium text-gray-600 bg-white border border-gray-200 min-h-[40px]" data-testid="button-conditions-speak-it-reject">Dismiss</button>
-              <button onClick={confirmSpeakItMatches} className="flex-1 py-2 rounded-full font-body text-[13px] font-medium text-white min-h-[40px]" style={{ background: "#0A7C4E" }} data-testid="button-conditions-speak-it-confirm">Add these</button>
-            </div>
-          </div>
+        {speakItDraft && (
+          <OnboardingCompanionTarget targetId="health-speak-confirm">
+            <ProfileVoiceDraftReview
+              draft={speakItDraft}
+              confirmLabel={t("onboarding.conditions.voiceDraft.confirm", "Add these")}
+              tryAgainLabel={t("onboarding.conditions.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.conditions.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmSpeakItMatches}
+              onTryAgain={() => {
+                setSpeakItMatches([]);
+                startVoiceConditionCapture();
+              }}
+              onDismiss={() => setSpeakItMatches([])}
+              onRemoveRow={(value) =>
+                setSpeakItMatches((current) => current.filter((name) => name !== value))
+              }
+              testId="panel-conditions-speak-it-confirm"
+            />
+          </OnboardingCompanionTarget>
+        )}
+
+        {elevenLabsDraft && (
+          <OnboardingCompanionTarget targetId="health-speak-confirm">
+            <ProfileVoiceDraftReview
+              draft={elevenLabsDraft}
+              confirmLabel={t("onboarding.conditions.voiceDraft.confirm", "Add these")}
+              tryAgainLabel={t("onboarding.conditions.voiceDraft.tryAgain", "Try again")}
+              dismissLabel={t("onboarding.conditions.voiceDraft.dismiss", "Dismiss")}
+              onConfirm={confirmElevenLabsDraft}
+              onTryAgain={() => {
+                setElevenLabsDraft(null);
+                void startVoiceConditionCapture();
+              }}
+              onDismiss={() => setElevenLabsDraft(null)}
+              onRemoveRow={(value) =>
+                setElevenLabsDraft((current) => current
+                  ? {
+                      ...current,
+                      rows: current.rows.filter((row) => row.value !== value),
+                      values: current.values.filter((rowValue) => rowValue !== value),
+                    }
+                  : current)
+              }
+              testId="panel-conditions-elevenlabs-confirm"
+            />
+          </OnboardingCompanionTarget>
         )}
 
         {speakItOpen && (
@@ -373,28 +733,6 @@ export default function ConditionsSection() {
           />
         )}
 
-        <div className="rounded-[24px] border border-[#E9DDF8] bg-white px-4 py-4 shadow-[0_10px_22px_rgba(53,28,87,0.05)]">
-          <p className="font-body text-[15px] font-extrabold text-vyva-text-1">No conditions to add?</p>
-          <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-            Choose this if there are no known health conditions right now.
-          </p>
-          <button
-            type="button"
-            aria-pressed={noKnownConditions}
-            data-testid="button-conditions-no-known"
-            onClick={toggleNoKnownConditions}
-            className={cn(
-              "mt-3 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] border px-4 py-3 font-body text-[16px] font-black transition",
-              noKnownConditions
-                ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_14px_26px_rgba(107,33,168,0.22)]"
-                : "border-[#E9DDF8] bg-[#FCF8FF] text-vyva-purple",
-            )}
-          >
-            <CheckCircle2 size={18} />
-            No known health conditions
-          </button>
-        </div>
-
         {isLoading ? (
           <div className="flex flex-col gap-3" data-testid="skeleton-conditions-content">
             <Skeleton className="h-9 w-full rounded-lg" />
@@ -403,39 +741,130 @@ export default function ConditionsSection() {
             ))}
           </div>
         ) : (
-          <>
-            {/* Search */}
-            <div className="relative">
-              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                data-testid="input-conditions-search"
-                className="h-14 w-full rounded-[18px] border border-[#DDC7FF] bg-white pl-12 pr-4 text-[17px] text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:text-[#8D7D73] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
-                placeholder="Search conditions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+          <ProfileQuestionLayout
+            eyebrow="One step at a time"
+            title="What applies to you?"
+            description="Search or choose a category."
+            testId="profile-question-health-conditions"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-body text-[18px] font-black text-vyva-text-1">Choose what fits</p>
+              </div>
+              {selected.length > 0 ? (
+                <span className="shrink-0 rounded-full bg-[#F3E8FF] px-3 py-1.5 text-[13px] font-black text-vyva-purple">
+                  {selected.length} selected
+                </span>
+              ) : null}
             </div>
 
-            {/* Selected chip bar */}
-            <div className="flex min-h-[64px] flex-wrap items-center gap-2 rounded-[22px] bg-purple-50 px-4 py-3">
-              {selected.length === 0 ? (
-                <span className="text-[15px] font-semibold text-purple-400">Nothing selected - tap any condition below</span>
-              ) : (
-                selected.map((name) => (
-                  <span key={name} className="inline-flex items-center gap-2 rounded-full bg-[#6b21a8] px-3 py-1.5 text-[14px] font-black text-white">
-                    {name}
-                    <button onClick={() => removeSelected(name)} className="opacity-70 hover:opacity-100" data-testid={`button-remove-condition-${name.replace(/\s+/g, "-").toLowerCase()}`}>x</button>
-                  </span>
-                ))
-              )}
+            <div className="relative">
+              <OnboardingCompanionTarget targetId="health-search">
+                <div className="relative">
+                  <Search size={19} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#766B66]" />
+                  <input
+                    data-testid="input-conditions-search"
+                    aria-label="Search health conditions"
+                    className="h-16 w-full rounded-[20px] border border-[#CBB5EC] bg-white pl-12 pr-12 text-[18px] font-semibold text-vyva-text-1 shadow-[0_8px_20px_rgba(53,28,87,0.05)] placeholder:font-medium placeholder:text-[#766B66] focus:outline-none focus:ring-4 focus:ring-vyva-purple/15"
+                    placeholder="Search conditions"
+                    value={search}
+                    onFocus={() =>
+                      setVoiceGuidance({
+                        voiceStatus: "listening",
+                        currentPrompt: t(
+                          "onboarding.conditions.voiceGuidance.searchPrompt",
+                          "Search by condition name, or say the condition to VYVA.",
+                        ),
+                        activeTargetId: "health-search",
+                      })
+                    }
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setVoiceGuidance({
+                        voiceStatus: "thinking",
+                        currentPrompt: t(
+                          "onboarding.conditions.voiceGuidance.searchPrompt",
+                          "Search by condition name, or say the condition to VYVA.",
+                        ),
+                        activeTargetId: "health-search",
+                      });
+                    }}
+                  />
+                  {search ? (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => setSearch("")}
+                      className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-[#766B66] hover:bg-[#F3E8FF] hover:text-vyva-purple"
+                    >
+                      <X size={18} />
+                    </button>
+                  ) : null}
+                </div>
+              </OnboardingCompanionTarget>
             </div>
+
+            <OnboardingCompanionTarget targetId="health-no-known">
+              <button
+                type="button"
+                aria-pressed={noKnownConditions}
+                data-testid="button-conditions-no-known"
+                onFocus={() =>
+                  setVoiceGuidance({
+                    voiceStatus: "listening",
+                    currentPrompt: t(
+                      "onboarding.conditions.voiceGuidance.noKnownQuestion",
+                      "Choose this only if you have no known health conditions.",
+                    ),
+                    activeTargetId: "health-no-known",
+                  })
+                }
+                onClick={toggleNoKnownConditions}
+                className={cn(
+                  "flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border px-4 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-vyva-purple/15",
+                  noKnownConditions
+                    ? "border-vyva-purple bg-[#F3E8FF] text-vyva-purple"
+                    : "border-[#E4D9CF] bg-white text-vyva-text-1 hover:border-[#CBB5EC]",
+                )}
+              >
+                <span className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
+                  noKnownConditions ? "border-vyva-purple bg-vyva-purple text-white" : "border-[#B9ADA5] text-transparent",
+                )}>
+                  <CheckCircle2 size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[17px] font-black">None of these</span>
+                  <span className="mt-0.5 block font-body text-[14px] font-semibold text-vyva-text-2">I don&apos;t have any known conditions.</span>
+                </span>
+              </button>
+            </OnboardingCompanionTarget>
+
+            {selected.length > 0 ? (
+              <div className="flex flex-wrap gap-2 rounded-[18px] bg-[#F7F2FC] px-3 py-3" aria-label="Selected health conditions">
+                {selected.map((name) => (
+                  <span key={name} className="inline-flex min-h-[38px] items-center gap-2 rounded-full bg-vyva-purple px-3 py-1.5 text-[14px] font-black text-white">
+                    {name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${name}`}
+                      onClick={() => removeSelected(name)}
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 opacity-90 hover:bg-white/25 hover:opacity-100"
+                      data-testid={`button-remove-condition-${name.replace(/\s+/g, "-").toLowerCase()}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
 
             {/* Accordion */}
             <div className="flex flex-col gap-2">
               {CONDITION_GROUPS.map((group) => {
                 const cat = CATEGORIES.find((c) => c.id === group.cat)!;
                 const visibleItems = isSearching
-                  ? group.items.filter((i) => i.toLowerCase().includes(search.toLowerCase()))
+                  ? group.items.filter((i) => i.toLowerCase().includes(normalizedSearch))
                   : group.items;
                 if (isSearching && visibleItems.length === 0) return null;
 
@@ -457,15 +886,14 @@ export default function ConditionsSection() {
                       type="button"
                       data-testid={`accordion-${group.cat}`}
                       onClick={() => !isSearching && toggleCat(group.cat)}
-                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 text-left"
+                      aria-expanded={isOpen}
+                      className="grid min-h-[72px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8FF] focus:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15"
                     >
-                      <span className="rounded-full bg-[#F3E8FF] px-2.5 py-1 text-[11px] font-black leading-none text-vyva-purple">{cat.marker}</span>
                       <span className="min-w-0">
-                        <span className="block font-body text-[17px] font-black leading-snug text-gray-800">{cat.label}</span>
+                        <span className="block font-body text-[18px] font-black leading-snug text-gray-800">{cat.label}</span>
                         {hasSelections && (
                           <span
-                            className="mt-1 inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-bold"
-                            style={{ background: "#EDE9FE", color: "#6B21A8" }}
+                            className="mt-0.5 block text-[12px] font-bold text-vyva-purple"
                             data-testid={`badge-count-${group.cat}`}
                           >
                             {selectedCount} selected
@@ -496,7 +924,7 @@ export default function ConditionsSection() {
                               data-testid={`card-condition-${item.replace(/\s+/g, "-").toLowerCase()}`}
                               onClick={() => toggleCondition(item)}
                               className={cn(
-                                "flex min-h-[64px] items-center gap-3 rounded-[18px] px-4 py-3 text-left transition-all",
+                                "flex min-h-[68px] items-center gap-3 rounded-[18px] px-4 py-3 text-left transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-vyva-purple/15",
                               )}
                               style={
                                 isSelected
@@ -505,7 +933,7 @@ export default function ConditionsSection() {
                               }
                             >
                               <span
-                                className="font-body text-[15px] font-bold leading-tight flex-1 min-w-0"
+                                className="font-body text-[17px] font-bold leading-tight flex-1 min-w-0"
                                 style={{ color: isSelected ? "#5B12A0" : "#2C2320" }}
                               >
                                 {item}
@@ -523,38 +951,82 @@ export default function ConditionsSection() {
               })}
             </div>
 
-            {/* Mobility */}
-            <div>
-              <p className="mb-3 text-[15px] font-extrabold text-gray-700">Mobility</p>
-              <SeniorChoiceChips
-                options={MOBILITY_CHOICES}
-                value={mobility}
-                onChange={handleMobility}
-                testIdPrefix="button-mobility"
-              />
-            </div>
+            {isSearching && !hasSearchMatches ? (
+              <div className="rounded-[18px] border border-dashed border-[#CBB5EC] bg-[#FBF8FF] px-4 py-5 text-center" role="status">
+                <p className="font-body text-[16px] font-black text-vyva-text-1">No matching conditions</p>
+                <p className="mt-1 font-body text-[14px] font-semibold text-vyva-text-2">Try another word, or tell VYVA instead.</p>
+              </div>
+            ) : null}
 
-            {/* Living situation */}
-            <div>
-              <p className="mb-3 text-[15px] font-extrabold text-gray-700">Living situation</p>
-              <SeniorChoiceChips
-                options={LIVING_CHOICES}
-                value={living}
-                onChange={handleLiving}
-                testIdPrefix="button-living"
-              />
+            <div className="overflow-hidden rounded-[20px] border border-[#E4D9CF] bg-white">
+              <button
+                type="button"
+                data-testid="button-conditions-daily-life"
+                aria-expanded={showDailyLifeContext}
+                onClick={() => setShowDailyLifeContext((current) => !current)}
+                className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#FBF8F4] focus:outline-none focus:ring-4 focus:ring-inset focus:ring-vyva-purple/15"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F3E8FF] text-vyva-purple">
+                  <PersonStanding size={20} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-body text-[18px] font-black text-vyva-text-1">Anything else to share?</span>
+                    <span className="rounded-full bg-[#F5F1EC] px-2 py-0.5 text-[11px] font-black uppercase text-vyva-text-2">
+                      Optional
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block truncate font-body text-[13px] font-semibold text-vyva-text-2">
+                    {dailyLifeSummary || "Optional context for your support"}
+                  </span>
+                </span>
+                <ChevronDown
+                  size={20}
+                  className={cn("shrink-0 text-vyva-text-2 transition-transform", showDailyLifeContext && "rotate-180")}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {showDailyLifeContext ? (
+                <div className="border-t border-[#E4D9CF] bg-[#FBF8F4] p-4 sm:p-5">
+                  <div>
+                    <p className="mb-3 text-[15px] font-extrabold text-gray-700">Mobility</p>
+                    <SeniorChoiceChips
+                      options={MOBILITY_CHOICES}
+                      value={mobility}
+                      onChange={handleMobility}
+                      testIdPrefix="button-mobility"
+                    />
+                  </div>
+
+                  <div className="mt-5 border-t border-[#E4D9CF] pt-5">
+                    <p className="mb-3 text-[15px] font-extrabold text-gray-700">Living situation</p>
+                    <SeniorChoiceChips
+                      options={LIVING_CHOICES}
+                      value={living}
+                      onChange={handleLiving}
+                      testIdPrefix="button-living"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
-          </>
+          </ProfileQuestionLayout>
         )}
 
-        <div className="flex flex-col gap-2 pt-2">
-          <Button data-testid="button-conditions-save" onClick={handleSave} disabled={saving || isLoading || !hasHealthSectionContent} className="h-14 w-full rounded-full bg-[#6b21a8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5b1a8f] disabled:opacity-40">
-            {saving ? "Saving..." : "Save health conditions"}
-          </Button>
-          <button data-testid="button-conditions-skip" onClick={() => navigate("/onboarding/profile")} className="py-2 text-center text-[15px] font-bold text-gray-500">
-            Skip for now
-          </button>
-        </div>
+        <OnboardingCompanionTarget targetId="health-review-save">
+          <ProfileCompletionBar
+            saving={saving}
+            onSave={handleSave}
+            disabled={isLoading || !hasHealthSectionContent}
+            saveLabel={t("onboarding.conditions.saveContinue", "Save and continue")}
+            savingLabel={t("onboarding.conditions.saving", "Saving...")}
+            helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+            skipLabel={t("onboarding.conditions.skip", "Skip for now")}
+            onSkip={() => navigate("/onboarding/profile")}
+            testId="button-conditions-save"
+          />
+        </OnboardingCompanionTarget>
 
       </div>
     </PhoneFrame>

@@ -62,6 +62,14 @@ function renderPage(initialRows = [rowWithHeadline("VYVA")]) {
         ],
       });
     }
+    if (url.endsWith("/hero-messages/translate") && init?.method === "POST") {
+      return jsonResponse({
+        translations: {
+          en: { sourceText: "VYVA", headline: "A gentle check-in", subtitle: "How are you today?", ctaLabel: "Talk" },
+          de: { sourceText: "VYVA", headline: "Eine sanfte Nachfrage", subtitle: "Wie geht es Ihnen heute?", ctaLabel: "Sprechen" },
+        },
+      });
+    }
     if (init?.method === "POST") {
       const body = JSON.parse(String(init.body));
       rows = [{
@@ -85,9 +93,16 @@ afterEach(() => {
 });
 
 describe("HeroMessagesAdminPage", () => {
+  it("links the module back to admin home", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Admin home" })).toHaveAttribute("href", "/admin");
+  });
+
   it("shows the live overview with source, warnings, and aggregate metrics", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("tab-hero-routing"));
     const healthCard = await screen.findByTestId("card-hero-overview-health");
 
     expect(within(healthCard).getByTestId("hero-active-health")).toHaveTextContent("VYVA");
@@ -108,6 +123,7 @@ describe("HeroMessagesAdminPage", () => {
   it("explains why the simulated user sees the selected Home message", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("tab-hero-simulation"));
     const explanation = await screen.findByTestId("home-message-decision-preview");
 
     expect(within(explanation).getByText("Why this user sees this message now")).toBeInTheDocument();
@@ -118,6 +134,7 @@ describe("HeroMessagesAdminPage", () => {
   it("filters the live overview by operational attention state", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("tab-hero-routing"));
     expect(await screen.findByTestId("card-hero-overview-health")).toBeInTheDocument();
     expect(screen.getByTestId("card-hero-overview-home")).toBeInTheDocument();
     expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 11 of 11 surfaces.");
@@ -134,24 +151,61 @@ describe("HeroMessagesAdminPage", () => {
     expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
   });
 
+  it("keeps messages, routing, and simulation in separate tabs", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("panel-hero-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-routing")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-simulation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-hero-routing"));
+    expect(screen.getByTestId("panel-hero-routing")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-messages")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-simulation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tab-hero-simulation"));
+    expect(screen.getByTestId("panel-hero-simulation")).toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-messages")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-hero-routing")).not.toBeInTheDocument();
+  });
+
   it("searches the message catalog without losing the selected editor", async () => {
     renderPage();
 
-    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    expect(await screen.findByTestId("hero-catalog-message-health-admin")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Message, surface, reason, or copy"), {
+    fireEvent.change(screen.getByPlaceholderText("Search messages"), {
       target: { value: "health-admin" },
     });
 
-    expect(screen.getByText(/1 of \d+ messages/)).toBeInTheDocument();
-    expect(screen.getByText("health-admin / priority 120")).toBeInTheDocument();
+    expect(screen.getByText("1 shown")).toBeInTheDocument();
+    expect(screen.getByText("My Health · General message")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("hero-catalog-message-health-admin"));
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+  });
+
+  it("uses the existing app-area filter grouped by VYVA pillar", async () => {
+    renderPage();
+
+    await screen.findByTestId("hero-catalog-message-health-admin");
+
+    const areaFilter = screen.getByLabelText("Pillar / app area");
+    expect(within(areaFilter).getByRole("group", { name: "Health" })).toBeInTheDocument();
+    expect(within(areaFilter).getByRole("group", { name: "Medication" })).toBeInTheDocument();
+    expect(within(areaFilter).getByRole("group", { name: "Companionship" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument();
+
+    fireEvent.change(areaFilter, { target: { value: "meds" } });
+
+    expect(screen.getByText(/shown/)).toBeInTheDocument();
+    expect(screen.queryByTestId("hero-catalog-message-health-admin")).not.toBeInTheDocument();
   });
 
   it("previews the selected language and blocks invalid copy", async () => {
     renderPage();
 
-    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+    fireEvent.click(await screen.findByTestId("hero-catalog-message-health-admin"));
+    expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
 
     fireEvent.change(screen.getByLabelText("Headline (ES)"), {
       target: { value: "This headline is intentionally far too long" },
@@ -159,16 +213,117 @@ describe("HeroMessagesAdminPage", () => {
 
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("This headline is intentionally far too long");
     expect(screen.getAllByText("Headline too long").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /save hero message/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /save message/i })).toBeDisabled();
+  });
+
+  it("translates one base message into selected draft languages for review", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^new$/i }));
+
+    expect(screen.getByRole("heading", { name: "Create a message" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Spanish" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "English" })).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("New message headline"), {
+      target: { value: "Un control amable" },
+    });
+    fireEvent.change(screen.getByLabelText("New message supporting text"), {
+      target: { value: "Como estas hoy?" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "English" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "German" }));
+    fireEvent.click(screen.getByRole("button", { name: /create translations/i }));
+
+    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("Un control amable");
+    const translateCall = apiFetchMock.mock.calls.find(([input]) => String(input).endsWith("/hero-messages/translate"));
+    expect(translateCall).toBeTruthy();
+    expect(JSON.parse(String(translateCall?.[1]?.body))).toEqual({
+      sourceLanguage: "es",
+      targetLanguages: ["en", "de"],
+      copy: expect.objectContaining({
+        headline: "Un control amable",
+        subtitle: "Como estas hoy?",
+      }),
+    });
+    const languageSelect = screen.getAllByRole("combobox", { name: "Language" })
+      .find((element) => element.textContent?.includes("French (add)"));
+    expect(languageSelect).toBeDefined();
+    expect(languageSelect).toHaveTextContent("Spanish");
+    expect(languageSelect).toHaveTextContent("English");
+    expect(languageSelect).toHaveTextContent("German");
+    expect(languageSelect).toHaveTextContent("French (add)");
+
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
+
+    await waitFor(() => {
+      const postCalls = apiFetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(postCalls.at(-1)?.[1]?.body));
+      expect(body.copy.es.headline).toBe("Un control amable");
+      expect(body.copy.en.headline).toBe("A gentle check-in");
+      expect(body.copy.de.headline).toBe("Eine sanfte Nachfrage");
+      expect(body.copy.fr).toBeUndefined();
+    });
+  });
+
+  it("translates one base message into selected draft languages for review", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^new$/i }));
+
+    expect(screen.getByRole("heading", { name: "Create a message" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Spanish" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "English" })).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("New message headline"), {
+      target: { value: "Un control amable" },
+    });
+    fireEvent.change(screen.getByLabelText("New message supporting text"), {
+      target: { value: "Como estas hoy?" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "English" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "German" }));
+    fireEvent.click(screen.getByRole("button", { name: /create translations/i }));
+
+    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("Un control amable");
+    const translateCall = apiFetchMock.mock.calls.find(([input]) => String(input).endsWith("/hero-messages/translate"));
+    expect(translateCall).toBeTruthy();
+    expect(JSON.parse(String(translateCall?.[1]?.body))).toEqual({
+      sourceLanguage: "es",
+      targetLanguages: ["en", "de"],
+      copy: expect.objectContaining({
+        headline: "Un control amable",
+        subtitle: "Como estas hoy?",
+      }),
+    });
+    const languageSelect = screen.getAllByRole("combobox", { name: "Language" })
+      .find((element) => element.textContent?.includes("French (add)"));
+    expect(languageSelect).toBeDefined();
+    expect(languageSelect).toHaveTextContent("Spanish");
+    expect(languageSelect).toHaveTextContent("English");
+    expect(languageSelect).toHaveTextContent("German");
+    expect(languageSelect).toHaveTextContent("French (add)");
+
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
+
+    await waitFor(() => {
+      const postCalls = apiFetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+      const body = JSON.parse(String(postCalls.at(-1)?.[1]?.body));
+      expect(body.copy.es.headline).toBe("Un control amable");
+      expect(body.copy.en.headline).toBe("A gentle check-in");
+      expect(body.copy.de.headline).toBe("Eine sanfte Nachfrage");
+      expect(body.copy.fr).toBeUndefined();
+    });
   });
 
   it("direct saves edits and refreshes the overview", async () => {
     renderPage();
 
+    fireEvent.click(await screen.findByTestId("hero-catalog-message-health-admin"));
     fireEvent.change(await screen.findByLabelText("Headline (ES)"), {
       target: { value: "Care now" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /save hero message/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
 
     await waitFor(() => {
       const postCall = apiFetchMock.mock.calls.find(([, init]) => init?.method === "POST");
@@ -177,6 +332,7 @@ describe("HeroMessagesAdminPage", () => {
       expect(body.copy.es.headline).toBe("Care now");
     });
 
+    fireEvent.click(screen.getByTestId("tab-hero-routing"));
     await waitFor(() => {
       expect(within(screen.getByTestId("card-hero-overview-health")).getByTestId("hero-active-health")).toHaveTextContent("Care now");
     });
@@ -205,6 +361,7 @@ describe("HeroMessagesAdminPage", () => {
       },
     }]);
 
+    fireEvent.click(await screen.findByTestId("hero-catalog-message-home-voice-health-check"));
     expect(await screen.findByTestId("select-home-hero-action")).toHaveValue("health");
     expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("Tu control esta listo");
     expect(screen.getByText("Empezar")).toBeInTheDocument();
@@ -212,7 +369,7 @@ describe("HeroMessagesAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-home-hero-action"), {
       target: { value: "prevention" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /save hero message/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save message/i }));
 
     await waitFor(() => {
       const postCall = apiFetchMock.mock.calls.find(([, init]) => init?.method === "POST");

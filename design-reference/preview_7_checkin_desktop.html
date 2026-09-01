@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VYVA Check-in — Desktop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Figtree:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#241C30; --ink-soft:#8A8095; --purple:#7C3AED;
+    --hero-a:#8B5CF6; --hero-b:#5B21B6;
+    --page-a:#F2EAFB; --page-b:#FAF7F2;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#E9E6EF;
+    font-family:'Figtree', system-ui, sans-serif;
+    color:var(--ink);
+    padding:40px 20px;
+  }
+  .toggle-row{ display:flex; gap:8px; justify-content:center; margin-bottom:24px; }
+  .toggle-btn{
+    border:none; background:#fff; padding:10px 18px; border-radius:12px;
+    font-size:14px; font-weight:800; color:var(--ink-soft); cursor:pointer;
+    box-shadow:0 3px 10px rgba(0,0,0,0.06);
+  }
+  .toggle-btn.active{ background:var(--purple); color:#fff; }
+
+  .browser{
+    max-width:1040px; margin:0 auto; background:#fff; border-radius:16px;
+    box-shadow:0 24px 60px -20px rgba(30,20,50,0.35); overflow:hidden;
+  }
+  .browser-chrome{
+    background:#EDEBF2; padding:12px 18px; display:flex; align-items:center; gap:8px;
+  }
+  .browser-dot{ width:11px; height:11px; border-radius:50%; }
+  .browser-bar{
+    flex:1; margin-left:12px; background:#fff; border-radius:8px; padding:7px 14px;
+    font-size:13px; color:var(--ink-soft); font-weight:600;
+  }
+  .browser-body{
+    min-height:640px; background: radial-gradient(120% 90% at 50% 0%, var(--page-a) 0%, var(--page-b) 55%);
+    display:flex; flex-direction:column; align-items:center;
+    padding:48px 24px 60px;
+  }
+
+  .desk-topbar{ width:100%; max-width:520px; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .desk-back{ width:40px;height:40px;border-radius:50%;background:#fff;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.06); }
+  .desk-title{ font-family:'Fraunces', serif; font-weight:700; font-size:19px; }
+
+  .desk-progress{ width:100%; max-width:520px; display:flex; gap:8px; margin:22px 0 44px; }
+  .desk-progress span{ flex:1; height:4px; border-radius:2px; background:#EFE6FA; }
+  .desk-progress span.done{ background:#8A4FE0; }
+  .desk-progress span.active{ background:#C9AEF0; }
+
+  .desk-card{ width:100%; max-width:520px; text-align:center; }
+  .desk-avatar{ width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg,var(--hero-a),var(--hero-b)); display:flex; align-items:center; justify-content:center; margin:0 auto 22px; }
+  .desk-question{ font-family:'Fraunces', serif; font-weight:600; font-size:28px; line-height:1.35; margin-bottom:36px; }
+  .desk-options{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .desk-option{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:#fff; border:1.5px solid #EFE9F7; border-radius:16px;
+    padding:20px 22px; font-size:17px; font-weight:700; color:var(--ink); cursor:pointer;
+  }
+  .desk-option .check{ width:22px; height:22px; border-radius:50%; border:2px solid #DCD0EE; flex-shrink:0; }
+  .desk-safety-link{ display:block; margin:32px auto 0; background:none; border:none; font-size:14px; font-weight:700; color:var(--ink-soft); text-decoration:underline; cursor:pointer; }
+
+  .desk-safety{ width:100%; max-width:440px; text-align:center; }
+  .desk-safety-icon{ width:84px; height:84px; border-radius:50%; background:#FCEBEA; display:flex; align-items:center; justify-content:center; margin:0 auto 26px; }
+  .desk-safety h2{ font-family:'Fraunces', serif; font-weight:600; font-size:26px; margin:0 0 14px; }
+  .desk-safety p{ font-size:16px; color:var(--ink-soft); font-weight:600; line-height:1.5; margin:0 0 32px; }
+  .desk-safety-btn{ width:100%; min-height:60px; border-radius:16px; border:none; font-size:17px; font-weight:800; margin-bottom:12px; }
+
+  .caption{ text-align:center; font-size:13.5px; color:var(--ink-soft); font-weight:600; margin-top:18px; }
+</style>
+</head>
+<body>
+
+  <div class="toggle-row">
+    <button class="toggle-btn active" id="btnCollecting">Collecting (question)</button>
+    <button class="toggle-btn" id="btnSafety">Safety (interrupted)</button>
+  </div>
+
+  <div class="browser">
+    <div class="browser-chrome">
+      <div class="browser-dot" style="background:#F0605A;"></div>
+      <div class="browser-dot" style="background:#F0B85A;"></div>
+      <div class="browser-dot" style="background:#5AC46B;"></div>
+      <div class="browser-bar">app.vyva.care/health/check-in</div>
+    </div>
+    <div class="browser-body" id="browserBody"></div>
+  </div>
+
+  <div class="caption" id="caption"></div>
+
+<script>
+  const micIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3.5 3.5 0 003.5-3.5V6a3.5 3.5 0 10-7 0v5.5A3.5 3.5 0 0012 15z"/></svg>`;
+
+  function renderCollecting(){
+    document.getElementById('browserBody').innerHTML = `
+      <div class="desk-topbar">
+        <button class="desk-back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#241C30" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <span class="desk-title">Check-in</span>
+        <div style="width:40px;"></div>
+      </div>
+      <div class="desk-progress"><span class="active"></span><span></span></div>
+      <div class="desk-card">
+        <div class="desk-avatar">${micIcon}</div>
+        <div class="desk-question">How are you feeling today, Carmen?</div>
+        <div class="desk-options">
+          <button class="desk-option"><span>Great</span><span class="check"></span></button>
+          <button class="desk-option"><span>Okay</span><span class="check"></span></button>
+          <button class="desk-option"><span>Not my best</span><span class="check"></span></button>
+          <button class="desk-option"><span>Something's bothering me</span><span class="check"></span></button>
+        </div>
+        <button class="desk-safety-link">If this feels urgent, tap here</button>
+      </div>
+    `;
+    document.getElementById('caption').textContent =
+      'Collecting state — same question set as mobile, same voice-then-touch presentation, wider column instead of a multi-panel layout.';
+  }
+
+  function renderSafety(){
+    document.getElementById('browserBody').innerHTML = `
+      <div class="desk-safety">
+        <div class="desk-safety-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C23B32" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+        <h2>Let's get you help right now, Carmen.</h2>
+        <p>I've paused the check-in. Tap below and I'll connect you right away.</p>
+        <button class="desk-safety-btn" style="background:linear-gradient(160deg,#EB756E,#C23B32);color:#fff;">Get help now</button>
+        <button class="desk-safety-btn" style="background:#F3EFF9;color:#241C30;">I'm okay — go back</button>
+      </div>
+    `;
+    document.getElementById('caption').textContent =
+      'Safety state — reached from the link on any question, not a step in the sequence. Stops the check-in outright.';
+  }
+
+  document.getElementById('btnCollecting').addEventListener('click', () => {
+    document.getElementById('btnCollecting').classList.add('active');
+    document.getElementById('btnSafety').classList.remove('active');
+    renderCollecting();
+  });
+  document.getElementById('btnSafety').addEventListener('click', () => {
+    document.getElementById('btnSafety').classList.add('active');
+    document.getElementById('btnCollecting').classList.remove('active');
+    renderSafety();
+  });
+  renderCollecting();
+</script>
+</body>
+</html>

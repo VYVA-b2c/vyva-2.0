@@ -64,6 +64,7 @@ function renderReport(
         emergencyContact={options.emergencyContact ?? null}
         refinementStatus={{ state: "idle" }}
         onRefineVital={vi.fn(async () => undefined)}
+        onVoiceClick={vi.fn()}
         onDone={vi.fn()}
       />
     </MemoryRouter>,
@@ -71,6 +72,15 @@ function renderReport(
 }
 
 describe("SymptomCheck report service actions", () => {
+  it("uses the canonical summary heading and final report hierarchy", () => {
+    renderReport();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Your summary" })).toBeVisible();
+    expect(screen.getByTestId("button-report-voice")).toHaveAccessibleName("Continue by voice");
+    expect(screen.getByTestId("card-report-answer")).toHaveTextContent("Doctor today");
+    expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Talk to a doctor today");
+  });
+
   it("puts an emergency call action on the live next step when an emergency number is known", () => {
     renderReport(
       {},
@@ -100,6 +110,8 @@ describe("SymptomCheck report service actions", () => {
     expect(screen.getByTestId("button-report-share")).not.toBeVisible();
     expect(screen.getByTestId("button-report-view-reports")).not.toBeVisible();
 
+    fireEvent.click(screen.getByText("Result details"));
+    fireEvent.click(screen.getByTestId("button-report-detail-share"));
     fireEvent.click(screen.getByText("Share or save"));
 
     expect(screen.getByTestId("button-report-share")).toBeVisible();
@@ -111,6 +123,8 @@ describe("SymptomCheck report service actions", () => {
 
     expect(screen.getByTestId("button-report-doctor")).toHaveTextContent("Talk to doctor");
     expect(screen.queryByTestId("report-next-step-actions")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Result details"));
+    fireEvent.click(screen.getByTestId("button-report-detail-share"));
     fireEvent.click(screen.getByText("Details for doctor"));
     const addDoctor = screen.getByTestId("button-report-add-doctor-contact");
 
@@ -183,16 +197,16 @@ describe("SymptomCheck report service actions", () => {
     expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Call a doctor if symptoms worsen");
     expect(screen.getByTestId("card-report-context-confidence")).toHaveTextContent("Strong confidence");
     expect(screen.getByTestId("card-report-context-confidence")).toHaveTextContent("blood pressure");
+    fireEvent.click(screen.getByText("Result details"));
+    fireEvent.click(screen.getByTestId("button-report-detail-context"));
     expect(screen.getByTestId("button-report-missing-signal-bloodPressure")).toHaveTextContent("Check blood pressure now");
     fireEvent.click(screen.getByTestId("button-report-missing-signal-bloodPressure"));
     expect(screen.getByPlaceholderText("120/80")).toBeVisible();
     expect(screen.getByText("Why this answer")).toBeVisible();
     expect(screen.getByText("What to watch for")).toBeVisible();
     expect(screen.getByText("Readings used")).toBeVisible();
-    expect(screen.getByText("Full report")).toBeVisible();
-    screen.getAllByText("Chest pain").forEach((match) => {
-      expect(match).not.toBeVisible();
-    });
+    expect(screen.getByTestId("button-report-detail-full")).toBeVisible();
+    expect(screen.getByTestId("card-report-watch-highlight")).toHaveTextContent("Chest pain");
   });
 
   it("renders vital refinement as an action, not a passive note", () => {
@@ -208,6 +222,8 @@ describe("SymptomCheck report service actions", () => {
     expect(screen.getByTestId("button-report-vital-add-bloodPressure")).toHaveTextContent("Add reading");
     expect(screen.queryByText("A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByText("Result details"));
+    fireEvent.click(screen.getByTestId("button-report-detail-context"));
     fireEvent.click(screen.getByTestId("button-report-vital-add-bloodPressure"));
 
     expect(screen.getByPlaceholderText("120/80")).toBeVisible();

@@ -105,6 +105,11 @@ import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import {
+  getTrustedHelpMissionPresentation,
+  getTrustedHelpMissionStatusLabel,
+  type TrustedHelpMissionPresentation,
+} from "@/design/conciergeTrustedHelpPresentationMap";
+import {
   coerceConciergeTaskEntry,
   conciergeTaskEntrySummary,
   conciergeTaskEntryTitle,
@@ -3994,18 +3999,7 @@ function otcPharmacyConfirmationItems(params: {
 }
 
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
-  const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
-    collecting_details: { en: "Details needed", es: "Faltan detalles" },
-    selecting_provider: { en: "Choosing provider", es: "Eligiendo proveedor" },
-    awaiting_confirmation: { en: "Ready for your OK", es: "Listo para tu OK" },
-    contacting_provider: { en: "Calling now", es: "Llamando ahora" },
-    form_in_progress: { en: "Form in progress", es: "Formulario en curso" },
-    awaiting_provider_reply: { en: "Waiting for reply", es: "Esperando respuesta" },
-    awaiting_user_save: { en: "Waiting to save", es: "Pendiente de guardar" },
-    booked: { en: "Booked", es: "Reservada" },
-    stopped: { en: "Stopped", es: "Detenida" },
-  };
-  return isSpanish ? labels[status].es : labels[status].en;
+  return getTrustedHelpMissionStatusLabel(status, isSpanish);
 }
 
 function isAppointmentMissionStatus(value: unknown): value is AppointmentMissionState["status"] {
@@ -9399,9 +9393,11 @@ function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughSta
 function ConciergeExecutionStatusPanel({
   summary,
   update,
+  missionPresentation,
 }: {
   summary: ConciergeExecutionStatusSummary;
   update?: ConciergeUserUpdateSummary | null;
+  missionPresentation?: TrustedHelpMissionPresentation | null;
 }) {
   const display = update ?? {
     ...summary,
@@ -9425,6 +9421,10 @@ function ConciergeExecutionStatusPanel({
     <div
       className={`mt-4 rounded-[18px] border px-3 py-2.5 ${toneClasses[display.tone]}`}
       data-phase={display.phase}
+      data-presentation-step={missionPresentation?.stepId}
+      data-presentation-status={missionPresentation?.status}
+      data-presentation-family={missionPresentation?.presentationFamilyId}
+      data-external-action-boundary={missionPresentation?.externalActionBoundary}
       data-testid="panel-concierge-execution-status"
     >
       <div className="flex items-start gap-3" data-testid="panel-concierge-user-update">
@@ -15700,6 +15700,17 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
     : null;
+  const activeActionPresentationStatus = activeAction
+    ? (
+      payloadString(activeAction.action_payload, ["mission_status", "status"]) ||
+      activeActionLiveHandoff?.state ||
+      activeActionExecutionStatus?.phase ||
+      activeAction.status
+    )
+    : "";
+  const activeActionMissionPresentation = activeAction
+    ? getTrustedHelpMissionPresentation(activeActionPresentationStatus)
+    : null;
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
@@ -17364,6 +17375,42 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
         canvasSummary: activeActionCanvasState,
       }
     : null;
+  const trustedHelpSetupPanel = (
+    <section
+      className="order-[10] mt-4 rounded-[26px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_16px_34px_rgba(15,118,110,0.08)]"
+      data-testid="panel-concierge-trusted-help"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#0F766E] shadow-sm">
+            <ShieldCheck size={23} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+              {isSpanish ? "Configuracion segura" : "Trusted setup"}
+            </p>
+            <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+              {isSpanish ? "Mi ayuda de confianza" : "My Trusted Help"}
+            </h2>
+            <p className="mt-1 max-w-[560px] font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+              {isSpanish
+                ? "Proveedores, pagos, familia y limites para pedidos o reservas."
+                : "Providers, payment, family approvals, and limits for orders or bookings."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/settings/trusted-help")}
+          className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#0F766E] px-5 font-body text-[14px] font-black text-white shadow-[0_12px_26px_rgba(15,118,110,0.18)]"
+          data-testid="button-concierge-trusted-help"
+        >
+          <Sparkles size={16} aria-hidden="true" />
+          {isSpanish ? "Configurar" : "Set up"}
+        </button>
+      </div>
+    </section>
+  );
   return (
     <MasterDashboardLayout
       testId="concierge-master-layout"
@@ -17397,37 +17444,41 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
       showLauncher={mode !== "task"}
     >
       {mode === "home" ? (
-        <ConciergeHomeTaskOverview
-          activeTask={homeActiveTask}
-          isLoading={pendingLoading || savedTaskDraftsLoading || completedSessionsLoading}
-          isSpanish={isSpanish}
-          onContinue={(task) => navigate(task.detailPath)}
-          onOpenInbox={() => navigate("/concierge/tasks")}
-        />
+        <>
+          <ConciergeHomeTaskOverview
+            activeTask={homeActiveTask}
+            isLoading={pendingLoading || savedTaskDraftsLoading || completedSessionsLoading}
+            isSpanish={isSpanish}
+            onContinue={(task) => navigate(task.detailPath)}
+            onOpenInbox={() => navigate("/concierge/tasks")}
+          />
+          {trustedHelpSetupPanel}
+        </>
       ) : (
         <>
-      {mode === "task" ? (
-        <ConciergeTaskWorkspaceHeader
-          title={taskWorkspaceTitle}
-          summary={taskWorkspaceSummary}
-          stage={taskWorkspaceStage}
-          providerUpdate={activeActionProviderUpdate ? {
-            status: activeActionProviderUpdate.status,
-            summary: activeActionProviderUpdate.summary,
-          } : null}
-          canvasState={activeActionCanvasState?.state ?? null}
-          canvasSummary={activeActionCanvasState}
-          isSpanish={isSpanish}
-          onBack={() => navigate("/concierge/tasks")}
-          onDelete={persistedTask ? () => {
-            const approved = window.confirm(isSpanish
-              ? "Eliminar esta tarea guardada?"
-              : "Remove this saved task?");
-            if (approved) deleteTaskMutation.mutate(persistedTask.id);
-          } : undefined}
-          isDeleting={deleteTaskMutation.isPending}
-        />
-      ) : null}
+          {mode !== "task" ? trustedHelpSetupPanel : null}
+          {mode === "task" ? (
+            <ConciergeTaskWorkspaceHeader
+              title={taskWorkspaceTitle}
+              summary={taskWorkspaceSummary}
+              stage={taskWorkspaceStage}
+              providerUpdate={activeActionProviderUpdate ? {
+                status: activeActionProviderUpdate.status,
+                summary: activeActionProviderUpdate.summary,
+              } : null}
+              canvasState={activeActionCanvasState?.state ?? null}
+              canvasSummary={activeActionCanvasState}
+              isSpanish={isSpanish}
+              onBack={() => navigate("/concierge/tasks")}
+              onDelete={persistedTask ? () => {
+                const approved = window.confirm(isSpanish
+                  ? "Eliminar esta tarea guardada?"
+                  : "Remove this saved task?");
+                if (approved) deleteTaskMutation.mutate(persistedTask.id);
+              } : undefined}
+              isDeleting={deleteTaskMutation.isPending}
+            />
+          ) : null}
       {trustedProviderResume && trustedProviderResumeMeta && (
         <section
           className="order-[12] mt-4 rounded-[26px] border border-[#BBF7D0] bg-[#F0FDF4] p-4 shadow-[0_16px_36px_rgba(4,120,87,0.10)]"
@@ -18995,6 +19046,7 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               <ConciergeExecutionStatusPanel
                 summary={activeActionExecutionStatus}
                 update={activeActionUserUpdate}
+                missionPresentation={activeActionMissionPresentation}
               />
             ) : null}
 
@@ -19286,6 +19338,10 @@ const ConciergeScreen = ({ mode = "legacy" }: ConciergeScreenProps) => {
               <div
                 className="mt-3 rounded-[18px] border border-[#D8B4FE] bg-[#F5F3FF] px-3 py-2"
                 data-testid="panel-concierge-appointment-mission"
+                data-presentation-step={activeActionMissionPresentation?.stepId}
+                data-presentation-status={activeActionMissionPresentation?.status}
+                data-presentation-family={activeActionMissionPresentation?.presentationFamilyId}
+                data-external-action-boundary={activeActionMissionPresentation?.externalActionBoundary}
               >
                 <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
                   {activeActionCanOpenForm

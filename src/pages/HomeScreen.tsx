@@ -1,33 +1,40 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, BrainCircuit, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Hand, Headphones, Puzzle, Zap, Share2, Footprints, Home, UserRound, type LucideIcon } from "lucide-react";
+import { Activity, ALargeSmall, Brain, Camera, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Pill, ShieldCheck, MessageCircle, MessageCircleHeart, FileText, HeartHandshake, HeartPulse, ChevronRight, ChevronDown, ChevronUp, PackageCheck, History, Headphones, Puzzle, Zap, Share2, Footprints, Hand, Home, Mic, Moon, Sun, UserRound, X, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import MedicationRefillAlertCard, { type MedicationRefillAlertResponse } from "@/features/medications/MedicationRefillAlertCard";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import VyvaSessionCta from "@/components/VyvaSessionCta";
+import { HomeMasterActionControl, HomeMasterProfileControl, HomeMasterTopbar } from "@/components/HomeMasterTopControls";
 import CrossPillarSubflowCanvas, {
   isCrossPillarCompletionAction,
   type CrossPillarSubflowResult,
 } from "@/components/voice-canvas/CrossPillarSubflowCanvas";
+import { useScreenPresentation } from "@/design/screenPresentation";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
+import { useReadableTextSize } from "@/hooks/useReadableTextSize";
 import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { useHeroMessage } from "@/hooks/useHeroMessage";
 import { useLanguage } from "@/i18n";
+import { LONGEVITY_FOCUS_API_ROUTE, LONGEVITY_ROUTE } from "@/lib/homeNavPrototypeRoutes";
 import { displayFirstName } from "@/lib/displayIdentity";
+import { hasSeenVoiceOrbHint } from "@/lib/voiceOrbHint";
 import {
   decideHomeContextMessage,
   homeContextActionForVoiceReply,
   readHomeContextMessageActionHistory,
   readHomeContextMessageHistory,
   readHomeContextMessageOutcomeHistory,
+  HOME_CONTEXT_MESSAGE_DISPLAY_MS,
   writeHomeContextMessageAction,
   writeHomeContextMessageOutcome,
   writeHomeContextMessageSeen,
@@ -41,6 +48,14 @@ import {
   recordHeroImpression,
   type HeroReason,
 } from "@/lib/heroMessages";
+import type { WelcomeProfileCompletionSnapshot } from "../../shared/welcomeModule";
+import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  publishHomeModeControl,
+  type HomeInteractionMode,
+  type HomeModeControlActionDetail,
+  type HomeModeControlDetail,
+} from "@/lib/homeModeControl";
 import {
   VYVA_VOICE_APP_ACTION_RESULT_EVENT,
   VYVA_VOICE_HOME_INTENT_EVENT,
@@ -337,10 +352,10 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 ];
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
-  health: { title: "My Health", subtitle: "Care today" },
-  cognitive: { title: "My Mind", subtitle: "Memory and focus" },
-  social: { title: "My Community", subtitle: "Rooms and chats" },
-  concierge: { title: "My Concierge", subtitle: "Help and errands" },
+  health: { title: "My Health", subtitle: "Check-ins, vitals, medicines" },
+  cognitive: { title: "My Brain", subtitle: "Memory, focus, calm" },
+  social: { title: "Community", subtitle: "Rooms and support" },
+  concierge: { title: "Concierge", subtitle: "Everyday help" },
 };
 
 const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { label: string; sub: string }> = {
@@ -729,19 +744,25 @@ const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
   },
 };
 
-const HomeScreen = () => {
+type HomeScreenProps = {
+  menuPath?: string;
+  onShellNavigate?: (path: string, options?: NavigateOptions) => void;
+};
+
+const HomeScreen = ({ menuPath = "/menu", onShellNavigate }: HomeScreenProps = {}) => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const managedHomeHeroMessage = useHeroMessage("home_voice", {
-    language,
-    trackImpression: false,
+  const { data: heroHomeState } = useQuery<{
+    audience: "elder";
+    snapshot: WelcomeProfileCompletionSnapshot;
+  }>({
+    queryKey: ["/api/hero-messages/home-state"],
+    staleTime: 60 * 1000,
+    retry: false,
   });
-  const adminHomeContextMessage = useMemo(
-    () => adaptHeroMessageForHome(managedHomeHeroMessage),
-    [managedHomeHeroMessage],
-  );
-  const { isDark: isHomeMasterDark } = useHomeMasterTheme();
+  const { isDark: isHomeMasterDark, toggleTheme } = useHomeMasterTheme();
+  const { isLarge: isReadableTextLarge, toggleSize: toggleReadableTextSize } = useReadableTextSize();
   const voice = useOptionalVyvaVoice();
   const { firstName: profileFirstName, profile } = useProfile();
   const activeFastHelpImpressionIdRef = useRef<string | null>(null);
@@ -761,6 +782,7 @@ const HomeScreen = () => {
   ));
   const [homeIntentLayer, setHomeIntentLayer] = useState<HomeIntentLayer>(readHomeIntentLayer);
   const [homeSubflow, setHomeSubflow] = useState<VoiceHomeSubflow | null>(readHomeSubflow);
+  const [homeProfileMenuOpen, setHomeProfileMenuOpen] = useState(false);
   const [homeInteractionMode, setHomeInteractionMode] = useState<"voice" | "touch">(() => {
     try {
       return localStorage.getItem("vyva:home-interaction-mode:v1") === "touch" ? "touch" : "voice";
@@ -768,6 +790,19 @@ const HomeScreen = () => {
       return "voice";
     }
   });
+  const isTopLevelHome = homeIntentLayer === "home";
+  const homePresentation = useScreenPresentation({
+    screenId: "home",
+    mode: homeInteractionMode,
+    primarySurface: isTopLevelHome ? "orb" : undefined,
+    cards: isTopLevelHome ? "hidden" : undefined,
+  });
+  const showHomeMasterHero = homePresentation.primarySurface === "orb";
+  const showHomeMasterCards = !isTopLevelHome && homeInteractionMode === "touch" && homePresentation.cards === "visible";
+  const [homeModeSwitcherVisible, setHomeModeSwitcherVisible] = useState(true);
+  const [showVoiceOrbFirstUseHint, setShowVoiceOrbFirstUseHint] = useState(
+    () => !hasSeenVoiceOrbHint(),
+  );
   const [conciergeReceiptDetailsOpen, setConciergeReceiptDetailsOpen] = useState(false);
   const [homeContextHistoryRevision, setHomeContextHistoryRevision] = useState(0);
   const activeVoiceHomeContextFingerprintRef = useRef<string | null>(null);
@@ -789,7 +824,6 @@ const HomeScreen = () => {
       const transition = transitionForVoiceHomeIntent(intent);
       setHomeIntentLayer(transition.layer);
       setHomeSubflow(null);
-      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_INTENT_EVENT, handleVoiceHomeIntent);
@@ -802,7 +836,6 @@ const HomeScreen = () => {
       if (!isVoiceHomeSubflow(subflow)) return;
       setHomeIntentLayer(subflow.pillar);
       setHomeSubflow(subflow);
-      setHomeInteractionMode("touch");
     };
 
     window.addEventListener(VYVA_VOICE_HOME_SUBFLOW_EVENT, handleVoiceHomeSubflow);
@@ -824,6 +857,45 @@ const HomeScreen = () => {
       return;
     }
   }, [homeInteractionMode]);
+
+  useEffect(() => {
+    const handleHomeModeControlAction = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as HomeModeControlActionDetail | undefined
+        : undefined;
+      if (detail?.mode !== "voice" && detail?.mode !== "touch") return;
+      setHomeModeSwitcherVisible(true);
+      setHomeInteractionMode(detail.mode);
+    };
+
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+  }, []);
+
+  useEffect(() => {
+    if (import.meta.env.MODE === "test") return;
+    setHomeModeSwitcherVisible(true);
+    const timer = window.setTimeout(() => setHomeModeSwitcherVisible(false), 4800);
+    return () => window.clearTimeout(timer);
+  }, [homeInteractionMode, homeIntentLayer]);
+
+  useEffect(() => {
+    const nextHomeInteractionMode: HomeInteractionMode = homeInteractionMode === "voice" ? "touch" : "voice";
+    const detail: HomeModeControlDetail = {
+      mode: homeInteractionMode,
+      visible: homeModeSwitcherVisible,
+      label: nextHomeInteractionMode === "touch"
+        ? t("home.mode.switchToTouch", "Switch to touch")
+        : t("home.mode.switchToVoice", "Switch to voice"),
+      testId: nextHomeInteractionMode === "touch" ? "button-home-mode-touch" : "button-home-mode-voice",
+    };
+
+    publishHomeModeControl(detail);
+    return () => {
+      if (import.meta.env.MODE === "test") return;
+      publishHomeModeControl({ ...detail, visible: false });
+    };
+  }, [homeInteractionMode, homeModeSwitcherVisible, t]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setConciergeClockMs(Date.now()), 60_000);
@@ -872,6 +944,7 @@ const HomeScreen = () => {
   }, []);
 
   const firstName = displayFirstName(profileFirstName);
+
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
   const gpName = profile?.gpName?.trim();
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
@@ -959,6 +1032,14 @@ const HomeScreen = () => {
     retry: false,
   });
 
+  const { data: refillAlertHomeSignal } = useQuery<MedicationRefillAlertResponse>({
+    queryKey: ["/api/meds/refills/me"],
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    retry: false,
+  });
+  const activeHomeRefillAlert = refillAlertHomeSignal?.alerts?.[0] ?? null;
+
   const { data: latestVitalsHomeSignal } = useQuery<LatestVitalsHomeSignal>({
     queryKey: ["/api/vitals-engine/latest"],
     staleTime: 60 * 1000,
@@ -967,7 +1048,7 @@ const HomeScreen = () => {
   });
 
   const { data: preventionHomeSignal } = useQuery<PreventionHomeSignal>({
-    queryKey: ["/api/health/prevention"],
+    queryKey: [LONGEVITY_FOCUS_API_ROUTE],
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
     retry: false,
@@ -1047,6 +1128,31 @@ const HomeScreen = () => {
   const handleNavigate = useCallback((path: string, options?: NavigateOptions) => {
     guardPath(path, options);
   }, [guardPath]);
+
+  const handleHomeShellNavigate = useCallback((path: string, options?: NavigateOptions) => {
+    if (import.meta.env.MODE !== "test" && path.startsWith("/dev/home-master") && onShellNavigate) {
+      onShellNavigate(path, options);
+      return;
+    }
+
+    guardPath(path, options);
+  }, [guardPath, onShellNavigate]);
+
+  const handleProfileMenuNavigate = useCallback((path: string, options?: NavigateOptions) => {
+    setHomeProfileMenuOpen(false);
+    handleNavigate(path, options);
+  }, [handleNavigate]);
+
+  const switchHomeModeFromProfileMenu = useCallback(() => {
+    const nextMode = homeInteractionMode === "voice" ? "touch" : "voice";
+    setHomeModeSwitcherVisible(true);
+    setHomeInteractionMode(nextMode);
+    setHomeProfileMenuOpen(false);
+
+    if (nextMode === "touch") {
+      handleHomeShellNavigate(menuPath);
+    }
+  }, [handleHomeShellNavigate, homeInteractionMode, menuPath]);
 
   const launchHomeFastHelp = (
     actionId: ContextualHomeFastHelpActionId,
@@ -1241,8 +1347,9 @@ const HomeScreen = () => {
     {
       id: "health",
       icon: Heart,
+      iconAccent: "pulse",
       title: t("home.master.cards.healthShortTitle", "My Health"),
-      detail: t("home.master.cards.healthDetailShort", "Health assistance"),
+      detail: t("home.master.cards.healthDetailShort", "Check-ins, vitals, medicines"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("health");
@@ -1253,8 +1360,9 @@ const HomeScreen = () => {
     {
       id: "mind-memory",
       icon: Brain,
-      title: t("home.master.cards.mindMemoryShortTitle", "My Mind"),
-      detail: t("home.master.cards.mindMemoryDetailShort", "Cognitive exercises"),
+      iconAccent: "bridge",
+      title: t("home.master.cards.mindMemoryShortTitle", "My Brain"),
+      detail: t("home.master.cards.mindMemoryDetailShort", "Memory, focus, calm"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("mind");
@@ -1265,8 +1373,9 @@ const HomeScreen = () => {
     {
       id: "social",
       icon: Users,
-      title: t("home.master.cards.communityShortTitle", "My Community"),
-      detail: t("home.master.cards.communityDetailShort", "Connect with others"),
+      iconAccent: "link",
+      title: t("home.master.cards.communityShortTitle", "Community"),
+      detail: t("home.master.cards.communityDetailShort", "Rooms and support"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2F66D0", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("community");
@@ -1277,8 +1386,9 @@ const HomeScreen = () => {
     {
       id: "concierge",
       icon: ConciergeBell,
-      title: t("home.master.cards.conciergeShortTitle", "My Concierge"),
-      detail: t("home.master.cards.conciergeDetailShort", "Bookings and services"),
+      iconAccent: "clapper",
+      title: t("home.master.cards.conciergeShortTitle", "Concierge"),
+      detail: t("home.master.cards.conciergeDetailShort", "Everyday help"),
       tone: { iconBg: "#ECFDF5", iconColor: "#149A63", border: "#BBF7D0", surface: "#FFFFFF" },
       onClick: () => {
         setHomeIntentLayer("concierge");
@@ -1340,7 +1450,7 @@ const HomeScreen = () => {
       title: t("home.master.healthIntent.prevention", "Prevention"),
       detail: t("home.master.healthIntent.preventionDetail", "Stay well today"),
       tone: { iconBg: "#FFF7ED", iconColor: "#C15B08", border: "#FED7AA", surface: "#FFFFFF" },
-      onClick: () => openHealthPath("/health/prevention"),
+      onClick: () => openHealthPath(LONGEVITY_ROUTE),
       testId: "card-home-health-prevention",
     },
     {
@@ -1362,7 +1472,8 @@ const HomeScreen = () => {
   const homeMasterMindCards: MasterDashboardCard[] = [
     {
       id: "mind-memory",
-      icon: BrainCircuit,
+      icon: Brain,
+      iconAccent: "bridge",
       title: t("mindMemory.cards.strengthenMemory", "Strengthen Memory"),
       detail: t("mindMemory.cards.strengthenMemoryDetail", "Practice recall, matching, and daily routines."),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
@@ -1372,6 +1483,7 @@ const HomeScreen = () => {
     {
       id: "mind-reflexes",
       icon: Zap,
+      iconAccent: "pulse",
       title: t("mindMemory.cards.trainReflexes", "Train Reflexes"),
       detail: t("mindMemory.cards.trainReflexesDetail", "Build faster focus and response."),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
@@ -1381,8 +1493,9 @@ const HomeScreen = () => {
     {
       id: "mind-focus",
       icon: Puzzle,
-      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
-      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
+      iconAccent: "knobs",
+      title: t("mindMemory.cards.improveThinking", "Improve Thinking"),
+      detail: t("mindMemory.cards.improveThinkingDetail", "Challenge logic, planning, and problem solving."),
       tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/executive-function"),
       testId: "card-home-mind-focus",
@@ -1390,6 +1503,7 @@ const HomeScreen = () => {
     {
       id: "mind-senses",
       icon: Headphones,
+      iconAccent: "signal",
       title: t("mindMemory.cards.sharpenSenses", "Sharpen Senses"),
       detail: t("mindMemory.cards.sharpenSensesDetail", "Practice sound, breath, and sensory recall."),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4", surface: "#FFFFFF" },
@@ -1508,6 +1622,52 @@ const HomeScreen = () => {
   const nextMedicineName = medicationHomeSignal?.nextDose?.name?.trim();
   const nextMedicineMinutes = medicationHomeSignal?.nextDose?.minutesUntil;
   const isHomeMasterVoiceAlive = Boolean(voice && (voice.status === "connected" || voice.isConnecting));
+  const isHomeMasterVoiceMode = homeInteractionMode === "voice";
+  const homeContextHistorySnapshot = useMemo(() => ({
+    actions: readHomeContextMessageActionHistory(),
+    outcomes: readHomeContextMessageOutcomeHistory(),
+    revision: homeContextHistoryRevision,
+    seen: readHomeContextMessageHistory(),
+  }), [homeContextHistoryRevision]);
+  const homeContextDayStart = useMemo(() => {
+    const day = new Date(conciergeClockMs);
+    day.setHours(0, 0, 0, 0);
+    return day.getTime();
+  }, [conciergeClockMs]);
+  const elderFirstWelcomeSeen = useMemo(() => (
+    Object.keys(homeContextHistorySnapshot.seen).some((id) => id.startsWith("hero:elder-first-"))
+    || homeContextHistorySnapshot.outcomes.some((record) => (
+      record.messageId.startsWith("hero:elder-first-")
+      && ["shown", "opened", "dismissed", "completed"].includes(record.outcome)
+    ))
+  ), [homeContextHistorySnapshot]);
+  const elderDailyWelcomeNudgeShownToday = useMemo(() => (
+    homeContextHistorySnapshot.outcomes.some((record) => (
+      record.messageId.startsWith("hero:elder-nudge-")
+      && record.recordedAt >= homeContextDayStart
+      && record.recordedAt <= conciergeClockMs
+      && ["shown", "opened", "dismissed", "completed"].includes(record.outcome)
+    ))
+  ), [conciergeClockMs, homeContextDayStart, homeContextHistorySnapshot.outcomes]);
+  const welcomeFirstLoginDue = heroHomeState?.audience === "elder" && !elderFirstWelcomeSeen;
+  const welcomeDailyProfileNudgeDue = Boolean(
+    heroHomeState?.audience === "elder"
+    && heroHomeState.snapshot
+    && !welcomeFirstLoginDue
+    && !elderDailyWelcomeNudgeShownToday,
+  );
+  const managedHomeHeroMessage = useHeroMessage("home_voice", {
+    language,
+    trackImpression: false,
+    welcomeAudience: "elder",
+    welcomeFirstLoginDue,
+    welcomeDailyProfileNudgeDue,
+    profileCompletionSnapshot: heroHomeState?.snapshot ?? null,
+  });
+  const adminHomeContextMessage = useMemo(
+    () => adaptHeroMessageForHome(managedHomeHeroMessage),
+    [managedHomeHeroMessage],
+  );
   const homeContextMessages = useMemo<HomeContextMessage[]>(() => {
     const messages: HomeContextMessage[] = [];
     if (homeIntentLayer !== "home") {
@@ -1516,7 +1676,7 @@ const HomeScreen = () => {
         id: `active-flow:${homeIntentLayer}`,
         kind: "flow",
         title: t(`home.master.${intentKey}.title`),
-        supportingText: isHomeMasterVoiceAlive
+        supportingText: isHomeMasterVoiceMode
           ? t(`home.master.${intentKey}.voiceSubtitle`)
           : t(`home.master.${intentKey}.dormantSubtitle`),
         priority: 100,
@@ -1599,12 +1759,28 @@ const HomeScreen = () => {
         intentTags: ["health", "checkin"],
       });
     }
+    const refillAlert = refillAlertHomeSignal?.alerts?.[0];
+    if (refillAlert) {
+      messages.push({
+        id: `refill:${refillAlert.id}`,
+        kind: "reminder",
+        title: refillAlert.title,
+        supportingText: refillAlert.message,
+        actionLabel: t("home.context.refill.update", "Update supply"),
+        actionRoute: "/meds/refills",
+        dismissible: refillAlert.status !== "refill_now",
+        priority: refillAlert.status === "refill_now" ? 82 : 78,
+        repeatAfterMs: refillAlert.status === "refill_now" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+        category: "medication",
+        intentTags: ["health", "medication", "refill"],
+      });
+    }
     if (nextMedicineName && typeof nextMedicineMinutes === "number" && nextMedicineMinutes >= 0) {
       const doseDueAt = conciergeClockMs + nextMedicineMinutes * 60 * 1000;
       messages.push({
         id: `dose:${nextMedicineName}`,
         kind: "reminder",
-        title: t("home.master.nextMedicationNudge", "In {{minutes}} min: {{name}}.", {
+        title: t("home.master.nextMedicationNudge", "Don't forget {{name}} in {{minutes}} min.", {
           minutes: nextMedicineMinutes,
           name: nextMedicineName,
         }),
@@ -1710,7 +1886,7 @@ const HomeScreen = () => {
         title: t("home.context.prevention.title", "A small prevention step is ready."),
         supportingText: t("home.context.prevention.support", "See today's gentle health suggestion."),
         actionLabel: t("home.context.actions.view", "View"),
-        actionRoute: "/health/prevention",
+        actionRoute: LONGEVITY_ROUTE,
         dismissible: true,
         priority: 25,
         repeatAfterMs: 24 * 60 * 60 * 1000,
@@ -1772,11 +1948,12 @@ const HomeScreen = () => {
     nextConciergeTask,
     nextScheduledEvent,
     preventionHomeSignal,
+    refillAlertHomeSignal,
     reusableConciergeHomeTask,
     reusableConciergeReceipt,
     greetingText,
     homeIntentLayer,
-    isHomeMasterVoiceAlive,
+    isHomeMasterVoiceMode,
     latestVitalsHomeSignal,
     nextMedicineMinutes,
     nextMedicineName,
@@ -1785,13 +1962,6 @@ const HomeScreen = () => {
     t,
     timeGreetingKey,
   ]);
-  const homeContextHistorySnapshot = useMemo(() => ({
-    actions: readHomeContextMessageActionHistory(),
-    outcomes: readHomeContextMessageOutcomeHistory(),
-    revision: homeContextHistoryRevision,
-    seen: readHomeContextMessageHistory(),
-  }), [homeContextHistoryRevision]);
-
   const selectedHomeContextDecision = useMemo(
     () => {
       return decideHomeContextMessage(
@@ -1872,8 +2042,12 @@ const HomeScreen = () => {
         : selectedHomeContextDecision?.reason === "active_flow"
           ? "continuation"
           : "evergreen";
+    const state = selectedHomeContextMessage.actionState ?? {};
+    const heroMessageId = typeof state.heroMessageId === "string"
+      ? state.heroMessageId
+      : selectedHomeContextMessage.id.replace(/^(admin|hero):/, "");
     recordHeroEvent({
-      messageId: selectedHomeContextMessage.id,
+      messageId: heroMessageId,
       surface: "home_voice",
       language: normalizeHeroLanguage(language),
       eventType: outcome,
@@ -1941,7 +2115,7 @@ const HomeScreen = () => {
       writeHomeContextMessageSeen(selectedHomeContextMessage.id);
       trackHomeContextOutcome("shown", "system");
       setHomeContextHistoryRevision((current) => current + 1);
-    }, 8_000);
+    }, HOME_CONTEXT_MESSAGE_DISPLAY_MS);
     return () => window.clearTimeout(seenTimer);
   }, [
     selectedHomeContextMessage,
@@ -1968,7 +2142,11 @@ const HomeScreen = () => {
     voice?.status,
   ]);
   useEffect(() => {
-    if (!selectedHomeContextMessage?.id.startsWith("admin:") || !managedHomeHeroMessage) return;
+    if (
+      !selectedHomeContextMessage
+      || (!selectedHomeContextMessage.id.startsWith("admin:") && !selectedHomeContextMessage.id.startsWith("hero:"))
+      || !managedHomeHeroMessage
+    ) return;
     recordHeroImpression(managedHomeHeroMessage.messageId);
     recordHeroEvent({
       messageId: managedHomeHeroMessage.messageId,
@@ -1978,10 +2156,13 @@ const HomeScreen = () => {
       reason: managedHomeHeroMessage.reason,
       source: managedHomeHeroMessage.source,
     });
-  }, [language, managedHomeHeroMessage, selectedHomeContextMessage?.id]);
+  }, [language, managedHomeHeroMessage, selectedHomeContextMessage]);
   const dismissSelectedHomeContextMessage = useCallback(() => {
     if (!selectedHomeContextMessage?.dismissible) return;
-    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+    if (
+      (selectedHomeContextMessage.id.startsWith("admin:") || selectedHomeContextMessage.id.startsWith("hero:"))
+      && managedHomeHeroMessage
+    ) {
       recordHeroEvent({
         messageId: managedHomeHeroMessage.messageId,
         surface: managedHomeHeroMessage.surface,
@@ -2005,7 +2186,10 @@ const HomeScreen = () => {
     source: "touch" | "voice" | "voice_tool" = "touch",
   ) => {
     if (!selectedHomeContextMessage?.actionRoute) return;
-    if (selectedHomeContextMessage.id.startsWith("admin:") && managedHomeHeroMessage) {
+    if (
+      (selectedHomeContextMessage.id.startsWith("admin:") || selectedHomeContextMessage.id.startsWith("hero:"))
+      && managedHomeHeroMessage
+    ) {
       recordHeroEvent({
         messageId: managedHomeHeroMessage.messageId,
         surface: managedHomeHeroMessage.surface,
@@ -2105,20 +2289,37 @@ const HomeScreen = () => {
     trackHomeContextOutcome,
     voice?.status,
   ]);
-  const homeMasterGreetingText = selectedHomeContextMessage?.title ?? greetingText.replace(/[.]$/, "");
+  const homeMasterGreetingText = greetingText.replace(/[.]$/, "");
   const activeIntentKey = homeIntentLayer === "home" ? null : `${homeIntentLayer}Intent`;
   const activeIntentTitle = activeIntentKey
     ? t(`home.master.${activeIntentKey}.title`)
     : homeMasterGreetingText;
   const activeIntentSubtitle = activeIntentKey
-    ? isHomeMasterVoiceAlive
+    ? isHomeMasterVoiceMode
       ? t(`home.master.${activeIntentKey}.voiceSubtitle`)
       : t(`home.master.${activeIntentKey}.dormantSubtitle`)
     : null;
-  const homeMasterHeroSubtitle = selectedHomeContextMessage?.supportingText
-    ?? (activeIntentSubtitle
-      ? activeIntentSubtitle
-      : t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?"));
+  const selectedHomeContextTitle = selectedHomeContextMessage?.title?.trim() ?? "";
+  const selectedHomeContextSupport = selectedHomeContextMessage?.supportingText?.trim()
+    || selectedHomeContextMessage?.spokenText?.trim()
+    || "";
+  const selectedHomeContextLooksLikeGreeting = Boolean(selectedHomeContextTitle)
+    && selectedHomeContextTitle.replace(/[.]$/, "").toLowerCase() === homeMasterGreetingText.toLowerCase();
+  const homeMasterContextNudgeText = !activeIntentKey
+    && selectedHomeContextMessage
+    && selectedHomeContextMessage.kind !== "default"
+    ? selectedHomeContextLooksLikeGreeting
+      ? selectedHomeContextSupport
+      : selectedHomeContextTitle || selectedHomeContextSupport
+    : null;
+  const homeMasterNormalHeroSubtitle = activeIntentSubtitle
+    ?? homeMasterContextNudgeText
+    ?? t(`home.master.proactiveGreeting.${timeGreetingKey}`, "How are you feeling?");
+  const showHomeVoiceOrbCue = homeInteractionMode === "voice";
+  const showHomeVoiceFirstUseHint = showHomeVoiceOrbCue && homeIntentLayer === "home" && showVoiceOrbFirstUseHint;
+  const homeMasterHeroSubtitle = showHomeVoiceOrbCue
+    ? t("home.master.touchOrbToBegin", "Touch the orb to begin.")
+    : homeMasterNormalHeroSubtitle;
   const cardsByIntent: Record<HomeIntentLayer, MasterDashboardCard[]> = {
     home: homeMasterCards,
     health: homeMasterHealthCards.slice(0, 4),
@@ -2186,12 +2387,15 @@ const HomeScreen = () => {
   const homeMasterMoreLabel = activeIntentKey
     ? t(`home.master.${activeIntentKey}.more`)
     : undefined;
+  const homeMasterMoreCompactLabel = activeIntentKey
+    ? t(`home.master.${activeIntentKey}.moreCompact`, "More")
+    : undefined;
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
     {
       id: "feel-better",
       icon: HeartPulse,
-      label: t("home.master.fastHelp.feelBetter", "Symptoms Check"),
+      label: t("home.master.fastHelp.feelBetter", "Ask Dr. AI"),
       detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
       onClick: () => launchHomeFastHelp("feel-better", "/health/symptom-check"),
@@ -2200,10 +2404,10 @@ const HomeScreen = () => {
     {
       id: "stay-well",
       icon: ShieldCheck,
-      label: t("home.master.fastHelp.stayWell", "Age Well"),
-      detail: t("home.master.fastHelp.stayWellDetail", "Prevention tips"),
+      label: t("home.master.fastHelp.stayWell", "Longevity"),
+      detail: t("home.master.fastHelp.stayWellDetail", "Your plan for today"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => launchHomeFastHelp("stay-well", "/health/prevention"),
+      onClick: () => launchHomeFastHelp("stay-well", LONGEVITY_ROUTE),
       testId: "button-home-fast-stay-well",
     },
     {
@@ -2746,6 +2950,208 @@ const HomeScreen = () => {
       </div>
     </div>
   ) : null;
+  const nextReadableTextSizeLabel = isReadableTextLarge
+    ? t("home.profileMenu.normal", "Normal")
+    : t("home.profileMenu.large", "Large");
+  const nextThemeLabel = isHomeMasterDark
+    ? t("home.profileMenu.light", "Light")
+    : t("home.profileMenu.dark", "Dark");
+  const nextModeLabel = homeInteractionMode === "voice"
+    ? t("home.profileMenu.touch", "Touch")
+    : t("home.profileMenu.voice", "Voice");
+  const NextModeIcon = homeInteractionMode === "voice" ? Hand : Mic;
+  const homeProfileMenuLinks: Array<{
+    label: string;
+    detail: string;
+    path: string;
+    icon: LucideIcon;
+    testId: string;
+    tone: string;
+    darkTone: string;
+  }> = [
+    {
+      label: t("home.profileMenu.account", "Account details"),
+      detail: t("home.profileMenu.accountDetail", "Name, phone, language"),
+      path: "/settings/account",
+      icon: UserRound,
+      testId: "button-home-profile-account",
+      tone: "bg-[#F5F3FF] text-vyva-purple",
+      darkTone: "bg-[#7C3AED]/20 text-[#D8B4FE] ring-1 ring-inset ring-[#C4B5FD]/20",
+    },
+    {
+      label: t("home.profileMenu.health", "Health profile"),
+      detail: t("home.profileMenu.healthDetail", "Conditions and basics"),
+      path: "/onboarding/profile/health",
+      icon: Heart,
+      testId: "button-home-profile-health",
+      tone: "bg-[#FFF1F2] text-[#E74C43]",
+      darkTone: "bg-[#FB7185]/16 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
+    },
+    {
+      label: t("home.profileMenu.medications", "My Medication"),
+      detail: t("home.profileMenu.medicationsDetail", "Current medications"),
+      path: "/onboarding/profile/medications",
+      icon: Pill,
+      testId: "button-home-profile-medications",
+      tone: "bg-[#FEF3C7] text-[#A16207]",
+      darkTone: "bg-[#F59E0B]/18 text-[#FDE68A] ring-1 ring-inset ring-[#FDE68A]/18",
+    },
+    {
+      label: t("home.profileMenu.emergency", "Emergency contact"),
+      detail: t("home.profileMenu.emergencyDetail", "Who to call if needed"),
+      path: "/onboarding/profile/emergency",
+      icon: ShieldCheck,
+      testId: "button-home-profile-emergency",
+      tone: "bg-[#FFE4E6] text-[#E11D48]",
+      darkTone: "bg-[#F43F5E]/18 text-[#FDA4AF] ring-1 ring-inset ring-[#FDA4AF]/18",
+    },
+    {
+      label: t("home.profileMenu.careTeam", "Care team"),
+      detail: t("home.profileMenu.careTeamDetail", "Family and contacts"),
+      path: "/onboarding/profile/care-team",
+      icon: Users,
+      testId: "button-home-profile-care-team",
+      tone: "bg-[#EFF6FF] text-[#2F66D0]",
+      darkTone: "bg-[#3B82F6]/18 text-[#BFDBFE] ring-1 ring-inset ring-[#BFDBFE]/18",
+    },
+    {
+      label: t("home.profileMenu.providers", "Doctors & providers"),
+      detail: t("home.profileMenu.providersDetail", "Clinics and trusted help"),
+      path: "/onboarding/profile/providers",
+      icon: Stethoscope,
+      testId: "button-home-profile-providers",
+      tone: "bg-[#ECFDF5] text-[#149A63]",
+      darkTone: "bg-[#10B981]/18 text-[#A7F3D0] ring-1 ring-inset ring-[#A7F3D0]/18",
+    },
+  ];
+  const homeProfileMenu = homeProfileMenuOpen ? (
+    <div className="fixed inset-0 z-[80]" data-testid="home-profile-menu-layer">
+      <button
+        type="button"
+        data-testid="button-home-profile-menu-backdrop"
+        className={[
+          "absolute inset-0 cursor-default bg-transparent md:backdrop-blur-[3px]",
+          isHomeMasterDark ? "md:bg-black/35" : "md:bg-[#2D1748]/15",
+        ].join(" ")}
+        aria-label={t("home.profileMenu.close", "Close profile menu")}
+        onClick={() => setHomeProfileMenuOpen(false)}
+      />
+      <section
+        id="home-profile-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("home.profileMenu.title", "Profile & settings")}
+        data-testid="home-profile-menu"
+        className={[
+          "absolute left-1/2 top-[88px] max-h-[calc(100svh-110px)] w-[calc(100vw-44px)] max-w-[348px] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-[30px] border p-3 text-left backdrop-blur-2xl sm:top-[92px] sm:max-w-[366px] md:top-1/2 md:max-h-[calc(100svh-96px)] md:max-w-[720px] md:-translate-y-1/2 md:rounded-[32px] md:p-5",
+          isHomeMasterDark
+            ? "border-white/[0.12] bg-[#170C2A] text-[#FFF8FF] shadow-[0_28px_80px_rgba(0,0,0,0.28)]"
+            : "border-[#EFE4F6] bg-white/[0.96] text-[var(--vyva-ink)] shadow-[0_24px_70px_rgba(67,36,95,0.16)]",
+        ].join(" ")}
+      >
+        <div className="flex items-start justify-between gap-3 px-1 pb-1.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[18px] bg-[linear-gradient(145deg,#F8F4FF_0%,#EFE5FF_100%)] text-vyva-purple shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_24px_rgba(107,33,168,0.10)]">
+              <span className="font-display text-[22px] font-semibold leading-none" aria-hidden="true">
+                {firstName ? firstName.charAt(0).toLocaleUpperCase(language) : "Y"}
+              </span>
+            </span>
+            <span className="min-w-0">
+              <span className="block font-display text-[22px] font-semibold leading-none">
+                {t("home.profileMenu.title", "Profile & settings")}
+              </span>
+              <span className={["mt-1 block font-body text-[11.5px] font-extrabold leading-snug", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#8F8192]"].join(" ")}>
+                {t("home.profileMenu.subtitle", "Update health, contacts, and display.")}
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            data-testid="button-home-profile-menu-close"
+            aria-label={t("home.profileMenu.close", "Close profile menu")}
+            onClick={() => setHomeProfileMenuOpen(false)}
+            className={["vyva-tap grid h-10 !min-h-10 w-10 flex-shrink-0 place-items-center rounded-full", isHomeMasterDark ? "bg-white/10 text-[#F6F0FF]" : "bg-[#F8F5FF] text-[#6B5173]"].join(" ")}
+          >
+            <X size={18} strokeWidth={2.4} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="mt-2 grid gap-1.5 md:grid-cols-2 md:gap-3" data-testid="home-profile-menu-links">
+          {homeProfileMenuLinks.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.path}
+                type="button"
+                data-testid={item.testId}
+                onClick={() => handleProfileMenuNavigate(item.path)}
+                className={[
+                  "vyva-tap flex min-h-[60px] w-full items-center gap-2.5 rounded-[21px] border px-3 py-2 text-left transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 md:min-h-[72px] md:px-4",
+                  isHomeMasterDark ? "border-white/[0.10] bg-white/[0.06]" : "border-[#F0E8F5] bg-white shadow-[0_8px_22px_rgba(67,36,95,0.05)]",
+                ].join(" ")}
+              >
+                <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full ${isHomeMasterDark ? item.darkTone : item.tone}`}>
+                  <Icon size={19} strokeWidth={2.25} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-[19px] font-semibold leading-none">
+                    {item.label}
+                  </span>
+                  <span className={["mt-1 block truncate font-body text-[11.5px] font-extrabold", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"].join(" ")}>
+                    {item.detail}
+                  </span>
+                </span>
+                <ChevronRight size={20} strokeWidth={2.55} className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#B6AAB8]"} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className={["my-3 h-px", isHomeMasterDark ? "bg-white/[0.10]" : "bg-[#EFE4F6]"].join(" ")} />
+        <p className={["px-2 pb-2 font-body text-[11px] font-black uppercase tracking-[0.16em]", isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"].join(" ")}>
+          {t("home.profileMenu.display", "Display preferences")}
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            data-testid="button-home-profile-text-size"
+            onClick={toggleReadableTextSize}
+            className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
+          >
+            <ALargeSmall size={19} strokeWidth={2.35} aria-hidden="true" />
+            <span className="mt-1">{t("home.profileMenu.textSize", "Text size")}</span>
+            <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
+              {nextReadableTextSizeLabel}
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-home-profile-theme"
+            onClick={toggleTheme}
+            className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
+          >
+            {isHomeMasterDark ? <Sun size={18} strokeWidth={2.35} aria-hidden="true" /> : <Moon size={18} strokeWidth={2.35} aria-hidden="true" />}
+            <span className="mt-1">{t("home.profileMenu.theme", "Theme")}</span>
+            <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
+              {nextThemeLabel}
+            </span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-home-profile-mode"
+            onClick={switchHomeModeFromProfileMenu}
+            className={["vyva-tap flex min-h-[68px] flex-col items-center justify-center rounded-[19px] border px-2 text-center font-body text-[10.5px] font-black leading-tight", isHomeMasterDark ? "border-white/[0.10] bg-white/[0.07] text-[#F6F0FF]" : "border-[#EFE4F6] bg-[#FBF8FF] text-[#2D1748]"].join(" ")}
+          >
+            <NextModeIcon size={18} strokeWidth={2.35} aria-hidden="true" />
+            <span className="mt-1">{t("home.profileMenu.mode", "Mode")}</span>
+            <span className={isHomeMasterDark ? "text-[#DCCFEF]" : "text-[#9A8A9E]"}>
+              {nextModeLabel}
+            </span>
+          </button>
+        </div>
+      </section>
+    </div>
+  ) : null;
   // Home master design: latest VYVA wordmark header, greeting, dormant voice orb, four app-mode
   // shortcuts, and no extra Fast Help/nudge blocks on the landing screen.
   return (
@@ -2755,72 +3161,72 @@ const HomeScreen = () => {
       fastHelpTestId="home-fast-help"
       launcherVariant="homeMaster"
       intentLayer={homeIntentLayer !== "home"}
-      showHero={homeInteractionMode === "voice"}
-      showCards={homeInteractionMode === "touch"}
+      presentationAttributes={homePresentation.dataAttributes}
+      showHero={showHomeMasterHero}
+      showCards={showHomeMasterCards}
       modeSwitcher={(
-        <>
-          <div
+        <div className="mb-4 mt-0 min-[390px]:mb-5 sm:mb-8">
+          <HomeMasterTopbar
             className={[
-              "mx-auto mb-4 grid w-full max-w-[13rem] grid-cols-2 rounded-full border p-0.5 shadow-[0_8px_22px_rgba(80,45,120,0.08)] sm:mb-6",
-              isHomeMasterDark
-                ? "border-white/15 bg-white/10"
-                : "border-[#E6DDF1] bg-white/85",
+              "mb-4 min-[390px]:mb-5",
+              isHomeMasterDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]",
             ].join(" ")}
-            aria-label={t("home.mode.label", "Home mode")}
-            data-testid="home-mode-switcher"
+            testId="home-topbar"
           >
-            <button
-              type="button"
-              aria-pressed={homeInteractionMode === "voice"}
-              data-testid="button-home-mode-voice"
-              onClick={() => setHomeInteractionMode("voice")}
-              className={[
-                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
-                homeInteractionMode === "voice"
-                  ? "bg-vyva-purple text-white shadow-[0_7px_18px_rgba(107,33,168,0.22)]"
-                  : isHomeMasterDark
-                    ? "text-[#E8DDF3]"
-                    : "text-[#5D4865]",
-              ].join(" ")}
+            <HomeMasterProfileControl
+              isDark={isHomeMasterDark}
+              ariaLabel={t("home.profileMenu.open", "Open profile and settings")}
+              testId="button-home-profile"
+              onClick={() => setHomeProfileMenuOpen(true)}
+              expanded={homeProfileMenuOpen}
+              controls={homeProfileMenuOpen ? "home-profile-menu" : undefined}
+            />
+            <span data-testid="home-dayline" aria-hidden="true" />
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full sm:h-10 sm:w-10"
+              data-testid="home-topbar-action-pill"
             >
-              <Mic size={14} aria-hidden="true" />
-              {t("home.mode.voice", "Voice")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={homeInteractionMode === "touch"}
-              data-testid="button-home-mode-touch"
-              onClick={() => setHomeInteractionMode("touch")}
-              className={[
-                "vyva-tap flex min-h-[34px] items-center justify-center gap-1 rounded-full px-2 font-body text-[12px] font-black transition-colors",
-                homeInteractionMode === "touch"
-                  ? "bg-[#0F8B82] text-white shadow-[0_7px_18px_rgba(15,139,130,0.20)]"
-                  : isHomeMasterDark
-                    ? "text-[#E8DDF3]"
-                    : "text-[#5D4865]",
-              ].join(" ")}
-            >
-              <Hand size={14} aria-hidden="true" />
-              {t("home.mode.touch", "Touch")}
-            </button>
-          </div>
-          {homeInteractionMode === "touch" ? (
-            <h1
-              data-testid="home-touch-heading"
-              className={[
-                "mb-5 text-center font-body text-[25px] font-bold leading-tight min-[390px]:text-[28px] sm:mb-7 sm:text-[32px]",
-                isHomeMasterDark ? "text-[#FFF8FF]" : "text-[#24113D]",
-              ].join(" ")}
-            >
-              {activeIntentTitle}
-            </h1>
+              <HomeMasterActionControl
+                isDark={isHomeMasterDark}
+                icon={Hand}
+                ariaLabel={t("home.mode.openManual", "Open manual menu")}
+                onClick={() => handleHomeShellNavigate(menuPath)}
+                testId="button-home-mode-touch"
+              />
+            </div>
+          </HomeMasterTopbar>
+          {homeProfileMenu}
+          {showHomeMasterCards ? (
+            <div className="px-3 text-center">
+              <h1
+                data-testid="home-touch-heading"
+                className={[
+                  "font-display text-[32px] font-semibold leading-[1.02] min-[390px]:text-[35px] sm:text-[42px]",
+                  isHomeMasterDark ? "text-[#FFF8FF]" : "text-[var(--vyva-ink)]",
+                ].join(" ")}
+              >
+                {activeIntentTitle}
+              </h1>
+              {homePresentation.showHeadingDetail && homeMasterHeroSubtitle ? (
+                <p
+                  data-testid="home-touch-subheading"
+                  className={[
+                    "mx-auto mt-2 hidden max-w-[19rem] font-body text-[15px] font-bold leading-snug min-[390px]:text-[16px] sm:block sm:max-w-[28rem] sm:text-[18px]",
+                    isHomeMasterDark ? "text-[#E8DDF3]" : "text-[#6C5369]",
+                  ].join(" ")}
+                >
+                  {homeMasterHeroSubtitle}
+                </p>
+              ) : null}
+            </div>
           ) : null}
-        </>
+        </div>
       )}
       isDarkMode={isHomeMasterDark}
       cardSectionTitle={homeMasterCardSectionTitle}
       cardSectionDescription={homeMasterCardSectionDescription}
       cardSectionMoreLabel={homeMasterMoreLabel}
+      cardSectionMoreCompactLabel={homeMasterMoreCompactLabel}
       onCardSectionMore={homeMasterMoreRoute ? () => handleNavigate(homeMasterMoreRoute) : undefined}
       cardSectionMoreTestId={homeIntentLayer !== "home" ? `button-home-${homeIntentLayer}-more` : undefined}
       fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
@@ -2829,10 +3235,11 @@ const HomeScreen = () => {
         eyebrow: t("home.master.heroEyebrow", "Today"),
         title: homeMasterGreetingText,
         subtitle: homeMasterHeroSubtitle,
+        subtitleTone: showHomeVoiceFirstUseHint ? "gold" : "default",
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
-          supportingLabel: t("home.master.voiceSupport", "Tell VYVA what you need."),
+          supportingLabel: t("home.master.voiceSupport", "Touch the orb to begin."),
           contextHint: `${t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step.")} Current home context: ${selectedHomeContextMessage?.spokenText ?? selectedHomeContextMessage?.title ?? ""}`,
           voiceAgentSlug: "main-vyva",
           voiceDynamicVariables: {
@@ -2844,16 +3251,13 @@ const HomeScreen = () => {
           },
           autoStartListening: true,
           testId: "button-home-hero-talk",
+          onFirstVoiceOrbActivation: () => setShowVoiceOrbFirstUseHint(false),
         },
         testId: "home-master-hero",
-        messageActionLabel: selectedHomeContextMessage?.actionLabel,
-        onMessageAction: selectedHomeContextMessage?.actionRoute
-          ? openSelectedHomeContextMessage
-          : undefined,
-        onMessageDismiss: selectedHomeContextMessage?.dismissible
-          ? dismissSelectedHomeContextMessage
-          : undefined,
-        messageDismissLabel: t("home.context.actions.dismiss", "Dismiss this message"),
+        messageActionLabel: undefined,
+        onMessageAction: undefined,
+        onMessageDismiss: undefined,
+        messageDismissLabel: undefined,
         tone: {
           iconBg: "#F5F3FF",
           iconColor: "#6B21A8",
@@ -2863,12 +3267,24 @@ const HomeScreen = () => {
       }}
       cards={homeMasterVisibleCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={activeCompletionAction ? (
-        <CrossPillarSubflowCanvas
-          actionId={activeCompletionAction}
-          onContinue={continueCrossPillarSubflow}
-          onCancel={() => setHomeSubflow(null)}
-        />
+      beforeFastHelp={activeHomeRefillAlert || activeCompletionAction ? (
+        <div className="flex flex-col gap-4">
+          {activeHomeRefillAlert ? (
+            <MedicationRefillAlertCard
+              alert={activeHomeRefillAlert}
+              canManage={refillAlertHomeSignal?.permissions.manage_inventory !== false}
+              onOpen={() => handleNavigate("/meds/refills")}
+              testId="home-refill-alert"
+            />
+          ) : null}
+          {activeCompletionAction ? (
+            <CrossPillarSubflowCanvas
+              actionId={activeCompletionAction}
+              onContinue={continueCrossPillarSubflow}
+              onCancel={() => setHomeSubflow(null)}
+            />
+          ) : null}
+        </div>
       ) : null}
     />
   );

@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import {
   ChevronLeft,
   Building2,
@@ -15,8 +16,17 @@ import {
   MessageCircle,
   Link2,
   ShieldCheck,
+  Mic,
 } from "lucide-react";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileCompletionBar, ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { OnboardingCompanionModeChip } from "@/components/onboarding/OnboardingCompanionModeChip";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
+import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlacesSearch, PlaceResult, PlaceCategory, CATEGORY_TYPES } from "@/components/onboarding/PlacesSearch";
@@ -35,6 +45,12 @@ import {
   savedProviderContactReadiness,
 } from "../../../../shared/conciergeSavedProviders";
 import { useTranslation } from "react-i18next";
+import {
+  applyProfileVoiceCorrection,
+  parseProfileVoiceCommand,
+  parseProfileVoiceTranscript,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 interface ProviderCategory {
   id: ConciergeProviderCategoryId;
@@ -411,8 +427,10 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
 const ProvidersSection = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDark } = useHomeMasterTheme();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const isHomeMasterProfilePreview = location.pathname.startsWith("/dev/home-master/profile/");
 
   const providerPrefill = providerPrefillFromState(location.state);
   const setupReturnTo = returnToFromState(location.state);
@@ -442,6 +460,30 @@ const ProvidersSection = () => {
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [editingProvider, setEditingProvider] = useState<ProviderEntry | null>(null);
+  const [speakItOpen, setSpeakItOpen] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const providersAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "providers",
+        sectionLabel: "Trusted providers",
+        voicePrompt: "Tell VYVA a provider name, phone, email, or address.",
+        expectedFields: ["name", "address", "phone", "email"],
+        targetIds: {
+          addByVoice: "providers-add-by-voice",
+          draftReview: "providers-voice-draft",
+          reviewSave: "providers-review-save",
+        },
+      }),
+    [],
+  );
   const counterRef = useRef(0);
   const loadedRef = useRef(false);
 
@@ -541,9 +583,117 @@ const ProvidersSection = () => {
     setSearchKey((k) => k + 1);
   };
 
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: providersAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
+  const startVoiceProviderCapture = useCallback(() => {
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-providers-voice-capture",
+      label: "Add by voice",
+      description: "Say a provider name and contact details.",
+      sectionConfig: providersAgentSectionConfig,
+      targetId: providersAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceProviderCapture,
+    });
+    return unregister;
+  }, [providersAgentSectionConfig, registerVoiceAction, startVoiceProviderCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: providersAgentSectionConfig.sectionId,
+      currentSectionLabel: providersAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review this provider before adding it." : providersAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? providersAgentSectionConfig.targetIds?.draftReview
+        : providersAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [clearGuidance, companionMode, providersAgentSectionConfig, setGuidance, voiceDraft]);
+
+  const handleSpeakItDone = (transcript: string) => {
+    setSpeakItOpen(false);
+    const command = parseProfileVoiceCommand("providers", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceProviderCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: corrected ? "corrected-draft" : "needs-clarification" });
+      return;
+    }
+    const result = parseProfileVoiceTranscript("providers", transcript);
+    if (result.type !== "draft") {
+      setVoiceGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        lastHeardText: transcript,
+        error: "VYVA could not find provider details in that.",
+        activeTargetId: providersAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+    setVoiceDraft(result.draft);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "parsed-draft",
+      lastHeardText: transcript,
+      activeTargetId: providersAgentSectionConfig.targetIds?.draftReview,
+    });
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    setManualName(metadata.name ?? manualName);
+    setManualAddress(metadata.address ?? manualAddress);
+    setManualPhone(metadata.phone ?? manualPhone);
+    setManualEmail(metadata.email ?? manualEmail);
+    setManualPreferredChannel(metadata.email ? "email" : metadata.phone ? "phone" : manualPreferredChannel);
+    setShowManualForm(true);
+    setPending(null);
+    setVoiceDraft(null);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: providersAgentSectionConfig.targetIds?.reviewSave,
+    });
+  };
+
   const addFromPending = async () => {
     if (!pending || !pending.name.trim() || adding || saving) return;
-    setAdding(true);
     counterRef.current += 1;
     const resolvedMapsUrl =
       pending.mapsUrl ||
@@ -568,26 +718,12 @@ const ProvidersSection = () => {
     };
     const updated = normalizeSavedProviderDefaults([...providers, entry]);
     setProviders(updated);
-    const snapshot = pending;
     setPending(null);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await finishFocusedSetup(entry);
-    } catch (err) {
-      setProviders(providers);
-      setPending(snapshot);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not add provider", description: msg, variant: "destructive" });
-    } finally {
-      setAdding(false);
-    }
+    toast({ title: "Provider added locally", description: "Review the list, then save this section." });
   };
 
   const addFromManual = async () => {
     if (!manualName.trim() || adding || saving) return;
-    setAdding(true);
     counterRef.current += 1;
     const resolvedMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
       [manualName.trim(), manualAddress.trim()].filter(Boolean).join(" ")
@@ -611,17 +747,6 @@ const ProvidersSection = () => {
     };
     const updated = normalizeSavedProviderDefaults([...providers, entry]);
     setProviders(updated);
-    const snapshotName = manualName;
-    const snapshotAddress = manualAddress;
-    const snapshotPhone = manualPhone;
-    const snapshotEmail = manualEmail;
-    const snapshotWhatsapp = manualWhatsapp;
-    const snapshotBookingUrl = manualBookingUrl;
-    const snapshotWebsite = manualWebsite;
-    const snapshotNotes = manualNotes;
-    const snapshotIsTrusted = manualIsTrusted;
-    const snapshotPreferredChannel = manualPreferredChannel;
-    const snapshotCanContact = manualCanContactAfterConfirmation;
     setManualName("");
     setManualAddress("");
     setManualPhone("");
@@ -634,49 +759,14 @@ const ProvidersSection = () => {
     setManualPreferredChannel("phone");
     setManualCanContactAfterConfirmation(true);
     setShowManualForm(false);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await finishFocusedSetup(entry);
-    } catch (err) {
-      setProviders(providers);
-      setManualName(snapshotName);
-      setManualAddress(snapshotAddress);
-      setManualPhone(snapshotPhone);
-      setManualEmail(snapshotEmail);
-      setManualWhatsapp(snapshotWhatsapp);
-      setManualBookingUrl(snapshotBookingUrl);
-      setManualWebsite(snapshotWebsite);
-      setManualNotes(snapshotNotes);
-      setManualIsTrusted(snapshotIsTrusted);
-      setManualPreferredChannel(snapshotPreferredChannel);
-      setManualCanContactAfterConfirmation(snapshotCanContact);
-      setShowManualForm(true);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not add provider", description: msg, variant: "destructive" });
-    } finally {
-      setAdding(false);
-    }
+    toast({ title: "Provider added locally", description: "Review the list, then save this section." });
   };
 
   const removeProvider = async (id: string) => {
     if (removingId || saving) return;
-    setRemovingId(id);
-    const previous = providers;
     const updated = normalizeSavedProviderDefaults(providers.filter((p) => p.id !== id));
     setProviders(updated);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      setProviders(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not remove provider", description: msg, variant: "destructive" });
-    } finally {
-      setRemovingId(null);
-    }
+    toast({ title: "Provider removed locally", description: "Save this section to keep the change." });
   };
 
   const handleSave = async () => {
@@ -687,6 +777,14 @@ const ProvidersSection = () => {
       res = await saveProvidersToServer(providers);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
+      if (setupReturnTo) {
+        const defaultReady = providers.find((provider) => provider.is_default && provider.is_trusted !== false);
+        if (defaultReady) {
+          await finishFocusedSetup(defaultReady);
+          return;
+        }
+      }
       navigate("/onboarding/complete/providers");
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -738,48 +836,22 @@ const ProvidersSection = () => {
       : replaced;
     const updatedList = normalizeSavedProviderDefaults(demoted);
     setProviders(updatedList);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updatedList);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({
-        title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
-        description: t("onboarding.toast.providerUpdated.description", {
-          name: entry.name || t("onboarding.toast.providerUpdated.fallbackName", "This provider"),
-          defaultValue: "{{name}} was saved to your trusted providers.",
-        }),
-      });
-    } catch (err) {
-      setProviders(providers);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not update provider", description: msg, variant: "destructive" });
-      throw err;
-    }
+    toast({
+      title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
+      description: "Review the details, then save this section.",
+    });
   };
 
   const setDefaultProvider = async (providerId: string) => {
     if (saving || adding || removingId) return;
     const target = providers.find((provider) => provider.id === providerId);
     if (!target || target.is_trusted === false || target.is_default) return;
-    const previous = providers;
     const updated = normalizeSavedProviderDefaults(providers.map((provider) => ({
       ...provider,
       is_default: provider.category === target.category ? provider.id === providerId : provider.is_default,
     })));
     setProviders(updated);
-    setSaving(true);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({ title: "Default provider updated", description: `${target.name} will be used first by Concierge.` });
-    } catch (err) {
-      setProviders(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not update default provider", description: msg, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    toast({ title: "Default provider updated locally", description: "Save this section to keep the change." });
   };
 
   const chooseProviderForConcierge = async (providerId: string) => {
@@ -791,26 +863,12 @@ const ProvidersSection = () => {
       return;
     }
 
-    const previous = providers;
     const updated = normalizeSavedProviderDefaults(providers.map((provider) => ({
       ...provider,
       is_default: provider.category === target.category ? provider.id === providerId : provider.is_default,
     })));
-    const selected = updated.find((provider) => provider.id === providerId) ?? target;
     setProviders(updated);
-    setSaving(true);
-    let res: Response | undefined;
-    try {
-      res = await saveProvidersToServer(updated);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await finishFocusedSetup(selected);
-    } catch (err) {
-      setProviders(previous);
-      const msg = await friendlyError(err, res && !res.ok ? res : undefined);
-      toast({ title: "Could not select provider", description: msg, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    toast({ title: "Provider selected locally", description: "Save and continue to use this provider." });
   };
 
   const categoryLabel = activeCategoryDef?.label ?? "provider";
@@ -819,38 +877,109 @@ const ProvidersSection = () => {
   const defaultProviderReadiness = defaultProvider ? savedProviderContactReadiness(defaultProvider) : null;
 
   return (
-    <div className="min-h-screen bg-vyva-cream flex flex-col">
+    <div
+      data-home-master-profile-page={isHomeMasterProfilePreview ? "true" : undefined}
+      data-home-master-theme={isHomeMasterProfilePreview ? (isDark ? "dark" : "light") : undefined}
+      className={`home-master-profile-page min-h-screen flex flex-col ${isHomeMasterProfilePreview ? "" : "bg-vyva-cream"}`}
+    >
       <div className="flex items-center gap-3 px-5 pt-12 pb-4">
         <button
           data-testid="button-providers-back"
-          onClick={() => navigate("/onboarding/profile")}
-          className="w-10 h-10 rounded-full bg-white border border-vyva-border flex items-center justify-center"
+          onClick={() => navigate(isHomeMasterProfilePreview ? "/dev/home-master/profile" : "/onboarding/profile")}
+          className="home-master-profile-control w-10 h-10 rounded-full border flex items-center justify-center"
         >
-          <ChevronLeft size={20} className="text-vyva-text-1" />
+          <ChevronLeft size={20} />
         </button>
-        <div className="flex items-center gap-2">
-          <div
-            className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0"
-            style={{ background: "#F5F3FF" }}
-          >
-            <Building2 size={18} style={{ color: "#6B21A8" }} />
+        {!isHomeMasterProfilePreview ? (
+          <div className="flex items-center gap-2">
+            <div
+              className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0"
+              style={{ background: "#F5F3FF" }}
+            >
+              <Building2 size={18} style={{ color: "#6B21A8" }} />
+            </div>
+            <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">
+              {t("onboarding.providers.title", "Trusted providers")}
+            </h1>
           </div>
-          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">Trusted providers</h1>
-        </div>
+        ) : null}
+        {isHomeMasterProfilePreview ? (
+          <a
+            href="/dev/home-master"
+            aria-label="Return to VYVA voice mode"
+            className="home-master-profile-voice-trigger vyva-tap ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)]"
+          >
+            <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+          </a>
+        ) : null}
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
+        {!isHomeMasterProfilePreview ? (
+          <OnboardingCompanionModeChip
+            compactLabel="VYVA mode"
+            voiceLabel="Voice"
+            voiceDescription="VYVA can talk you through this page."
+            tactileLabel="Tactile"
+            tactileDescription="Use touch or keyboard controls quietly."
+            accessibleLabel="Choose voice or tactile help for profile setup"
+            statusLabels={{
+              idle: "Ready",
+              listening: "Listening",
+              speaking: "Speaking",
+              thinking: "Thinking",
+              error: "Needs attention",
+            }}
+          />
+        ) : null}
         <ProfileSectionHero
           icon={Building2}
-          title="Trusted providers"
-          kicker="Concierge-ready"
-          description="Save the people and places VYVA can help contact after you confirm."
+          title={t("onboarding.providers.title", "Trusted providers")}
+          description={t(
+            "onboarding.providers.description",
+            "Save the people and places VYVA can help contact after you confirm.",
+          )}
+          compact
           badges={[
             { label: "No booking without your say", color: "blue" },
             { label: "Calls and links ready", color: "amber" },
             { label: "Trusted list", color: "purple" },
           ]}
         />
+
+        {companionMode !== "voice" ? (
+          <OnboardingCompanionTarget targetId="providers-add-by-voice">
+            <ProfileVoiceAction
+              icon={Mic}
+              title="Add by voice"
+              description="Say a provider name, phone, email, or address."
+              onClick={startVoiceProviderCapture}
+              testId="button-providers-speak-it"
+              disabled={isLoading}
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId="providers-voice-draft">
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Use these details"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={startVoiceProviderCapture}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => {
+                const command = parseProfileVoiceCommand("providers", `remove ${value}`);
+                if (!command) return;
+                setVoiceDraft((current) => current ? applyProfileVoiceCorrection(current, command) : current);
+                setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+              }}
+              testId="panel-providers-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         <CategoryFilterBar
           categories={PROVIDER_CATEGORIES}
@@ -1034,50 +1163,38 @@ const ProvidersSection = () => {
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Name <span className="text-vyva-red">*</span>
               </label>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-md" />
-              ) : (
-                <Input
-                  data-testid="input-manual-name"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder={`e.g. My local ${categoryLabel}`}
-                  className={seniorInputClassName}
-                />
-              )}
+              <Input
+                data-testid="input-manual-name"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder={`e.g. My local ${categoryLabel}`}
+                className={seniorInputClassName}
+              />
             </div>
             <div>
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Address <span className="text-vyva-text-3 font-normal">(optional)</span>
               </label>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-md" />
-              ) : (
-                <Input
-                  data-testid="input-manual-address"
-                  value={manualAddress}
-                  onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder="Full address"
-                  className={seniorInputClassName}
-                />
-              )}
+              <Input
+                data-testid="input-manual-address"
+                value={manualAddress}
+                onChange={(e) => setManualAddress(e.target.value)}
+                placeholder="Full address"
+                className={seniorInputClassName}
+              />
             </div>
             <div>
               <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 block">
                 Phone <span className="text-vyva-text-3 font-normal">(optional)</span>
               </label>
-              {isLoading ? (
-                <Skeleton className="h-10 w-full rounded-md" />
-              ) : (
-                <Input
-                  data-testid="input-manual-phone"
-                  type="tel"
-                  value={manualPhone}
-                  onChange={(e) => setManualPhone(e.target.value)}
-                  placeholder="+44 1234 567890"
-                  className={seniorInputClassName}
-                />
-              )}
+              <Input
+                data-testid="input-manual-phone"
+                type="tel"
+                value={manualPhone}
+                onChange={(e) => setManualPhone(e.target.value)}
+                placeholder="+44 1234 567890"
+                className={seniorInputClassName}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -1215,7 +1332,7 @@ const ProvidersSection = () => {
             <button
               data-testid="button-manual-add"
               onClick={addFromManual}
-              disabled={!manualName.trim() || isLoading || adding || saving}
+              disabled={!manualName.trim() || adding || saving}
               className="flex items-center gap-2 rounded-full px-4 py-2 font-body text-[14px] font-medium text-vyva-purple border border-vyva-purple disabled:opacity-40"
             >
               <Plus size={16} />
@@ -1354,15 +1471,19 @@ const ProvidersSection = () => {
       </div>
 
       <div className="px-5 py-6">
-        <button
-          data-testid="button-providers-save"
-          onClick={handleSave}
-          disabled={saving || adding || !!removingId}
-          className="w-full rounded-full py-4 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] disabled:opacity-40"
-          style={{ background: "#6B21A8" }}
-        >
-          {saving ? "Saving..." : "Save providers"}
-        </button>
+        <OnboardingCompanionTarget targetId="providers-review-save">
+        <ProfileCompletionBar
+          saving={saving}
+          onSave={handleSave}
+          disabled={adding || !!removingId}
+          saveLabel={t("onboarding.providers.saveContinue", "Save and continue")}
+          savingLabel={t("onboarding.providers.saving", "Saving...")}
+          helper={t("onboarding.profileSetup.changeLater", "You can change this later.")}
+          skipLabel={t("onboarding.providers.skip", "Skip for now")}
+          onSkip={() => navigate("/onboarding/profile")}
+          testId="button-providers-save"
+        />
+        </OnboardingCompanionTarget>
       </div>
 
       {editingProvider && (
@@ -1375,6 +1496,14 @@ const ProvidersSection = () => {
           onSave={handleEditSave}
         />
       )}
+      {speakItOpen ? (
+        <SpeakItOverlay
+          title="Tell VYVA a provider"
+          hint='e.g. "Provider is Zamora Pharmacy, phone +34 600 000 000"'
+          onDone={handleSpeakItDone}
+          onCancel={() => setSpeakItOpen(false)}
+        />
+      ) : null}
     </div>
   );
 };

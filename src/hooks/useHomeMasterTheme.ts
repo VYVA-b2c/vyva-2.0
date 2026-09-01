@@ -10,9 +10,9 @@ function isHomeMasterTheme(value: string | null): value is HomeMasterTheme {
 }
 
 export function readHomeMasterTheme(): HomeMasterTheme {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   const stored = window.localStorage.getItem(HOME_MASTER_THEME_STORAGE_KEY);
-  return isHomeMasterTheme(stored) ? stored : "light";
+  return isHomeMasterTheme(stored) ? stored : "dark";
 }
 
 export function writeHomeMasterTheme(theme: HomeMasterTheme) {

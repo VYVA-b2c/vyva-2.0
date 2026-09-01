@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SYMPTOM_ASSESSMENT_SHELL_CONTRACT } from "@/design/screenPresentation";
 import { VYVA_VOICE_USER_MESSAGE_EVENT, type VoiceUserMessageDetail } from "@/lib/voiceNavigation";
 import CrossPillarSubflowCanvas, {
   CROSS_PILLAR_COMPLETION_ACTIONS,
+  resolveCrossPillarSubflowPresentation,
   type CrossPillarCompletionActionId,
 } from "./CrossPillarSubflowCanvas";
 
@@ -36,6 +38,34 @@ beforeEach(() => {
 });
 
 describe("CrossPillarSubflowCanvas", () => {
+  it("resolves every symptom-assessment stage through the cross-pillar entry", () => {
+    expect(resolveCrossPillarSubflowPresentation("health-symptoms", "describe")).toEqual({
+      registrySceneId: "health.symptom_assessment.describe",
+      voiceSceneId: "health.symptom_assessment.describe.voice",
+      touchSceneId: "health.symptom_assessment.describe.touch",
+      shell: SYMPTOM_ASSESSMENT_SHELL_CONTRACT,
+    });
+    expect(resolveCrossPillarSubflowPresentation("health-symptoms", "save_share_summary")).toEqual({
+      registrySceneId: "health.symptom_assessment.guidance",
+      voiceSceneId: "health.symptom_assessment.save_share_summary.voice",
+      touchSceneId: "health.symptom_assessment.save_share_summary.touch",
+      shell: SYMPTOM_ASSESSMENT_SHELL_CONTRACT,
+    });
+    expect(resolveCrossPillarSubflowPresentation("health-doctor", "describe")).toBeNull();
+  });
+
+  it("exposes the resolved symptom-assessment entry presentation", () => {
+    renderCanvas("health-symptoms");
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-symptom-assessment-stage",
+      "describe",
+    );
+    expect(screen.getByTestId("cross-pillar-subflow-canvas")).toHaveAttribute(
+      "data-voice-presentation-scene",
+      "health.symptom_assessment.describe.voice",
+    );
+  });
+
   it("requires review and confirmation before continuing", async () => {
     const { onContinue } = renderCanvas();
 

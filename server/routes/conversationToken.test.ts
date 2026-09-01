@@ -14,7 +14,14 @@ const ENV_KEYS = [
   "VITE_ELEVENLABS_AGENT_ID",
   "ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID",
   "ELEVENLABS_HEALTH_AGENT_ID",
+  "ELEVENLABS_DR_AI_AGENT_ID",
+  "VYVA_DR_AI_VOICE_MODE",
+  "VYVA_DR_AI_VOICE_PILOT_USER_IDS",
   "ELEVENLABS_CONCIERGE_AGENT_ID",
+  "ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID",
+  "ELEVENLABS_PROFILE_ONBOARDING_AGENT_ID",
+  "ELEVENLABS_ONBOARDING_AGENT_ID",
+  "VITE_ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID",
   "ELEVENLABS_API_KEY",
   "VITE_ELEVENLABS_API_KEY",
   "ELEVENLABS_CONVAI_API_KEY",
@@ -25,6 +32,10 @@ const originalEnv = new Map<string, string | undefined>();
 function buildApp() {
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    (req as typeof req & { user: { id: string } }).user = { id: "pilot-user" };
+    next();
+  });
   app.post("/readiness", conversationReadinessHandler);
   app.post("/token", conversationTokenHandler);
   return app;
@@ -78,6 +89,54 @@ describe("conversation token agent resolution", () => {
     expect(resolved.expectedKeys).toContain("ELEVENLABS_HEALTH_AGENT_ID");
   });
 
+  it("resolves Dr. AI only from its dedicated environment variable", () => {
+    process.env.ELEVENLABS_COMPANION_AGENT_ID = "agent_companion";
+    expect(resolveSocialAgentId("dr-ai").agentId).toBeUndefined();
+
+    process.env.ELEVENLABS_DR_AI_AGENT_ID = "agent_dr_ai";
+    const resolved = resolveSocialAgentId("dr-ai");
+    expect(resolved.agentId).toBe("agent_dr_ai");
+    expect(resolved.expectedKeys).not.toContain("ELEVENLABS_COMPANION_AGENT_ID");
+  });
+
+  it("blocks Dr. AI readiness outside the gated pilot", async () => {
+    process.env.ELEVENLABS_DR_AI_AGENT_ID = "agent_dr_ai";
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    process.env.VYVA_DR_AI_VOICE_MODE = "pilot";
+    process.env.VYVA_DR_AI_VOICE_PILOT_USER_IDS = "another-user";
+
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "dr-ai" })
+      .expect(403);
+
+    expect(res.body).toMatchObject({ code: "DR_AI_VOICE_NOT_ENABLED", mode: "pilot" });
+  });
+
+  it("allows an allowlisted Dr. AI pilot user", async () => {
+    process.env.ELEVENLABS_DR_AI_AGENT_ID = "agent_dr_ai";
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    process.env.VYVA_DR_AI_VOICE_MODE = "pilot";
+    process.env.VYVA_DR_AI_VOICE_PILOT_USER_IDS = "pilot-user";
+
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "dr-ai" })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ ready: true, agent_slug: "dr-ai" });
+  });
+
+  it("resolves the dedicated onboarding profile agent slug", () => {
+    process.env.ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID = "agent_onboarding_profile";
+
+    const resolved = resolveSocialAgentId("onboarding-profile");
+
+    expect(resolved.agentId).toBe("agent_onboarding_profile");
+    expect(resolved.resolvedSlug).toBe("onboarding-profile");
+    expect(resolved.expectedKeys).toContain("ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID");
+  });
+
   it("returns a missing agent code when no matching agent is configured", async () => {
     const res = await request(buildApp())
       .post("/token")
@@ -104,6 +163,26 @@ describe("conversation token agent resolution", () => {
     expect(res.body).toMatchObject({
       ready: true,
       agent_slug: "concierge",
+      source: "slug",
+      agent_id_present: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("checks onboarding profile readiness with the same slug resolver", async () => {
+    process.env.ELEVENLABS_ONBOARDING_PROFILE_AGENT_ID = "agent_onboarding_profile";
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "onboarding-profile" })
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ready: true,
+      agent_slug: "onboarding-profile",
       source: "slug",
       agent_id_present: true,
     });

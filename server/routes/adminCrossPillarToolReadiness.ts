@@ -5,8 +5,15 @@ import {
   type CrossPillarToolFamily,
   type CrossPillarToolReadinessStatus,
 } from "../../shared/crossPillarToolReadiness.js";
+import {
+  buildCrossPillarPillarCertifications,
+  buildCrossPillarToolCertifications,
+} from "../../shared/crossPillarToolCertification.js";
 import { buildAdminConciergeChannelReadinessSnapshot } from "../services/conciergeChannelReadiness.js";
-import { buildAdminCrossPillarExecutionSummary } from "../services/crossPillarExecutionObservability.js";
+import {
+  buildAdminCrossPillarExecutionSummary,
+  listRecentCrossPillarExecutionAttempts,
+} from "../services/crossPillarExecutionObservability.js";
 
 const router = Router();
 
@@ -121,12 +128,25 @@ router.get("/", async (_req: Request, res: Response) => {
       console.warn("[admin-cross-pillar-tool-readiness] live health overlay unavailable:", error);
     }
 
+    const recentAttempts = await listRecentCrossPillarExecutionAttempts(30).catch((error) => {
+      console.warn("[admin-cross-pillar-tool-readiness] certification history unavailable:", error);
+      return [];
+    });
+    const certifications = buildCrossPillarToolCertifications({
+      evidence: tools,
+      attempts: recentAttempts,
+    });
+    const pillarCertifications = buildCrossPillarPillarCertifications(certifications);
+
     res.json({
       generated_at: new Date().toISOString(),
+      certification_window_days: 30,
       tools: CROSS_PILLAR_TOOL_FAMILIES.map((family) => ({
         family,
         ...tools[family],
       })),
+      certifications,
+      pillar_certifications: pillarCertifications,
     });
   } catch (error) {
     console.error("[admin-cross-pillar-tool-readiness] GET / error:", error);

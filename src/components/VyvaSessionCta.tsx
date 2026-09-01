@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, MessageCircle, Mic } from "lucide-react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, MessageCircle, Mic, type LucideIcon } from "lucide-react";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
-import ZamoraVoiceOrb from "@/components/ZamoraVoiceOrb";
+import ZamoraVoiceOrb, { type ZamoraOrbState, useVoiceOrbAudioLevel } from "@/components/ZamoraVoiceOrb";
 import {
   type VoiceConnectionErrorCode,
   type VoiceDiagnosticStep,
   type TranscriptEntry,
   useVyvaVoice,
 } from "@/hooks/useVyvaVoice";
+import { hasSeenVoiceOrbHint, rememberVoiceOrbHint } from "@/lib/voiceOrbHint";
 import { emitVoiceOverlayPresence } from "@/lib/voiceOverlayFocus";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
@@ -33,6 +34,8 @@ type VyvaSessionCtaProps = {
   visual?: "default" | "voiceRail" | "voiceOrb";
   voiceOrbDark?: boolean;
   voiceOrbSize?: number;
+  voiceOrbCaptionTestId?: string;
+  onFirstVoiceOrbActivation?: () => void;
 };
 
 type VoiceControls = {
@@ -96,6 +99,88 @@ function buttonLabel({
   return label ?? "Talk to VYVA";
 }
 
+function HomeVoiceActivationOrb({
+  Icon,
+  audioLevel,
+  iconClassName,
+  isDark,
+  isPreparing,
+  resetKey,
+  state,
+  size,
+}: {
+  Icon: LucideIcon;
+  audioLevel: number;
+  iconClassName?: string;
+  isDark: boolean;
+  isPreparing: boolean;
+  resetKey?: string;
+  state: ZamoraOrbState;
+  size: number;
+}) {
+  const outerSize = Math.max(104, Math.min(208, size));
+  const iconSize = Math.max(22, Math.min(32, Math.round(outerSize * 0.16)));
+  const showIcon = isPreparing;
+  const showIdleAttractor = state === "idle" && !isPreparing;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="relative isolate grid shrink-0 place-items-center"
+      data-testid="home-dormant-zamora-orb"
+      style={{ height: outerSize, width: outerSize }}
+    >
+      {showIdleAttractor ? (
+        <span
+          className="vyva-home-orb-idle-attractor"
+          data-testid="home-dormant-zamora-orb-idle-attractor"
+          style={
+            {
+              "--vyva-home-orb-attention-ring": isDark ? "rgba(246,199,91,0.24)" : "rgba(168,102,16,0.18)",
+              "--vyva-home-orb-attention-glow": isDark ? "rgba(124,58,237,0.34)" : "rgba(168,85,247,0.24)",
+              "--vyva-home-orb-attention-core": isDark ? "rgba(246,199,91,0.12)" : "rgba(246,199,91,0.16)",
+            } as CSSProperties
+          }
+        >
+          <span style={{ "--vyva-home-orb-wave-delay": "0s", "--vyva-home-orb-wave-inset": "7%" } as CSSProperties} />
+          <span style={{ "--vyva-home-orb-wave-delay": "2.15s", "--vyva-home-orb-wave-inset": "3%" } as CSSProperties} />
+          <span style={{ "--vyva-home-orb-wave-delay": "4.3s", "--vyva-home-orb-wave-inset": "-1%" } as CSSProperties} />
+        </span>
+      ) : null}
+      <ZamoraVoiceOrb
+        key={resetKey}
+        audioLevel={audioLevel}
+        idleVisualStyle={state === "idle" ? "homeCalm" : "default"}
+        isDark={isDark}
+        size={outerSize}
+        state={state}
+        testId="home-dormant-zamora-orb-visual"
+      />
+      {showIcon && (
+        <span
+          className="absolute z-[2] grid place-items-center rounded-full text-white"
+          style={{
+            background: isPreparing
+              ? "linear-gradient(145deg, #0F8274 0%, #7C3AED 100%)"
+              : "linear-gradient(145deg, rgba(124,45,218,0.96) 0%, rgba(91,22,168,0.98) 100%)",
+            boxShadow: isDark
+              ? "0 18px 44px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.18)"
+              : "0 18px 40px rgba(107,33,168,0.24), inset 0 1px 0 rgba(255,255,255,0.32)",
+            height: Math.round(outerSize * 0.34),
+            width: Math.round(outerSize * 0.34),
+          }}
+        >
+          <Icon
+            size={iconSize}
+            className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
+            aria-hidden="true"
+          />
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function VyvaSessionCta({
   label,
   activeLabel,
@@ -116,6 +201,8 @@ export function VyvaSessionCta({
   visual = "default",
   voiceOrbDark = false,
   voiceOrbSize = 144,
+  voiceOrbCaptionTestId,
+  onFirstVoiceOrbActivation,
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
   const {
@@ -135,11 +222,14 @@ export function VyvaSessionCta({
   } = voice;
   const [focusedOverlayRequested, setFocusedOverlayRequested] = useState(false);
   const [focusedOverlayHasStarted, setFocusedOverlayHasStarted] = useState(false);
+  const [showVoiceOrbHint, setShowVoiceOrbHint] = useState(() => !hasSeenVoiceOrbHint());
   const voiceStartOptions = useVoiceStartOptions(voiceAgentSlug, voiceDynamicVariables, autoStartListening);
 
   const isActive = status === "connected";
+  const isVoiceRail = visual === "voiceRail";
+  const isVoiceOrb = visual === "voiceOrb";
   const hasConnectionError = Boolean(lastError && !isActive && !isConnecting);
-  const showOverlay = focusedOverlayRequested && (isActive || isConnecting || (hasConnectionError && focusedOverlayHasStarted));
+  const showOverlay = !isVoiceOrb && focusedOverlayRequested && (isActive || isConnecting || (hasConnectionError && focusedOverlayHasStarted));
   const isButtonDisabled = Boolean(disabled || isPreparing);
   const shouldHideButton = hideWhenSessionActive && (isActive || isConnecting);
 
@@ -185,11 +275,18 @@ export function VyvaSessionCta({
     if (isButtonDisabled) return;
 
     if (isActive || isConnecting) {
+      if (isVoiceOrb) return;
       openFocusedOverlay();
       return;
     }
 
     if (canStartVoice && !canStartVoice()) return;
+
+    if (visual === "voiceOrb" && showVoiceOrbHint) {
+      setShowVoiceOrbHint(false);
+      rememberVoiceOrbHint();
+      onFirstVoiceOrbActivation?.();
+    }
 
     setFocusedOverlayHasStarted(false);
     setFocusedOverlayRequested(true);
@@ -227,8 +324,6 @@ export function VyvaSessionCta({
   });
 
   const Icon = isPreparing ? Loader2 : isActive || isConnecting ? MessageCircle : Mic;
-  const isVoiceRail = visual === "voiceRail";
-  const isVoiceOrb = visual === "voiceOrb";
   const railSupportingLabel = isPreparing
     ? preparingLabel ?? "Checking voice"
     : isConnecting
@@ -237,6 +332,56 @@ export function VyvaSessionCta({
         ? errorLabel ?? "Tap for help"
         : supportingLabel ?? "Speak anytime";
   const accessibleLabel = isVoiceRail ? railSupportingLabel : statusLabel;
+  const hasVoiceOrbError = voiceSessionPhase === "error" || Boolean(lastErrorCode || (lastError && !isActive && !isConnecting));
+  const voiceOrbState: ZamoraOrbState = hasVoiceOrbError
+    ? "error"
+    : isPreparing || isConnecting || voiceSessionPhase === "connecting" || voiceSessionPhase === "transferring"
+      ? "connecting"
+      : voiceSessionPhase === "ended"
+        ? "idle"
+        : isActive
+          ? isSpeaking || voiceSessionPhase === "speaking"
+            ? "speaking"
+            : "listening"
+          : "idle";
+  const voiceOrbAudioLevel = useVoiceOrbAudioLevel({
+    enabled: isVoiceOrb
+      && !showOverlay
+      && (voiceOrbState === "connecting" || voiceOrbState === "listening" || voiceOrbState === "speaking"),
+    phase: voiceSessionPhase,
+    isSpeaking,
+    isMicMuted,
+    isConnecting: isPreparing || isConnecting,
+  });
+  const [voiceOrbResetVersion, setVoiceOrbResetVersion] = useState(0);
+  const previousVoiceOrbStateRef = useRef<ZamoraOrbState>("idle");
+
+  useEffect(() => {
+    const previousVoiceOrbState = previousVoiceOrbStateRef.current;
+    if (voiceOrbState === "idle" && previousVoiceOrbState !== "idle") {
+      setVoiceOrbResetVersion((version) => version + 1);
+    }
+    previousVoiceOrbStateRef.current = voiceOrbState;
+  }, [voiceOrbState]);
+
+  const stableVoiceOrbAudioLevel =
+    voiceOrbState === "idle" || voiceOrbState === "ending" || voiceOrbState === "error"
+      ? 0
+      : voiceOrbAudioLevel;
+  const voiceOrbCaption = hasVoiceOrbError
+    ? errorLabel ?? "Voice isn’t available right now. Use the hand button, or tap to retry."
+    : isPreparing
+      ? preparingLabel ?? "Checking voice…"
+      : isConnecting || voiceSessionPhase === "connecting" || voiceSessionPhase === "transferring"
+        ? connectingLabel ?? "Opening voice…"
+        : isActive
+          ? isSpeaking || voiceSessionPhase === "speaking"
+            ? activeLabel ?? "VYVA is speaking."
+            : "Listening…"
+          : supportingLabel ?? label;
+
+  const displayedVoiceOrbCaption =
+    hasVoiceOrbError || voiceOrbState === "idle" ? voiceOrbCaption : undefined;
 
   return (
     <>
@@ -269,12 +414,33 @@ export function VyvaSessionCta({
         >
           {isVoiceOrb ? (
             <>
-              <ZamoraVoiceOrb
-                state={isPreparing || isConnecting ? "listening" : isActive ? (isSpeaking ? "speaking" : "listening") : "idle"}
-                size={voiceOrbSize}
+              <HomeVoiceActivationOrb
+                Icon={Icon}
+                audioLevel={stableVoiceOrbAudioLevel}
+                iconClassName={iconClassName}
                 isDark={voiceOrbDark}
-                testId="home-dormant-zamora-orb"
+                isPreparing={isPreparing}
+                resetKey={`home-voice-orb-${voiceOrbResetVersion}`}
+                state={voiceOrbState}
+                size={voiceOrbSize}
               />
+              {displayedVoiceOrbCaption ? (
+                <span
+                  data-testid={voiceOrbCaptionTestId}
+                  className={[
+                    "vyva-home-master-readable mx-auto mt-4 block max-w-[20rem] font-body text-[14px] font-semibold leading-snug min-[390px]:text-[15px] sm:text-[17px]",
+                    voiceOrbState === "error"
+                      ? voiceOrbDark
+                        ? "!text-[#F6C75B]"
+                        : "!text-[#A86610]"
+                      : voiceOrbDark
+                        ? "!text-[#F6C75B]"
+                        : "!text-[#A86610]",
+                  ].join(" ")}
+                >
+                  {displayedVoiceOrbCaption}
+                </span>
+              ) : null}
             </>
           ) : isVoiceRail ? (
             <>

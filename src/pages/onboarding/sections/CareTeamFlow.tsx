@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   HeartHandshake,
+  Mic,
   ShieldCheck,
   Smartphone,
   Stethoscope,
@@ -17,13 +18,20 @@ import { apiFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
 import { ToggleRow } from "@/components/onboarding/ToggleRow";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { ProfileVoiceDraft } from "@/lib/profileVoiceCompletion";
 
 type Role = "family" | "carer" | "doctor";
 type InviteChannel = "sms";
@@ -199,6 +207,26 @@ const sectionShellClassName =
 const sectionHeaderClassName =
   "bg-vyva-warm px-5 py-3 font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-2";
 
+const CARE_TEAM_COMPANION_TARGETS = {
+  addByVoice: "care-team-add-by-voice",
+  draftReview: "care-team-draft-review",
+  reviewSave: "care-team-review-save",
+} as const;
+
+function careTeamDraftRow(draft: ProfileVoiceDraft, ids: string[]) {
+  const normalizedIds = new Set(ids.map((id) => id.toLowerCase()));
+  return draft.rows.find((row) => normalizedIds.has(row.id.toLowerCase()))?.value ?? "";
+}
+
+function roleFromVoiceValue(value: string | undefined): Role | undefined {
+  const cleaned = (value ?? "").toLowerCase();
+  if (!cleaned) return undefined;
+  if (cleaned.includes("doctor") || cleaned.includes("gp") || cleaned.includes("physician")) return "doctor";
+  if (cleaned.includes("carer") || cleaned.includes("caregiver") || cleaned.includes("care")) return "carer";
+  if (cleaned.includes("family") || cleaned.includes("relative")) return "family";
+  return undefined;
+}
+
 export default function CareTeamFlow() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -234,6 +262,32 @@ export default function CareTeamFlow() {
   const [saving, setSaving] = useState(false);
   const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const careTeamAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "care-team",
+        sectionLabel: careTeamTitle,
+        voicePrompt: "Tell VYVA who you want to add to your care team and their contact details.",
+        expectedFields: ["name", "relationship", "role", "phone", "email"],
+        draftRowLabels: {
+          name: "Name",
+          relationship: "Relationship",
+          role: "Role",
+          phone: "Phone",
+          email: "Email",
+        },
+        targetIds: CARE_TEAM_COMPANION_TARGETS,
+      }),
+    [careTeamTitle],
+  );
   const returnState = location.state && typeof location.state === "object"
     ? location.state as Record<string, unknown>
     : null;
@@ -253,6 +307,74 @@ export default function CareTeamFlow() {
 
   const members = rosterData?.members ?? [];
 
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: careTeamAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () =>
+      members
+        .map((member) =>
+          [
+            member.invitee_name,
+            member.relationship ? getRelationshipLabel(member.relationship) : "",
+            getRoleLabel(member.role),
+          ].filter(Boolean).join(" - "),
+        )
+        .join("; ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
+  const startVoiceCareTeamCapture = useCallback(() => {
+    setMode("adding");
+    setStep(2);
+    void startRuntimeCapture({
+      fallback: () =>
+        toast({
+          title: "Voice is not ready",
+          description: "Use the fields below, then review the invitation before sending.",
+        }),
+    });
+  }, [startRuntimeCapture, toast]);
+
+  useEffect(
+    () =>
+      registerVoiceAction({
+        id: "profile-care-team-voice-capture",
+        label: "Tell VYVA",
+        description: "Say the care team member's name and contact details.",
+        sectionId: "care-team",
+        sectionLabel: careTeamAgentSectionConfig.sectionLabel,
+        targetId: careTeamAgentSectionConfig.targetIds?.addByVoice,
+        sectionConfig: careTeamAgentSectionConfig,
+        onStart: startVoiceCareTeamCapture,
+      }),
+    [careTeamAgentSectionConfig, registerVoiceAction, startVoiceCareTeamCapture],
+  );
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: careTeamAgentSectionConfig.sectionId,
+      currentSectionLabel: careTeamAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft
+        ? "Review this care team member before adding them locally."
+        : careTeamAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? careTeamAgentSectionConfig.targetIds?.draftReview
+        : careTeamAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [careTeamAgentSectionConfig, clearGuidance, companionMode, setGuidance, voiceDraft]);
+
   const startAddFlow = () => {
     setPerson({ name: "", relationship: "", phone: "", whatsapp: "", email: "" });
     setRole("family");
@@ -260,6 +382,72 @@ export default function CareTeamFlow() {
     setStep(1);
     setMode("adding");
   };
+
+  const confirmVoiceDraft = useCallback(() => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    const name =
+      metadata.name ||
+      metadata.invitee_name ||
+      metadata.contact ||
+      careTeamDraftRow(voiceDraft, ["name", "invitee_name", "contact"]) ||
+      voiceDraft.values[0] ||
+      "";
+    const phone =
+      metadata.phone ||
+      metadata.invitee_phone ||
+      metadata.primary_phone ||
+      careTeamDraftRow(voiceDraft, ["phone", "invitee_phone", "primary_phone"]);
+    const relationship =
+      metadata.relationship ||
+      careTeamDraftRow(voiceDraft, ["relationship"]);
+    const email =
+      metadata.email ||
+      metadata.invitee_email ||
+      careTeamDraftRow(voiceDraft, ["email", "invitee_email"]);
+    const nextRole = roleFromVoiceValue(
+      metadata.role ||
+      metadata.providerType ||
+      metadata.provider_type ||
+      careTeamDraftRow(voiceDraft, ["role", "providerType", "provider_type"]),
+    );
+
+    if (!name.trim()) {
+      setGuidance({
+        voiceStatus: "error",
+        draftStatus: "needs-clarification",
+        currentSectionId: careTeamAgentSectionConfig.sectionId,
+        currentSectionLabel: careTeamAgentSectionConfig.sectionLabel,
+        currentPrompt: "Please tell VYVA the person's name before adding them.",
+        activeTargetId: careTeamAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
+
+    setMode("adding");
+    setStep(2);
+    if (nextRole) {
+      setRole(nextRole);
+      setConsent(defaultConsent(nextRole));
+    }
+    setPerson((prev) => ({
+      ...prev,
+      name,
+      relationship: relationship || prev.relationship,
+      phone: phone || prev.phone,
+      whatsapp: phone || prev.whatsapp,
+      email: email || prev.email,
+    }));
+    setVoiceDraft(null);
+    setGuidance({
+      voiceStatus: "thinking",
+      draftStatus: "confirmed-locally",
+      currentSectionId: careTeamAgentSectionConfig.sectionId,
+      currentSectionLabel: careTeamAgentSectionConfig.sectionLabel,
+      currentPrompt: "I added the contact details locally. Review them before continuing.",
+      activeTargetId: careTeamAgentSectionConfig.targetIds?.reviewSave,
+    });
+  }, [careTeamAgentSectionConfig, setGuidance, voiceDraft]);
 
   const backToRoster = () => {
     setStep(1);
@@ -334,7 +522,7 @@ export default function CareTeamFlow() {
   if (effectiveMode === "roster") {
     if (rosterLoading) {
       return (
-        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
           <div className="flex items-center justify-center py-20">
             <div className="font-body text-[15px] font-semibold text-vyva-text-3">{t("onboarding.careTeam.loading")}</div>
           </div>
@@ -344,7 +532,7 @@ export default function CareTeamFlow() {
 
     if (rosterError) {
       return (
-        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+        <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
           <div className="flex flex-col items-center gap-4 px-5 py-16 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <AlertTriangle size={28} />
@@ -367,7 +555,7 @@ export default function CareTeamFlow() {
     }
 
     return (
-      <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} showAllSections onAllSections={() => navigate("/onboarding/profile")}>
+      <PhoneFrame subtitle={careTeamTitle} showBack onBack={() => navigate("/onboarding/profile")} homeMasterBackPath="/dev/home-master/profile" showAllSections onAllSections={() => navigate("/onboarding/profile")}>
         <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
           <ProfileSectionHero
             icon={Users}
@@ -515,6 +703,7 @@ export default function CareTeamFlow() {
         subtitle={careTeamStepLabel(1)}
         showBack
         onBack={() => (members.length > 0 ? backToRoster() : navigate("/onboarding/profile"))}
+        homeMasterBackPath={members.length === 0 ? "/dev/home-master/profile" : undefined}
         showAllSections
         onAllSections={() => navigate("/onboarding/profile")}
       >
@@ -588,6 +777,50 @@ export default function CareTeamFlow() {
             <p className="mt-2 font-body text-[16px] leading-relaxed text-vyva-text-2">{t("onboarding.careTeam.step2.subtitle")}</p>
           </div>
 
+          {companionMode !== "voice" ? (
+            <OnboardingCompanionTarget targetId={CARE_TEAM_COMPANION_TARGETS.addByVoice}>
+              <ProfileVoiceAction
+                icon={Mic}
+                title={t("onboarding.careTeam.voiceAction.title", "Tell VYVA")}
+                description={t(
+                  "onboarding.careTeam.voiceAction.description",
+                  "Say their name, relationship, and contact details.",
+                )}
+                onClick={startVoiceCareTeamCapture}
+                testId="button-careteam-voice"
+                tone="purple"
+                className="bg-white shadow-[0_8px_18px_rgba(53,28,87,0.06)]"
+              />
+            </OnboardingCompanionTarget>
+          ) : null}
+
+          {voiceDraft ? (
+            <OnboardingCompanionTarget targetId={CARE_TEAM_COMPANION_TARGETS.draftReview}>
+              <ProfileVoiceDraftReview
+                draft={voiceDraft}
+                confirmLabel={t("onboarding.careTeam.voiceDraft.confirm", "Add these details")}
+                tryAgainLabel={t("onboarding.careTeam.voiceDraft.tryAgain", "Try again")}
+                dismissLabel={t("onboarding.careTeam.voiceDraft.dismiss", "Dismiss")}
+                onConfirm={confirmVoiceDraft}
+                onTryAgain={() => {
+                  setVoiceDraft(null);
+                  startVoiceCareTeamCapture();
+                }}
+                onDismiss={() => setVoiceDraft(null)}
+                onRemoveRow={(value) =>
+                  setVoiceDraft((current) => current
+                    ? {
+                        ...current,
+                        rows: current.rows.filter((row) => row.value !== value),
+                        values: current.values.filter((rowValue) => rowValue !== value),
+                      }
+                    : current)
+                }
+                testId="panel-careteam-elevenlabs-confirm"
+              />
+            </OnboardingCompanionTarget>
+          ) : null}
+
           <div className="grid gap-5 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label className="font-body text-[14px] font-black text-vyva-text-2">{t("onboarding.careTeam.step2.labelName")}</Label>
@@ -647,14 +880,16 @@ export default function CareTeamFlow() {
             </div>
           </div>
 
-          <Button
-            data-testid="button-careteam-step2-continue"
-            onClick={() => setStep(3)}
-            disabled={!person.name.trim() || !person.phone.trim()}
-            className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F] disabled:opacity-40"
-          >
-            {t("onboarding.careTeam.step2.continue")}
-          </Button>
+          <OnboardingCompanionTarget targetId={CARE_TEAM_COMPANION_TARGETS.reviewSave}>
+            <Button
+              data-testid="button-careteam-step2-continue"
+              onClick={() => setStep(3)}
+              disabled={!person.name.trim() || !person.phone.trim()}
+              className="h-14 w-full rounded-full bg-[#6B21A8] text-[18px] font-black shadow-[0_14px_28px_rgba(107,33,168,0.22)] hover:bg-[#5B1A8F] disabled:opacity-40"
+            >
+              {t("onboarding.careTeam.step2.continue")}
+            </Button>
+          </OnboardingCompanionTarget>
         </div>
       </PhoneFrame>
     );

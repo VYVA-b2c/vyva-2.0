@@ -13,11 +13,26 @@ vi.mock("../db.js", () => ({
   },
 }));
 
-import { homeFastHelpOutcomeAggregate, syncHomeFastHelpJourneys } from "./homeFastHelpSync";
+import {
+  homeFastHelpOutcomeAggregate,
+  homeFastHelpSyncAvailableForUser,
+  syncHomeFastHelpJourneys,
+} from "./homeFastHelpSync";
 
 describe("homeFastHelpOutcomeAggregate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("checks the portable application identity tables instead of Supabase auth", async () => {
+    mocks.query.mockResolvedValueOnce({ rows: [{ available: true }] });
+
+    await expect(homeFastHelpSyncAvailableForUser("user-id")).resolves.toBe(true);
+
+    const query = String(mocks.query.mock.calls[0]?.[0]);
+    expect(query).toContain("public.users");
+    expect(query).toContain("public.profiles");
+    expect(query).not.toContain("auth.users");
   });
 
   it("counts attributed funnels and completed journeys resumed from a recovery nudge", async () => {

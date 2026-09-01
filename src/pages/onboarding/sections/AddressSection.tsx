@@ -1,8 +1,14 @@
 // src/pages/onboarding/sections/AddressSection.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
+import { ProfileVoiceAction } from "@/components/onboarding/ProfileSectionControls";
+import { OnboardingCompanionTarget } from "@/components/onboarding/OnboardingCompanionTarget";
+import { ProfileVoiceDraftReview } from "@/components/onboarding/ProfileVoiceDraftReview";
+import { useOnboardingAgent } from "@/components/onboarding/useOnboardingAgent";
+import { useOnboardingElevenLabsSectionRuntime } from "@/components/onboarding/useOnboardingElevenLabsSectionRuntime";
+import { createProfileOnboardingAgentSectionConfig } from "@/components/onboarding/profileOnboardingAgentSections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,11 +16,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
-import { useAutoSave } from "@/hooks/useAutoSave";
+import type { AutoSaveStatus } from "@/hooks/useAutoSave";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { MapPin, Mic, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  applyProfileVoiceCorrection,
+  createAddressVoiceDraft,
+  parseProfileVoiceCommand,
+  type ProfileVoiceDraft,
+} from "@/lib/profileVoiceCompletion";
 
 type AddressForm = {
   address_line_1: string;
@@ -74,9 +86,91 @@ export default function AddressSection() {
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [speakItOpen, setSpeakItOpen] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<ProfileVoiceDraft | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
 
   const formRef = useRef(form);
   useEffect(() => { formRef.current = form; }, [form]);
+  const {
+    mode: companionMode,
+    setMode: setCompanionMode,
+    setGuidance,
+    clearGuidance,
+    registerVoiceAction,
+  } = useOnboardingAgent();
+  const addressAgentSectionConfig = useMemo(
+    () =>
+      createProfileOnboardingAgentSectionConfig({
+        sectionId: "address",
+        sectionLabel: "Home address",
+        voicePrompt: "Tell VYVA your home address.",
+        expectedFields: ["address_line_1", "address_line_2", "city", "region", "postcode", "country"],
+        targetIds: {
+          addByVoice: "address-add-by-voice",
+          draftReview: "address-voice-draft",
+          reviewSave: "address-review-save",
+        },
+      }),
+    [],
+  );
+  const savedFading = false;
+  const retryCountdown = null;
+  const retryNow = () => undefined;
+  const cancelAutoSave = () => undefined;
+
+  const setVoiceGuidance = useCallback(
+    (guidance: Parameters<typeof setGuidance>[0]) => {
+      if (companionMode !== "voice") return;
+      setGuidance(guidance);
+    },
+    [companionMode, setGuidance],
+  );
+
+  const { startRuntimeCapture } = useOnboardingElevenLabsSectionRuntime({
+    sectionConfig: addressAgentSectionConfig,
+    companionMode,
+    setCompanionMode,
+    setGuidance,
+    setVoiceDraft,
+    existingProfileSummary: () => Object.values(formRef.current).filter(Boolean).join(", ") || undefined,
+    activeDraftId: () => voiceDraft?.id,
+  });
+
+  const startVoiceAddressCapture = useCallback(() => {
+    void startRuntimeCapture({ fallback: () => setSpeakItOpen(true) });
+  }, [startRuntimeCapture]);
+
+  useEffect(() => {
+    const unregister = registerVoiceAction({
+      id: "profile-address-voice-capture",
+      label: "Speak it",
+      description: "Say your home address.",
+      sectionConfig: addressAgentSectionConfig,
+      targetId: addressAgentSectionConfig.targetIds?.addByVoice,
+      onStart: startVoiceAddressCapture,
+    });
+    return unregister;
+  }, [addressAgentSectionConfig, registerVoiceAction, startVoiceAddressCapture]);
+
+  useEffect(() => {
+    if (companionMode !== "voice") {
+      clearGuidance();
+      return;
+    }
+
+    setGuidance({
+      voiceStatus: parsing ? "thinking" : "idle",
+      draftStatus: voiceDraft ? "parsed-draft" : "idle",
+      currentSectionId: addressAgentSectionConfig.sectionId,
+      currentSectionLabel: addressAgentSectionConfig.sectionLabel,
+      currentPrompt: voiceDraft ? "Review the address before adding it." : addressAgentSectionConfig.voicePrompt,
+      activeTargetId: voiceDraft
+        ? addressAgentSectionConfig.targetIds?.draftReview
+        : addressAgentSectionConfig.targetIds?.addByVoice,
+    });
+
+    return () => clearGuidance();
+  }, [addressAgentSectionConfig, clearGuidance, companionMode, parsing, setGuidance, voiceDraft]);
 
   const buildAddressPayload = (current: AddressForm) => ({
     address_line_1: current.address_line_1,
@@ -112,24 +206,9 @@ export default function AddressSection() {
     }
   }, [data]);
 
-  const { autoSaveStatus, savedFading, retryCountdown, retryNow, scheduleAutoSave, cancelAutoSave } = useAutoSave(
-    async () => {
-      const res = await apiFetch("/api/onboarding/section/address", {
-        method: "POST",
-        body: JSON.stringify(buildAddressPayload(formRef.current)),
-      });
-      if (!res.ok) {
-        const msg = await friendlyError(new Error(), res);
-        throw new Error(msg);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
-    },
-    2000,
-  );
-
   const set = (field: keyof AddressForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   const applyAddress = (patch: Partial<AddressForm>) => {
@@ -141,7 +220,7 @@ export default function AddressSection() {
       }
       return next;
     });
-    scheduleAutoSave();
+    setAutoSaveStatus("idle");
   };
 
   //  Detect my location
@@ -217,6 +296,29 @@ export default function AddressSection() {
   const handleSpeakItDone = async (transcript: string) => {
     setSpeakItOpen(false);
     if (!transcript.trim()) return;
+    const command = parseProfileVoiceCommand("address", transcript);
+    if (command?.kind === "try-again") {
+      startVoiceAddressCapture();
+      return;
+    }
+    if (command?.kind === "skip") {
+      setVoiceDraft(null);
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "idle", lastHeardText: transcript });
+      return;
+    }
+    if (command?.kind === "remove" && voiceDraft) {
+      const corrected = applyProfileVoiceCorrection(voiceDraft, command);
+      setVoiceDraft(corrected);
+      setVoiceGuidance({
+        voiceStatus: "idle",
+        draftStatus: corrected ? "corrected-draft" : "needs-clarification",
+        lastHeardText: transcript,
+        activeTargetId: corrected
+          ? addressAgentSectionConfig.targetIds?.draftReview
+          : addressAgentSectionConfig.targetIds?.addByVoice,
+      });
+      return;
+    }
     setParsing(true);
     try {
       const res = await apiFetch("/api/address-voice-parse", {
@@ -232,13 +334,50 @@ export default function AddressSection() {
         return;
       }
       if (addr.country) addr.country = normaliseCountry(addr.country);
-      applyAddress(addr);
-      toast({ title: "Address filled in", description: "Please double-check the fields and adjust if needed." });
+      const draft = createAddressVoiceDraft(addr);
+      if (!draft) {
+        setVoiceGuidance({
+          voiceStatus: "error",
+          draftStatus: "needs-clarification",
+          lastHeardText: transcript,
+          error: "VYVA could not find an address in that.",
+          activeTargetId: addressAgentSectionConfig.targetIds?.addByVoice,
+        });
+        toast({ title: "Couldn't read the address", description: 'Try speaking more clearly, e.g. "42 Calle Mayor, Zamora, Spain"' });
+        return;
+      }
+      setVoiceDraft(draft);
+      setVoiceGuidance({
+        voiceStatus: "idle",
+        draftStatus: "parsed-draft",
+        lastHeardText: transcript,
+        activeTargetId: addressAgentSectionConfig.targetIds?.draftReview,
+      });
+      toast({ title: "Address ready to review", description: "Please check it before adding it to the form." });
     } catch {
       toast({ title: "Couldn't process your address", description: "Please fill in the fields manually.", variant: "destructive" });
     } finally {
       setParsing(false);
     }
+  };
+
+  const confirmVoiceDraft = () => {
+    if (!voiceDraft) return;
+    const metadata = voiceDraft.metadata ?? {};
+    applyAddress({
+      address_line_1: metadata.address_line_1,
+      address_line_2: metadata.address_line_2,
+      city: metadata.city,
+      region: metadata.region,
+      postcode: metadata.postcode,
+      country: metadata.country ? normaliseCountry(metadata.country) : undefined,
+    });
+    setVoiceDraft(null);
+    setVoiceGuidance({
+      voiceStatus: "idle",
+      draftStatus: "confirmed-locally",
+      activeTargetId: addressAgentSectionConfig.targetIds?.reviewSave,
+    });
   };
 
   const handleSave = async () => {
@@ -254,6 +393,8 @@ export default function AddressSection() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/readiness"] });
+      setAutoSaveStatus("saved");
+      setVoiceGuidance({ voiceStatus: "idle", draftStatus: "saved" });
       navigate(completePath());
     } catch (err) {
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
@@ -321,34 +462,45 @@ export default function AddressSection() {
             </div>
           </button>
 
-          {/* Speak it */}
-          <button
-            type="button"
-            data-testid="button-address-speak-it"
-            onClick={() => setSpeakItOpen(true)}
-            disabled={parsing || isLoading}
-            className="flex min-h-[86px] items-center gap-4 rounded-[24px] px-4 py-4 text-left shadow-[0_12px_28px_rgba(107,33,168,0.10)] transition-all disabled:opacity-60"
-            style={{ background: "#F5F3FF", border: "1px solid #EDE9FE" }}
-          >
-            <div
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl animate-pulse-ring"
-              style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
-            >
-              {parsing
-                ? <Loader2 size={14} className="text-white animate-spin" />
-                : <Mic size={14} className="text-white" />
-              }
-            </div>
-            <div className="min-w-0">
-              <p className="font-body text-[18px] font-black leading-tight" style={{ color: "#6B21A8" }}>
-                {parsing ? "Reading..." : "Speak it"}
-              </p>
-              <p className="mt-1 font-body text-[14px] font-semibold" style={{ color: "#7C3AED" }}>
-                Say your address
-              </p>
-            </div>
-          </button>
+          {companionMode !== "voice" ? (
+            <OnboardingCompanionTarget targetId="address-add-by-voice">
+              <ProfileVoiceAction
+                icon={Mic}
+                title="Speak it"
+                description="Say your address"
+                onClick={startVoiceAddressCapture}
+                testId="button-address-speak-it"
+                className="min-h-[86px]"
+                disabled={isLoading}
+                busy={parsing}
+                busyLabel="Reading..."
+              />
+            </OnboardingCompanionTarget>
+          ) : null}
         </div>
+
+        {voiceDraft ? (
+          <OnboardingCompanionTarget targetId="address-voice-draft">
+            <ProfileVoiceDraftReview
+              draft={voiceDraft}
+              confirmLabel="Add address"
+              tryAgainLabel="Try again"
+              dismissLabel="Dismiss"
+              onConfirm={confirmVoiceDraft}
+              onTryAgain={startVoiceAddressCapture}
+              onDismiss={() => setVoiceDraft(null)}
+              onRemoveRow={(value) => {
+                const command = parseProfileVoiceCommand("address", `remove ${value}`);
+                if (!command) return;
+                setVoiceDraft((current) =>
+                  current ? applyProfileVoiceCorrection(current, command) : current,
+                );
+                setVoiceGuidance({ voiceStatus: "idle", draftStatus: "corrected-draft" });
+              }}
+              testId="panel-address-voice-draft"
+            />
+          </OnboardingCompanionTarget>
+        ) : null}
 
         {/* Divider with label */}
         <div className="flex items-center gap-2">
@@ -443,6 +595,7 @@ export default function AddressSection() {
 
         {/* Save / Skip */}
         <div className="flex flex-col gap-2 pt-2">
+          <OnboardingCompanionTarget targetId="address-review-save">
           <Button
             data-testid="button-address-save"
             onClick={handleSave}
@@ -451,6 +604,7 @@ export default function AddressSection() {
           >
             {saving ? "Saving..." : "Save home address"}
           </Button>
+          </OnboardingCompanionTarget>
           <button
             data-testid="button-address-skip"
             onClick={() => navigate("/onboarding/profile")}

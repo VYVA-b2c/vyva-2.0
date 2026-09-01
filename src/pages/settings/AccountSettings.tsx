@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Camera, LogOut, ShieldCheck, UserRound, X } from "lucide-react";
+import { Camera, LogOut, Mic, ShieldCheck, UserRound, X } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Button } from "@/components/ui/button";
@@ -160,10 +160,10 @@ const TIMEZONE_OPTIONS = [
   { value: "us_pacific", label: "US - Pacific (PST/PDT)", zone: "America/Los_Angeles" },
   { value: "canada_atlantic", label: "Canada - Atlantic (AST/ADT)", zone: "America/Halifax" },
   { value: "london", label: "UK - London (GMT/BST)", zone: "Europe/London" },
-  { value: "europe_central", label: "Europe - Paris/Berlin/Madrid (CET/CEST)", zone: "Europe/Madrid" },
-  { value: "europe_eastern", label: "Europe - Athens/Helsinki (EET/EEST)", zone: "Europe/Athens" },
-  { value: "sydney", label: "Australia - Sydney (AEST/AEDT)", zone: "Australia/Sydney" },
-  { value: "perth", label: "Australia - Perth (AWST)", zone: "Australia/Perth" },
+  { value: "europe_central", label: "Central Europe (CET/CEST)", zone: "Europe/Madrid" },
+  { value: "europe_eastern", label: "Eastern Europe (EET/EEST)", zone: "Europe/Athens" },
+  { value: "sydney", label: "Sydney (AEST/AEDT)", zone: "Australia/Sydney" },
+  { value: "perth", label: "Perth (AWST)", zone: "Australia/Perth" },
   { value: "tokyo", label: "Japan - Tokyo (JST)", zone: "Asia/Tokyo" },
   { value: "singapore", label: "Singapore (SGT)", zone: "Asia/Singapore" },
   { value: "mumbai", label: "India - Mumbai (IST)", zone: "Asia/Kolkata" },
@@ -332,6 +332,7 @@ async function accountSaveErrorMessage(response: Response) {
 export default function AccountSettings() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isHomeMasterPreview = location.pathname === "/dev/home-master/profile/account";
   const { logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
@@ -436,6 +437,10 @@ export default function AccountSettings() {
 
   const avatarUrl = profileQuery.data?.avatarUrl ?? null;
   const accountCopy = ACCOUNT_LANGUAGE_COPY[language] ?? ACCOUNT_LANGUAGE_COPY.es;
+  const hasRequiredAccountBasics = Boolean(
+    form.firstName.trim() && form.lastName.trim() && form.phoneLocal.trim()
+  );
+  const showRequiredDetailsReminder = !isHomeMasterPreview || !hasRequiredAccountBasics;
 
   const avatarMutation = useMutation({
     mutationFn: async (dataUrl: string | null) => {
@@ -553,33 +558,61 @@ export default function AccountSettings() {
   };
 
   return (
-    <PhoneFrame subtitle={t("settings.account.title")} showBack onBack={() => navigate("/settings")}>
-      <div className="flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
-        <ProfileSectionHero
-          icon={UserRound}
-          title={t("settings.account.title")}
-          kicker="Your details"
-          description={t("settings.account.subtitle")}
-        />
+    <PhoneFrame
+      subtitle={isHomeMasterPreview ? undefined : t("settings.account.title")}
+      showBack
+      onBack={() => navigate(isHomeMasterPreview ? "/dev/home-master/profile" : "/settings")}
+      homeMasterBackPath="/dev/home-master/profile"
+      showCompanionMode={!isHomeMasterPreview}
+      rightAction={
+        isHomeMasterPreview ? (
+          <button
+            type="button"
+            aria-label="Return to VYVA voice mode"
+            data-testid="button-home-profile-account-voice"
+            onClick={() => navigate("/dev/home-master")}
+            className="grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.22)] transition-colors duration-150 hover:bg-[#7C2FE8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vyva-purple"
+          >
+            <Mic size={17} strokeWidth={2.35} aria-hidden="true" />
+          </button>
+        ) : undefined
+      }
+    >
+      <div className="home-master-profile-account-content flex flex-col gap-6 px-1 pb-6 pt-5 sm:px-2 md:px-3">
+        {!isHomeMasterPreview ? (
+          <ProfileSectionHero
+            icon={UserRound}
+            title={t("settings.account.title")}
+            kicker="Your details"
+            description={t("settings.account.subtitle")}
+          />
+        ) : null}
 
-        <div
-          className="flex items-start gap-4 rounded-[24px] border px-5 py-4 shadow-[0_12px_28px_rgba(53,28,87,0.06)]"
-          style={{ background: "#FCF7FF", borderColor: "#E9D5FF" }}
-        >
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-vyva-purple shadow-sm">
-            <ShieldCheck size={22} />
+        {showRequiredDetailsReminder ? (
+          <div
+            className={[
+              "home-master-profile-account-reminder flex items-start gap-4 rounded-[24px] border px-5 py-4",
+              isHomeMasterPreview
+                ? "bg-white/80 shadow-[0_10px_24px_rgba(53,28,87,0.05)]"
+                : "shadow-[0_12px_28px_rgba(53,28,87,0.06)]",
+            ].join(" ")}
+            style={{ background: isHomeMasterPreview ? undefined : "#FCF7FF", borderColor: "#E9D5FF" }}
+          >
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-vyva-purple shadow-sm">
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <p className="font-body text-[16px] font-black" style={{ color: "#5B21B6" }}>
+                {isHomeMasterPreview ? "Required basics" : accountCopy.minimumInfoTitle}
+              </p>
+              <p className="mt-1 font-body text-[14px] leading-relaxed" style={{ color: "#7A7290" }}>
+                {isHomeMasterPreview ? "First name, last name, and phone number." : accountCopy.minimumInfoHint}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-body text-[16px] font-black" style={{ color: "#5B21B6" }}>
-              {accountCopy.minimumInfoTitle}
-            </p>
-            <p className="mt-1 font-body text-[14px] leading-relaxed" style={{ color: "#7A7290" }}>
-              {accountCopy.minimumInfoHint}
-            </p>
-          </div>
-        </div>
+        ) : null}
 
-        <div className="flex flex-col items-center gap-3 rounded-[28px] border border-[#EFE4D5] bg-white px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
+        <div className="home-master-profile-account-avatar-card flex flex-col items-center gap-3 rounded-[28px] border border-[#EFE4D5] bg-white px-5 py-6 shadow-[0_14px_34px_rgba(53,28,87,0.06)]">
           <div className="relative">
             <div
               className="flex h-[112px] w-[112px] items-center justify-center overflow-hidden rounded-full text-[40px] font-black text-white shadow-[0_18px_34px_rgba(107,33,168,0.18)]"
@@ -710,7 +743,9 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, gender: value }));
               }}
             >
-              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
+              <SelectTrigger className={accountSelectClassName}>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="female">{t("settings.account.genderFemale")}</SelectItem>
                 <SelectItem value="male">{t("settings.account.genderMale")}</SelectItem>
@@ -827,7 +862,12 @@ export default function AccountSettings() {
                 setForm((current) => ({ ...current, timezone: value }));
               }}
             >
-              <SelectTrigger className={accountSelectClassName}><SelectValue /></SelectTrigger>
+              <SelectTrigger
+                className={`${accountSelectClassName} min-w-0`}
+                title={TIMEZONE_OPTIONS.find((option) => option.value === form.timezone)?.label}
+              >
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {TIMEZONE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
@@ -848,7 +888,16 @@ export default function AccountSettings() {
           >
             {saving ? t("settings.account.saving") : t("settings.account.saveChanges")}
           </Button>
-          <button className="rounded-full py-3 text-[14px] font-black text-red-500">{t("settings.account.changePassword")}</button>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            data-testid="button-account-change-password"
+            title="Password changes are managed securely outside this preview"
+            className="cursor-not-allowed rounded-full py-3 text-[14px] font-black text-vyva-text-3 opacity-60"
+          >
+            {t("settings.account.changePassword")}
+          </button>
           <button
             data-testid="button-account-sign-out"
             onClick={() => {

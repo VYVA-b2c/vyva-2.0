@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
 import profileRouter from "../routes/profile.js";
 import { db } from "../db.js";
-import { profiles, userChannelPreferences } from "../../shared/schema.js";
+import { profiles, userChannelPreferences, users } from "../../shared/schema.js";
 
 function buildApp() {
   const app = express();
@@ -22,11 +22,18 @@ const createdUserIds = new Set<string>();
 async function cleanupUser(userId: string) {
   await db.delete(userChannelPreferences).where(eq(userChannelPreferences.user_id, userId));
   await db.delete(profiles).where(eq(profiles.id, userId));
+  await db.delete(users).where(eq(users.id, userId));
 }
 
 async function createProfile(values: Partial<typeof profiles.$inferInsert> = {}) {
   const userId = randomUUID();
   createdUserIds.add(userId);
+  await db.insert(users).values({
+    id: userId,
+    email: `profile-channel-${userId}@example.test`,
+    password_hash: "test-password-hash",
+    active_profile_id: userId,
+  });
   await db.insert(profiles).values({
     id: userId,
     language: "en",
@@ -83,6 +90,8 @@ describe("Profile channel preferences", () => {
       max_outbound_calls_per_day: 1,
       max_whatsapp_messages_per_day: 5,
       concierge_task_notifications_enabled: true,
+      medication_refill_push_enabled: false,
+      preventive_web_push_enabled: false,
     });
   });
 
@@ -100,6 +109,7 @@ describe("Profile channel preferences", () => {
       max_outbound_calls_per_day: null,
       max_whatsapp_messages_per_day: 10,
       concierge_task_notifications_enabled: false,
+      preventive_web_push_enabled: true,
     };
 
     const saveRes = await request(app)
@@ -108,14 +118,20 @@ describe("Profile channel preferences", () => {
       .send(payload)
       .expect(200);
 
-    expect(saveRes.body).toMatchObject(payload);
+    expect(saveRes.body).toMatchObject({
+      ...payload,
+      preventive_web_push_enabled: false,
+    });
 
     const getRes = await request(app)
       .get("/api/profile/channel-preferences")
       .set("x-user-id", userId)
       .expect(200);
 
-    expect(getRes.body).toMatchObject(payload);
+    expect(getRes.body).toMatchObject({
+      ...payload,
+      preventive_web_push_enabled: false,
+    });
 
     const [row] = await db
       .select()
@@ -126,6 +142,7 @@ describe("Profile channel preferences", () => {
     expect(row?.preferred_reminder_channel).toBe("voice_app");
     expect(row?.max_outbound_calls_per_day).toBeNull();
     expect(row?.concierge_task_notifications_enabled).toBe(false);
+    expect(row?.preventive_web_push_enabled).toBe(false);
 
     const [profile] = await db
       .select({ data_sharing_consent: profiles.data_sharing_consent })

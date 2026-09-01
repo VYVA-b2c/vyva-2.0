@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -6,18 +6,19 @@ type HealthWizardShellProps = {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  contentAttributes?: Omit<HTMLAttributes<HTMLDivElement>, "className" | "children">;
   testId?: string;
 };
 
-export function HealthWizardShell({ children, className, contentClassName, testId }: HealthWizardShellProps) {
+export function HealthWizardShell({ children, className, contentClassName, contentAttributes, testId }: HealthWizardShellProps) {
   return (
     <div
       className={cn(
-        "min-h-full bg-[linear-gradient(180deg,#FAF8F5_0%,#F6EFE7_100%)]",
+        "min-h-full bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]",
         className,
       )}
     >
-      <div data-testid={testId} className={cn("mx-auto w-full max-w-[560px] px-[18px] pb-36 pt-1", contentClassName)}>
+      <div {...contentAttributes} data-testid={testId} className={cn("mx-auto w-full max-w-[560px] px-[18px] pb-36 pt-1 md:max-w-[1040px] md:px-10", contentClassName)}>
         {children}
       </div>
     </div>
@@ -84,7 +85,7 @@ type HealthWizardHeroProps = {
 };
 
 const heroTone = {
-  purple: "border-transparent bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] text-white shadow-[0_18px_42px_rgba(91,18,160,0.24)]",
+  purple: "border-transparent bg-[linear-gradient(135deg,var(--vyva-hero-a)_0%,var(--vyva-hero-b)_100%)] text-white shadow-[0_18px_42px_rgba(91,18,160,0.24)]",
   light: "border-[#EDE5DB] bg-white text-vyva-text-1 shadow-[0_14px_34px_rgba(63,45,35,0.08)]",
   green: "border-[#BBF7D0] bg-[#ECFDF5] text-[#064E3B] shadow-[0_14px_34px_rgba(4,120,87,0.10)]",
   amber: "border-[#FED7AA] bg-[#FFF7ED] text-[#7C2D12] shadow-[0_14px_34px_rgba(180,83,9,0.10)]",
@@ -126,7 +127,7 @@ export function HealthWizardHero({
               {kicker}
             </p>
           ) : null}
-          <h2 className={cn("mt-1 font-display text-[35px] leading-[1.05]", isPurple ? "text-white" : "text-vyva-text-1")}>
+          <h2 className={cn("mt-1 font-display text-[35px] font-semibold leading-[1.05] md:text-[42px]", isPurple ? "text-white" : "text-vyva-text-1")}>
             {title}
           </h2>
           {body ? (

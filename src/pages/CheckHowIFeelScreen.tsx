@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import type { HTMLAttributes, MouseEvent, ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -41,8 +41,37 @@ import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { recordPreventivePushFlowStarted, redeemPreventivePushEntry } from "@/lib/preventiveWebPush";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { parseCanvasRolloutConfig, isCanvasRolloutEnabled } from "@/components/voice-canvas/canvasPlatform";
 import { ListenButton } from "@/components/ListenButton";
+import { useVoiceCanvasController } from "@/hooks/useVoiceCanvasController";
+import {
+  VYVA_VOICE_CANVAS_RESPONSE_EVENT,
+  type VoiceCanvasResponseDetail,
+} from "@/lib/voiceCanvasBridge";
+import {
+  emitVoiceTriageTouchAnswer,
+  ensureVoiceSessionId,
+} from "@/lib/voiceSessionBridge";
+import { emitSosSheetOpen } from "@/lib/sosEvents";
+import {
+  applyCanonicalHealthVoiceScreenSyncAnswer,
+  createHealthVoiceScreenSyncSessionInstanceId,
+  dispatchHealthVoiceScreenSyncObservation,
+  healthVoiceScreenSyncInputFromCanvasResponse,
+  healthVoiceScreenSyncQuestion,
+  healthVoiceScreenSyncViewModel,
+  HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FEATURE_ENDPOINT,
+  HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID,
+  HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_OWNER,
+  VYVA_HEALTH_VOICE_SCREEN_SYNC_OBSERVATION_EVENT,
+  normalizeHealthVoiceScreenSyncAnswer,
+  type HealthVoiceScreenSyncAnswerInput,
+  type HealthVoiceScreenSyncObservation,
+  type HealthVoiceScreenSyncQuestion,
+  type HealthVoiceScreenSyncStep,
+} from "@/lib/healthVoiceScreenSync";
 import {
   PurpleModal,
   PurpleModalOption,
@@ -56,8 +85,18 @@ import {
   HealthWizardProgress,
   HealthWizardShell,
 } from "@/components/health/HealthWizard";
+import {
+  createCheckInFlowAdapter,
+  type CheckInFlowActions,
+  type CheckInFlowState,
+} from "@/lib/checkInFlowAdapter";
+import {
+  PREVENTIVE_CHECK_STAGE_IDS,
+  resolvePreventiveCheckPresentation,
+  type PreventiveCheckStageId,
+} from "@/design/screenPresentation";
 
-type StepId = "welcome" | "energy" | "mood" | "body" | "sleep" | "symptoms" | "details" | "safety" | "social" | "analyzing" | "result";
+type StepId = PreventiveCheckStageId;
 
 type Answers = {
   energy_level: number | null;
@@ -135,7 +174,7 @@ type SingleOption = {
 type GrammaticalGender = "female" | "male" | "neutral";
 type WizardLocale = "es" | "en" | "de" | "fr" | "it" | "pt";
 
-const STEPS: StepId[] = ["welcome", "energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social", "analyzing", "result"];
+const STEPS: readonly StepId[] = PREVENTIVE_CHECK_STAGE_IDS;
 const QUESTION_STEPS: StepId[] = ["energy", "mood", "body", "sleep", "symptoms", "details", "safety", "social"];
 
 const initialAnswers: Answers = {
@@ -148,6 +187,37 @@ const initialAnswers: Answers = {
   safety_flags: [],
   social_contact: null,
 };
+
+type WizardStepState = {
+  step: StepId;
+  sceneRevision: number;
+};
+
+function wizardStepReducer(state: WizardStepState, nextStep: StepId): WizardStepState {
+  if (state.step === nextStep) return state;
+  return {
+    step: nextStep,
+    sceneRevision: state.sceneRevision + 1,
+  };
+}
+
+function isHealthVoiceScreenSyncStep(step: StepId): step is HealthVoiceScreenSyncStep {
+  return QUESTION_STEPS.includes(step);
+}
+
+function healthVoiceScreenSyncOptions(
+  options: SingleOption[],
+  selected: string | undefined,
+  selectedValues?: string[],
+) {
+  return options.map((option) => ({
+    id: option.id,
+    label: option.label,
+    helper: option.helper,
+    value: option.value ?? option.id,
+    selected: selectedValues ? selectedValues.includes(option.id) : selected === option.id,
+  }));
+}
 
 const moodOptions: SingleOption[] = [
   { id: "alegre", icon: "😊", label: "Alegre", helper: "Con buen ánimo" },
@@ -1960,16 +2030,29 @@ function sendReportToTarget(target: ShareTarget, subject: string, text: string) 
 
 const CheckHowIFeelScreen = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { firstName, profile } = useProfile();
   const { language } = useLanguage();
   const startedAtRef = useRef(Date.now());
-  const [step, setStep] = useState<StepId>("welcome");
+  const [{ step, sceneRevision }, setStep] = useReducer(wizardStepReducer, {
+    step: "welcome",
+    sceneRevision: 1,
+  });
+  const currentPresentation = resolvePreventiveCheckPresentation(step);
+  const activeHealthVoiceQuestionRef = useRef<HealthVoiceScreenSyncQuestion | null>(null);
+  const acceptedHealthVoiceScreenSyncEventIdsRef = useRef<Set<string>>(new Set());
+  const healthVoiceTouchSequenceRef = useRef(0);
+  const healthVoiceTouchEventIdsRef = useRef<WeakMap<Event, string>>(new WeakMap());
+  const healthVoiceScreenSyncSessionInstanceIdRef = useRef(createHealthVoiceScreenSyncSessionInstanceId());
+  const safetyReturnStepRef = useRef<StepId | null>(null);
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareUrlLoading, setShareUrlLoading] = useState(false);
+  const [safetyInterruptActive, setSafetyInterruptActive] = useState(false);
+  const [preventivePushEntryId, setPreventivePushEntryId] = useState<string | null>(null);
   const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
     queryKey: ["/api/onboarding/careteam"],
     enabled: step === "result",
@@ -1979,6 +2062,18 @@ const CheckHowIFeelScreen = () => {
     queryKey: ["/api/onboarding/state"],
     enabled: step === "result",
     staleTime: 5 * 60 * 1000,
+  });
+  const { data: healthVoiceScreenSyncConfig } = useQuery({
+    queryKey: [HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FEATURE_ENDPOINT],
+    queryFn: async () => {
+      const response = await apiFetch(HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FEATURE_ENDPOINT);
+      if (!response.ok) return { enabled: false, rolloutPercent: 0 };
+      return parseCanvasRolloutConfig(await response.json());
+    },
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: "always",
+    retry: false,
   });
 
   const name = firstName.trim();
@@ -1991,6 +2086,22 @@ const CheckHowIFeelScreen = () => {
   const includeDetails = needsSymptomDetails(answers);
   const questionSteps = activeQuestionSteps(includeSafety, includeDetails);
   const safetyCopy = safetyCopyFor(copy);
+  const safetyInterruptCopy = copy === CHECKIN_TEXT.es
+    ? {
+        title: "He pausado el check-in.",
+        subtitle: "Toca abajo y te conecto enseguida.",
+        primary: "Pedir ayuda ahora",
+        secondary: "Estoy bien — volver",
+      }
+    : {
+        title: "I've paused the check-in.",
+        subtitle: "Tap below and I'll connect you right away.",
+        primary: "Get help now",
+        secondary: "I'm okay — go back",
+      };
+  const safetyEscapeLabel = copy === CHECKIN_TEXT.es
+    ? "Si esto parece urgente, toca aquí"
+    : "If this feels urgent, tap here";
   const detailCopy = symptomDetailCopyFor(copy);
   const canGoBack = stepIndex > 0 && step !== "analyzing" && step !== "result";
   const healthPriority = hasHealthPrioritySignal(answers);
@@ -2028,6 +2139,32 @@ const CheckHowIFeelScreen = () => {
   const resultVisual = result ? resultVisualFor(result.overall_state) : null;
   const energyOptions = localizedEnergyOptionsFor(gender, copy);
   const moodOptionsLocalized = localizedMoodOptionsFor(copy);
+
+  useEffect(() => {
+    const token = searchParams.get("pushEntry");
+    if (!token) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("pushEntry");
+    setSearchParams(nextParams, { replace: true });
+
+    let cancelled = false;
+    void redeemPreventivePushEntry(token)
+      .then((entry) => {
+        if (!cancelled) setPreventivePushEntryId(entry.entryId);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast({
+            title: copy.shareFailed,
+            description: "This check-in link could not be restored.",
+            variant: "destructive",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [copy.shareFailed, searchParams, setSearchParams, toast]);
   const bodyOptionsLocalized = localizedBodyOptionsFor(copy);
   const sleepOptionsLocalized = localizedSleepOptionsFor(copy);
   const symptomOptions = localizedSymptomOptionsFor(gender, copy);
@@ -2036,6 +2173,221 @@ const CheckHowIFeelScreen = () => {
   const shareTargets = buildShareTargets(profile, careTeamData?.members ?? [], onboardingState?.profile, shareLabels);
   const hasSavedCareContact = shareTargets.some((target) => target.kind === "caregiver" || target.kind === "doctor");
   const careContactPrompt = careContactPromptFor(copy);
+  const healthVoiceScreenSyncEnabled = isCanvasRolloutEnabled(
+    healthVoiceScreenSyncConfig,
+    profile?.profileId ?? (name || "anonymous-health-checkin"),
+  );
+  const activeHealthVoiceQuestion = useMemo(() => {
+    if (!healthVoiceScreenSyncEnabled || !isHealthVoiceScreenSyncStep(step) || !questionSteps.includes(step)) {
+      return null;
+    }
+
+    const progress = {
+      current: questionSteps.indexOf(step) + 1,
+      total: questionSteps.length,
+      label: copy.stepHint,
+    };
+
+    switch (step) {
+      case "energy":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: copy.qEnergy[0],
+          helperText: copy.qEnergy[1],
+          options: healthVoiceScreenSyncOptions(energyOptions, answers.energy_level?.toString()),
+          progress,
+        });
+      case "mood":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: copy.qMood[0],
+          helperText: copy.qMood[1],
+          options: healthVoiceScreenSyncOptions(moodOptionsLocalized, answers.mood ?? undefined),
+          progress,
+        });
+      case "body":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: copy.qBody[0],
+          helperText: copy.qBody[1],
+          options: healthVoiceScreenSyncOptions(bodyOptionsLocalized, undefined, answers.body_areas),
+          progress,
+        });
+      case "sleep":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: copy.qSleep[0],
+          helperText: copy.qSleep[1],
+          options: healthVoiceScreenSyncOptions(sleepOptionsLocalized, answers.sleep_quality ?? undefined),
+          progress,
+        });
+      case "symptoms":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: copy.qSymptoms[0],
+          helperText: copy.qSymptoms[1],
+          options: healthVoiceScreenSyncOptions(symptomOptions, undefined, answers.symptoms),
+          progress,
+        });
+      case "details":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: detailCopy.title,
+          helperText: detailCopy.subtitle,
+          options: healthVoiceScreenSyncOptions(symptomDetailOptions, undefined, answers.symptom_details),
+          progress,
+        });
+      case "safety":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: safetyCopy.title,
+          helperText: safetyCopy.subtitle,
+          options: healthVoiceScreenSyncOptions(safetyCopy.options, undefined, answers.safety_flags),
+          progress,
+        });
+      case "social":
+        return healthVoiceScreenSyncQuestion({
+          step,
+          sceneInstanceId: healthVoiceScreenSyncSessionInstanceIdRef.current,
+          revision: sceneRevision,
+          title: copy.qSocial[0],
+          helperText: copy.qSocial[1],
+          options: healthVoiceScreenSyncOptions(socialOptions, answers.social_contact ?? undefined),
+          progress,
+        });
+    }
+  }, [
+    answers.body_areas,
+    answers.energy_level,
+    answers.mood,
+    answers.safety_flags,
+    answers.sleep_quality,
+    answers.social_contact,
+    answers.symptom_details,
+    answers.symptoms,
+    bodyOptionsLocalized,
+    copy.qBody,
+    copy.qEnergy,
+    copy.qMood,
+    copy.qSleep,
+    copy.qSocial,
+    copy.qSymptoms,
+    copy.stepHint,
+    detailCopy.subtitle,
+    detailCopy.title,
+    energyOptions,
+    healthVoiceScreenSyncEnabled,
+    moodOptionsLocalized,
+    questionSteps,
+    safetyCopy.options,
+    safetyCopy.subtitle,
+    safetyCopy.title,
+    sceneRevision,
+    sleepOptionsLocalized,
+    socialOptions,
+    step,
+    symptomDetailOptions,
+    symptomOptions,
+  ]);
+  const activeHealthVoiceViewModel = useMemo(
+    () => activeHealthVoiceQuestion ? healthVoiceScreenSyncViewModel(activeHealthVoiceQuestion) : null,
+    [activeHealthVoiceQuestion],
+  );
+
+  useEffect(() => {
+    activeHealthVoiceQuestionRef.current = activeHealthVoiceQuestion;
+  }, [activeHealthVoiceQuestion]);
+
+  useEffect(() => {
+    acceptedHealthVoiceScreenSyncEventIdsRef.current.clear();
+  }, [sceneRevision, step]);
+
+  const applyHealthVoiceScreenSyncInput = useCallback((input: HealthVoiceScreenSyncAnswerInput) => {
+    const activeQuestion = activeHealthVoiceQuestionRef.current;
+    if (!healthVoiceScreenSyncEnabled || !activeQuestion) return false;
+
+    const result = normalizeHealthVoiceScreenSyncAnswer(activeQuestion, input);
+    if (result.status === "rejected") {
+      dispatchHealthVoiceScreenSyncObservation(result);
+      return false;
+    }
+
+    if (acceptedHealthVoiceScreenSyncEventIdsRef.current.has(result.answer.eventId)) {
+      if (typeof window !== "undefined") {
+        const detail: HealthVoiceScreenSyncObservation = {
+          flowId: result.answer.flowId,
+          sceneId: result.answer.sceneId,
+          sceneInstanceId: result.answer.sceneInstanceId,
+          questionId: result.answer.questionId,
+          revision: result.answer.revision,
+          modality: result.answer.modality,
+          status: "rejected",
+          answerId: result.answer.answerId,
+          answerValue: result.answer.answerValue,
+          reason: "duplicate_event",
+          eventId: result.answer.eventId,
+        };
+        window.dispatchEvent(new CustomEvent<HealthVoiceScreenSyncObservation>(
+          VYVA_HEALTH_VOICE_SCREEN_SYNC_OBSERVATION_EVENT,
+          { detail },
+        ));
+      }
+      return false;
+    }
+
+    acceptedHealthVoiceScreenSyncEventIdsRef.current.add(result.answer.eventId);
+    dispatchHealthVoiceScreenSyncObservation(result);
+    setAnswers((current) => applyCanonicalHealthVoiceScreenSyncAnswer(current, result.answer));
+
+    if (input.modality === "touch") {
+      emitVoiceTriageTouchAnswer({
+        conversationId: ensureVoiceSessionId(),
+        utterance: result.answer.answerId,
+        choiceId: result.answer.answerId,
+        nextQuestion: activeQuestion.title,
+        status: activeQuestion.step,
+      });
+    }
+    return true;
+  }, [healthVoiceScreenSyncEnabled]);
+
+  useEffect(() => {
+    if (!healthVoiceScreenSyncEnabled) return;
+    const handleVoiceCanvasResponse = (event: Event) => {
+      const response = event instanceof CustomEvent
+        ? (event.detail as VoiceCanvasResponseDetail | undefined)
+        : undefined;
+      if (!response?.sceneId || !Number.isFinite(response.revision)) return;
+      applyHealthVoiceScreenSyncInput(healthVoiceScreenSyncInputFromCanvasResponse(response));
+    };
+
+    window.addEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleVoiceCanvasResponse);
+    return () => window.removeEventListener(VYVA_VOICE_CANVAS_RESPONSE_EVENT, handleVoiceCanvasResponse);
+  }, [applyHealthVoiceScreenSyncInput, healthVoiceScreenSyncEnabled]);
+
+  useVoiceCanvasController({
+    owner: HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_OWNER,
+    enabled: healthVoiceScreenSyncEnabled && Boolean(activeHealthVoiceQuestion),
+    revision: activeHealthVoiceQuestion?.revision ?? sceneRevision,
+    viewModel: activeHealthVoiceViewModel,
+    flowReference: HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID,
+    questionId: activeHealthVoiceQuestion?.questionId,
+    sceneInstanceId: activeHealthVoiceQuestion?.sceneInstanceId,
+  });
 
   const loadingMessage = useMemo(() => {
     const messages = copy.loading;
@@ -2058,6 +2410,25 @@ const CheckHowIFeelScreen = () => {
     navigate("/health");
   };
 
+  const openSafetyInterrupt = () => {
+    if (questionSteps.includes(step)) {
+      safetyReturnStepRef.current = step;
+    }
+    setSafetyInterruptActive(true);
+    setStep("safety");
+  };
+
+  const resumeFromSafetyInterrupt = () => {
+    const returnStep = safetyReturnStepRef.current;
+    safetyReturnStepRef.current = null;
+    setSafetyInterruptActive(false);
+    if (returnStep && questionSteps.includes(returnStep)) {
+      setStep(returnStep);
+      return;
+    }
+    goBack();
+  };
+
   const abandonAndExit = async () => {
     try {
       await apiFetch("/api/checkins/abandon", {
@@ -2073,11 +2444,11 @@ const CheckHowIFeelScreen = () => {
     navigate("/health");
   };
 
-  const setSingle = <K extends keyof Answers>(key: K, value: Answers[K]) => {
+  const setLegacySingle = <K extends keyof Answers>(key: K, value: Answers[K]) => {
     setAnswers((current) => ({ ...current, [key]: value }));
   };
 
-  const toggleMulti = (key: "body_areas" | "symptoms" | "symptom_details" | "safety_flags", id: string) => {
+  const toggleLegacyMulti = (key: "body_areas" | "symptoms" | "symptom_details" | "safety_flags", id: string) => {
     setAnswers((current) => {
       const currentValues = current[key];
       if (id === "ninguno") {
@@ -2093,6 +2464,95 @@ const CheckHowIFeelScreen = () => {
     });
   };
 
+  const touchAnswerEventId = (
+    questionSnapshot: HealthVoiceScreenSyncQuestion,
+    optionId: string,
+    event?: MouseEvent<HTMLElement>,
+  ) => {
+    const nativeEvent = event?.nativeEvent;
+    if (nativeEvent) {
+      const existing = healthVoiceTouchEventIdsRef.current.get(nativeEvent);
+      if (existing) return existing;
+      healthVoiceTouchSequenceRef.current += 1;
+      const next = [
+        "health-touch",
+        questionSnapshot.sceneInstanceId,
+        questionSnapshot.sceneId,
+        String(questionSnapshot.revision),
+        optionId,
+        String(healthVoiceTouchSequenceRef.current),
+      ].join(":");
+      healthVoiceTouchEventIdsRef.current.set(nativeEvent, next);
+      return next;
+    }
+
+    healthVoiceTouchSequenceRef.current += 1;
+    return [
+      "health-touch",
+      questionSnapshot.sceneInstanceId,
+      questionSnapshot.sceneId,
+      String(questionSnapshot.revision),
+      optionId,
+      String(healthVoiceTouchSequenceRef.current),
+    ].join(":");
+  };
+
+  const setSingle = <K extends keyof Answers>(
+    key: K,
+    value: Answers[K],
+    option?: SingleOption,
+    questionSnapshot?: HealthVoiceScreenSyncQuestion | null,
+    event?: MouseEvent<HTMLElement>,
+  ) => {
+    if (healthVoiceScreenSyncEnabled && option) {
+      if (!questionSnapshot || questionSnapshot.answerKey !== key) return;
+      const at = new Date().toISOString();
+      const applied = applyHealthVoiceScreenSyncInput({
+        flowId: HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID,
+        sceneId: questionSnapshot.sceneId,
+        sceneInstanceId: questionSnapshot.sceneInstanceId,
+        questionId: questionSnapshot.questionId,
+        revision: questionSnapshot.revision,
+        modality: "touch",
+        choiceId: option.id,
+        value: option.value ?? option.id,
+        at,
+        eventId: touchAnswerEventId(questionSnapshot, option.id, event),
+      });
+      if (applied) return;
+      return;
+    }
+    setLegacySingle(key, value);
+  };
+
+  const toggleMulti = (
+    key: "body_areas" | "symptoms" | "symptom_details" | "safety_flags",
+    id: string,
+    option?: SingleOption,
+    questionSnapshot?: HealthVoiceScreenSyncQuestion | null,
+    event?: MouseEvent<HTMLElement>,
+  ) => {
+    if (healthVoiceScreenSyncEnabled && option) {
+      if (!questionSnapshot || questionSnapshot.answerKey !== key) return;
+      const at = new Date().toISOString();
+      const applied = applyHealthVoiceScreenSyncInput({
+        flowId: HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID,
+        sceneId: questionSnapshot.sceneId,
+        sceneInstanceId: questionSnapshot.sceneInstanceId,
+        questionId: questionSnapshot.questionId,
+        revision: questionSnapshot.revision,
+        modality: "touch",
+        choiceId: option.id,
+        value: option.value ?? option.id,
+        at,
+        eventId: touchAnswerEventId(questionSnapshot, option.id, event),
+      });
+      if (applied) return;
+      return;
+    }
+    toggleLegacyMulti(key, id);
+  };
+
   const continueAfterSymptoms = () => {
     if (needsSymptomDetails(answers)) {
       setAnswers((current) => ({
@@ -2104,11 +2564,28 @@ const CheckHowIFeelScreen = () => {
       setStep("details");
       return;
     }
+    setSafetyInterruptActive(false);
+    safetyReturnStepRef.current = null;
     setStep(needsSafetyFollowup(answers) ? "safety" : "social");
   };
 
   const continueAfterDetails = () => {
+    setSafetyInterruptActive(false);
+    safetyReturnStepRef.current = null;
     setStep(needsSafetyFollowup(answers) ? "safety" : "social");
+  };
+
+  const startCheckin = () => {
+    const entryId = preventivePushEntryId;
+    if (entryId) {
+      setPreventivePushEntryId(null);
+      void recordPreventivePushFlowStarted(entryId).catch(() => {
+        // The check-in itself remains the user's primary action.
+      });
+    }
+    setSafetyInterruptActive(false);
+    safetyReturnStepRef.current = null;
+    setStep("energy");
   };
 
   const analyze = async () => {
@@ -2146,10 +2623,16 @@ const CheckHowIFeelScreen = () => {
 
   const reset = () => {
     startedAtRef.current = Date.now();
+    healthVoiceScreenSyncSessionInstanceIdRef.current = createHealthVoiceScreenSyncSessionInstanceId();
+    acceptedHealthVoiceScreenSyncEventIdsRef.current.clear();
+    healthVoiceTouchSequenceRef.current = 0;
+    healthVoiceTouchEventIdsRef.current = new WeakMap();
+    safetyReturnStepRef.current = null;
     setAnswers(initialAnswers);
     setResult(null);
     setShareSheetOpen(false);
     setShareUrl(null);
+    setSafetyInterruptActive(false);
     setStep("welcome");
   };
 
@@ -2206,9 +2689,63 @@ const CheckHowIFeelScreen = () => {
     void prepareShareUrl();
   };
 
+  const checkInFlowAdapter = createCheckInFlowAdapter({
+    activeQuestion: activeHealthVoiceQuestion,
+    answers,
+    step,
+    actions: {
+      start: startCheckin,
+      goBack,
+      answer: (optionId, modality) => {
+        const activeQuestion = activeHealthVoiceQuestionRef.current;
+        if (!activeQuestion) return;
+        applyHealthVoiceScreenSyncInput({
+          flowId: HEALTH_PREVENTIVE_VOICE_SCREEN_SYNC_FLOW_ID,
+          sceneId: activeQuestion.sceneId,
+          sceneInstanceId: activeQuestion.sceneInstanceId,
+          questionId: activeQuestion.questionId,
+          revision: activeQuestion.revision,
+          modality,
+          choiceId: optionId,
+          eventId: [
+            "checkin-flow-adapter",
+            activeQuestion.sceneId,
+            activeQuestion.sceneInstanceId,
+            activeQuestion.revision,
+            modality,
+            optionId,
+          ].join(":"),
+        });
+      },
+      next: () => {
+        if (step === "energy" && answers.energy_level) setStep("mood");
+        if (step === "mood" && answers.mood) setStep("body");
+        if (step === "body" && answers.body_areas.length > 0) setStep("sleep");
+        if (step === "sleep" && answers.sleep_quality) setStep("symptoms");
+        if (step === "symptoms" && answers.symptoms.length > 0) continueAfterSymptoms();
+        if (step === "details" && answers.symptom_details.length > 0) continueAfterDetails();
+        if (step === "safety" && answers.safety_flags.length > 0) {
+          setSafetyInterruptActive(false);
+          safetyReturnStepRef.current = null;
+          setStep("social");
+        }
+        if (step === "social" && answers.social_contact) void analyze();
+      },
+      openSafety: openSafetyInterrupt,
+    },
+  });
+
   return (
-    <HealthWizardShell>
-      {questionSteps.includes(step) && (
+    <HealthWizardShell
+      testId="checkin-flow-screen"
+      contentAttributes={{
+        "data-preventive-check-stage": step,
+        "data-voice-presentation-scene": currentPresentation.voiceSceneId,
+        "data-touch-presentation-scene": currentPresentation.touchSceneId,
+      } as HTMLAttributes<HTMLDivElement>}
+    >
+      <CheckInFlowAdapterBoundary actions={checkInFlowAdapter.actions} state={checkInFlowAdapter.flowState} />
+      {questionSteps.includes(step) && !safetyInterruptActive && (
         <HealthWizardCard className="mb-4 p-4">
           <div className="mb-3 flex items-center justify-between">
             <button
@@ -2259,7 +2796,7 @@ const CheckHowIFeelScreen = () => {
           </div>
           <div className="px-6 pb-6">
             <button
-              onClick={() => setStep("energy")}
+              onClick={startCheckin}
               className="vyva-primary-action min-h-[74px] w-full text-[21px]"
               data-testid="button-checkin-start"
             >
@@ -2276,33 +2813,33 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "energy" && (
-        <QuestionCard icon={<Battery />} title={copy.qEnergy[0]} subtitle={copy.qEnergy[1]}>
+        <QuestionCard icon={<Battery />} title={copy.qEnergy[0]} subtitle={copy.qEnergy[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={energyOptions}
             selected={answers.energy_level?.toString()}
-            onSelect={(option) => setSingle("energy_level", option.value ?? 3)}
+            onSelect={(option, event) => setSingle("energy_level", option.value ?? 3, option, activeHealthVoiceQuestion, event)}
           />
           <NextButton disabled={!answers.energy_level} onClick={() => setStep("mood")} label={copy.next} />
         </QuestionCard>
       )}
 
       {step === "mood" && (
-        <QuestionCard icon={<Heart />} title={copy.qMood[0]} subtitle={copy.qMood[1]}>
+        <QuestionCard icon={<Heart />} title={copy.qMood[0]} subtitle={copy.qMood[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={moodOptionsLocalized}
             selected={answers.mood ?? undefined}
-            onSelect={(option) => setSingle("mood", option.id)}
+            onSelect={(option, event) => setSingle("mood", option.id, option, activeHealthVoiceQuestion, event)}
           />
           <NextButton disabled={!answers.mood} onClick={() => setStep("body")} label={copy.next} />
         </QuestionCard>
       )}
 
       {step === "body" && (
-        <QuestionCard icon={<UserRound />} title={copy.qBody[0]} subtitle={copy.qBody[1]}>
+        <QuestionCard icon={<UserRound />} title={copy.qBody[0]} subtitle={copy.qBody[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={bodyOptionsLocalized}
             selectedValues={answers.body_areas}
-            onSelect={(option) => toggleMulti("body_areas", option.id)}
+            onSelect={(option, event) => toggleMulti("body_areas", option.id, option, activeHealthVoiceQuestion, event)}
             multi
           />
           <NextButton disabled={answers.body_areas.length === 0} onClick={() => setStep("sleep")} label={copy.next} />
@@ -2310,22 +2847,22 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "sleep" && (
-        <QuestionCard icon={<BedDouble />} title={copy.qSleep[0]} subtitle={copy.qSleep[1]}>
+        <QuestionCard icon={<BedDouble />} title={copy.qSleep[0]} subtitle={copy.qSleep[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={sleepOptionsLocalized}
             selected={answers.sleep_quality ?? undefined}
-            onSelect={(option) => setSingle("sleep_quality", option.id)}
+            onSelect={(option, event) => setSingle("sleep_quality", option.id, option, activeHealthVoiceQuestion, event)}
           />
           <NextButton disabled={!answers.sleep_quality} onClick={() => setStep("symptoms")} label={copy.next} />
         </QuestionCard>
       )}
 
       {step === "symptoms" && (
-        <QuestionCard icon={<Sparkles />} title={copy.qSymptoms[0]} subtitle={copy.qSymptoms[1]}>
+        <QuestionCard icon={<Sparkles />} title={copy.qSymptoms[0]} subtitle={copy.qSymptoms[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={symptomOptions}
             selectedValues={answers.symptoms}
-            onSelect={(option) => toggleMulti("symptoms", option.id)}
+            onSelect={(option, event) => toggleMulti("symptoms", option.id, option, activeHealthVoiceQuestion, event)}
             multi
           />
           <NextButton disabled={answers.symptoms.length === 0} onClick={continueAfterSymptoms} label={copy.next} />
@@ -2333,11 +2870,11 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "details" && (
-        <QuestionCard icon={<Stethoscope />} title={detailCopy.title} subtitle={detailCopy.subtitle}>
+        <QuestionCard icon={<Stethoscope />} title={detailCopy.title} subtitle={detailCopy.subtitle} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={symptomDetailOptions}
             selectedValues={answers.symptom_details}
-            onSelect={(option) => toggleMulti("symptom_details", option.id)}
+            onSelect={(option, event) => toggleMulti("symptom_details", option.id, option, activeHealthVoiceQuestion, event)}
             multi
           />
           <NextButton disabled={answers.symptom_details.length === 0} onClick={continueAfterDetails} label={copy.next} />
@@ -2345,23 +2882,57 @@ const CheckHowIFeelScreen = () => {
       )}
 
       {step === "safety" && (
-        <QuestionCard icon={<ShieldCheck />} title={safetyCopy.title} subtitle={safetyCopy.subtitle}>
-          <OptionList
-            options={safetyCopy.options}
-            selectedValues={answers.safety_flags}
-            onSelect={(option) => toggleMulti("safety_flags", option.id)}
-            multi
-          />
-          <NextButton disabled={answers.safety_flags.length === 0} onClick={() => setStep("social")} label={copy.next} />
+        <QuestionCard
+          icon={<ShieldCheck />}
+          title={safetyInterruptActive ? safetyInterruptCopy.title : safetyCopy.title}
+          subtitle={safetyInterruptActive ? safetyInterruptCopy.subtitle : safetyCopy.subtitle}
+        >
+          <button
+            type="button"
+            className="vyva-tap mb-4 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[24px] bg-[#D92020] px-5 font-body text-[19px] font-extrabold text-white shadow-[0_12px_28px_rgba(185,28,28,0.22)]"
+            data-testid="button-checkin-safety-sos"
+            onClick={() => emitSosSheetOpen("health_checkin_safety")}
+          >
+            <PhoneCall size={21} />
+            {safetyInterruptCopy.primary}
+          </button>
+          {safetyInterruptActive ? (
+            <button
+              type="button"
+              className="vyva-tap min-h-[60px] w-full rounded-full border border-[#E8DDF3] bg-white px-5 font-body text-[18px] font-extrabold text-vyva-text-1"
+              data-testid="button-checkin-safety-resume"
+              onClick={resumeFromSafetyInterrupt}
+            >
+              {safetyInterruptCopy.secondary}
+            </button>
+          ) : (
+            <>
+              <OptionList
+                options={safetyCopy.options}
+                selectedValues={answers.safety_flags}
+                onSelect={(option, event) => toggleMulti("safety_flags", option.id, option, activeHealthVoiceQuestion, event)}
+                multi
+              />
+              <NextButton
+                disabled={answers.safety_flags.length === 0}
+                onClick={() => {
+                  setSafetyInterruptActive(false);
+                  safetyReturnStepRef.current = null;
+                  setStep("social");
+                }}
+                label={copy.next}
+              />
+            </>
+          )}
         </QuestionCard>
       )}
 
       {step === "social" && (
-        <QuestionCard icon={<MessageCircle />} title={copy.qSocial[0]} subtitle={copy.qSocial[1]}>
+        <QuestionCard icon={<MessageCircle />} title={copy.qSocial[0]} subtitle={copy.qSocial[1]} onSafetyEscape={openSafetyInterrupt} safetyEscapeLabel={safetyEscapeLabel}>
           <OptionList
             options={socialOptions}
             selected={answers.social_contact ?? undefined}
-            onSelect={(option) => setSingle("social_contact", option.id)}
+            onSelect={(option, event) => setSingle("social_contact", option.id, option, activeHealthVoiceQuestion, event)}
           />
           <button
             onClick={analyze}
@@ -2607,6 +3178,33 @@ const CheckHowIFeelScreen = () => {
   );
 };
 
+function CheckInFlowAdapterBoundary({
+  actions,
+  state,
+}: {
+  actions: CheckInFlowActions;
+  state: CheckInFlowState;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="hidden"
+      data-testid="checkin-flow-adapter-boundary"
+      data-flow-id={state.flowId}
+      data-step={state.step}
+      data-status={state.status}
+      data-scene-id={state.sceneId ?? ""}
+      data-scene-instance-id={state.sceneInstanceId ?? ""}
+      data-question-id={state.questionId ?? ""}
+      data-revision={state.revision ?? ""}
+      data-options={state.currentQuestion?.options.length ?? 0}
+      data-source={state.source}
+      data-has-answer-action={String(typeof actions.answer === "function")}
+      data-has-safety-action={String(typeof actions.openSafety === "function")}
+    />
+  );
+}
+
 function ReportShareSheet({
   title,
   text,
@@ -2807,17 +3405,21 @@ function DisabledShareTarget({
 
 function QuestionCard({
   icon,
+  onSafetyEscape,
+  safetyEscapeLabel = "If this feels urgent, tap here",
   title,
   subtitle,
   children,
 }: {
   icon: ReactNode;
+  onSafetyEscape?: () => void;
+  safetyEscapeLabel?: string;
   title: string;
   subtitle: string;
   children: ReactNode;
 }) {
   return (
-    <HealthWizardCard className="overflow-hidden p-0">
+    <HealthWizardCard className="mx-auto overflow-hidden p-0 md:max-w-[720px]">
       <HealthWizardHero
         className="rounded-none border-0 shadow-none"
         tone="light"
@@ -2825,7 +3427,19 @@ function QuestionCard({
         title={title}
         body={subtitle}
       />
-      <div className="p-5 pt-4">{children}</div>
+      <div className="p-5 pt-4 md:p-7">
+        {children}
+        {onSafetyEscape ? (
+          <button
+            type="button"
+            className="vyva-tap mt-4 min-h-[52px] w-full rounded-full border border-[#FECACA] bg-[#FFF7F7] px-4 font-body text-[16px] font-extrabold text-[#B91C1C]"
+            data-testid="button-checkin-urgent-escape"
+            onClick={onSafetyEscape}
+          >
+            {safetyEscapeLabel}
+          </button>
+        ) : null}
+      </div>
     </HealthWizardCard>
   );
 }
@@ -2840,22 +3454,22 @@ function OptionList({
   options: SingleOption[];
   selected?: string;
   selectedValues?: string[];
-  onSelect: (option: SingleOption) => void;
+  onSelect: (option: SingleOption, event: MouseEvent<HTMLButtonElement>) => void;
   multi?: boolean;
 }) {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-3 md:grid-cols-2" data-testid="checkin-option-grid">
       {options.map((option) => {
         const isSelected = multi ? selectedValues?.includes(option.id) : selected === option.id;
         return (
           <HealthWizardChoiceTile
             key={option.id}
-            onClick={() => onSelect(option)}
+            onClick={(event) => onSelect(option, event)}
             selected={Boolean(isSelected)}
             icon={<span className="text-[27px] leading-none">{option.icon ?? "•"}</span>}
             title={option.label}
-            body={option.helper}
-            className="min-h-[88px]"
+            description={option.helper}
+            className="min-h-[88px] md:min-h-[112px]"
           />
         );
       })}

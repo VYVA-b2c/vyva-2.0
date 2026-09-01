@@ -103,7 +103,166 @@ function isSpanishLocale(locale: string) {
   return locale.split("-")[0].toLowerCase() === "es";
 }
 
+function isFrenchLocale(locale: string) {
+  return locale.split("-")[0].toLowerCase() === "fr";
+}
+
+const FRENCH_OUTCOME_TEXT: Record<string, string> = {
+  "pain or headache": "la douleur ou le mal de tête",
+  "chest discomfort": "la gêne thoracique",
+  "breathing": "la respiration",
+  "fever": "la fièvre",
+  "dizziness": "les vertiges",
+  "tiredness or weakness": "la fatigue ou la faiblesse",
+  "stomach or bowel trouble": "le problème digestif",
+  "urine problem": "le problème urinaire",
+  "fall or injury": "la chute ou la blessure",
+  "skin or wound problem": "le problème de peau ou de plaie",
+  "confusion or memory change": "la confusion ou le trouble de mémoire",
+  "symptoms": "les symptômes",
+  "Chest pressure, tightness, or pain is happening now or getting worse.": "Une pression, une oppression ou une douleur thoracique est présente maintenant ou s’aggrave.",
+  "Breathing trouble, sweating, faintness, nausea, or spreading pain appears.": "Une difficulté à respirer, des sueurs, un malaise, des nausées ou une douleur qui s’étend apparaissent.",
+  "Pulse feels very fast, irregular, or very slow.": "Le pouls paraît très rapide, irrégulier ou très lent.",
+  "Breathing becomes difficult at rest.": "La respiration devient difficile au repos.",
+  "Blue lips, confusion, fainting, or chest pressure appears.": "Des lèvres bleutées, une confusion, un évanouissement ou une pression thoracique apparaissent.",
+  "Oxygen is lower than usual, if you measure it.": "Le taux d’oxygène est plus bas que d’habitude, si vous le mesurez.",
+  "Confusion, extreme sleepiness, stiff neck, or new rash appears.": "Une confusion, une somnolence extrême, une raideur de la nuque ou une nouvelle éruption apparaissent.",
+  "Fever stays high or you feel suddenly much worse.": "La fièvre reste élevée ou vous vous sentez soudainement beaucoup plus mal.",
+  "You cannot drink, pass very little urine, or feel very weak.": "Vous ne pouvez pas boire, urinez très peu ou vous sentez très faible.",
+  "You faint or nearly faint.": "Vous vous évanouissez ou manquez de vous évanouir.",
+  "Weakness on one side, speech trouble, chest pain, or breathing trouble appears.": "Une faiblesse d’un côté, un trouble de la parole, une douleur thoracique ou une difficulté à respirer apparaissent.",
+  "Dizziness gets worse when standing or you cannot walk safely.": "Les vertiges s’aggravent en vous levant ou vous ne pouvez pas marcher sans danger.",
+  "Pain becomes sudden, severe, or very unusual for you.": "La douleur devient soudaine, intense ou très inhabituelle pour vous.",
+  "Weakness, speech trouble, vision change, confusion, or fainting appears.": "Une faiblesse, un trouble de la parole ou de la vue, une confusion ou un évanouissement apparaissent.",
+  "Pain follows a fall, head hit, or chest pressure.": "La douleur survient après une chute, un choc à la tête ou une pression thoracique.",
+  "You cannot stand, walk safely, or care for yourself.": "Vous ne pouvez pas vous tenir debout, marcher sans danger ou prendre soin de vous.",
+  "New confusion, fever, chest pain, breathing trouble, or fainting appears.": "Une nouvelle confusion, de la fièvre, une douleur thoracique, une difficulté à respirer ou un évanouissement apparaissent.",
+  "You are not drinking, pass very little urine, or feel much weaker.": "Vous ne buvez pas, urinez très peu ou vous sentez beaucoup plus faible.",
+  "Belly pain becomes severe, constant, hard, or swollen.": "La douleur abdominale devient intense ou constante, ou le ventre devient dur ou gonflé.",
+  "Vomiting blood, black stool, bloody stool, or fainting appears.": "Des vomissements de sang, des selles noires ou sanglantes, ou un évanouissement apparaissent.",
+  "You cannot keep fluids down or pass very little urine.": "Vous ne pouvez pas garder les liquides ou vous urinez très peu.",
+  "Fever, shaking chills, back/flank pain, or new confusion appears.": "De la fièvre, des frissons intenses, une douleur au dos ou sur le côté, ou une nouvelle confusion apparaissent.",
+  "You cannot pass urine or have strong lower belly pain.": "Vous ne pouvez pas uriner ou avez une forte douleur dans le bas-ventre.",
+  "Blood in urine, weakness, or feeling suddenly worse appears.": "Du sang dans les urines, une faiblesse ou une aggravation soudaine apparaissent.",
+  "Head hit, confusion, fainting, severe headache, or vomiting appears.": "Un choc à la tête, une confusion, un évanouissement, un fort mal de tête ou des vomissements apparaissent.",
+  "You cannot stand, walk, or use the injured part.": "Vous ne pouvez pas vous tenir debout, marcher ou utiliser la partie blessée.",
+  "Hip, back, chest pain, or swelling gets worse.": "La douleur à la hanche, au dos ou à la poitrine, ou le gonflement s’aggrave.",
+  "Redness, warmth, swelling, or pus spreads.": "La rougeur, la chaleur, le gonflement ou le pus s’étend.",
+  "Fever, severe pain, red streaks, or feeling very unwell appears.": "De la fièvre, une douleur intense, des traînées rouges ou un fort malaise apparaissent.",
+  "Face, lip, tongue, or throat swelling appears.": "Un gonflement du visage, des lèvres, de la langue ou de la gorge apparaît.",
+  "Confusion is sudden, worse, or you are unsafe alone.": "La confusion est soudaine, s’aggrave ou vous n’êtes pas en sécurité seul(e).",
+  "Weakness, speech trouble, face droop, fever, or fainting appears.": "Une faiblesse, un trouble de la parole, un affaissement du visage, de la fièvre ou un évanouissement apparaissent.",
+  "Urine change, dehydration, low sugar signs, or slow breathing appears.": "Un changement urinaire, une déshydratation, des signes d’hypoglycémie ou une respiration lente apparaissent.",
+  "Symptoms get worse or new symptoms appear.": "Les symptômes s’aggravent ou de nouveaux symptômes apparaissent.",
+  "You feel unsafe, confused, faint, or very weak.": "Vous ne vous sentez pas en sécurité, êtes confus(e), avez un malaise ou êtes très faible.",
+  "Breathing trouble, chest pain, or severe pain appears.": "Une difficulté à respirer, une douleur thoracique ou une douleur intense apparaît.",
+  "Blood thinner in profile: falls, head hits, unusual bleeding, or severe headache need extra caution.": "Anticoagulant dans le profil : les chutes, chocs à la tête, saignements inhabituels ou forts maux de tête demandent une vigilance accrue.",
+  "Diabetes or glucose medicine in profile: sugar changes can make weakness, dizziness, or infection feel different.": "Diabète ou traitement de la glycémie dans le profil : les variations de sucre peuvent modifier la faiblesse, les vertiges ou les signes d’infection.",
+  "Breathing or heart condition in profile: shortness of breath should be watched more closely.": "Maladie respiratoire ou cardiaque dans le profil : l’essoufflement doit être surveillé plus attentivement.",
+  "Blood pressure or stroke history in profile: weakness, speech trouble, or vision change matters more.": "Tension élevée ou antécédent d’AVC dans le profil : une faiblesse ou un trouble de la parole ou de la vue est particulièrement important.",
+  "Low immunity risk in profile: fever should be handled more cautiously.": "Risque d’immunité faible dans le profil : la fièvre demande davantage de prudence.",
+  "Low immunity risk in profile: skin or wound changes should be watched more closely.": "Risque d’immunité faible dans le profil : les changements de la peau ou d’une plaie doivent être surveillés plus attentivement.",
+  "Memory or confusion risk in profile: new confusion should be treated as important.": "Risque lié à la mémoire ou à la confusion dans le profil : toute nouvelle confusion doit être prise au sérieux.",
+  "concerning": "préoccupant",
+  "worth watching": "à surveiller",
+  "not concerning": "non préoccupant",
+  "The photo was analyzed and discarded.": "La photo a été analysée puis supprimée.",
+  "A photo cannot diagnose a urine infection.": "Une photo ne permet pas de diagnostiquer une infection urinaire.",
+  "A photo cannot diagnose bleeding or bowel disease.": "Une photo ne permet pas de diagnostiquer un saignement ou une maladie intestinale.",
+  "This assessment is for information only and is not medical advice. Always consult your doctor or call emergency services if you feel it is serious.": "Cette évaluation est fournie à titre informatif et ne constitue pas un avis médical. Consultez toujours votre médecin ou appelez les urgences si la situation vous paraît grave.",
+  "Call emergency services now": "Appelez les services d’urgence maintenant",
+  "Talk to a doctor today": "Parlez à un médecin aujourd’hui",
+  "Talk to a doctor within 24-48 hours": "Parlez à un médecin dans les 24 à 48 heures",
+  "Monitor at home, with doctor access ready": "Surveillez votre état à domicile en gardant un accès à un médecin",
+  "An optional scan found a concerning visible change that should be shared with a clinician today.": "Un scan facultatif a détecté un changement visible préoccupant à montrer à un professionnel de santé aujourd’hui.",
+  "Talk to a doctor today and share the scan note. Seek urgent help sooner if severe symptoms appear.": "Parlez à un médecin aujourd’hui et partagez la note du scan. Demandez une aide urgente plus tôt si des symptômes graves apparaissent.",
+};
+
+function frenchOutcomeText(english: string) {
+  const direct = FRENCH_OUTCOME_TEXT[english];
+  if (direct) return direct;
+
+  const emergency = english.match(/^Your answers include an emergency warning sign for (.+)\.$/);
+  if (emergency) return `Vos réponses comportent un signe d’alerte urgent concernant ${emergency[1]}.`;
+  const today = english.match(/^Your answers show (.+) should be checked today\.$/);
+  if (today) return `Vos réponses indiquent que ${today[1]} doit être évalué aujourd’hui.`;
+  const soon = english.match(/^Your answers show (.+) should be checked within 24-48 hours\.$/);
+  if (soon) return `Vos réponses indiquent que ${soon[1]} doit être évalué dans les 24 à 48 heures.`;
+  const monitor = english.match(/^Your answers fit a lower-risk (.+) pattern right now\.$/);
+  if (monitor) return `Vos réponses correspondent actuellement à une situation à faible risque concernant ${monitor[1]}.`;
+
+  const pulseForDoctor = english.match(/^Pulse from scan was (.+) bpm, so the report includes it for the doctor\.$/);
+  if (pulseForDoctor) return `Le pouls mesuré était de ${pulseForDoctor[1]} bpm ; il est inclus dans le rapport pour le médecin.`;
+  const pulse = english.match(/^Pulse from scan was (.+) bpm\.$/);
+  if (pulse) return `Le pouls mesuré était de ${pulse[1]} bpm.`;
+  const breathingForDoctor = english.match(/^Breathing rate from scan was (.+)\/min, which should be shared with a clinician\.$/);
+  if (breathingForDoctor) return `La fréquence respiratoire mesurée était de ${breathingForDoctor[1]}/min ; communiquez-la à un professionnel de santé.`;
+  const breathing = english.match(/^Breathing rate from scan was (.+)\/min\.$/);
+  if (breathing) return `La fréquence respiratoire mesurée était de ${breathing[1]}/min.`;
+  const oxygen = english.match(/^Oxygen saturation was (.+)%\.$/);
+  if (oxygen) return `La saturation en oxygène était de ${oxygen[1]} %.`;
+  const temperature = english.match(/^Temperature was (.+) C\.$/);
+  if (temperature) return `La température était de ${temperature[1]} °C.`;
+  const bloodPressure = english.match(/^Blood pressure was (.+)\/(.+)\.$/);
+  if (bloodPressure) return `La tension artérielle était de ${bloodPressure[1]}/${bloodPressure[2]}.`;
+  const glucose = english.match(/^Glucose was (.+) mg\/dL\.$/);
+  if (glucose) return `La glycémie était de ${glucose[1]} mg/dL.`;
+  const painScore = english.match(/^Pain score was (.+)\/10\.$/);
+  if (painScore) return `Le niveau de douleur était de ${painScore[1]}/10.`;
+  const symptomSeverity = english.match(/^Symptom severity was (.+)\/10\.$/);
+  if (symptomSeverity) return `L’intensité du symptôme était de ${symptomSeverity[1]}/10.`;
+  const energy = english.match(/^Energy level was (.+)\/10\.$/);
+  if (energy) return `Le niveau d’énergie était de ${energy[1]}/10.`;
+
+  return english;
+}
+
+function looksLikeEnglish(value: string) {
+  return /\b(the|you|your|call|talk|monitor|symptom|pain|breathing|doctor|today|within|warning|should|appears|worse|rest|drink|write|keep|seek|contact)\b/i.test(value);
+}
+
+function frenchFallbackReason(level: TriageRuleLevel) {
+  if (level === "emergency") return "Vos réponses comprennent un signe d’alerte qui nécessite une aide urgente.";
+  if (level === "doctor_today") return "Vos réponses indiquent qu’un avis médical est nécessaire aujourd’hui.";
+  if (level === "doctor_24_48") return "Vos réponses indiquent qu’un avis médical est recommandé dans les 24 à 48 heures.";
+  return "Aucun signe d’alerte urgent n’a été sélectionné pour le moment.";
+}
+
+function frenchFallbackRecommendations(level: TriageRuleLevel) {
+  if (level === "emergency") {
+    return [
+      "Appelez les services d’urgence maintenant si le signe d’alerte est présent.",
+      "Demandez à une personne proche de rester avec vous.",
+      "Ne conduisez pas vous-même.",
+      "Gardez ce rapport prêt à être partagé.",
+    ];
+  }
+  if (level === "doctor_today") {
+    return [
+      "Contactez votre médecin, votre clinique ou un service de soins urgents aujourd’hui.",
+      "Expliquez quand le symptôme a commencé et comment il a évolué.",
+      "Demandez une aide urgente plus tôt si un signe d’alerte apparaît.",
+      "Gardez ce rapport prêt à être partagé.",
+    ];
+  }
+  if (level === "doctor_24_48") {
+    return [
+      "Contactez votre médecin ou votre clinique dans les 24 à 48 heures si cela continue.",
+      "Utilisez ce rapport pour décrire clairement le symptôme.",
+      "Notez ce qui change, ce qui aide et ce qui aggrave la situation.",
+      "Surveillez les signes d’alerte indiqués ci-dessous.",
+    ];
+  }
+  return [
+    "Reposez-vous et gardez vos habitudes normales dans la mesure où cela reste sûr.",
+    "Notez quand le symptôme a commencé et ce qui l’améliore ou l’aggrave.",
+    "Appelez un médecin si cela continue, s’aggrave ou vous paraît inhabituel.",
+    "Surveillez les signes d’alerte indiqués ci-dessous.",
+  ];
+}
+
 function text(locale: string, english: string, spanish: string) {
+  if (isFrenchLocale(locale)) return frenchOutcomeText(english);
   return isSpanishLocale(locale) ? spanish : english;
 }
 
@@ -179,6 +338,20 @@ function hasKind(wizard: TriageWizardContext | undefined, kind: string) {
   return selectedAnswers(wizard).some((answer) => answer.kind === kind);
 }
 
+function selectedSeverityScore(wizard: TriageWizardContext | undefined) {
+  const answer = selectedAnswers(wizard).find((item) => item.kind === "severity");
+  if (!answer) return null;
+  const labelScore = Number(answer.label);
+  if (Number.isFinite(labelScore) && labelScore >= 0 && labelScore <= 10) return labelScore;
+  const idScore = Number(answer.id.match(/^severity_(\d{1,2})$/)?.[1]);
+  return Number.isFinite(idScore) && idScore >= 0 && idScore <= 10 ? idScore : null;
+}
+
+function hasStrongSeverity(wizard: TriageWizardContext | undefined) {
+  return selectedAnswers(wizard).some((answer) => answer.id === "strong")
+    || (selectedSeverityScore(wizard) ?? -1) >= 7;
+}
+
 export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory) {
   const answers = selectedAnswers(wizard);
   if (!answers.some((answer) => answer.kind === "red_flag")) return false;
@@ -186,18 +359,19 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
   const symptomId = selectedSymptomId(wizard);
   const risks = profileRiskFlags(healthMemory);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+  const strongSeverity = hasStrongSeverity(wizard);
 
   if (hasCriticalRedFlag) return true;
 
   if (symptomId === "breathing") {
-    if (ids.has("strong")) return true;
+    if (strongSeverity) return true;
     if (ids.has("walking_only") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
     if (ids.has("no_red_flag") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "pain") {
     if (ids.has("after_fall") && hasKind(wizard, "severity")) return true;
-    if (ids.has("strong") && ids.has("worse")) return true;
+    if (strongSeverity && ids.has("worse")) return true;
     if (hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
@@ -206,25 +380,25 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
   }
 
   if (symptomId === "dizzy") {
-    if ((ids.has("strong") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if ((strongSeverity || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "fever") {
     if ((risks.immunosuppressed || risks.cancerActive || risks.steroidMedication) && hasKind(wizard, "duration")) return true;
-    if ((ids.has("strong") || ids.has("week_plus") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if ((strongSeverity || ids.has("week_plus") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "tired") {
-    if ((ids.has("not_drinking") || ids.has("strong") || ids.has("worse")) && hasKind(wizard, "severity")) return true;
+    if ((ids.has("not_drinking") || strongSeverity || ids.has("worse")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
   if (symptomId === "stomach") {
     if ((ids.has("not_drinking") || ids.has("fever_or_severe_pain") || ids.has("diabetes_vomiting")) && hasKind(wizard, "severity")) return true;
     if (ids.has("vomit_diarrhea_24h") || ids.has("constipation_passing_gas")) return true;
-    if ((ids.has("strong") || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
+    if ((strongSeverity || ids.has("worse") || ids.has("new_symptoms")) && hasKind(wizard, "severity")) return true;
     if (hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend")) return true;
   }
 
@@ -254,75 +428,20 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
   return hasKind(wizard, "duration") && hasKind(wizard, "severity") && hasKind(wizard, "trend");
 }
 
-export function nextAdaptiveStage(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory): WizardStage {
+export function nextAdaptiveStage(wizard: TriageWizardContext | undefined, _healthMemory?: TriageHealthMemory): WizardStage {
   const answers = selectedAnswers(wizard);
   if (wizard?.refineRequested) return "complete";
   if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
-  if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
-  if (shouldCompleteFromRules(wizard, healthMemory)) return "complete";
-
-  const ids = new Set(answers.map((answer) => answer.id));
   const symptomId = selectedSymptomId(wizard);
-
-  if (symptomId === "breathing") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "pain") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if ((ids.has("after_fall") || ids.has("strong")) && !hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-    if (!hasKind(wizard, "trend")) return "trend";
-  }
-
-  if (symptomId === "chest") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "dizzy") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "fever") {
-    if (!hasKind(wizard, "duration")) return "duration";
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-  }
-
-  if (symptomId === "tired") {
-    if ((ids.has("not_drinking") || ids.has("new_severe")) && !hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "duration")) return "duration";
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-  }
-
-  if (symptomId === "fall") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (symptomId === "confusion") {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
-  if (["stomach", "urinary", "skin", "other"].includes(symptomId ?? "")) {
-    if (!hasKind(wizard, "severity")) return "severity";
-    if (!hasKind(wizard, "trend")) return "trend";
-    if (!hasKind(wizard, "duration")) return "duration";
-  }
-
+  if (symptomId === "pain" && !answers.some((answer) => answer.kind === "location")) return "location";
+  if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
+  // The canonical presentation flow is intentionally consistent for every
+  // non-emergency symptom. Outcome rules still determine urgency, but they
+  // must not skip information-gathering or the user's final review.
   if (!hasKind(wizard, "severity")) return "severity";
   if (!hasKind(wizard, "duration")) return "duration";
   if (!hasKind(wizard, "trend")) return "trend";
+  if (!hasKind(wizard, "support")) return "support";
   return "complete";
 }
 
@@ -476,6 +595,7 @@ export function vitalsNotesFor(locale: string, wizard: TriageWizardContext | und
   const diastolicBp = wizard?.vitals?.diastolicBp;
   const glucoseMgdl = wizard?.vitals?.glucoseMgdl;
   const painScore = wizard?.vitals?.painScore;
+  const symptomSeverity = selectedSeverityScore(wizard);
   const energyLevel = wizard?.vitals?.energyLevel;
   const notes: string[] = [];
   if (typeof bpm === "number" && (bpm >= 110 || bpm <= 50)) {
@@ -502,6 +622,8 @@ export function vitalsNotesFor(locale: string, wizard: TriageWizardContext | und
   }
   if (typeof painScore === "number") {
     notes.push(text(locale, `Pain score was ${painScore}/10.`, `El dolor fue ${painScore}/10.`));
+  } else if (typeof symptomSeverity === "number") {
+    notes.push(text(locale, `Symptom severity was ${symptomSeverity}/10.`, `La intensidad del sintoma fue ${symptomSeverity}/10.`));
   }
   if (typeof energyLevel === "number") {
     notes.push(text(locale, `Energy level was ${energyLevel}/10.`, `La energia fue ${energyLevel}/10.`));
@@ -631,6 +753,7 @@ export function nextStepFor(
   const answers = selectedAnswers(wizard);
   const ids = new Set(answers.map((answer) => answer.id));
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
+  const strongSeverity = hasStrongSeverity(wizard);
 
   if (hasCriticalRedFlag) {
     return {
@@ -638,13 +761,13 @@ export function nextStepFor(
       nextStepLabel: text(locale, "Call emergency services now", "Llama a emergencias ahora"),
     };
   }
-  if (summary.urgency === "urgent" || (ids.has("strong") && ids.has("worse")) || ids.has("new_symptoms")) {
+  if (summary.urgency === "urgent" || (strongSeverity && ids.has("worse")) || ids.has("new_symptoms")) {
     return {
       nextStepLevel: "doctor_today",
       nextStepLabel: text(locale, "Talk to a doctor today", "Habla con un médico hoy"),
     };
   }
-  if (summary.urgency === "routine" || ids.has("strong") || ids.has("worse")) {
+  if (summary.urgency === "routine" || strongSeverity || ids.has("worse")) {
     return {
       nextStepLevel: "doctor_24_48",
       nextStepLabel: text(locale, "Talk to a doctor within 24-48 hours", "Habla con un médico en 24-48 horas"),
@@ -711,13 +834,14 @@ export function evaluateTriageSafetyFloor(
   const symptom = selectedSymptomId(wizard);
   const hasCriticalRedFlag = answers.some((answer) => CRITICAL_RED_FLAG_IDS.has(answer.id));
   const risks = profileRiskFlags(healthMemory);
-  const bpm = wizard?.vitals?.bpm ?? undefined;
-  const respiratoryRate = wizard?.vitals?.respiratoryRate ?? undefined;
+  const eligibleVital = (key: keyof NonNullable<TriageWizardContext["vitals"]>) => wizard?.vitalsEvidence?.[key]?.affectsTriage !== false;
+  const bpm = eligibleVital("bpm") ? wizard?.vitals?.bpm ?? undefined : undefined;
+  const respiratoryRate = eligibleVital("respiratoryRate") ? wizard?.vitals?.respiratoryRate ?? undefined : undefined;
   const abnormalPulse = typeof bpm === "number" && (bpm >= 110 || bpm <= 50);
   const abnormalBreathingRate = typeof respiratoryRate === "number" && (respiratoryRate >= 24 || respiratoryRate <= 10);
   const scanResults = wizard?.scanResults ?? [];
   const scanNotes = scanNotesFor(locale, wizard);
-  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent");
+  const urgentScans = scanResults.filter((scan) => scan.concernLevel === "urgent" && scan.type !== "vitals");
   const urgentScanReason = urgentScans.length
     ? text(locale, "An optional scan found a concerning visible change that should be shared with a clinician today.", "Un escaneo opcional encontro un cambio visible preocupante que conviene compartir hoy con un clinico.")
     : "";
@@ -734,12 +858,12 @@ export function evaluateTriageSafetyFloor(
     abnormalBreathingRate,
     pulseBpm: bpm,
     respiratoryRate,
-    oxygenSaturation: wizard?.vitals?.oxygenSaturation ?? undefined,
-    temperatureC: wizard?.vitals?.temperatureC ?? undefined,
-    systolicBp: wizard?.vitals?.systolicBp ?? undefined,
-    diastolicBp: wizard?.vitals?.diastolicBp ?? undefined,
-    glucoseMgdl: wizard?.vitals?.glucoseMgdl ?? undefined,
-    painScore: wizard?.vitals?.painScore ?? undefined,
+    oxygenSaturation: eligibleVital("oxygenSaturation") ? wizard?.vitals?.oxygenSaturation ?? undefined : undefined,
+    temperatureC: eligibleVital("temperatureC") ? wizard?.vitals?.temperatureC ?? undefined : undefined,
+    systolicBp: eligibleVital("systolicBp") ? wizard?.vitals?.systolicBp ?? undefined : undefined,
+    diastolicBp: eligibleVital("diastolicBp") ? wizard?.vitals?.diastolicBp ?? undefined : undefined,
+    glucoseMgdl: eligibleVital("glucoseMgdl") ? wizard?.vitals?.glucoseMgdl ?? undefined : undefined,
+    painScore: wizard?.vitals?.painScore ?? selectedSeverityScore(wizard) ?? undefined,
     energyLevel: wizard?.vitals?.energyLevel ?? undefined,
   });
   const baseSummary = {
@@ -786,6 +910,31 @@ export function evaluateTriageSafetyFloor(
     ...baseSummary,
     ...nextStep,
   };
+
+  if (isFrenchLocale(locale)) {
+    finalSummary.nextStepLabel = frenchOutcomeText(finalSummary.nextStepLabel ?? "");
+    const localizedReasons = (finalSummary.triageReasons ?? []).map(frenchOutcomeText);
+    const localizedRecommendations = (finalSummary.recommendations ?? []).map(frenchOutcomeText);
+    const localizedWatchSigns = (finalSummary.watchSigns ?? []).map(frenchOutcomeText);
+    const localizedProfileConsiderations = (finalSummary.profileConsiderations ?? []).map(frenchOutcomeText);
+    const localizedVitalsNotes = (finalSummary.vitalsNotes ?? []).map(frenchOutcomeText);
+    const localizedScanNotes = (finalSummary.scanNotes ?? []).map(frenchOutcomeText);
+
+    finalSummary.triageReasons = localizedReasons.some(looksLikeEnglish)
+      ? [frenchFallbackReason(finalSummary.nextStepLevel ?? "monitor")]
+      : localizedReasons;
+    finalSummary.recommendations = localizedRecommendations.some(looksLikeEnglish)
+      ? frenchFallbackRecommendations(finalSummary.nextStepLevel ?? "monitor")
+      : localizedRecommendations;
+    finalSummary.watchSigns = localizedWatchSigns.some(looksLikeEnglish)
+      ? watchSignsFor(locale, symptom)
+      : localizedWatchSigns;
+    finalSummary.profileConsiderations = localizedProfileConsiderations.some(looksLikeEnglish)
+      ? profileConsiderationsFor(locale, risks, symptom)
+      : localizedProfileConsiderations;
+    finalSummary.vitalsNotes = localizedVitalsNotes.filter((note) => !looksLikeEnglish(note));
+    finalSummary.scanNotes = localizedScanNotes.filter((note) => !looksLikeEnglish(note));
+  }
 
   return {
     summary: finalSummary,

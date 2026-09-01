@@ -46,6 +46,34 @@ describe("Home admin message adapter", () => {
     expect(adaptHeroMessageForHome(managedHomeMessage({ surface: "health" }))).toBeNull();
   });
 
+  it("adapts elder Welcome Hero messages into the Home message slot", () => {
+    expect(adaptHeroMessageForHome(managedHomeMessage({
+      headline: "Add your doctor",
+      subtitle: "Prepare safer health conversations.",
+      ctaLabel: "Add doctor",
+      actionId: undefined,
+      actionRoute: "/onboarding/profile/gp",
+      messageId: "elder-nudge-gp_details",
+      source: "built_in",
+      messageType: "welcome_profile_nudge",
+      welcomeAudience: "elder",
+      welcomeMomentType: "daily_profile_nudge",
+      welcomeProfileAction: "gp_details",
+      priority: 90,
+    }))).toMatchObject({
+      id: "hero:elder-nudge-gp_details",
+      kind: "feature",
+      actionRoute: "/onboarding/profile/gp",
+      category: "health",
+      source: "built_in",
+      actionState: {
+        source: "home_welcome_hero_message",
+        heroMessageId: "elder-nudge-gp_details",
+        welcomeProfileAction: "gp_details",
+      },
+    });
+  });
+
   it("resolves only approved Home destinations", () => {
     expect(resolveHomeAdminActionRoute("health")).toBe("/health");
     expect(resolveHomeAdminActionRoute("medication")).toBe("/meds");
@@ -58,7 +86,10 @@ describe("Home admin message adapter", () => {
     expect(adaptHeroMessageForHome(managedHomeMessage({ actionId: "none" }))).toMatchObject({
       actionLabel: undefined,
       actionRoute: undefined,
-      actionState: undefined,
+      actionState: {
+        source: "home_admin_message",
+        heroMessageId: "home-activity",
+      },
     });
   });
 });

@@ -6,7 +6,9 @@ import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdh
 import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
 import { unitForSignal, type VitalsSignalKey } from "../../shared/vitalsSignalCatalog.js";
 import type { TriageScanResult } from "../../shared/triageScans.js";
+import { resolveTriageHandoffAuthorization } from "../../shared/triageHandoffConsent.js";
 import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
+import { triggerPreventionPlanRefresh } from "./healthInsightsReport.js";
 import { z } from "zod";
 
 const DEMO_USER_ID = "demo-user";
@@ -161,6 +163,17 @@ export async function saveTriageReport(params: {
     respiratory_rate: params.respiratory_rate ?? null,
     duration_seconds: params.duration_seconds ?? null,
   }).returning();
+  if (params.urgency !== "monitor") {
+    void triggerPreventionPlanRefresh({
+      userId: params.userId,
+      triggerType: "symptom_logged",
+      triggerData: {
+        urgency: params.urgency,
+        symptom_description: params.chief_complaint,
+        triage_report_id: row.id,
+      },
+    }).catch((err) => console.error("[reports prevention refresh]", err));
+  }
   return row;
 }
 
@@ -177,7 +190,17 @@ export async function recordTriageReportHandoff(params: {
   chief_complaint: string;
   urgency: "urgent" | "routine" | "monitor";
   recommendations: string[];
+  shareWithSavedContacts?: boolean;
+  requestStaffReview?: boolean;
 }): Promise<{ sentTo: string[]; caregiverEscalationTriggered: boolean; staffReviewRequested: boolean }> {
+  const { shareWithSavedContacts, staffReviewRequested } = resolveTriageHandoffAuthorization(params);
+
+  // Saving a symptom report must remain private by default. Contact sharing and
+  // staff review are separate, confirmation-gated actions.
+  if (!shareWithSavedContacts && !staffReviewRequested) {
+    return { sentTo: [], caregiverEscalationTriggered: false, staffReviewRequested: false };
+  }
+
   const [profile] = await db
     .select({
       caregiver_name: profiles.caregiver_name,
@@ -190,11 +213,12 @@ export async function recordTriageReportHandoff(params: {
     .where(eq(profiles.id, params.userId))
     .limit(1);
 
-  const sentTo = [
-    profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
-    profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
-  ].filter(Boolean);
-  const staffReviewRequested = params.urgency === "urgent";
+  const sentTo = shareWithSavedContacts
+    ? [
+        profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
+        profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
+      ].filter(Boolean)
+    : [];
 
   if (sentTo.length > 0) {
     await db.insert(caregiverAlerts).values({
@@ -225,7 +249,7 @@ export async function recordTriageReportHandoff(params: {
 
   return {
     sentTo,
-    caregiverEscalationTriggered: Boolean(profile?.caregiver_name || profile?.caregiver_contact),
+    caregiverEscalationTriggered: shareWithSavedContacts && Boolean(profile?.caregiver_name || profile?.caregiver_contact),
     staffReviewRequested,
   };
 }

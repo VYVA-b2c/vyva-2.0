@@ -10,6 +10,20 @@ Voice should behave like a continuous layer over the app:
 - High-risk or external actions require explicit confirmation before any call, booking, contact, purchase, or order is made.
 - Health flows open the real task screen and should not show internal "Done" action panels.
 
+## Home Voice Presentation Lock
+
+Home voice mode is the calm default. It may show only the VYVA mark, one compact utility dock, the greeting, one short supporting message when useful, the shared Zamora voice orb, and the bottom navigation/SOS affordance.
+
+Cards, quick actions, chips, and broad choice grids belong in touch mode. Voice mode can remember the selected pillar or subflow, but should not reveal broad cards until the user switches to touch mode.
+
+The utility dock is one visual block. It owns settings, text size, theme, and the interaction-mode switch. The mode switch must use the same compact button language as the other utility controls.
+
+The orb is the assistant presence. Idle, listening, and speaking states must use the same `ZamoraVoiceOrb` surface. Listening and speaking may animate with mic or speech energy, but must not swap to a waveform badge, separate audio icon, eye, mouth, or decorative alternate.
+
+Allowed voice-mode exceptions are exact active flow canvases that need confirmation/status, SOS or emergency escalation, auth/connectivity recovery, and short temporary first-use hints that do not add chips or a card grid.
+
+Regression coverage should keep proving that voice mode renders greeting plus orb, touch mode reveals cards, broad voice intents stay hidden until touch mode, exact active flow canvases remain the normal exception, the utility dock keeps one compact control group, and active voice keeps using `ZamoraVoiceOrb`.
+
 ## Priority Journeys
 
 | Priority | User says | Intent | Agent | Route | Required context | Confirmation |

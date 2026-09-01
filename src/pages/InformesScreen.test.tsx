@@ -289,9 +289,8 @@ describe("Informes report detail actions", () => {
 
     fireEvent.click(screen.getByTestId("button-reports-meds-refill"));
 
-    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping"));
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"pharmacy_basics\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("1 of 3");
+    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/meds/refills"));
+    expect(screen.getByTestId("route-state")).toHaveTextContent("{}");
   });
 
   it("renders direct GP call and email actions for saved recommendations", async () => {

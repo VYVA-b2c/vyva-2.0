@@ -1,6 +1,15 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AssessmentConfidenceTracker, IntroScreen } from "./SymptomCheckScreen";
+import {
+  AssessmentConfidenceTracker,
+  IntroScreen,
+  SymptomWarningSignsPreviewScreen,
+  VoiceTriageLivePanel,
+  symptomAssessmentStageForRuntime,
+  symptomCheckHealthReturnPath,
+} from "./SymptomCheckScreen";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 
 const { apiFetchMock } = vi.hoisted(() => ({
@@ -11,7 +20,77 @@ vi.mock("@/lib/queryClient", () => ({
   apiFetch: apiFetchMock,
   queryClient: {
     invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
   },
+}));
+
+vi.mock("@/contexts/ProfileContext", () => ({
+  useProfile: () => ({ isLoading: false }),
+}));
+
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({
+    language: "en",
+    t: (_key: string, fallback: string) => fallback,
+  }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+vi.mock("@/hooks/useHomeFastHelpOutcome", () => ({
+  useHomeFastHelpOutcome: () => ({
+    markCompleted: vi.fn(),
+    markAbandoned: vi.fn(),
+    markBlocked: vi.fn(),
+  }),
+}));
+
+vi.mock("@/components/TriageChat", () => ({
+  default: ({
+    onStageChange,
+    onComplete,
+  }: {
+    onStageChange?: (stage: string, urgent?: boolean) => void;
+    onComplete: (summary: Record<string, unknown>) => void;
+  }) => (
+    <div data-testid="mock-triage-runtime">
+      {[
+        ["red_flag", false],
+        ["red_flag", true],
+        ["symptom", false],
+        ["severity", false],
+        ["duration", false],
+        ["trend", false],
+        ["support", false],
+        ["checking", false],
+        ["complete", false],
+      ].map(([stage, urgent]) => (
+        <button
+          key={`${stage}-${urgent}`}
+          type="button"
+          data-testid={`runtime-${stage}-${urgent ? "urgent" : "normal"}`}
+          onClick={() => onStageChange?.(String(stage), Boolean(urgent))}
+        >
+          {String(stage)}
+        </button>
+      ))}
+      <button
+        type="button"
+        data-testid="runtime-finish"
+        onClick={() => onComplete({
+          chiefComplaint: "Headache",
+          symptoms: ["headache"],
+          urgency: "monitor",
+          recommendations: ["Rest and monitor"],
+          disclaimer: "Not a diagnosis",
+        })}
+      >
+        finish
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -25,6 +104,45 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 describe("SymptomCheck intro chips", () => {
+  it("returns report completion to the matching My Health route", () => {
+    expect(symptomCheckHealthReturnPath("/dev/home-master/ask-dr-ai")).toBe("/dev/home-master/health");
+    expect(symptomCheckHealthReturnPath("/health/symptom-check")).toBe("/health");
+  });
+
+  it("presents warning signs as readable single-column choices without a false selected state", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SymptomWarningSignsPreviewScreen />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Ask Dr. AI" })).toBeInTheDocument();
+    expect(screen.getByTestId("voice-triage-choice-grid-safety_check")).toHaveClass("grid-cols-1");
+
+    const warningChoice = screen.getByTestId("voice-triage-choice-one_sided_weakness");
+    expect(warningChoice).toHaveClass("symptom-canonical-choice", "w-full", "rounded-[18px]", "bg-[#3A242E]", "text-left");
+    expect(warningChoice).toHaveAttribute("data-safety-tone", "warning");
+    expect(warningChoice).not.toHaveClass("bg-[#7024C4]");
+
+    const noWarningChoice = screen.getByTestId("voice-triage-choice-no_red_flag");
+    expect(noWarningChoice).toHaveTextContent("No, none of these");
+    expect(noWarningChoice).toHaveAttribute("data-safety-tone", "clear");
+  });
+
+  it("maps the live triage runtime onto symptom-assessment presentation stages", () => {
+    expect(symptomAssessmentStageForRuntime(undefined)).toBe("describe");
+    expect(symptomAssessmentStageForRuntime("red_flag")).toBe("safety_check");
+    expect(symptomAssessmentStageForRuntime("red_flag", true)).toBe("urgent_escalation");
+    expect(symptomAssessmentStageForRuntime("symptom")).toBe("symptom_selection");
+    expect(symptomAssessmentStageForRuntime("location")).toBe("symptom_selection");
+    expect(symptomAssessmentStageForRuntime("severity")).toBe("severity");
+    expect(symptomAssessmentStageForRuntime("duration")).toBe("onset");
+    expect(symptomAssessmentStageForRuntime("trend")).toBe("related_details");
+    expect(symptomAssessmentStageForRuntime("support")).toBe("review");
+    expect(symptomAssessmentStageForRuntime("checking")).toBe("checking");
+    expect(symptomAssessmentStageForRuntime("complete")).toBe("safest_next_step");
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     apiFetchMock.mockReset();
@@ -60,6 +178,63 @@ describe("SymptomCheck intro chips", () => {
     },
   ];
 
+  it("exposes all 11 ordered runtime presentation identities on the real screen", async () => {
+    const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");
+    apiFetchMock.mockImplementation(async (url: string) => {
+      if (url === "/api/reports/triage") {
+        return { ok: true, json: async () => ({ id: "report-11" }) };
+      }
+      if (url === "/api/symptoms/log") return { ok: true, json: async () => ({}) };
+      return { ok: true, json: async () => ({}) };
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, queryFn: async () => ({}) },
+      },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/health/symptoms"]}>
+          <SymptomCheckScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const shell = screen.getByTestId("symptom-check-shell");
+    const expectStage = (stageId: string) => {
+      expect(shell).toHaveAttribute("data-flow-id", "health.symptom_assessment");
+      expect(shell).toHaveAttribute("data-stage-id", stageId);
+      expect(shell).toHaveAttribute("data-voice-presentation-id", `health.symptom_assessment.${stageId}.voice`);
+      expect(shell).toHaveAttribute("data-touch-presentation-id", `health.symptom_assessment.${stageId}.touch`);
+    };
+
+    expectStage("describe");
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    fireEvent.click(screen.getByTestId("button-symptom-example-0"));
+
+    await screen.findByTestId("mock-triage-runtime");
+    fireEvent.click(screen.getByTestId("runtime-red_flag-normal"));
+    expectStage("safety_check");
+    fireEvent.click(screen.getByTestId("runtime-red_flag-urgent"));
+    expectStage("urgent_escalation");
+    fireEvent.click(screen.getByTestId("runtime-symptom-normal"));
+    expectStage("symptom_selection");
+    fireEvent.click(screen.getByTestId("runtime-severity-normal"));
+    expectStage("severity");
+    fireEvent.click(screen.getByTestId("runtime-duration-normal"));
+    expectStage("onset");
+    fireEvent.click(screen.getByTestId("runtime-trend-normal"));
+    expectStage("related_details");
+    fireEvent.click(screen.getByTestId("runtime-support-normal"));
+    expectStage("review");
+    fireEvent.click(screen.getByTestId("runtime-checking-normal"));
+    expectStage("checking");
+    fireEvent.click(screen.getByTestId("runtime-complete-normal"));
+    expectStage("safest_next_step");
+    fireEvent.click(screen.getByTestId("runtime-finish"));
+    await waitFor(() => expectStage("save_share_summary"));
+  });
+
   it("shows a dynamic confidence tracker instead of a plain progress bar", () => {
     const { rerender } = render(<AssessmentConfidenceTracker current="chat" variant="compact" />);
 
@@ -82,11 +257,18 @@ describe("SymptomCheck intro chips", () => {
   it("renders one senior-friendly start panel", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
-    expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("If this feels urgent, do not wait");
-    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
-    expect(screen.getByPlaceholderText("Type what changed...")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
-    expect(screen.getByText("How VYVA helps")).toBeVisible();
+    expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("Do not wait in an emergency");
+    expect(screen.queryByRole("button", { name: "Help me decide" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Choose what feels different");
+    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("What feels different today?");
+    expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-symptom-check-start")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Type your symptoms" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "More examples" })).toBeVisible();
+    expect(screen.queryByTestId("symptom-example-group-label")).not.toBeInTheDocument();
+    expect(screen.queryByText("Choose the closest option.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Examples")).not.toBeInTheDocument();
+    expect(screen.queryByText("How VYVA helps")).not.toBeInTheDocument();
     expect(screen.queryByTestId("symptom-check-one-question-note")).not.toBeInTheDocument();
     expect(screen.queryByText("One question at a time")).not.toBeInTheDocument();
     expect(screen.queryByText("Profile tuned")).not.toBeInTheDocument();
@@ -95,29 +277,174 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
   });
 
+  it("uses semantic VYVA library accents for the symptom entry icons", () => {
+    render(<IntroScreen onStart={vi.fn()} personalizedSuggestions={[]} />);
+
+    expect(screen.getByRole("button", { name: /Breathing feels different/i })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "signal");
+    expect(screen.getByRole("button", { name: /Pain or headache/i })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "pulse");
+    expect(screen.getByRole("button", { name: /Dizzy or weak/i })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "pulse");
+    expect(screen.getByRole("button", { name: "Type your symptoms" })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "knobs");
+    expect(screen.getByRole("button", { name: "More examples" })
+      .querySelector("[data-vyva-accent]"))
+      .toHaveAttribute("data-vyva-accent", "spark");
+  });
+
   it("dismisses the emergency modal before the symptom check", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "I understand, continue to symptom check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
 
     expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
-    expect(screen.getByTestId("input-symptom-clue")).toBeVisible();
+    expect(screen.getByTestId("symptom-check-example-chips")).toBeVisible();
+    expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
   });
 
-  it("uses a single voice entry point when Talk to VYVA is available", () => {
-    render(<IntroScreen onStart={vi.fn()} onTalkToVyva={vi.fn()} />);
+  it("keeps the emergency acknowledgement when the intro remounts for voice mode", () => {
+    const onEmergencyModalDismiss = vi.fn();
+    const { rerender } = render(
+      <IntroScreen
+        key="touch"
+        onStart={vi.fn()}
+        showEmergencyModal
+        onEmergencyModalDismiss={onEmergencyModalDismiss}
+      />,
+    );
 
-    expect(screen.getByTestId("button-symptom-check-talk-to-vyva")).toHaveTextContent("Talk to VYVA");
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    expect(onEmergencyModalDismiss).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <IntroScreen
+        key="voice"
+        onStart={vi.fn()}
+        showEmergencyModal={false}
+        onEmergencyModalDismiss={onEmergencyModalDismiss}
+      />,
+    );
+
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
+  it("does not show the emergency modal again when Ask Dr. AI switches to voice", async () => {
+    const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    apiFetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ enabled: true, mode: "active" }),
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, queryFn: async () => ({}) },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/health/symptom-check?fresh=1"]}>
+          <SymptomCheckScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Ask Dr. AI" }));
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to voice mode" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to touch mode" })).toBeInTheDocument());
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+  });
+
+  it("keeps the canonical symptom choices instead of showing the legacy voice describe panel", () => {
+    const onAnswer = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-describe",
+            status: "active",
+            latest_response: {
+              ok: true,
+              status: "active",
+              spoken_text: "Tell VYVA what has changed today.",
+              question: { stage: "start", text: "Tell VYVA what has changed today.", choices: [] },
+            },
+          }}
+          stageId="describe"
+          modality="voice"
+          onAnswer={onAnswer}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-check-intro")).toBeVisible();
+    expect(screen.getByText("What feels different today?")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Breathing feels different/i })).toBeEnabled();
+    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Breathing feels different/i }));
+    expect(onAnswer).toHaveBeenCalledWith({ utterance: "Breathing feels different" });
+  });
+
+  it("shows the canonical answer summary on the voice review screen", () => {
+    render(
+      <MemoryRouter>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-review",
+            status: "active",
+            latest_response: {
+              ok: true,
+              status: "active",
+              spoken_text: "Does this look right?",
+              question: {
+                stage: "support",
+                text: "Does this look right?",
+                reason: "Review before guidance.",
+                choices: [
+                  { id: "edit_answers", spoken_label: "Edit", value: "Edit my answers." },
+                  { id: "confirm_review", spoken_label: "Yes, show my guidance", value: "Show my guidance." },
+                ],
+              },
+              review_answers: [
+                { id: "breathing", label: "Breathing feels different", value: "Breathing feels different", kind: "symptom" },
+                { id: "severity_5", label: "5", value: "5 out of 10", kind: "severity" },
+                { id: "few_days", label: "Few days", value: "It started a few days ago", kind: "duration" },
+                { id: "mild_improving", label: "Mild and improving", value: "It is mild and improving", kind: "trend" },
+              ],
+            },
+          }}
+          stageId="review"
+          modality="voice"
+          onAnswer={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Breathing feels different");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("5 / 10");
+    expect(screen.getByTestId("symptom-scene-review")).toHaveTextContent("Few days");
+    expect(screen.queryByPlaceholderText("Or type your answer...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Why VYVA is asking this")).not.toBeInTheDocument();
+  });
+
+  it("leaves the single voice entry point to the shared Home header", () => {
+    const onTalkToVyva = vi.fn();
+    render(<IntroScreen onStart={vi.fn()} onTalkToVyva={onTalkToVyva} />);
+
+    expect(screen.queryByRole("button", { name: "Use Voice mode" })).not.toBeInTheDocument();
+    expect(onTalkToVyva).not.toHaveBeenCalled();
     expect(screen.queryByTestId("button-symptom-clue-voice")).not.toBeInTheDocument();
-  });
-
-  it("starts a guided check when the emergency uncertainty action is used", () => {
-    const onStart = vi.fn();
-    render(<IntroScreen onStart={onStart} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Help me decide" }));
-
-    expect(onStart).toHaveBeenCalledWith("I am not sure if this is urgent");
   });
 
   it("shows profile-aware examples and keeps extra ideas collapsed", () => {
@@ -130,10 +457,12 @@ describe("SymptomCheck intro chips", () => {
     );
 
     expect(screen.getByRole("button", { name: /Chest pressure or tightness/i })).toBeVisible();
-    expect(screen.getByText("More ideas")).toBeVisible();
+    expect(screen.queryByTestId("symptom-example-group-label")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Based on profile").length).toBeGreaterThan(0);
+    expect(screen.getByText("More symptoms")).toBeVisible();
     expect(screen.getByRole("button", { name: /Blood pressure check/i })).not.toBeVisible();
 
-    fireEvent.click(screen.getByText("More ideas"));
+    fireEvent.click(screen.getByText("More symptoms"));
 
     expect(screen.getByRole("button", { name: /Blood pressure check/i })).toBeVisible();
     expect(screen.getByText("Profile tuned")).toBeVisible();
@@ -141,18 +470,31 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByText("3430")).not.toBeInTheDocument();
   });
 
-  it("fills the symptom input from a concern chip and keeps Continue explicit", () => {
+  it("starts immediately from a suggested concern", () => {
     const onStart = vi.fn();
     render(<IntroScreen onStart={onStart} personalizedSuggestions={profileSuggestions} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Chest pressure or tightness/i }));
 
-    expect(screen.getByTestId("input-symptom-clue")).toHaveValue("Chest pressure or tightness");
-    expect(onStart).not.toHaveBeenCalled();
+    expect(onStart).toHaveBeenCalledWith("Chest pressure or tightness");
+  });
 
+  it("opens a dedicated full-page writing surface when the user prefers to type", () => {
+    const onStart = vi.fn();
+    render(<IntroScreen onStart={onStart} />);
+
+    expect(screen.queryByTestId("input-symptom-clue")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Type your symptoms" }));
+
+    const input = screen.getByTestId("input-symptom-clue");
+    expect(input).toBeVisible();
+    expect(screen.getByTestId("symptom-custom-input")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Back to options" })).toBeVisible();
+    expect(screen.queryByTestId("symptom-check-example-chips")).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "Aching back" } });
     fireEvent.click(screen.getByRole("button", { name: "Start check" }));
 
-    expect(onStart).toHaveBeenCalledWith("Chest pressure or tightness");
+    expect(onStart).toHaveBeenCalledWith("Aching back");
   });
 
   it("fills the symptom input from the voice transcription button", async () => {
@@ -278,7 +620,7 @@ describe("SymptomCheck intro chips", () => {
     const onNavigate = vi.fn();
     render(<IntroScreen onStart={vi.fn()} onNavigate={onNavigate} personalizedSuggestions={profileSuggestions} />);
 
-    fireEvent.click(screen.getByText("More ideas"));
+    fireEvent.click(screen.getByText("More symptoms"));
     fireEvent.click(screen.getByRole("button", { name: /Blood pressure check/i }));
 
     expect(onNavigate).toHaveBeenCalledWith("/health/vitals");
@@ -290,12 +632,31 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByText("Helpful starts")).not.toBeInTheDocument();
     expect(screen.queryByText("Common concerns to start with")).not.toBeInTheDocument();
     expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
+    expect(screen.queryByTestId("symptom-example-group-label")).not.toBeInTheDocument();
+    expect(screen.queryByText("Based on profile")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Breathing feels different/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /Dizzy or weak/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /Check vitals/i })).not.toBeVisible();
 
-    fireEvent.click(screen.getByText("More ideas"));
+    fireEvent.click(screen.getByRole("button", { name: "More examples" }));
+
+    expect(screen.getByRole("button", { name: /Stomach or nausea/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Fever or chills/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Skin change or swelling/i })).toBeVisible();
+    expect(screen.getByTestId("symptom-check-example-chips")).not.toHaveTextContent("Breathing feels different");
+
+    fireEvent.click(screen.getByText("More symptoms"));
 
     expect(screen.getByRole("button", { name: /Check vitals/i })).toBeVisible();
+  });
+
+  it("starts the assessment from an expanded fallback symptom", () => {
+    const onStart = vi.fn();
+    render(<IntroScreen onStart={onStart} personalizedSuggestions={[]} />);
+
+    fireEvent.click(screen.getByText("More symptoms"));
+    fireEvent.click(screen.getByRole("button", { name: /Stomach or nausea/i }));
+
+    expect(onStart).toHaveBeenCalledWith("Stomach discomfort or nausea");
   });
 });

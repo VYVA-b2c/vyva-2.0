@@ -1,3 +1,5 @@
+import { BRAIN_COACH_MAX_LEVEL } from "./shared/brainCoachProgression";
+
 export type FaceNameRecallMode = "name_to_face" | "face_to_name";
 
 export type FaceNameRecallLogEntry = {
@@ -7,33 +9,36 @@ export type FaceNameRecallLogEntry = {
 };
 
 export function clampFaceNameTier(value: number) {
-  return Math.min(10, Math.max(1, value));
+  return Math.min(BRAIN_COACH_MAX_LEVEL, Math.max(1, value));
 }
 
 export function getFaceNameFaceCount(tier: number) {
-  if (tier >= 9) return 8;
-  if (tier >= 7) return 7;
-  if (tier >= 5) return 6;
+  if (tier >= 16) return 8;
+  if (tier >= 11) return 7;
+  if (tier >= 6) return 6;
   if (tier >= 3) return 5;
   return 4;
 }
 
 export function getFaceNameStudySeconds(tier: number) {
-  if (tier >= 9) return 25;
-  if (tier >= 7) return 30;
-  if (tier >= 5) return 35;
+  if (tier >= 18) return 22;
+  if (tier >= 14) return 25;
+  if (tier >= 10) return 30;
+  if (tier >= 6) return 35;
   if (tier >= 3) return 40;
   return 45;
 }
 
 export function getFaceNameRecallModes(tier: number): FaceNameRecallMode[] {
-  if (tier >= 9) return ["name_to_face", "face_to_name", "face_to_name"];
-  if (tier >= 5) return ["name_to_face", "face_to_name"];
+  if (tier >= 16) return ["name_to_face", "face_to_name", "face_to_name", "name_to_face"];
+  if (tier >= 11) return ["name_to_face", "face_to_name", "face_to_name"];
+  if (tier >= 6) return ["name_to_face", "face_to_name"];
   return ["name_to_face"];
 }
 
 export function getFaceNameDistractorCount(tier: number) {
-  if (tier >= 7) return 2;
+  if (tier >= 16) return 3;
+  if (tier >= 8) return 2;
   if (tier >= 3) return 1;
   return 0;
 }

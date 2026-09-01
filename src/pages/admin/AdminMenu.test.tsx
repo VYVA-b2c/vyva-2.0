@@ -49,6 +49,13 @@ describe("AdminMenu", () => {
     expect(workflowLink).toHaveAttribute("aria-current", "page");
   });
 
+  it("links every admin page back to the module hub", () => {
+    renderMenu("/admin/marketing");
+
+    expect(screen.getByRole("link", { name: /modules.*all admin areas/i })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByRole("link", { name: /welcome module/i })).not.toBeInTheDocument();
+  });
+
   it("links admins to the unified content index and room prompts", () => {
     renderMenu("/admin/content-index");
 

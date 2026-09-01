@@ -2,13 +2,22 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Mic, MicOff, PhoneCall, UserRound, X } from "lucide-react";
+import { AlertCircle, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
 import MotivationMilestoneProvider from "./MotivationMilestoneProvider";
+import {
+  buildVoiceActionRouteState,
+  emergencyProfileContactFromState,
+  getAppShellLayout,
+  isBrainCoachAppRoute,
+  usesBrainCoachDocklessRoute,
+  type EmergencyProfileContact,
+  type OnboardingStateResponse,
+} from "./appShellUtils";
 import { useProfile } from "@/contexts/ProfileContext";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
@@ -39,104 +48,37 @@ import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import {
+  VYVA_HOME_MODE_CONTROL_ACTION_EVENT,
+  publishHomeModeControl,
+  type HomeInteractionMode,
+  type HomeModeControlActionDetail,
+  type HomeModeControlDetail,
+} from "@/lib/homeModeControl";
+import {
   VYVA_VOICE_OVERLAY_PRESENCE_EVENT,
   type VoiceOverlayPresenceDetail,
 } from "@/lib/voiceOverlayFocus";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
+import {
+  hidesHomeNavPrototypeDock,
+  isHomeNavPrototypeDockRoute,
+  isHomeNavPrototypeTopbarRoute,
+} from "@/lib/homeNavPrototypeRoutes";
 import type { VoiceCanvasViewModel } from "@/components/voice-canvas";
 import { acknowledgeCrossPillarHandoff } from "@/lib/crossPillarHandoffExecution";
 import CrossPillarHandoffRecovery from "./CrossPillarHandoffRecovery";
 
-type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
+const compactModeControlFor = (mode: HomeInteractionMode): HomeModeControlDetail => ({
+  label: mode === "voice" ? "Switch to touch" : "Switch to voice",
+  mode,
+  testId: mode === "voice" ? "button-home-mode-touch" : "button-home-mode-voice",
+  visible: true,
+});
 
-const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/", "/social-rooms/morning-movement/exercises/", "/activities/relax-breathe"];
-const FULLSCREEN_ROUTES = [
-  "/chat",
-  "/spatial-navigator",
-  "/face-name-match",
-  "/attention-boosters/rhythm-tap",
-];
-
-const WIDE_ROUTE_PREFIXES = [
-  "/settings",
-  "/health",
-  "/informes",
-  "/mind-memory/cognitive-assessment",
-  "/social-rooms",
-  "/meds",
-  "/attention-boosters",
-  "/executive-function",
-  "/memory-games",
-  "/concierge",
-];
-
-const WIDE_ROUTES = [
-  "/",
-  "/companions",
-  "/mind-memory",
-  "/activities",
-  "/senses",
-  "/activity",
-  "/learn",
-  "/language",
-  "/safe-home",
-  "/scam-guard",
-  "/history",
-];
-
-export function getAppShellLayout(pathname: string): AppShellLayout {
-  if (pathname === "/health/vitals") {
-    return "vitals";
-  }
-
-  if (
-    FULLSCREEN_ROUTES.includes(pathname) ||
-    FULLSCREEN_ROUTE_PREFIXES.some((route) => pathname.startsWith(route))
-  ) {
-    return "fullscreen";
-  }
-
-  if (
-    WIDE_ROUTES.includes(pathname) ||
-    WIDE_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
-  ) {
-    return "wide";
-  }
-
-  return "compact";
-}
-
-type EmergencyProfileContact = {
-  name?: string | null;
-  relationship?: string | null;
-  primaryPhone?: string | null;
-  secondaryPhone?: string | null;
+const HIDDEN_COMPACT_MODE_CONTROL: HomeModeControlDetail = {
+  ...compactModeControlFor("touch"),
+  visible: false,
 };
-
-type OnboardingStateResponse = {
-  profile?: {
-    emergency_contact?: {
-      name?: string | null;
-      relationship?: string | null;
-      primary_phone?: string | null;
-      secondary_phone?: string | null;
-    } | null;
-  } | null;
-} | null;
-
-export function emergencyProfileContactFromState(data?: OnboardingStateResponse): EmergencyProfileContact | null {
-  const contact = data?.profile?.emergency_contact;
-  if (!contact) return null;
-  const primaryPhone = contact.primary_phone?.trim() ?? "";
-  const secondaryPhone = contact.secondary_phone?.trim() ?? "";
-  if (!primaryPhone && !secondaryPhone) return null;
-  return {
-    name: contact.name?.trim() || null,
-    relationship: contact.relationship?.trim() || null,
-    primaryPhone,
-    secondaryPhone,
-  };
-}
 
 type VoiceSessionDockProps = {
   isSpeaking: boolean;
@@ -144,9 +86,9 @@ type VoiceSessionDockProps = {
   transcript: TranscriptEntry[];
   onEnd: () => void;
   voiceSessionPhase: VoiceSessionPhase;
-  isMicMuted: boolean;
-  onMicToggle: (muted: boolean) => void;
   onOpen: () => void;
+  compact?: boolean;
+  compactDark?: boolean;
 };
 
 function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
@@ -160,126 +102,18 @@ function canvasSelectableLabel(viewModel: VoiceCanvasViewModel | undefined, id: 
   return optionCard?.title;
 }
 
-function voicePayloadString(action: VoiceAppAction, key: string) {
-  const value = action.payload?.[key];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function voicePayloadDetails(action: VoiceAppAction, keys: string[]) {
-  return keys
-    .map((key) => {
-      const value = voicePayloadString(action, key);
-      return value ? `${key.replace(/_/g, " ")}: ${value}` : "";
-    })
-    .filter(Boolean)
-    .join(", ");
-}
-
-function buildConciergePrefillMessage(action: VoiceAppAction) {
-  const details = voicePayloadDetails(action, [
-    "pickup",
-    "destination",
-    "time",
-    "mobility_needs",
-    "provider_type",
-    "appointment_reason",
-    "reminder_text",
-    "reminder_time",
-  ]);
-  const base = action.sourceText.trim() || action.summary;
-  return `${base}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
-}
-
-function shoppingCategoryForVoiceAction(action: VoiceAppAction) {
-  const category = voicePayloadString(action, "category").toLowerCase();
-  if (["groceries", "pharmacy_basics", "household", "mobility_aids", "safe_home"].includes(category)) {
-    return category;
-  }
-  const text = `${action.sourceText} ${voicePayloadString(action, "items")}`.toLowerCase();
-  if (/grocery|groceries|food|meal|supermarket|comida|compra/.test(text)) return "groceries";
-  if (/pharmacy|farmacia/.test(text)) return "pharmacy_basics";
-  if (/walker|cane|wheelchair|mobility|andador|baston/.test(text)) return "mobility_aids";
-  if (/cleaning|household|home|limpieza|hogar/.test(text)) return "household";
-  return "safe_home";
-}
-
-function shoppingPrioritiesForVoiceAction(action: VoiceAppAction) {
-  const text = `${action.sourceText} ${voicePayloadString(action, "constraint")}`.toLowerCase();
-  if (/budget|cheap|cost|precio|barato/.test(text)) return ["budget", "delivery"];
-  if (/diet|salt|sugar|comida|food/.test(text)) return ["diet", "delivery"];
-  if (/pharmacy|medicine|farmacia/.test(text)) return ["safety", "simplicity"];
-  return ["delivery", "simplicity"];
-}
-
-export function buildVoiceActionRouteState(action: VoiceAppAction): Record<string, unknown> {
-  const baseState: Record<string, unknown> = {
-    voiceActionId: action.id,
-    voiceActionTitle: action.title,
-    voiceActionDomain: action.domain,
-    voiceActionType: action.actionType,
-    voiceActionPayload: action.payload ?? {},
-    voiceActionRequiredPayloadKeys: action.requiredPayloadKeys ?? [],
-    voiceActionOptionalPayloadKeys: action.optionalPayloadKeys ?? [],
-  };
-
-  if (action.actionType === "concierge.ride_booking") {
-    return {
-      ...baseState,
-      conciergePrefill: {
-        kind: "ride",
-        message: buildConciergePrefillMessage(action),
-        source: "voice_action",
-      },
-    };
-  }
-
-  if (action.actionType === "concierge.appointment_help") {
-    return {
-      ...baseState,
-      conciergePrefill: {
-        kind: "appointment",
-        message: buildConciergePrefillMessage(action),
-        source: "voice_action",
-      },
-    };
-  }
-
-  if (action.actionType === "concierge.order_request" || action.actionType === "concierge.shopping") {
-    const items = voicePayloadString(action, "items") || voicePayloadString(action, "need") || action.sourceText;
-    const constraints = [
-      voicePayloadString(action, "budget"),
-      voicePayloadString(action, "delivery_time"),
-      voicePayloadString(action, "substitutions"),
-      voicePayloadString(action, "constraint"),
-    ].filter(Boolean);
-
-    return {
-      ...baseState,
-      shoppingPrefill: {
-        needText: items,
-        category: shoppingCategoryForVoiceAction(action),
-        priorities: shoppingPrioritiesForVoiceAction(action),
-        constraints,
-        sourceRecommendation: buildConciergePrefillMessage(action),
-      },
-    };
-  }
-
-  return baseState;
-}
-
 const VoiceSessionDock = ({
   isSpeaking,
   isConnecting,
   transcript,
   onEnd,
   voiceSessionPhase,
-  isMicMuted,
-  onMicToggle,
   onOpen,
+  compact = false,
+  compactDark = false,
 }: VoiceSessionDockProps) => {
+  const { t } = useTranslation();
   const latestEntry = transcript[transcript.length - 1];
-  const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
   const previewText = latestEntry?.text || "Voice is active";
   const label = isConnecting
     ? "Connecting"
@@ -288,6 +122,49 @@ const VoiceSessionDock = ({
       : isSpeaking
         ? "Speaking"
         : "Listening";
+
+  if (compact) {
+    const compactLabel = t("home.voiceDock.active", "Voice on");
+    const compactStopLabel = t("home.voiceDock.stop", "Stop voice");
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[112px] z-[64] flex justify-center px-5">
+        <section
+          data-testid="voice-session-dock"
+          data-variant="home-stop"
+          className={[
+            "pointer-events-auto inline-flex min-h-[52px] max-w-[calc(100vw-40px)] items-center gap-2 rounded-full border py-2 pl-4 pr-2 shadow-[0_14px_34px_rgba(24,18,34,0.18)] backdrop-blur-xl",
+            compactDark
+              ? "border-white/[0.16] bg-[#100A1F]/85 text-[#F8F4FF]"
+              : "border-[#E9D5FF] bg-white/92 text-vyva-text-1",
+          ].join(" ")}
+          aria-label={compactStopLabel}
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full bg-[#8B5CF6] shadow-[0_0_0_6px_rgba(139,92,246,0.16)]"
+            aria-hidden="true"
+          />
+          <span
+            className={[
+              "whitespace-nowrap font-body text-[13px] font-black leading-none",
+              compactDark ? "text-[#F8F4FF]" : "text-vyva-purple",
+            ].join(" ")}
+          >
+            {compactLabel}
+          </span>
+          <button
+            type="button"
+            onClick={onEnd}
+            data-testid="button-dock-end-call"
+            className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_12px_26px_rgba(17,17,17,0.2)] transition active:scale-95"
+            aria-label={compactStopLabel}
+            title={compactStopLabel}
+          >
+            <X size={18} strokeWidth={2.8} />
+          </button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[64] flex justify-center px-3 sm:px-4">
@@ -329,18 +206,6 @@ const VoiceSessionDock = ({
             </p>
           </div>
         </button>
-        {canToggleMic && (
-          <button
-            type="button"
-            onClick={() => onMicToggle(!isMicMuted)}
-            data-testid="button-dock-toggle-mic"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E9D5FF] bg-[#F7F0FF] font-body text-vyva-purple shadow-sm transition active:scale-95"
-            aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title={isMicMuted ? "Mic off" : "Mic on"}
-          >
-            {isMicMuted ? <MicOff size={19} /> : <Mic size={19} />}
-          </button>
-        )}
         <button
           type="button"
           onClick={onEnd}
@@ -483,10 +348,53 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
   const isHomeRoute = location.pathname === "/" || location.pathname === "/dev/home-master";
+  const isHomeMasterMenuRoute = location.pathname === "/menu" || location.pathname === "/dev/home-master/menu";
+  const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
+  const isBrainCoachRoute = isBrainCoachAppRoute(location.pathname);
+  const isBrainCoachDocklessRoute = usesBrainCoachDocklessRoute(location.pathname);
+  const isDevSymptomAssessmentRoute =
+    location.pathname === "/dev/home-master/ask-dr-ai" ||
+    location.pathname === "/dev/home-master/ask-dr-ai-checking" ||
+    location.pathname === "/dev/home-master/ask-dr-ai-next" ||
+    location.pathname === "/dev/home-master/symptom-warning" ||
+    location.pathname === "/dev/home-master/symptom-report";
+  const usesAlignedHubViewport =
+    location.pathname === "/menu" ||
+    location.pathname === "/health" ||
+    isSymptomCheckRoute ||
+    isDevSymptomAssessmentRoute;
+  const isConciergeExperienceRoute = location.pathname === "/concierge";
+  const usesHomeMasterShell = isHomeRoute || isHomeMasterMenuRoute || location.pathname === "/health";
+  const ownsPrototypeTopbar = isHomeNavPrototypeTopbarRoute(location.pathname);
+  const usesPrototypeDock = isHomeNavPrototypeDockRoute(location.pathname);
+  const hidePrototypeDock = hidesHomeNavPrototypeDock(location.pathname);
+  const usesDevHomeMasterCompactShell =
+    usesHomeMasterShell ||
+    location.pathname === "/dev/home-master/profile";
+  const usesDevHomeMasterDetailShell =
+    location.pathname === "/dev/home-master/health" ||
+    location.pathname === "/dev/home-master/brain" ||
+    location.pathname === "/dev/home-master/community" ||
+    location.pathname === "/dev/home-master/concierge" ||
+    location.pathname === "/dev/home-master/reports";
+  const usesDevHomeMasterPrototypeSurface = location.pathname.startsWith("/dev/home-master");
+  const usesCompactVoiceSurface = usesPrototypeDock || hidePrototypeDock || isConciergeExperienceRoute;
   const { isDark: isHomeMasterDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
+  const homeMasterPrototypeSurfaceClass = isHomeMasterDark
+    ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
+    : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_72%)]";
+  const compactOuterSurfaceClass = usesDevHomeMasterPrototypeSurface
+    ? homeMasterPrototypeSurfaceClass
+    : isHomeMasterDark
+      ? "bg-[#080715]"
+      : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
+  const compactInnerSurfaceClass = usesDevHomeMasterPrototypeSurface
+    ? homeMasterPrototypeSurfaceClass
+    : isHomeMasterDark
+      ? "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]"
+      : "bg-[linear-gradient(180deg,var(--vyva-sky-a)_0%,var(--vyva-sky-b)_100%)]";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
-  const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
   const crossPillarHandoffId = typeof routeState?.crossPillarHandoffId === "string"
     ? routeState.crossPillarHandoffId
@@ -500,8 +408,14 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? "max-w-none"
     : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
-      : isHomeRoute
-        ? "max-w-[430px] sm:max-w-[560px] md:max-w-[820px] lg:max-w-[980px]"
+      : usesDevHomeMasterPrototypeSurface
+        ? "max-w-none"
+      : usesDevHomeMasterDetailShell
+        ? "max-w-[520px]"
+      : usesDevHomeMasterCompactShell
+        ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
+      : isSymptomCheckRoute
+        ? "max-w-[430px] md:max-w-[720px] lg:max-w-[960px]"
       : isWideRoute
         ? "max-w-[920px]"
         : "max-w-[520px]";
@@ -513,17 +427,24 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? location.pathname === visibleVoiceAction.route || location.pathname.startsWith(`${visibleVoiceAction.route}/`)
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
+  const voiceSurfacePhaseActive =
+    voiceSessionPhase === "connecting" ||
+    voiceSessionPhase === "listening" ||
+    voiceSessionPhase === "speaking" ||
+    voiceSessionPhase === "transferring";
   const hasVoiceSessionSurface =
-    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
+    !isChatTypeMode && (status === "connected" || isConnecting || voiceSurfacePhaseActive || Boolean(lastError));
+  const compactVoiceSessionActive = status === "connected" || isConnecting || voiceSurfacePhaseActive;
   const activeCanvasKey = activeCanvasScene
     ? `${activeCanvasScene.viewModel.sceneId}:${activeCanvasScene.revision}`
     : null;
-  const showDockVoiceOverlay = !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
+  const showDockVoiceOverlay = !usesCompactVoiceSurface && !isFullScreen && dockVoiceOverlayOpen && (hasVoiceSessionSurface || Boolean(activeCanvasScene));
   const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
     !isFullScreen &&
+    !isHomeRoute &&
     !isChatTypeMode &&
-    (status === "connected" || isConnecting || voiceSessionPhase === "transferring") &&
+    compactVoiceSessionActive &&
     !isVoiceOverlayFocused;
   const suppressMilestonePopup = isFullScreen ||
     sosOpen ||
@@ -576,6 +497,42 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!hasVoiceSessionSurface && !activeCanvasScene) setDockVoiceOverlayOpen(false);
   }, [activeCanvasScene, hasVoiceSessionSurface]);
+
+  useEffect(() => {
+    if (!isConciergeExperienceRoute) return;
+    publishHomeModeControl(compactModeControlFor(compactVoiceSessionActive ? "voice" : "touch"));
+  }, [compactVoiceSessionActive, isConciergeExperienceRoute]);
+
+  useEffect(() => {
+    if (!isConciergeExperienceRoute) return undefined;
+    return () => publishHomeModeControl(HIDDEN_COMPACT_MODE_CONTROL);
+  }, [isConciergeExperienceRoute]);
+
+  useEffect(() => {
+    if (!isConciergeExperienceRoute) return undefined;
+
+    const handleHomeModeControlAction = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? (event.detail as HomeModeControlActionDetail | undefined)
+        : undefined;
+
+      if (!detail || (detail.mode !== "voice" && detail.mode !== "touch")) return;
+
+      setDockVoiceOverlayOpen(false);
+
+      if (detail.mode === "voice") {
+        if (!compactVoiceSessionActive) {
+          void Promise.resolve(startVoice()).catch(() => undefined);
+        }
+        return;
+      }
+
+      if (compactVoiceSessionActive) stopVoice();
+    };
+
+    window.addEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+    return () => window.removeEventListener(VYVA_HOME_MODE_CONTROL_ACTION_EVENT, handleHomeModeControlAction);
+  }, [compactVoiceSessionActive, isConciergeExperienceRoute, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!activeCanvasKey || activeCanvasKey === minimizedCanvasKey) return;
@@ -718,35 +675,60 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
       if (request.autoStart === false || !request.agentSlug) return;
 
-      const transferContext = request.contextHint || request.reason || `Transfer to ${request.domain}`;
-      recordVoiceTimelineEvent({
-        kind: "transfer_requested",
-        title: `Transfer to ${request.domain}`,
-        detail: request.reason,
-        domain: request.domain,
-        ...(request.route ? { route: request.route } : {}),
-        ...(request.agentSlug ? { agentSlug: request.agentSlug } : {}),
-      });
-      beginVoiceTransfer();
-      window.setTimeout(() => {
-        stopVoice();
+      void (async () => {
+        if (request.agentSlug === "dr-ai" || request.agentSlug === "ask-dr-ai") {
+          try {
+            const response = await apiFetch("/api/config/features/dr-ai-voice");
+            const access = response.ok ? await response.json() as { enabled?: boolean } : null;
+            if (!access?.enabled) {
+              recordVoiceTimelineEvent({
+                kind: "transfer_blocked",
+                title: "Dr. AI voice transfer unavailable",
+                detail: "The canonical touch flow remains available.",
+                domain: request.domain,
+                ...(request.route ? { route: request.route } : {}),
+                agentSlug: request.agentSlug,
+              });
+              sendContextUpdate("Dr. AI voice is not enabled for this account. The Ask Dr. AI touch screen is open, so invite the user to continue there.");
+              return;
+            }
+          } catch (error) {
+            console.warn("[VYVA] Could not verify Dr. AI voice access:", error);
+            sendContextUpdate("Dr. AI voice could not be opened. The Ask Dr. AI touch screen is still available.");
+            return;
+          }
+        }
+
+        const transferContext = request.contextHint || request.reason || `Transfer to ${request.domain}`;
+        recordVoiceTimelineEvent({
+          kind: "transfer_requested",
+          title: `Transfer to ${request.domain}`,
+          detail: request.reason,
+          domain: request.domain,
+          ...(request.route ? { route: request.route } : {}),
+          ...(request.agentSlug ? { agentSlug: request.agentSlug } : {}),
+        });
+        beginVoiceTransfer();
         window.setTimeout(() => {
-          void startVoice(transferContext, undefined, {
-            agentSlug: request.agentSlug,
-            autoStartListening: true,
-            dynamicVariables: {
-              app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
-              transfer_domain: request.domain,
-              transfer_reason: request.reason,
-            },
-          });
-        }, 650);
-      }, 80);
+          stopVoice();
+          window.setTimeout(() => {
+            void startVoice(transferContext, undefined, {
+              agentSlug: request.agentSlug,
+              autoStartListening: true,
+              dynamicVariables: {
+                app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
+                transfer_domain: request.domain,
+                transfer_reason: request.reason,
+              },
+            });
+          }, 650);
+        }, 80);
+      })();
     };
 
     window.addEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
     return () => window.removeEventListener(VYVA_VOICE_SPECIALIST_TRANSFER_EVENT, handleSpecialistTransfer);
-  }, [beginVoiceTransfer, startVoice, stopVoice]);
+  }, [beginVoiceTransfer, sendContextUpdate, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!activeVoiceAction) return;
@@ -793,22 +775,23 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
-      <div className={`flex min-h-screen justify-center ${isHomeRoute ? (isHomeMasterDark ? "bg-[#080715]" : "bg-white") : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
+      <div className={`flex min-h-screen justify-center ${usesCompactVoiceSurface ? compactOuterSurfaceClass : "bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]"}`}>
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
         data-layout={appShellLayout}
-        data-home-master-theme={isHomeRoute && isHomeMasterDark ? "dark" : "light"}
+        data-home-master-theme={usesCompactVoiceSurface && isHomeMasterDark ? "dark" : "light"}
         data-vyva-text-size={readableTextSize}
-        className={`relative w-full ${shellMaxWidthClassName} ${isHomeRoute ? (isHomeMasterDark ? "min-h-screen bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]" : "min-h-screen bg-[linear-gradient(180deg,#F8F1FF_0%,#FFF8FE_52%,#FFFFFF_100%)]") : ""}`}
+        className={`relative w-full ${shellMaxWidthClassName} ${usesCompactVoiceSurface ? `min-h-screen ${compactInnerSurfaceClass}` : ""}`}
       >
-        {!isFullScreen && (
+        {!isFullScreen && !ownsPrototypeTopbar && (
           <StatusBar
-            wide={!isHomeRoute && (isWideRoute || isVitalsRoute)}
-            variant={isHomeRoute ? "homeMaster" : "default"}
+            wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)}
+            variant={usesCompactVoiceSurface ? "homeMaster" : "default"}
+            autoHideHomeControls={location.pathname === "/dev/home-master" ? false : undefined}
           />
         )}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isHomeRoute ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+        <main data-testid="app-shell-scroll" className={`${usesAlignedHubViewport ? "h-[100svh] min-h-0 overflow-y-auto [scrollbar-gutter:stable_both-edges] max-lg:[scrollbar-gutter:auto]" : ownsPrototypeTopbar ? "min-h-screen overflow-visible" : "min-h-screen overflow-y-auto"} ${isFullScreen ? "" : ownsPrototypeTopbar ? "pt-6 pb-[112px]" : usesCompactVoiceSurface ? "pt-[74px] pb-[112px]" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -820,9 +803,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && (
+        {!isFullScreen && !hidePrototypeDock && !isBrainCoachDocklessRoute && (
           <div className={isVitalsRoute ? "lg:hidden" : ""}>
-            <BottomNav wide={!isHomeRoute && (isWideRoute || isVitalsRoute)} onSosClick={() => {
+            <BottomNav wide={!usesCompactVoiceSurface && (isWideRoute || isVitalsRoute)} onSosClick={() => {
               if (canUseService("sos", "/sos")) setSosOpen(true);
             }} />
           </div>
@@ -836,7 +819,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isHomeRoute && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {!isFullScreen && !usesCompactVoiceSurface && !isVitalsRoute && !isSymptomCheckRoute && !isBrainCoachRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}
@@ -869,12 +852,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             transcript={transcript}
             onEnd={stopVoice}
             voiceSessionPhase={voiceSessionPhase}
-            isMicMuted={isMicMuted}
-            onMicToggle={setMicrophoneMuted}
             onOpen={() => {
               setMinimizedCanvasKey(null);
               setDockVoiceOverlayOpen(true);
             }}
+            compact={usesCompactVoiceSurface}
+            compactDark={usesCompactVoiceSurface && isHomeMasterDark}
           />
         )}
         <CrossPillarHandoffRecovery />

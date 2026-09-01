@@ -3,27 +3,55 @@ import { useTranslation } from "react-i18next";
 import {
   Activity,
   AlertCircle,
+  BedDouble,
   BookOpenCheck,
   Brain,
+  CalendarClock,
+  CalendarDays,
+  CalendarRange,
   CheckCircle,
   ChevronDown,
+  CircleCheckBig,
   HeartPulse,
   HelpCircle,
   ListChecks,
   Mic,
   PhoneCall,
   Send,
+  ScanFace,
   Square,
   Thermometer,
+  TrendingUp,
   Wind,
 } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
+import {
+  localizeTriageAnswerLabel,
+  localizeTriageQuestion,
+} from "../../shared/triageDisplayLocalization";
+import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
+import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
+import {
+  isNumericSeverityScaleChoices,
+  SeverityScaleControl,
+} from "@/components/health/SeverityScaleControl";
+import { SymptomSafetyChoiceCard, type SymptomSafetyChoiceTone } from "@/components/health/SymptomSafetyChoiceCard";
+import { SymptomChoiceCard } from "@/components/health/SymptomChoiceCard";
+import type { VyvaIconAccent } from "@/components/brand/VyvaIcon";
+import type {
+  SymptomAssessmentComposerVisibility,
+  SymptomAssessmentStageId,
+} from "@/design/screenPresentation";
 import TriageScanCard from "@/components/TriageScanCard";
+import { VitalsAcquisitionPanel, type TriageVitalValues } from "@/components/VitalsAcquisitionPanel";
 import { ListenButton } from "@/components/ListenButton";
 import { selectTriageScanOffer } from "@/lib/triageScanOffers";
 import type { TriageScanResult, TriageScanType } from "../../shared/triageScans";
+import type { VitalsReadingSource } from "../../shared/vitalsEvidence";
+
+const TRIAGE_REQUEST_TIMEOUT_MS = 20_000;
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -165,15 +193,31 @@ interface TriageChatProps {
   language?: string;
   languageReady?: boolean;
   showProgressCard?: boolean;
+  presentationStage?: SymptomAssessmentStageId;
+  composerVisibility?: SymptomAssessmentComposerVisibility;
+  onStageChange?: (stage: string, urgent?: boolean) => void;
   onDraftChange?: (draft: TriageChatDraft) => void;
+  onBackHandlerChange?: (handler: (() => boolean) | null) => void;
   onVitalsScanned?: (bpm: number | null, respiratoryRate: number | null) => void;
   onVoiceAutoStarted?: () => void;
   onComplete: (summary: TriageSummary) => void;
 }
 
-const CHAR_DELAY_MS = 18;
 type QuickAnswerTone = "purple" | "red" | "blue" | "amber" | "green";
-type QuickAnswerIcon = "heart" | "wind" | "thermometer" | "activity" | "alert" | "help";
+type QuickAnswerIcon =
+  | "heart"
+  | "wind"
+  | "thermometer"
+  | "activity"
+  | "alert"
+  | "help"
+  | "calendar"
+  | "calendar_range"
+  | "calendar_clock"
+  | "trend_up"
+  | "bed"
+  | "check"
+  | "face";
 
 type ApiQuickReply = {
   id: string;
@@ -189,6 +233,7 @@ type QuickAnswer = {
   label: string;
   value: string;
   Icon: typeof HeartPulse;
+  accent?: VyvaIconAccent;
   tone: QuickAnswerTone;
   kind: string;
 };
@@ -200,7 +245,41 @@ type SelectedQuickAnswer = {
   kind: string;
 };
 
-export type TriageChatDraft = {
+type AcquiredVitalEvidence = Partial<Record<keyof TriageVitalValues, {
+  source: VitalsReadingSource;
+  affectsTriage: boolean;
+}>>;
+
+type PendingTriageRequest = {
+  history: ChatMessage[];
+  quickAnswerTrail: SelectedQuickAnswer[];
+  nextScanResults: TriageScanResult[];
+  nextDeclinedScanTypes: TriageScanType[];
+  vitalsOverride?: TriageVitalValues;
+};
+
+function runtimeStageForPresentation(stage: SymptomAssessmentStageId | undefined) {
+  switch (stage) {
+    case "safety_check": return "red_flag";
+    case "severity": return "severity";
+    case "onset": return "duration";
+    case "related_details": return "trend";
+    case "review": return "support";
+    case "safest_next_step":
+    case "save_share_summary": return "complete";
+    case "symptom_selection":
+    case "describe":
+    default: return "symptom";
+  }
+}
+
+function safetyToneForQuickAnswer(answer: QuickAnswer): SymptomSafetyChoiceTone {
+  if (answer.id === "no_red_flag" || answer.tone === "green") return "clear";
+  if (answer.tone === "amber" || answer.tone === "purple" || answer.tone === "blue") return "caution";
+  return "warning";
+}
+
+export type TriageChatTurnSnapshot = {
   messages: ChatMessage[];
   selectedQuickAnswers: SelectedQuickAnswer[];
   apiQuickReplies?: ApiQuickReply[] | null;
@@ -217,16 +296,51 @@ export type TriageChatDraft = {
   guidancePlan?: TriageGuidancePlan | null;
   scanResults?: TriageScanResult[];
   declinedScanTypes?: TriageScanType[];
+  acquiredVitals?: TriageVitalValues;
+  acquiredVitalEvidence?: AcquiredVitalEvidence;
+  readingDisclosure?: string;
+  presentationStage?: SymptomAssessmentStageId;
+};
+
+export type TriageChatDraft = TriageChatTurnSnapshot & {
+  assessmentSessionId?: string;
+  backStack?: TriageChatTurnSnapshot[];
   pendingRequest?: boolean;
 };
 
-const iconByKey: Record<QuickAnswerIcon, typeof HeartPulse> = {
-  heart: HeartPulse,
-  wind: Wind,
-  thermometer: Thermometer,
-  activity: Activity,
-  alert: AlertCircle,
-  help: HelpCircle,
+export function stepBackTriageDraft(draft: TriageChatDraft | null): {
+  draft: TriageChatDraft;
+  presentationStage?: SymptomAssessmentStageId;
+} | null {
+  const backStack = draft?.backStack ?? [];
+  const previous = backStack.at(-1);
+  if (!draft || !previous) return null;
+
+  return {
+    draft: {
+      assessmentSessionId: draft.assessmentSessionId,
+      ...previous,
+      backStack: backStack.slice(0, -1),
+      pendingRequest: false,
+    },
+    presentationStage: previous.presentationStage,
+  };
+}
+
+const iconTreatmentByKey: Record<QuickAnswerIcon, { Icon: typeof HeartPulse; accent: VyvaIconAccent }> = {
+  heart: { Icon: HeartPulse, accent: "pulse" },
+  wind: { Icon: Wind, accent: "signal" },
+  thermometer: { Icon: Thermometer, accent: "signal" },
+  activity: { Icon: Activity, accent: "trend" },
+  alert: { Icon: AlertCircle, accent: "signal" },
+  help: { Icon: HelpCircle, accent: "spark" },
+  calendar: { Icon: CalendarDays, accent: "calendar" },
+  calendar_range: { Icon: CalendarRange, accent: "path" },
+  calendar_clock: { Icon: CalendarClock, accent: "calendar" },
+  trend_up: { Icon: TrendingUp, accent: "trend" },
+  bed: { Icon: BedDouble, accent: "dot" },
+  check: { Icon: CircleCheckBig, accent: "check" },
+  face: { Icon: ScanFace, accent: "dot" },
 };
 
 const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
@@ -236,6 +350,30 @@ const answerTone: Record<QuickAnswerTone, { border: string; text: string }> = {
   amber: { border: "#FED7AA", text: "#332925" },
   green: { border: "#BBF7D0", text: "#332925" },
 };
+
+const symptomConceptPatterns = [
+  { key: "headache", pattern: /\b(headach\w*|migraine\w*)\b/i },
+  { key: "pain", pattern: /\b(pain\w*|hurt\w*|ache\w*)\b/i },
+  { key: "dizziness", pattern: /\b(dizz\w*|lighthead\w*|vertigo\w*)\b/i },
+  { key: "breathing", pattern: /\b(breath\w*|wheez\w*)\b/i },
+  { key: "nausea", pattern: /\b(nause\w*|vomit\w*)\b/i },
+  { key: "weakness", pattern: /\b(weak\w*|faint\w*)\b/i },
+] as const;
+
+function symptomConceptsFor(value: string): Set<string> {
+  return new Set(
+    symptomConceptPatterns
+      .filter(({ pattern }) => pattern.test(value))
+      .map(({ key }) => key),
+  );
+}
+
+function quickAnswerRepeatsInitialSymptom(initialClue: string, answer: QuickAnswer): boolean {
+  if (answer.kind !== "symptom") return false;
+  const initialConcepts = symptomConceptsFor(initialClue);
+  const answerConcepts = symptomConceptsFor(`${answer.label} ${answer.value}`);
+  return [...answerConcepts].some((concept) => initialConcepts.has(concept));
+}
 
 type BrowserSpeechRecognitionEvent = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>;
@@ -272,10 +410,6 @@ const speechLangFor = (language: string) => {
   };
   return map[base] ?? "en-US";
 };
-
-const shouldSkipMessageAnimation = () =>
-  import.meta.env.MODE === "test" ||
-  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 function TriageReviewPanel() {
   const { t } = useTranslation();
@@ -347,23 +481,29 @@ export default function TriageChat({
   language,
   languageReady = true,
   showProgressCard = false,
+  presentationStage,
+  composerVisibility,
+  onStageChange,
   onDraftChange,
+  onBackHandlerChange,
   onVitalsScanned,
   onVoiceAutoStarted,
   onComplete,
 }: TriageChatProps) {
   const { t } = useTranslation();
   const { language: appLanguage, t: appT } = useLanguage();
+  const { isDark } = useHomeMasterTheme();
   const activeLanguage = language ?? appLanguage;
   const hasInitialDraft = Boolean(initialDraft);
+  const [assessmentSessionId] = useState(() => initialDraft?.assessmentSessionId
+    ?? globalThis.crypto?.randomUUID?.()
+    ?? `triage-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const [messages, setMessages] = useState<ChatMessage[]>(() => initialDraft?.messages ?? []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [initiated, setInitiated] = useState(() => hasInitialDraft);
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
-  const [animatedText, setAnimatedText] = useState("");
   const [apiQuickReplies, setApiQuickReplies] = useState<ApiQuickReply[] | null>(() => initialDraft?.apiQuickReplies ?? null);
   const [selectedQuickAnswers, setSelectedQuickAnswers] = useState<SelectedQuickAnswer[]>(() => initialDraft?.selectedQuickAnswers ?? []);
   const [evidenceSources, setEvidenceSources] = useState<TriageResponse["evidenceSources"]>(() => initialDraft?.evidenceSources ?? []);
@@ -379,11 +519,19 @@ export default function TriageChat({
   const [guidancePlan, setGuidancePlan] = useState<TriageGuidancePlan | null>(() => initialDraft?.guidancePlan ?? null);
   const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
   const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
+  const [acquiredVitals, setAcquiredVitals] = useState<TriageVitalValues>(() => initialDraft?.acquiredVitals ?? {});
+  const [acquiredVitalEvidence, setAcquiredVitalEvidence] = useState<AcquiredVitalEvidence>(() => initialDraft?.acquiredVitalEvidence ?? {});
+  const [readingDisclosure, setReadingDisclosure] = useState(() => initialDraft?.readingDisclosure ?? "");
+  const [backStack, setBackStack] = useState<TriageChatTurnSnapshot[]>(() => initialDraft?.backStack ?? []);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const requestErrorRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const animTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recRef = useRef<BrowserSpeechRecognition | null>(null);
   const pendingResumeSentRef = useRef(false);
+  const lastRequestRef = useRef<PendingTriageRequest | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const backStackRef = useRef(backStack);
   const userMessageCount = messages.filter((msg) => msg.role === "user").length;
   const fallbackQuickAnswers: QuickAnswer[] = userMessageCount === 0
     ? [
@@ -407,51 +555,65 @@ export default function TriageChat({
           { id: "not_sure", label: t("health.symptomCheck.chat.quickNotSure", "Not sure"), value: t("health.symptomCheck.chat.quickNotSureValue", "I am not sure."), Icon: HelpCircle, tone: "purple", kind: "uncertain" },
         ];
   const quickAnswers: QuickAnswer[] = apiQuickReplies?.length
-    ? apiQuickReplies.map((reply) => ({
-        id: reply.id,
-        label: reply.label,
-        value: reply.value,
-        Icon: iconByKey[reply.icon] ?? HelpCircle,
-        tone: reply.tone,
-        kind: reply.kind ?? reply.id,
-      }))
+    ? apiQuickReplies.map((reply) => {
+        const treatment = iconTreatmentByKey[reply.icon] ?? iconTreatmentByKey.help;
+        return {
+          id: reply.id,
+          label: localizeTriageAnswerLabel(activeLanguage, reply.label),
+          value: reply.value,
+          Icon: treatment.Icon,
+          accent: treatment.accent,
+          tone: reply.tone,
+          kind: reply.kind ?? reply.id,
+        };
+      })
     : fallbackQuickAnswers;
+  const repeatedInitialSymptomAnswers = presentationStage === "symptom_selection"
+    ? quickAnswers.filter((answer) => quickAnswerRepeatsInitialSymptom(initialClue, answer))
+    : [];
+  const hasRepeatedInitialSymptom = repeatedInitialSymptomAnswers.length > 0;
+  const displayedQuickAnswers: QuickAnswer[] = hasRepeatedInitialSymptom
+    ? [
+        ...quickAnswers.filter((answer) => !repeatedInitialSymptomAnswers.some((repeated) => repeated.id === answer.id)),
+        {
+          id: "no-additional-symptoms",
+          label: t("health.symptomCheck.chat.noAdditionalSymptoms", "Nothing else"),
+          value: t("health.symptomCheck.chat.noAdditionalSymptomsValue", "No other symptoms."),
+          Icon: CheckCircle,
+          tone: "purple",
+          kind: "symptom",
+        },
+      ]
+    : quickAnswers;
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
+      if (presentationStage) {
+        const appShell = scrollRef.current?.closest<HTMLElement>('[data-testid="app-shell"]');
+        const appScroller = appShell?.querySelector<HTMLElement>('[data-testid="app-shell-scroll"]');
+        appScroller?.scrollTo?.({ top: 0, behavior: "auto" });
+        document.scrollingElement?.scrollTo?.({ top: 0, behavior: "auto" });
+        return;
+      }
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         scrollRef.current.scrollIntoView?.({ block: "end", behavior: "smooth" });
       }
     }, 80);
-  }, []);
+  }, [presentationStage]);
+
+  useEffect(() => {
+    if (!requestError) return;
+    const timeoutId = window.setTimeout(() => {
+      requestErrorRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [requestError]);
 
   const animateMessage = useCallback(
-    (msgIdx: number, fullText: string, onDone?: () => void) => {
-      if (animTimerRef.current) clearInterval(animTimerRef.current);
-
-      if (shouldSkipMessageAnimation()) {
-        setAnimatingIdx(null);
-        setAnimatedText(fullText);
-        scrollToBottom();
-        onDone?.();
-        return;
-      }
-
-      setAnimatingIdx(msgIdx);
-      setAnimatedText("");
-      let pos = 0;
-      animTimerRef.current = setInterval(() => {
-        pos++;
-        setAnimatedText(fullText.slice(0, pos));
-        scrollToBottom();
-        if (pos >= fullText.length) {
-          clearInterval(animTimerRef.current!);
-          animTimerRef.current = null;
-          setAnimatingIdx(null);
-          onDone?.();
-        }
-      }, CHAR_DELAY_MS);
+    (_msgIdx: number, _fullText: string, onDone?: () => void) => {
+      scrollToBottom();
+      onDone?.();
     },
     [scrollToBottom]
   );
@@ -516,26 +678,48 @@ export default function TriageChat({
       quickAnswerTrail: SelectedQuickAnswer[] = selectedQuickAnswers,
       nextScanResults: TriageScanResult[] = scanResults,
       nextDeclinedScanTypes: TriageScanType[] = declinedScanTypes,
-      vitalsOverride?: { bpm?: number | null; respiratoryRate?: number | null },
+      vitalsOverride?: TriageVitalValues,
     ) => {
       if (!languageReady) return;
+      const recoverPresentationStage = presentationStage;
+      lastRequestRef.current = {
+        history,
+        quickAnswerTrail,
+        nextScanResults,
+        nextDeclinedScanTypes,
+        vitalsOverride,
+      };
+      setRequestError(null);
       setLoading(true);
+      onStageChange?.("checking");
+      requestAbortRef.current?.abort();
+      const requestController = new AbortController();
+      requestAbortRef.current = requestController;
+      const requestTimeout = window.setTimeout(() => requestController.abort(), TRIAGE_REQUEST_TIMEOUT_MS);
       try {
         const wizardVitals = {
-          bpm: vitalsOverride?.bpm ?? bpm,
-          respiratoryRate: vitalsOverride?.respiratoryRate ?? respiratoryRate,
+          ...acquiredVitals,
+          ...vitalsOverride,
+          bpm: vitalsOverride?.bpm ?? acquiredVitals.bpm ?? bpm,
+          respiratoryRate: vitalsOverride?.respiratoryRate ?? acquiredVitals.respiratoryRate ?? respiratoryRate,
         };
         const response = await apiFetch("/api/triage/message", {
           method: "POST",
+          signal: requestController.signal,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: history,
-            vitals: { bpm: wizardVitals.bpm },
+            vitals: wizardVitals,
             locale: activeLanguage,
             wizard: {
               mode: entryMode,
               vitalsScanCompleted: entryMode === "with_vitals" || nextScanResults.some((result) => result.type === "vitals"),
               vitals: wizardVitals,
+              vitalsEvidence: {
+                ...(typeof wizardVitals.bpm === "number" && !acquiredVitalEvidence.bpm ? { bpm: { source: "phone_estimate", affectsTriage: false } } : {}),
+                ...(typeof wizardVitals.respiratoryRate === "number" && !acquiredVitalEvidence.respiratoryRate ? { respiratoryRate: { source: "phone_estimate", affectsTriage: false } } : {}),
+                ...acquiredVitalEvidence,
+              },
               quickAnswers: quickAnswerTrail,
               scanResults: nextScanResults,
               declinedScanTypes: nextDeclinedScanTypes,
@@ -557,6 +741,7 @@ export default function TriageChat({
         setProfileContextUsed(Boolean(res.profileContextUsed));
         setVitalsPrompt(res.vitalsPrompt && Array.isArray(res.vitalsPrompt.actions) && res.vitalsPrompt.actions.length ? res.vitalsPrompt : null);
         setGuidancePlan(res.guidancePlan ?? null);
+        onStageChange?.(res.guidancePlan?.stage ?? (res.done ? "complete" : "symptom"), Boolean(res.safetyAlert));
         setMedicalFollowups(
           !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
             ? res.medicalFollowups
@@ -596,20 +781,111 @@ export default function TriageChat({
           }
         });
       } catch {
-        const errMsg: ChatMessage = {
-          role: "assistant",
-          content: t("health.symptomCheck.chat.errorMsg"),
-        };
+        if (requestController.signal.aborted && requestAbortRef.current !== requestController) return;
         setMedicalFollowups([]);
-        const msgIdx = messages.length;
-        setMessages((prev) => [...prev, errMsg]);
-        animateMessage(msgIdx, errMsg.content);
+        setRequestError(t("health.symptomCheck.chat.errorMsg", "We could not complete that check. Your answers are saved—please try again."));
+        onStageChange?.(runtimeStageForPresentation(recoverPresentationStage));
       } finally {
-        setLoading(false);
+        window.clearTimeout(requestTimeout);
+        if (requestAbortRef.current === requestController) {
+          requestAbortRef.current = null;
+          setLoading(false);
+        }
       }
     },
-    [activeLanguage, animateMessage, bpm, declinedScanTypes, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, messages.length, onComplete, respiratoryRate, scanResults, selectedQuickAnswers, t]
+    [acquiredVitalEvidence, acquiredVitals, activeLanguage, animateMessage, bpm, declinedScanTypes, entryMode, healthMemory, initialClue, languageReady, medisearchConversationId, onComplete, onStageChange, presentationStage, respiratoryRate, scanResults, selectedQuickAnswers, t]
   );
+
+  const applyAcquiredReading = useCallback((values: TriageVitalValues, disclosure: string, affectsTriage: boolean, source: VitalsReadingSource) => {
+    setReadingDisclosure(affectsTriage ? disclosure : `${disclosure} · Confirm with a device before it changes guidance`);
+    setAcquiredVitals((current) => ({ ...current, ...values }));
+    setAcquiredVitalEvidence((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(values) as Array<keyof TriageVitalValues>) {
+        if (typeof values[key] === "number") next[key] = { source, affectsTriage };
+      }
+      return next;
+    });
+  }, []);
+
+  const createTurnSnapshot = useCallback((): TriageChatTurnSnapshot => ({
+    messages,
+    selectedQuickAnswers,
+    apiQuickReplies,
+    evidenceSources,
+    safetyAlert,
+    emergencyContact,
+    wizardStageLabel,
+    wizardSymptomId,
+    medisearchConversationId,
+    medicalFollowups,
+    questionReason,
+    profileContextUsed,
+    vitalsPrompt,
+    guidancePlan,
+    scanResults,
+    declinedScanTypes,
+    acquiredVitals,
+    acquiredVitalEvidence,
+    readingDisclosure,
+    presentationStage,
+  }), [acquiredVitalEvidence, acquiredVitals, apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, medicalFollowups, medisearchConversationId, messages, presentationStage, profileContextUsed, questionReason, readingDisclosure, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
+
+  const replaceBackStack = useCallback((nextBackStack: TriageChatTurnSnapshot[]) => {
+    backStackRef.current = nextBackStack;
+    setBackStack(nextBackStack);
+  }, []);
+
+  const restoreTurnSnapshot = useCallback((snapshot: TriageChatTurnSnapshot) => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    lastRequestRef.current = null;
+    setLoading(false);
+    setRequestError(null);
+    setInput("");
+    setMessages(snapshot.messages);
+    setSelectedQuickAnswers(snapshot.selectedQuickAnswers);
+    setApiQuickReplies(snapshot.apiQuickReplies ?? null);
+    setEvidenceSources(snapshot.evidenceSources ?? []);
+    setSafetyAlert(snapshot.safetyAlert ?? null);
+    setEmergencyContact(snapshot.emergencyContact ?? snapshot.safetyAlert?.emergencyContact ?? null);
+    setWizardStageLabel(snapshot.wizardStageLabel ?? "");
+    setWizardSymptomId(snapshot.wizardSymptomId ?? "");
+    setMedisearchConversationId(snapshot.medisearchConversationId ?? null);
+    setMedicalFollowups(snapshot.medicalFollowups ?? []);
+    setQuestionReason(snapshot.questionReason ?? null);
+    setProfileContextUsed(Boolean(snapshot.profileContextUsed));
+    setVitalsPrompt(snapshot.vitalsPrompt ?? null);
+    setGuidancePlan(snapshot.guidancePlan ?? null);
+    setScanResults(snapshot.scanResults ?? []);
+    setDeclinedScanTypes(snapshot.declinedScanTypes ?? []);
+    setAcquiredVitals(snapshot.acquiredVitals ?? {});
+    setAcquiredVitalEvidence(snapshot.acquiredVitalEvidence ?? {});
+    setReadingDisclosure(snapshot.readingDisclosure ?? "");
+    onStageChange?.(
+      runtimeStageForPresentation(snapshot.presentationStage),
+      Boolean(snapshot.safetyAlert),
+    );
+    scrollToBottom();
+  }, [onStageChange, scrollToBottom]);
+
+  const stepBack = useCallback(() => {
+    const previous = backStackRef.current.at(-1);
+    if (!previous) return false;
+
+    replaceBackStack(backStackRef.current.slice(0, -1));
+    restoreTurnSnapshot(previous);
+    return true;
+  }, [replaceBackStack, restoreTurnSnapshot]);
+
+  useEffect(() => {
+    backStackRef.current = backStack;
+  }, [backStack]);
+
+  useEffect(() => {
+    onBackHandlerChange?.(stepBack);
+    return () => onBackHandlerChange?.(null);
+  }, [onBackHandlerChange, stepBack]);
 
   useEffect(() => {
     if (!languageReady) return;
@@ -635,6 +911,7 @@ export default function TriageChat({
 
   useEffect(() => {
     onDraftChange?.({
+      assessmentSessionId,
       messages,
       selectedQuickAnswers,
       apiQuickReplies,
@@ -651,9 +928,14 @@ export default function TriageChat({
       guidancePlan,
       scanResults,
       declinedScanTypes,
+      acquiredVitals,
+      acquiredVitalEvidence,
+      readingDisclosure,
+      presentationStage,
+      backStack,
       pendingRequest: loading || (!languageReady && !initiated),
     });
-  }, [apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, profileContextUsed, questionReason, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
+  }, [acquiredVitalEvidence, acquiredVitals, apiQuickReplies, assessmentSessionId, backStack, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, presentationStage, profileContextUsed, questionReason, readingDisclosure, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -661,27 +943,44 @@ export default function TriageChat({
 
   useEffect(() => {
     return () => {
-      if (animTimerRef.current) clearInterval(animTimerRef.current);
       recRef.current?.stop();
+      const activeRequest = requestAbortRef.current;
+      requestAbortRef.current = null;
+      activeRequest?.abort();
     };
   }, []);
 
   useEffect(() => {
-    if (!autoStartVoice || loading || animatingIdx !== null || messages.length === 0) return;
+    if (!autoStartVoice || loading || messages.length === 0) return;
     const timer = setTimeout(() => {
       startListening();
       onVoiceAutoStarted?.();
     }, 300);
     return () => clearTimeout(timer);
-  }, [autoStartVoice, loading, animatingIdx, messages.length, startListening, onVoiceAutoStarted]);
+  }, [autoStartVoice, loading, messages.length, startListening, onVoiceAutoStarted]);
 
   const sendText = async (rawText: string, quickAnswer?: QuickAnswer) => {
     const text = rawText.trim();
-    if (!text || !languageReady || loading || animatingIdx !== null) return;
+    if (!text || !languageReady || loading) return;
     setInput("");
+
+    if (messages.some((message) => message.role === "assistant")) {
+      replaceBackStack([...backStackRef.current, createTurnSnapshot()]);
+    }
 
     const userMsg: ChatMessage = { role: "user", content: text };
     const newHistory = [...messages, userMsg];
+    if (quickAnswer?.id === "edit_answers") {
+      const retainedAnswers = selectedQuickAnswers.filter((answer) =>
+        answer.kind === "symptom" || answer.kind === "red_flag"
+      );
+      setSelectedQuickAnswers(retainedAnswers);
+      setMessages(newHistory);
+      scrollToBottom();
+      await sendToApi(newHistory, retainedAnswers);
+      inputRef.current?.focus();
+      return;
+    }
     const nextSelectedQuickAnswers = quickAnswer
       ? [...selectedQuickAnswers, { id: quickAnswer.id, label: quickAnswer.label, value: quickAnswer.value, kind: quickAnswer.kind }]
       : selectedQuickAnswers;
@@ -708,14 +1007,15 @@ export default function TriageChat({
     .map((msg, index) => ({ msg, index }))
     .reverse()
     .find(({ msg }) => msg.role === "assistant");
-  const latestQuestion = latestAssistantEntry
-    ? animatingIdx === latestAssistantEntry.index
-      ? animatedText
-      : latestAssistantEntry.msg.content
-    : t("health.symptomCheck.chat.reviewTitle", "Checking your next step");
-  const showQuestion = Boolean(latestAssistantEntry || !loading);
+  const latestQuestion = localizeTriageQuestion(
+    activeLanguage,
+    latestAssistantEntry
+      ? latestAssistantEntry.msg.content
+      : t("health.symptomCheck.chat.reviewTitle", "Checking your next step"),
+  );
+  const showQuestion = Boolean(latestAssistantEntry || !loading || presentationStage === "checking");
   const waitingForLanguage = !languageReady && !initiated;
-  const canAnswer = languageReady && !loading && animatingIdx === null && messages.length > 0;
+  const canAnswer = languageReady && !loading && messages.length > 0;
   const canShowMedicalFollowups = canAnswer && !safetyAlert && medicalFollowups.length > 0;
   const scanOffer = selectTriageScanOffer({
     selectedAnswers: selectedQuickAnswers,
@@ -728,8 +1028,8 @@ export default function TriageChat({
   });
   const answeredCount = selectedQuickAnswers.length;
   const questionNumber = answeredCount + 1;
-  const visibleQuickAnswers = quickAnswers.slice(0, 4);
-  const extraQuickAnswers = quickAnswers.slice(4);
+  const visibleQuickAnswers = displayedQuickAnswers.slice(0, 4);
+  const extraQuickAnswers = displayedQuickAnswers.slice(4);
   const guidanceConfidenceScore = guidancePlan?.confidence?.score;
   const confidenceSignals = typeof guidanceConfidenceScore === "number"
     ? Math.min(5, Math.max(1, guidanceConfidenceScore))
@@ -768,6 +1068,124 @@ export default function TriageChat({
       ? t("health.symptomCheck.chat.readoutChoices", "Choices: {{choices}}", { choices: visibleQuickAnswers.map((answer) => answer.label).join(". ") })
       : "",
   ].filter(Boolean).join(" ");
+  const initialSymptomConcepts = symptomConceptsFor(initialClue);
+  const additionalSymptomLabels = selectedQuickAnswers
+    .filter((answer) => answer.kind === "symptom" && answer.id !== "no-additional-symptoms")
+    .filter((answer) => {
+      const answerConcepts = symptomConceptsFor(`${answer.label} ${answer.value}`);
+      return ![...answerConcepts].some((concept) => initialSymptomConcepts.has(concept));
+    })
+    .map((answer) => answer.label);
+  const symptomSummary = [initialClue.trim(), ...additionalSymptomLabels].filter(Boolean).join("; ");
+  const reviewLabelByKind: Record<string, string> = {
+    location: t("health.symptomCheck.chat.reviewLocation", "Location"),
+    severity: t("health.symptomCheck.chat.reviewSeverity", "Severity"),
+    duration: t("health.symptomCheck.chat.reviewOnset", "When it started"),
+    trend: t("health.symptomCheck.chat.reviewRelatedDetail", "Related detail"),
+  };
+  const reviewAnswerLabelById: Record<string, string> = {
+    today: t("health.symptomCheck.chat.reviewAnswerToday", "Started today"),
+    few_days: t("health.symptomCheck.chat.reviewAnswerFewDays", "Few days"),
+    week_plus: t("health.symptomCheck.chat.reviewAnswerWeekPlus", "Longer than a few days"),
+    not_sure: t("health.symptomCheck.chat.reviewAnswerNotSure", "I am not sure"),
+    after_medicine_surgery_fall: t(
+      "health.symptomCheck.chat.reviewAnswerAfterCare",
+      "It started after medicine, surgery, hospital, or a fall",
+    ),
+  };
+  const canonicalReviewItems = [
+    ...(symptomSummary
+      ? [{ label: t("health.symptomCheck.chat.reviewSymptom", "Symptom"), value: symptomSummary }]
+      : []),
+    ...selectedQuickAnswers
+      .filter((answer) => reviewLabelByKind[answer.kind])
+      .slice(-4)
+      .map((answer) => ({
+        label: reviewLabelByKind[answer.kind],
+        value: reviewAnswerLabelById[answer.id]
+          ?? localizeTriageAnswerLabel(activeLanguage, answer.label),
+      })),
+  ];
+  const usesNumericSeverityScale = presentationStage === "severity"
+    && isNumericSeverityScaleChoices(displayedQuickAnswers);
+  const usesRuntimeQuestion = presentationStage !== undefined && [
+    "safety_check",
+    "symptom_selection",
+    "severity",
+    "onset",
+    "review",
+  ].includes(presentationStage);
+  const canonicalSceneControls = usesNumericSeverityScale && canAnswer ? (
+    <div data-testid="triage-quick-answers">
+      <SeverityScaleControl
+        choices={displayedQuickAnswers}
+        onSubmit={(choice) => {
+          const quickAnswer = displayedQuickAnswers.find((answer) => answer.id === choice.id);
+          if (quickAnswer) void sendText(quickAnswer.value, quickAnswer);
+        }}
+        continueLabel={t("health.symptomCheck.chat.continue", "Continue")}
+        minimumLabel={t("health.symptomCheck.chat.severityNone", "None")}
+        maximumLabel={t("health.symptomCheck.chat.severityWorst", "Worst imaginable")}
+      />
+    </div>
+  ) : presentationStage && canAnswer ? (
+    <div data-testid="triage-quick-answers">
+      <div
+        className={
+          presentationStage === "review"
+            ? "grid grid-cols-2 gap-[10px]"
+            : "grid gap-[10px]"
+        }
+      >
+        {displayedQuickAnswers.map((quickAnswer) => {
+          const { id, label, value, Icon, accent } = quickAnswer;
+          const isSafetyChoice = presentationStage === "safety_check";
+          const isReviewAction = presentationStage === "review";
+          const reviewActionLabel = id === "edit_answers" || id === "change"
+            ? t("health.symptomCheck.chat.reviewEdit", "Edit")
+            : id === "confirm_review" || id === "confirm"
+              ? t("health.symptomCheck.chat.reviewShowGuidance", "Yes, show my guidance")
+              : label;
+
+          if (isSafetyChoice) {
+            return (
+              <SymptomSafetyChoiceCard
+                key={id}
+                Icon={Icon}
+                label={label}
+                tone={safetyToneForQuickAnswer(quickAnswer)}
+                accent={quickAnswer.tone === "red" ? "signal" : quickAnswer.tone === "green" ? "check" : accent ?? "dot"}
+                onClick={() => void sendText(value, quickAnswer)}
+              />
+            );
+          }
+
+          if (!isReviewAction) {
+            return (
+              <SymptomChoiceCard
+                key={id}
+                Icon={Icon}
+                accent={accent ?? "dot"}
+                label={label}
+                onClick={() => void sendText(value, quickAnswer)}
+              />
+            );
+          }
+
+          return (
+            <button
+              type="button"
+              key={id}
+              onClick={() => void sendText(value, quickAnswer)}
+              className={`vyva-tap flex min-h-[54px] items-center justify-center rounded-full border px-3 text-center text-[14px] font-black transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8B5CF6]/30 ${isDark ? "border-white/[0.18] bg-[#352842] text-[#FFF8FF] hover:border-[#8B5CF6]/55 hover:bg-[#45325E]" : "border-[#D9CFE0] bg-white text-[#241238] hover:border-[#BFA2D8]"}`}
+            >
+              <span>{reviewActionLabel}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
 
   const handleSkipScan = (type: TriageScanType) => {
     setDeclinedScanTypes((current) => current.includes(type) ? current : [...current, type]);
@@ -788,12 +1206,16 @@ export default function TriageChat({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="symptom-canonical-triage flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="px-4 py-4"
+        className={presentationStage
+          ? requestError
+            ? "pb-[calc(18rem+env(safe-area-inset-bottom))] pt-4"
+            : "pb-[calc(11rem+env(safe-area-inset-bottom))] pt-4"
+          : "px-4 py-4"}
       >
-        <div className="mx-auto flex w-full max-w-[620px] flex-col gap-5">
+        <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5">
           {showProgressCard ? (
             <HealthWizardCard
               tone="soft"
@@ -919,7 +1341,36 @@ export default function TriageChat({
             </HealthWizardCard>
           ) : null}
 
-          {safetyAlert && (
+          {safetyAlert && presentationStage === "urgent_escalation" ? (
+            <SymptomAssessmentPresentation
+              stageId="urgent_escalation"
+              modality="touch"
+              showHeader={false}
+              title={t("health.symptomCheck.chat.urgentTitle", "Get urgent help now")}
+              helper={t(
+                "health.symptomCheck.chat.urgentHelper",
+                "Call emergency services now. Do not wait for an online assessment.",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (emergencyContact?.telHref) window.location.href = emergencyContact.telHref;
+                }}
+                disabled={!emergencyContact?.telHref}
+                className="vyva-tap flex min-h-[58px] w-full items-center gap-3 rounded-[8px] border border-[#DED3E2] bg-white px-[14px] py-3 text-left text-[15px] font-black text-[#241238]"
+              >
+                <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[8px] bg-[#FFF0EF] text-[#D94C48]">
+                  <PhoneCall size={19} />
+                </span>
+                <span>
+                  {emergencyContact?.telHref
+                    ? t("health.symptomCheck.chat.callEmergencyNumber", "Call {{number}}", { number: emergencyContact.label })
+                    : t("health.symptomCheck.chat.contactEmergency", "Contact emergency services")}
+                </span>
+              </button>
+            </SymptomAssessmentPresentation>
+          ) : safetyAlert && (
             <HealthWizardHero
               tone="red"
               className="motion-safe:animate-pulse"
@@ -945,7 +1396,32 @@ export default function TriageChat({
             </HealthWizardHero>
           )}
 
-          {showQuestion && (
+          {showQuestion && presentationStage ? (
+            presentationStage !== "urgent_escalation" ? (
+              <SymptomAssessmentPresentation
+                stageId={presentationStage}
+                modality="touch"
+                showHeader={false}
+                title={presentationStage === "symptom_selection" && hasRepeatedInitialSymptom
+                  ? t("health.symptomCheck.chat.anythingElse", "Anything else?")
+                  : presentationStage === "review"
+                    ? t("health.symptomCheck.chat.reviewConfirmTitle", "Does this look right?")
+                    : presentationStage === "related_details"
+                      ? t("health.symptomCheck.chat.relatedDetailsTitle", "One more detail")
+                  : usesRuntimeQuestion
+                    ? latestQuestion.trim() || undefined
+                    : undefined}
+                helper={presentationStage === "related_details"
+                  ? t("health.symptomCheck.chat.relatedDetailsHelper", "Choose the pattern that fits best.")
+                  : usesRuntimeQuestion && !usesNumericSeverityScale
+                    ? ""
+                    : undefined}
+                reviewItems={canonicalReviewItems}
+              >
+                {canonicalSceneControls}
+              </SymptomAssessmentPresentation>
+            ) : null
+          ) : showQuestion && (
             <HealthWizardCard className="overflow-hidden border-[#D8C7FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBFAFF_54%,#FFF8EA_100%)] px-5 py-5 shadow-[0_18px_44px_rgba(107,33,168,0.12)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -974,12 +1450,6 @@ export default function TriageChat({
               </div>
               <h2 className={`font-body text-[30px] font-black leading-[1.12] sm:text-[36px] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
                 {latestQuestion}
-                {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
-                  <span
-                    className="ml-1 inline-block h-[1em] w-[2px] animate-pulse align-middle"
-                    style={{ background: "hsl(var(--vyva-purple))", opacity: 0.7 }}
-                  />
-                )}
               </h2>
               {guidancePlan ? (
                 <p data-testid="triage-guidance-focus" className="mt-4 rounded-[18px] border border-[#E8DED4] bg-white/78 px-4 py-3 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
@@ -994,60 +1464,42 @@ export default function TriageChat({
             </HealthWizardCard>
           )}
 
-          {canAnswer && questionReason ? (
-            <details
-              data-testid="triage-question-reason"
-              className="group rounded-[22px] border border-[#E8DED4] bg-white/85 px-4 py-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]"
+          {requestError ? (
+            <section
+              ref={requestErrorRef}
+              role="alert"
+              data-testid="triage-request-error"
+              className={`mx-auto w-full max-w-[520px] scroll-mb-[calc(9rem+env(safe-area-inset-bottom))] rounded-[20px] border px-4 py-4 shadow-[0_12px_28px_rgba(0,0,0,0.12)] ${isDark ? "border-[#F8AE1B]/35 bg-[#382D24] text-[#FFF1C8]" : "border-[#E8CF9D] bg-[#FFFCF5] text-[#5F3A00]"}`}
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <span className="font-body text-[15px] font-black text-vyva-text-1">
-                  {t("health.symptomCheck.chat.whyThisQuestion", "Why VYVA is asking this")}
+              <div className="flex items-start gap-3">
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[12px] ${isDark ? "bg-[#52402A]" : "bg-[#FFF5DD]"}`}>
+                  <AlertCircle size={20} strokeWidth={2.5} className="text-[#F8AE1B]" aria-hidden="true" />
                 </span>
-                <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="mt-3 border-t border-[#EADFD5] pt-3">
-                <p className="font-body text-[15px] font-bold leading-relaxed text-vyva-text-2">
-                  {questionReason}
-                </p>
-                {profileContextUsed ? (
-                  <p className="mt-2 font-body text-[13px] font-black leading-snug text-[#047857]">
-                    {t("health.symptomCheck.chat.profileContextUsed", "VYVA quietly used your health profile to choose this question.")}
-                  </p>
-                ) : null}
-                {guidancePlan ? (
-                  <div data-testid="triage-guidance-plan" className="mt-4 rounded-[18px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
-                    <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
-                      {guidancePlan.protocolLabel}
-                    </p>
-                    <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                      {guidancePlan.nextQuestionFocus}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {guidancePlan.usefulSignals.slice(0, 3).map((signal) => (
-                        <span
-                          key={signal.id}
-                          className={`rounded-full px-3 py-1 font-body text-[12px] font-black ${
-                            signal.status === "available"
-                              ? "bg-[#ECFDF5] text-[#047857]"
-                              : "bg-white text-vyva-text-2"
-                          }`}
-                        >
-                          {signal.label}
-                        </span>
-                      ))}
-                    </div>
-                    {guidancePlan.confidence.missing.length ? (
-                      <p className="mt-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                        {t("health.symptomCheck.chat.confidenceMissing", "Confidence improves with: {{items}}", { items: guidancePlan.confidence.missing.join(", ") })}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[15px] font-black leading-snug">{requestError}</p>
+                  <button
+                    type="button"
+                    className={`vyva-tap mt-3 min-h-[46px] w-full rounded-full border px-5 font-body text-[14px] font-black sm:w-auto ${isDark ? "border-[#F8AE1B]/50 bg-[#2B211A] text-[#FFD98A]" : "border-[#D6AE5B] bg-white text-[#7A4A00]"}`}
+                    onClick={() => {
+                      const pending = lastRequestRef.current;
+                      if (!pending) return;
+                      void sendToApi(
+                        pending.history,
+                        pending.quickAnswerTrail,
+                        pending.nextScanResults,
+                        pending.nextDeclinedScanTypes,
+                        pending.vitalsOverride,
+                      );
+                    }}
+                  >
+                    {t("health.symptomCheck.chat.retry", "Try again")}
+                  </button>
+                </div>
               </div>
-            </details>
+            </section>
           ) : null}
 
-          {(loading || waitingForLanguage) && (
+          {(loading || waitingForLanguage) && presentationStage !== "checking" && (
             <TriageReviewPanel />
           )}
 
@@ -1068,18 +1520,26 @@ export default function TriageChat({
             </details>
           )}
 
-          {canAnswer && scanOffer && (
+          {canAnswer && scanOffer && !vitalsPrompt && (
             <details
               data-testid="triage-optional-scan"
-              className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]"
+              className={`group mx-auto w-full max-w-[520px] rounded-[22px] border shadow-[0_8px_22px_rgba(0,0,0,0.10)] ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#DDD6FE] bg-white"}`}
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <span className="font-body text-[15px] font-black text-vyva-text-1">
-                  {t("health.symptomCheck.chat.optionalCheck", "Optional check")}
+              <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F3E8FF] text-vyva-purple">
+                  <Activity size={20} strokeWidth={2.7} aria-hidden="true" />
+                </span>
+                <span className={`min-w-0 flex-1 text-left font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
+                  {scanOffer.type === "vitals"
+                    ? t("health.symptomCheck.chat.addQuickReading", "Add a quick reading")
+                    : t("health.symptomCheck.chat.addPhoto", "Add a photo")}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] ${isDark ? "bg-[#45325E] text-[#D4B5FF]" : "bg-[#F5F3FF] text-vyva-purple"}`}>
+                  {t("health.symptomCheck.chat.optional", "Optional")}
                 </span>
                 <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
               </summary>
-              <div className="mt-4 border-t border-[#EADFD5] pt-4">
+              <div className={`border-t p-4 ${isDark ? "border-white/[0.12]" : "border-[#EEE7F3]"}`}>
                 <TriageScanCard
                   offer={scanOffer}
                   language={activeLanguage}
@@ -1091,7 +1551,7 @@ export default function TriageChat({
             </details>
           )}
 
-          {canAnswer && (
+          {canAnswer && !presentationStage && (
             <div className="grid gap-3 rounded-[28px] border border-[#E8DED4] bg-white/88 p-3 shadow-[0_12px_30px_rgba(63,45,35,0.06)]" data-testid="triage-quick-answers">
               <div className="flex items-center gap-2 px-2 font-body text-[15px] font-black text-vyva-text-2">
                 <CheckCircle className="h-4 w-4 text-teal-700" />
@@ -1140,41 +1600,30 @@ export default function TriageChat({
           )}
 
           {canAnswer && vitalsPrompt ? (
-            <section
+            <details
               data-testid="triage-contextual-vitals-prompt"
-              className="rounded-[24px] border border-[#DDD6FE] bg-[#FBFAFF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.07)]"
+              className={`group mx-auto w-full max-w-[520px] rounded-[22px] border shadow-[0_8px_22px_rgba(0,0,0,0.10)] ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#DDD6FE] bg-white"}`}
             >
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-sm">
-                  <Activity size={22} strokeWidth={2.7} />
+              <summary className="vyva-tap flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F3E8FF] text-vyva-purple">
+                  <Activity size={20} strokeWidth={2.7} aria-hidden="true" />
                 </span>
-                <div className="min-w-0">
-                  <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                    {vitalsPrompt.title}
-                  </p>
-                  <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                    {vitalsPrompt.body}
-                  </p>
-                </div>
+                <span className={`min-w-0 flex-1 text-left font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
+                  {t("health.symptomCheck.chat.addReading", "Add a reading")}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] ${isDark ? "bg-[#45325E] text-[#D4B5FF]" : "bg-[#F5F3FF] text-vyva-purple"}`}>
+                  {t("health.symptomCheck.chat.optional", "Optional")}
+                </span>
+                <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="px-4 pt-3">
+                <p className={`font-body text-[13px] font-semibold leading-snug ${isDark ? "text-[#D2C6DC]" : "text-vyva-text-2"}`}>
+                  {t("health.symptomCheck.chat.readingHelper", "Use a device reading if you have one nearby. You can skip this.")}
+                </p>
+                {readingDisclosure ? <p className="mt-2 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]" data-testid="triage-reading-disclosure">{readingDisclosure}</p> : null}
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {vitalsPrompt.actions.map((action) => {
-                  const Icon = iconByKey[action.icon] ?? Activity;
-                  return (
-                    <button
-                      key={action.id}
-                      type="button"
-                      onClick={() => void sendText(action.value)}
-                      disabled={!canAnswer}
-                      className="vyva-tap flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] border border-[#DDD6FE] bg-white px-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm disabled:opacity-45"
-                    >
-                      <Icon size={18} strokeWidth={2.6} />
-                      {action.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+              <VitalsAcquisitionPanel actions={vitalsPrompt.actions} assessmentSessionId={assessmentSessionId} disabled={!canAnswer} onApply={applyAcquiredReading} />
+            </details>
           ) : null}
 
           {canShowMedicalFollowups && (
@@ -1215,10 +1664,12 @@ export default function TriageChat({
         </div>
       </div>
 
-      <div
-        className="px-4 pb-3 pt-2"
+      {(composerVisibility ? composerVisibility === "visible" : !presentationStage) ? <div
+        className="symptom-canonical-composer px-4 pb-3 pt-2"
         style={{
-          background: "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
+          background: isDark
+            ? "linear-gradient(180deg, rgba(18,11,35,0) 0%, #120B23 28%)"
+            : "linear-gradient(180deg, rgba(250,247,243,0) 0%, hsl(var(--vyva-bg)) 28%)",
           paddingBottom: "max(12px, env(safe-area-inset-bottom))",
         }}
       >
@@ -1233,37 +1684,37 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-1.5 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)] sm:gap-3">
+          <div className={`flex items-center gap-1.5 rounded-[30px] border p-2 shadow-[0_14px_34px_rgba(0,0,0,0.12)] sm:gap-3 ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#E8DED4] bg-white"}`}>
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={!languageReady || loading || animatingIdx !== null}
+              disabled={!languageReady || loading}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-3 py-[15px] font-body text-[17px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83] sm:px-4 sm:py-[16px] sm:text-[20px]"
+              className={`min-w-0 flex-1 rounded-full px-3 py-[15px] font-body text-[17px] font-bold outline-none sm:px-4 sm:py-[16px] sm:text-[20px] ${isDark ? "text-[#FFF8FF] placeholder:text-[#AA9DB7]" : "text-vyva-text-1 placeholder:text-[#9A8C83]"}`}
               style={{
                 background: "transparent",
               }}
             />
             <button
               onClick={isListening ? stopListening : startListening}
-              disabled={!isListening && (!languageReady || loading || animatingIdx !== null)}
+              disabled={!isListening && (!languageReady || loading)}
               data-testid="button-triage-voice"
               aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
               className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
               style={{
-                background: isListening ? "#FEE2E2" : "hsl(var(--vyva-purple-light))",
-                color: isListening ? "#B91C1C" : "hsl(var(--vyva-purple))",
+                background: isListening ? "#FEE2E2" : isDark ? "#45325E" : "hsl(var(--vyva-purple-light))",
+                color: isListening ? "#B91C1C" : isDark ? "#C7A4FF" : "hsl(var(--vyva-purple))",
               }}
             >
               {isListening ? <Square size={18} /> : <Mic size={19} />}
             </button>
             <button
               onClick={handleSend}
-              disabled={!input.trim() || !languageReady || loading || animatingIdx !== null}
+              disabled={!input.trim() || !languageReady || loading}
               data-testid="button-triage-send"
               aria-label={t("health.symptomCheck.chat.send")}
               className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
@@ -1273,7 +1724,7 @@ export default function TriageChat({
             </button>
           </div>
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }

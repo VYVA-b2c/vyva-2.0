@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import rememberLaterSql from "../../migrations/0040_remember_later.sql?raw";
+import { buildRememberLaterRounds, TIER_SETTINGS } from "../../scripts/generate-remember-later-seed.mjs";
 
 describe("Remember Later migration seed", () => {
   it("creates the required tables and policies", () => {
@@ -23,5 +24,22 @@ describe("Remember Later migration seed", () => {
       const tierRows = rememberLaterSql.match(new RegExp(`'${tier <= 4 ? "event_based" : tier <= 8 ? "time_based" : "dual"}',\\s*${tier},`, "g")) ?? [];
       expect(tierRows).toHaveLength(20);
     }
+  });
+
+  it("generates the 20-level progression content", () => {
+    const generatedRows = buildRememberLaterRounds();
+
+    expect(generatedRows).toHaveLength(400);
+    expect(TIER_SETTINGS).toHaveLength(20);
+
+    for (let tier = 1; tier <= 20; tier += 1) {
+      const tierRows = generatedRows.filter((row) => row.difficulty_tier === tier);
+      const expectedRoundType = tier <= 4 ? "event_based" : tier <= 8 ? "time_based" : "dual";
+
+      expect(tierRows).toHaveLength(20);
+      expect(tierRows.every((row) => row.round_type === expectedRoundType)).toBe(true);
+    }
+
+    expect(generatedRows.filter((row) => row.difficulty_tier >= 15).every((row) => row.filler_item_interval_ms <= 1500)).toBe(true);
   });
 });

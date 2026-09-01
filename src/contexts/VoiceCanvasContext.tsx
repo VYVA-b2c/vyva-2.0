@@ -24,6 +24,7 @@ import {
   type VoiceCanvasClearDetail,
   type VoiceCanvasResponseKind,
   type VoiceCanvasSceneEnvelope,
+  type VoiceCanvasSceneProvenance,
   type VoiceCanvasSceneOwner,
 } from "@/lib/voiceCanvasBridge";
 
@@ -58,6 +59,21 @@ function optionCardBlocks(viewModel: VoiceCanvasViewModel): VoiceCanvasOptionCar
 
 function matchesSpokenOption(value: string, spoken: string) {
   return value.trim().toLocaleLowerCase() === spoken;
+}
+
+function isHealthCanvasScene(scene: Pick<VoiceCanvasSceneEnvelope, "owner">) {
+  return scene.owner === "health_preventive_check";
+}
+
+function voiceCanvasSceneMatchesProvenance(
+  scene: VoiceCanvasSceneEnvelope,
+  provenance: VoiceCanvasSceneProvenance,
+) {
+  return scene.owner === provenance.owner
+    && scene.viewModel.sceneId === provenance.sceneId
+    && scene.revision === provenance.revision
+    && scene.questionId === provenance.questionId
+    && scene.sceneInstanceId === provenance.sceneInstanceId;
 }
 
 export function voiceCanvasStateReducer(state: VoiceCanvasState, action: VoiceCanvasStateAction): VoiceCanvasState {
@@ -128,27 +144,54 @@ export function VoiceCanvasProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const provenance = detail?.canvasProvenance ?? null;
+      if (isHealthCanvasScene(scene) && provenance?.owner !== "health_preventive_check") {
+        return;
+      }
+
+      const responseScene = isHealthCanvasScene(scene) && provenance
+        ? provenance
+        : {
+            sceneId: scene.viewModel.sceneId,
+            revision: scene.revision,
+            questionId: scene.questionId,
+            sceneInstanceId: scene.sceneInstanceId,
+            flowReference: scene.flowReference,
+          };
+      const canMatchAgainstActiveScene = !isHealthCanvasScene(scene)
+        || (provenance ? voiceCanvasSceneMatchesProvenance(scene, provenance) : true);
+
       const normalized = utterance.toLocaleLowerCase();
-      const choice = scene.viewModel.choices?.find((item) => !item.disabled && (
-        matchesSpokenOption(item.label, normalized)
-        || matchesSpokenOption(item.id.replace(/_/g, " "), normalized)
-      ));
-      const optionCard = optionCardBlocks(scene.viewModel).find((item) => !item.disabled && (
-        matchesSpokenOption(item.title, normalized)
-        || matchesSpokenOption(item.id.replace(/[_:-]/g, " "), normalized)
-        || item.voiceAliases?.some((alias) => matchesSpokenOption(alias, normalized))
-      ));
-      const primaryMatches = scene.viewModel.primaryAction?.label.trim().toLocaleLowerCase() === normalized;
-      const secondaryMatches = scene.viewModel.secondaryAction?.label.trim().toLocaleLowerCase() === normalized;
+      const choice = canMatchAgainstActiveScene
+        ? scene.viewModel.choices?.find((item) => !item.disabled && (
+            matchesSpokenOption(item.label, normalized)
+            || matchesSpokenOption(item.id.replace(/_/g, " "), normalized)
+          ))
+        : undefined;
+      const optionCard = canMatchAgainstActiveScene
+        ? optionCardBlocks(scene.viewModel).find((item) => !item.disabled && (
+            matchesSpokenOption(item.title, normalized)
+            || matchesSpokenOption(item.id.replace(/[_:-]/g, " "), normalized)
+            || item.voiceAliases?.some((alias) => matchesSpokenOption(alias, normalized))
+          ))
+        : undefined;
+      const primaryMatches = canMatchAgainstActiveScene
+        && scene.viewModel.primaryAction?.label.trim().toLocaleLowerCase() === normalized;
+      const secondaryMatches = canMatchAgainstActiveScene
+        && scene.viewModel.secondaryAction?.label.trim().toLocaleLowerCase() === normalized;
 
       emitVoiceCanvasResponse({
-        sceneId: scene.viewModel.sceneId,
-        revision: scene.revision,
+        sceneId: responseScene.sceneId,
+        revision: responseScene.revision,
+        questionId: responseScene.questionId,
+        sceneInstanceId: responseScene.sceneInstanceId,
+        flowReference: responseScene.flowReference,
         kind: choice || optionCard ? "choice" : primaryMatches ? "primary" : secondaryMatches ? "secondary" : "text",
         utterance,
         value: choice?.label ?? optionCard?.title ?? utterance,
         choiceId: choice?.id ?? optionCard?.id,
         at: detail.at || new Date().toISOString(),
+        voiceUtteranceId: detail.voiceUtteranceId,
       });
     };
 
@@ -172,6 +215,9 @@ export function VoiceCanvasProvider({ children }: { children: ReactNode }) {
     emitVoiceCanvasResponse({
       sceneId: scene.viewModel.sceneId,
       revision: scene.revision,
+      questionId: scene.questionId,
+      sceneInstanceId: scene.sceneInstanceId,
+      flowReference: scene.flowReference,
       ...response,
       utterance: utterance || (response.file?.name ?? "file"),
       at: new Date().toISOString(),
