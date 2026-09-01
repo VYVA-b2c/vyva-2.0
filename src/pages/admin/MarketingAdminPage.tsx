@@ -40,6 +40,9 @@ import {
   MessageSquare,
   Timer,
 } from "lucide-react";
+import AdminMenu from "./AdminMenu";
+import AdminPageHeader from "./AdminPageHeader";
+import SocialStudioPanel from "./SocialStudioPanel";
 import { apiFetch } from "@/lib/queryClient";
 
 const CHANNELS = [
@@ -51,21 +54,8 @@ const CHANNELS = [
   "tiktok",
 ] as const;
 const AUDIENCES = ["b2c", "b2b", "both"] as const;
-const TABS = [
-  "dashboard",
-  "journeys",
-  "content",
-  "calendar",
-  "contacts",
-  "settings",
-] as const;
-const CAMPAIGN_STATUSES = [
-  "draft",
-  "scheduled",
-  "published",
-  "paused",
-  "archived",
-] as const;
+const TABS = ["dashboard", "social-studio", "journeys", "content", "calendar", "contacts", "settings"] as const;
+const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archived"] as const;
 const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const CONTENT_STATUSES = [
   "draft",
@@ -886,6 +876,7 @@ const channelLabel: Record<Channel, string> = {
 
 const tabLabel: Record<Tab, string> = {
   dashboard: "Dashboard",
+  "social-studio": "Social Studio",
   journeys: "Journeys",
   content: "Content",
   calendar: "Calendar",
@@ -7225,6 +7216,13 @@ export default function MarketingAdminPage() {
               )}
             </div>
           </div>
+
+          {activeTab === "social-studio" && (
+            <SocialStudioPanel
+              audiences={audiences.map((audience) => ({ id: audience.id, name: audience.name, memberCount: audience.memberCount }))}
+              onCreated={() => refreshAll()}
+            />
+          )}
 
           {activeTab === "dashboard" && (
             <div className="grid gap-4" data-testid="marketing-dashboard-tab">
