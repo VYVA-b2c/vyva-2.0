@@ -255,6 +255,7 @@ type VoiceTriageLatestResponse = {
     protocolLabel?: string;
     nextQuestionFocus?: string;
   } | null;
+  summary?: TriageSummary | null;
 };
 
 type VoiceTriageSessionResponse = {
@@ -317,6 +318,12 @@ type SavedTriageReport = {
   recommendations?: string[];
   disclaimer?: string;
   ai_summary?: string | null;
+  next_step_label?: string | null;
+  next_step_level?: TriageSummary["nextStepLevel"] | null;
+  triage_reasons?: string[];
+  watch_signs?: string[];
+  profile_considerations?: string[];
+  vitals_notes?: string[];
   scan_results?: TriageScanResult[];
   scan_notes?: string[];
   bpm?: number | null;
@@ -326,6 +333,26 @@ type SavedTriageReport = {
   sent_to?: string[];
   staff_review_requested?: boolean;
 };
+
+export function triageSummaryFromSavedReport(report: SavedTriageReport | null | undefined): TriageSummary | null {
+  if (!report?.chief_complaint || !report.urgency) return null;
+  return {
+    chiefComplaint: report.chief_complaint,
+    symptoms: report.symptoms ?? [],
+    urgency: report.urgency,
+    recommendations: report.recommendations ?? [],
+    disclaimer: report.disclaimer ?? "",
+    aiSummary: report.ai_summary ?? undefined,
+    nextStepLabel: report.next_step_label ?? undefined,
+    nextStepLevel: report.next_step_level ?? undefined,
+    triageReasons: report.triage_reasons ?? [],
+    watchSigns: report.watch_signs ?? [],
+    profileConsiderations: report.profile_considerations ?? [],
+    vitalsNotes: report.vitals_notes ?? [],
+    scanResults: report.scan_results ?? [],
+    scanNotes: report.scan_notes ?? [],
+  };
+}
 
 type ConciergePrefillKind = "ride" | "appointment" | "home_care_quote";
 
@@ -1025,6 +1052,83 @@ export function VoiceTriageLivePanel({
         ) : null}
       </SymptomAssessmentPresentation>
     </aside>
+  );
+}
+
+export function CompletedVoiceReportFallback({
+  reportId,
+  isLoading,
+  isError,
+  onRetry,
+  onDone,
+}: {
+  reportId: string | null;
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { isDark } = useHomeMasterTheme();
+
+  return (
+    <div
+      className="mx-auto flex w-full max-w-[760px] flex-1 flex-col justify-center px-4 pb-[152px] pt-6 sm:px-5"
+      data-testid="voice-report-complete-fallback"
+      aria-live="polite"
+    >
+      <HealthWizardCard className="text-center">
+        <span className={`mx-auto grid h-16 w-16 place-items-center rounded-[22px] ${isDark ? "bg-[#45325E]" : "bg-[#F3EAFF]"}`}>
+          {isLoading
+            ? <Loader2 size={30} className="animate-spin text-vyva-purple" aria-hidden="true" />
+            : <VyvaIcon icon={FileText} accent="check" size={31} />}
+        </span>
+        <h1 className="mt-4 font-body text-[27px] font-extrabold leading-tight tracking-[-0.03em] text-vyva-text-1 sm:text-[32px]">
+          {isLoading
+            ? t("health.symptomCheck.voiceReport.loadingTitle", "Preparing your report")
+            : t("health.symptomCheck.voiceReport.completeTitle", "Your check is complete")}
+        </h1>
+        <p className="mx-auto mt-2 max-w-[520px] font-body text-[16px] font-semibold leading-relaxed text-vyva-text-2">
+          {isLoading
+            ? t("health.symptomCheck.voiceReport.loadingBody", "Your guidance is saved. We’re loading the full report now.")
+            : isError
+              ? t("health.symptomCheck.voiceReport.errorBody", "Your check is complete, but the full report could not be loaded here yet.")
+              : t("health.symptomCheck.voiceReport.savedBody", "Your guidance has been saved in My Reports.")}
+        </p>
+
+        <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+          {isError ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              data-testid="button-retry-voice-report"
+              className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-5 font-body text-[16px] font-black text-white"
+            >
+              <RefreshCw size={19} aria-hidden="true" />
+              {t("health.symptomCheck.voiceReport.retry", "Try loading again")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => navigate(reportId ? `/informes/${reportId}` : "/informes")}
+            data-testid="button-open-saved-voice-report"
+            className={`vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[18px] border px-5 font-body text-[16px] font-black ${isDark ? "border-white/[0.16] bg-[#2D2038] text-[#D8B4FE]" : "border-[#E7DCF8] bg-white text-vyva-purple"}`}
+          >
+            <FileText size={19} aria-hidden="true" />
+            {t("health.symptomCheck.voiceReport.openReports", "Open My Reports")}
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            data-testid="button-done-voice-report"
+            className={`vyva-tap min-h-[54px] rounded-[18px] border px-5 font-body text-[16px] font-black ${isDark ? "border-white/[0.16] bg-transparent text-white" : "border-[#D8CDD9] bg-[#FAF7FC] text-vyva-text-1"}`}
+          >
+            {t("health.symptomCheck.voiceReport.done", "Done")}
+          </button>
+        </div>
+      </HealthWizardCard>
+    </div>
   );
 }
 
@@ -4004,18 +4108,6 @@ export default function SymptomCheckScreen() {
     restoredDraft?.assessmentStage
       ?? (restoredDraft?.step === "report" ? "safest_next_step" : incomingInitialClue ? "symptom_selection" : "describe")
   ));
-  const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
-    queryKey: ["/api/onboarding/careteam"],
-    enabled: step === "report",
-    retry: false,
-    staleTime: 2 * 60 * 1000,
-  });
-  const { data: latestVitalsData } = useQuery<LatestVitalsResponse>({
-    queryKey: ["/api/vitals-engine/latest", "symptom-report"],
-    enabled: step === "report",
-    retry: false,
-    staleTime: 60 * 1000,
-  });
   const [bpm, setBpm] = useState<number | null>(() => restoredDraft?.bpm ?? null);
   const [respiratoryRate, setRespiratoryRate] = useState<number | null>(() => restoredDraft?.respiratoryRate ?? null);
   const [chatStartTime, setChatStartTime] = useState<number | null>(() => restoredDraft?.chatStartTime ?? (incomingInitialClue ? Date.now() : null));
@@ -4039,6 +4131,7 @@ export default function SymptomCheckScreen() {
   const [hasAcknowledgedEmergencySafety, setHasAcknowledgedEmergencySafety] = useState(false);
   const voiceStartResetTimerRef = useRef<number | null>(null);
   const chatBackHandlerRef = useRef<(() => boolean) | null>(null);
+  const completedVoiceOutcomeRef = useRef<string | null>(null);
   const { data: drAiVoiceFeature } = useQuery<{ enabled: boolean; mode: "disabled" | "pilot" | "active" }>({
     queryKey: ["/api/config/features/dr-ai-voice"],
     queryFn: async () => {
@@ -4063,7 +4156,51 @@ export default function SymptomCheckScreen() {
       return fetchVoiceTriageSession(voiceTriageSessionId);
     },
     retry: false,
-    refetchInterval: voiceTriageSessionId ? 1000 : false,
+    refetchInterval: (query) => {
+      const session = query.state.data;
+      return voiceTriageSessionId && session?.status !== "complete" && session?.status !== "emergency"
+        ? 1000
+        : false;
+    },
+  });
+  const isCompletedVoiceTriageSession = voiceTriageSession?.status === "complete"
+    || voiceTriageSession?.latest_response?.status === "complete";
+  const voiceReportId = isCompletedVoiceTriageSession
+    ? voiceTriageSession?.latest_response?.report?.triage_report_id ?? voiceTriageSession?.triage_report_id ?? null
+    : null;
+  const embeddedVoiceReportSummary = isCompletedVoiceTriageSession
+    ? voiceTriageSession?.latest_response?.summary ?? null
+    : null;
+  const {
+    data: fetchedVoiceReport,
+    isLoading: isVoiceReportLoading,
+    isError: isVoiceReportError,
+    refetch: refetchVoiceReport,
+  } = useQuery<SavedTriageReport | null>({
+    queryKey: [`/api/reports/triage/${voiceReportId}`],
+    enabled: Boolean(isCompletedVoiceTriageSession && voiceReportId && !embeddedVoiceReportSummary),
+    queryFn: async () => {
+      if (!voiceReportId) return null;
+      const res = await apiFetch(`/api/reports/triage/${encodeURIComponent(voiceReportId)}`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      return res.json() as Promise<SavedTriageReport>;
+    },
+    retry: 1,
+  });
+  const voiceReportSummary = embeddedVoiceReportSummary
+    ?? triageSummaryFromSavedReport(fetchedVoiceReport);
+  const shouldLoadReportContext = step === "report" || isCompletedVoiceTriageSession;
+  const { data: careTeamData } = useQuery<{ members: CareTeamMember[] }>({
+    queryKey: ["/api/onboarding/careteam"],
+    enabled: shouldLoadReportContext,
+    retry: false,
+    staleTime: 2 * 60 * 1000,
+  });
+  const { data: latestVitalsData } = useQuery<LatestVitalsResponse>({
+    queryKey: ["/api/vitals-engine/latest", "symptom-report"],
+    enabled: shouldLoadReportContext,
+    retry: false,
+    staleTime: 60 * 1000,
   });
   const voiceTriageAnswerMutation = useMutation({
     mutationFn: async (answer: VoiceTriageAnswerInput) => {
@@ -4104,14 +4241,6 @@ export default function SymptomCheckScreen() {
           : current,
       );
       void queryClient.invalidateQueries({ queryKey: ["/api/voice-triage/session", voiceTriageSessionId] });
-      if (latest.status === "complete") {
-        markCompleted({
-          reason: "voice_triage_completed",
-          referenceId: latest.report?.triage_report_id ?? voiceTriageSessionId,
-        });
-        void queryClient.invalidateQueries({ queryKey: ["/api/reports/triage"] });
-        void queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
-      }
     },
     onError: () => {
       toast({
@@ -4126,11 +4255,29 @@ export default function SymptomCheckScreen() {
   }, [voiceTriageAnswerMutation]);
 
   useEffect(() => {
+    if (!isCompletedVoiceTriageSession || !voiceTriageSession) return;
+    const outcomeKey = `${voiceTriageSession.conversation_id}:${voiceReportId ?? "no-report"}`;
+    if (completedVoiceOutcomeRef.current === outcomeKey) return;
+    completedVoiceOutcomeRef.current = outcomeKey;
+    markCompleted({
+      reason: "voice_triage_completed",
+      referenceId: voiceReportId ?? voiceTriageSession.conversation_id,
+    });
+    void queryClient.invalidateQueries({ queryKey: ["/api/reports/triage"] });
+    void queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
+    void queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
+  }, [isCompletedVoiceTriageSession, markCompleted, voiceReportId, voiceTriageSession]);
+
+  useEffect(() => {
     const handleScreenSyncRequest = async (event: Event) => {
       const detail = event instanceof CustomEvent
         ? event.detail as DrAiScreenSyncRequestDetail | undefined
         : undefined;
       if (!detail?.conversationId || !detail.requestId) return;
+      if (isCompletedVoiceTriageSession) {
+        acknowledgeDrAiScreenSync({ ...detail, rendered: true });
+        return;
+      }
 
       let rendered = false;
       try {
@@ -4153,7 +4300,7 @@ export default function SymptomCheckScreen() {
 
     window.addEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleScreenSyncRequest);
     return () => window.removeEventListener(VYVA_DR_AI_SCREEN_SYNC_REQUEST_EVENT, handleScreenSyncRequest);
-  }, [fetchVoiceTriageSession]);
+  }, [fetchVoiceTriageSession, isCompletedVoiceTriageSession]);
 
   const endVoiceTriageSession = useCallback((conversationId: string | null) => {
     if (!conversationId) return;
@@ -4186,6 +4333,7 @@ export default function SymptomCheckScreen() {
     setVoiceStartPending(false);
     setSymptomInteractionMode("touch");
     voiceTriageAnswerMutation.reset();
+    completedVoiceOutcomeRef.current = null;
     setStep("intro");
     setTouchAssessmentStage("describe");
   }, [endVoiceTriageSession, voiceTriageAnswerMutation, voiceTriageSessionId]);
@@ -4211,6 +4359,16 @@ export default function SymptomCheckScreen() {
   }, [bpm, chatDraft, chatStartTime, durationSeconds, initialClue, refinementStatus, reportId, reportSaveState, respiratoryRate, step, summary, touchAssessmentStage]);
 
   const handleBack = () => {
+    if (isCompletedVoiceTriageSession) {
+      markCompleted({ reason: "symptom_check_finished", referenceId: voiceReportId });
+      clearSymptomCheckDraft();
+      clearVoiceSessionId();
+      setVoiceTriageSessionId(null);
+      completedVoiceOutcomeRef.current = null;
+      navigate(symptomCheckHealthReturnPath(location.pathname));
+      return;
+    }
+
     if (step === "chat") {
       if (chatBackHandlerRef.current?.()) return;
       resetSymptomCheck();
@@ -4349,9 +4507,24 @@ export default function SymptomCheckScreen() {
   }, []);
 
   const handleDone = () => {
-    markCompleted({ reason: "symptom_check_finished", referenceId: reportId });
+    const completedReportId = isCompletedVoiceTriageSession ? voiceReportId : reportId;
+    markCompleted({ reason: "symptom_check_finished", referenceId: completedReportId });
     clearSymptomCheckDraft();
+    if (isCompletedVoiceTriageSession) {
+      clearVoiceSessionId();
+      setVoiceTriageSessionId(null);
+      completedVoiceOutcomeRef.current = null;
+    }
     navigate(symptomCheckHealthReturnPath(location.pathname));
+  };
+
+  const handleReportVoiceClick = () => {
+    if (isCompletedVoiceTriageSession) {
+      clearVoiceSessionId();
+      setVoiceTriageSessionId(null);
+      completedVoiceOutcomeRef.current = null;
+    }
+    handleTalkToVyva();
   };
 
   const saveTriageReport = async (
@@ -4601,10 +4774,22 @@ export default function SymptomCheckScreen() {
       : null;
   const activeVoiceTriageSession = voiceTriageSession ?? provisionalVoiceTriageSession;
   const canAnswerVoiceTriageSession = Boolean(voiceTriageSession);
+  const displayedReportSummary = isCompletedVoiceTriageSession
+    ? voiceReportSummary
+    : step === "report"
+      ? summary
+      : null;
+  const displayedReportId = isCompletedVoiceTriageSession ? voiceReportId : reportId;
+  const displayedSavedReport = isCompletedVoiceTriageSession ? fetchedVoiceReport ?? null : savedReport;
+  const displayedReportSaveState: ReportSaveState = isCompletedVoiceTriageSession
+    ? (voiceReportId ? "saved" : "error")
+    : reportSaveState;
   const voiceRuntimeStage = activeVoiceTriageSession?.latest_response?.question?.stage;
   const voiceUrgent = activeVoiceTriageSession?.status === "emergency"
     || activeVoiceTriageSession?.latest_response?.status === "emergency";
-  const currentAssessmentStage = activeVoiceTriageSession
+  const currentAssessmentStage = isCompletedVoiceTriageSession
+    ? (displayedReportSummary && voiceReportId ? "save_share_summary" : "safest_next_step")
+    : activeVoiceTriageSession
     ? symptomAssessmentStageForRuntime(voiceRuntimeStage, voiceUrgent)
     : step === "report"
       ? (reportSaveState === "saved" ? "save_share_summary" : "safest_next_step")
@@ -4623,7 +4808,7 @@ export default function SymptomCheckScreen() {
       }}
       onBack={handleBack}
       shellContract={currentAssessmentPresentation.shell}
-      inlineVoiceControl={step === "report"}
+      inlineVoiceControl={Boolean(displayedReportSummary)}
     >
       <div
         className="flex min-h-0 flex-1 flex-col"
@@ -4648,7 +4833,7 @@ export default function SymptomCheckScreen() {
           />
         )}
 
-        {activeVoiceTriageSession ? (
+        {activeVoiceTriageSession && !isCompletedVoiceTriageSession ? (
           <VoiceTriageLivePanel
             session={activeVoiceTriageSession}
             stageId={currentAssessmentStage}
@@ -4658,7 +4843,7 @@ export default function SymptomCheckScreen() {
           />
         ) : null}
 
-        {step === "chat" && (
+        {step === "chat" && !isCompletedVoiceTriageSession && (
           <TriageChat
             bpm={bpm}
             respiratoryRate={respiratoryRate}
@@ -4686,33 +4871,50 @@ export default function SymptomCheckScreen() {
           />
         )}
 
-        {step === "report" && summary && (
+        {displayedReportSummary ? (
           <SymptomAssessmentPresentation
             stageId={currentAssessmentStage}
-            modality={activeVoiceTriageSession ? "voice" : "touch"}
+            modality={isCompletedVoiceTriageSession ? "voice" : "touch"}
             showHeader={false}
             showTitle={currentAssessmentStage !== "save_share_summary"}
             fullBleedChildren
           >
             <ReportScreen
-              summary={summary}
-              bpm={bpm}
-              respiratoryRate={respiratoryRate}
-              durationSeconds={durationSeconds}
-              reportId={reportId}
-              reportSaveState={reportSaveState}
-              savedReport={savedReport}
+              summary={displayedReportSummary}
+              bpm={isCompletedVoiceTriageSession ? fetchedVoiceReport?.bpm ?? null : bpm}
+              respiratoryRate={isCompletedVoiceTriageSession ? fetchedVoiceReport?.respiratory_rate ?? null : respiratoryRate}
+              durationSeconds={isCompletedVoiceTriageSession ? fetchedVoiceReport?.duration_seconds ?? null : durationSeconds}
+              reportId={displayedReportId}
+              reportSaveState={displayedReportSaveState}
+              savedReport={displayedSavedReport}
               profileContacts={profileContacts}
               careTeamMembers={careTeamData?.members ?? []}
               emergencyContact={triageContext?.emergencyContact ?? null}
               latestVitalReadings={latestVitalsData?.recent_readings ?? []}
               refinementStatus={refinementStatus}
               onRefineVital={handleRefineVital}
-              onVoiceClick={handleTalkToVyva}
+              onVoiceClick={handleReportVoiceClick}
               onDone={handleDone}
             />
           </SymptomAssessmentPresentation>
-        )}
+        ) : null}
+
+        {isCompletedVoiceTriageSession && !displayedReportSummary ? (
+          <SymptomAssessmentPresentation
+            stageId="safest_next_step"
+            modality="voice"
+            showHeader={false}
+            fullBleedChildren
+          >
+            <CompletedVoiceReportFallback
+              reportId={voiceReportId}
+              isLoading={isVoiceReportLoading}
+              isError={isVoiceReportError || (!isVoiceReportLoading && !voiceReportSummary)}
+              onRetry={() => { void refetchVoiceReport(); }}
+              onDone={handleDone}
+            />
+          </SymptomAssessmentPresentation>
+        ) : null}
       </div>
     </PrototypeSymptomAssessmentShell>
   );

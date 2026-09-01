@@ -12,8 +12,9 @@ import {
 } from "./SymptomCheckScreen";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 
-const { apiFetchMock } = vi.hoisted(() => ({
+const { apiFetchMock, markCompletedMock } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
+  markCompletedMock: vi.fn(),
 }));
 
 vi.mock("@/lib/queryClient", () => ({
@@ -41,7 +42,7 @@ vi.mock("@/hooks/use-toast", () => ({
 
 vi.mock("@/hooks/useHomeFastHelpOutcome", () => ({
   useHomeFastHelpOutcome: () => ({
-    markCompleted: vi.fn(),
+    markCompleted: markCompletedMock,
     markAbandoned: vi.fn(),
     markBlocked: vi.fn(),
   }),
@@ -146,6 +147,9 @@ describe("SymptomCheck intro chips", () => {
   afterEach(() => {
     vi.useRealTimers();
     apiFetchMock.mockReset();
+    markCompletedMock.mockReset();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
@@ -177,6 +181,166 @@ describe("SymptomCheck intro chips", () => {
       score: 3421,
     },
   ];
+
+  const completedVoiceSummary = {
+    chiefComplaint: "Breathing feels different",
+    symptoms: ["Shortness of breath"],
+    urgency: "monitor" as const,
+    recommendations: ["Rest and monitor your breathing"],
+    disclaimer: "This is not a diagnosis.",
+    aiSummary: "Your answers support monitoring at home.",
+    nextStepLabel: "Monitor at home",
+    nextStepLevel: "monitor" as const,
+    triageReasons: ["Symptoms are mild and improving."],
+    watchSigns: ["Breathing becomes difficult at rest."],
+    profileConsiderations: [],
+    vitalsNotes: [],
+  };
+
+  const renderVoiceSessionScreen = async (session: Record<string, unknown>, reportResponse?: Record<string, unknown>) => {
+    const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");
+    window.sessionStorage.setItem("vyva.voice.sessionId", "voice-complete-1");
+    apiFetchMock.mockImplementation(async (url: string) => {
+      if (url === "/api/config/features/dr-ai-voice") {
+        return { ok: true, status: 200, json: async () => ({ enabled: true, mode: "active" }) };
+      }
+      if (url === "/api/voice-triage/session/voice-complete-1") {
+        return { ok: true, status: 200, json: async () => session };
+      }
+      if (url === "/api/reports/triage/report-voice-1" && reportResponse) {
+        return { ok: true, status: 200, json: async () => reportResponse };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, queryFn: async () => ({}) },
+      },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dev/home-master/ask-dr-ai?lang=fr"]}>
+          <SymptomCheckScreen />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  };
+
+  it("replaces a completed voice question with the canonical embedded report", async () => {
+    await renderVoiceSessionScreen({
+      conversation_id: "voice-complete-1",
+      status: "complete",
+      triage_report_id: "report-voice-1",
+      latest_response: {
+        ok: true,
+        status: "complete",
+        spoken_text: "Your report is ready.",
+        summary: completedVoiceSummary,
+        report: { triage_report_id: "report-voice-1" },
+      },
+    });
+
+    expect(await screen.findByTestId("symptom-check-report")).toHaveTextContent("Breathing feels different");
+    expect(screen.getByTestId("symptom-check-report")).toHaveTextContent("Rest and monitor your breathing");
+    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("symptom-check-shell")).toHaveAttribute("data-stage-id", "save_share_summary");
+    await waitFor(() => expect(markCompletedMock).toHaveBeenCalledTimes(1));
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/reports/triage/report-voice-1");
+  });
+
+  it("hydrates a completed voice report from the saved report when the embedded summary is missing", async () => {
+    await renderVoiceSessionScreen({
+      conversation_id: "voice-complete-1",
+      status: "complete",
+      triage_report_id: "report-voice-1",
+      latest_response: {
+        ok: true,
+        status: "complete",
+        spoken_text: "Your report is ready.",
+        report: { triage_report_id: "report-voice-1" },
+      },
+    }, {
+      id: "report-voice-1",
+      chief_complaint: "Dizziness after standing",
+      symptoms: ["Dizziness"],
+      urgency: "routine",
+      recommendations: ["Arrange a clinician review"],
+      disclaimer: "This is not a diagnosis.",
+      next_step_label: "Talk to a doctor within 24-48 hours",
+      next_step_level: "doctor_24_48",
+      triage_reasons: ["The symptom is continuing."],
+      watch_signs: ["Fainting or new weakness."],
+      profile_considerations: [],
+      vitals_notes: [],
+      bpm: null,
+      respiratory_rate: null,
+      duration_seconds: 95,
+    });
+
+    expect(await screen.findByTestId("symptom-check-report")).toHaveTextContent("Dizziness after standing");
+    expect(screen.getByTestId("symptom-check-report")).toHaveTextContent("Arrange a clinician review");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/reports/triage/report-voice-1");
+    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+  });
+
+  it("keeps a stable completion screen when the saved voice report cannot be loaded", async () => {
+    await renderVoiceSessionScreen({
+      conversation_id: "voice-complete-1",
+      status: "complete",
+      triage_report_id: "report-voice-1",
+      latest_response: {
+        ok: true,
+        status: "complete",
+        spoken_text: "Your report is ready.",
+        report: { triage_report_id: "report-voice-1" },
+      },
+    });
+
+    await waitFor(
+      () => expect(screen.getByTestId("button-retry-voice-report")).toBeVisible(),
+      { timeout: 3_500 },
+    );
+    expect(screen.getByTestId("voice-report-complete-fallback")).toHaveTextContent("Your check is complete");
+    expect(screen.getByTestId("button-open-saved-voice-report")).toBeVisible();
+    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("symptom-check-intro")).not.toBeInTheDocument();
+  });
+
+  it("clears the terminal voice-session reference only after the user finishes the report", async () => {
+    await renderVoiceSessionScreen({
+      conversation_id: "voice-complete-1",
+      status: "complete",
+      triage_report_id: "report-voice-1",
+      latest_response: {
+        ok: true,
+        status: "complete",
+        summary: completedVoiceSummary,
+        report: { triage_report_id: "report-voice-1" },
+      },
+    });
+
+    await screen.findByTestId("symptom-check-report");
+    expect(window.sessionStorage.getItem("vyva.voice.sessionId")).toBe("voice-complete-1");
+    fireEvent.click(screen.getByTestId("button-report-done"));
+    expect(window.sessionStorage.getItem("vyva.voice.sessionId")).toBeNull();
+  });
+
+  it("leaves emergency voice completion on the emergency panel", async () => {
+    await renderVoiceSessionScreen({
+      conversation_id: "voice-complete-1",
+      status: "emergency",
+      latest_response: {
+        ok: true,
+        status: "emergency",
+        spoken_text: "Call emergency services now.",
+        emergencyContact: { label: "112", telHref: "tel:112" },
+        action_options: [{ id: "call_emergency", kind: "call_emergency", label: "Call 112 now", tel_href: "tel:112" }],
+      },
+    });
+
+    expect(await screen.findByTestId("voice-triage-live-panel")).toHaveTextContent("Call emergency services now.");
+    expect(screen.queryByTestId("symptom-check-report")).not.toBeInTheDocument();
+  });
 
   it("exposes all 11 ordered runtime presentation identities on the real screen", async () => {
     const { default: SymptomCheckScreen } = await import("./SymptomCheckScreen");

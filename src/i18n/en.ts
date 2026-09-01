@@ -984,6 +984,16 @@
         answersSaved: "{{count}} answers saved",
         startAnswering: "Choose the closest answer, or type in your own words.",
       },
+      voiceReport: {
+        loadingTitle: "Preparing your report",
+        loadingBody: "Your guidance is saved. We’re loading the full report now.",
+        completeTitle: "Your check is complete",
+        errorBody: "Your check is complete, but the full report could not be loaded here yet.",
+        savedBody: "Your guidance has been saved in My Reports.",
+        retry: "Try loading again",
+        openReports: "Open My Reports",
+        done: "Done",
+      },
       report: {
         emergencyLabel: "Emergency now",
         doctorTodayLabel: "Doctor today",

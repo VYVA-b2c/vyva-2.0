@@ -770,6 +770,16 @@ const es = {
         answersSaved: "{{count}} respuestas guardadas",
         startAnswering: "Elige la respuesta mas cercana o escribe con tus palabras.",
       },
+      voiceReport: {
+        loadingTitle: "Preparando tu informe",
+        loadingBody: "Tus indicaciones están guardadas. Estamos cargando el informe completo.",
+        completeTitle: "Tu revisión ha terminado",
+        errorBody: "Tu revisión ha terminado, pero todavía no se ha podido cargar aquí el informe completo.",
+        savedBody: "Tus indicaciones se han guardado en Mis informes.",
+        retry: "Intentar cargar de nuevo",
+        openReports: "Abrir Mis informes",
+        done: "Terminar",
+      },
       report: {
         emergencyLabel: "Emergencia ahora",
         doctorTodayLabel: "Medico hoy",

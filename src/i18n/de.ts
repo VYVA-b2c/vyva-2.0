@@ -682,6 +682,16 @@ const de = {
         answersSaved: "{{count}} Antworten gespeichert",
         startAnswering: "Waehle die passendste Antwort oder schreibe mit eigenen Worten.",
       },
+      voiceReport: {
+        loadingTitle: "Ihr Bericht wird vorbereitet",
+        loadingBody: "Ihre Hinweise wurden gespeichert. Der vollständige Bericht wird jetzt geladen.",
+        completeTitle: "Ihre Prüfung ist abgeschlossen",
+        errorBody: "Ihre Prüfung ist abgeschlossen, aber der vollständige Bericht konnte hier noch nicht geladen werden.",
+        savedBody: "Ihre Hinweise wurden unter Meine Berichte gespeichert.",
+        retry: "Erneut laden",
+        openReports: "Meine Berichte öffnen",
+        done: "Fertig",
+      },
       report: {
         emergencyLabel: "Notfall jetzt",
         doctorTodayLabel: "Heute zum Arzt",
