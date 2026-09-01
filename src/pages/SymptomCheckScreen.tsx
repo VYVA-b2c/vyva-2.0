@@ -1057,12 +1057,14 @@ export function VoiceTriageLivePanel({
 
 export function CompletedVoiceReportFallback({
   reportId,
+  reportAction,
   isLoading,
   isError,
   onRetry,
   onDone,
 }: {
   reportId: string | null;
+  reportAction?: VoiceTriageActionOption | null;
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
@@ -1071,6 +1073,19 @@ export function CompletedVoiceReportFallback({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isDark } = useHomeMasterTheme();
+  const reportActionLabel = reportAction?.label?.trim() || t("health.symptomCheck.voiceReport.openReports", "Open My Reports");
+  const openReport = () => {
+    if (reportAction?.disabled) return;
+    if (reportAction?.tel_href) {
+      window.location.href = reportAction.tel_href;
+      return;
+    }
+    if (reportAction?.route) {
+      navigate(reportAction.route);
+      return;
+    }
+    navigate(reportId ? `/informes/${reportId}` : "/informes");
+  };
 
   return (
     <div
@@ -1111,12 +1126,13 @@ export function CompletedVoiceReportFallback({
           ) : null}
           <button
             type="button"
-            onClick={() => navigate(reportId ? `/informes/${reportId}` : "/informes")}
+            onClick={openReport}
+            disabled={Boolean(reportAction?.disabled)}
             data-testid="button-open-saved-voice-report"
             className={`vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[18px] border px-5 font-body text-[16px] font-black ${isDark ? "border-white/[0.16] bg-[#2D2038] text-[#D8B4FE]" : "border-[#E7DCF8] bg-white text-vyva-purple"}`}
           >
             <FileText size={19} aria-hidden="true" />
-            {t("health.symptomCheck.voiceReport.openReports", "Open My Reports")}
+            {reportActionLabel}
           </button>
           <button
             type="button"
@@ -4784,6 +4800,9 @@ export default function SymptomCheckScreen() {
   const displayedReportSaveState: ReportSaveState = isCompletedVoiceTriageSession
     ? (voiceReportId ? "saved" : "error")
     : reportSaveState;
+  const completedVoiceReportAction = isCompletedVoiceTriageSession
+    ? voiceTriageSession?.latest_response?.action_options?.find((action) => action.kind === "view_report") ?? null
+    : null;
   const voiceRuntimeStage = activeVoiceTriageSession?.latest_response?.question?.stage;
   const voiceUrgent = activeVoiceTriageSession?.status === "emergency"
     || activeVoiceTriageSession?.latest_response?.status === "emergency";
@@ -4908,6 +4927,7 @@ export default function SymptomCheckScreen() {
           >
             <CompletedVoiceReportFallback
               reportId={voiceReportId}
+              reportAction={completedVoiceReportAction}
               isLoading={isVoiceReportLoading}
               isError={isVoiceReportError || (!isVoiceReportLoading && !voiceReportSummary)}
               onRetry={() => { void refetchVoiceReport(); }}
