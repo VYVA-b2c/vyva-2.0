@@ -80,7 +80,7 @@ describe("conversation token agent resolution", () => {
     expect(resolved.agentId).toBe("agent_main");
   });
 
-  it("accepts the documented health agent env alias", () => {
+  it("keeps the legacy health agent environment variable as a fallback", () => {
     process.env.ELEVENLABS_HEALTH_AGENT_ID = "agent_health";
 
     const resolved = resolveSocialAgentId("health");
@@ -89,14 +89,35 @@ describe("conversation token agent resolution", () => {
     expect(resolved.expectedKeys).toContain("ELEVENLABS_HEALTH_AGENT_ID");
   });
 
-  it("resolves Dr. AI only from its dedicated environment variable", () => {
+  it("resolves every health entrypoint to the canonical Health Assistant agent", () => {
+    process.env.ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID = "agent_health_assistant";
+    process.env.ELEVENLABS_DR_AI_AGENT_ID = "agent_legacy_dr_ai";
+    process.env.ELEVENLABS_HEALTH_AGENT_ID = "agent_legacy_health";
+
+    for (const slug of ["health", "health-assistant", "dr-ai", "ask-dr-ai"]) {
+      const resolved = resolveSocialAgentId(slug);
+      expect(resolved.agentId).toBe("agent_health_assistant");
+      expect(resolved.expectedKeys?.[0]).toBe("ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID");
+    }
+  });
+
+  it("keeps legacy Dr. AI configuration as a Health Assistant fallback", () => {
     process.env.ELEVENLABS_COMPANION_AGENT_ID = "agent_companion";
     expect(resolveSocialAgentId("dr-ai").agentId).toBeUndefined();
 
     process.env.ELEVENLABS_DR_AI_AGENT_ID = "agent_dr_ai";
-    const resolved = resolveSocialAgentId("dr-ai");
-    expect(resolved.agentId).toBe("agent_dr_ai");
-    expect(resolved.expectedKeys).not.toContain("ELEVENLABS_COMPANION_AGENT_ID");
+    expect(resolveSocialAgentId("dr-ai").agentId).toBe("agent_dr_ai");
+    expect(resolveSocialAgentId("health").agentId).toBe("agent_dr_ai");
+  });
+
+  it("never falls back to the companion agent for a health entrypoint", () => {
+    process.env.ELEVENLABS_COMPANION_AGENT_ID = "agent_companion";
+
+    for (const slug of ["health", "health-assistant", "dr-ai", "ask-dr-ai"]) {
+      const resolved = resolveSocialAgentId(slug);
+      expect(resolved.agentId).toBeUndefined();
+      expect(resolved.expectedKeys).not.toContain("ELEVENLABS_COMPANION_AGENT_ID");
+    }
   });
 
   it("blocks Dr. AI readiness outside the gated pilot", async () => {

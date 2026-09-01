@@ -2,6 +2,20 @@ export type DrAiVoiceMode = "disabled" | "pilot" | "active";
 
 type DrAiVoiceEnv = Record<string, string | undefined>;
 
+export const HEALTH_ASSISTANT_AGENT_ENV_KEYS = [
+  "ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID",
+  "ELEVENLABS_DR_AI_AGENT_ID",
+  "ELEVENLABS_HEALTH_AGENT_ID",
+] as const;
+
+export function resolveHealthAssistantAgentId(env: DrAiVoiceEnv = process.env) {
+  for (const key of HEALTH_ASSISTANT_AGENT_ENV_KEYS) {
+    const value = env[key]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 export type DrAiVoiceAccess = {
   enabled: boolean;
   mode: DrAiVoiceMode;

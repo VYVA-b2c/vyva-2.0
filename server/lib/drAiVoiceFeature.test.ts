@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { isDrAiAgentSlug, resolveDrAiVoiceAccess } from "./drAiVoiceFeature";
+import { isDrAiAgentSlug, resolveDrAiVoiceAccess, resolveHealthAssistantAgentId } from "./drAiVoiceFeature";
 
 describe("Dr. AI voice feature access", () => {
+  it("uses one canonical Health Assistant ID with legacy fallbacks", () => {
+    expect(resolveHealthAssistantAgentId({
+      ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID: "agent_canonical",
+      ELEVENLABS_DR_AI_AGENT_ID: "agent_dr_ai_legacy",
+      ELEVENLABS_HEALTH_AGENT_ID: "agent_health_legacy",
+    })).toBe("agent_canonical");
+    expect(resolveHealthAssistantAgentId({ ELEVENLABS_DR_AI_AGENT_ID: "agent_dr_ai_legacy" })).toBe("agent_dr_ai_legacy");
+    expect(resolveHealthAssistantAgentId({ ELEVENLABS_HEALTH_AGENT_ID: "agent_health_legacy" })).toBe("agent_health_legacy");
+  });
+
   it("fails closed for missing and invalid modes", () => {
     expect(resolveDrAiVoiceAccess({ userId: "user-1", env: {} })).toEqual({ enabled: false, mode: "disabled" });
     expect(resolveDrAiVoiceAccess({ userId: "user-1", env: { VYVA_DR_AI_VOICE_MODE: "maybe" } })).toEqual({ enabled: false, mode: "disabled" });

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { getSocialRoomBySlug, resolveSocialRoomSlug } from "../lib/socialRoomsSeed.js";
-import { isDrAiAgentSlug, resolveDrAiVoiceAccess } from "../lib/drAiVoiceFeature.js";
+import { HEALTH_ASSISTANT_AGENT_ENV_KEYS, isDrAiAgentSlug, resolveDrAiVoiceAccess } from "../lib/drAiVoiceFeature.js";
 
 const ROOM_AGENT_ENV_KEYS: Record<string, string[]> = {
   "garden-corner": [
@@ -164,10 +164,10 @@ const TOP_LEVEL_AGENT_ENV_KEYS: Record<string, string[]> = {
     "ELEVENLABS_SOCIAL_AGENT_ID",
     "ELEVENLABS_AGENT_ID",
   ],
-  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
-  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
-  "dr-ai": ["ELEVENLABS_DR_AI_AGENT_ID"],
-  "ask-dr-ai": ["ELEVENLABS_DR_AI_AGENT_ID"],
+  health: [...HEALTH_ASSISTANT_AGENT_ENV_KEYS],
+  "health-assistant": [...HEALTH_ASSISTANT_AGENT_ENV_KEYS],
+  "dr-ai": [...HEALTH_ASSISTANT_AGENT_ENV_KEYS],
+  "ask-dr-ai": [...HEALTH_ASSISTANT_AGENT_ENV_KEYS],
   doctor: ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   "medical-doctor": ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   meds: ["ELEVENLABS_MEDS_AGENT_ID", "ELEVENLABS_MEDICATION_AGENT_ID", "ELEVENLABS_MEDICATIONS_AGENT_ID"],
@@ -208,7 +208,7 @@ const DEFAULT_AGENT_ENV_KEYS = [
   "VITE_ELEVENLABS_AGENT_ID",
 ];
 
-const DEDICATED_AGENT_SLUGS = new Set(["dr-ai", "ask-dr-ai"]);
+const DEDICATED_AGENT_SLUGS = new Set(["health", "health-assistant", "dr-ai", "ask-dr-ai"]);
 
 function readFirstEnv(keys: string[]) {
   for (const key of [...new Set(keys)]) {

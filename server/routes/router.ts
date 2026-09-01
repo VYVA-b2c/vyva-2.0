@@ -38,6 +38,7 @@ import { buildMentalWellbeingSpecialistRouteAugmentation } from "../mentalWellbe
 import { buildMedicationSpecialistRouteAugmentation } from "../medication/medicationRouterAdapter.js";
 import { buildConciergeSpecialistRouteAugmentation } from "../concierge/conciergeRouterAdapter.js";
 import { buildSocialSupportSpecialistRouteAugmentation } from "../socialSupport/socialSupportRouterAdapter.js";
+import { HEALTH_ASSISTANT_AGENT_ENV_KEYS, resolveHealthAssistantAgentId } from "../lib/drAiVoiceFeature.js";
 
 export type RoutingDomain =
   | "safety"
@@ -313,17 +314,22 @@ function resolveEscalationDomain(raw?: string): RoutingDomain | null {
   return k as RoutingDomain;
 }
 
-const AGENT_ENV_MAP: Record<RoutingDomain, string> = {
-  safety: "ELEVENLABS_SAFETY_AGENT_ID",
-  meds: "ELEVENLABS_MEDS_AGENT_ID",
-  health: "ELEVENLABS_HEALTH_AGENT_ID",
-  concierge: "ELEVENLABS_CONCIERGE_AGENT_ID",
-  brain_coach: "ELEVENLABS_BRAIN_COACH_AGENT_ID",
-  companion: "ELEVENLABS_COMPANION_AGENT_ID",
+const AGENT_ENV_MAP: Record<RoutingDomain, readonly string[]> = {
+  safety: ["ELEVENLABS_SAFETY_AGENT_ID"],
+  meds: ["ELEVENLABS_MEDS_AGENT_ID"],
+  health: HEALTH_ASSISTANT_AGENT_ENV_KEYS,
+  concierge: ["ELEVENLABS_CONCIERGE_AGENT_ID"],
+  brain_coach: ["ELEVENLABS_BRAIN_COACH_AGENT_ID"],
+  companion: ["ELEVENLABS_COMPANION_AGENT_ID"],
 };
 
 function agentIdForDomain(domain: RoutingDomain): string {
-  return process.env[AGENT_ENV_MAP[domain]] ?? "";
+  if (domain === "health") return resolveHealthAssistantAgentId() ?? "";
+  for (const key of AGENT_ENV_MAP[domain]) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return "";
 }
 
 function timeOfDayLabel(d: Date): string {
@@ -959,7 +965,7 @@ export async function routerHandler(req: Request, res: Response) {
   if (mem0Key && useLegacyRouterMem0) scheduleMem0Add(mem0UserId, buildMem0Messages(history, utterance), mem0Key);
 
   const agent_id = agentIdForDomain(domain);
-  if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain]}`);
+  if (!agent_id) console.error(`Missing env for domain ${domain}: ${AGENT_ENV_MAP[domain].join(", ")}`);
   const medicalProfileToolToken = ["health", "meds", "safety"].includes(domain)
     ? await signMedicalProfileToolToken(user_id, session_id).catch((err) => {
         console.warn("[router] medical profile tool token unavailable:", err);

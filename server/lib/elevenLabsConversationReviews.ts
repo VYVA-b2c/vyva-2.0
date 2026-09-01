@@ -6,6 +6,7 @@ import {
   elevenlabsConversations,
   type ElevenLabsConversationRow,
 } from "../../shared/schema.js";
+import { resolveHealthAssistantAgentId } from "./drAiVoiceFeature.js";
 
 export const ELEVENLABS_REVIEW_STATUSES = [
   "unreviewed",
@@ -52,7 +53,7 @@ function retentionDate(completedAt: Date) {
 }
 
 function allowedAgentIds() {
-  const configured = process.env.ELEVENLABS_ADMIN_REVIEW_AGENT_IDS || process.env.ELEVENLABS_DR_AI_AGENT_ID || "";
+  const configured = process.env.ELEVENLABS_ADMIN_REVIEW_AGENT_IDS || resolveHealthAssistantAgentId() || "";
   return new Set(configured.split(",").map((value) => value.trim()).filter(Boolean));
 }
 

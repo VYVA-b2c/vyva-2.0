@@ -81,13 +81,15 @@ async function api(endpoint, init = {}) {
 }
 
 async function resolveAgentId() {
-  const configuredAgentId = process.env.ELEVENLABS_DR_AI_AGENT_ID?.trim();
+  const configuredAgentId = process.env.ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID?.trim() ||
+    process.env.ELEVENLABS_DR_AI_AGENT_ID?.trim() ||
+    process.env.ELEVENLABS_HEALTH_AGENT_ID?.trim();
   if (configuredAgentId) return configuredAgentId;
 
   const agentsResponse = await api("/v1/convai/agents?page_size=100");
   const matches = (agentsResponse?.agents || []).filter((agent) => agent.name === manifest.name && !agent.archived);
   if (matches.length > 1) {
-    throw new Error(`Multiple active ElevenLabs agents named ${manifest.name}; set ELEVENLABS_DR_AI_AGENT_ID explicitly`);
+    throw new Error(`Multiple active ElevenLabs agents named ${manifest.name}; set ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID explicitly`);
   }
   return matches[0]?.agent_id;
 }
@@ -117,7 +119,7 @@ async function verifyLiveAgent({ agentId, expectedToolIds }) {
 }
 
 if (verifyLive && !apply) {
-  const agentId = requireString(await resolveAgentId(), "ELEVENLABS_DR_AI_AGENT_ID or matching live agent");
+  const agentId = requireString(await resolveAgentId(), "ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID or matching live agent");
   const toolsResponse = await api("/v1/convai/tools?page_size=100");
   const workspaceTools = Array.isArray(toolsResponse) ? toolsResponse : toolsResponse?.tools || [];
   const expectedToolIds = manifest.tools.map((tool) => {
@@ -189,4 +191,4 @@ await api(`/v1/speech-engine/${encodeURIComponent(agentId)}`, {
 await verifyLiveAgent({ agentId, expectedToolIds: toolIds });
 
 console.log(`VYVA Dr. AI provisioned and verified: ${agentId}`);
-console.log(`Set ELEVENLABS_DR_AI_AGENT_ID=${agentId} in the secure deployment environment.`);
+console.log(`Set ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID=${agentId} in the secure deployment environment.`);
