@@ -14,6 +14,7 @@ if (!process.env.DATABASE_URL) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const migrationPaths = [
+  "0076_marketing_social_studio.sql",
   "0083_replit_publish_runtime_schema.sql",
   "0084_replit_publish_schema_parity.sql",
 ].map((name) => path.join(repoRoot, "migrations", name));
@@ -21,6 +22,7 @@ const migrationSql = migrationPaths
   .map((migrationPath) => readFileSync(migrationPath, "utf8"))
   .join("\n\n");
 const requiredTables = [
+  "marketing_media_files",
   "home_fast_help_impressions",
   "home_fast_help_journeys",
   "home_fast_help_journey_events",
