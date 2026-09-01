@@ -116,7 +116,7 @@ describe("Vitals safety service actions", () => {
     expect(screen.getByTestId("button-safety-email-gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
     expect(screen.getByTestId("button-safety-doctor-help")).toBeInTheDocument();
     expect(screen.getByTestId("button-safety-schedule-appointment")).toHaveTextContent("Book appointment");
-    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Find transport");
+    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Find specialised transport");
   });
 
   it("offers doctor setup when GP contact is missing", async () => {

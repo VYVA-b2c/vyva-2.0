@@ -6,6 +6,7 @@ import VitalsAddReadingFlow, { type VitalsAcquisitionContext } from "@/component
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { VITALS_SIGNAL_CATALOG, type VitalsCaptureMethod, type VitalsDisplayGroup } from "../../shared/vitalsSignalCatalog";
+import type { VitalsVoiceFlowState, VitalsVoiceReading, VitalsVoiceUiState } from "@/lib/vitalsVoiceContext";
 
 type Language = "es" | "de" | "en" | "fr" | "it" | "pt";
 type Screen = "dashboard" | "add";
@@ -22,6 +23,7 @@ interface Props {
   gpEmail?: string | null;
   caregiverContact?: string | null;
   onBackActionChange?: (handler: (() => void) | null) => void;
+  onVoiceStateChange?: (state: VitalsVoiceUiState) => void;
 }
 
 interface LatestAnalysis {
@@ -204,7 +206,7 @@ const COPY = {
     doctorHelp: "Doctor help",
     addDoctor: "Add doctor",
     appointment: "Book appointment",
-    ride: "Find transport",
+    ride: "Find specialised transport",
     shareSummary: "Share summary",
     sourceEstimated: "Estimated",
     sourceManual: "Manual",
@@ -1101,6 +1103,7 @@ export default function VitalsTracker({
   gpEmail,
   caregiverContact,
   onBackActionChange,
+  onVoiceStateChange,
 }: Props) {
   const navigate = useNavigate();
   const { isDark } = useHomeMasterTheme();
@@ -1165,6 +1168,24 @@ export default function VitalsTracker({
   });
   const primarySafetyAction = safetyActionKinds[0];
   const secondarySafetyActions = safetyActionKinds.slice(1);
+  const recentVoiceReadings = useMemo<VitalsVoiceReading[]>(() => recentReadings.slice(0, 4).map((reading) => ({
+    signal: reading.signal_type,
+    value: reading.value,
+    unit: reading.unit ?? null,
+    source: reading.source ?? null,
+    confidence: reading.source_confidence ?? null,
+  })), [recentReadings]);
+  const voiceRiskScore = analysis?.risk_score ?? null;
+
+  const reportAddVoiceState = useCallback((flowState: VitalsVoiceFlowState) => {
+    onVoiceStateChange?.({
+      view: "add_reading",
+      ...flowState,
+      safetyStatus,
+      riskScore: voiceRiskScore,
+      recentReadings: recentVoiceReadings,
+    });
+  }, [onVoiceStateChange, recentVoiceReadings, safetyStatus, voiceRiskScore]);
 
   useEffect(() => {
     if (initialAddSignal) setScreen("add");
@@ -1173,6 +1194,24 @@ export default function VitalsTracker({
   useEffect(() => {
     if (screen === "dashboard") onBackActionChange?.(null);
   }, [onBackActionChange, screen]);
+
+  useEffect(() => {
+    if (screen !== "dashboard") return;
+    onVoiceStateChange?.({
+      view: "dashboard",
+      stage: null,
+      selectedSignal: null,
+      selectedSignalLabel: null,
+      captureMethod: null,
+      scanStatus: null,
+      pendingReadings: [],
+      safetyStatus,
+      riskScore: voiceRiskScore,
+      recentReadings: recentVoiceReadings,
+      busy: analysing || acknowledging !== null,
+      listening: false,
+    });
+  }, [acknowledging, analysing, onVoiceStateChange, recentVoiceReadings, safetyStatus, screen, voiceRiskScore]);
 
   useEffect(() => {
     setHeroMarkerIndex(0);
@@ -1504,6 +1543,7 @@ export default function VitalsTracker({
         language={language}
         onBack={showDashboard}
         onBackActionChange={onBackActionChange}
+        onVoiceStateChange={reportAddVoiceState}
         onSaved={async () => {
           showDashboard();
           await loadDashboard();
