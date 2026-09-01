@@ -3162,6 +3162,25 @@ export const insertMarketingMediaAssetSchema = createInsertSchema(marketingMedia
 export type InsertMarketingMediaAsset = z.infer<typeof insertMarketingMediaAssetSchema>;
 export type MarketingMediaAssetRow = typeof marketingMediaAssets.$inferSelect;
 
+export const marketingMediaFiles = pgTable("marketing_media_files", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  media_asset_id: uuid("media_asset_id").notNull().references(() => marketingMediaAssets.id, { onDelete: "cascade" }),
+  mime_type:     text("mime_type").notNull().default("image/jpeg"),
+  image_bytes:   bytea("image_bytes").notNull(),
+  width:         integer("width"),
+  height:        integer("height"),
+  prompt:        text("prompt"),
+  model:         text("model"),
+  created_by:    text("created_by"),
+  created_at:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_media_files_asset_unique").on(t.media_asset_id),
+]);
+
+export const insertMarketingMediaFileSchema = createInsertSchema(marketingMediaFiles).omit({ id: true, created_at: true });
+export type InsertMarketingMediaFile = z.infer<typeof insertMarketingMediaFileSchema>;
+export type MarketingMediaFileRow = typeof marketingMediaFiles.$inferSelect;
+
 export const marketingCampaigns = pgTable("marketing_campaigns", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   name:                text("name").notNull(),
@@ -3661,6 +3680,7 @@ export const schema = {
   marketingAudienceMembers,
   marketingContentAssets,
   marketingMediaAssets,
+  marketingMediaFiles,
   marketingCampaigns,
   marketingCampaignChannels,
   marketingCampaignMetrics,
