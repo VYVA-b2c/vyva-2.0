@@ -676,6 +676,7 @@ describe("useVyvaVoice", () => {
     const sessionId = sessionStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY);
     expect(sessionId).toBeTruthy();
     createdConversations[0].sendContextualUpdate.mockClear();
+    createdConversations[0].sendUserMessage.mockClear();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, {
@@ -691,6 +692,8 @@ describe("useVyvaVoice", () => {
 
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(expect.stringContaining("No, I can stand safely."));
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(expect.stringContaining("How long has this been happening?"));
+    expect(createdConversations[0].sendUserMessage).toHaveBeenCalledWith(expect.stringContaining("Ask only the current next question"));
+    expect(createdConversations[0].sendUserMessage).toHaveBeenCalledWith(expect.stringContaining("do not submit the selected answer again"));
   });
 
   it("shares validated onboarding profile structured output with the app as a local event", async () => {
