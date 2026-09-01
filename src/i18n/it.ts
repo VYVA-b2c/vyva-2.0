@@ -680,6 +680,16 @@ const it = {
         answersSaved: "{{count}} risposte salvate",
         startAnswering: "Scegli la risposta piu vicina o scrivi con parole tue.",
       },
+      voiceReport: {
+        loadingTitle: "Preparazione del rapporto",
+        loadingBody: "Le indicazioni sono state salvate. Stiamo caricando il rapporto completo.",
+        completeTitle: "Il controllo è terminato",
+        errorBody: "Il controllo è terminato, ma non è ancora possibile caricare qui il rapporto completo.",
+        savedBody: "Le indicazioni sono state salvate in I miei rapporti.",
+        retry: "Prova a caricare di nuovo",
+        openReports: "Apri I miei rapporti",
+        done: "Fine",
+      },
       report: {
         emergencyLabel: "Emergenza ora",
         doctorTodayLabel: "Medico oggi",

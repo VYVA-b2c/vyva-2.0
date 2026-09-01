@@ -822,6 +822,16 @@ const fr = {
         connectingQuestion: "Dites à VYVA ce qui a changé aujourd’hui.",
         connectingReason: "VYVA lance la même vérification axée sur la sécurité pour la voix et le toucher.",
       },
+      voiceReport: {
+        loadingTitle: "Préparation de votre rapport",
+        loadingBody: "Vos conseils sont enregistrés. Nous chargeons maintenant le rapport complet.",
+        completeTitle: "Votre vérification est terminée",
+        errorBody: "Votre vérification est terminée, mais le rapport complet ne peut pas encore être chargé ici.",
+        savedBody: "Vos conseils ont été enregistrés dans Mes rapports.",
+        retry: "Réessayer de charger",
+        openReports: "Ouvrir Mes rapports",
+        done: "Terminer",
+      },
       report: {
         emergencyLabel: "Urgence maintenant",
         doctorTodayLabel: "Medecin aujourd'hui",

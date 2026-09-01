@@ -680,6 +680,16 @@ const pt = {
         answersSaved: "{{count}} respostas guardadas",
         startAnswering: "Escolha a resposta mais proxima ou escreva pelas suas palavras.",
       },
+      voiceReport: {
+        loadingTitle: "A preparar o seu relatório",
+        loadingBody: "As suas orientações foram guardadas. Estamos a carregar o relatório completo.",
+        completeTitle: "A sua verificação terminou",
+        errorBody: "A sua verificação terminou, mas ainda não foi possível carregar aqui o relatório completo.",
+        savedBody: "As suas orientações foram guardadas em Os meus relatórios.",
+        retry: "Tentar carregar novamente",
+        openReports: "Abrir Os meus relatórios",
+        done: "Concluir",
+      },
       report: {
         emergencyLabel: "Emergencia agora",
         doctorTodayLabel: "Medico hoje",
