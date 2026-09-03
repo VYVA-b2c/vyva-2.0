@@ -302,6 +302,7 @@ describe("app shell route layout", () => {
     "/dev/home-master/ask-dr-ai-next",
     "/dev/home-master/vitals",
     "/dev/home-master/medicines",
+    "/informes/report-1",
   ])(
     "lets %s own the prototype topbar instead of rendering the global status surface",
     (path) => {
@@ -336,7 +337,7 @@ describe("app shell route layout", () => {
             ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
             : "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]",
         );
-      } else if (path === "/health/prevention") {
+      } else if (path === "/health/prevention" || path.startsWith("/informes/")) {
         expect(shell.className).toContain("max-w-[920px]");
         expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]");
       } else if (path.startsWith("/dev/home-master")) {

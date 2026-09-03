@@ -67,11 +67,15 @@ const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([
 ]);
 
 export function isHomeNavPrototypeTopbarRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_TOPBAR_ROUTES.has(pathname);
+  return HOME_NAV_PROTOTYPE_TOPBAR_ROUTES.has(pathname) || isSymptomReportDetailRoute(pathname);
 }
 
 export function isHomeNavPrototypeDockRoute(pathname: string) {
-  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname);
+  return HOME_NAV_PROTOTYPE_DOCK_ROUTES.has(pathname) || isSymptomReportDetailRoute(pathname);
+}
+
+function isSymptomReportDetailRoute(pathname: string) {
+  return pathname.startsWith("/informes/") && pathname !== "/informes/brain-coach";
 }
 
 export function hidesHomeNavPrototypeDock(pathname: string) {
