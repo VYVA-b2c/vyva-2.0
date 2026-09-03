@@ -517,6 +517,9 @@ export default function TriageChat({
   const [questionReason, setQuestionReason] = useState<string | null>(() => initialDraft?.questionReason ?? null);
   const [profileContextUsed, setProfileContextUsed] = useState(() => Boolean(initialDraft?.profileContextUsed));
   const [vitalsPrompt, setVitalsPrompt] = useState<TriageVitalsPrompt | null>(() => initialDraft?.vitalsPrompt ?? null);
+  const [contextualVitalsOpen, setContextualVitalsOpen] = useState(
+    () => presentationStage === "severity" && Boolean(initialDraft?.vitalsPrompt),
+  );
   const [guidancePlan, setGuidancePlan] = useState<TriageGuidancePlan | null>(() => initialDraft?.guidancePlan ?? null);
   const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
   const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
@@ -610,6 +613,12 @@ export default function TriageChat({
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [requestError]);
+
+  useEffect(() => {
+    if (presentationStage === "severity" && vitalsPrompt) {
+      setContextualVitalsOpen(true);
+    }
+  }, [presentationStage, vitalsPrompt]);
 
   const animateMessage = useCallback(
     (_msgIdx: number, _fullText: string, onDone?: () => void) => {
@@ -1602,7 +1611,8 @@ export default function TriageChat({
 
           {canAnswer && vitalsPrompt ? (
             <details
-              defaultOpen={presentationStage === "severity"}
+              open={contextualVitalsOpen}
+              onToggle={(event) => setContextualVitalsOpen(event.currentTarget.open)}
               data-testid="triage-contextual-vitals-prompt"
               className={`group mx-auto w-full max-w-[520px] rounded-[22px] border shadow-[0_8px_22px_rgba(0,0,0,0.10)] ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#DDD6FE] bg-white"}`}
             >

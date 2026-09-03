@@ -176,7 +176,10 @@ describe("SymptomCheck intro chips", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("symptom-severity-scale")).toBeVisible();
+    expect(screen.getByTestId("symptom-severity-scale")).toHaveAttribute(
+      "data-visual-layout",
+      "embedded",
+    );
     expect(screen.getByTestId("symptom-severity-continue")).toBeVisible();
     expect(screen.queryByTestId("voice-triage-typed-composer")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
