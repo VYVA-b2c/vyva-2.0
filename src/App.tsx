@@ -851,6 +851,16 @@ function HomeMasterSymptomReportPreviewRoute() {
   );
 }
 
+function HomeMasterMovementExercisePreviewRoute() {
+  primeHomeMasterPreviewData();
+
+  return (
+    <AppShell>
+      <MovementExerciseGuideScreen />
+    </AppShell>
+  );
+}
+
 function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" | "medicines" }) {
   primeHomeMasterPreviewData();
   const location = useLocation();
@@ -1061,6 +1071,7 @@ const App = () => (
                     <Route path="/dev/home-master/health-plan" element={<HomeMasterHealthActionPreviewRoute kind="plan" />} />
                     <Route path="/dev/home-master/vitals" element={<HomeMasterHealthActionPreviewRoute kind="vitals" />} />
                     <Route path="/dev/home-master/medicines" element={<HomeMasterHealthActionPreviewRoute kind="medicines" />} />
+                    <Route path="/dev/social-rooms/morning-movement/exercises/:exerciseId" element={<HomeMasterMovementExercisePreviewRoute />} />
                     <Route path="/dev/screen-contact-sheet" element={<ScreenContactSheet />} />
                     <Route path="/dev/profile-conditions" element={<ConditionsSection />} />
                     <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
