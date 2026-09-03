@@ -1164,6 +1164,9 @@ export default function VitalsTracker({
   const safety = safetyTone(safetyStatus);
   const SafetyIcon = safety.Icon;
   const safetyAcknowledged = Boolean(analysis?.acknowledged_at);
+  const hasOpenSafetyNotice = !safetyAcknowledged && (
+    safetyStatus !== "steady" || Boolean(latestAlert && !latestAlert.resolved_at)
+  );
   const emergencyContact = emergencyContactForCountry(country);
   const gpPhoneHref = sanitizePhoneHref(gpPhone);
   const gpEmailHref = emailHref(
@@ -1703,7 +1706,7 @@ export default function VitalsTracker({
             </section>
           </div>
 
-          {(safetyStatus !== "steady" || latestAlert) ? (
+          {hasOpenSafetyNotice ? (
           <div className={`mt-3 rounded-[24px] border p-4 sm:mt-4 sm:rounded-[28px] sm:p-5 ${safetyPanel}`} data-testid="daily-safety-check">
             <div className="flex items-start gap-3 sm:gap-4">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] sm:h-14 sm:w-14 sm:rounded-[20px]" style={{ background: safety.bg, color: safety.color }}>
