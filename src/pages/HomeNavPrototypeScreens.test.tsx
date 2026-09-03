@@ -126,7 +126,7 @@ describe("Home/Nav prototype screens", () => {
     expect(screen.getByTestId("prototype-symptom-assessment-content")).toHaveClass("mt-5", "sm:mt-7");
   });
 
-  it.each(["/health/symptom-check", "/informes/report-1", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next", "/dev/home-master/symptom-report", "/meds/refills"])(
+  it.each(["/health/symptom-check", "/health/vitals", "/informes/report-1", "/dev/home-master/ask-dr-ai", "/dev/home-master/ask-dr-ai-checking", "/dev/home-master/ask-dr-ai-next", "/dev/home-master/symptom-report", "/dev/home-master/vitals", "/meds/refills"])(
     "keeps one flow-owned header and the shared Home/SOS/Reports dock on %s",
     (pathname) => {
       expect(isHomeNavPrototypeTopbarRoute(pathname)).toBe(true);

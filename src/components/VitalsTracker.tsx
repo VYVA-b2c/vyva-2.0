@@ -1665,7 +1665,10 @@ export default function VitalsTracker({
                           {signalLabel(activeHeroSignal, activeHeroConfig, language)}
                         </p>
                         <div className="mt-0.5 flex min-w-0 items-center gap-2.5">
-                          <span className={`truncate font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+                          <span
+                            className={`shrink-0 whitespace-nowrap font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}
+                            data-testid="vitals-hero-value"
+                          >
                             {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
                           </span>
                           <span className={`min-w-0 border-l pl-2.5 font-body text-[17px] font-bold leading-[1.25] sm:text-[18px] ${isDark ? "border-white/[0.14] text-[#D8CDE4]" : "border-[#E1D6E7] text-[#6B5B72]"}`} data-testid="vitals-hero-message">

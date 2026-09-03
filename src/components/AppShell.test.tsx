@@ -204,6 +204,7 @@ describe("app shell route layout", () => {
     ["/settings/account", "wide"],
     ["/health/symptom-check", "wide"],
     ["/health/vitals", "vitals"],
+    ["/dev/home-master/vitals", "vitals"],
     ["/social-rooms/music-room", "wide"],
     ["/companions", "wide"],
     ["/concierge/shopping", "wide"],
@@ -284,6 +285,7 @@ describe("app shell route layout", () => {
     "/menu",
     "/health",
     "/health/symptom-check",
+    "/health/vitals",
     "/health/prevention",
     "/dev/home-master/menu",
     "/dev/home-master/health",
@@ -319,6 +321,8 @@ describe("app shell route layout", () => {
         path === "/menu" ||
         path === "/health" ||
         path === "/health/symptom-check" ||
+        path === "/health/vitals" ||
+        path === "/dev/home-master/vitals" ||
         path === "/dev/home-master/symptom-report" ||
         path === "/dev/home-master/symptom-warning" ||
         path.startsWith("/dev/home-master/ask-dr-ai")
@@ -326,7 +330,14 @@ describe("app shell route layout", () => {
         expect(content).toHaveClass("h-[100svh]", "min-h-0", "[scrollbar-gutter:stable_both-edges]");
         expect(content).not.toHaveClass("min-h-screen");
       }
-      if (path === "/health/prevention" || path.startsWith("/informes/")) {
+      if (path === "/health/vitals" || path === "/dev/home-master/vitals") {
+        expect(shell.className).toContain("max-w-[1180px]");
+        expect(shell.className).toContain(
+          path.startsWith("/dev/home-master")
+            ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_46%,#110914_100%)]"
+            : "bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]",
+        );
+      } else if (path === "/health/prevention" || path.startsWith("/informes/")) {
         expect(shell.className).toContain("max-w-[920px]");
         expect(shell.className).toContain("bg-[radial-gradient(circle_at_50%_18%,#30206B_0%,#171026_46%,#080715_100%)]");
       } else if (path.startsWith("/dev/home-master")) {
@@ -345,7 +356,6 @@ describe("app shell route layout", () => {
     "/settings/account",
     "/health/check-in",
     "/dev/home-master/check-in",
-    "/dev/home-master/vitals",
     "/dev/home-master/medicines",
   ])(
     "hides the prototype dock on %s",
@@ -359,6 +369,27 @@ describe("app shell route layout", () => {
       );
 
       expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(["/health/vitals", "/dev/home-master/vitals"])(
+    "uses the canonical single-header shell and shared dock on %s",
+    (path) => {
+      render(
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+          <AppShell>
+            <div>Vitals page content</div>
+          </AppShell>
+        </MemoryRouter>,
+      );
+
+      expect(screen.queryByTestId("status-bar")).not.toBeInTheDocument();
+      expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+      expect(screen.getByText("Vitals page content").closest("main")).toHaveClass(
+        "h-[100svh]",
+        "min-h-0",
+        "[scrollbar-gutter:stable_both-edges]",
+      );
     },
   );
 
