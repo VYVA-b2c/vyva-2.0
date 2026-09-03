@@ -361,6 +361,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const usesAlignedHubViewport =
     location.pathname === "/menu" ||
     location.pathname === "/health" ||
+    isVitalsRoute ||
     isSymptomCheckRoute ||
     isDevSymptomAssessmentRoute;
   const isConciergeExperienceRoute = location.pathname === "/concierge";

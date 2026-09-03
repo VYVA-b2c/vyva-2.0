@@ -48,6 +48,7 @@ describe("VitalsTracker redesign", () => {
 
     expect(screen.getByTestId("vitals-hero")).not.toHaveTextContent("Steady");
     expect(screen.getByTestId("vitals-hero")).toHaveClass("-mx-2", "sm:-mx-4", "lg:-mx-14");
+    expect(screen.getByTestId("vitals-hero-metric").querySelector("svg")).toBeNull();
     expect(screen.getByLabelText("Steady")).toBeVisible();
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("Risk score");
     expect(screen.getByTestId("vitals-risk-score")).toHaveTextContent("16/100");
@@ -60,6 +61,9 @@ describe("VitalsTracker redesign", () => {
     expect(screen.queryByTestId("vitals-risk-score")).not.toBeInTheDocument();
     expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("Heart rate");
     expect(screen.getByTestId("vitals-hero-marker")).toHaveTextContent("72 bpm");
+    expect(screen.getByTestId("vitals-hero-value")).toHaveClass("shrink-0", "whitespace-nowrap");
+    expect(screen.getByTestId("vitals-hero-value")).not.toHaveClass("truncate");
+    expect(screen.getByTestId("vitals-hero-metric").querySelector("svg")).toBeNull();
     expect(screen.getByTestId("vitals-hero-message")).toHaveTextContent("1% above your baseline");
     expect(screen.getByTestId("vitals-hero-marker")).toHaveClass("max-w-[520px]");
     expect(screen.getByTestId("vitals-hero-marker")).not.toHaveClass("sm:mx-auto", "sm:w-[380px]");
