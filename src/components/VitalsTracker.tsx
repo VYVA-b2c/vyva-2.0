@@ -798,14 +798,30 @@ const DISPLAY_GROUP_LABELS: Record<VitalsDisplayGroup, Record<Language, string>>
   labs: { en: "Labs", es: "Analisis", de: "Labor", fr: "Analyses", it: "Esami", pt: "Analises" },
 };
 
-const DASHBOARD_LABELS: Record<Language, { latest: string; more: string; risk: string; lower: string }> = {
-  en: { latest: "Latest readings", more: "More vitals", risk: "Risk score", lower: "Lower is better" },
-  es: { latest: "Últimas mediciones", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor" },
-  de: { latest: "Letzte Messwerte", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser" },
-  fr: { latest: "Dernières mesures", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux" },
-  it: { latest: "Ultime letture", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio" },
-  pt: { latest: "Leituras recentes", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor" },
+const DASHBOARD_LABELS: Record<Language, {
+  latest: string;
+  latestSingle: string;
+  more: string;
+  risk: string;
+  lower: string;
+  nearBaseline: string;
+  aboveBaseline: string;
+  belowBaseline: string;
+}> = {
+  en: { latest: "Latest readings", latestSingle: "Latest reading", more: "More vitals", risk: "Risk score", lower: "Lower is better", nearBaseline: "Near your baseline", aboveBaseline: "above your baseline", belowBaseline: "below your baseline" },
+  es: { latest: "Últimas mediciones", latestSingle: "Última medición", more: "Más signos", risk: "Nivel de riesgo", lower: "Cuanto más bajo, mejor", nearBaseline: "Cerca de tu referencia", aboveBaseline: "por encima de tu referencia", belowBaseline: "por debajo de tu referencia" },
+  de: { latest: "Letzte Messwerte", latestSingle: "Letzter Messwert", more: "Weitere Vitalwerte", risk: "Risikowert", lower: "Niedriger ist besser", nearBaseline: "Nahe deinem Basiswert", aboveBaseline: "über deinem Basiswert", belowBaseline: "unter deinem Basiswert" },
+  fr: { latest: "Dernières mesures", latestSingle: "Dernière mesure", more: "Autres constantes", risk: "Score de risque", lower: "Plus bas, c'est mieux", nearBaseline: "Proche de votre référence", aboveBaseline: "au-dessus de votre référence", belowBaseline: "en dessous de votre référence" },
+  it: { latest: "Ultime letture", latestSingle: "Ultima lettura", more: "Altri parametri", risk: "Punteggio di rischio", lower: "Più basso è meglio", nearBaseline: "Vicino al tuo valore base", aboveBaseline: "sopra il tuo valore base", belowBaseline: "sotto il tuo valore base" },
+  pt: { latest: "Leituras recentes", latestSingle: "Leitura mais recente", more: "Mais sinais", risk: "Pontuação de risco", lower: "Quanto mais baixo, melhor", nearBaseline: "Perto da sua referência", aboveBaseline: "acima da sua referência", belowBaseline: "abaixo da sua referência" },
 };
+
+function heroMarkerMessage(deviation: number | null, language: Language) {
+  const labels = DASHBOARD_LABELS[language];
+  if (deviation == null) return labels.latestSingle;
+  if (deviation === 0) return labels.nearBaseline;
+  return `${Math.abs(deviation)}% ${deviation > 0 ? labels.aboveBaseline : labels.belowBaseline}`;
+}
 
 function SignalIcon({ type, className = "" }: { type: string; className?: string }) {
   if (type === "heart") return <VyvaIcon icon={HeartPulse} accent="pulse" size={28} className={className} />;
@@ -1621,48 +1637,44 @@ export default function VitalsTracker({
               <div data-testid="vitals-hero-metric">
                 {activeHeroMetricIndex === 0 ? (
                   <div
-                    className="flex min-h-[68px] items-center gap-3 sm:mx-auto sm:w-[380px]"
+                    className="min-h-[68px] max-w-[520px]"
                     data-testid="vitals-risk-score"
                     aria-label={`${dashboardLabels.risk}: ${riskScore}/100. ${dashboardLabels.lower}.`}
                   >
-                    <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                      <VyvaIcon icon={ShieldCheck} accent="trend" size={25} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className={`font-body text-[10px] font-black uppercase tracking-[0.12em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
-                      <div className="mt-0.5 flex items-baseline gap-1.5">
-                        <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.05em] sm:text-[46px]" style={{ color: riskColor }}>{riskScore}</span>
-                        <span className={`font-body text-[13px] font-black sm:text-[15px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
-                        <span className={`ml-1 font-body text-[11px] font-bold ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>{dashboardLabels.lower}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-body text-[13px] font-black uppercase tracking-[0.08em] sm:text-[14px] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>{dashboardLabels.risk}</p>
+                      <div className="mt-0.5 flex min-w-0 items-center gap-2.5">
+                        <span className="flex shrink-0 items-baseline gap-1">
+                          <span className="font-body text-[42px] font-extrabold leading-none tracking-[-0.05em] sm:text-[46px]" style={{ color: riskColor }}>{riskScore}</span>
+                          <span className={`font-body text-[13px] font-black sm:text-[15px] ${isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>/100</span>
+                        </span>
+                        <span className={`min-w-0 border-l pl-2.5 font-body text-[17px] font-bold leading-[1.25] sm:text-[18px] ${isDark ? "border-white/[0.14] text-[#D8CDE4]" : "border-[#E1D6E7] text-[#6B5B72]"}`} data-testid="vitals-hero-message">
+                          {getRiskLabel(riskScore, language)} · {dashboardLabels.lower}
+                        </span>
                       </div>
                     </div>
                   </div>
                 ) : activeHeroMarker && activeHeroSignal && activeHeroConfig ? (
-                  <div className="min-w-0 sm:mx-auto sm:w-[380px]" data-testid="vitals-hero-marker">
-                    <div className="flex min-h-[68px] min-w-0 items-center gap-3">
-                      <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[15px] ${isDark ? "bg-[#3A2D4A]" : "bg-[#F3EAFF]"}`}>
-                        <SignalIcon type={activeHeroConfig.icon} className="h-[25px] w-[25px]" />
-                      </span>
+                  <div className="min-h-[68px] min-w-0 max-w-[520px]" data-testid="vitals-hero-marker">
+                    <div className="min-w-0">
                       <div className="min-w-0 flex-1">
-                        <p className={`truncate font-body text-[10px] font-black uppercase tracking-[0.11em] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>
+                        <p className={`truncate font-body text-[13px] font-black uppercase tracking-[0.08em] sm:text-[14px] ${isDark ? "text-[#C4A7FF]" : "text-[#7024C4]"}`}>
                           {signalLabel(activeHeroSignal, activeHeroConfig, language)}
                         </p>
-                        <div className="mt-0.5 flex min-w-0 items-baseline gap-2">
+                        <div className="mt-0.5 flex min-w-0 items-center gap-2.5">
                           <span className={`truncate font-body text-[34px] font-extrabold leading-none tracking-[-0.03em] sm:text-[38px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
                             {readingValueDisplay(activeHeroSignal, activeHeroMarker)}
                           </span>
-                          {activeHeroDeviation != null && activeHeroDeviation !== 0 ? (
-                            <span className={`shrink-0 font-body text-[11px] font-black ${activeHeroDeviation > 0 ? "text-[#D97706]" : activeHeroDeviation < 0 ? "text-[#047857]" : isDark ? "text-[#C9BDD6]" : "text-[#746A72]"}`}>
-                              {activeHeroDeviation > 0 ? "+" : ""}{activeHeroDeviation}% {activeHeroDeviation > 0 ? "↑" : activeHeroDeviation < 0 ? "↓" : ""}
-                            </span>
-                          ) : null}
+                          <span className={`min-w-0 border-l pl-2.5 font-body text-[17px] font-bold leading-[1.25] sm:text-[18px] ${isDark ? "border-white/[0.14] text-[#D8CDE4]" : "border-[#E1D6E7] text-[#6B5B72]"}`} data-testid="vitals-hero-message">
+                            {heroMarkerMessage(activeHeroDeviation, language)}
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
                 ) : null}
                 {heroMetricCount > 1 ? (
-                  <div className="mt-2 flex items-center gap-1 sm:mx-auto sm:w-[380px]" aria-label={dashboardLabels.latest}>
+                  <div className="mt-2 flex items-center gap-1" aria-label={dashboardLabels.latest}>
                     {["risk", ...heroMarkers.map((marker) => marker.signal_type)].map((metricKey, index) => (
                       <button
                         key={metricKey}
