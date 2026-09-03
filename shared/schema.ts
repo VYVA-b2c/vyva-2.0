@@ -1870,6 +1870,7 @@ export const longevityDailyContent = pgTable("longevity_daily_content", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   detail_text: text("detail_text"),
+  timing_guidance: text("timing_guidance"),
   source_label: text("source_label"),
   source_url: text("source_url"),
   condition_tags: text("condition_tags").array().notNull().default(sql`array['all']::text[]`),
@@ -1940,6 +1941,94 @@ export const longevityActionEvents = pgTable("longevity_action_events", {
 export const insertLongevityActionEventSchema = createInsertSchema(longevityActionEvents).omit({ id: true, created_at: true });
 export type InsertLongevityActionEvent = z.infer<typeof insertLongevityActionEventSchema>;
 export type LongevityActionEvent = typeof longevityActionEvents.$inferSelect;
+
+export const longevityPrograms = pgTable("longevity_programs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  program_key: text("program_key").notNull().default("starter_video_longevity_v1"),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("active"),
+  focus_pillars: text("focus_pillars").array().notNull().default(sql`array['heart','brain','strength','nourishment','calm']::text[]`),
+  start_date: date("start_date").notNull().default(sql`current_date`),
+  current_day: integer("current_day").notNull().default(1),
+  total_days: integer("total_days").notNull().default(14),
+  language: text("language").notNull().default("en"),
+  cadence: text("cadence").notNull().default("daily"),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("idx_longevity_programs_user_active_program").on(t.user_id, t.program_key).where(sql`${t.status} = 'active'`),
+  index("idx_longevity_programs_user_status").on(t.user_id, t.status, t.start_date.desc()),
+  check("longevity_programs_status_check", sql`${t.status} in ('active','paused','completed')`),
+]);
+
+export const longevityProgramDays = pgTable("longevity_program_days", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  program_id: uuid("program_id").notNull().references(() => longevityPrograms.id, { onDelete: "cascade" }),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  day_index: integer("day_index").notNull(),
+  pillar: text("pillar").notNull(),
+  theme: text("theme").notNull(),
+  objective: text("objective").notNull(),
+  action_title: text("action_title").notNull(),
+  action_detail: text("action_detail").notNull(),
+  video_query: text("video_query").notNull(),
+  fallback_video_key: text("fallback_video_key").notNull(),
+  scheduled_date: date("scheduled_date").notNull(),
+  status: text("status").notNull().default("scheduled"),
+  shown_at: timestamp("shown_at", { withTimezone: true }),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  skipped_at: timestamp("skipped_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("longevity_program_days_program_day_unique").on(t.program_id, t.day_index),
+  index("idx_longevity_program_days_user_scheduled").on(t.user_id, t.scheduled_date),
+  index("idx_longevity_program_days_program_day").on(t.program_id, t.day_index),
+  check("longevity_program_days_pillar_check", sql`${t.pillar} in ('heart','brain','strength','nourishment','calm')`),
+  check("longevity_program_days_status_check", sql`${t.status} in ('scheduled','shown','completed','skipped')`),
+]);
+
+export const longevityVideoResources = pgTable("longevity_video_resources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  program_day_id: uuid("program_day_id").notNull().references(() => longevityProgramDays.id, { onDelete: "cascade" }),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("youtube"),
+  video_id: text("video_id").notNull(),
+  url: text("url").notNull(),
+  title: text("title").notNull(),
+  channel: text("channel"),
+  duration_seconds: integer("duration_seconds"),
+  thumbnail_url: text("thumbnail_url"),
+  language: text("language").notNull().default("en"),
+  summary: text("summary"),
+  selected_reason: text("selected_reason").notNull(),
+  safety_notes: text("safety_notes").notNull(),
+  curation_status: text("curation_status").notNull().default("fallback"),
+  curator_agent: text("curator_agent").notNull().default("vyva-longevity-video-curator-v1"),
+  search_query: text("search_query").notNull(),
+  fetched_at: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("idx_longevity_video_resources_day_video").on(t.program_day_id, t.video_id),
+  index("idx_longevity_video_resources_user_created").on(t.user_id, t.created_at.desc()),
+  check("longevity_video_resources_provider_check", sql`${t.provider} = 'youtube'`),
+  check("longevity_video_resources_curation_status_check", sql`${t.curation_status} in ('ready','fallback','failed')`),
+]);
+
+export const insertLongevityProgramSchema = createInsertSchema(longevityPrograms).omit({ id: true, created_at: true, updated_at: true });
+export type InsertLongevityProgram = z.infer<typeof insertLongevityProgramSchema>;
+export type LongevityProgram = typeof longevityPrograms.$inferSelect;
+
+export const insertLongevityProgramDaySchema = createInsertSchema(longevityProgramDays).omit({ id: true, created_at: true, updated_at: true });
+export type InsertLongevityProgramDay = z.infer<typeof insertLongevityProgramDaySchema>;
+export type LongevityProgramDay = typeof longevityProgramDays.$inferSelect;
+
+export const insertLongevityVideoResourceSchema = createInsertSchema(longevityVideoResources).omit({ id: true, fetched_at: true, created_at: true });
+export type InsertLongevityVideoResource = z.infer<typeof insertLongevityVideoResourceSchema>;
+export type LongevityVideoResource = typeof longevityVideoResources.$inferSelect;
 
 
 // ============================================================

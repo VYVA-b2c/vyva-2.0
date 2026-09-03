@@ -3,17 +3,18 @@ import {
   Apple,
   ArrowLeft,
   Brain,
-  Ban,
   Check,
   ChevronDown,
   ChevronRight,
   Clipboard,
+  Clock,
+  ExternalLink,
   Footprints,
   HeartPulse,
   Mic,
+  PlayCircle,
   Share2,
   Sparkles,
-  ThumbsUp,
   Waves,
   type LucideIcon,
 } from "lucide-react";
@@ -47,13 +48,14 @@ export type PreventionPlanData = {
   trajectory: "improving" | "stable" | "declining" | "first";
 };
 
-type DailyContentType = "exercise" | "meal" | "tip" | "article";
+type DailyContentType = "exercise" | "meal" | "tip" | "article" | "supplement" | "natural_solution";
 type DailyContentItem = {
   id: string;
   content_type: DailyContentType;
   title: string;
   description: string;
   detail_text: string | null;
+  timing_guidance?: string | null;
   source_label: string | null;
   source_url: string | null;
   condition_tags: string[];
@@ -66,6 +68,8 @@ type DailyContentResponse = {
   exercise: DailyContentItem | null;
   meal: DailyContentItem | null;
   tip: DailyContentItem | null;
+  supplement?: DailyContentItem | null;
+  naturalSolution?: DailyContentItem | null;
   articles: DailyContentItem[];
   byPillar?: Partial<Record<PreventionPillar, DailyContentItem[]>>;
 };
@@ -84,9 +88,25 @@ type CompanionSignal = {
   tone: "steady" | "attention" | "positive";
 };
 
+type BrainChallenge = {
+  kind: "memory_prompt" | "word_chain" | "riddle" | "chess_puzzle" | "crossword";
+  prompt: string;
+  hint: string;
+  answer: string | null;
+  followUp: string;
+};
+
+type BrainGameOption = BrainChallenge & {
+  id: string;
+  label: string;
+  title: string;
+};
+
 type CompanionAction = {
   action_key: string;
   content_id?: string | null;
+  content_type?: DailyContentType | null;
+  timing_guidance?: string | null;
   title: string;
   detail: string;
   pillar: PreventionPillar | null;
@@ -94,11 +114,96 @@ type CompanionAction = {
   resource_label?: string | null;
   resource_url?: string | null;
   prompt: string;
-  source: "monthly_plan" | "daily_content" | "feedback_memory" | "fallback";
+  source: "monthly_plan" | "daily_content" | "feedback_memory" | "fallback" | "program";
+  challenge?: BrainChallenge | null;
+  gameOptions?: BrainGameOption[] | null;
 };
+
+type DailyExperienceKind = "video" | "brain_game" | "movement" | "walking_route" | "food" | "calm" | "support";
+
+type PrimaryExperience = {
+  kind: DailyExperienceKind;
+  title: string;
+  detail: string;
+  pillar: PreventionPillar | null;
+  ctaLabel: string;
+  action: CompanionAction;
+  video: TodayVideo | null;
+};
+
+type CoveredPillar = {
+  pillar: PreventionPillar;
+  label: string;
+  status: PreventionPillarStatus;
+  actionTitle: string;
+  reason: string;
+  evidence: string;
+};
+
+type DailySession = {
+  sessionFocus: string;
+  primaryExperience: PrimaryExperience;
+  companionAction: CompanionAction;
+  optionalChoices: CompanionAction[];
+  coveredPillars: CoveredPillar[];
+  whyThis: {
+    summary: string;
+    evidence: string[];
+  };
+};
+
+type VideoCurationStatus = "ready" | "pending" | "fallback" | "failed";
+
+type ActiveProgram = {
+  id: string;
+  programKey: string;
+  title: string;
+  status: "active" | "paused" | "completed";
+  focusPillars: PreventionPillar[];
+  startDate: string;
+  currentDay: number;
+  totalDays: number;
+  language: string;
+  cadence: string;
+};
+
+type ProgramStep = {
+  id: string;
+  programId: string;
+  dayIndex: number;
+  pillar: PreventionPillar;
+  theme: string;
+  objective: string;
+  actionTitle: string;
+  actionDetail: string;
+  videoQuery: string;
+  scheduledDate: string;
+  status: "scheduled" | "shown" | "completed" | "skipped";
+};
+
+type TodayVideo = {
+  id: string;
+  provider: "youtube";
+  videoId: string;
+  url: string;
+  title: string;
+  channel: string | null;
+  durationSeconds: number | null;
+  thumbnailUrl: string | null;
+  language: string;
+  summary: string | null;
+  selectedReason: string;
+  safetyNotes: string;
+};
+
+type FeedbackEventType = "done" | "too_hard" | "not_relevant" | "opened";
 
 type CompanionPayload = {
   plan: PreventionPlanData;
+  activeProgram: ActiveProgram | null;
+  todayProgramStep: ProgramStep | null;
+  todayVideo: TodayVideo | null;
+  videoCurationStatus: VideoCurationStatus;
   todayFocus: {
     pillar: PreventionPillar | null;
     label: string;
@@ -106,6 +211,7 @@ type CompanionPayload = {
     summary: string;
   };
   whyToday: string;
+  dailySession?: DailySession | null;
   primaryAction: CompanionAction;
   supportAction: CompanionAction;
   pillarActions?: Partial<Record<PreventionPillar, CompanionAction>>;
@@ -191,12 +297,12 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
   exercise: {
     id: "preview-exercise",
     content_type: "exercise",
-    title: "Find a nearby walk or activity",
-    description: "VYVA can look for gentle places, local programs, or a social outing close to home.",
+    title: "Tai chi",
+    description: "A slow balance-friendly VYVA exercise for light movement, posture, and rhythm.",
     detail_text: null,
-    source_label: "Nearby walking ideas",
-    source_url: RESOURCE_URLS.communityWalking,
-    condition_tags: ["heart"],
+    source_label: "VYVA movement library",
+    source_url: "/social-rooms/morning-movement/exercises/tai-chi",
+    condition_tags: ["heart", "balance"],
     pillar_tag: "heart",
     time_of_day: "afternoon",
     language: "en",
@@ -231,8 +337,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     {
       id: "preview-article",
       content_type: "article",
-      title: "Gentle exercise videos for older adults",
-      description: "A trusted visual guide can be easier than reading instructions.",
+      title: "Guided movement supports heart routines",
+      description: "A short, practical resource connected to your current movement focus.",
       detail_text: null,
       source_label: "Visual guide",
       source_url: RESOURCE_URLS.niaExerciseVideos,
@@ -246,12 +352,12 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     heart: [{
       id: "preview-heart",
       content_type: "exercise",
-      title: "Find a nearby walk or activity",
-      description: "After lunch, VYVA can suggest nearby places, gentle groups, or daytime programs.",
+      title: "Tai chi",
+      description: "A slow balance-friendly VYVA exercise for light movement, posture, and rhythm.",
       detail_text: null,
-      source_label: "Nearby walking ideas",
-      source_url: RESOURCE_URLS.communityWalking,
-      condition_tags: ["heart"],
+      source_label: "VYVA movement library",
+      source_url: "/social-rooms/morning-movement/exercises/tai-chi",
+      condition_tags: ["heart", "balance"],
       pillar_tag: "heart",
       time_of_day: "afternoon",
       language: "en",
@@ -259,8 +365,8 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
     brain: [{
       id: "preview-brain",
       content_type: "tip",
-      title: "One familiar Brain Coach round",
-      description: "A familiar activity keeps today's brain step low effort.",
+      title: "Word recall challenge",
+      description: "Study a few words, hide them, then see what you remember.",
       detail_text: null,
       source_label: "Brain Coach",
       source_url: "/mind",
@@ -309,6 +415,48 @@ const PREVIEW_DAILY_CONTENT: DailyContentResponse = {
       language: "en",
     }],
   },
+};
+
+const PREVIEW_ACTIVE_PROGRAM: ActiveProgram = {
+  id: "preview-longevity-program",
+  programKey: "starter_video_longevity_v1",
+  title: "14-day VYVA longevity starter",
+  status: "active",
+  focusPillars: ["brain", "heart", "strength", "nourishment", "calm"],
+  startDate: "2026-08-01",
+  currentDay: 1,
+  totalDays: 14,
+  language: "en",
+  cadence: "daily",
+};
+
+const PREVIEW_PROGRAM_STEP: ProgramStep = {
+  id: "preview-longevity-program-day-1",
+  programId: PREVIEW_ACTIVE_PROGRAM.id,
+  dayIndex: 1,
+  pillar: "brain",
+  theme: "Memory starter",
+  objective: "Watch one short visual guide, then keep memory practice familiar.",
+  actionTitle: "3-2-1 memory lane",
+  actionDetail: "Pick a real place. Name 3 things you see there, 2 sounds, and 1 person connected to it.",
+  videoQuery: "MIND diet brain health short Mayo Clinic video",
+  scheduledDate: "2026-08-01",
+  status: "scheduled",
+};
+
+const PREVIEW_TODAY_VIDEO: TodayVideo = {
+  id: "preview-longevity-video",
+  provider: "youtube",
+  videoId: "hoPg4bkKemQ",
+  url: "https://www.youtube.com/watch?v=hoPg4bkKemQ",
+  title: "Mayo Clinic Minute: Can the MIND diet improve brain health?",
+  channel: "Mayo Clinic",
+  durationSeconds: 70,
+  thumbnailUrl: "https://i.ytimg.com/vi/hoPg4bkKemQ/hqdefault.jpg",
+  language: "en",
+  summary: "A short visual guide connecting food choices with brain health.",
+  selectedReason: "It is short, calm, and directly connected to today's memory-support program step.",
+  safetyNotes: "General wellness education only.",
 };
 
 function upperFirst(value: string): string {
@@ -477,10 +625,12 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): Com
   const actionFromContent = (pillar: PreventionPillar, content: DailyContentItem): CompanionAction => ({
     action_key: actionKeyFor(pillar, content.title),
     content_id: content.id,
+    content_type: content.content_type,
+    timing_guidance: content.timing_guidance ?? null,
     title: content.title,
     detail: content.description,
     pillar,
-    route: pillar === "brain" ? "/mind" : pillar === "calm" ? "/games/breath-garden" : pillar === "strength" ? "/health/exercises/gentle-walk" : null,
+    route: content.source_url?.startsWith("/") ? content.source_url : routeForPillarAction(pillar, content.title),
     resource_label: content.source_label,
     resource_url: content.source_url,
     prompt: `Help me with today's ${pillar} step: ${content.title}.`,
@@ -504,7 +654,66 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): Com
         source: "fallback" as const,
       }];
   })) as Record<PreventionPillar, CompanionAction>;
-  const primaryAction = pillarActions[priorityPillar];
+  const previewGameOptions: BrainGameOption[] = [
+    {
+      id: "memory_lane",
+      label: "Memory",
+      title: "3-2-1 memory lane",
+      kind: "memory_prompt",
+      prompt: PREVIEW_PROGRAM_STEP.actionDetail,
+      hint: "Use a place you know well, such as your kitchen, a favorite street, or a holiday spot.",
+      answer: null,
+      followUp: "This uses personal memory and storytelling, not a score.",
+    },
+    {
+      id: "word_chain",
+      label: "Words",
+      title: "Word chain",
+      kind: "word_chain",
+      prompt: "Start with garden. Say five connected words without stopping.",
+      hint: "Try: garden, flower, colour, painting, gallery. Your chain can be different.",
+      answer: null,
+      followUp: "Word chains train flexible thinking without needing a long session.",
+    },
+    {
+      id: "riddle",
+      label: "Riddle",
+      title: "Quick riddle",
+      kind: "riddle",
+      prompt: "I hold stories without a shelf and open when someone asks the right question. What am I?",
+      hint: "It is something your brain uses every day.",
+      answer: "memory",
+      followUp: "A tiny riddle gives the day a clear start and finish.",
+    },
+    {
+      id: "chess_scan",
+      label: "Chess",
+      title: "Chess scan",
+      kind: "chess_puzzle",
+      prompt: "Before a move, name one piece that is protected and one piece that is open.",
+      hint: "A protected piece has another piece that could respond if it is taken.",
+      answer: null,
+      followUp: "This is a gentle planning puzzle, not a timed match.",
+    },
+  ];
+  const primaryAction: CompanionAction = {
+    action_key: `program:${PREVIEW_ACTIVE_PROGRAM.id}:${PREVIEW_PROGRAM_STEP.dayIndex}:${actionKeyFor(PREVIEW_PROGRAM_STEP.pillar, PREVIEW_PROGRAM_STEP.actionTitle)}`,
+    content_id: PREVIEW_PROGRAM_STEP.id,
+    title: PREVIEW_PROGRAM_STEP.actionTitle,
+    detail: "This uses personal memory and storytelling, not a score.",
+    pillar: PREVIEW_PROGRAM_STEP.pillar,
+    route: null,
+    prompt: `Help me with today's Longevity program step: ${PREVIEW_PROGRAM_STEP.actionTitle}. Video: ${PREVIEW_TODAY_VIDEO.title}.`,
+    source: "program",
+    challenge: {
+      kind: "memory_prompt",
+      prompt: PREVIEW_PROGRAM_STEP.actionDetail,
+      hint: "Use a place you know well, such as your kitchen, a favorite street, or a holiday spot.",
+      answer: null,
+      followUp: "This uses personal memory and storytelling, not a score.",
+    },
+    gameOptions: previewGameOptions,
+  };
   const supportAction = pillarActions.heart;
   const signalsUsed: CompanionSignal[] = [
     {
@@ -524,23 +733,68 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string): Com
       tone: "steady",
     },
   ];
+  const dailySession: DailySession = {
+    sessionFocus: firstName ? `${firstName}, keep memory active with one short challenge today.` : "Keep memory active with one short challenge today.",
+    primaryExperience: {
+      kind: "video",
+      title: PREVIEW_TODAY_VIDEO.title,
+      detail: PREVIEW_TODAY_VIDEO.selectedReason,
+      pillar: PREVIEW_PROGRAM_STEP.pillar,
+      ctaLabel: "Watch",
+      action: primaryAction,
+      video: PREVIEW_TODAY_VIDEO,
+    },
+    companionAction: primaryAction,
+    optionalChoices: [pillarActions.heart, pillarActions.calm],
+    coveredPillars: coveredPillarsFromActions(plan, pillarActions).map((pillar) => ({
+      ...pillar,
+      evidence: pillar.pillar === "brain"
+        ? signalsUsed[0].detail
+        : pillar.evidence,
+    })),
+    whyThis: {
+      summary: whyToday,
+      evidence: [
+        `Program day ${PREVIEW_PROGRAM_STEP.dayIndex}: ${PREVIEW_PROGRAM_STEP.theme}.`,
+        `Curated video: ${PREVIEW_TODAY_VIDEO.title}.`,
+        `Brain Coach: ${signalsUsed[0].detail}`,
+      ],
+    },
+  };
 
   return {
     plan,
+    activeProgram: PREVIEW_ACTIVE_PROGRAM,
+    todayProgramStep: PREVIEW_PROGRAM_STEP,
+    todayVideo: PREVIEW_TODAY_VIDEO,
+    videoCurationStatus: "fallback",
     todayFocus: {
       pillar: priorityPillar,
       label: priorityDefinition?.label ?? "Longevity",
-      headline: firstName ? `${firstName}, restart Brain Coach gently today` : "Restart Brain Coach gently today",
-      summary: signalsUsed[0].detail,
+      headline: firstName ? `${firstName}, today's memory starter` : "Today's memory starter",
+      summary: PREVIEW_PROGRAM_STEP.objective,
     },
     whyToday,
+    dailySession,
     primaryAction,
     supportAction,
     pillarActions,
     careSummary: {
       title: `Longevity summary for ${firstName || "this user"}`,
-      bullets: [whyToday, ...PILLARS.map((pillar) => `${pillar.label}: ${pillarActions[pillar.id].title}.`), signalsUsed[0].detail],
-      share_text: [`Longevity summary for ${firstName || "this user"}`, "- " + whyToday, ...PILLARS.map((pillar) => `- ${pillar.label}: ${pillarActions[pillar.id].title}.`)].join("\n"),
+      bullets: [
+        `Program day ${PREVIEW_PROGRAM_STEP.dayIndex}: ${PREVIEW_PROGRAM_STEP.theme}.`,
+        `Video: ${PREVIEW_TODAY_VIDEO.title}.`,
+        `Companion step: ${primaryAction.title}.`,
+        `Health areas considered: ${PILLARS.map((pillar) => pillar.label).join("; ")}.`,
+        signalsUsed[0].detail,
+      ],
+      share_text: [
+        `Longevity summary for ${firstName || "this user"}`,
+        `- Program day ${PREVIEW_PROGRAM_STEP.dayIndex}: ${PREVIEW_PROGRAM_STEP.theme}.`,
+        `- Video: ${PREVIEW_TODAY_VIDEO.title}.`,
+        `- Companion step: ${primaryAction.title}.`,
+        `- Health areas considered: ${PILLARS.map((pillar) => pillar.label).join("; ")}.`,
+      ].join("\n"),
     },
     signalsUsed,
     dailyContent: PREVIEW_DAILY_CONTENT,
@@ -599,11 +853,41 @@ function statusClass(tone: "success" | "steady" | "warning", isDark: boolean): s
   return isDark ? "bg-white/[0.08] text-[#D9CFE3]" : "bg-[#F2EDF4] text-[#6E6175]";
 }
 
+function movementExerciseRouteForTitle(title: string): string | null {
+  const text = title.toLowerCase();
+  const movementRoutes: Array<[string[], string]> = [
+    [["chair yoga"], "/social-rooms/morning-movement/exercises/chair-yoga"],
+    [["tai chi", "tai-chi"], "/social-rooms/morning-movement/exercises/tai-chi"],
+    [["seated strength", "chair strength", "chair exercises"], "/social-rooms/morning-movement/exercises/seated-strength"],
+    [["calm breathing"], "/social-rooms/morning-movement/exercises/calm-breathing"],
+    [["sit-to-stand", "sit to stand"], "/social-rooms/morning-movement/exercises/sit-to-stand"],
+    [["heel raises"], "/social-rooms/morning-movement/exercises/heel-raises"],
+    [["wall push-ups", "wall pushups"], "/social-rooms/morning-movement/exercises/wall-push-ups"],
+    [["ankle mobility"], "/social-rooms/morning-movement/exercises/ankle-mobility"],
+    [["chest opener"], "/social-rooms/morning-movement/exercises/chest-opener"],
+    [["side steps"], "/social-rooms/morning-movement/exercises/side-steps"],
+    [["hand breathing"], "/social-rooms/morning-movement/exercises/hand-breathing"],
+    [["shoulder release"], "/social-rooms/morning-movement/exercises/shoulder-release"],
+  ];
+  return movementRoutes.find(([matches]) => matches.some((match) => text.includes(match)))?.[1] ?? null;
+}
+
 function routeForPillarAction(pillar: PreventionPillar, title: string): string | null {
   const text = title.toLowerCase();
-  if (pillar === "brain" || text.includes("brain coach")) return "/mind";
+  const movementRoute = movementExerciseRouteForTitle(title);
+  if (movementRoute) return movementRoute;
+  if (text.includes("walking path") || text.includes("clear route") || text.includes("remove obstacles")) {
+    return "/social-rooms/walking-route?source=longevity&intent=clear-walking-path";
+  }
+  if (pillar === "brain") {
+    if (text.includes("word")) return "/memory-games/word_recall";
+    if (text.includes("challenge") || text.includes("game") || text.includes("memory")) return "/memory-games";
+    return "/mind";
+  }
+  if (text.includes("brain coach")) return "/mind";
   if (pillar === "calm" || text.includes("breath")) return "/games/breath-garden";
-  if (pillar === "heart" && (text.includes("walk") || text.includes("outing") || text.includes("activity"))) return RESOURCE_URLS.communityWalking;
+  if (pillar === "heart" && (text.includes("nearby") || text.includes("outing") || text.includes("activity") || text.includes("social"))) return RESOURCE_URLS.communityWalking;
+  if (pillar === "heart" && (text.includes("movement") || text.includes("exercise") || text.includes("walk"))) return "/social-rooms/morning-movement/exercises/tai-chi";
   if (pillar === "strength" || text.includes("walk") || text.includes("chair")) return "/health/exercises/gentle-walk";
   if (text.includes("medicine") || text.includes("medication")) return "/health/medications";
   return null;
@@ -648,6 +932,104 @@ function resolvePillarActions(companion: CompanionPayload, plan: PreventionPlanD
   ])) as Record<PreventionPillar, CompanionAction>;
 }
 
+function actionCategory(action: CompanionAction): DailyExperienceKind | "connection" {
+  const text = `${action.title} ${action.detail} ${action.route ?? ""}`.toLowerCase();
+  if (text.includes("youtube.com/watch") || text.includes("youtu.be/")) return "video";
+  if (text.includes("memory-games") || text.includes("riddle") || text.includes("chess") || text.includes("word recall") || text.includes("memory lane") || text.includes("memory challenge") || (action.pillar === "brain" && text.includes("memory"))) return "brain_game";
+  if (text.includes("morning-movement") || text.includes("tai chi") || text.includes("chair yoga") || text.includes("seated strength") || text.includes("chest opener") || text.includes("ankle mobility") || text.includes("side steps")) return "movement";
+  if (text.includes("walking-route") || text.includes("walking path") || text.includes("clear route") || text.includes("remove obstacles")) return "walking_route";
+  if (text.includes("protein") || text.includes("meal") || text.includes("food") || text.includes("water") || action.pillar === "nourishment") return "food";
+  if (text.includes("breath") || text.includes("calm") || text.includes("wind-down") || action.pillar === "calm") return "calm";
+  if (text.includes("call someone") || text.includes("social") || text.includes("conversation")) return "connection";
+  return "support";
+}
+
+function isNearDuplicateAction(a: CompanionAction, b: CompanionAction): boolean {
+  if (a.action_key === b.action_key) return true;
+  if (a.title.trim().toLowerCase() === b.title.trim().toLowerCase()) return true;
+  const aCategory = actionCategory(a);
+  const bCategory = actionCategory(b);
+  return aCategory !== "support" && aCategory === bCategory;
+}
+
+function ctaLabelForExperience(kind: DailyExperienceKind): string {
+  if (kind === "video") return "Watch";
+  if (kind === "brain_game") return "Play";
+  if (kind === "movement") return "Start exercise";
+  if (kind === "walking_route") return "Plan route";
+  if (kind === "food") return "Make it easy";
+  if (kind === "calm") return "Start reset";
+  return "Start";
+}
+
+function dailyContentTypeLabel(type?: DailyContentType | null): string | null {
+  if (!type) return null;
+  const labels: Record<DailyContentType, string> = {
+    exercise: "Exercise",
+    meal: "Food",
+    tip: "Tip",
+    article: "Read",
+    supplement: "Supplement",
+    natural_solution: "Natural support",
+  };
+  return labels[type];
+}
+
+function timingMetaLabel(action: CompanionAction): string | null {
+  if (!action.timing_guidance) return null;
+  return [dailyContentTypeLabel(action.content_type), action.timing_guidance].filter(Boolean).join(" · ");
+}
+
+function experienceKindForAction(action: CompanionAction, video: TodayVideo | null): DailyExperienceKind {
+  if (video) return "video";
+  const category = actionCategory(action);
+  return category === "connection" ? "support" : category;
+}
+
+function coveredPillarsFromActions(plan: PreventionPlanData, pillarActions: Record<PreventionPillar, CompanionAction>): CoveredPillar[] {
+  return PILLARS.map((pillar) => ({
+    pillar: pillar.id,
+    label: pillar.label,
+    status: pillarStatus(plan, pillar.id),
+    actionTitle: pillarActions[pillar.id].title,
+    reason: pillarActions[pillar.id].detail,
+    evidence: `${pillar.label} is part of this monthly plan.`,
+  }));
+}
+
+function fallbackDailySession(
+  companion: CompanionPayload,
+  plan: PreventionPlanData,
+  firstName: string,
+  pillarActions: Record<PreventionPillar, CompanionAction>,
+): DailySession {
+  const video = exactYoutubeUrl(companion.todayVideo?.url) ? companion.todayVideo : null;
+  const primaryAction = companion.primaryAction ?? fallbackActionForPillar(plan, companion.todayFocus.pillar ?? "brain");
+  const kind = experienceKindForAction(primaryAction, video);
+  const optionalChoices = Object.values(pillarActions)
+    .filter((action) => !isNearDuplicateAction(action, primaryAction))
+    .slice(0, 2);
+  return {
+    sessionFocus: companion.todayFocus.headline || personalisedHeadline(firstName, plan.priority_intervention, companion.todayFocus.label),
+    primaryExperience: {
+      kind,
+      title: video?.title ?? primaryAction.title,
+      detail: video?.selectedReason ?? primaryAction.detail,
+      pillar: primaryAction.pillar,
+      ctaLabel: ctaLabelForExperience(kind),
+      action: primaryAction,
+      video,
+    },
+    companionAction: video ? primaryAction : companion.supportAction ?? optionalChoices[0] ?? primaryAction,
+    optionalChoices,
+    coveredPillars: coveredPillarsFromActions(plan, pillarActions),
+    whyThis: {
+      summary: companion.whyToday,
+      evidence: companion.signalsUsed.slice(0, 4).map((signal) => `${signal.label}: ${signal.detail}`),
+    },
+  };
+}
+
 function briefText(value: string | null | undefined, maxChars = 96): string {
   const clean = (value ?? "").replace(/\s+/g, " ").trim();
   if (!clean) return "";
@@ -655,6 +1037,35 @@ function briefText(value: string | null | undefined, maxChars = 96): string {
   const firstSentence = sentenceEnd >= 0 ? clean.slice(0, sentenceEnd + 1) : clean;
   if (firstSentence.length <= maxChars) return firstSentence;
   return firstSentence.slice(0, Math.max(0, maxChars - 3)).trimEnd().replace(/[.,;:]+$/, "") + "...";
+}
+
+function exactYoutubeUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    if ((host === "youtube.com" || host === "m.youtube.com") && url.pathname === "/watch") {
+      const videoId = url.searchParams.get("v");
+      return videoId && /^[A-Za-z0-9_-]{6,}$/.test(videoId) ? `https://www.youtube.com/watch?v=${videoId}` : null;
+    }
+    if (host === "youtu.be") {
+      const videoId = url.pathname.replace(/^\//, "").split("/")[0];
+      return videoId && /^[A-Za-z0-9_-]{6,}$/.test(videoId) ? `https://www.youtube.com/watch?v=${videoId}` : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function formatDuration(seconds: number | null | undefined): string | null {
+  if (!seconds || !Number.isFinite(seconds)) return null;
+  const totalSeconds = Math.max(1, Math.round(seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainder = totalSeconds % 60;
+  if (minutes === 0) return `${remainder} sec`;
+  if (remainder === 0) return `${minutes} min`;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
 function PreventionPlanSkeleton({ isDark }: { isDark: boolean }) {
@@ -704,6 +1115,8 @@ export default function PreventionPlan({
   const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
   const [feedbackState, setFeedbackState] = useState<Record<string, "done" | "too_hard" | "not_relevant">>({});
   const [previewVoiceContext, setPreviewVoiceContext] = useState<{ title: string; prompt: string } | null>(null);
+  const [challengeState, setChallengeState] = useState<Record<string, { hint: boolean; answer: boolean }>>({});
+  const [selectedGameOption, setSelectedGameOption] = useState<Record<string, string>>({});
 
   if (!previewPlan && (query.isLoading || !userId)) return <PreventionPlanSkeleton isDark={isDark} />;
 
@@ -791,8 +1204,14 @@ export default function PreventionPlan({
     );
   };
 
-  const submitFeedback = async (action: CompanionAction, eventType: "done" | "too_hard" | "not_relevant") => {
-    setFeedbackState((current) => ({ ...current, [action.action_key]: eventType }));
+  const submitFeedback = async (
+    action: CompanionAction,
+    eventType: FeedbackEventType,
+    extraContext: Record<string, unknown> = {},
+  ) => {
+    if (eventType !== "opened") {
+      setFeedbackState((current) => ({ ...current, [action.action_key]: eventType }));
+    }
     if (!userId) return;
     await apiFetch("/api/prevention/feedback", {
       method: "POST",
@@ -809,6 +1228,15 @@ export default function PreventionPlan({
           whyToday: companion.whyToday,
           actionSource: action.source,
           contentId: action.content_id ?? null,
+          programId: companion.activeProgram?.id ?? null,
+          programKey: companion.activeProgram?.programKey ?? null,
+          programDayId: companion.todayProgramStep?.id ?? null,
+          programDayIndex: companion.todayProgramStep?.dayIndex ?? null,
+          videoResourceId: companion.todayVideo?.id ?? null,
+          videoId: companion.todayVideo?.videoId ?? null,
+          videoUrl: companion.todayVideo?.url ?? null,
+          videoTitle: companion.todayVideo?.title ?? null,
+          ...extraContext,
         },
       }),
     }).catch((err) => console.warn("[prevention feedback]", err));
@@ -816,32 +1244,91 @@ export default function PreventionPlan({
 
   const liveStatuses = pillarStatusQuery.data?.statuses;
   const livePriority = pillarStatusQuery.data?.priority_pillar;
-  const dailyContent = dailyContentQuery.data ?? companion.dailyContent ?? emptyDailyContentResponse();
-  const priorityDefinition = companion.todayFocus.pillar
-    ? PILLARS.find((pillar) => pillar.id === companion.todayFocus.pillar) ?? resolvePriorityDefinition(plan)
+  const pillarActions = resolvePillarActions(companion, plan);
+  const dailySession = companion.dailySession ?? fallbackDailySession(companion, plan, firstName, pillarActions);
+  const primaryExperience = dailySession.primaryExperience;
+  const primaryExperienceAction = primaryExperience.action ?? companion.primaryAction;
+  const mainAction = primaryExperience.kind === "video"
+    ? dailySession.companionAction
+    : primaryExperienceAction;
+  const companionStepAction = primaryExperience.kind === "video"
+    ? null
+    : dailySession.companionAction;
+  const currentPriority = primaryExperience.pillar ?? companion.todayFocus.pillar ?? livePriority ?? null;
+  const priorityDefinition = currentPriority
+    ? PILLARS.find((pillar) => pillar.id === currentPriority) ?? resolvePriorityDefinition(plan, livePriority, liveStatuses)
     : resolvePriorityDefinition(plan, livePriority, liveStatuses);
   const priorityPillarId = priorityDefinition?.id ?? null;
   const priorityLabel = companion.todayFocus.label || priorityDefinition?.label || plan.priority_pillar;
-  const pillarActions = resolvePillarActions(companion, plan);
-  const priorityAction = priorityPillarId ? pillarActions[priorityPillarId] : companion.primaryAction;
-  const priorityStatusDisplay = priorityPillarId ? STATUS[pillarStatus(plan, priorityPillarId, liveStatuses)] : null;
-  const priorityResourceLabel = actionResourceLabel(priorityAction);
-  const selectedActionTitles = new Set(Object.values(pillarActions).map((action) => action.title.toLowerCase().trim()));
-  const dailyPicks = uniqueDailyContentItems([
-    dailyContent.exercise,
-    dailyContent.meal,
-    dailyContent.tip,
-  ].filter((item): item is DailyContentItem => Boolean(item))).filter((item) => !selectedActionTitles.has(item.title.toLowerCase().trim()));
-  const articlePicks = uniqueDailyContentItems(dailyContent.articles).slice(0, 2);
-  const supportPick = articlePicks.find(hasVisualResource) ?? dailyPicks[0] ?? articlePicks[0] ?? null;
-  const orderedPillars = priorityDefinition
-    ? [priorityDefinition, ...PILLARS.filter((pillar) => pillar.id !== priorityDefinition.id)]
-    : PILLARS;
-  const secondaryPillars = orderedPillars.filter((pillar) => pillar.id !== priorityPillarId);
-  const heroHeadline = companion.todayFocus.headline || personalisedHeadline(firstName, plan.priority_intervention, priorityLabel);
-  const seniorNarrative = companion.whyToday || personalisedNarrative(plan.plan_narrative_senior, firstName);
-  const vyvaPrompt = priorityAction.prompt || "Explain my longevity plan and help me choose where to start";
+  const priorityAction = mainAction ?? companion.primaryAction ?? (priorityPillarId ? pillarActions[priorityPillarId] : fallbackActionForPillar(plan, "brain"));
+  const todayVideoUrl = exactYoutubeUrl(primaryExperience.video?.url ?? companion.todayVideo?.url);
+  const todayVideo = todayVideoUrl ? (primaryExperience.video ?? companion.todayVideo) : null;
+  const videoDuration = formatDuration(todayVideo?.durationSeconds);
+  const programDayLabel = companion.activeProgram && companion.todayProgramStep
+    ? `Day ${companion.todayProgramStep.dayIndex} of ${companion.activeProgram.totalDays}`
+    : "Today";
+  const heroHeadline = dailySession.sessionFocus || companion.todayFocus.headline || personalisedHeadline(firstName, plan.priority_intervention, priorityLabel);
+  const seniorNarrative = dailySession.whyThis.summary || companion.whyToday || personalisedNarrative(plan.plan_narrative_senior, firstName);
+  const vyvaPrompt = priorityAction.prompt || primaryExperienceAction.prompt || "Explain my longevity plan and help me choose where to start";
   const careTeamSummary = companion.careSummary.share_text;
+  const brainSpark = priorityAction.challenge ?? null;
+  const brainGameOptions: BrainGameOption[] = brainSpark
+    ? priorityAction.gameOptions?.length
+      ? priorityAction.gameOptions
+      : [{
+        id: "today",
+        label: "Today",
+        title: priorityAction.title,
+        ...brainSpark,
+      }]
+    : [];
+  const selectedBrainGame = brainGameOptions.find((option) => option.id === selectedGameOption[priorityAction.action_key])
+    ?? brainGameOptions[0]
+    ?? null;
+  const activeBrainSpark = selectedBrainGame ?? brainSpark;
+  const brainSparkState = challengeState[priorityAction.action_key] ?? { hint: false, answer: false };
+  const displayedPriorityTitle = selectedBrainGame?.title ?? priorityAction.title;
+  const displayedPriorityDetail = selectedBrainGame?.followUp ?? priorityAction.detail;
+  const priorityTimingMeta = timingMetaLabel(priorityAction);
+  const priorityActionLabel = primaryExperience.kind === "video"
+    ? "Companion step"
+    : primaryExperience.kind === "brain_game"
+      ? "Brain game"
+      : primaryExperience.kind === "movement"
+        ? "Movement"
+        : primaryExperience.kind === "walking_route"
+          ? "Route"
+          : primaryExperience.kind === "food"
+            ? "Food"
+            : primaryExperience.kind === "calm"
+              ? "Calm"
+              : "Today";
+
+  const openTodayVideo = () => {
+    if (!todayVideo || !todayVideoUrl) return;
+    void submitFeedback(priorityAction, "opened", {
+      resourceType: "video",
+      openedUrl: todayVideoUrl,
+    });
+    window.open(todayVideoUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const updateBrainSparkState = (next: Partial<{ hint: boolean; answer: boolean }>) => {
+    setChallengeState((current) => ({
+      ...current,
+      [priorityAction.action_key]: { ...brainSparkState, ...next },
+    }));
+  };
+
+  const chooseBrainGame = (option: BrainGameOption) => {
+    setSelectedGameOption((current) => ({ ...current, [priorityAction.action_key]: option.id }));
+    setChallengeState((current) => ({ ...current, [priorityAction.action_key]: { hint: false, answer: false } }));
+    void submitFeedback(priorityAction, "opened", {
+      resourceType: "brain_game",
+      gameOptionId: option.id,
+      gameOptionTitle: option.title,
+    });
+  };
 
   const copyCareText = async () => {
     if (!careTeamSummary) return;
@@ -875,14 +1362,6 @@ export default function PreventionPlan({
     : "border-[#EEE8F1] bg-white shadow-[0_18px_42px_rgba(80,52,109,0.08)]";
   const mutedTextClass = isDark ? "text-[#D9CFE3]" : "text-[#766C80]";
   const dividerClass = isDark ? "border-white/[0.1]" : "border-[#EEE8F1]";
-  const primaryFeedbackState = feedbackState[priorityAction.action_key] ?? null;
-  const feedbackLabel = primaryFeedbackState === "done"
-    ? "Saved as done"
-    : primaryFeedbackState === "too_hard"
-      ? "VYVA will make it smaller"
-      : primaryFeedbackState === "not_relevant"
-        ? "VYVA will avoid repeats"
-        : null;
 
   return (
     <main data-testid="prevention-plan-screen" data-home-master-theme={isDark ? "dark" : "light"} className={["min-h-[100svh] w-full overflow-x-hidden px-5 pb-40 pt-6 sm:px-7 sm:pt-8", surfaceClass].join(" ")}>
@@ -926,108 +1405,144 @@ export default function PreventionPlan({
           </section>
         ) : null}
 
-        <section className="mt-5" aria-labelledby="daily-picks-heading">
-          <h2 id="daily-picks-heading" className="font-display text-[24px] font-semibold">Today</h2>
+        <section className="mt-7" aria-labelledby="daily-picks-heading">
+          <div className="flex items-end justify-between gap-3">
+            <h2 id="daily-picks-heading" className="font-display text-[24px] font-semibold">Today</h2>
+            <span className={["rounded-full px-3 py-1.5 font-body text-[12px] font-black", isDark ? "bg-white/[0.08] text-[#D9CFE3]" : "bg-[#FAEEDA] text-[#854F0B]"].join(" ")}>{programDayLabel}</span>
+          </div>
 
-          <div className={["mt-3 rounded-[22px] border p-3", cardClass].join(" ")}>
-            <button
-              type="button"
-              onClick={() => openCompanionAction(priorityAction)}
-              className={["group grid min-h-[72px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[17px] px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "bg-white/[0.04] hover:bg-white/[0.07]" : "bg-[#FFFDF9] hover:bg-[#FAF7FC]"].join(" ")}
-            >
-              <span className={["grid h-11 w-11 shrink-0 place-items-center rounded-[15px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
-                <VyvaIcon icon={Sparkles} accent="spark" size={22} strokeWidth={2.4} tone="brand" />
-              </span>
-              <span className="min-w-0">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{priorityDefinition?.label ?? "Do this"}</span>
-                  {priorityStatusDisplay ? <span className={["rounded-full px-2 py-0.5 font-body text-[10px] font-black", statusClass(priorityStatusDisplay.tone, isDark)].join(" ")}>{priorityStatusDisplay.label}</span> : null}
-                  {priorityResourceLabel ? <span className="rounded-full bg-[#FFF7E8] px-2 py-0.5 font-body text-[10px] font-black text-[#854F0B]">{priorityResourceLabel}</span> : null}
-                </span>
-                <span className="block font-display text-[17px] font-semibold leading-5">{priorityAction.title}</span>
-                <span className={["mt-1 block font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(priorityAction.detail, 110)}</span>
-              </span>
-              <VyvaIcon icon={ChevronRight} size={17} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
-            </button>
-
-            <div className={["mt-3 border-t pt-3", dividerClass].join(" ")}>
-              <div className="grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => void submitFeedback(priorityAction, "done")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", primaryFeedbackState === "done" ? "border-[#149A63] bg-[#E4F7EF] text-[#0A7653]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
-                  <ThumbsUp size={15} />Done
-                </button>
-                <button type="button" onClick={() => void submitFeedback(priorityAction, "too_hard")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", primaryFeedbackState === "too_hard" ? "border-[#F59E0B] bg-[#FAEEDA] text-[#854F0B]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
-                  <Sparkles size={15} />Too hard
-                </button>
-                <button type="button" onClick={() => void submitFeedback(priorityAction, "not_relevant")} className={["flex min-h-[44px] items-center justify-center gap-1.5 rounded-[14px] border px-2 font-body text-[12px] font-black", primaryFeedbackState === "not_relevant" ? "border-[#C15A2D] bg-[#FFF1E8] text-[#8A3C16]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}>
-                  <Ban size={15} />Not relevant
-                </button>
-              </div>
-              {feedbackLabel ? <p className="mt-2 text-center font-body text-[12px] font-black text-[#854F0B]">{feedbackLabel}</p> : null}
-            </div>
-
-            <div className={["mt-3 space-y-2 border-t pt-3", dividerClass].join(" ")}>
-              {secondaryPillars.map((pillar) => {
-                const action = pillarActions[pillar.id];
-                const done = feedbackState[action.action_key] === "done";
-                const status = pillarStatus(plan, pillar.id);
-                const statusDisplay = STATUS[status];
-                const reason = briefText(action.detail, 92);
-                const resourceLabel = actionResourceLabel(action);
-                const Icon = pillar.icon;
-                return (
-                  <article
-                    key={pillar.id}
-                    className={["grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[17px] border px-2 py-2", isDark ? "border-white/[0.1] bg-white/[0.03]" : "border-[#EEE4D2] bg-[#FFFDF9]"].join(" ")}
+          <div className="mt-3 space-y-3">
+            {todayVideo ? (
+              <article className={["overflow-hidden rounded-[22px] border p-3", cardClass].join(" ")}>
+                <div className="grid gap-4 sm:grid-cols-[minmax(220px,0.84fr)_1fr] sm:items-center">
+                  <button
+                    type="button"
+                    onClick={openTodayVideo}
+                    aria-label={`Watch ${todayVideo.title}`}
+                    className="group relative overflow-hidden rounded-[18px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]"
                   >
-                    <button
-                      type="button"
-                      onClick={() => openCompanionAction(action)}
-                      className="group grid min-h-[62px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[14px] px-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]"
-                    >
-                      <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#2E2541]" : "bg-[#F8F0FF]"].join(" ")}>
-                        <VyvaIcon icon={Icon} accent={pillar.accent} size={20} strokeWidth={2.4} tone="brand" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className={["font-body text-[10px] font-black uppercase tracking-[0.08em]", statusDisplay.tone === "success" ? "text-[#0A7653]" : statusDisplay.tone === "warning" ? "text-[#854F0B]" : isDark ? "text-[#D9CFE3]" : "text-[#766C80]"].join(" ")}>{pillar.shortLabel}</span>
-                          <span className={["rounded-full px-2 py-0.5 font-body text-[10px] font-black", statusClass(statusDisplay.tone, isDark)].join(" ")}>{statusDisplay.label}</span>
-                          {resourceLabel ? <span className="max-w-[120px] truncate rounded-full bg-[#FFF7E8] px-2 py-0.5 font-body text-[10px] font-black text-[#854F0B]">{resourceLabel}</span> : null}
+                    <div className={["relative aspect-video w-full overflow-hidden rounded-[18px]", isDark ? "bg-[#2A1838]" : "bg-[#F8F0FF]"].join(" ")}>
+                      {todayVideo.thumbnailUrl ? (
+                        <img src={todayVideo.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center">
+                          <VyvaIcon icon={PlayCircle} accent="spark" size={44} strokeWidth={1.8} tone="brand" />
+                        </div>
+                      )}
+                      <span className="absolute inset-0 grid place-items-center bg-black/10">
+                        <span className="grid h-14 w-14 place-items-center rounded-full bg-white text-[#6B21A8] shadow-[0_12px_28px_rgba(0,0,0,0.2)] transition-transform group-hover:scale-105">
+                          <PlayCircle size={30} strokeWidth={2.2} />
                         </span>
-                        <span className="block truncate font-display text-[15px] font-semibold leading-5">{action.title}</span>
-                        {reason ? <span className={["mt-0.5 block truncate font-body text-[12px] font-semibold leading-5", mutedTextClass].join(" ")}>{reason}</span> : null}
                       </span>
-                      <VyvaIcon icon={ChevronRight} size={16} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
-                    </button>
+                    </div>
+                  </button>
+
+                  <div className="min-w-0 px-1 pb-1 sm:px-0 sm:pb-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#854F0B]">Today&apos;s video</span>
+                      {videoDuration ? (
+                        <span className={["inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-body text-[11px] font-black", isDark ? "bg-white/[0.08] text-[#D9CFE3]" : "bg-[#F5EFF8] text-[#6E6175]"].join(" ")}>
+                          <Clock size={12} />{videoDuration}
+                        </span>
+                      ) : null}
+                    </div>
+                    <h3 className="mt-2 font-display text-[19px] font-semibold leading-6">{todayVideo.title}</h3>
+                    {todayVideo.channel ? <p className={["mt-1 font-body text-[13px] font-black", mutedTextClass].join(" ")}>{todayVideo.channel}</p> : null}
+                    <p className={["mt-3 font-body text-[14px] font-semibold leading-6", mutedTextClass].join(" ")}>{todayVideo.selectedReason}</p>
                     <button
                       type="button"
-                      onClick={() => void submitFeedback(action, "done")}
-                      aria-label={`Mark ${pillar.shortLabel} done`}
-                      className={["flex h-9 min-h-9 shrink-0 items-center justify-center gap-1 rounded-full border px-3 font-body text-[12px] font-black", done ? "border-[#149A63] bg-[#E4F7EF] text-[#0A7653]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] text-[#6E6175]"].join(" ")}
+                      onClick={openTodayVideo}
+                      className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[15px] bg-[#6B21A8] px-5 font-body text-[14px] font-black text-white shadow-[0_10px_24px_rgba(107,33,168,0.16)] sm:w-auto"
                     >
-                      <ThumbsUp size={13} />Done
+                      Watch
+                      <ExternalLink size={17} strokeWidth={2.4} />
                     </button>
-                  </article>
-                );
-              })}
-            </div>
-
-            {supportPick ? (
-              <button
-                type="button"
-                onClick={() => openDailyContent(supportPick)}
-                className={["mt-3 grid min-h-[68px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[17px] border px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]", isDark ? "border-white/[0.1] bg-white/[0.03]" : "border-[#EEE4D2] bg-[#FFFDF9]"].join(" ")}
-              >
-                <span className={["grid h-10 w-10 shrink-0 place-items-center rounded-[14px]", isDark ? "bg-[#2E2541]" : "bg-[#FFF7E8]"].join(" ")}>
-                  <VyvaIcon icon={DAILY_CONTENT_ICONS[supportPick.content_type]} accent="spark" size={20} strokeWidth={2.35} tone="brand" />
-                </span>
-                <span className="min-w-0">
-                  <span className="font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#854F0B]">{contentResourceLabel(supportPick)}</span>
-                  <span className="block truncate font-display text-[15px] font-semibold leading-5">{supportPick.title}</span>
-                  <span className={["mt-0.5 block truncate font-body text-[12px] font-semibold leading-5", mutedTextClass].join(" ")}>{briefText(supportPick.description, 96)}</span>
-                </span>
-                <VyvaIcon icon={ChevronRight} size={16} strokeWidth={2.5} tone={isDark ? "inverse" : "muted"} />
-              </button>
+                  </div>
+                </div>
+              </article>
+            ) : primaryExperience.kind === "video" ? (
+              <article className={["rounded-[22px] border p-5", cardClass].join(" ")}>
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#854F0B]">Today&apos;s video</p>
+                <h3 className="mt-2 font-display text-[20px] font-semibold">VYVA is finding today&apos;s video</h3>
+                <p className={["mt-2 font-body text-[14px] font-semibold leading-6", mutedTextClass].join(" ")}>
+                  {companion.videoCurationStatus === "failed"
+                    ? "Start with the step below while VYVA finds a better visual guide."
+                    : "The step below is ready while the video choice finishes."}
+                </p>
+              </article>
             ) : null}
+
+            <article className={["rounded-[22px] border p-4", cardClass].join(" ")}>
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3">
+                <span className={["grid h-11 w-11 shrink-0 place-items-center rounded-[15px]", isDark ? "bg-[#3C2956]" : "bg-[#FFF7E8]"].join(" ")}>
+                  <VyvaIcon icon={Sparkles} accent="spark" size={22} strokeWidth={2.4} tone="brand" />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#854F0B]">{priorityActionLabel}</p>
+                  <h3 className="mt-1 font-display text-[18px] font-semibold leading-6">{displayedPriorityTitle}</h3>
+                  <p className={["mt-2 font-body text-[14px] font-semibold leading-6", mutedTextClass].join(" ")}>{displayedPriorityDetail}</p>
+                  {priorityTimingMeta ? (
+                    <p className="mt-2 font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#854F0B]">{priorityTimingMeta}</p>
+                  ) : null}
+                  {activeBrainSpark ? (
+                    <div className={["mt-3 rounded-[16px] border px-4 py-3", isDark ? "border-white/[0.1] bg-white/[0.04]" : "border-[#F0DFC1] bg-[#FFF9EF]"].join(" ")}>
+                      <p className={["font-body text-[15px] font-black leading-6", isDark ? "text-[#F8F2FF]" : "text-[#241C30]"].join(" ")}>{activeBrainSpark.prompt}</p>
+                      {brainSparkState.hint ? <p className={["mt-3 font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}><span className="font-black text-[#854F0B]">Hint: </span>{activeBrainSpark.hint}</p> : null}
+                      {activeBrainSpark.answer && brainSparkState.answer ? <p className={["mt-3 font-body text-[13px] font-semibold leading-5", mutedTextClass].join(" ")}><span className="font-black text-[#854F0B]">Answer: </span>{activeBrainSpark.answer}</p> : null}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateBrainSparkState({ hint: true })}
+                          className={["min-h-[40px] rounded-full border px-4 font-body text-[12px] font-black", brainSparkState.hint ? "border-[#F59E0B] bg-[#FAEEDA] text-[#854F0B]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] bg-white text-[#6E6175]"].join(" ")}
+                        >
+                          Show hint
+                        </button>
+                        {activeBrainSpark.answer ? (
+                          <button
+                            type="button"
+                            onClick={() => updateBrainSparkState({ answer: true })}
+                            className={["min-h-[40px] rounded-full border px-4 font-body text-[12px] font-black", brainSparkState.answer ? "border-[#149A63] bg-[#E4F7EF] text-[#0A7653]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] bg-white text-[#6E6175]"].join(" ")}
+                          >
+                            Reveal answer
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openCompanionAction(priorityAction)}
+                      className={["mt-3 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] border px-4 font-body text-[13px] font-black", isDark ? "border-[#9D4FE0] text-[#DAB6FF]" : "border-[#7C3AED] text-[#6B21A8]"].join(" ")}
+                    >
+                      {primaryExperience.kind === "video" ? "Start step" : primaryExperience.ctaLabel}
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {brainGameOptions.length > 0 ? (
+                <div className={["mt-4 border-t pt-3", dividerClass].join(" ")}>
+                  <p className="mb-2 font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#854F0B]">Pick a game</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {brainGameOptions.map((option) => {
+                      const selected = selectedBrainGame?.id === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => chooseBrainGame(option)}
+                          className={["min-h-[44px] rounded-[14px] border px-3 font-body text-[12px] font-black", selected ? "border-[#6B21A8] bg-[#F1E8FF] text-[#6B21A8]" : isDark ? "border-white/[0.12] text-[#D9CFE3]" : "border-[#EEE8F1] bg-white text-[#6E6175]"].join(" ")}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </article>
           </div>
         </section>
 
@@ -1039,12 +1554,12 @@ export default function PreventionPlan({
             </summary>
             <div className={["border-t px-5 py-5 sm:px-6", dividerClass].join(" ")}>
               {seniorNarrative ? <p className={["font-body text-[16px] font-semibold leading-7", mutedTextClass].join(" ")}>{seniorNarrative}</p> : null}
-              {companion.signalsUsed.length > 0 ? (
+              {dailySession.whyThis.evidence.length > 0 ? (
                 <div className={seniorNarrative ? "mt-5" : ""}>
-                  <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#9D4FE0]">Signals considered</p>
+                  <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#9D4FE0]">VYVA considered</p>
                   <ul className={["mt-2 divide-y", dividerClass].join(" ")}>
-                    {companion.signalsUsed.map((signal) => (
-                      <li key={signal.id} className={["flex min-h-[48px] items-center gap-3 py-2 font-body text-[14px] font-bold leading-6", mutedTextClass].join(" ")}><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[#F8AE1B]" /><span>{signal.label}: {signal.detail}</span></li>
+                    {dailySession.whyThis.evidence.map((item) => (
+                      <li key={item} className={["flex min-h-[48px] items-center gap-3 py-2 font-body text-[14px] font-bold leading-6", mutedTextClass].join(" ")}><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-[#F8AE1B]" /><span>{item}</span></li>
                     ))}
                   </ul>
                 </div>
