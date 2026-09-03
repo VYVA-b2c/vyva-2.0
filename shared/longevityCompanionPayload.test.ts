@@ -1,11 +1,13 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 let composeLongevityCompanionPayload: typeof import("../server/routes/healthInsightsReport.js").composeLongevityCompanionPayload;
+let buildFallbackLongevityProgramLayer: typeof import("../server/routes/healthInsightsReport.js").buildFallbackLongevityProgramLayer;
 
 type ComposeInput = Parameters<typeof composeLongevityCompanionPayload>[0];
 type Pillar = NonNullable<ComposeInput["plan"]["priority_pillar"]>;
 type DailyContent = ComposeInput["dailyContent"];
 type DailyContentRow = DailyContent["byPillar"][Pillar][number];
+type FeedbackHistory = ComposeInput["feedbackHistory"];
 
 const userId = "11111111-1111-4111-8111-111111111111";
 
@@ -27,16 +29,16 @@ const basePlan: ComposeInput["plan"] = {
   pillar_calm_signals: null,
   cross_pillar_patterns: [],
   recommendations: {
-    heart: [{ action: "Find a nearby walk or activity", why: "A gentle outing can support circulation and make the day more social." }],
+    heart: [{ action: "Tai chi", why: "A guided VYVA movement exercise is clearer than another walking reminder." }],
     brain: [
-      { action: "Open Brain Coach once each day", why: "Small sessions support continuity." },
+      { action: "Try one short memory challenge", why: "A named challenge gives the day a clear finish." },
       { action: "Call someone you enjoy this week", why: "Connection keeps the mind engaged." },
     ],
     strength: [{ action: "Clear one walking path", why: "A clear route makes movement easier." }],
     nourishment: [{ action: "Choose protein with your next meal", why: "Protein with a meal is a clear nourishment step." }],
     calm: [{ action: "Open a two-minute breathing reset", why: "Two minutes is enough to start." }],
   },
-  priority_intervention: "Open Brain Coach once each day",
+  priority_intervention: "Try one short memory challenge",
   priority_why: "Small sessions support continuity.",
   plan_narrative_senior: null,
   plan_narrative_caregiver: null,
@@ -52,6 +54,8 @@ const emptyDailyContent: DailyContent = {
   exercise: null,
   meal: null,
   tip: null,
+  supplement: null,
+  naturalSolution: null,
   articles: [],
   byPillar: {
     heart: [],
@@ -75,6 +79,7 @@ function dailyRow(
     title,
     description,
     detail_text: null,
+    timing_guidance: null,
     source_label: null,
     source_url: null,
     condition_tags: [pillar],
@@ -88,8 +93,8 @@ function dailyRow(
 const fivePillarDailyContent: DailyContent = {
   ...emptyDailyContent,
   byPillar: {
-    heart: [dailyRow("heart", "Find a nearby walk or activity", "After lunch, VYVA can suggest nearby places, gentle groups, or daytime programs.")],
-    brain: [dailyRow("brain", "One familiar Brain Coach round", "A familiar activity keeps today's brain step low effort.")],
+    heart: [dailyRow("heart", "Tai chi", "A slow balance-friendly VYVA exercise for light movement, posture, and rhythm.")],
+    brain: [dailyRow("brain", "Word recall challenge", "Study a few words, hide them, then see what you remember.")],
     strength: [dailyRow("strength", "Clear one walking path", "One clear route at home makes movement easier and steadier.")],
     nourishment: [dailyRow("nourishment", "Protein with the next meal", "Choose one familiar protein food so nourishment does not become complicated.")],
     calm: [dailyRow("calm", "Same bedtime tonight", "A familiar evening time supports tomorrow's energy and attention.")],
@@ -99,10 +104,10 @@ const fivePillarDailyContent: DailyContent = {
 describe("longevity companion payload", () => {
   beforeAll(async () => {
     process.env.DATABASE_URL ??= "postgresql://user:pass@127.0.0.1:1/vyva_test";
-    ({ composeLongevityCompanionPayload } = await import("../server/routes/healthInsightsReport.js"));
+    ({ composeLongevityCompanionPayload, buildFallbackLongevityProgramLayer } = await import("../server/routes/healthInsightsReport.js"));
   }, 30000);
 
-  it("returns five pillar actions and promotes the priority pillar action", () => {
+  it("returns a guided daily session while keeping five compatibility pillar actions", () => {
     const payload = composeLongevityCompanionPayload({
       plan: basePlan,
       profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
@@ -119,17 +124,134 @@ describe("longevity companion payload", () => {
 
     expect(Object.keys(payload.pillarActions).sort()).toEqual(["brain", "calm", "heart", "nourishment", "strength"]);
     expect(payload.primaryAction).toEqual(payload.pillarActions.brain);
-    expect(payload.primaryAction.title).toBe("One familiar Brain Coach round");
-    expect(payload.pillarActions.heart.resource_label).toBe("Nearby walking ideas");
-    expect(payload.pillarActions.heart.resource_url).toContain("/social-rooms/activities");
-    expect(payload.pillarActions.heart.resource_url).toContain("interests=walking,nature,community,learning");
+    expect(payload.primaryAction.title).toBe("Word recall challenge");
+    expect(payload.pillarActions.heart.route).toBe("/social-rooms/morning-movement/exercises/tai-chi");
+    expect(payload.dailySession.sessionFocus).toBe("Karim, try a memory challenge today.");
+    expect(payload.dailySession.primaryExperience.kind).toBe("brain_game");
+    expect(payload.dailySession.companionAction.title).toBe("Same bedtime tonight");
+    expect(payload.dailySession.optionalChoices).toHaveLength(2);
+    expect(payload.dailySession.optionalChoices.map((action) => action.title)).toEqual(["Tai chi", "Protein with the next meal"]);
+    expect(payload.dailySession.coveredPillars.map((item) => item.pillar).sort()).toEqual(["brain", "calm", "heart", "nourishment", "strength"]);
     expect(payload.careSummary.bullets).toEqual(expect.arrayContaining([
-      "Heart and circulation: Find a nearby walk or activity.",
-      "Brain and memory: One familiar Brain Coach round.",
-      "Strength and stability: Clear one walking path.",
-      "Nourishment: Protein with the next meal.",
-      "Calm and recovery: Same bedtime tonight.",
+      "Today: Karim, try a memory challenge today.",
+      "Companion step: Same bedtime tonight.",
+      "Health areas considered: Heart and circulation; Brain and memory; Strength and stability; Nourishment; Calm and recovery.",
     ]));
+  });
+
+  it("includes the active program, today's step, and an exact curated video URL", () => {
+    const programLayer = buildFallbackLongevityProgramLayer({
+      userId,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      plan: basePlan,
+      feedbackHistory: [],
+      startDate: "2026-08-31",
+      rotationDate: "2026-08-31",
+    });
+    const payload = composeLongevityCompanionPayload({
+      plan: basePlan,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      conditions: ["memory support"],
+      vitals: null,
+      meds: null,
+      cognitive: { sessions_this_week: 0, accuracy_trend: "stable" },
+      mood: { check_ins_logged: 2, poor_sleep_count: 1, trend: "stable" },
+      symptoms: null,
+      dailyContent: fivePillarDailyContent,
+      feedbackHistory: [],
+      rotationDate: "2026-08-31",
+      programLayer,
+    });
+
+    expect(payload.activeProgram?.programKey).toBe("starter_video_longevity_v1");
+    expect(payload.todayProgramStep?.dayIndex).toBe(1);
+    expect(payload.todayVideo?.url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]+$/);
+    expect(payload.todayVideo?.url).not.toContain("/results");
+    expect(payload.todayVideo?.url).not.toContain("/@");
+    expect(payload.videoCurationStatus).toBe("fallback");
+    expect(payload.primaryAction.source).toBe("program");
+    expect(payload.primaryAction.title).toBe(programLayer.todayProgramStep.actionTitle);
+    expect(payload.primaryAction.route).toBeNull();
+    expect(payload.primaryAction.challenge?.kind).toBe("memory_prompt");
+    expect(payload.primaryAction.challenge?.prompt).toContain("Name 3 things");
+    expect(payload.primaryAction.gameOptions?.map((option) => option.label)).toEqual(["Memory", "Words", "Riddle", "Chess"]);
+    expect(payload.primaryAction.prompt).toContain(payload.todayVideo?.title ?? "");
+    expect(payload.dailySession.sessionFocus).toBe("Karim, keep memory active with one short challenge today.");
+    expect(payload.dailySession.primaryExperience.kind).toBe("video");
+    expect(payload.dailySession.primaryExperience.video?.url).toBe(payload.todayVideo?.url);
+    expect(payload.dailySession.companionAction.title).toBe("3-2-1 memory lane");
+    expect(payload.dailySession.optionalChoices.map((action) => action.title)).not.toContain("Word recall challenge");
+    expect(payload.careSummary.bullets).toEqual(expect.arrayContaining([
+      "Today: Karim, keep memory active with one short challenge today.",
+      "Program day 1: Memory starter.",
+      "Companion step: 3-2-1 memory lane.",
+    ]));
+  });
+
+  it("keeps the same user and local date on the same fallback video", () => {
+    const input = {
+      userId,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      plan: basePlan,
+      feedbackHistory: [],
+      startDate: "2026-08-31",
+      rotationDate: "2026-08-31",
+    };
+
+    const first = buildFallbackLongevityProgramLayer(input);
+    const second = buildFallbackLongevityProgramLayer(input);
+
+    expect(first.todayProgramStep.dayIndex).toBe(1);
+    expect(second.todayProgramStep.dayIndex).toBe(1);
+    expect(first.todayVideo?.url).toBe(second.todayVideo?.url);
+  });
+
+  it("rotates to the next program step on the next local date", () => {
+    const dayOne = buildFallbackLongevityProgramLayer({
+      userId,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      plan: basePlan,
+      feedbackHistory: [],
+      startDate: "2026-08-31",
+      rotationDate: "2026-08-31",
+    });
+    const dayTwo = buildFallbackLongevityProgramLayer({
+      userId,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      plan: basePlan,
+      feedbackHistory: [],
+      startDate: "2026-08-31",
+      rotationDate: "2026-09-01",
+    });
+
+    expect(dayOne.todayProgramStep.dayIndex).toBe(1);
+    expect(dayTwo.todayProgramStep.dayIndex).toBe(2);
+    expect(dayTwo.todayVideo?.url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=/);
+    expect(dayTwo.todayVideo?.url).not.toBe(dayOne.todayVideo?.url);
+  });
+
+  it("suppresses a rejected curated video from fallback selection", () => {
+    const feedbackHistory: FeedbackHistory = [{
+      action_key: "video:hoPg4bkKemQ",
+      action_title: "Mayo Clinic Minute: Can the MIND diet improve brain health?",
+      event_type: "not_relevant",
+      pillar: "brain",
+      barrier: null,
+      source_context: { videoId: "hoPg4bkKemQ" },
+      created_at: new Date().toISOString(),
+    }];
+
+    const programLayer = buildFallbackLongevityProgramLayer({
+      userId,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      plan: basePlan,
+      feedbackHistory,
+      startDate: "2026-08-31",
+      rotationDate: "2026-08-31",
+    });
+
+    expect(programLayer.todayVideo?.videoId).not.toBe("hoPg4bkKemQ");
+    expect(programLayer.todayVideo?.url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=/);
   });
 
   it("turns recent user signals into a specific why-today explanation", () => {
@@ -147,7 +269,7 @@ describe("longevity companion payload", () => {
       rotationDate: "2026-08-31",
     });
 
-    expect(payload.todayFocus.headline).toBe("Karim, restart Brain Coach gently today");
+    expect(payload.todayFocus.headline).toBe("Karim, try a memory challenge today");
     expect(payload.whyToday).toContain("comes first today because no recent Brain Coach sessions are logged");
     expect(payload.signalsUsed.map((signal) => signal.label)).toContain("Brain Coach");
     expect(payload.primaryAction.prompt).toContain("no recent Brain Coach sessions are logged");
@@ -206,6 +328,42 @@ describe("longevity companion payload", () => {
     expect(payloadA.pillarActions.calm.title).toBe("Calm option A");
   });
 
+  it("removes near-duplicate optional choices from the guided session", () => {
+    const payload = composeLongevityCompanionPayload({
+      plan: {
+        ...basePlan,
+        pillar_brain: "steady",
+        pillar_nourishment: "priority_focus",
+        priority_pillar: "nourishment",
+        priority_intervention: "Protein with the next meal",
+        priority_why: "Protein support is the clearest nourishment step today.",
+      },
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      conditions: [],
+      vitals: null,
+      meds: null,
+      cognitive: { sessions_this_week: 1, accuracy_trend: "stable" },
+      mood: null,
+      symptoms: null,
+      dailyContent: {
+        ...fivePillarDailyContent,
+        byPillar: {
+          ...fivePillarDailyContent.byPillar,
+          nourishment: [
+            dailyRow("nourishment", "Protein with the next meal", "Choose one familiar protein food."),
+            dailyRow("nourishment", "Protein at breakfast", "A simple protein choice keeps the food step clear."),
+          ],
+        },
+      },
+      feedbackHistory: [],
+      rotationDate: "2026-08-31",
+    });
+
+    expect(payload.dailySession.primaryExperience.kind).toBe("food");
+    expect(payload.dailySession.primaryExperience.title).toContain("Protein");
+    expect(payload.dailySession.optionalChoices.map((action) => action.title).join(" ")).not.toMatch(/protein|meal/i);
+  });
+
   it("suppresses actions recently marked not relevant", () => {
     const payload = composeLongevityCompanionPayload({
       plan: basePlan,
@@ -221,14 +379,14 @@ describe("longevity companion payload", () => {
         byPillar: {
           ...emptyDailyContent.byPillar,
           brain: [
-            dailyRow("brain", "One familiar Brain Coach round", "A familiar activity keeps today's brain step low effort."),
+            dailyRow("brain", "Word recall challenge", "Study a few words, hide them, then see what you remember."),
             dailyRow("brain", "Call someone you enjoy", "A warm conversation supports memory, mood, and routine."),
           ],
         },
       },
       feedbackHistory: [{
-        action_key: "brain:one-familiar-brain-coach-round",
-        action_title: "One familiar Brain Coach round",
+        action_key: "brain:word-recall-challenge",
+        action_title: "Word recall challenge",
         event_type: "not_relevant",
         pillar: "brain",
         barrier: null,

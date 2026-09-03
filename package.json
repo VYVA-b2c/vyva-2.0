@@ -17,6 +17,7 @@
     "db:concierge": "node scripts/apply-concierge-schema.mjs",
     "db:publish-runtime": "node scripts/apply-publish-runtime-schema.mjs",
     "db:health-insights": "node scripts/apply-health-insights-schema.mjs",
+    "db:longevity-preview-content": "node scripts/activate-longevity-preview-content.mjs",
     "db:lifecycle-contact-cleanup": "node scripts/apply-lifecycle-contact-cleanup.mjs",
     "concierge:email-pilot:check": "tsx scripts/concierge-email-pilot-check.ts",
     "canvas:qa:analytics": "tsx scripts/validate-voice-canvas-analytics-evidence.ts",
