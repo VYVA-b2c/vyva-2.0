@@ -22,11 +22,13 @@ const HOME_NAV_PROTOTYPE_DOCK_ROUTES = new Set([
   "/dev/home-master/ask-dr-ai-next",
   "/dev/home-master/symptom-warning",
   "/dev/home-master/symptom-report",
+  "/dev/home-master/vitals",
   "/menu",
   "/health",
   "/health/longevity",
   "/health/prevention",
   "/health/prevention-plan",
+  "/health/vitals",
   "/mind-memory",
   "/social-rooms",
   "/concierge",
@@ -55,7 +57,6 @@ const HOME_NAV_PROTOTYPE_TOPBAR_ROUTES = new Set([
   "/dev/home-master/profile/preferences",
   "/dev/home-master/profile/accessibility",
   "/dev/home-master/symptom-report",
-  "/dev/home-master/vitals",
   "/dev/home-master/medicines",
   "/settings/account",
   "/health/check-in",
@@ -86,6 +87,5 @@ export function hidesHomeNavPrototypeDock(pathname: string) {
     pathname === "/dev/home-master/profile/providers" ||
     pathname === "/dev/home-master/profile/preferences" ||
     pathname === "/dev/home-master/profile/accessibility" ||
-    pathname === "/dev/home-master/vitals" ||
     pathname === "/dev/home-master/medicines";
 }

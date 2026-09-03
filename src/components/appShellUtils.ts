@@ -46,7 +46,7 @@ const WIDE_ROUTES = [
 ];
 
 export function getAppShellLayout(pathname: string): AppShellLayout {
-  if (pathname === "/health/vitals") {
+  if (pathname === "/health/vitals" || pathname === "/dev/home-master/vitals") {
     return "vitals";
   }
 
