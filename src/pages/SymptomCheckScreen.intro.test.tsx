@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AssessmentConfidenceTracker,
@@ -16,6 +16,11 @@ const { apiFetchMock, markCompletedMock } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
   markCompletedMock: vi.fn(),
 }));
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location-path">{location.pathname}</span>;
+}
 
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: apiFetchMock,
@@ -144,6 +149,66 @@ describe("SymptomCheck intro chips", () => {
     expect(symptomAssessmentStageForRuntime("complete")).toBe("safest_next_step");
   });
 
+  it("keeps numeric voice severity focused on the scale without a competing text composer", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-severity",
+            status: "active",
+            latest_response: {
+              status: "active",
+              question: {
+                stage: "severity",
+                text: "Quelle est son intensité ?",
+                choices: Array.from({ length: 11 }, (_, value) => ({
+                  id: `severity-${value}`,
+                  spoken_label: String(value),
+                  value: String(value),
+                })),
+              },
+            },
+          }}
+          stageId="severity"
+          modality="voice"
+          onAnswer={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("symptom-severity-scale")).toBeVisible();
+    expect(screen.getByTestId("symptom-severity-continue")).toBeVisible();
+    expect(screen.queryByTestId("voice-triage-typed-composer")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("retains the typed fallback for open voice questions", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <VoiceTriageLivePanel
+          session={{
+            conversation_id: "voice-onset",
+            status: "active",
+            latest_response: {
+              status: "active",
+              question: {
+                stage: "duration",
+                text: "When did it start?",
+                choices: [],
+              },
+            },
+          }}
+          stageId="onset"
+          modality="voice"
+          onAnswer={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("voice-triage-typed-composer")).toBeVisible();
+    expect(screen.getByRole("textbox")).toBeVisible();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     apiFetchMock.mockReset();
@@ -220,13 +285,14 @@ describe("SymptomCheck intro chips", () => {
     return render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/dev/home-master/ask-dr-ai?lang=fr"]}>
+          <LocationProbe />
           <SymptomCheckScreen />
         </MemoryRouter>
       </QueryClientProvider>,
     );
   };
 
-  it("replaces a completed voice question with the canonical embedded report", async () => {
+  it("opens the corresponding saved report when voice evaluation completes", async () => {
     await renderVoiceSessionScreen({
       conversation_id: "voice-complete-1",
       status: "complete",
@@ -240,15 +306,14 @@ describe("SymptomCheck intro chips", () => {
       },
     });
 
-    expect(await screen.findByTestId("symptom-check-report")).toHaveTextContent("Breathing feels different");
-    expect(screen.getByTestId("symptom-check-report")).toHaveTextContent("Rest and monitor your breathing");
-    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("symptom-check-shell")).toHaveAttribute("data-stage-id", "save_share_summary");
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/informes/report-voice-1");
+    });
     await waitFor(() => expect(markCompletedMock).toHaveBeenCalledTimes(1));
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/reports/triage/report-voice-1");
   });
 
-  it("hydrates a completed voice report from the saved report when the embedded summary is missing", async () => {
+  it("opens the saved report route when the embedded voice summary is missing", async () => {
     await renderVoiceSessionScreen({
       conversation_id: "voice-complete-1",
       status: "complete",
@@ -277,22 +342,19 @@ describe("SymptomCheck intro chips", () => {
       duration_seconds: 95,
     });
 
-    expect(await screen.findByTestId("symptom-check-report")).toHaveTextContent("Dizziness after standing");
-    expect(screen.getByTestId("symptom-check-report")).toHaveTextContent("Arrange a clinician review");
-    expect(apiFetchMock).toHaveBeenCalledWith("/api/reports/triage/report-voice-1");
-    expect(screen.queryByTestId("voice-triage-live-panel")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/informes/report-voice-1");
+    });
   });
 
   it("keeps a stable completion screen when the saved voice report cannot be loaded", async () => {
     await renderVoiceSessionScreen({
       conversation_id: "voice-complete-1",
       status: "complete",
-      triage_report_id: "report-voice-1",
       latest_response: {
         ok: true,
         status: "complete",
         spoken_text: "Your report is ready.",
-        report: { triage_report_id: "report-voice-1" },
       },
     });
 
@@ -306,7 +368,7 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.queryByTestId("symptom-check-intro")).not.toBeInTheDocument();
   });
 
-  it("clears the terminal voice-session reference only after the user finishes the report", async () => {
+  it("clears the terminal voice-session reference when it opens the report", async () => {
     await renderVoiceSessionScreen({
       conversation_id: "voice-complete-1",
       status: "complete",
@@ -319,9 +381,9 @@ describe("SymptomCheck intro chips", () => {
       },
     });
 
-    await screen.findByTestId("symptom-check-report");
-    expect(window.sessionStorage.getItem("vyva.voice.sessionId")).toBe("voice-complete-1");
-    fireEvent.click(screen.getByTestId("button-report-done"));
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/informes/report-voice-1");
+    });
     expect(window.sessionStorage.getItem("vyva.voice.sessionId")).toBeNull();
   });
 
@@ -358,7 +420,8 @@ describe("SymptomCheck intro chips", () => {
     });
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/health/symptoms"]}>
+        <MemoryRouter initialEntries={["/health/symptom-check"]}>
+          <LocationProbe />
           <SymptomCheckScreen />
         </MemoryRouter>
       </QueryClientProvider>,
@@ -396,7 +459,9 @@ describe("SymptomCheck intro chips", () => {
     fireEvent.click(screen.getByTestId("runtime-complete-normal"));
     expectStage("safest_next_step");
     fireEvent.click(screen.getByTestId("runtime-finish"));
-    await waitFor(() => expectStage("save_share_summary"));
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/informes/report-11");
+    });
   });
 
   it("shows a dynamic confidence tracker instead of a plain progress bar", () => {

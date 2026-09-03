@@ -812,6 +812,12 @@ export function VoiceTriageLivePanel({
   const isComplete = session.status === "complete";
   const isFailed = session.status === "failed";
   const canTapAnswer = Boolean(onAnswer && !isAnswering && !isEmergency && !isComplete && !isFailed);
+  const showTypedAnswerComposer = stageId !== "checking"
+    && stageId !== "review"
+    && !usesNumericSeverityScale
+    && !isEmergency
+    && !isComplete
+    && !isFailed;
   const emergencyContact = latest?.emergencyContact;
   const cleanTypedAnswer = typedAnswer.trim();
   const submitTypedAnswer = () => {
@@ -946,8 +952,11 @@ export function VoiceTriageLivePanel({
           </div>
         ) : null}
 
-        {stageId !== "checking" && stageId !== "review" && !isEmergency && !isComplete && !isFailed ? (
-          <div className={`rounded-[18px] border p-2 ${isDark ? "border-white/[0.14] bg-[#352842]" : "border-[#D9CFE0] bg-white"}`}>
+        {showTypedAnswerComposer ? (
+          <div
+            className={`rounded-[18px] border p-2 ${isDark ? "border-white/[0.14] bg-[#352842]" : "border-[#D9CFE0] bg-white"}`}
+            data-testid="voice-triage-typed-composer"
+          >
             <label className="sr-only" htmlFor="voice-triage-typed-answer">
               {t("health.symptomCheck.voicePanel.typeAnother", "Type another answer")}
             </label>
@@ -2445,7 +2454,7 @@ export function ReportScreen({
   emergencyContact?: EmergencyContact | null;
   latestVitalReadings?: LatestVitalReading[];
   refinementStatus: RefinementStatus;
-  onRefineVital: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
+  onRefineVital?: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
   onVoiceClick: () => void;
   onDone: () => void;
 }) {
@@ -2978,6 +2987,7 @@ export function ReportScreen({
   ];
 
   const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
+    if (!onRefineVital) return;
     const parsed = config.parse(rawValue);
     if (!parsed) {
       setVitalInputError(config.invalidMessage ?? t("health.symptomCheck.report.enterValidReading", "Enter a valid reading first."));
@@ -3592,7 +3602,7 @@ export function ReportScreen({
           </details>
         ) : null}
 
-        {vitalActions.length ? (
+        {onRefineVital && vitalActions.length ? (
           <details ref={vitalRefinementRef} className="group rounded-[22px] border border-[#DDD6FE] bg-[#FAF5FF] p-3 shadow-[0_8px_22px_rgba(107,33,168,0.08)]" data-testid="card-report-vital-refinement-note">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
               <span className="flex min-w-0 items-center gap-3">
@@ -4148,6 +4158,7 @@ export default function SymptomCheckScreen() {
   const voiceStartResetTimerRef = useRef<number | null>(null);
   const chatBackHandlerRef = useRef<(() => boolean) | null>(null);
   const completedVoiceOutcomeRef = useRef<string | null>(null);
+  const openedVoiceReportRef = useRef<string | null>(null);
   const { data: drAiVoiceFeature } = useQuery<{ enabled: boolean; mode: "disabled" | "pilot" | "active" }>({
     queryKey: ["/api/config/features/dr-ai-voice"],
     queryFn: async () => {
@@ -4273,16 +4284,23 @@ export default function SymptomCheckScreen() {
   useEffect(() => {
     if (!isCompletedVoiceTriageSession || !voiceTriageSession) return;
     const outcomeKey = `${voiceTriageSession.conversation_id}:${voiceReportId ?? "no-report"}`;
-    if (completedVoiceOutcomeRef.current === outcomeKey) return;
-    completedVoiceOutcomeRef.current = outcomeKey;
-    markCompleted({
-      reason: "voice_triage_completed",
-      referenceId: voiceReportId ?? voiceTriageSession.conversation_id,
-    });
-    void queryClient.invalidateQueries({ queryKey: ["/api/reports/triage"] });
-    void queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
-    void queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
-  }, [isCompletedVoiceTriageSession, markCompleted, voiceReportId, voiceTriageSession]);
+    if (completedVoiceOutcomeRef.current !== outcomeKey) {
+      completedVoiceOutcomeRef.current = outcomeKey;
+      markCompleted({
+        reason: "voice_triage_completed",
+        referenceId: voiceReportId ?? voiceTriageSession.conversation_id,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["/api/reports/triage"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
+    }
+
+    if (!voiceReportId || openedVoiceReportRef.current === voiceReportId) return;
+    openedVoiceReportRef.current = voiceReportId;
+    clearSymptomCheckDraft();
+    clearVoiceSessionId();
+    navigate(`/informes/${encodeURIComponent(voiceReportId)}`, { replace: true });
+  }, [isCompletedVoiceTriageSession, markCompleted, navigate, voiceReportId, voiceTriageSession]);
 
   useEffect(() => {
     const handleScreenSyncRequest = async (event: Event) => {
@@ -4606,6 +4624,9 @@ export default function SymptomCheckScreen() {
     queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] });
     if (saved) {
       queryClient.setQueryData(["/api/reports/summary"], (current: unknown) => ({
+        latestVitals: null,
+        latestSignals: [],
+        todayMeds: { taken: 0, total: 0, adherencePct: null },
         ...(current && typeof current === "object" ? current : {}),
         latestTriage: saved,
       }));
@@ -4631,6 +4652,10 @@ export default function SymptomCheckScreen() {
         applySavedReport(saved);
         logSymptomResult(triageSummary, saved);
         markCompleted({ reason: "symptom_report_saved", referenceId: saved?.id });
+        if (saved?.id) {
+          clearSymptomCheckDraft();
+          navigate(`/informes/${encodeURIComponent(saved.id)}`, { replace: true });
+        }
       })
       .catch((err) => {
         console.error("[reports/triage] save failed:", err);

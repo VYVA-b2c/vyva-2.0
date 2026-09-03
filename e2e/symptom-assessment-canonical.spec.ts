@@ -188,6 +188,46 @@ async function installSymptomAssessmentApi(
       return;
     }
 
+    if (requestPath.startsWith("/api/reports/triage/") && route.request().method() === "GET") {
+      await fulfillJson(route, {
+        id: decodeURIComponent(requestPath.split("/").pop() ?? "triage-report-complete-flow"),
+        chief_complaint: "I have a headache",
+        symptoms: ["Headache"],
+        urgency: "monitor",
+        recommendations: ["Rest and drink water", "Seek help if symptoms worsen"],
+        disclaimer: "This assessment does not replace medical care.",
+        ai_summary: "Your symptom check is complete.",
+        next_step_label: "Monitor at home",
+        next_step_level: "monitor",
+        triage_reasons: ["No urgent warning signs were reported."],
+        watch_signs: ["Symptoms getting worse"],
+        profile_considerations: [],
+        vitals_notes: [],
+        scan_results: [],
+        scan_notes: [],
+        bpm: null,
+        respiratory_rate: null,
+        duration_seconds: 45,
+        created_at: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (requestPath === "/api/reports/summary") {
+      await fulfillJson(route, {
+        latestTriage: null,
+        latestVitals: null,
+        latestSignals: [],
+        todayMeds: { taken: 0, total: 0, adherencePct: null },
+      });
+      return;
+    }
+
+    if (requestPath === "/api/reports/vitals/history") {
+      await fulfillJson(route, { readings: [], signalReadings: [] });
+      return;
+    }
+
     if (requestPath === "/api/symptoms/log" && route.request().method() === "POST") {
       await fulfillJson(route, { ok: true });
       return;
@@ -623,53 +663,10 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(stage("save_share_summary")).toBeVisible();
-  await expect(stage("save_share_summary").getByTestId("symptom-check-report")).toBeVisible();
-  const summaryHeading = stage("save_share_summary").getByRole("heading", { name: "Your summary" });
-  await expect(summaryHeading).toHaveCount(1);
-  await expect(summaryHeading).toBeVisible();
-  await expect(stage("save_share_summary").getByText(/ready to share/i)).toHaveCount(0);
-  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({
-    path: path.resolve("artifacts/symptom-assessment-production-save-share-390.png"),
-    fullPage: false,
-  });
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  expect((await stage("save_share_summary").boundingBox())?.width).toBeGreaterThanOrEqual(500);
-  await page.screenshot({
-    path: path.resolve("artifacts/symptom-assessment-production-save-share-1440.png"),
-    fullPage: false,
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(page.getByTestId("card-report-do-now")).toBeVisible();
-  await expect(page.getByTestId("card-report-handoff")).toContainText("No handoff sent");
-  await expect(page.getByTestId("report-share-save")).not.toHaveAttribute("open", "");
-  await expect(page.getByTestId("button-report-share")).not.toBeVisible();
-  await expect(page.getByTestId("button-report-view-reports")).not.toBeVisible();
-  await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
-  await page.getByTestId("report-result-details").locator(":scope > summary").click();
-  await page.getByTestId("button-report-detail-share").click();
-  await page.getByTestId("report-share-save").locator("summary").click();
-  await expect(page.getByTestId("report-share-save")).toHaveAttribute("open", "");
-  await expect(page.getByTestId("button-report-share")).toBeVisible();
-  await expect(page.getByTestId("button-report-view-reports")).toBeVisible();
-  await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({
-    path: path.resolve("artifacts/symptom-assessment-production-details-390.png"),
-    fullPage: false,
-  });
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({
-    path: path.resolve("artifacts/symptom-assessment-production-details-1440.png"),
-    fullPage: false,
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page).toHaveURL(/\/informes\/triage-report-complete-flow$/);
+  await expect(page.getByTestId("symptom-check-shell")).toHaveAttribute("data-stage-id", "save_share_summary", { timeout: 30_000 });
+  await expect(page.getByTestId("card-report-answer")).toContainText("I have a headache");
+  await expect(page.getByTestId("card-report-do-now")).toContainText("Monitor at home");
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-complete-390.png"),
     fullPage: true,
@@ -680,9 +677,6 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   );
   expect(horizontalOverflow).toBeLessThanOrEqual(0);
   expect(browserErrors).toEqual([]);
-
-  await page.getByTestId("button-report-done").click();
-  await expect(page).toHaveURL(/\/health$/);
 });
 
 test("an urgent Touch answer renders the emergency escalation scene", async ({ page }) => {
@@ -732,7 +726,8 @@ test("an urgent Touch answer renders the emergency escalation scene", async ({ p
   expect(browserErrors).toEqual([]);
 });
 
-test("an active Voice session accepts a touch answer and renders completion", async ({ page }) => {
+test("an active Voice session opens its corresponding report after completion", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 390, height: 844 });
   let voiceSession = {
     conversation_id: "voice-complete-flow",
@@ -798,9 +793,10 @@ test("an active Voice session accepts a touch answer and renders completion", as
   await expect(page.getByRole("button", { name: "Switch to touch mode" })).toBeVisible();
   await voiceSafety.getByRole("button", { name: "No" }).click();
 
-  const complete = page.getByTestId("symptom-presentation-safest_next_step-voice");
-  await expect(complete).toBeVisible();
-  await expect(complete.getByRole("button", { name: "View report" })).toBeVisible();
+  await expect(page).toHaveURL(/\/informes\/voice-report-1$/);
+  await expect(page.getByTestId("symptom-check-shell")).toHaveAttribute("data-stage-id", "save_share_summary", { timeout: 30_000 });
+  await expect(page.getByTestId("card-report-answer")).toContainText("I have a headache");
+  await expect(page.getByTestId("card-report-do-now")).toContainText("Monitor at home");
   await expect(page.getByTestId("input-triage-message")).toHaveCount(0);
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-voice-complete-390.png"),

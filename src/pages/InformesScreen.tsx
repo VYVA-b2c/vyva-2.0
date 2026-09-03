@@ -32,7 +32,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import { SymptomAssessmentPresentation } from "@/components/health/SymptomAssessmentPresentation";
 import { compactReportRecommendations } from "@/lib/reportRecommendations";
+import { resolveSymptomAssessmentPresentation } from "@/design/screenPresentation";
+import { PrototypeSymptomAssessmentShell } from "@/pages/HomeNavPrototypeScreens";
+import { ReportScreen } from "@/pages/SymptomCheckScreen";
 import type { BrainCoachProgress } from "@/lib/brainCoachReport";
 import {
   buildBrainCoachNarrative,
@@ -298,6 +302,72 @@ function reportDoctorNote(report: TriageReport, t: ReturnType<typeof useTranslat
 }
 
 export function DetailView({ report, onBack }: { report: TriageReport; onBack: () => void }) {
+  const [interactionMode, setInteractionMode] = useState<"touch" | "voice">("touch");
+  const { data: profileContacts } = useQuery<ProfileContactsResponse>({
+    queryKey: ["/api/profile"],
+  });
+  const presentation = resolveSymptomAssessmentPresentation("save_share_summary");
+  const emergencyContact = emergencyContactForCountry(profileContacts?.country);
+
+  return (
+    <PrototypeSymptomAssessmentShell
+      interactionMode={interactionMode}
+      onInteractionModeChange={setInteractionMode}
+      onBack={onBack}
+      shellContract={presentation.shell}
+    >
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        data-testid="symptom-check-shell"
+        data-flow-id="health.symptom_assessment"
+        data-stage-id="save_share_summary"
+        data-registry-scene={presentation.registrySceneId}
+        data-voice-presentation-id={presentation.voiceSceneId}
+        data-touch-presentation-id={presentation.touchSceneId}
+      >
+        <SymptomAssessmentPresentation
+          stageId="save_share_summary"
+          modality={interactionMode}
+          showHeader={false}
+          fullBleedChildren
+        >
+          <ReportScreen
+            summary={{
+              chiefComplaint: report.chief_complaint,
+              symptoms: report.symptoms,
+              urgency: report.urgency,
+              recommendations: report.recommendations,
+              disclaimer: report.disclaimer,
+              aiSummary: report.ai_summary ?? undefined,
+              nextStepLabel: report.next_step_label ?? undefined,
+              nextStepLevel: report.next_step_level ?? undefined,
+              triageReasons: report.triage_reasons,
+              watchSigns: report.watch_signs,
+              profileConsiderations: report.profile_considerations,
+              vitalsNotes: report.vitals_notes,
+              scanResults: report.scan_results,
+              scanNotes: report.scan_notes,
+            }}
+            bpm={report.bpm}
+            respiratoryRate={report.respiratory_rate}
+            durationSeconds={report.duration_seconds}
+            reportId={report.id}
+            reportSaveState="saved"
+            savedReport={report}
+            profileContacts={profileContacts}
+            careTeamMembers={[]}
+            emergencyContact={emergencyContact}
+            refinementStatus={{ state: "idle" }}
+            onVoiceClick={() => setInteractionMode("voice")}
+            onDone={onBack}
+          />
+        </SymptomAssessmentPresentation>
+      </div>
+    </PrototypeSymptomAssessmentShell>
+  );
+}
+
+function LegacyDetailView({ report, onBack }: { report: TriageReport; onBack: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: profileContacts } = useQuery<ProfileContactsResponse>({
