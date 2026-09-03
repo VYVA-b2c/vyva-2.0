@@ -320,7 +320,10 @@ describe("TriageChat MediSearch follow-ups", () => {
       composerVisibility: "hidden",
     });
 
-    expect(await screen.findByTestId("symptom-severity-scale")).toBeVisible();
+    expect(await screen.findByTestId("symptom-severity-scale")).toHaveAttribute(
+      "data-visual-layout",
+      "embedded",
+    );
     expect(screen.getByRole("slider", { name: "Symptom severity from 0 to 10" })).toHaveValue("5");
     expect(screen.getByTestId("symptom-severity-continue")).toHaveClass("vyva-primary-action");
     expect(screen.queryByRole("button", { name: "5" })).not.toBeInTheDocument();
@@ -583,9 +586,8 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     await screen.findByText("How strong is the dizziness right now?", {}, { timeout: 5000 });
     expect(screen.queryByTestId("triage-session-panel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("triage-guidance-confidence")).toHaveTextContent("Strong confidence - 4/5");
-    expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Profile-aware");
-    expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Dizziness and faintness");
+    expect(screen.queryByTestId("triage-guidance-confidence")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("triage-guidance-focus")).not.toBeInTheDocument();
     expect(screen.queryByTestId("triage-question-reason")).not.toBeInTheDocument();
     expect(screen.queryByText("Why this question?")).not.toBeInTheDocument();
     expect(screen.queryByText("How strong it feels helps choose the safest next step.")).not.toBeInTheDocument();

@@ -545,6 +545,8 @@ describe("app shell voice dock", () => {
 
     const dock = screen.getByTestId("voice-session-dock");
     expect(dock).toHaveAttribute("data-variant", "home-stop");
+    expect(dock).toHaveClass("min-h-[44px]");
+    expect(dock.parentElement).toHaveClass("right-3", "sm:inset-x-0");
     expect(dock).toHaveTextContent("Voice on");
     expect(dock).not.toHaveTextContent("Speaking");
     expect(dock).not.toHaveTextContent("VYVA speaking");

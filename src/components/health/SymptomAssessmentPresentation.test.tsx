@@ -40,7 +40,7 @@ describe("SymptomAssessmentPresentation", () => {
 
     for (const modality of ["voice", "touch"] as const) {
       const presentation = screen.getByTestId(`symptom-presentation-${stageId}-${modality}`);
-      expect(presentation).toHaveClass("max-w-[330px]", "sm:max-w-[760px]");
+      expect(presentation).toHaveClass("max-w-[360px]", "sm:max-w-[760px]");
       expect(presentation).toHaveAttribute(
         "data-approved-frame",
         SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId],
