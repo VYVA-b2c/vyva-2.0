@@ -1238,7 +1238,7 @@
     visualRoundComplete: "Round complete. Ready for a new board?",
     visualRoundCounted: "Round counted. Continue with a new board at this level.",
     visualStaySupport: "Try a new board at this level. Three strong rounds unlock the next level.",
-    visualMasteryComplete: "Mastery complete. Play another board whenever you are ready.",
+    visualMasteryComplete: "Visual Memory journey complete. Play again or explore more games.",
     hiddenCard: "Hidden card {number}",
     sequenceWatch: "Watch the sequence.",
     sequenceWatchShort: "Watch order",

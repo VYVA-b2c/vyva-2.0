@@ -884,7 +884,7 @@ const pt = {
     visualRoundComplete: "Ronda concluída. Pronto para um novo tabuleiro?",
     visualRoundCounted: "Ronda contabilizada. Continue com um novo tabuleiro neste nível.",
     visualStaySupport: "Experimente um novo tabuleiro neste nível. Três boas rondas desbloqueiam o seguinte.",
-    visualMasteryComplete: "Domínio concluído. Jogue outro tabuleiro quando quiser.",
+    visualMasteryComplete: "Percurso de Memória visual concluído. Jogue novamente ou explore mais jogos.",
     hiddenCard: "Carta tapada {number}",
     sequenceWatch: "Observe a sequencia.",
     sequenceWatchShort: "Ver ordem",

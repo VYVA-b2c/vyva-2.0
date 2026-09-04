@@ -74,13 +74,13 @@ function renderRhythmTap() {
   );
 }
 
-function visualResult(minutesAgo: number): GameResult {
+function visualResult(minutesAgo: number, level = 1): GameResult {
   return {
     userId: "user-1",
     gameType: "memory_match",
     cognitiveDomain: "visual_memory",
-    variantId: `memory_match-l1-v${minutesAgo + 2}`,
-    level: 1,
+    variantId: `memory_match-l${level}-v${minutesAgo + 2}`,
+    level,
     score: 500,
     accuracy: 100,
     mistakes: 0,
@@ -108,6 +108,19 @@ async function completeLevelOneVisualMemoryBoard() {
   await act(async () => {
     await new Promise((resolve) => window.setTimeout(resolve, 500));
   });
+}
+
+async function completeEightPairVisualMemoryBoard() {
+  const cards = await screen.findAllByTestId("visual-memory-card");
+  const pairs = [[0, 15], [1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12], [13, 14]];
+
+  for (const [first, second] of pairs) {
+    fireEvent.click(cards[first]);
+    fireEvent.click(cards[second]);
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 325));
+    });
+  }
 }
 
 describe("MemoryGameRunner word recall", () => {
@@ -201,7 +214,7 @@ describe("MemoryGameRunner word recall", () => {
   });
 
   it("shows Visual Memory instructions once at Level 1 and reopens them on request", async () => {
-    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     expect(await screen.findByRole("heading", { name: "Find the pairs" })).toBeInTheDocument();
     expect(screen.getByText("Different pictures? Both cards turn back. Try another pair.")).toBeInTheDocument();
@@ -218,21 +231,52 @@ describe("MemoryGameRunner word recall", () => {
   });
 
   it("starts Visual Memory above Level 1 without repeating basic instructions", async () => {
-    renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-v1");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 1)]);
+    renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-foundation-fruit-v1");
 
-    expect(await screen.findByRole("heading", { name: /Visual memory/i })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: /Visual memory/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Find the pairs" })).not.toBeInTheDocument();
     expect(screen.queryByText("Tap two cards to find the pair.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
   });
 
+  it("does not allow a direct URL to skip locked Visual Memory levels", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-foundation-fruit-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(6);
+    expect(screen.getByText("Level 1 of 40")).toBeInTheDocument();
+    expect(screen.queryByText("Level 5 of 40")).not.toBeInTheDocument();
+  });
+
+  it("replaces a stale variant URL with a valid board at the highest unlocked level", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 20)]);
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(16);
+    expect(screen.getByText("Level 21 of 40")).toBeInTheDocument();
+  });
+
+  it("keeps larger Visual Memory boards readable on narrow screens", async () => {
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 4)]);
+    renderMemoryGame("/memory-games/memory_match?level=5&variant=memory_match-l5-foundation-fruit-v1");
+
+    expect(await screen.findAllByTestId("visual-memory-card")).toHaveLength(10);
+    expect(screen.getByTestId("visual-memory-grid")).toHaveClass("grid-cols-2", "sm:grid-cols-4");
+    expect(screen.getByText("Level 5 of 40")).toBeInTheDocument();
+    expect(screen.getByText("Pairs")).toBeInTheDocument();
+    expect(screen.getByText("Accuracy")).toBeInTheDocument();
+    expect(screen.getByText("Duration")).toBeInTheDocument();
+  });
+
   it("unlocks the next Visual Memory level after one completed board", async () => {
     window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
-    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     await completeLevelOneVisualMemoryBoard();
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 20");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 40");
     expect(mocks.speakSequence).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
@@ -242,13 +286,44 @@ describe("MemoryGameRunner word recall", () => {
   it("keeps Next Level available when earlier Visual Memory history exists", async () => {
     window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
     vi.mocked(getGameHistory).mockResolvedValue([visualResult(0), visualResult(1)]);
-    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-v1");
+    renderMemoryGame("/memory-games/memory_match?level=1&variant=memory_match-l1-foundation-fruit-v1");
 
     await completeLevelOneVisualMemoryBoard();
 
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 20");
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Level 1 of 40");
     expect(screen.getByRole("button", { name: "Next Level 2" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next round" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
   });
+
+  it("renders deterministic pattern cards without visible labels from Level 21", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 20)]);
+    renderMemoryGame("/memory-games/memory_match?level=21&variant=memory_match-l21-shapes-colour-v1");
+
+    expect(await screen.findByText("Level 21 of 40")).toBeInTheDocument();
+    const cards = await screen.findAllByTestId("visual-memory-card");
+    expect(cards).toHaveLength(16);
+
+    fireEvent.click(cards[0]);
+    expect(await screen.findByTestId("visual-memory-pattern")).toBeInTheDocument();
+    const accessibleLabel = cards[0].getAttribute("aria-label");
+    expect(accessibleLabel).not.toMatch(/Hidden card/);
+    expect(screen.queryByText(accessibleLabel!)).not.toBeInTheDocument();
+  });
+
+  it("ends the journey at Level 40 with Play again and More games", async () => {
+    window.localStorage.setItem("visualMemory:tutorialSeen:v1:user-1", "true");
+    vi.mocked(getGameHistory).mockResolvedValue([visualResult(0, 39)]);
+    renderMemoryGame("/memory-games/memory_match?level=40&variant=memory_match-l40-mastery-mixed-v1");
+
+    await completeEightPairVisualMemoryBoard();
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Visual Memory journey complete");
+    expect(dialog).toHaveTextContent("Level 40 of 40");
+    expect(screen.getByRole("button", { name: "Play again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More games" })).toBeInTheDocument();
+    expect(screen.queryByText(/Level 41/)).not.toBeInTheDocument();
+  }, 10_000);
 });

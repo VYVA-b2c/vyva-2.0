@@ -8,6 +8,7 @@ import {
   VISUAL_MEMORY_ROUNDS_TO_ADVANCE,
 } from "./progressionEngine";
 import type { GameResult } from "./types";
+import { memoryGameRegistry } from "./memoryGameRegistry";
 
 function visualResult(level: number, accuracy: number, minutesAgo: number): GameResult {
   return {
@@ -63,12 +64,43 @@ describe("memory game progression", () => {
     expect(getRecommendedLevelForGame([visualResult(9, 46, 0)], "memory_match")).toBe(10);
   });
 
-  it("completes Mastery at Level 20 without inventing a Level 21", () => {
+  it("keeps the highest Visual Memory level unlocked after replaying an earlier level", () => {
+    const history = [visualResult(4, 100, 0), visualResult(12, 70, 10)];
+
+    expect(getRecommendedLevelForGame(history, "memory_match")).toBe(13);
+  });
+
+  it("unlocks Level 21 after completing the former Level 20 ceiling", () => {
     expect(getVisualMemoryLevelProgress([], 20)).toMatchObject({
       completedRounds: 1,
       levelCompleted: true,
-      advanced: false,
-      nextLevel: 20,
+      advanced: true,
+      nextLevel: 21,
     });
+    expect(getRecommendedLevelForGame([visualResult(20, 100, 0)], "memory_match")).toBe(21);
+  });
+
+  it("completes Mastery at Level 40 without inventing a Level 41", () => {
+    expect(getVisualMemoryLevelProgress([], 40)).toMatchObject({
+      completedRounds: 1,
+      levelCompleted: true,
+      advanced: false,
+      nextLevel: 40,
+    });
+    expect(getRecommendedLevelForGame([visualResult(40, 100, 0)], "memory_match")).toBe(40);
+  });
+
+  it("avoids the immediately previous Visual Memory theme", () => {
+    const level = memoryGameRegistry.memory_match.levels[20];
+    const justPlayed = level.variants[0];
+    const previousTheme = (justPlayed.content.en ?? justPlayed.content.es).payload.themeId;
+    const nextVariant = pickNextVariantForSameGame(
+      [{ ...visualResult(21, 100, 0), variantId: justPlayed.id }],
+      "memory_match",
+      21,
+      justPlayed.id,
+    );
+
+    expect((nextVariant.content.en ?? nextVariant.content.es).payload.themeId).not.toBe(previousTheme);
   });
 });
