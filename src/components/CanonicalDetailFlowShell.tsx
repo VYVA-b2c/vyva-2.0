@@ -184,7 +184,7 @@ export function CanonicalDetailFlowShell({
         data-testid={`${shellTestId}-frame`}
       >
         <div
-          className={`sticky top-0 z-40 -mx-3 px-3 backdrop-blur-xl ${isDark ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90"}`}
+          className={`sticky top-0 z-40 -mx-3 px-3 backdrop-blur-xl ${isDark ? "bg-[#1A1122]" : "bg-[#F8EEFF]/95"}`}
         >
           <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3" data-testid="prototype-home-master-topbar">
             <button
