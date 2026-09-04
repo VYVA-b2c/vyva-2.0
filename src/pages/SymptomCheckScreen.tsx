@@ -2451,12 +2451,12 @@ export function ReportScreen({
   const isEmergency = cfg.level === "emergency";
   const urgencyIconAccent = isEmergency ? undefined : "spark";
   const darkHeroVisual = cfg.level === "emergency"
-    ? { background: "linear-gradient(140deg, #3A151D 0%, #55202A 100%)", accent: "#FDA4AF" }
+    ? { accent: "#FDA4AF", accentBorder: "#FB7185" }
     : cfg.level === "doctor_today"
-      ? { background: "linear-gradient(140deg, #332214 0%, #4A3018 100%)", accent: "#FCD38D" }
+      ? { accent: "#FCD38D", accentBorder: "#F59E0B" }
       : cfg.level === "doctor_24_48"
-        ? { background: "linear-gradient(140deg, #241638 0%, #3A2256 58%, #2D1B43 100%)", accent: "#AFC9FF" }
-        : { background: "linear-gradient(140deg, #132B25 0%, #1B4035 100%)", accent: "#9FE8C8" };
+        ? { accent: "#C4B5FD", accentBorder: "#8B5CF6" }
+        : { accent: "#9FE8C8", accentBorder: "#34D399" };
   const lightHeroVisual = cfg.level === "emergency"
     ? { background: "#FFF7F7", border: "#F2B8B8", accent: "#B91C1C", iconBg: "#FEE2E2", pillBg: "#FDE8E8" }
     : cfg.level === "doctor_today"
@@ -3086,10 +3086,12 @@ export function ReportScreen({
       </div>
       <section
         data-testid="card-report-answer"
-        className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[22px] border border-l-[6px] p-4 sm:mx-5 sm:mb-4 sm:mt-5 sm:rounded-[24px] sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "border-white/[0.12] text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)]" : "text-vyva-text-1 shadow-[0_12px_30px_rgba(63,45,35,0.08)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
+        data-theme-surface={isDark ? "canonical-dark" : "canonical-light"}
+        className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[22px] border border-l-[6px] p-4 sm:mx-5 sm:mt-5 sm:rounded-[24px] sm:p-[18px] lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "text-white shadow-[0_14px_32px_rgba(0,0,0,0.2)]" : "text-vyva-text-1 shadow-[0_12px_30px_rgba(63,45,35,0.08)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
         style={{
-          background: isDark ? darkHeroVisual.background : lightHeroVisual.background,
-          borderColor: isDark ? undefined : lightHeroVisual.border,
+          background: isDark ? "linear-gradient(145deg, #281B32 0%, #211529 100%)" : lightHeroVisual.background,
+          borderColor: isDark ? "#483650" : lightHeroVisual.border,
+          borderLeftColor: isDark ? darkHeroVisual.accentBorder : lightHeroVisual.accent,
         }}
       >
         <div className="relative flex items-start gap-4">
@@ -3106,13 +3108,13 @@ export function ReportScreen({
             >
               {urgencyQualifierText}
             </p>
-            <p className={`mt-1 font-body text-[23px] font-extrabold leading-tight tracking-[-0.025em] sm:text-[26px] ${isDark ? "text-white" : "text-vyva-text-1"}`}>
+            <p className={`mt-1 font-body text-[22px] font-extrabold leading-tight tracking-[-0.025em] sm:text-[24px] ${isDark ? "text-white" : "text-vyva-text-1"}`}>
               {urgencyStatusText}
             </p>
           </div>
         </div>
 
-        <p className={`relative mt-4 border-t pt-4 font-body text-[17px] font-black leading-tight sm:text-[20px] ${isDark ? "border-white/15 text-white" : "border-black/[0.07] text-vyva-text-1"}`}>
+        <p className={`relative mt-3 border-t pt-3 font-body text-[17px] font-black leading-tight sm:text-[19px] ${isDark ? "border-white/10 text-white" : "border-black/[0.07] text-vyva-text-1"}`}>
           {summary.chiefComplaint || t("health.symptomCheck.report.checkComplete", "Your check is complete")}
         </p>
         <p className={`relative mt-1.5 hidden max-w-[620px] font-body text-[14px] font-semibold leading-relaxed sm:block ${isDark ? "text-white/78" : "text-vyva-text-2"}`}>
@@ -3145,13 +3147,13 @@ export function ReportScreen({
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-4 pb-[152px] sm:px-5 sm:pb-[168px] lg:px-0">
-        <section className={`overflow-hidden rounded-[28px] border ${isDark ? "border-[#483650] bg-[#24182E] shadow-[0_18px_42px_rgba(0,0,0,0.24)]" : "border-[#E8DED4] bg-white shadow-[0_14px_34px_rgba(0,0,0,0.10)]"}`} data-testid="card-report-do-now">
+      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-4 pb-[152px] sm:px-5 sm:pb-[168px] lg:px-0">
+        <section className={`overflow-hidden rounded-[24px] border ${isDark ? "border-[#483650] bg-[#24182E] shadow-[0_14px_32px_rgba(0,0,0,0.2)]" : "border-[#E8DED4] bg-white shadow-[0_14px_34px_rgba(0,0,0,0.10)]"}`} data-testid="card-report-do-now">
           <div className={`border-b p-3 sm:p-4 ${isDark ? "border-[#483650] bg-[#24182E]" : "border-[#EFE5DA] bg-[#FFFCF8]"}`}>
             <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
               {t("health.symptomCheck.report.whatToDoNow", "What to do now")}
             </p>
-            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
                 <p className="font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[24px]">
                   {nextStepDisplayText}
@@ -3165,7 +3167,7 @@ export function ReportScreen({
                 onClick={primaryAction.onClick}
                 disabled={isEmergency && !emergencyContact?.telHref}
                 data-testid={primaryAction.testId}
-                className={`vyva-tap inline-flex min-h-[50px] flex-shrink-0 items-center justify-center gap-2 rounded-[16px] px-4 text-center font-body text-[15px] font-black leading-tight sm:min-h-[54px] sm:rounded-[18px] sm:text-[16px] ${primaryAction.className}`}
+                className={`vyva-tap inline-flex min-h-[50px] flex-shrink-0 items-center justify-center gap-2 rounded-[16px] px-4 text-center font-body text-[15px] font-black leading-tight sm:min-h-[52px] sm:text-[16px] md:px-5 ${primaryAction.className}`}
               >
                 <PrimaryActionIcon size={19} className="flex-shrink-0" />
                 <span>{primaryAction.label}</span>

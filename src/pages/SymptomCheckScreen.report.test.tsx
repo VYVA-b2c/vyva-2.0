@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 import { ReportScreen } from "./SymptomCheckScreen";
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -72,11 +73,14 @@ function renderReport(
 
 describe("SymptomCheck report service actions", () => {
   it("uses the canonical summary heading and final report hierarchy", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
     renderReport();
 
     expect(screen.getAllByRole("heading", { level: 1, name: "Your summary" })).toHaveLength(1);
     expect(screen.queryByTestId("button-report-voice")).not.toBeInTheDocument();
-    expect(screen.getByTestId("card-report-answer")).toHaveTextContent("Doctor today");
+    const reportAnswer = screen.getByTestId("card-report-answer");
+    expect(reportAnswer).toHaveTextContent("Doctor today");
+    expect(reportAnswer).toHaveAttribute("data-theme-surface", "canonical-dark");
     expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Talk to a doctor today");
   });
 
