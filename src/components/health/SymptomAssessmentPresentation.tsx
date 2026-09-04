@@ -257,7 +257,14 @@ export function SymptomAssessmentPresentation({
   const usesCheckingFrame = stageId === "checking";
   const usesResultFrame = stageId === "safest_next_step" || stageId === "save_share_summary";
   const showsSceneIntro = (showTitle && scene.layout !== "progress") || Boolean(displayHelper);
-  const responsiveFrameWidth = "max-w-[330px] sm:max-w-[760px]";
+  const responsiveFrameWidth = stageId === "severity"
+    ? "max-w-[360px] sm:max-w-[760px]"
+    : "max-w-[330px] sm:max-w-[760px]";
+  const responsiveFrameInset = showHeader
+    ? stageId === "severity"
+      ? "w-[calc(100%_-_24px)]"
+      : "w-[calc(100%_-_28px)]"
+    : "w-full";
   const responsiveFrameHeight = stageId === "checking"
       ? "min-h-[360px] md:min-h-[350px]"
       : "min-h-0";
@@ -265,6 +272,8 @@ export function SymptomAssessmentPresentation({
     ? "pb-5 pt-6 sm:pb-6 sm:pt-7"
     : stageId === "checking"
       ? "pb-8 pt-[30px] md:pb-10 md:pt-8"
+      : stageId === "severity"
+        ? "pb-6 pt-6 sm:pb-8 sm:pt-8 [@media(max-height:800px)]:pb-5 [@media(max-height:800px)]:pt-5"
       : `pb-8 ${showHeader ? "pt-[38px]" : "pt-8"} md:pb-9 md:pt-8 [@media(max-height:800px)]:pb-5 [@media(max-height:800px)]:pt-5`;
   const defaultFrameClass = isDark
     ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF] shadow-[0_22px_48px_rgba(0,0,0,0.22)]"
@@ -275,7 +284,7 @@ export function SymptomAssessmentPresentation({
   return (
     <section
       aria-busy={loading || undefined}
-      className={`symptom-canonical-panel mx-auto ${responsiveFrameHeight} ${showHeader ? "w-[calc(100%_-_28px)]" : "w-full"} ${responsiveFrameWidth} overflow-hidden border ${usesCheckingFrame ? "rounded-[32px] border-[#7C3AED] bg-[linear-gradient(145deg,#4C1D95_0%,#6D28D9_52%,#7C3AED_100%)] text-white shadow-[0_22px_48px_rgba(76,29,149,0.28)]" : `rounded-[30px] ${defaultFrameClass}`} ${className}`}
+      className={`symptom-canonical-panel mx-auto ${responsiveFrameHeight} ${responsiveFrameInset} ${responsiveFrameWidth} overflow-hidden border ${usesCheckingFrame ? "rounded-[32px] border-[#7C3AED] bg-[linear-gradient(145deg,#4C1D95_0%,#6D28D9_52%,#7C3AED_100%)] text-white shadow-[0_22px_48px_rgba(76,29,149,0.28)]" : `${stageId === "severity" ? "rounded-[26px] sm:rounded-[30px]" : "rounded-[30px]"} ${defaultFrameClass}`} ${className}`}
       data-testid={`symptom-presentation-${stageId}-${modality}`}
       data-approved-frame={SYMPTOM_ASSESSMENT_APPROVED_FRAME_BY_STAGE[stageId]}
       data-flow-id="health.symptom_assessment"
@@ -366,9 +375,9 @@ export function SymptomAssessmentPresentation({
           ) : null}
         </>
       ) : (
-        <div className={`px-[22px] text-center ${responsiveContentSpacing}`}>
+        <div className={`${stageId === "severity" ? "px-[18px] sm:px-[22px]" : "px-[22px]"} text-center ${responsiveContentSpacing}`}>
           {showTitle && scene.layout !== "progress" ? (
-            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesCompactProductionDescribeFrame || stageId === "safety_check" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
+            <h2 className={`font-body font-extrabold leading-[1.08] tracking-[-0.025em] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"} ${usesCompactProductionDescribeFrame || stageId === "safety_check" || stageId === "severity" ? "text-[28px] sm:text-[31px]" : "text-[31px]"}`}>
               {displayTitle}
             </h2>
           ) : null}
@@ -433,7 +442,7 @@ export function SymptomAssessmentPresentation({
 
         {children && (scene.layout !== "progress" || allowProgressChildren) ? (
           <div
-            className={`mt-7 text-left [@media(max-height:800px)]:mt-5 ${scene.layout === "review" ? "[@media(max-height:800px)]:mt-3" : ""}`}
+            className={`${scene.layout === "scale" ? "mt-5 sm:mt-7" : "mt-7 [@media(max-height:800px)]:mt-5"} text-left ${scene.layout === "review" ? "[@media(max-height:800px)]:mt-3" : ""}`}
             data-testid={`symptom-scene-controls-${stageId}-${modality}`}
           >
             {children}

@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarRange,
+  Camera,
   CheckCircle,
   ChevronDown,
   CircleCheckBig,
@@ -516,6 +517,9 @@ export default function TriageChat({
   const [questionReason, setQuestionReason] = useState<string | null>(() => initialDraft?.questionReason ?? null);
   const [profileContextUsed, setProfileContextUsed] = useState(() => Boolean(initialDraft?.profileContextUsed));
   const [vitalsPrompt, setVitalsPrompt] = useState<TriageVitalsPrompt | null>(() => initialDraft?.vitalsPrompt ?? null);
+  const [contextualVitalsOpen, setContextualVitalsOpen] = useState(
+    () => presentationStage === "severity" && Boolean(initialDraft?.vitalsPrompt),
+  );
   const [guidancePlan, setGuidancePlan] = useState<TriageGuidancePlan | null>(() => initialDraft?.guidancePlan ?? null);
   const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
   const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
@@ -609,6 +613,12 @@ export default function TriageChat({
     }, 0);
     return () => window.clearTimeout(timeoutId);
   }, [requestError]);
+
+  useEffect(() => {
+    if (presentationStage === "severity" && vitalsPrompt) {
+      setContextualVitalsOpen(true);
+    }
+  }, [presentationStage, vitalsPrompt]);
 
   const animateMessage = useCallback(
     (_msgIdx: number, _fullText: string, onDone?: () => void) => {
@@ -1601,6 +1611,8 @@ export default function TriageChat({
 
           {canAnswer && vitalsPrompt ? (
             <details
+              open={contextualVitalsOpen}
+              onToggle={(event) => setContextualVitalsOpen(event.currentTarget.open)}
               data-testid="triage-contextual-vitals-prompt"
               className={`group mx-auto w-full max-w-[520px] rounded-[22px] border shadow-[0_8px_22px_rgba(0,0,0,0.10)] ${isDark ? "border-white/[0.13] bg-[#352842]" : "border-[#DDD6FE] bg-white"}`}
             >
@@ -1609,7 +1621,7 @@ export default function TriageChat({
                   <Activity size={20} strokeWidth={2.7} aria-hidden="true" />
                 </span>
                 <span className={`min-w-0 flex-1 text-left font-body text-[16px] font-black ${isDark ? "text-[#FFF8FF]" : "text-vyva-text-1"}`}>
-                  {t("health.symptomCheck.chat.addReading", "Add a reading")}
+                  {t("health.symptomCheck.chat.addReading", "Check vital signs")}
                 </span>
                 <span className={`rounded-full px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] ${isDark ? "bg-[#45325E] text-[#D4B5FF]" : "bg-[#F5F3FF] text-vyva-purple"}`}>
                   {t("health.symptomCheck.chat.optional", "Optional")}
@@ -1617,12 +1629,37 @@ export default function TriageChat({
                 <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
               </summary>
               <div className="px-4 pt-3">
-                <p className={`font-body text-[13px] font-semibold leading-snug ${isDark ? "text-[#D2C6DC]" : "text-vyva-text-2"}`}>
-                  {t("health.symptomCheck.chat.readingHelper", "Use a device reading if you have one nearby. You can skip this.")}
+                <p className={`font-body text-[14px] font-bold leading-snug ${isDark ? "text-[#F4ECFA]" : "text-vyva-text-1"}`}>
+                  {t("health.symptomCheck.chat.readingHelper", "A quick vital-sign check can help Dr. AI assess you more safely. You can skip this.")}
                 </p>
+                {vitalsPrompt.body ? (
+                  <p className={`mt-1.5 font-body text-[12px] font-semibold leading-snug ${isDark ? "text-[#D2C6DC]" : "text-vyva-text-2"}`}>
+                    {vitalsPrompt.body}
+                  </p>
+                ) : null}
+                <div
+                  className={`mt-3 flex items-start gap-2 rounded-[14px] px-3 py-2.5 ${isDark ? "bg-[#45325E] text-[#F4ECFA]" : "bg-[#F5F3FF] text-vyva-text-2"}`}
+                  data-testid="triage-camera-vitals-reminder"
+                >
+                  <Camera size={18} className="mt-0.5 shrink-0 text-vyva-purple" aria-hidden="true" />
+                  <p className="font-body text-[13px] font-bold leading-snug">
+                    {t("health.symptomCheck.chat.cameraVitalsReminder", "Your phone camera can estimate your heart rate and breathing rate—no extra device needed.")}
+                  </p>
+                </div>
                 {readingDisclosure ? <p className="mt-2 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]" data-testid="triage-reading-disclosure">{readingDisclosure}</p> : null}
               </div>
-              <VitalsAcquisitionPanel actions={vitalsPrompt.actions} assessmentSessionId={assessmentSessionId} disabled={!canAnswer} onApply={applyAcquiredReading} />
+              <VitalsAcquisitionPanel
+                actions={[
+                  {
+                    id: "camera_vitals",
+                    label: t("health.symptomCheck.chat.cameraVitals", "Camera: heart & breathing"),
+                  },
+                  ...vitalsPrompt.actions,
+                ]}
+                assessmentSessionId={assessmentSessionId}
+                disabled={!canAnswer}
+                onApply={applyAcquiredReading}
+              />
             </details>
           ) : null}
 

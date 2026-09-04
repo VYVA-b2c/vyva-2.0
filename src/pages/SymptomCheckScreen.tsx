@@ -1196,17 +1196,15 @@ export function SymptomCheckingPreviewScreen() {
   );
 }
 
-const SYMPTOM_SEVERITY_PREVIEW_OPTIONS = [
-  { id: "mild", label: "Mild", Icon: Activity },
-  { id: "moderate", label: "Moderate", Icon: AlertTriangle },
-  { id: "strong", label: "Strong", Icon: HeartPulse },
-  { id: "unsure", label: "Not sure", Icon: Stethoscope },
-] as const;
+const SYMPTOM_SEVERITY_PREVIEW_CHOICES = Array.from({ length: 11 }, (_, value) => ({
+  id: `severity_${value}`,
+  label: String(value),
+  value: String(value),
+}));
 
 export function SymptomSeverityPreviewScreen() {
   const navigate = useNavigate();
   const [interactionMode, setInteractionMode] = useState<HomeInteractionMode>("touch");
-  const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null);
   const shellContract = resolveSymptomAssessmentPresentation("severity").shell;
 
   return (
@@ -1221,27 +1219,15 @@ export function SymptomSeverityPreviewScreen() {
         modality={interactionMode}
         showHeader={false}
         title="How strong is it?"
-        helper="Choose the closest answer."
+        helper="0 is none. 10 is the worst imaginable."
       >
-        <div className="grid gap-2.5" data-testid="symptom-severity-preview-options">
-          {SYMPTOM_SEVERITY_PREVIEW_OPTIONS.map(({ id, label, Icon }) => {
-            const selected = selectedSeverity === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => setSelectedSeverity(id)}
-                className={`vyva-tap flex min-h-[64px] w-full items-center gap-3 rounded-[18px] border px-4 py-3 text-left font-body text-[16px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7024C4] focus-visible:ring-offset-2 ${selected ? "border-[#7024C4] bg-[#7024C4] text-white shadow-[0_10px_22px_rgba(112,36,196,0.2)]" : "border-[#DED3E2] bg-white text-[#241238] shadow-[0_6px_16px_rgba(63,45,35,0.04)]"}`}
-              >
-                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-[12px] ${selected ? "bg-white/20 text-white" : "bg-[#F3EAFF] text-[#7024C4]"}`}>
-                  <Icon size={21} strokeWidth={2.5} aria-hidden="true" />
-                </span>
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <SeverityScaleControl
+          choices={SYMPTOM_SEVERITY_PREVIEW_CHOICES}
+          onSubmit={() => undefined}
+          continueLabel="Continue"
+          minimumLabel="None"
+          maximumLabel="Worst imaginable"
+        />
       </SymptomAssessmentPresentation>
     </PrototypeSymptomAssessmentShell>
   );
