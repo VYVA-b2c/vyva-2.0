@@ -22,6 +22,7 @@ import {
   marketingJourneys,
   marketingMediaAssets,
   marketingMediaFiles,
+  marketingSocialConnections,
   marketingSyncRuns,
   type MarketingAudienceMemberRow,
   type MarketingAudienceRow,
@@ -39,6 +40,15 @@ import {
   type MarketingMediaFileRow,
   type MarketingSyncRunRow,
 } from "../../shared/schema.js";
+import {
+  connectMetaFromAuthorizationCode,
+  listMetaConnections,
+  metaOAuthConfigured,
+  metaOAuthRedirectUri,
+  metaOAuthUrl,
+  verifyMetaConnection,
+} from "../services/metaMarketingConnection.js";
+import { signMarketingMetaConnectState, verifyMarketingMetaConnectState } from "../lib/jwt.js";
 
 export const adminMarketingRouter = Router();
 
@@ -52,10 +62,10 @@ function marketingSchemaErrorMessage(error: unknown, fallback: string) {
   const missingRelation = /relation "([^"]+)" does not exist/i.exec(message)?.[1];
   const missingColumn = /column (?:"?([^"\s]+)"?\.)?"?([^"\s]+)"? does not exist/i.exec(message)?.[2];
   if (code === "42P01" || missingRelation) {
-    return `Marketing database schema is behind this build. Missing table "${missingRelation ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, 0076_marketing_source_templates_tags.sql, and 0076_marketing_social_studio.sql, then retry.`;
+    return `Marketing database schema is behind this build. Missing table "${missingRelation ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, 0076_marketing_source_templates_tags.sql, 0076_marketing_social_studio.sql, and 0077_marketing_social_connections.sql, then retry.`;
   }
   if (code === "42703" || missingColumn) {
-    return `Marketing database schema is behind this build. Missing column "${missingColumn ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, 0076_marketing_source_templates_tags.sql, and 0076_marketing_social_studio.sql, then retry.`;
+    return `Marketing database schema is behind this build. Missing column "${missingColumn ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, 0076_marketing_source_templates_tags.sql, 0076_marketing_social_studio.sql, and 0077_marketing_social_connections.sql, then retry.`;
   }
   return fallback;
 }
@@ -2647,7 +2657,8 @@ function hasMarketingEnvValue(name: string) {
   return Boolean(process.env[name]?.trim());
 }
 
-function socialPublishingStatus() {
+async function socialPublishingStatus() {
+  const metaConnections = await listMetaConnections();
   return {
     manualPublishingEnabled: true,
     directPublishingEnabled: false,
@@ -2658,10 +2669,12 @@ function socialPublishingStatus() {
         channels: ["facebook", "instagram"],
         manualPublishingEnabled: true,
         directPublishingEnabled: false,
-        connectionReady:
+        connectionReady: metaConnections.length > 0 ||
           hasMarketingEnvValue("META_MARKETING_ACCESS_TOKEN") ||
           hasMarketingEnvValue("FACEBOOK_MARKETING_ACCESS_TOKEN") ||
           hasMarketingEnvValue("INSTAGRAM_MARKETING_ACCESS_TOKEN"),
+        connectionConfigured: metaOAuthConfigured(),
+        connections: metaConnections,
       },
       {
         id: "linkedin",
@@ -3011,7 +3024,7 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
         contacts: contactRows.filter((row) => audienceMatchesTarget(row.audience_type, audienceType)).length,
       })),
       lockedSendCapabilities: channelSendCapabilities(),
-      socialPublishing: socialPublishingStatus(),
+      socialPublishing: await socialPublishingStatus(),
       emailScheduler: marketingEmailSchedulerStatus(),
       latestSyncRun: latestRuns[0] ? serializeSyncRun(latestRuns[0]) : null,
     });
@@ -3077,6 +3090,87 @@ adminMarketingRouter.post("/ai/campaign-draft", async (req, res) => {
 
   const result = await generateMarketingAiCampaignDraft(parsed.data);
   return res.json({ ok: true, ...result });
+});
+
+adminMarketingRouter.get("/social-publishing/meta/connect", async (req, res) => {
+  if (!metaOAuthConfigured()) {
+    return res.redirect("/admin/marketing/settings?meta_connection=missing_config");
+  }
+
+  try {
+    const state = await signMarketingMetaConnectState(req.user?.id ?? "");
+    return res.redirect(metaOAuthUrl(state));
+  } catch (error) {
+    console.error("[admin/marketing] Meta OAuth start failed", error);
+    return res.redirect("/admin/marketing/settings?meta_connection=failed");
+  }
+});
+
+adminMarketingRouter.get("/social-publishing/meta/callback", async (req, res) => {
+  const redirect = (status: string) => res.redirect(`/admin/marketing/settings?meta_connection=${encodeURIComponent(status)}`);
+  const code = typeof req.query.code === "string" ? req.query.code.trim() : "";
+  const stateToken = typeof req.query.state === "string" ? req.query.state.trim() : "";
+  if (!code || !stateToken) return redirect("failed");
+
+  const state = await verifyMarketingMetaConnectState(stateToken);
+  if (!state || state.userId !== req.user?.id) return redirect("failed");
+
+  try {
+    const connections = await connectMetaFromAuthorizationCode({
+      code,
+      connectedBy: actor(req),
+    });
+    console.info(`[admin/marketing] Meta connected ${connections.length} Page account(s).`);
+    return redirect("connected");
+  } catch (error) {
+    console.error("[admin/marketing] Meta OAuth callback failed", error);
+    return redirect("failed");
+  }
+});
+
+adminMarketingRouter.get("/social-publishing/meta/status", async (_req, res) => {
+  try {
+    const connections = await listMetaConnections();
+    return res.json({
+      ok: true,
+      provider: "meta",
+      configured: metaOAuthConfigured(),
+      redirectUri: metaOAuthRedirectUri(),
+      directPublishingEnabled: false,
+      connections,
+    });
+  } catch (error) {
+    console.error("[admin/marketing] Meta connection status failed", error);
+    return res.status(500).json({ error: "Meta connection status could not be loaded." });
+  }
+});
+
+adminMarketingRouter.post("/social-publishing/meta/verify", async (req, res) => {
+  try {
+    const result = await verifyMetaConnection(
+      typeof req.body?.connectionId === "string" ? req.body.connectionId : undefined,
+    );
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error("[admin/marketing] Meta connection verification failed", error);
+    return res.status(502).json({
+      error: error instanceof Error ? error.message : "Meta connection could not be verified.",
+    });
+  }
+});
+
+adminMarketingRouter.delete("/social-publishing/meta/connections/:connectionId", async (req, res) => {
+  try {
+    const deleted = await db.delete(marketingSocialConnections)
+      .where(and(
+        eq(marketingSocialConnections.id, req.params.connectionId),
+        eq(marketingSocialConnections.provider, "meta"),
+      ));
+    return res.json({ ok: true, connectionId: req.params.connectionId, deleted: Boolean(deleted) });
+  } catch (error) {
+    console.error("[admin/marketing] Meta connection removal failed", error);
+    return res.status(500).json({ error: "Meta connection could not be removed." });
+  }
 });
 
 adminMarketingRouter.post("/social-packages", async (req, res) => {
@@ -4691,7 +4785,7 @@ adminMarketingRouter.get("/sync/source", async (req, res) => {
     mode: "one_way_into_vyva",
     realSendingLocked: false,
     lockedSendCapabilities: channelSendCapabilities(),
-    socialPublishing: socialPublishingStatus(),
+    socialPublishing: await socialPublishingStatus(),
     emailScheduler: marketingEmailSchedulerStatus(),
     diagnostics: lovableMarketingSyncDiagnostics(apiUrl, apiKey),
     runs: runs.map(serializeSyncRun),

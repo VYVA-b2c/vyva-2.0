@@ -4097,6 +4097,28 @@ export const insertMarketingMediaFileSchema = createInsertSchema(marketingMediaF
 export type InsertMarketingMediaFile = z.infer<typeof insertMarketingMediaFileSchema>;
 export type MarketingMediaFileRow = typeof marketingMediaFiles.$inferSelect;
 
+export const marketingSocialConnections = pgTable("marketing_social_connections", {
+  id:                     uuid("id").primaryKey().defaultRandom(),
+  provider:               text("provider").notNull(),
+  external_account_id:    text("external_account_id").notNull(),
+  external_account_name:  text("external_account_name").notNull().default(""),
+  access_token_encrypted: text("access_token_encrypted").notNull(),
+  token_expires_at:       timestamp("token_expires_at", { withTimezone: true }),
+  status:                 text("status").notNull().default("connected"),
+  metadata:               jsonb("metadata").notNull().default({}),
+  connected_by:           text("connected_by"),
+  connected_at:           timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:             timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_social_connections_provider_account_unique").on(t.provider, t.external_account_id),
+  index("marketing_social_connections_provider_idx").on(t.provider),
+  index("marketing_social_connections_status_idx").on(t.status),
+]);
+
+export const insertMarketingSocialConnectionSchema = createInsertSchema(marketingSocialConnections).omit({ id: true, connected_at: true, updated_at: true });
+export type InsertMarketingSocialConnection = z.infer<typeof insertMarketingSocialConnectionSchema>;
+export type MarketingSocialConnectionRow = typeof marketingSocialConnections.$inferSelect;
+
 export const marketingCampaigns = pgTable("marketing_campaigns", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   name:                text("name").notNull(),
@@ -4641,6 +4663,7 @@ export const schema = {
   marketingContentAssets,
   marketingMediaAssets,
   marketingMediaFiles,
+  marketingSocialConnections,
   marketingCampaigns,
   marketingCampaignChannels,
   marketingCampaignMetrics,

@@ -2535,6 +2535,46 @@ describe("admin marketing router", () => {
     expect(response.body.note).toContain("OPENAI_API_KEY");
   });
 
+  it("starts the Meta OAuth flow only when the Admin deployment is configured", async () => {
+    await request(buildApp("ops@example.com"))
+      .get("/api/admin/marketing/social-publishing/meta/connect")
+      .expect(302)
+      .expect("Location", "/admin/marketing/settings?meta_connection=missing_config");
+
+    vi.stubEnv("META_APP_ID", "meta-app-id");
+    vi.stubEnv("META_APP_SECRET", "meta-app-secret");
+    vi.stubEnv("META_OAUTH_REDIRECT_URI", "https://v2.vyva.life/api/admin/marketing/social-publishing/meta/callback");
+
+    const response = await request(buildApp("ops@example.com"))
+      .get("/api/admin/marketing/social-publishing/meta/connect")
+      .expect(302);
+    const location = new URL(response.headers.location);
+    expect(location.origin).toBe("https://www.facebook.com");
+    expect(location.pathname).toBe("/v24.0/dialog/oauth");
+    expect(location.searchParams.get("client_id")).toBe("meta-app-id");
+    expect(location.searchParams.get("redirect_uri")).toBe("https://v2.vyva.life/api/admin/marketing/social-publishing/meta/callback");
+    expect(location.searchParams.get("state")).toBeTruthy();
+    expect(location.searchParams.get("scope")).toContain("instagram_content_publish");
+  });
+
+  it("reports Meta connection configuration without exposing credentials", async () => {
+    vi.stubEnv("META_APP_ID", "meta-app-id");
+    vi.stubEnv("META_APP_SECRET", "meta-app-secret");
+
+    const response = await request(buildApp("ops@example.com"))
+      .get("/api/admin/marketing/social-publishing/meta/status")
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      ok: true,
+      provider: "meta",
+      configured: true,
+      directPublishingEnabled: false,
+      connections: [],
+    });
+    expect(JSON.stringify(response.body)).not.toContain("meta-app-secret");
+  });
+
   it("requires approval before a Social Studio campaign can be scheduled", async () => {
     const createResponse = await request(buildApp("ops@example.com"))
       .post("/api/admin/marketing/social-packages")
