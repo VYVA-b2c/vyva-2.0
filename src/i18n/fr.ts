@@ -1242,7 +1242,7 @@ const fr = {
       cardTitle: "Memoire des sens",
       cardDescription: "Retrouvez une odeur familiere et le souvenir qu'elle apporte.",
       intro: "Regardez, puis souvenez-vous.",
-      instructions: "Instructions",
+      instructions: "Conseils",
       tutorialSubtitle: "Regardez. Souvenez-vous. Partagez si vous voulez.",
       tutorialLook: "Regarder",
       tutorialRemember: "Se souvenir",

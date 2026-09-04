@@ -209,6 +209,7 @@ describe("app shell route layout", () => {
     ["/companions", "wide"],
     ["/concierge/shopping", "wide"],
     ["/senses", "wide"],
+    ["/brain-coach/remember", "wide"],
     ["/chat", "fullscreen"],
     ["/activities/relax-breathe", "fullscreen"],
     ["/memory-games/word_recall", "fullscreen"],
@@ -223,6 +224,11 @@ describe("app shell route layout", () => {
   it.each([
     "/mind-memory",
     "/mind-memory/cognitive-assessment",
+    "/brain-coach/remember",
+    "/brain-coach/focus",
+    "/brain-coach/think",
+    "/brain-coach/calm",
+    "/brain-coach/activity/listen_closely",
     "/memory-games",
     "/memory-games/remember-later",
     "/attention-boosters",
@@ -237,6 +243,12 @@ describe("app shell route layout", () => {
   });
 
   it.each([
+    "/mind-memory",
+    "/brain-coach/remember",
+    "/brain-coach/focus",
+    "/brain-coach/think",
+    "/brain-coach/calm",
+    "/brain-coach/activity/listen_closely",
     "/memory-games",
     "/memory-games/remember-later",
     "/attention-boosters",
@@ -251,13 +263,12 @@ describe("app shell route layout", () => {
   });
 
   it.each([
-    "/mind-memory",
     "/mind-memory/cognitive-assessment",
-  ])("keeps the global bottom dock available on Brain Coach entry route %s", (pathname) => {
+  ])("keeps the global bottom dock available on Brain Coach assessment route %s", (pathname) => {
     expect(usesBrainCoachDocklessRoute(pathname)).toBe(false);
   });
 
-  it("renders the bottom dock on the Brain Coach main menu", () => {
+  it("hides the bottom dock on the canonical Brain Coach main menu", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
         <AppShell>
@@ -266,7 +277,7 @@ describe("app shell route layout", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
+    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
   });
 
   it("hides the bottom dock inside Brain Coach module hubs", () => {

@@ -40,6 +40,7 @@ function renderPage() {
       <Routes>
         <Route path="/memory-games" element={<MemoryGamesPage />} />
         <Route path="/mind-memory" element={<LocationProbe />} />
+        <Route path="/brain-coach/activity/:activityId" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -135,5 +136,20 @@ describe("MemoryGamesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /back/i }));
 
     expect(await screen.findByTestId("current-route")).toHaveTextContent("/mind-memory");
+  });
+
+  it("opens each standalone memory activity through its own canonical route", async () => {
+    mocks.selectNextMemoryGame.mockResolvedValue({
+      gameType: "memory_match",
+      level: 1,
+      variantId: "memory_match-l1-v1",
+      reasonLabel: "Start here",
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByTestId("brain-coach-activity-spatial-navigator"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/brain-coach/activity/spatial_navigator");
   });
 });

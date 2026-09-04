@@ -1035,7 +1035,7 @@ const pt = {
       cardTitle: "Memoria dos sentidos",
       cardDescription: "Recorde um cheiro familiar e a memoria que ele traz.",
       intro: "Olhe e depois recorde.",
-      instructions: "Instrucoes",
+      instructions: "Orientação",
       tutorialSubtitle: "Olhe. Recorde. Partilhe se quiser.",
       tutorialLook: "Olhar",
       tutorialRemember: "Recordar",

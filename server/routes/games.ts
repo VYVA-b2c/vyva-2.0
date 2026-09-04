@@ -996,18 +996,28 @@ async function getOrCreateScentMemoryState(ctx: CognitiveSessionDb, userId: stri
   return normalizeScentMemoryState(created, userId);
 }
 
-export function pickScentMemoryPrompt<T extends { id: string }>(
+export function pickScentMemoryPrompt<T extends { id: string; category?: string | null }>(
   rows: T[],
   todaySessions: unknown[],
   historySessions: unknown[],
   random = Math.random,
+  excludedPromptId?: string | null,
+  excludedCategory?: string | null,
 ) {
+  const rowsOutsideCategory = excludedCategory
+    ? rows.filter((row) => row.category !== excludedCategory)
+    : rows;
+  const categoryEligibleRows = rowsOutsideCategory.length > 0 ? rowsOutsideCategory : rows;
+  const rowsOutsidePrompt = excludedPromptId
+    ? categoryEligibleRows.filter((row) => row.id !== excludedPromptId)
+    : categoryEligibleRows;
+  const eligibleRows = rowsOutsidePrompt.length > 0 ? rowsOutsidePrompt : categoryEligibleRows;
   const usedToday = new Set(
     todaySessions
       .map((session) => recordValue(session, "promptId"))
       .filter((value): value is string => typeof value === "string" && value.length > 0),
   );
-  const unusedToday = rows.filter((row) => !usedToday.has(row.id));
+  const unusedToday = eligibleRows.filter((row) => !usedToday.has(row.id));
   if (unusedToday.length > 0) return unusedToday[Math.floor(random() * unusedToday.length)] ?? null;
 
   const lastPlayed = new Map<string, string>();
@@ -1017,7 +1027,7 @@ export function pickScentMemoryPrompt<T extends { id: string }>(
     lastPlayed.set(contentId, toIsoDate(recordValue(session, "playedAt")) ?? "");
   });
 
-  return [...rows].sort((a, b) => {
+  return [...eligibleRows].sort((a, b) => {
     const aPlayed = lastPlayed.get(a.id) ?? "";
     const bPlayed = lastPlayed.get(b.id) ?? "";
     return aPlayed.localeCompare(bPlayed);
@@ -1071,6 +1081,8 @@ async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLangu
 
 export async function scentMemoryContentHandler(req: Request, res: Response) {
   const language = typeof req.query.language === "string" ? req.query.language : "es";
+  const excludePromptId = typeof req.query.excludePromptId === "string" ? req.query.excludePromptId : null;
+  const excludeCategory = typeof req.query.excludeCategory === "string" ? req.query.excludeCategory : null;
 
   try {
     const ctx = await loadCognitiveSessionDb();
@@ -1097,7 +1109,14 @@ export async function scentMemoryContentHandler(req: Request, res: Response) {
       loadScentMemoryActiveRows(ctx, language),
     ]);
 
-    const selectedPrompt = pickScentMemoryPrompt(prompts as Array<{ id: string }>, todaySessions, historySessions);
+    const selectedPrompt = pickScentMemoryPrompt(
+      prompts as Array<{ id: string; category?: string | null }>,
+      todaySessions,
+      historySessions,
+      Math.random,
+      excludePromptId,
+      excludeCategory,
+    );
 
     if (!selectedPrompt) {
       return res.status(404).json({ error: "There is no reviewed Scent Memory content available yet." });

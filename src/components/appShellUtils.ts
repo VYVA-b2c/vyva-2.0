@@ -18,6 +18,7 @@ const STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES = [
 ] as const;
 
 const WIDE_ROUTE_PREFIXES = [
+  "/brain-coach",
   "/settings",
   "/health",
   "/informes",
@@ -70,6 +71,8 @@ export function getAppShellLayout(pathname: string): AppShellLayout {
 export function isBrainCoachAppRoute(pathname: string) {
   return (
     STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES.includes(pathname as typeof STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES[number]) ||
+    pathname === "/brain-coach" ||
+    pathname.startsWith("/brain-coach/") ||
     pathname === "/mind-memory" ||
     pathname.startsWith("/mind-memory/") ||
     pathname === "/memory-games" ||
@@ -86,6 +89,9 @@ export function isBrainCoachAppRoute(pathname: string) {
 export function usesBrainCoachDocklessRoute(pathname: string) {
   return (
     STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES.includes(pathname as typeof STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES[number]) ||
+    pathname === "/mind-memory" ||
+    pathname === "/brain-coach" ||
+    pathname.startsWith("/brain-coach/") ||
     pathname === "/memory-games" ||
     pathname.startsWith("/memory-games/") ||
     pathname === "/attention-boosters" ||

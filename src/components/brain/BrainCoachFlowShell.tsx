@@ -36,7 +36,7 @@ type BrainCoachFlowShellProps = {
 
 export function BrainCoachFlowShell({
   title,
-  headerTitle = "Brain Coach",
+  headerTitle,
   subtitle,
   icon: Icon,
   brandIcon,
@@ -57,23 +57,20 @@ export function BrainCoachFlowShell({
   sceneLayout = "activity_grid",
 }: BrainCoachFlowShellProps) {
   const navigate = useNavigate();
-  const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const backAriaLabel = typeof backLabel === "string" ? backLabel : "Back";
   const iconTileId = brandIcon ?? iconAccent ?? "utility";
+  const topbarTitle = headerTitle ?? title;
 
   return (
     <section
       aria-label={typeof title === "string" ? title : "Brain Coach"}
       className={cn(
-        "prototype-shell relative min-h-[calc(100svh-176px)] w-full overflow-x-hidden rounded-[30px]",
-        isDark
-          ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_48%,#110914_100%)] text-[#FFF8FF]"
-          : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
+        "prototype-shell relative min-h-[calc(100svh-24px)] w-full overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
         className,
       )}
       data-testid={testId}
-      data-home-master-theme={isDark ? "dark" : "light"}
+      data-home-master-theme="light"
       data-vyva-text-size={readableTextSize}
       {...getBrainCoachPresentationAttributes({
         presentationId,
@@ -82,14 +79,12 @@ export function BrainCoachFlowShell({
         sceneLayout,
       })}
     >
-      <div className="vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-176px)] w-full max-w-[430px] flex-col px-5 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-3 sm:max-w-[720px] sm:px-6 lg:max-w-[900px]">
-        <div
-          className={cn(
-            "sticky top-0 z-30 -mx-2 px-2 py-2 backdrop-blur-xl",
-            isDark ? "bg-[#1A1122]/92" : "bg-[#F8EEFF]/88",
-          )}
-        >
-          <header className="grid grid-cols-[44px_1fr_44px] items-center gap-3">
+      <div className="vyva-home-master-fixed-type mx-auto flex min-h-[calc(100svh-24px)] w-full max-w-[430px] flex-col px-6 pb-8 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4">
+        <div>
+          <header
+            className="grid grid-cols-[40px_1fr_40px] items-center gap-3"
+            data-header-contract={BRAIN_COACH_SHELL_CONTRACT.headerId}
+          >
             <button
               type="button"
               aria-label={backAriaLabel}
@@ -102,64 +97,35 @@ export function BrainCoachFlowShell({
                 navigate(backTo);
               }}
               className={cn(
-                "vyva-tap grid h-11 w-11 place-items-center rounded-full transition-colors duration-150",
-                isDark
-                  ? "bg-white/[0.08] text-[#FFF8FF] ring-1 ring-inset ring-white/[0.16]"
-                  : "bg-white text-[#6B5173] shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05]",
+                "vyva-tap grid h-10 !min-h-10 w-10 place-items-center rounded-full bg-white text-vyva-purple shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05] transition-colors duration-150",
               )}
             >
-              <VyvaIcon icon={ArrowLeft} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
+              <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
             </button>
-            <h1 className={cn(
-              "truncate text-center font-body text-[23px] font-extrabold leading-tight sm:text-[26px]",
-              isDark ? "text-[#FFF8FF]" : "text-[#241238]",
-            )}>
-              {headerTitle}
+            <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
+              {topbarTitle}
             </h1>
-            <div className="flex justify-end">{action}</div>
+            <div className="flex justify-end">
+              {action ?? (
+                <span
+                  className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#F1E8FF]"
+                  data-vyva-icon-tile={iconTileId}
+                  aria-hidden="true"
+                >
+                  <VyvaIcon icon={Icon} glyph={brandIcon} accent={iconAccent} size={23} strokeWidth={2.45} tone="brand" />
+                </span>
+              )}
+            </div>
           </header>
         </div>
 
-        <div className="mt-4 sm:mt-6">
-          <section
-            className={cn(
-              "overflow-hidden rounded-[26px] border px-4 py-4 shadow-[0_14px_32px_rgba(47,24,64,0.08)] sm:px-5 sm:py-5",
-              isDark ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF]" : "border-[#E6DDF3] bg-white text-[#241238]",
-            )}
-            data-header-contract={BRAIN_COACH_SHELL_CONTRACT.headerId}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                {badge ? <div className="mb-3">{badge}</div> : null}
-                <h2 className="font-body text-[28px] font-extrabold leading-[1.04] tracking-normal text-inherit sm:text-[32px]">
-                  {title}
-                </h2>
-                {subtitle ? (
-                  <p className={cn(
-                    "mt-2 max-w-[34rem] text-[15.5px] font-semibold leading-[1.38] sm:text-[17px]",
-                    isDark ? "text-[#D8CDE4]" : "text-[#746A72]",
-                  )}>
-                    {subtitle}
-                  </p>
-                ) : null}
-              </div>
-              <span
-                className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[20px] shadow-[0_12px_26px_rgba(32,12,68,0.10)] sm:h-16 sm:w-16 sm:rounded-[22px]"
-                style={{ background: iconBg, color: iconColor }}
-                data-vyva-icon-tile={iconTileId}
-                aria-hidden="true"
-              >
-                <VyvaIcon
-                  icon={Icon}
-                  glyph={brandIcon}
-                  accent={iconAccent}
-                  size={brandIcon ? 46 : 34}
-                  strokeWidth={2.35}
-                  tone="brand"
-                />
-              </span>
-            </div>
-          </section>
+        <div className="mt-5 sm:mt-6">
+          {badge ? <div className="mb-3 flex justify-center">{badge}</div> : null}
+          {subtitle ? (
+            <p className="mx-auto max-w-[34rem] text-center font-body text-[14px] font-bold leading-snug text-[#8A8095] sm:text-[15px]">
+              {subtitle}
+            </p>
+          ) : null}
 
           <div className="mt-5 sm:mt-6" data-container-contract={BRAIN_COACH_SHELL_CONTRACT.containerId}>
             {children}
@@ -207,7 +173,6 @@ export function BrainCoachActivityShell({
   sceneLayout = "game",
   state = "default",
 }: BrainCoachActivityShellProps) {
-  const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const backAriaLabel = typeof backLabel === "string" ? backLabel : "Back";
 
@@ -215,14 +180,11 @@ export function BrainCoachActivityShell({
     <section
       aria-label={typeof title === "string" ? title : "Brain Coach"}
       className={cn(
-        "prototype-shell relative min-h-[100dvh] w-full overflow-x-hidden",
-        isDark
-          ? "bg-[radial-gradient(circle_at_50%_-10%,#21162A_0%,#160D1C_48%,#110914_100%)] text-[#FFF8FF]"
-          : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
+        "prototype-shell relative min-h-[100dvh] w-full overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
         className,
       )}
       data-testid={testId}
-      data-home-master-theme={isDark ? "dark" : "light"}
+      data-home-master-theme="light"
       data-vyva-text-size={readableTextSize}
       {...getBrainCoachPresentationAttributes({
         presentationId,
@@ -234,17 +196,12 @@ export function BrainCoachActivityShell({
       })}
     >
       <div className={cn(
-        "vyva-home-master-fixed-type mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col px-5 pb-8 pt-3 sm:max-w-[720px] sm:px-6 lg:max-w-[900px]",
+        "vyva-home-master-fixed-type mx-auto flex min-h-[100dvh] w-full max-w-[430px] flex-col px-6 pb-8 pt-8 sm:max-w-[680px] sm:px-7 lg:max-w-[900px] [@media(max-height:800px)]:pt-4",
         frameClassName,
       )}>
         {showHeader ? (
-          <div
-            className={cn(
-              "sticky top-0 z-30 -mx-2 px-2 py-2 backdrop-blur-xl",
-              isDark ? "bg-[#1A1122]/92" : "bg-[#F8EEFF]/88",
-            )}
-          >
-            <header className="grid grid-cols-[44px_1fr_44px] items-center gap-3">
+          <div>
+            <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3">
               <button
                 type="button"
                 aria-label={backAriaLabel}
@@ -258,19 +215,11 @@ export function BrainCoachActivityShell({
                     window.location.assign(backTo);
                   }
                 }}
-                className={cn(
-                  "vyva-tap grid h-11 w-11 place-items-center rounded-full transition-colors duration-150",
-                  isDark
-                    ? "bg-white/[0.08] text-[#FFF8FF] ring-1 ring-inset ring-white/[0.16]"
-                    : "bg-white text-[#6B5173] shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05]",
-                )}
+                className="vyva-tap grid h-10 !min-h-10 w-10 place-items-center rounded-full bg-white text-vyva-purple shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05] transition-colors duration-150"
               >
-                <VyvaIcon icon={ArrowLeft} size={19} strokeWidth={2.45} tone={isDark ? "inverse" : "brand"} />
+                <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
               </button>
-              <div className={cn(
-                "truncate text-center font-body text-[23px] font-extrabold leading-tight sm:text-[26px]",
-                isDark ? "text-[#FFF8FF]" : "text-[#241238]",
-              )}>
+              <div className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
                 {title}
               </div>
               <div className="flex justify-end">{action}</div>
@@ -278,7 +227,7 @@ export function BrainCoachActivityShell({
           </div>
         ) : null}
 
-        <div className={cn("mt-4 flex min-h-0 flex-1 flex-col sm:mt-6", contentClassName)}>
+        <div className={cn("mt-5 flex min-h-0 flex-1 flex-col sm:mt-6", contentClassName)}>
           {children}
         </div>
       </div>
@@ -332,8 +281,6 @@ export function BrainCoachLoadingState({
   presentationId,
   sceneId,
 }: BrainCoachLoadingStateProps) {
-  const { isDark } = useHomeMasterTheme();
-
   return (
     <BrainCoachActivityShell
       title={title}
@@ -348,17 +295,11 @@ export function BrainCoachLoadingState({
       sceneKind="loading"
       sceneLayout="progress"
     >
-      <section className={cn(
-        "flex min-h-[360px] flex-1 flex-col items-center justify-center rounded-[30px] border px-6 text-center shadow-[0_22px_48px_rgba(47,24,64,0.14)]",
-        isDark ? "border-white/[0.14] bg-[#2B2035] text-[#FFF8FF]" : "border-[#DFD3E7] bg-white text-[#241238]",
-      )}>
-        <span className={cn(
-          "grid h-[78px] w-[78px] place-items-center rounded-[26px] shadow-[0_14px_32px_rgba(32,12,68,0.18)]",
-          isDark ? "bg-white/[0.12] text-white" : "bg-[#F3E8FF] text-[#6B21A8]",
-        )}>
-          <Loader2 size={38} strokeWidth={2.45} className="animate-spin" aria-hidden="true" />
+      <section className="flex min-h-[300px] flex-1 flex-col items-center justify-center rounded-[28px] border border-[#EEE8F1] bg-white px-6 text-center text-[#241C30] shadow-[0_18px_46px_rgba(54,35,78,0.10)]">
+        <span className="grid h-16 w-16 place-items-center rounded-[20px] bg-[#F1E8FF] text-[#6B21A8]">
+          <Loader2 size={30} strokeWidth={2.45} className="animate-spin" aria-hidden="true" />
         </span>
-        <p className="mt-6 max-w-[22rem] font-body text-[24px] font-extrabold leading-tight">
+        <p className="mt-5 max-w-[22rem] font-body text-[20px] font-extrabold leading-tight">
           {label}
         </p>
       </section>

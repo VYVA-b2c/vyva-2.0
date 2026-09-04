@@ -93,7 +93,7 @@ describe("BreathGarden component", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tide" }));
 
     expect(screen.getByText("Tap gently as you breathe.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.getByRole("heading", { name: "Breath Garden" })).toBeInTheDocument();
     expect(screen.queryByText("Your breathing brings the garden to life.")).not.toBeInTheDocument();
@@ -108,14 +108,14 @@ describe("BreathGarden component", () => {
 
     expect(await screen.findByRole("heading", { name: "Choose your garden" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Garden" }));
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(window.localStorage.getItem("breathGarden:tutorialSeen:v1")).toBe("true");
     expect(screen.getByRole("button", { name: /Instructions/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Instructions/i }));
     expect(screen.getByText("Tap gently as you breathe.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     unmount();
 
     render(<BreathGarden userId="" onExit={vi.fn()} />);

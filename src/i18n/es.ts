@@ -1204,7 +1204,7 @@ const es = {
       cardTitle: "Memoria de los Sentidos",
       cardDescription: "Evoca un olor familiar y el recuerdo que trae.",
       intro: "Mira y recuerda.",
-      instructions: "Instrucciones",
+      instructions: "Orientación",
       tutorialSubtitle: "Mira. Recuerda. Comparte si quieres.",
       tutorialLook: "Mira",
       tutorialRemember: "Recuerda",

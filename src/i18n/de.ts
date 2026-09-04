@@ -1067,7 +1067,7 @@ const de = {
       cardTitle: "Sinneserinnerung",
       cardDescription: "Rufe dir einen vertrauten Duft und die Erinnerung daran ins Gedaechtnis.",
       intro: "Schauen, dann erinnern.",
-      instructions: "Anleitung",
+      instructions: "Hinweise",
       tutorialSubtitle: "Ansehen. Erinnern. Teilen, wenn du moechtest.",
       tutorialLook: "Ansehen",
       tutorialRemember: "Erinnern",

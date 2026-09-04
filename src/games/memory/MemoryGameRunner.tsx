@@ -29,6 +29,11 @@ import {
 } from "@/lib/cognitiveAssessmentPracticeBridge";
 import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
 import {
+  getBrainCoachActivityByMemoryGame,
+  getBrainCoachActivityPath,
+  getBrainCoachModule,
+} from "../brainCoachCatalog";
+import {
   getBrainCoachProgressLabel,
   getBrainCoachSupportiveProgressCopy,
 } from "../shared/brainCoachProgression";
@@ -60,6 +65,10 @@ const VISUAL_MEMORY_TUTORIAL_KEY = "visualMemory:tutorialSeen:v1";
 function getMemoryRunnerBrainSceneId(gameType: MemoryGameType | null | undefined) {
   if (gameType === "sequence_memory") {
     return "brain_coach.activity_session.train_reflexes.rhythm_tap";
+  }
+
+  if (gameType === "routine_memory") {
+    return "brain_coach.activity_session.improve_thinking.routine_memory";
   }
 
   return `brain_coach.activity_session.memory.${gameType ?? "unknown"}`;
@@ -565,7 +574,7 @@ type MemoryGameRunnerProps = {
   returnPath?: string;
 };
 
-const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: MemoryGameRunnerProps) => {
+const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { gameType } = useParams<{ gameType: MemoryGameType }>();
@@ -578,6 +587,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const routeGameType = forcedGameType ?? gameType;
   const validGameType = routeGameType && routeGameType in memoryGameRegistry ? (routeGameType as MemoryGameType) : null;
+  const catalogActivity = validGameType ? getBrainCoachActivityByMemoryGame(validGameType) : undefined;
+  const resolvedReturnPath = returnPath ?? getBrainCoachModule(catalogActivity?.moduleId ?? "memory").route;
   const brainSceneId = getMemoryRunnerBrainSceneId(validGameType);
   const brainTestId = getMemoryRunnerBrainTestId(validGameType);
   const renderBrainRunnerScreen = (
@@ -677,14 +688,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
   const backToList = () => {
     stopWordRecallAudio();
-    navigate(returnPath);
+    navigate(resolvedReturnPath);
   };
   const buildGameRoute = (recommendation: Recommendation) => {
     const query = `level=${recommendation.level}&variant=${recommendation.variantId}`;
-    if (recommendation.gameType === "sequence_memory") {
-      return `/attention-boosters/rhythm-tap?${query}`;
-    }
-    return `/memory-games/${recommendation.gameType}?${query}`;
+    const activity = getBrainCoachActivityByMemoryGame(recommendation.gameType);
+    return activity
+      ? `${getBrainCoachActivityPath(activity.id)}?${query}`
+      : `/memory-games/${recommendation.gameType}?${query}`;
   };
 
   useEffect(() => {
