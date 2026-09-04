@@ -1431,8 +1431,14 @@ test("symptom check prepares a direct doctor share link when a doctor contact is
   await page.goto("/health/symptom-check", { waitUntil: "domcontentloaded" });
   await continuePastSymptomEmergencyModal(page);
   await startSymptomCheckWithTypedClue(page, "bad headache");
-  await page.getByTestId("report-result-details").locator(":scope > summary").click();
-  await page.getByTestId("button-report-detail-share").click();
+  await expect(page).toHaveURL(/\/informes\/triage-share-smoke$/);
+  await expect(page.getByTestId("symptom-check-shell")).toHaveAttribute("data-stage-id", "save_share_summary");
+  const resultDetails = page.getByTestId("report-result-details");
+  await expect(resultDetails).toBeVisible();
+  await resultDetails.locator(":scope > summary").click();
+  const shareDetails = page.getByTestId("button-report-detail-share");
+  await expect(shareDetails).toBeVisible();
+  await shareDetails.click();
 
   const shareDoctorLink = page.getByTestId("link-report-share-doctor");
   await expect(shareDoctorLink).toBeVisible();
