@@ -2425,7 +2425,6 @@ export function ReportScreen({
   latestVitalReadings = [],
   refinementStatus,
   onRefineVital,
-  onVoiceClick,
   onDone,
 }: {
   summary: TriageSummary;
@@ -2441,7 +2440,6 @@ export function ReportScreen({
   latestVitalReadings?: LatestVitalReading[];
   refinementStatus: RefinementStatus;
   onRefineVital?: (config: RefinementVitalConfig, rawValue: string) => Promise<void>;
-  onVoiceClick: () => void;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -2459,6 +2457,13 @@ export function ReportScreen({
       : cfg.level === "doctor_24_48"
         ? { background: "linear-gradient(140deg, #241638 0%, #3A2256 58%, #2D1B43 100%)", accent: "#AFC9FF" }
         : { background: "linear-gradient(140deg, #132B25 0%, #1B4035 100%)", accent: "#9FE8C8" };
+  const lightHeroVisual = cfg.level === "emergency"
+    ? { background: "#FFF7F7", border: "#F2B8B8", accent: "#B91C1C", iconBg: "#FEE2E2", pillBg: "#FDE8E8" }
+    : cfg.level === "doctor_today"
+      ? { background: "#FFFBEB", border: "#F3D38B", accent: "#A64B08", iconBg: "#FEF3C7", pillBg: "#FEF3C7" }
+      : cfg.level === "doctor_24_48"
+        ? { background: "#F8F7FF", border: "#CBC6F7", accent: "#5B35B5", iconBg: "#EDE9FE", pillBg: "#EDE9FE" }
+        : { background: "#F3FBF7", border: "#A9DEC5", accent: "#087A50", iconBg: "#DDF5E9", pillBg: "#DDF5E9" };
   const urgencyQualifierText = t(cfg.urgencyLabel, cfg.fallbackUrgencyLabel);
   const urgencyStatusText = t(cfg.label, cfg.fallbackLabel);
   const nextStepDisplayText = (() => {
@@ -3074,51 +3079,43 @@ export function ReportScreen({
   return (
     <div className="symptom-canonical-report flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="symptom-check-report">
       <div ref={reportTopRef} />
-      <div className="mx-auto grid w-full max-w-[760px] grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 px-4 pt-4 sm:grid-cols-[60px_minmax(0,1fr)_60px] sm:px-5 sm:pt-6 lg:px-0">
-        <div aria-hidden="true" />
-        <h1 className="text-center font-body text-[28px] font-extrabold leading-tight tracking-[-0.035em] text-vyva-text-1 sm:text-[32px]">
+      <div className="mx-auto w-full max-w-[760px] px-4 pt-1 sm:px-5 sm:pt-2 lg:px-0">
+        <h1 className="text-center font-body text-[27px] font-extrabold leading-tight tracking-[-0.035em] text-vyva-text-1 sm:text-[31px]">
           {t("health.symptomCheck.report.summaryTitle", "Your summary")}
         </h1>
-        <button
-          type="button"
-          aria-label={t("health.symptomCheck.report.voiceAction", "Continue by voice")}
-          title={t("health.symptomCheck.report.voiceAction", "Continue by voice")}
-          data-testid="button-report-voice"
-          onClick={onVoiceClick}
-          className="vyva-tap grid h-11 !min-h-11 w-11 place-items-center justify-self-end rounded-[15px] border border-white/25 bg-vyva-purple text-white shadow-[0_14px_30px_rgba(124,58,237,0.28)] transition hover:bg-[#7A2ED0] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8B5CF6]/35 sm:h-[60px] sm:!min-h-[60px] sm:w-[60px] sm:rounded-[20px]"
-        >
-          <VyvaIcon icon={Mic} accent="signal" size={24} strokeWidth={2.55} tone="inverse" />
-        </button>
       </div>
       <section
         data-testid="card-report-answer"
-        className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[24px] border p-3 text-white sm:mx-5 sm:mb-4 sm:mt-5 sm:rounded-[28px] sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "border-white/[0.12] shadow-[0_20px_46px_rgba(0,0,0,0.28)]" : "border-transparent shadow-[0_18px_42px_rgba(91,18,160,0.2)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
-        style={{ background: isDark ? darkHeroVisual.background : cfg.bg }}
+        className={`relative mx-4 mb-3 mt-4 overflow-hidden rounded-[22px] border border-l-[6px] p-4 sm:mx-5 sm:mb-4 sm:mt-5 sm:rounded-[24px] sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isDark ? "border-white/[0.12] text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)]" : "text-vyva-text-1 shadow-[0_12px_30px_rgba(63,45,35,0.08)]"} ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
+        style={{
+          background: isDark ? darkHeroVisual.background : lightHeroVisual.background,
+          borderColor: isDark ? undefined : lightHeroVisual.border,
+        }}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/35" aria-hidden="true" />
         <div className="relative flex items-start gap-4">
           <div
-            className={`flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[17px] p-3 shadow-[0_8px_20px_rgba(31,16,45,0.16)] sm:h-[58px] sm:w-[58px] sm:rounded-[19px] ${isEmergency ? "bg-white/20" : isDark ? "bg-[#F3ECFB]" : "bg-white/[0.94]"}`}
+            className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] p-3 sm:h-[52px] sm:w-[52px] ${isDark ? (isEmergency ? "bg-white/15" : "bg-[#F3ECFB]") : ""}`}
+            style={!isDark ? { background: lightHeroVisual.iconBg } : undefined}
           >
-            <VyvaIcon icon={UrgencyIcon} accent={urgencyIconAccent} size={28} tone={isEmergency ? "inverse" : "brand"} />
+            <VyvaIcon icon={UrgencyIcon} accent={urgencyIconAccent} size={25} tone={isDark && isEmergency ? "inverse" : "brand"} />
           </div>
           <div className="min-w-0 flex-1">
             <p
-              className="font-body text-[12px] font-extrabold uppercase tracking-[0.12em] text-white/76"
-              style={isDark ? { color: darkHeroVisual.accent } : undefined}
+              className="font-body text-[11px] font-extrabold uppercase tracking-[0.12em] sm:text-[12px]"
+              style={{ color: isDark ? darkHeroVisual.accent : lightHeroVisual.accent }}
             >
               {urgencyQualifierText}
             </p>
-            <p className="mt-1 font-body text-[25px] font-extrabold leading-tight tracking-[-0.025em] text-white sm:text-[28px]">
+            <p className={`mt-1 font-body text-[23px] font-extrabold leading-tight tracking-[-0.025em] sm:text-[26px] ${isDark ? "text-white" : "text-vyva-text-1"}`}>
               {urgencyStatusText}
             </p>
           </div>
         </div>
 
-        <p className="relative mt-4 font-body text-[18px] font-black leading-tight text-white sm:mt-5 sm:text-[22px]">
+        <p className={`relative mt-4 border-t pt-4 font-body text-[17px] font-black leading-tight sm:text-[20px] ${isDark ? "border-white/15 text-white" : "border-black/[0.07] text-vyva-text-1"}`}>
           {summary.chiefComplaint || t("health.symptomCheck.report.checkComplete", "Your check is complete")}
         </p>
-        <p className="relative mt-2 hidden max-w-[620px] font-body text-[14px] font-bold leading-relaxed text-white/84 sm:block">
+        <p className={`relative mt-1.5 hidden max-w-[620px] font-body text-[14px] font-semibold leading-relaxed sm:block ${isDark ? "text-white/78" : "text-vyva-text-2"}`}>
           {t("health.symptomCheck.report.resultSummary", "VYVA has turned your answers into a simple plan below.")}
         </p>
 
@@ -3126,10 +3123,10 @@ export function ReportScreen({
           {bpm != null ? (
             <span
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-              style={{ background: cfg.pillBg }}
+              style={{ background: isDark ? cfg.pillBg : lightHeroVisual.pillBg }}
             >
-              <Heart size={13} className="text-white" />
-              <span className="font-body text-[13px] font-semibold text-white">
+              <Heart size={13} style={{ color: isDark ? "white" : lightHeroVisual.accent }} />
+              <span className={`font-body text-[13px] font-semibold ${isDark ? "text-white" : "text-vyva-text-1"}`}>
                 {bpm} bpm
               </span>
             </span>
@@ -3137,10 +3134,10 @@ export function ReportScreen({
           {respiratoryRate != null ? (
             <span
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-              style={{ background: cfg.pillBg }}
+              style={{ background: isDark ? cfg.pillBg : lightHeroVisual.pillBg }}
             >
-              <Activity size={13} className="text-white" />
-              <span className="font-body text-[13px] font-semibold text-white">
+              <Activity size={13} style={{ color: isDark ? "white" : lightHeroVisual.accent }} />
+              <span className={`font-body text-[13px] font-semibold ${isDark ? "text-white" : "text-vyva-text-1"}`}>
                 {respiratoryRate} breaths/min
               </span>
             </span>
@@ -4067,7 +4064,6 @@ export function SymptomReportPreviewScreen() {
       onInteractionModeChange={setInteractionMode}
       onBack={() => navigate("/dev/home-master/health")}
       shellContract={shellContract}
-      inlineVoiceControl
     >
       <ReportScreen
         summary={previewSummary}
@@ -4082,7 +4078,6 @@ export function SymptomReportPreviewScreen() {
         emergencyContact={null}
         refinementStatus={{ state: "idle" }}
         onRefineVital={async () => undefined}
-        onVoiceClick={() => setInteractionMode("voice")}
         onDone={() => navigate("/dev/home-master/health")}
       />
     </PrototypeSymptomAssessmentShell>
@@ -4831,14 +4826,17 @@ export default function SymptomCheckScreen() {
       interactionMode={symptomInteractionMode}
       onInteractionModeChange={(mode) => {
         if (mode === "voice") {
-          handleTalkToVyva();
+          if (displayedReportSummary) {
+            handleReportVoiceClick();
+          } else {
+            handleTalkToVyva();
+          }
           return;
         }
         setSymptomInteractionMode("touch");
       }}
       onBack={handleBack}
       shellContract={currentAssessmentPresentation.shell}
-      inlineVoiceControl={Boolean(displayedReportSummary)}
     >
       <div
         className="flex min-h-0 flex-1 flex-col"
@@ -4902,31 +4900,22 @@ export default function SymptomCheckScreen() {
         )}
 
         {displayedReportSummary ? (
-          <SymptomAssessmentPresentation
-            stageId={currentAssessmentStage}
-            modality={isCompletedVoiceTriageSession ? "voice" : "touch"}
-            showHeader={false}
-            showTitle={currentAssessmentStage !== "save_share_summary"}
-            fullBleedChildren
-          >
-            <ReportScreen
-              summary={displayedReportSummary}
-              bpm={isCompletedVoiceTriageSession ? fetchedVoiceReport?.bpm ?? null : bpm}
-              respiratoryRate={isCompletedVoiceTriageSession ? fetchedVoiceReport?.respiratory_rate ?? null : respiratoryRate}
-              durationSeconds={isCompletedVoiceTriageSession ? fetchedVoiceReport?.duration_seconds ?? null : durationSeconds}
-              reportId={displayedReportId}
-              reportSaveState={displayedReportSaveState}
-              savedReport={displayedSavedReport}
-              profileContacts={profileContacts}
-              careTeamMembers={careTeamData?.members ?? []}
-              emergencyContact={triageContext?.emergencyContact ?? null}
-              latestVitalReadings={latestVitalsData?.recent_readings ?? []}
-              refinementStatus={refinementStatus}
-              onRefineVital={handleRefineVital}
-              onVoiceClick={handleReportVoiceClick}
-              onDone={handleDone}
-            />
-          </SymptomAssessmentPresentation>
+          <ReportScreen
+            summary={displayedReportSummary}
+            bpm={isCompletedVoiceTriageSession ? fetchedVoiceReport?.bpm ?? null : bpm}
+            respiratoryRate={isCompletedVoiceTriageSession ? fetchedVoiceReport?.respiratory_rate ?? null : respiratoryRate}
+            durationSeconds={isCompletedVoiceTriageSession ? fetchedVoiceReport?.duration_seconds ?? null : durationSeconds}
+            reportId={displayedReportId}
+            reportSaveState={displayedReportSaveState}
+            savedReport={displayedSavedReport}
+            profileContacts={profileContacts}
+            careTeamMembers={careTeamData?.members ?? []}
+            emergencyContact={triageContext?.emergencyContact ?? null}
+            latestVitalReadings={latestVitalsData?.recent_readings ?? []}
+            refinementStatus={refinementStatus}
+            onRefineVital={handleRefineVital}
+            onDone={handleDone}
+          />
         ) : null}
 
         {isCompletedVoiceTriageSession && !displayedReportSummary ? (
