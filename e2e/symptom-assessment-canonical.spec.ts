@@ -638,10 +638,13 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect(stage("safest_next_step")).toBeVisible();
-  await expect(page.getByTestId("symptom-check-report")).toBeVisible();
-  await expect(stage("safest_next_step").getByRole("heading", { name: "Your safest next step" })).toBeVisible();
-  await expect(stage("safest_next_step").getByText("Follow this guidance.", { exact: true })).toBeVisible();
+  const report = page.getByTestId("symptom-check-report");
+  await expect(report).toBeVisible();
+  await expect(report.getByRole("heading", { level: 1, name: "Your summary" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Your summary" })).toHaveCount(1);
+  await expect(page.getByTestId("button-symptom-mode-voice")).toBeVisible();
+  await expect(page.getByTestId("button-report-voice")).toHaveCount(0);
+  await expect(page.getByTestId("symptom-presentation-safest_next_step-touch")).toHaveCount(0);
   await expect(page.getByTestId("card-report-answer")).toContainText("I have a headache");
   await expect(page.getByTestId("card-report-do-now")).toContainText("Monitor at home");
   await page.getByTestId("prototype-home-master-topbar").scrollIntoViewIfNeeded();
@@ -656,7 +659,7 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   expect((mobilePrimaryAction?.y ?? 0) + (mobilePrimaryAction?.height ?? 0)).toBeLessThanOrEqual(mobileBottomNav?.y ?? 0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => window.scrollTo(0, 0));
-  expect((await stage("safest_next_step").boundingBox())?.width).toBeGreaterThanOrEqual(500);
+  expect((await report.boundingBox())?.width).toBeGreaterThanOrEqual(500);
   await page.screenshot({
     path: path.resolve("artifacts/symptom-assessment-production-safest-next-step-1440.png"),
     fullPage: false,
