@@ -1009,9 +1009,8 @@
   --tw-ring-color: rgba(248, 113, 113, 0.18);
 }
 
-/* Canonical Ask Dr. AI surfaces inherit the My Health dark palette. Semantic
-   states stay visible as borders, icons, and labels instead of pale full-card
-   backgrounds that break the dark report hierarchy. */
+/* Canonical Ask Dr. AI surfaces inherit the My Health dark palette while
+   preserving semantic emergency, warning, success, and progress treatments. */
 [data-home-master-theme="dark"] .symptom-canonical-intro [class*="text-vyva-text-1"],
 [data-home-master-theme="dark"] .symptom-canonical-triage [class*="text-vyva-text-1"],
 [data-home-master-theme="dark"] .symptom-canonical-report [class*="text-vyva-text-1"] {
@@ -1085,23 +1084,6 @@
   background-color: #2d2038;
 }
 
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-blue"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#1D4ED8]"] {
-  background-color: #34405a;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#047857]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#064E3B]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#052E25]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#065F46]"] {
-  background-color: #29443b;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#9A3412]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-white"][class*="text-[#C2410C]"] {
-  background-color: #3b2b19;
-}
-
 [data-home-master-theme="dark"] .symptom-canonical-composer {
   background: linear-gradient(180deg, rgba(18, 11, 35, 0) 0%, #120b23 28%) !important;
 }
@@ -1144,73 +1126,11 @@
   background-color: #3b294c;
 }
 
-/* Report disclosures use one neutral aubergine surface system in dark mode. */
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#EFF6FF]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#DBEAFE]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#F0FDF4]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#ECFDF5]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#DCFCE7]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FFF7ED]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FFEDD5]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FEF2F2]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="bg-[#FEE2E2]"] {
-  background-color: #2d2038;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#BFDBFE]"] {
-  border-color: #455777;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#D9F0E3]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#BBF7D0]"] {
-  border-color: #3b6656;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#FED7AA]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#FDBA74]"] {
-  border-color: #6a4b25;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#FECACA]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#DC2626]"] {
-  border-color: #78404a;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="border-[#DDD6FE]"] {
-  border-color: #5c4771;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-blue"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#1D4ED8]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#2563EB]"] {
-  color: #afc9ff;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#064E3B]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#047857]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#052E25]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#065F46]"] {
-  color: #9fe8c8;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#9A3412]"] {
-  color: #f7e4be;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#C2410C]"] {
-  color: #f8ae1b;
-}
-
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#991B1B]"],
-[data-home-master-theme="dark"] .symptom-canonical-report [class*="text-[#B91C1C]"] {
-  color: #fda4af;
-}
-
 [data-home-master-theme="dark"] .symptom-canonical-report > section:first-of-type {
   box-shadow: 0 24px 52px rgba(0, 0, 0, 0.24);
 }
 
-[data-home-master-theme="dark"] .symptom-canonical-report details {
+[data-home-master-theme="dark"] .symptom-canonical-report details:not([class*="bg-[#FFF7ED]"]):not([class*="bg-[#EFF6FF]"]):not([class*="bg-[#ECFDF5]"]) {
   color: #fff8ff;
 }
 

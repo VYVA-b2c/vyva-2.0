@@ -78,6 +78,10 @@ describe("SymptomCheck report service actions", () => {
 
     expect(screen.getAllByRole("heading", { level: 1, name: "Your summary" })).toHaveLength(1);
     expect(screen.queryByTestId("button-report-voice")).not.toBeInTheDocument();
+    const reportOverview = screen.getByTestId("card-report-overview");
+    expect(reportOverview).toHaveAttribute("data-approved-frame", "summary.share_or_save");
+    expect(reportOverview.className).toContain("max-w-[330px]");
+    expect(reportOverview.className).toContain("sm:max-w-[760px]");
     const reportAnswer = screen.getByTestId("card-report-answer");
     expect(reportAnswer).toHaveTextContent("Doctor today");
     expect(reportAnswer).toHaveAttribute("data-theme-surface", "canonical-dark");
