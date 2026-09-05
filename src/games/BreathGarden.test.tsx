@@ -4,7 +4,18 @@ import { setLanguage } from "@/i18n";
 import BreathGarden, { buildGuidedBreathResult, getDefaultBreathGardenUserState, getGuidedBreathPhase, getGuidedCycleCount } from "./BreathGarden";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
+const voiceMock = vi.hoisted(() => ({
+  startVoice: vi.fn().mockResolvedValue(undefined),
+  stopVoice: vi.fn(),
+  sendText: vi.fn(),
+  sendContextUpdate: vi.fn(),
+  interruptAgentAudio: vi.fn(),
+  setMicrophoneMuted: vi.fn(),
+  transcript: [] as Array<{ from: string; text: string; timestamp: number }>,
+  lastError: null as string | null,
+}));
 vi.mock("@/lib/queryClient", () => ({ apiFetch: apiFetchMock }));
+vi.mock("@/hooks/useVyvaVoice", () => ({ useOptionalVyvaVoice: () => voiceMock }));
 
 function stateResponse(overrides = {}) {
   return new Response(JSON.stringify({
@@ -52,6 +63,14 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
   beforeEach(() => {
     setLanguage("en");
     apiFetchMock.mockReset();
+    voiceMock.startVoice.mockClear();
+    voiceMock.stopVoice.mockClear();
+    voiceMock.sendText.mockClear();
+    voiceMock.sendContextUpdate.mockClear();
+    voiceMock.interruptAgentAudio.mockClear();
+    voiceMock.setMicrophoneMuted.mockClear();
+    voiceMock.transcript = [];
+    voiceMock.lastError = null;
   });
 
   afterEach(() => {
@@ -84,6 +103,20 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
     expect(apiFetchMock.mock.calls.every(([, options]) => JSON.parse(options.body).voiceProfile === "meditation")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await flushPromises();
+    expect(voiceMock.startVoice).toHaveBeenCalledWith(
+      expect.stringContaining("Breath Garden"),
+      undefined,
+      expect.objectContaining({
+        agentSlug: "breathing-meditation",
+        dynamicVariables: expect.objectContaining({
+          activity_id: "breath_garden",
+          activity_playbook_version: "breath_garden.gentle_5_6.v1",
+          duration_seconds: 120,
+          timer_authority: "application",
+        }),
+      }),
+    );
     expect(screen.getByRole("button", { name: "Mute voice guidance" })).toBeDisabled();
     expect(screen.getByText("Preparing Marco's guidance...")).toBeInTheDocument();
   });
