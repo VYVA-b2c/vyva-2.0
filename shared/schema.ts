@@ -2324,7 +2324,7 @@ export const breathGardenSessions = pgTable("breath_garden_sessions", {
   bloomLevelReached:        integer("bloom_level_reached").notNull().default(1),
   targetDurationSeconds:    integer("target_duration_seconds").notNull().default(120),
   guidedCycleCount:         integer("guided_cycle_count").notNull().default(0),
-  guidedPatternId:          text("guided_pattern_id").notNull().default("gentle_4_6"),
+  guidedPatternId:          text("guided_pattern_id").notNull().default("gentle_5_6"),
   completionReason:         text("completion_reason").notNull().default("timer_complete"),
   completed:                boolean("completed").notNull().default(false),
   abandoned:                boolean("abandoned").notNull().default(false),

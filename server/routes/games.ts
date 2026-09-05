@@ -175,7 +175,7 @@ const breathGardenSessionSchema = z.object({
   bloomLevelReached: z.number().int().min(1).max(5).optional().default(1),
   targetDurationSeconds: z.union([z.literal(60), z.literal(120), z.literal(300)]).optional().default(120),
   guidedCycleCount: z.number().int().min(0).max(180).optional().default(0),
-  guidedPatternId: z.literal("gentle_4_6").optional().default("gentle_4_6"),
+  guidedPatternId: z.enum(["gentle_4_6", "gentle_5_6"]).optional().default("gentle_5_6"),
   completionReason: z.enum(["timer_complete", "finished_early", "exited"]).optional(),
   completed: z.boolean().optional().default(false),
   abandoned: z.boolean().optional().default(false),

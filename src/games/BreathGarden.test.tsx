@@ -27,21 +27,22 @@ async function flushPromises() {
 }
 
 describe("BreathGarden guided rhythm", () => {
-  it("uses four seconds in and six seconds out", () => {
+  it("uses five seconds in and six seconds out", () => {
     expect(getGuidedBreathPhase(0).phase).toBe("inhale");
-    expect(getGuidedBreathPhase(3999).phase).toBe("inhale");
-    expect(getGuidedBreathPhase(4000).phase).toBe("exhale");
-    expect(getGuidedBreathPhase(9999).phase).toBe("exhale");
-    expect(getGuidedBreathPhase(10000).phase).toBe("inhale");
+    expect(getGuidedBreathPhase(4999).phase).toBe("inhale");
+    expect(getGuidedBreathPhase(5000).phase).toBe("exhale");
+    expect(getGuidedBreathPhase(10999).phase).toBe("exhale");
+    expect(getGuidedBreathPhase(11000).phase).toBe("inhale");
     expect(getGuidedCycleCount(59)).toBe(5);
-    expect(getGuidedCycleCount(60)).toBe(6);
+    expect(getGuidedCycleCount(60)).toBe(5);
+    expect(getGuidedCycleCount(66)).toBe(6);
   });
 
   it("builds a guided session without inferred performance measurements", () => {
     expect(buildGuidedBreathResult({ reason: "finished_early", durationSeconds: 12, targetDurationSeconds: 60, language: "en" })).toMatchObject({
       breathTaps: [], breathCycleCount: 0, avgBreathCycleSeconds: null, breathConsistencyIndex: null,
       finalPaceBreathsPerMin: null, gardenTheme: "garden", targetDurationSeconds: 60,
-      guidedCycleCount: 1, guidedPatternId: "gentle_4_6", completionReason: "finished_early",
+      guidedCycleCount: 1, guidedPatternId: "gentle_5_6", completionReason: "finished_early",
       completed: true, abandoned: false,
     });
   });
@@ -94,7 +95,7 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
     vi.setSystemTime(new Date("2026-09-05T10:00:00Z"));
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(screen.getByText("Breathe in")).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(4100));
+    act(() => vi.advanceTimersByTime(5100));
     expect(screen.getByText("Breathe out")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     expect(screen.getByText("Paused")).toBeInTheDocument();
@@ -137,7 +138,7 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
     await flushPromises();
     expect(screen.getByRole("heading", { name: "Breathing complete" })).toBeInTheDocument();
     const sessionCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/games/breath-garden/sessions");
-    expect(JSON.parse(String(sessionCall?.[1]?.body))).toMatchObject({ targetDurationSeconds: 60, guidedCycleCount: 6, completionReason: "timer_complete" });
+    expect(JSON.parse(String(sessionCall?.[1]?.body))).toMatchObject({ targetDurationSeconds: 60, guidedCycleCount: 5, completionReason: "timer_complete" });
   });
 
   it("records a header exit as abandoned", async () => {

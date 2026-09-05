@@ -16,10 +16,10 @@ const BRAND = {
 
 export const BREATH_GARDEN_DURATIONS = [60, 120, 300];
 export const BREATH_GARDEN_PATTERN = {
-  id: "gentle_4_6",
-  inhaleSeconds: 4,
+  id: "gentle_5_6",
+  inhaleSeconds: 5,
   exhaleSeconds: 6,
-  cycleSeconds: 10,
+  cycleSeconds: 11,
 };
 
 const DEFAULT_STATE = {
@@ -588,7 +588,7 @@ export default function BreathGarden({
               {t("games.breathGarden.setupTitle", "A quiet moment to breathe")}
             </h2>
             <p className="mx-auto mt-1.5 max-w-[470px] text-[14px] font-semibold leading-relaxed sm:text-[15px]" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.setupGuidance", "Breathe in as the circle expands. Breathe out as it settles.")}
+              {t("games.breathGarden.setupGuidance", "Breathe comfortably—there is no need to match the circle perfectly.")}
             </p>
             <fieldset className="mx-auto mt-4 max-w-[360px]">
               <legend className="mb-2 text-[13px] font-extrabold" style={{ color: BRAND.muted }}>
