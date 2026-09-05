@@ -308,6 +308,9 @@ describe("Informes report detail actions", () => {
     expect(screen.getByTestId("prototype-symptom-assessment-screen")).toHaveAttribute("data-container-contract", "flow.rounded-card");
     expect(screen.getByTestId("symptom-check-shell")).toHaveAttribute("data-stage-id", "save_share_summary");
     expect(screen.getByTestId("card-report-answer")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Your summary" })).toHaveLength(1);
+    expect(screen.queryByTestId("symptom-presentation-save_share_summary-touch")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-symptom-mode-voice")).toBeInTheDocument();
   });
 
   it("keeps the canonical primary GP action when saved recommendations are empty", async () => {
