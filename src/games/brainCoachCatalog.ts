@@ -30,7 +30,8 @@ export type BrainCoachActivityRunner =
   | { type: "component"; componentId: string };
 export type BrainCoachActivityProgression =
   | { kind: "levels"; maxLevel: number }
-  | { kind: "milestones"; label: string };
+  | { kind: "milestones"; label: string }
+  | { kind: "guided-practice" };
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 export type BrainCoachTranslator = (path: string, fallback?: string, params?: TranslationParams) => string;
@@ -84,7 +85,7 @@ export type BrainCoachActivityDefinition = {
   iconBg: string;
   iconColor: string;
   borderColor: string;
-  progression?: BrainCoachActivityProgression;
+  progression: BrainCoachActivityProgression;
   memoryGameType?: MemoryGameType;
 };
 
@@ -212,10 +213,11 @@ const MEMORY_GAME_META: Record<MemoryGameType, { titleKey: string; descriptionKe
 
 function memoryActivity(
   gameType: MemoryGameType,
-  config: Omit<BrainCoachActivityDefinition, "moduleId" | "kind" | "status" | "runner" | "route" | "titleKey" | "descriptionKey" | "iconBg" | "iconColor" | "memoryGameType"> & {
+  config: Omit<BrainCoachActivityDefinition, "moduleId" | "kind" | "status" | "runner" | "route" | "titleKey" | "descriptionKey" | "iconBg" | "iconColor" | "progression" | "memoryGameType"> & {
     moduleId?: BrainCoachModuleId;
     title?: string;
     description?: string;
+    progression?: BrainCoachActivityProgression;
   },
 ): BrainCoachActivityDefinition {
   const definition = MEMORY_GAME_META[gameType];
@@ -571,6 +573,7 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
     iconBg: "#DDF7F1",
     iconColor: "#0F766E",
     borderColor: "#99F6E4",
+    progression: { kind: "guided-practice" },
   },
   {
     id: "listen_closely",
