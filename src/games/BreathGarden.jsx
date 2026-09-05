@@ -160,18 +160,17 @@ function GardenVisual({ phase = "rest", phaseProgress = 0, reducedMotion = false
   const exhale = phase === "exhale";
   const breathAmount = complete ? 1 : inhale ? phaseProgress : exhale ? 1 - phaseProgress : 0.45;
   const easedBreath = 0.5 - Math.cos(clamp(breathAmount, 0, 1) * Math.PI) / 2;
-  const bloomScale = reducedMotion ? 1 : 0.84 + easedBreath * 0.16;
-  const petalReach = reducedMotion ? 74 : 66 + easedBreath * 18;
-  const glowOpacity = reducedMotion ? (inhale ? 0.58 : 0.3) : 0.24 + easedBreath * 0.42;
+  const orbScale = reducedMotion ? 1 : 0.72 + easedBreath * 0.28;
+  const glowOpacity = reducedMotion ? (inhale ? 0.5 : 0.28) : 0.2 + easedBreath * 0.34;
   const phaseProgressValue = phase === "rest" ? 0 : clamp(phaseProgress, 0, 1);
   const ringRadius = 118;
   const ringCircumference = 2 * Math.PI * ringRadius;
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-[28px] bg-[linear-gradient(180deg,#F1FBF7_0%,#FCF9F4_72%,#F7EFE5_100%)]" aria-hidden="true">
+    <div className="relative h-full w-full overflow-hidden rounded-[28px] bg-[linear-gradient(180deg,#F2FAF7_0%,#FAF7FC_100%)]" aria-hidden="true">
       <div
-        className="absolute left-1/2 top-1/2 h-[250px] w-[250px] rounded-full bg-[#C9F1E1] blur-[3px]"
-        style={{ opacity: glowOpacity, transform: `translate(-50%, -50%) scale(${0.84 + easedBreath * 0.24})` }}
+        className="absolute left-1/2 top-1/2 h-[230px] w-[230px] rounded-full bg-[#CDEEE3] blur-[10px]"
+        style={{ opacity: glowOpacity, transform: `translate(-50%, -50%) scale(${0.9 + easedBreath * 0.2})` }}
       />
       <svg
         viewBox="0 0 520 340"
@@ -179,27 +178,21 @@ function GardenVisual({ phase = "rest", phaseProgress = 0, reducedMotion = false
         style={{ opacity: reducedMotion ? (inhale ? 1 : 0.88) : 1, transition: "opacity 500ms ease" }}
       >
         <defs>
-          <radialGradient id="breathBloomBackdrop" cx="50%" cy="46%" r="56%">
-            <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.92" />
-            <stop offset="0.55" stopColor="#E7F7F0" stopOpacity="0.64" />
-            <stop offset="1" stopColor="#E7F7F0" stopOpacity="0" />
+          <radialGradient id="breathOrbInhale" cx="38%" cy="34%" r="68%">
+            <stop offset="0" stopColor="#F9F3FF" />
+            <stop offset="0.62" stopColor="#D9B7EE" />
+            <stop offset="1" stopColor="#B879DA" />
           </radialGradient>
-          <linearGradient id="breathBloomPetal" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#ECD8FA" />
-            <stop offset="0.56" stopColor="#D7A7F1" />
-            <stop offset="1" stopColor="#B978DE" />
-          </linearGradient>
-          <linearGradient id="breathBloomPetalWarm" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#FFE3A0" />
-            <stop offset="0.58" stopColor="#F7BB4A" />
-            <stop offset="1" stopColor="#E99A23" />
-          </linearGradient>
-          <filter id="breathBloomShadow" x="-45%" y="-45%" width="190%" height="205%">
-            <feDropShadow dx="0" dy="12" stdDeviation="12" floodColor="#59366C" floodOpacity="0.14" />
+          <radialGradient id="breathOrbExhale" cx="38%" cy="34%" r="68%">
+            <stop offset="0" stopColor="#F2FCF8" />
+            <stop offset="0.62" stopColor="#B9E8D8" />
+            <stop offset="1" stopColor="#72C7AE" />
+          </radialGradient>
+          <filter id="breathOrbShadow" x="-50%" y="-50%" width="200%" height="210%">
+            <feDropShadow dx="0" dy="14" stdDeviation="16" floodColor="#59366C" floodOpacity="0.13" />
           </filter>
         </defs>
-        <circle cx="260" cy="170" r="154" fill="url(#breathBloomBackdrop)" />
-        <circle cx="260" cy="170" r="137" fill="none" stroke="#D8EFE6" strokeWidth="2" opacity="0.72" />
+        <circle cx="260" cy="170" r="146" fill="#FFFFFF" opacity="0.34" />
         <circle
           cx="260"
           cy="170"
@@ -224,25 +217,13 @@ function GardenVisual({ phase = "rest", phaseProgress = 0, reducedMotion = false
           style={{ transition: reducedMotion ? "stroke 500ms ease" : "stroke-dashoffset 180ms linear, stroke 500ms ease" }}
         />
         <g
-          filter="url(#breathBloomShadow)"
-          transform={`translate(260 170) scale(${bloomScale})`}
+          filter="url(#breathOrbShadow)"
+          transform={`translate(260 170) scale(${orbScale})`}
           style={{ transition: reducedMotion ? "opacity 500ms ease" : "transform 180ms linear" }}
         >
-          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, index) => (
-            <ellipse
-              key={angle}
-              cx="0"
-              cy={-petalReach}
-              rx="31"
-              ry="55"
-              fill={index % 2 === 0 ? "url(#breathBloomPetal)" : "url(#breathBloomPetalWarm)"}
-              transform={`rotate(${angle})`}
-            />
-          ))}
-          <circle cx="0" cy="0" r="50" fill="#FFFFFF" opacity="0.88" />
-          <circle cx="0" cy="0" r="39" fill="#6B21A8" />
-          <circle cx="-11" cy="-12" r="10" fill="#FFFFFF" opacity="0.2" />
-          <circle cx="0" cy="0" r="25" fill="none" stroke="#F6C75B" strokeWidth="3" opacity="0.9" />
+          <circle cx="0" cy="0" r="90" fill={exhale ? "url(#breathOrbExhale)" : "url(#breathOrbInhale)"} />
+          <circle cx="0" cy="0" r="72" fill="none" stroke="#FFFFFF" strokeWidth="2" opacity="0.4" />
+          <circle cx="0" cy="0" r="10" fill="#FFFFFF" opacity="0.88" />
         </g>
       </svg>
     </div>
@@ -613,7 +594,7 @@ export default function BreathGarden({
               {t("games.breathGarden.setupTitle", "A quiet moment to breathe")}
             </h2>
             <p className="mx-auto mt-2 max-w-[500px] text-[15px] font-semibold leading-relaxed sm:text-[16px]" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.setupGuidance", "Follow the bloom. Breathe in as it opens, and out as it settles.")}
+              {t("games.breathGarden.setupGuidance", "Follow the circle. Breathe in as it expands, and out as it settles.")}
             </p>
             <fieldset className="mx-auto mt-5 max-w-[420px]">
               <legend className="mb-3 text-[14px] font-extrabold" style={{ color: BRAND.muted }}>
