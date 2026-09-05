@@ -1876,13 +1876,26 @@ export const longevityDailyContent = pgTable("longevity_daily_content", {
   condition_tags: text("condition_tags").array().notNull().default(sql`array['all']::text[]`),
   pillar_tag: text("pillar_tag"),
   time_of_day: text("time_of_day").notNull().default("any"),
+  moment: text("moment"),
+  program_key: text("program_key"),
+  resource_title: text("resource_title"),
+  duration_seconds: integer("duration_seconds"),
+  evidence_tags: text("evidence_tags").array().notNull().default(sql`array[]::text[]`),
+  safety_notes: text("safety_notes"),
+  mobility_fit: text("mobility_fit"),
+  region_fit: text("region_fit"),
+  review_status: text("review_status").notNull().default("approved"),
   language: text("language").notNull().default("es"),
   rotation_weight: integer("rotation_weight").notNull().default(1),
   is_active: boolean("is_active").notNull().default(false),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_ldc_type_language_active").on(t.content_type, t.language, t.is_active),
+  index("idx_ldc_moment_review_active").on(t.language, t.review_status, t.is_active, t.moment, t.pillar_tag, t.content_type),
   uniqueIndex("idx_ldc_unique_seed_content").on(t.content_type, t.title, t.language),
+  check("longevity_daily_content_moment_check", sql`${t.moment} is null or ${t.moment} in ('any','morning','midday','afternoon','evening','lunch','night')`),
+  check("longevity_daily_content_review_status_check", sql`${t.review_status} in ('draft','approved','rejected')`),
+  check("longevity_daily_content_duration_check", sql`${t.duration_seconds} is null or ${t.duration_seconds} > 0`),
 ]);
 
 export const insertLongevityDailyContentSchema = createInsertSchema(longevityDailyContent).omit({ id: true, created_at: true });
@@ -1929,12 +1942,19 @@ export const longevityActionEvents = pgTable("longevity_action_events", {
   action_title: text("action_title").notNull(),
   event_type: text("event_type").notNull(),
   barrier: text("barrier"),
+  moment: text("moment"),
+  content_id: uuid("content_id").references(() => longevityDailyContent.id, { onDelete: "set null" }),
+  resource_id: uuid("resource_id"),
   source_context: jsonb("source_context").notNull().default({}),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("idx_longevity_action_events_user_created").on(t.user_id, t.created_at.desc()),
   index("idx_longevity_action_events_user_action_created").on(t.user_id, t.action_key, t.created_at.desc()),
+  index("idx_longevity_action_events_user_moment_created").on(t.user_id, t.moment, t.created_at.desc()),
+  index("idx_longevity_action_events_content_created").on(t.content_id, t.created_at.desc()),
+  index("idx_longevity_action_events_resource_created").on(t.resource_id, t.created_at.desc()),
   check("lae_pillar_check", sql`${t.pillar} is null or ${t.pillar} in ('heart','brain','strength','nourishment','calm')`),
+  check("lae_moment_check", sql`${t.moment} is null or ${t.moment} in ('morning','midday','afternoon','evening')`),
   check("lae_event_type_check", sql`${t.event_type} in ('shown','opened','done','too_hard','not_relevant')`),
 ]);
 
@@ -2005,6 +2025,9 @@ export const longevityVideoResources = pgTable("longevity_video_resources", {
   summary: text("summary"),
   selected_reason: text("selected_reason").notNull(),
   safety_notes: text("safety_notes").notNull(),
+  transcript_status: text("transcript_status").notNull().default("pending"),
+  key_points: text("key_points").array().notNull().default(sql`array[]::text[]`),
+  senior_takeaway: text("senior_takeaway"),
   curation_status: text("curation_status").notNull().default("fallback"),
   curator_agent: text("curator_agent").notNull().default("vyva-longevity-video-curator-v1"),
   search_query: text("search_query").notNull(),
@@ -2016,6 +2039,7 @@ export const longevityVideoResources = pgTable("longevity_video_resources", {
   index("idx_longevity_video_resources_user_created").on(t.user_id, t.created_at.desc()),
   check("longevity_video_resources_provider_check", sql`${t.provider} = 'youtube'`),
   check("longevity_video_resources_curation_status_check", sql`${t.curation_status} in ('ready','fallback','failed')`),
+  check("longevity_video_resources_transcript_status_check", sql`${t.transcript_status} in ('pending','available','unavailable','manual_reviewed')`),
 ]);
 
 export const insertLongevityProgramSchema = createInsertSchema(longevityPrograms).omit({ id: true, created_at: true, updated_at: true });
@@ -2029,6 +2053,30 @@ export type LongevityProgramDay = typeof longevityProgramDays.$inferSelect;
 export const insertLongevityVideoResourceSchema = createInsertSchema(longevityVideoResources).omit({ id: true, fetched_at: true, created_at: true });
 export type InsertLongevityVideoResource = z.infer<typeof insertLongevityVideoResourceSchema>;
 export type LongevityVideoResource = typeof longevityVideoResources.$inferSelect;
+
+export const longevityMomentSessions = pgTable("longevity_moment_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  plan_id: uuid("plan_id").references(() => longevityPreventionPlans.id, { onDelete: "set null" }),
+  local_date: date("local_date").notNull(),
+  moment: text("moment").notNull(),
+  program_day_id: uuid("program_day_id").references(() => longevityProgramDays.id, { onDelete: "set null" }),
+  primary_action_key: text("primary_action_key").notNull(),
+  content_id: uuid("content_id").references(() => longevityDailyContent.id, { onDelete: "set null" }),
+  resource_id: uuid("resource_id").references(() => longevityVideoResources.id, { onDelete: "set null" }),
+  payload: jsonb("payload").notNull().default({}),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("longevity_moment_sessions_user_date_moment_key").on(t.user_id, t.local_date, t.moment),
+  index("idx_longevity_moment_sessions_user_date").on(t.user_id, t.local_date.desc()),
+  check("longevity_moment_sessions_moment_check", sql`${t.moment} in ('morning','midday','afternoon','evening')`),
+]);
+
+export const insertLongevityMomentSessionSchema = createInsertSchema(longevityMomentSessions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertLongevityMomentSession = z.infer<typeof insertLongevityMomentSessionSchema>;
+export type LongevityMomentSession = typeof longevityMomentSessions.$inferSelect;
 
 
 // ============================================================
@@ -4687,6 +4735,7 @@ export const schema = {
   longevityDailyContentLog,
   longevitySynthesisEvents,
   longevityActionEvents,
+  longevityMomentSessions,
   vitalsReadings,
   vyvaSignalReadings,
   vyvaUserBaselines,

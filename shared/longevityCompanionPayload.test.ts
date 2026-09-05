@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 let composeLongevityCompanionPayload: typeof import("../server/routes/healthInsightsReport.js").composeLongevityCompanionPayload;
 let buildFallbackLongevityProgramLayer: typeof import("../server/routes/healthInsightsReport.js").buildFallbackLongevityProgramLayer;
+let activeLongevityMoment: typeof import("../server/routes/healthInsightsReport.js").activeLongevityMoment;
+let longevityMomentForHour: typeof import("../server/routes/healthInsightsReport.js").longevityMomentForHour;
 
 type ComposeInput = Parameters<typeof composeLongevityCompanionPayload>[0];
 type Pillar = NonNullable<ComposeInput["plan"]["priority_pillar"]>;
@@ -72,10 +74,12 @@ function dailyRow(
   description: string,
   id = `${pillar}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
   rotationWeight = 3,
+  contentType: DailyContentRow["content_type"] = "tip",
+  moment = "any",
 ): DailyContentRow {
   return {
     id,
-    content_type: "tip" as const,
+    content_type: contentType,
     title,
     description,
     detail_text: null,
@@ -84,7 +88,8 @@ function dailyRow(
     source_url: null,
     condition_tags: [pillar],
     pillar_tag: pillar,
-    time_of_day: "any",
+    time_of_day: moment,
+    moment,
     language: "en",
     rotation_weight: rotationWeight,
   };
@@ -104,8 +109,18 @@ const fivePillarDailyContent: DailyContent = {
 describe("longevity companion payload", () => {
   beforeAll(async () => {
     process.env.DATABASE_URL ??= "postgresql://user:pass@127.0.0.1:1/vyva_test";
-    ({ composeLongevityCompanionPayload, buildFallbackLongevityProgramLayer } = await import("../server/routes/healthInsightsReport.js"));
-  }, 30000);
+    ({ composeLongevityCompanionPayload, buildFallbackLongevityProgramLayer, activeLongevityMoment, longevityMomentForHour } = await import("../server/routes/healthInsightsReport.js"));
+  }, 90000);
+
+  it("selects the active moment from the user's timezone", () => {
+    expect(longevityMomentForHour(5)).toBe("morning");
+    expect(longevityMomentForHour(11)).toBe("midday");
+    expect(longevityMomentForHour(14)).toBe("afternoon");
+    expect(longevityMomentForHour(23)).toBe("evening");
+    expect(activeLongevityMoment("Europe/Madrid", new Date("2026-09-04T07:00:00.000Z"))).toBe("morning");
+    expect(activeLongevityMoment("Europe/Madrid", new Date("2026-09-04T10:30:00.000Z"))).toBe("midday");
+    expect(activeLongevityMoment("America/New_York", new Date("2026-09-04T22:30:00.000Z"))).toBe("evening");
+  });
 
   it("returns a guided daily session while keeping five compatibility pillar actions", () => {
     const payload = composeLongevityCompanionPayload({
@@ -120,23 +135,113 @@ describe("longevity companion payload", () => {
       dailyContent: fivePillarDailyContent,
       feedbackHistory: [],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
     });
 
     expect(Object.keys(payload.pillarActions).sort()).toEqual(["brain", "calm", "heart", "nourishment", "strength"]);
+    for (const action of Object.values(payload.pillarActions)) {
+      expect(action.resource_url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]+$/);
+      expect(action.resource_title).toBeTruthy();
+    }
     expect(payload.primaryAction).toEqual(payload.pillarActions.brain);
     expect(payload.primaryAction.title).toBe("Word recall challenge");
     expect(payload.pillarActions.heart.route).toBe("/social-rooms/morning-movement/exercises/tai-chi");
-    expect(payload.dailySession.sessionFocus).toBe("Karim, try a memory challenge today.");
-    expect(payload.dailySession.primaryExperience.kind).toBe("brain_game");
-    expect(payload.dailySession.companionAction.title).toBe("Same bedtime tonight");
-    expect(payload.dailySession.optionalChoices).toHaveLength(2);
-    expect(payload.dailySession.optionalChoices.map((action) => action.title)).toEqual(["Tai chi", "Protein with the next meal"]);
+    expect(payload.activeMoment).toBe("afternoon");
+    expect(payload.currentMomentSession.moment).toBe("afternoon");
+    expect(payload.todayTimeline.map((item) => item.moment)).toEqual(["morning", "midday", "afternoon", "evening"]);
+    expect(payload.todayTimeline.find((item) => item.moment === "afternoon")?.status).toBe("now");
+    expect(payload.nextMomentPreview?.moment).toBe("evening");
+    expect(payload.dailySession.sessionFocus).toBe("Karim, make the afternoon mentally engaging.");
+    expect(payload.dailySession.primaryExperience.kind).toBe("video");
+    expect(payload.dailySession.primaryExperience.video?.url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]+$/);
+    expect(payload.dailySession.companionAction.title).toBe("Word recall challenge");
+    expect(payload.dailySession.optionalChoices).toHaveLength(0);
     expect(payload.dailySession.coveredPillars.map((item) => item.pillar).sort()).toEqual(["brain", "calm", "heart", "nourishment", "strength"]);
     expect(payload.careSummary.bullets).toEqual(expect.arrayContaining([
-      "Today: Karim, try a memory challenge today.",
-      "Companion step: Same bedtime tonight.",
+      "Today: Karim, make the afternoon mentally engaging.",
+      "Companion step: Word recall challenge.",
       "Health areas considered: Heart and circulation; Brain and memory; Strength and stability; Nourishment; Calm and recovery.",
     ]));
+  });
+
+  it("uses reviewed videos in the user's profile language when available", () => {
+    const payload = composeLongevityCompanionPayload({
+      plan: basePlan,
+      profile: { first_name: "Karim", language_preference: "es", timezone: "Europe/Madrid" },
+      conditions: ["memory support"],
+      vitals: null,
+      meds: null,
+      cognitive: { sessions_this_week: 0, accuracy_trend: "stable" },
+      mood: null,
+      symptoms: null,
+      dailyContent: fivePillarDailyContent,
+      feedbackHistory: [],
+      rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
+    });
+
+    expect(payload.pillarActions.brain.resource_url).toBe("https://www.youtube.com/watch?v=2XVQctv5WzQ");
+    expect(payload.pillarActions.heart.resource_url).toBe("https://www.youtube.com/watch?v=pEki37hCX9s");
+    expect(payload.pillarActions.strength.resource_url).toBe("https://www.youtube.com/watch?v=M0Jh5tLQRE0");
+    expect(payload.todayVideo?.language).toBe("es");
+    expect(payload.todayVideo?.url).toBe("https://www.youtube.com/watch?v=2XVQctv5WzQ");
+    expect(payload.dailySession.primaryExperience.video?.language).toBe("es");
+  });
+
+  it("falls back to reviewed English videos when the profile language has no approved video set", () => {
+    const payload = composeLongevityCompanionPayload({
+      plan: basePlan,
+      profile: { first_name: "Karim", language_preference: "de", timezone: "Europe/Madrid" },
+      conditions: ["memory support"],
+      vitals: null,
+      meds: null,
+      cognitive: { sessions_this_week: 0, accuracy_trend: "stable" },
+      mood: null,
+      symptoms: null,
+      dailyContent: fivePillarDailyContent,
+      feedbackHistory: [],
+      rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
+    });
+
+    expect(payload.pillarActions.brain.resource_url).toBe("https://www.youtube.com/watch?v=hoPg4bkKemQ");
+    expect(payload.todayVideo?.language).toBe("en");
+    expect(payload.dailySession.primaryExperience.video?.language).toBe("en");
+  });
+
+  it("changes the current session when the local day moves to another moment", () => {
+    const momentContent: DailyContent = {
+      ...emptyDailyContent,
+      byPillar: {
+        heart: [dailyRow("heart", "Tai chi balance break", "A VYVA movement session fits the afternoon.", "heart-afternoon", 5, "exercise", "afternoon")],
+        brain: [dailyRow("brain", "Chess scan", "A short planning puzzle fits the afternoon.", "brain-afternoon", 4, "tip", "afternoon")],
+        strength: [dailyRow("strength", "Sit-to-stand once", "One controlled chair movement fits the afternoon.", "strength-afternoon", 3, "exercise", "afternoon")],
+        nourishment: [dailyRow("nourishment", "Breakfast protein anchor", "A familiar protein fits the morning.", "nourishment-morning", 5, "meal", "morning")],
+        calm: [dailyRow("calm", "Two-minute breath garden", "A quiet reset fits the evening.", "calm-evening", 5, "tip", "evening")],
+      },
+    };
+    const baseInput = {
+      plan: basePlan,
+      profile: { first_name: "Karim", language_preference: "en", timezone: "Europe/Madrid" },
+      conditions: [],
+      vitals: null,
+      meds: null,
+      cognitive: { sessions_this_week: 1, accuracy_trend: "stable" },
+      mood: null,
+      symptoms: null,
+      dailyContent: momentContent,
+      feedbackHistory: [],
+      rotationDate: "2026-08-31",
+    };
+
+    const morning = composeLongevityCompanionPayload({ ...baseInput, activeMoment: "morning" });
+    const afternoon = composeLongevityCompanionPayload({ ...baseInput, activeMoment: "afternoon" });
+
+    expect(morning.currentMomentSession.moment).toBe("morning");
+    expect(afternoon.currentMomentSession.moment).toBe("afternoon");
+    expect(morning.primaryAction.title).toBe("Breakfast protein anchor");
+    expect(afternoon.primaryAction.title).not.toBe(morning.primaryAction.title);
+    expect(afternoon.todayTimeline.find((item) => item.moment === "evening")?.status).toBe("later");
   });
 
   it("includes the active program, today's step, and an exact curated video URL", () => {
@@ -160,6 +265,7 @@ describe("longevity companion payload", () => {
       dailyContent: fivePillarDailyContent,
       feedbackHistory: [],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
       programLayer,
     });
 
@@ -169,6 +275,11 @@ describe("longevity companion payload", () => {
     expect(payload.todayVideo?.url).not.toContain("/results");
     expect(payload.todayVideo?.url).not.toContain("/@");
     expect(payload.videoCurationStatus).toBe("fallback");
+    expect(payload.todayVideo?.transcriptStatus).toBe("manual_reviewed");
+    expect(payload.todayVideo?.seniorTakeaway).toContain("choose one brain-friendly food");
+    expect(payload.todayVideo?.keyPoints).toEqual(expect.arrayContaining([
+      "Brain-friendly eating works best as a simple pattern, not a perfect rule.",
+    ]));
     expect(payload.primaryAction.source).toBe("program");
     expect(payload.primaryAction.title).toBe(programLayer.todayProgramStep.actionTitle);
     expect(payload.primaryAction.route).toBeNull();
@@ -176,13 +287,16 @@ describe("longevity companion payload", () => {
     expect(payload.primaryAction.challenge?.prompt).toContain("Name 3 things");
     expect(payload.primaryAction.gameOptions?.map((option) => option.label)).toEqual(["Memory", "Words", "Riddle", "Chess"]);
     expect(payload.primaryAction.prompt).toContain(payload.todayVideo?.title ?? "");
-    expect(payload.dailySession.sessionFocus).toBe("Karim, keep memory active with one short challenge today.");
+    expect(payload.activeMoment).toBe("afternoon");
+    expect(payload.currentMomentSession.primaryExperience.video?.url).toBe(payload.todayVideo?.url);
+    expect(payload.todayTimeline).toHaveLength(4);
+    expect(payload.dailySession.sessionFocus).toBe("Karim, make the afternoon mentally engaging.");
     expect(payload.dailySession.primaryExperience.kind).toBe("video");
     expect(payload.dailySession.primaryExperience.video?.url).toBe(payload.todayVideo?.url);
     expect(payload.dailySession.companionAction.title).toBe("3-2-1 memory lane");
-    expect(payload.dailySession.optionalChoices.map((action) => action.title)).not.toContain("Word recall challenge");
+    expect(payload.dailySession.optionalChoices).toHaveLength(0);
     expect(payload.careSummary.bullets).toEqual(expect.arrayContaining([
-      "Today: Karim, keep memory active with one short challenge today.",
+      "Today: Karim, make the afternoon mentally engaging.",
       "Program day 1: Memory starter.",
       "Companion step: 3-2-1 memory lane.",
     ]));
@@ -267,10 +381,11 @@ describe("longevity companion payload", () => {
       dailyContent: emptyDailyContent,
       feedbackHistory: [],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
     });
 
-    expect(payload.todayFocus.headline).toBe("Karim, try a memory challenge today");
-    expect(payload.whyToday).toContain("comes first today because no recent Brain Coach sessions are logged");
+    expect(payload.todayFocus.headline).toBe("Karim, make the afternoon mentally engaging.");
+    expect(payload.whyToday).toContain("Afternoon fits because no recent Brain Coach sessions are logged");
     expect(payload.signalsUsed.map((signal) => signal.label)).toContain("Brain Coach");
     expect(payload.primaryAction.prompt).toContain("no recent Brain Coach sessions are logged");
   });
@@ -305,6 +420,7 @@ describe("longevity companion payload", () => {
       dailyContent,
       feedbackHistory: [],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
     });
     const payloadB = composeLongevityCompanionPayload({
       plan: basePlan,
@@ -318,6 +434,7 @@ describe("longevity companion payload", () => {
       dailyContent,
       feedbackHistory: [],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
     });
 
     expect(payloadA.pillarActions.heart.title).toBe(payloadB.pillarActions.heart.title);
@@ -357,11 +474,14 @@ describe("longevity companion payload", () => {
       },
       feedbackHistory: [],
       rotationDate: "2026-08-31",
+      activeMoment: "morning",
     });
 
-    expect(payload.dailySession.primaryExperience.kind).toBe("food");
-    expect(payload.dailySession.primaryExperience.title).toContain("Protein");
-    expect(payload.dailySession.optionalChoices.map((action) => action.title).join(" ")).not.toMatch(/protein|meal/i);
+    expect(payload.dailySession.primaryExperience.kind).toBe("video");
+    expect(payload.dailySession.primaryExperience.video?.url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]+$/);
+    expect(payload.dailySession.primaryExperience.action.title).toContain("Protein");
+    expect(payload.dailySession.companionAction.title).toBe(payload.dailySession.primaryExperience.action.title);
+    expect(payload.dailySession.optionalChoices).toHaveLength(0);
   });
 
   it("suppresses actions recently marked not relevant", () => {
@@ -394,6 +514,7 @@ describe("longevity companion payload", () => {
         created_at: new Date().toISOString(),
       }],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
     });
 
     expect(payload.primaryAction.title).toBe("Call someone you enjoy");
@@ -421,6 +542,7 @@ describe("longevity companion payload", () => {
         created_at: new Date().toISOString(),
       }],
       rotationDate: "2026-08-31",
+      activeMoment: "afternoon",
     });
 
     expect(payload.primaryAction.title).toBe("Make the movement step smaller");

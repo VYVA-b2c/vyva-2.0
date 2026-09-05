@@ -23,7 +23,7 @@ import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRou
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import { writeHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
-import type { PreventionPlanData } from "./pages/PreventionPlan";
+import type { LongevityMoment, PreventionPlanData } from "./pages/PreventionPlan";
 import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
@@ -861,12 +861,21 @@ function HomeMasterMovementExercisePreviewRoute() {
   );
 }
 
+const LONGEVITY_PREVIEW_MOMENTS: LongevityMoment[] = ["morning", "midday", "afternoon", "evening"];
+
+function parseLongevityPreviewMoment(value: string | null): LongevityMoment | undefined {
+  return LONGEVITY_PREVIEW_MOMENTS.includes(value as LongevityMoment) ? value as LongevityMoment : undefined;
+}
+
 function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" | "medicines" }) {
   primeHomeMasterPreviewData();
   const location = useLocation();
 
   if (kind === "plan") {
-    const requestedTheme = new URLSearchParams(location.search).get("theme");
+    const params = new URLSearchParams(location.search);
+    const requestedTheme = params.get("theme");
+    const requestedLanguage = params.get("language") ?? params.get("lang");
+    const requestedMoment = parseLongevityPreviewMoment(params.get("moment"));
     return (
       <AppShell>
         <PreventionPlan
@@ -874,6 +883,8 @@ function HomeMasterHealthActionPreviewRoute({ kind }: { kind: "plan" | "vitals" 
           firstNameOverride="Karim"
           backPath="/dev/home-master/health"
           themeOverride={requestedTheme === "light" || requestedTheme === "dark" ? requestedTheme : undefined}
+          languageOverride={requestedLanguage ?? undefined}
+          momentOverride={requestedMoment}
         />
       </AppShell>
     );
@@ -989,13 +1000,14 @@ const showDevelopmentPreviewRoutes = import.meta.env.DEV || import.meta.env.MODE
 
 function HomeMasterPreviewLanguageSync() {
   const location = useLocation();
+  const { language } = useLanguage();
 
   React.useEffect(() => {
     if (!location.pathname.startsWith("/dev/home-master")) return;
 
     const searchParams = new URLSearchParams(location.search);
-    const requestedLanguage = searchParams.get("lang");
-    if (requestedLanguage && ["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) {
+    const requestedLanguage = searchParams.get("language") ?? searchParams.get("lang");
+    if (requestedLanguage && requestedLanguage !== language && ["en", "es", "fr", "de", "it", "pt"].includes(requestedLanguage)) {
       setLanguage(requestedLanguage);
     }
 
@@ -1003,7 +1015,7 @@ function HomeMasterPreviewLanguageSync() {
     if (requestedTheme === "light" || requestedTheme === "dark") {
       writeHomeMasterTheme(requestedTheme);
     }
-  }, [location.pathname, location.search]);
+  }, [language, location.pathname, location.search]);
 
   return null;
 }
