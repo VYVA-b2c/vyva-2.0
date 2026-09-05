@@ -26,6 +26,7 @@ import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import type { PreventionPlanData } from "./pages/PreventionPlan";
 import type { VitalsTrackerPreviewData } from "./components/VitalsTracker";
 import AppShell from "./components/AppShell";
+import { getBrainCoachActivity } from "./games/brainCoachCatalog";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OnboardingGuard from "./components/OnboardingGuard";
@@ -86,7 +87,6 @@ const SpatialNavigator = lazy(() => import("./games/SpatialNavigator"));
 const FaceNameMatch = lazy(() => import("./games/FaceNameMatch"));
 const AttentionBoostersPage = lazy(() => import("./games/AttentionBoostersPage"));
 const ExecutiveFunctionPage = lazy(() => import("./games/ExecutiveFunctionPage"));
-const LanguageGamesPage = lazy(() => import("./games/LanguageGamesPage"));
 const SensesPage = lazy(() => import("./games/SensesPage"));
 const MemoryGamesPage = lazy(() => import("./games/memory/MemoryGamesPage"));
 const MemoryGameRunner = lazy(() => import("./games/memory/MemoryGameRunner"));
@@ -359,6 +359,48 @@ function SectionRouter() {
   );
 }
 
+function BrainCoachActivityRoute() {
+  const { activityId } = useParams<{ activityId: string }>();
+  const activity = activityId ? getBrainCoachActivity(activityId) : undefined;
+
+  if (!activity || activity.status !== "active") {
+    return <Navigate to="/mind-memory" replace />;
+  }
+
+  if (activity.runner.type === "memory-engine") {
+    return (
+      <AppShell>
+        <MemoryGameRunner forcedGameType={activity.runner.gameType} />
+      </AppShell>
+    );
+  }
+
+  switch (activity.runner.componentId) {
+    case "remember-later":
+      return <AppShell><RememberLaterRoute /></AppShell>;
+    case "spatial-navigator":
+      return <AppShell><SpatialNavigatorRoute /></AppShell>;
+    case "face-name-match":
+      return <AppShell><FaceNameMatchRoute /></AppShell>;
+    case "curious-minds":
+      return <AppShell><CuriousMindsRoute /></AppShell>;
+    case "dual-task-walk":
+      return <DualTaskWalkRoute />;
+    case "number-trails":
+      return <NumberTrailsRoute />;
+    case "category-sort":
+      return <CategorySortRoute />;
+    case "scent-memory":
+      return <ScentMemoryRoute />;
+    case "listen-closely":
+      return <ListenCloselyRoute />;
+    case "breath-garden":
+      return <BreathGardenRoute />;
+    default:
+      return <Navigate to="/mind-memory" replace />;
+  }
+}
+
 function SpatialNavigatorRoute() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -366,7 +408,7 @@ function SpatialNavigatorRoute() {
   return (
     <SpatialNavigator
       userId={user?.id ?? ""}
-      onExit={() => navigate("/mind-memory")}
+      onExit={() => navigate("/brain-coach/remember")}
     />
   );
 }
@@ -378,14 +420,14 @@ function FaceNameMatchRoute() {
   return (
     <FaceNameMatch
       userId={user?.id ?? ""}
-      onExit={() => navigate("/memory-games")}
+      onExit={() => navigate("/brain-coach/remember")}
     />
   );
 }
 
 function RememberLaterRoute() {
   const { user } = useAuth();
-  const handoff = useCognitiveAssessmentPracticeHandoff("/memory-games");
+  const handoff = useCognitiveAssessmentPracticeHandoff("/brain-coach/remember");
 
   return (
     <RememberLater
@@ -411,7 +453,7 @@ function RememberLaterPreviewRoute() {
 
 function CuriousMindsRoute() {
   const { user } = useAuth();
-  const handoff = useCognitiveAssessmentPracticeHandoff("/memory-games");
+  const handoff = useCognitiveAssessmentPracticeHandoff("/brain-coach/think");
 
   return (
     <CuriousMinds
@@ -442,7 +484,7 @@ function ScentMemoryRoute() {
   return (
     <ScentMemory
       userId={user?.id ?? ""}
-      onExit={() => navigate("/senses")}
+      onExit={() => navigate("/brain-coach/calm")}
     />
   );
 }
@@ -454,14 +496,14 @@ function ListenCloselyRoute() {
   return (
     <ListenClosely
       userId={user?.id ?? ""}
-      onExit={() => navigate("/senses")}
+      onExit={() => navigate("/brain-coach/focus")}
     />
   );
 }
 
 function BreathGardenRoute() {
   const { user } = useAuth();
-  const handoff = useCognitiveAssessmentPracticeHandoff("/senses");
+  const handoff = useCognitiveAssessmentPracticeHandoff("/brain-coach/calm");
 
   return (
     <BreathGarden
@@ -613,7 +655,7 @@ function DualTaskWalkRoute() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/attention-boosters")} />;
+  return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/brain-coach/focus")} />;
 }
 
 function useCognitiveAssessmentPracticeHandoff(defaultExitPath: string) {
@@ -650,7 +692,7 @@ function useCognitiveAssessmentPracticeHandoff(defaultExitPath: string) {
 
 function CategorySortRoute() {
   const { user } = useAuth();
-  const handoff = useCognitiveAssessmentPracticeHandoff("/executive-function");
+  const handoff = useCognitiveAssessmentPracticeHandoff("/brain-coach/think");
 
   return (
     <CategorySort
@@ -665,7 +707,7 @@ function CategorySortRoute() {
 
 function NumberTrailsRoute() {
   const { user } = useAuth();
-  const handoff = useCognitiveAssessmentPracticeHandoff("/executive-function");
+  const handoff = useCognitiveAssessmentPracticeHandoff("/brain-coach/think");
 
   return (
     <NumberTrails
@@ -1170,6 +1212,11 @@ const App = () => (
                   <Route path="/meds/refills" element={<AppShell><ServiceGateRoute service="medications"><MedicationRefillsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
+                  <Route path="/brain-coach/remember" element={<AppShell><MemoryGamesPage /></AppShell>} />
+                  <Route path="/brain-coach/focus" element={<AppShell><AttentionBoostersPage /></AppShell>} />
+                  <Route path="/brain-coach/think" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
+                  <Route path="/brain-coach/calm" element={<AppShell><SensesPage /></AppShell>} />
+                  <Route path="/brain-coach/activity/:activityId" element={<BrainCoachActivityRoute />} />
                   <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/start" element={<AppShell><CognitiveAssessmentRunnerPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/report" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
@@ -1180,7 +1227,7 @@ const App = () => (
                   <Route path="/learn" element={<AppShell><LearnSomethingNewPage /></AppShell>} />
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
-                  <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
+                  <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/brain-coach/focus" /></AppShell>} />
                   <Route path="/senses" element={<AppShell><SensesPage /></AppShell>} />
                   <Route path="/senses/association" element={<Navigate to="/memory-games/association_memory" replace />} />
                   <Route path="/senses/scent-memory" element={<ScentMemoryRoute />} />

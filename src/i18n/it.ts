@@ -1035,7 +1035,7 @@ const it = {
       cardTitle: "Memoria dei sensi",
       cardDescription: "Richiama un profumo familiare e il ricordo che porta con se.",
       intro: "Guarda, poi ricorda.",
-      instructions: "Istruzioni",
+      instructions: "Guida",
       tutorialSubtitle: "Guarda. Ricorda. Condividi se vuoi.",
       tutorialLook: "Guarda",
       tutorialRemember: "Ricorda",

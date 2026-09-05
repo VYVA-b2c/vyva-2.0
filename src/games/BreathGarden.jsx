@@ -4,7 +4,6 @@ import {
   Droplets,
   Flower2,
   Info,
-  Leaf,
   Play,
   Sparkles,
   Volume2,
@@ -184,6 +183,47 @@ function ThemeIcon({ themeId, size = 34 }) {
   return <Flower2 size={size} aria-hidden="true" />;
 }
 
+function GardenThemeChoice({ item, selected, label, onSelect }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={selected}
+      onClick={onSelect}
+      className="group relative min-h-[138px] overflow-hidden rounded-[22px] border bg-white text-left shadow-[0_10px_28px_rgba(54,35,78,0.065)] transition duration-200 hover:-translate-y-px hover:shadow-[0_14px_30px_rgba(54,35,78,0.10)] active:translate-y-0 active:scale-[0.995]"
+      style={{
+        borderColor: selected ? item.accent : "#E8E2EB",
+        boxShadow: selected
+          ? `0 0 0 1px ${item.accent}12, 0 14px 30px rgba(54,35,78,0.10)`
+          : undefined,
+      }}
+    >
+      <div
+        className="absolute inset-x-2 top-2 h-[84px] overflow-hidden rounded-[17px]"
+        style={{ filter: selected ? "saturate(0.9)" : "saturate(0.72)", opacity: selected ? 1 : 0.88 }}
+        aria-hidden="true"
+      >
+        <GardenVisual themeId={item.id} bloomLevel={4} complete />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-white/20" />
+      </div>
+
+      {selected ? (
+        <span
+          className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full border-2 border-white text-white shadow-[0_6px_16px_rgba(54,35,78,0.16)]"
+          style={{ background: item.accent }}
+          aria-hidden="true"
+        >
+          <Check size={15} strokeWidth={3} />
+        </span>
+      ) : null}
+
+      <span className="absolute inset-x-0 bottom-0 flex h-[44px] items-center justify-center border-t border-[#F0EBF2] bg-white px-3 text-center">
+        <span className="text-[16px] font-extrabold" style={{ color: item.accent }}>{label}</span>
+      </span>
+    </button>
+  );
+}
+
 function GardenVisual({ themeId, bloomLevel, complete = false }) {
   const level = complete ? 5 : bloomLevel;
   const growth = level / 5;
@@ -302,34 +342,34 @@ function GardenVisual({ themeId, bloomLevel, complete = false }) {
 
 function TutorialGardenVisual({ theme, inLabel, outLabel }) {
   return (
-    <div className="relative mx-auto h-[210px] w-full max-w-[520px] overflow-hidden rounded-[28px] border sm:h-[260px] sm:rounded-[34px]" style={{ borderColor: theme.accent, background: theme.soft }}>
+    <div className="relative mx-auto h-[160px] w-full max-w-[520px] overflow-hidden rounded-[22px] border sm:h-[180px]" style={{ borderColor: theme.accent, background: theme.soft }}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.95),rgba(255,255,255,0.3))]" />
-      <div className="absolute left-1/2 top-1/2 h-[160px] w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[16px] border-white/85 shadow-vyva-card" style={{ background: theme.soft }} />
+      <div className="absolute left-1/2 top-1/2 h-[112px] w-[112px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[12px] border-white/85 shadow-vyva-card" style={{ background: theme.soft }} />
       {[0, 1, 2].map((ring) => (
         <div
           key={ring}
           className="absolute left-1/2 top-1/2 rounded-full border-2"
           style={{
-            width: 190 + ring * 42,
-            height: 190 + ring * 42,
+            width: 130 + ring * 34,
+            height: 130 + ring * 34,
             transform: "translate(-50%, -50%)",
             borderColor: ring % 2 ? "#FFFFFF" : theme.accent,
             opacity: ring === 0 ? 0.22 : 0.15,
           }}
         />
       ))}
-      <div className="absolute left-[18%] top-[34%] rounded-full bg-white px-4 py-3 text-[19px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
-        <Waves size={24} className="mr-2 inline" aria-hidden="true" />
+      <div className="absolute left-[15%] top-[28%] rounded-full bg-white px-3 py-2 text-[15px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
+        <Waves size={18} className="mr-1.5 inline" aria-hidden="true" />
         {inLabel}
       </div>
-      <div className="absolute right-[12%] top-[48%] rounded-full bg-white px-4 py-3 text-[19px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
+      <div className="absolute right-[12%] top-[46%] rounded-full bg-white px-3 py-2 text-[15px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
         {outLabel}
       </div>
-      <div className="absolute bottom-[20px] left-1/2 flex -translate-x-1/2 items-end justify-center gap-2">
-        {[26, 44, 64].map((height, index) => (
+      <div className="absolute bottom-[10px] left-1/2 flex -translate-x-1/2 items-end justify-center gap-2">
+        {[18, 30, 44].map((height, index) => (
           <div key={height} className="flex flex-col items-center">
-            <div className="w-2 rounded-full" style={{ height, background: theme.accent, opacity: 0.55 + index * 0.15 }} />
-            <Flower2 size={26 + index * 6} style={{ color: theme.accent }} aria-hidden="true" />
+            <div className="w-1.5 rounded-full" style={{ height, background: theme.accent, opacity: 0.55 + index * 0.15 }} />
+            <Flower2 size={20 + index * 5} style={{ color: theme.accent }} aria-hidden="true" />
           </div>
         ))}
       </div>
@@ -618,70 +658,55 @@ export default function BreathGarden({
     >
       <div className="mx-auto w-full max-w-[780px]" style={{ color: BRAND.ink }}>
         {screen === "theme" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softGold, color: BRAND.gold }}>
-              <Leaf size={54} aria-hidden="true" />
-            </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.breathGarden.pickTheme", "Choose your garden")}</h1>
-            <div className="mt-6 grid grid-cols-2 gap-3">
+          <section className="relative isolate overflow-hidden rounded-[28px] border bg-[linear-gradient(160deg,#FFFFFF_38%,#FCF9FD_100%)] p-5 text-center shadow-[0_18px_44px_rgba(54,35,78,0.09)] sm:p-6" style={{ borderColor: "#EEE8F1" }}>
+            <h2 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[32px]">{t("games.breathGarden.pickTheme", "Choose your garden")}</h2>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4">
               {GARDEN_THEMES.map((item) => (
-                <button
+                <GardenThemeChoice
                   key={item.id}
-                  type="button"
-                  onClick={() => handleThemePick(item.id)}
-                  className="min-h-[136px] rounded-[24px] border-2 p-4 text-center transition-transform active:scale-[0.98]"
-                  style={{
-                    borderColor: theme === item.id ? item.accent : "#E7D8F3",
-                    background: item.soft,
-                    color: item.accent,
-                  }}
-                >
-                  <span className="mx-auto flex h-[56px] w-[56px] items-center justify-center rounded-[18px] bg-white/70">
-                    <ThemeIcon themeId={item.id} />
-                  </span>
-                  <span className="mt-3 block text-[22px] font-black">{t(item.labelKey)}</span>
-                </button>
+                  item={item}
+                  selected={theme === item.id}
+                  label={t(item.labelKey)}
+                  onSelect={() => handleThemePick(item.id)}
+                />
               ))}
             </div>
-            <p className="mt-5 text-[22px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.canChangeAnytime", "You can change it anytime")}
-            </p>
           </section>
         ) : null}
 
         {screen === "intro" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-6" style={{ borderColor: "#EEE8F1" }}>
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={openInstructions}
-                className="inline-flex min-h-[52px] items-center gap-2 rounded-full border bg-white px-4 text-[18px] font-extrabold"
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border bg-white px-4 text-[14px] font-extrabold"
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
-                <Info size={22} aria-hidden="true" />
+                <Info size={18} aria-hidden="true" />
                 {t("games.breathGarden.instructions", "Instructions")}
               </button>
             </div>
-            <div className="mx-auto flex h-[96px] w-[96px] items-center justify-center rounded-[28px]" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
-              <ThemeIcon themeId={theme} size={54} />
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[20px]" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
+              <ThemeIcon themeId={theme} size={36} />
             </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.breathGarden.title", "Breath Garden")}</h1>
-            <p className="mx-auto mt-6 max-w-[650px] text-[26px] font-bold leading-snug" style={{ color: BRAND.ink }}>
+            <h2 className="mt-4 font-display text-[28px] font-semibold leading-tight tracking-[-0.03em] sm:text-[32px]">{t("games.breathGarden.title", "Breath Garden")}</h2>
+            <p className="mx-auto mt-3 max-w-[560px] text-[17px] font-semibold leading-relaxed sm:text-[18px]" style={{ color: BRAND.muted }}>
               {t("games.breathGarden.howItWorks", "Tap once as you breathe in, and once as you breathe out. There is no correct rhythm - just breathe your way.")}
             </p>
             <button
               type="button"
               onClick={startSession}
-              className="mt-7 flex min-h-[76px] w-full items-center justify-center gap-3 rounded-full px-6 text-[25px] font-black text-white shadow-vyva-card"
+              className="mt-6 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-full px-6 text-[18px] font-extrabold text-white shadow-vyva-card"
               style={{ background: BRAND.purple }}
             >
-              <Play size={28} aria-hidden="true" />
+              <Play size={20} aria-hidden="true" />
               {t("common.start", "Start")}
             </button>
             <button
               type="button"
               onClick={() => setScreen("theme")}
-              className="mt-4 min-h-[64px] rounded-full px-5 text-[22px] font-extrabold underline underline-offset-4"
+              className="mt-2 min-h-11 rounded-full px-5 text-[15px] font-extrabold underline underline-offset-4"
               style={{ color: BRAND.purple }}
             >
               {t("games.breathGarden.changeTheme", "Change garden")}
@@ -690,55 +715,47 @@ export default function BreathGarden({
         ) : null}
 
         {screen === "tutorial" ? (
-          <section className="mt-4 rounded-[28px] border bg-white p-4 text-center shadow-vyva-card sm:mt-6 sm:p-6" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-4 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-5" style={{ borderColor: "#EEE8F1" }}>
             <TutorialGardenVisual
               theme={selectedTheme}
               inLabel={t("games.breathGarden.tutorialIn", "In")}
               outLabel={t("games.breathGarden.tutorialOut", "Out")}
             />
-            <h1 className="mt-5 font-display text-[34px] leading-tight sm:mt-6 sm:text-[40px]">{t("games.breathGarden.title", "Breath Garden")}</h1>
-            <p className="mt-2 text-[23px] font-black leading-tight sm:mt-3 sm:text-[27px]" style={{ color: BRAND.muted }}>
+            <h2 className="mt-3 font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] sm:text-[27px]">{t("games.breathGarden.title", "Breath Garden")}</h2>
+            <p className="mt-1 text-[15px] font-extrabold leading-tight sm:text-[16px]" style={{ color: BRAND.muted }}>
               {t("games.breathGarden.tutorialSubtitle", "Tap gently as you breathe.")}
             </p>
 
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               {[
                 { label: t("games.breathGarden.tutorialIn", "In"), Icon: Waves },
                 { label: t("games.breathGarden.tutorialOut", "Out"), Icon: Droplets },
                 { label: t("games.breathGarden.tutorialGrow", "Garden grows"), Icon: Flower2 },
               ].map(({ label, Icon }) => (
-                <div key={label} className="min-h-[90px] rounded-[22px] px-2 py-3 sm:min-h-[104px] sm:py-4" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
-                  <Icon className="mx-auto" size={28} aria-hidden="true" />
-                  <span className="mt-2 block text-[15px] font-black leading-tight sm:mt-3 sm:text-[17px]">{label}</span>
+                <div key={label} className="min-h-[72px] rounded-[18px] px-2 py-2.5" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
+                  <Icon className="mx-auto" size={22} aria-hidden="true" />
+                  <span className="mt-1.5 block text-[13px] font-black leading-tight sm:text-[14px]">{label}</span>
                 </div>
               ))}
             </div>
 
-            <p className="mx-auto mt-4 max-w-[560px] text-[19px] font-bold leading-snug sm:mt-5 sm:text-[21px]" style={{ color: BRAND.muted }}>
+            <p className="mx-auto mt-3 max-w-[560px] text-[13px] font-bold leading-snug sm:text-[14px]" style={{ color: BRAND.muted }}>
               {t("games.breathGarden.tutorialPace", "Go at your own pace. There is no right or wrong.")}
             </p>
 
             <button
               type="button"
               onClick={closeTutorial}
-              className="mt-4 min-h-[66px] w-full rounded-full px-6 text-[23px] font-black text-white shadow-vyva-card sm:mt-6 sm:min-h-[76px] sm:text-[25px]"
+              className="mt-4 min-h-[52px] w-full rounded-full px-6 text-[17px] font-extrabold text-white shadow-vyva-card"
               style={{ background: BRAND.purple }}
             >
-              {t("games.breathGarden.tutorialUnderstand", "I understand")}
-            </button>
-            <button
-              type="button"
-              onClick={closeTutorial}
-              className="mt-2 min-h-[48px] rounded-full px-5 text-[19px] font-extrabold underline underline-offset-4 sm:mt-3 sm:min-h-[58px] sm:text-[21px]"
-              style={{ color: BRAND.purple }}
-            >
-              {t("common.skip", "Skip")}
+              {t("common.continue", "Continue")}
             </button>
           </section>
         ) : null}
 
         {screen === "playing" ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)]" style={{ borderColor: "#EEE8F1" }}>
             <div className="flex items-center justify-end">
               <button
                 type="button"

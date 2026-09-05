@@ -26,7 +26,7 @@ describe("Listen Closely", () => {
 
     expect(await screen.findByText("Hear the sound. Then respond.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(window.localStorage.getItem("listenClosely:tutorialSeen:v1")).toBe("true");
     expect(await screen.findByRole("button", { name: "Start" })).toBeInTheDocument();
@@ -35,7 +35,7 @@ describe("Listen Closely", () => {
 
     expect(await screen.findByText("Hear the sound. Then respond.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("button", { name: "Start" })).toBeInTheDocument();
   });
@@ -51,7 +51,7 @@ describe("Listen Closely", () => {
       screen.getByText(/Which sound happened more\?|Listen for/),
     ).toBeInTheDocument();
     expect(screen.queryByText("Listen to both sounds. At the end, choose which one happened more.")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-[72px]");
+    expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-[52px]");
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 

@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { useLanguage } from "@/i18n";
-import { BrainCoachActivityCard, BrainCoachFlowShell } from "@/components/brain/BrainCoachFlowShell";
+import { BrainCoachFlowShell } from "@/components/brain/BrainCoachFlowShell";
+import { CanonicalBrainCoachActivityCard } from "@/components/brain/CanonicalBrainCoachActivityCard";
 import {
   getBrainCoachActivitiesForModule,
   getBrainCoachActivityByMemoryGame,
   getBrainCoachActivityDisplay,
+  getBrainCoachActivityPath,
   getBrainCoachModule,
 } from "../brainCoachCatalog";
 import { getBrainCoachProgressLabel } from "../shared/brainCoachProgression";
@@ -62,7 +63,6 @@ function formatLastSession(
 const MemoryGamesPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isDark } = useHomeMasterTheme();
   const { language, t } = useLanguage();
   const userId = user?.id ?? FALLBACK_USER_ID;
   const module = getBrainCoachModule("memory");
@@ -138,11 +138,13 @@ const MemoryGamesPage = () => {
   const showExerciseChoices = !loading && availableMemoryActivities.length > 0;
 
   const openPlan = (plan: Recommendation) => {
-    navigate(`/memory-games/${plan.gameType}?level=${plan.level}&variant=${plan.variantId}`);
+    const activity = getBrainCoachActivityByMemoryGame(plan.gameType);
+    const route = activity ? getBrainCoachActivityPath(activity.id) : `/memory-games/${plan.gameType}`;
+    navigate(`${route}?level=${plan.level}&variant=${plan.variantId}`);
   };
 
-  const openRememberLater = () => {
-    navigate("/memory-games/remember-later");
+  const openStandaloneActivity = (activityId: string) => {
+    navigate(getBrainCoachActivityPath(activityId));
   };
 
   return (
@@ -158,7 +160,7 @@ const MemoryGamesPage = () => {
       sceneId={module.sceneId}
     >
       {hasLastSession ? (
-        <p className="rounded-[18px] border border-[#EADFF8] bg-white px-4 py-3 text-[16px] font-bold leading-snug text-vyva-text-2 shadow-[0_10px_24px_rgba(47,24,64,0.07)]">
+        <p className="mb-4 px-1 text-[13px] font-bold leading-snug text-[#8A8095]">
           {t("memory.lastSession")}: {summary.lastSessionLabel}
         </p>
       ) : null}
@@ -175,7 +177,7 @@ const MemoryGamesPage = () => {
         className="mt-5"
       />
 
-      <BrainCoachActivityCard
+      <CanonicalBrainCoachActivityCard
         type="button"
         variant="featured"
         className="w-full"
@@ -201,11 +203,11 @@ const MemoryGamesPage = () => {
 
       {showExerciseChoices ? (
         <section className="mt-5" data-scene-layout="activity_grid">
-          <h2 className={`font-body text-[23px] font-black leading-tight min-[390px]:text-[24px] ${isDark ? "text-[#FFF8FF]" : "text-[#241238]"}`}>
+          <h2 className="px-1 font-body text-[16px] font-black leading-tight text-[#6B5173] sm:text-[17px]">
             {t("memory.chooseAnother")}
           </h2>
 
-          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
             {availableMemoryActivities.map((activity) => {
               const plan = activity.memoryGameType ? manualPlans[activity.memoryGameType] : null;
               const copy = getBrainCoachActivityDisplay(activity, t);
@@ -217,7 +219,7 @@ const MemoryGamesPage = () => {
                 ? `${getBrainCoachProgressLabel(plan?.level ?? 1)} - `
                 : "";
               return (
-                <BrainCoachActivityCard
+                <CanonicalBrainCoachActivityCard
                   key={activity.id}
                   type="button"
                   variant="compact"
@@ -227,7 +229,7 @@ const MemoryGamesPage = () => {
                       return;
                     }
                     if (!activity.memoryGameType) {
-                      openRememberLater();
+                      openStandaloneActivity(activity.id);
                     }
                   }}
                   title={title}

@@ -92,8 +92,9 @@ describe("brain game API routes", () => {
 
   it("selects an unused Scent Memory prompt today before falling back to least recently used", () => {
     const rows = [
-      { id: "bread" },
-      { id: "garden" },
+      { id: "bread", category: "food" },
+      { id: "cake", category: "food" },
+      { id: "garden", category: "nature" },
     ];
 
     expect(pickScentMemoryPrompt(rows, [{ promptId: "bread" }], [], () => 0)?.id).toBe("garden");
@@ -107,6 +108,8 @@ describe("brain game API routes", () => {
       ],
       () => 0,
     )?.id).toBe("garden");
+
+    expect(pickScentMemoryPrompt(rows, [], [], () => 0, "bread", "food")?.id).toBe("garden");
   });
 
   it("calculates real Brain Coach streaks from completed session dates", () => {
