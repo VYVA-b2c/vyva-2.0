@@ -159,51 +159,91 @@ function GardenVisual({ phase = "rest", phaseProgress = 0, reducedMotion = false
   const inhale = phase === "inhale";
   const exhale = phase === "exhale";
   const breathAmount = complete ? 1 : inhale ? phaseProgress : exhale ? 1 - phaseProgress : 0.45;
-  const scale = reducedMotion ? 1 : 0.9 + clamp(breathAmount, 0, 1) * 0.1;
-  const glowOpacity = reducedMotion ? (inhale ? 0.6 : 0.34) : 0.28 + breathAmount * 0.42;
+  const easedBreath = 0.5 - Math.cos(clamp(breathAmount, 0, 1) * Math.PI) / 2;
+  const bloomScale = reducedMotion ? 1 : 0.84 + easedBreath * 0.16;
+  const petalReach = reducedMotion ? 74 : 66 + easedBreath * 18;
+  const glowOpacity = reducedMotion ? (inhale ? 0.58 : 0.3) : 0.24 + easedBreath * 0.42;
+  const phaseProgressValue = phase === "rest" ? 0 : clamp(phaseProgress, 0, 1);
+  const ringRadius = 118;
+  const ringCircumference = 2 * Math.PI * ringRadius;
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[28px] bg-[linear-gradient(180deg,#F1FBF7_0%,#FCF9F4_72%,#F7EFE5_100%)]" aria-hidden="true">
       <div
-        className="absolute left-1/2 top-[43%] h-[230px] w-[230px] rounded-full bg-[#CFF4E5] blur-[2px]"
-        style={{ opacity: glowOpacity, transform: `translate(-50%, -50%) scale(${0.82 + breathAmount * 0.18})` }}
+        className="absolute left-1/2 top-1/2 h-[250px] w-[250px] rounded-full bg-[#C9F1E1] blur-[3px]"
+        style={{ opacity: glowOpacity, transform: `translate(-50%, -50%) scale(${0.84 + easedBreath * 0.24})` }}
       />
       <svg
         viewBox="0 0 520 340"
-        className="relative h-full w-full origin-[50%_72%]"
-        style={{ transform: `scale(${scale})`, transition: reducedMotion ? "opacity 500ms ease" : "transform 180ms linear" }}
+        className="relative h-full w-full"
+        style={{ opacity: reducedMotion ? (inhale ? 1 : 0.88) : 1, transition: "opacity 500ms ease" }}
       >
         <defs>
-          <linearGradient id="breathGardenGround" x1="0" x2="1">
-            <stop offset="0" stopColor="#DDF4E8" />
-            <stop offset="0.55" stopColor="#BDE8D2" />
-            <stop offset="1" stopColor="#E7F4DA" />
+          <radialGradient id="breathBloomBackdrop" cx="50%" cy="46%" r="56%">
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.92" />
+            <stop offset="0.55" stopColor="#E7F7F0" stopOpacity="0.64" />
+            <stop offset="1" stopColor="#E7F7F0" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="breathBloomPetal" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ECD8FA" />
+            <stop offset="0.56" stopColor="#D7A7F1" />
+            <stop offset="1" stopColor="#B978DE" />
           </linearGradient>
-          <filter id="breathGardenShadow" x="-30%" y="-30%" width="160%" height="180%">
-            <feDropShadow dx="0" dy="8" stdDeviation="8" floodColor="#59366C" floodOpacity="0.12" />
+          <linearGradient id="breathBloomPetalWarm" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#FFE3A0" />
+            <stop offset="0.58" stopColor="#F7BB4A" />
+            <stop offset="1" stopColor="#E99A23" />
+          </linearGradient>
+          <filter id="breathBloomShadow" x="-45%" y="-45%" width="190%" height="205%">
+            <feDropShadow dx="0" dy="12" stdDeviation="12" floodColor="#59366C" floodOpacity="0.14" />
           </filter>
         </defs>
-        <ellipse cx="260" cy="300" rx="205" ry="34" fill="url(#breathGardenGround)" />
-        <ellipse cx="260" cy="305" rx="150" ry="18" fill="#9ED8BA" opacity="0.32" />
-        {[
-          { x: 126, top: 126, petal: "#D9A5F2", centre: "#7A3E27", leaf: "#8AD7A9", lean: -8 },
-          { x: 214, top: 100, petal: "#F5B83D", centre: "#7D3F24", leaf: "#A4D99A", lean: 4 },
-          { x: 306, top: 118, petal: "#C88AE8", centre: "#70402A", leaf: "#75CDA0", lean: -3 },
-          { x: 394, top: 88, petal: "#F3A833", centre: "#6E3722", leaf: "#9BD9A6", lean: 7 },
-        ].map((flower, index) => (
-          <g key={flower.x} filter="url(#breathGardenShadow)">
-            <path d={`M ${flower.x} 286 C ${flower.x + flower.lean * 2} 238, ${flower.x - flower.lean} 176, ${flower.x} ${flower.top + 10}`} fill="none" stroke="#147B68" strokeWidth="8" strokeLinecap="round" />
-            <ellipse cx={flower.x - 24} cy={220 - index * 4} rx="26" ry="11" fill={flower.leaf} transform={`rotate(-28 ${flower.x - 24} ${220 - index * 4})`} />
-            <ellipse cx={flower.x + 25} cy={198 - index * 3} rx="24" ry="10" fill={flower.leaf} opacity="0.9" transform={`rotate(28 ${flower.x + 25} ${198 - index * 3})`} />
-            <g transform={`translate(${flower.x} ${flower.top}) scale(${0.94 + breathAmount * 0.08})`}>
-              {[0, 60, 120, 180, 240, 300].map((angle) => (
-                <ellipse key={angle} cx="0" cy="-25" rx="18" ry="31" fill={flower.petal} transform={`rotate(${angle})`} />
-              ))}
-              <circle cx="0" cy="0" r="18" fill={flower.centre} />
-              <circle cx="-5" cy="-5" r="5" fill="#FFF5D8" opacity="0.28" />
-            </g>
-          </g>
-        ))}
+        <circle cx="260" cy="170" r="154" fill="url(#breathBloomBackdrop)" />
+        <circle cx="260" cy="170" r="137" fill="none" stroke="#D8EFE6" strokeWidth="2" opacity="0.72" />
+        <circle
+          cx="260"
+          cy="170"
+          r={ringRadius}
+          fill="none"
+          stroke="#E7DFEA"
+          strokeWidth="5"
+          opacity="0.8"
+        />
+        <circle
+          cx="260"
+          cy="170"
+          r={ringRadius}
+          fill="none"
+          stroke={inhale ? "#6B21A8" : exhale ? "#0F766E" : "#BFA9CB"}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={ringCircumference}
+          strokeDashoffset={ringCircumference * (1 - phaseProgressValue)}
+          transform="rotate(-90 260 170)"
+          opacity={phase === "rest" ? 0.28 : 0.9}
+          style={{ transition: reducedMotion ? "stroke 500ms ease" : "stroke-dashoffset 180ms linear, stroke 500ms ease" }}
+        />
+        <g
+          filter="url(#breathBloomShadow)"
+          transform={`translate(260 170) scale(${bloomScale})`}
+          style={{ transition: reducedMotion ? "opacity 500ms ease" : "transform 180ms linear" }}
+        >
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, index) => (
+            <ellipse
+              key={angle}
+              cx="0"
+              cy={-petalReach}
+              rx="31"
+              ry="55"
+              fill={index % 2 === 0 ? "url(#breathBloomPetal)" : "url(#breathBloomPetalWarm)"}
+              transform={`rotate(${angle})`}
+            />
+          ))}
+          <circle cx="0" cy="0" r="50" fill="#FFFFFF" opacity="0.88" />
+          <circle cx="0" cy="0" r="39" fill="#6B21A8" />
+          <circle cx="-11" cy="-12" r="10" fill="#FFFFFF" opacity="0.2" />
+          <circle cx="0" cy="0" r="25" fill="none" stroke="#F6C75B" strokeWidth="3" opacity="0.9" />
+        </g>
       </svg>
     </div>
   );
@@ -536,7 +576,7 @@ export default function BreathGarden({
       title={t("games.breathGarden.title", "Breath Garden")}
       backLabel={t("common.exit", "Exit")}
       onBack={() => void exitActivity()}
-      action={screen === "playing" ? (
+      action={screen === "playing" && guidanceMode === "guided" ? (
         <button
           type="button"
           onClick={() => {
@@ -548,11 +588,11 @@ export default function BreathGarden({
               setVoiceMuted(true);
             }
           }}
-          disabled={guidanceMode !== "guided" || audioStatus === "loading"}
+          disabled={audioStatus === "loading"}
           className="vyva-tap grid h-10 w-10 place-items-center rounded-full bg-white text-[#6B21A8] shadow-[0_10px_24px_rgba(80,52,109,0.10)] ring-1 ring-black/[0.05]"
           aria-label={voiceMuted ? t("games.breathGarden.unmuteGuidance", "Unmute voice guidance") : t("games.breathGarden.muteGuidance", "Mute voice guidance")}
         >
-          <VyvaIcon icon={audioStatus === "loading" ? Loader2 : voiceMuted || guidanceMode !== "guided" ? VolumeX : Volume2} size={20} strokeWidth={2.45} tone="brand" className={audioStatus === "loading" ? "animate-spin" : ""} />
+          <VyvaIcon icon={audioStatus === "loading" ? Loader2 : voiceMuted ? VolumeX : Volume2} size={20} strokeWidth={2.45} tone="brand" className={audioStatus === "loading" ? "animate-spin" : ""} />
         </button>
       ) : undefined}
       showHeader={screen !== "completion"}
@@ -573,7 +613,7 @@ export default function BreathGarden({
               {t("games.breathGarden.setupTitle", "A quiet moment to breathe")}
             </h2>
             <p className="mx-auto mt-2 max-w-[500px] text-[15px] font-semibold leading-relaxed sm:text-[16px]" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.setupGuidance", "Follow the garden. Breathe in as it opens, and out as it settles.")}
+              {t("games.breathGarden.setupGuidance", "Follow the bloom. Breathe in as it opens, and out as it settles.")}
             </p>
             <fieldset className="mx-auto mt-5 max-w-[420px]">
               <legend className="mb-3 text-[14px] font-extrabold" style={{ color: BRAND.muted }}>
