@@ -8,7 +8,6 @@ import {
   Grid2x2,
   Hash,
   Headphones,
-  Leaf,
   Lightbulb,
   Link2,
   NotebookPen,
@@ -31,7 +30,8 @@ export type BrainCoachActivityRunner =
   | { type: "component"; componentId: string };
 export type BrainCoachActivityProgression =
   | { kind: "levels"; maxLevel: number }
-  | { kind: "milestones"; label: string };
+  | { kind: "milestones"; label: string }
+  | { kind: "guided-practice" };
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 export type BrainCoachTranslator = (path: string, fallback?: string, params?: TranslationParams) => string;
@@ -85,7 +85,7 @@ export type BrainCoachActivityDefinition = {
   iconBg: string;
   iconColor: string;
   borderColor: string;
-  progression?: BrainCoachActivityProgression;
+  progression: BrainCoachActivityProgression;
   memoryGameType?: MemoryGameType;
 };
 
@@ -213,10 +213,11 @@ const MEMORY_GAME_META: Record<MemoryGameType, { titleKey: string; descriptionKe
 
 function memoryActivity(
   gameType: MemoryGameType,
-  config: Omit<BrainCoachActivityDefinition, "moduleId" | "kind" | "status" | "runner" | "route" | "titleKey" | "descriptionKey" | "iconBg" | "iconColor" | "memoryGameType"> & {
+  config: Omit<BrainCoachActivityDefinition, "moduleId" | "kind" | "status" | "runner" | "route" | "titleKey" | "descriptionKey" | "iconBg" | "iconColor" | "progression" | "memoryGameType"> & {
     moduleId?: BrainCoachModuleId;
     title?: string;
     description?: string;
+    progression?: BrainCoachActivityProgression;
   },
 ): BrainCoachActivityDefinition {
   const definition = MEMORY_GAME_META[gameType];
@@ -560,19 +561,19 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
     titleKey: "games.breathGarden.cardTitle",
     title: "Breath Garden",
     descriptionKey: "games.breathGarden.cardDescription",
-    description: "Use calm breathing to bring a garden to life.",
+    description: "Follow a gentle garden as it guides your breathing.",
     trainsKey: "brainCoach.activities.breathGarden.trains",
     trains: "Calm body awareness",
     durationKey: "brainCoach.activities.breathGarden.duration",
-    duration: "2 min",
+    duration: "1-5 min",
     actionLabelKey: "brainCoach.actions.startExercise",
     actionLabel: "Start exercise",
-    icon: Leaf,
+    icon: Flower2,
     iconAccent: "pulse",
     iconBg: "#DDF7F1",
     iconColor: "#0F766E",
     borderColor: "#99F6E4",
-    progression: { kind: "milestones", label: "Milestone journey" },
+    progression: { kind: "guided-practice" },
   },
   {
     id: "listen_closely",
@@ -657,7 +658,9 @@ export function getBrainCoachActivityDisplay(activity: BrainCoachActivityDefinit
   const trains = t(activity.trainsKey, activity.trains);
   const progressionLabel = activity.progression?.kind === "levels"
     ? t("brainCoach.progression.twentyLevels", "{{count}} levels", { count: activity.progression.maxLevel })
-    : t("brainCoach.progression.milestones", activity.progression?.label ?? "Milestone journey");
+    : activity.progression?.kind === "milestones"
+      ? t("brainCoach.progression.milestones", activity.progression.label)
+      : null;
 
   return {
     title,
@@ -665,7 +668,7 @@ export function getBrainCoachActivityDisplay(activity: BrainCoachActivityDefinit
     actionLabel,
     badge: t(kind.key, kind.label),
     progressionLabel,
-    meta: `${duration} - ${progressionLabel} - ${trains}`,
+    meta: [duration, progressionLabel, trains].filter(Boolean).join(" - "),
     ariaLabel: `${title}. ${t(kind.key, kind.label)}. ${description} ${actionLabel}.`,
   };
 }
