@@ -340,38 +340,27 @@ function GardenVisual({ themeId, bloomLevel, complete = false }) {
   );
 }
 
-function TutorialGardenVisual({ theme, inLabel, outLabel }) {
+function TutorialGardenVisual({ themeId, theme, inLabel, outLabel, growLabel }) {
   return (
-    <div className="relative mx-auto h-[160px] w-full max-w-[520px] overflow-hidden rounded-[22px] border sm:h-[180px]" style={{ borderColor: theme.accent, background: theme.soft }}>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.95),rgba(255,255,255,0.3))]" />
-      <div className="absolute left-1/2 top-1/2 h-[112px] w-[112px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[12px] border-white/85 shadow-vyva-card" style={{ background: theme.soft }} />
-      {[0, 1, 2].map((ring) => (
-        <div
-          key={ring}
-          className="absolute left-1/2 top-1/2 rounded-full border-2"
-          style={{
-            width: 130 + ring * 34,
-            height: 130 + ring * 34,
-            transform: "translate(-50%, -50%)",
-            borderColor: ring % 2 ? "#FFFFFF" : theme.accent,
-            opacity: ring === 0 ? 0.22 : 0.15,
-          }}
-        />
-      ))}
-      <div className="absolute left-[15%] top-[28%] rounded-full bg-white px-3 py-2 text-[15px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
-        <Waves size={18} className="mr-1.5 inline" aria-hidden="true" />
-        {inLabel}
-      </div>
-      <div className="absolute right-[12%] top-[46%] rounded-full bg-white px-3 py-2 text-[15px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
-        {outLabel}
-      </div>
-      <div className="absolute bottom-[10px] left-1/2 flex -translate-x-1/2 items-end justify-center gap-2">
-        {[18, 30, 44].map((height, index) => (
-          <div key={height} className="flex flex-col items-center">
-            <div className="w-1.5 rounded-full" style={{ height, background: theme.accent, opacity: 0.55 + index * 0.15 }} />
-            <Flower2 size={20 + index * 5} style={{ color: theme.accent }} aria-hidden="true" />
-          </div>
-        ))}
+    <div className="relative mx-auto h-[190px] w-full max-w-[600px] overflow-hidden rounded-[24px] border border-black/[0.04] bg-white shadow-[0_14px_36px_rgba(54,35,78,0.08)] sm:h-[220px]">
+      <GardenVisual themeId={themeId} bloomLevel={4} complete />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#241C30]/30 via-transparent to-white/10" aria-hidden="true" />
+
+      <div className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 sm:gap-3">
+        <div className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/95 px-4 text-[14px] font-black shadow-[0_8px_24px_rgba(54,35,78,0.12)] sm:text-[15px]" style={{ color: theme.accent }}>
+          <Waves size={18} aria-hidden="true" />
+          {inLabel}
+        </div>
+        <span className="h-px min-w-5 flex-1 bg-white/80 sm:max-w-12" aria-hidden="true" />
+        <div className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/95 px-4 text-[14px] font-black shadow-[0_8px_24px_rgba(54,35,78,0.12)] sm:text-[15px]" style={{ color: theme.accent }}>
+          <Droplets size={18} aria-hidden="true" />
+          {outLabel}
+        </div>
+        <span className="hidden h-px w-8 bg-white/80 sm:block" aria-hidden="true" />
+        <div className="hidden min-h-10 items-center gap-2 rounded-full bg-white/95 px-4 text-[15px] font-black shadow-[0_8px_24px_rgba(54,35,78,0.12)] sm:inline-flex" style={{ color: theme.accent }}>
+          <Flower2 size={18} aria-hidden="true" />
+          {growLabel}
+        </div>
       </div>
     </div>
   );
@@ -715,38 +704,33 @@ export default function BreathGarden({
         ) : null}
 
         {screen === "tutorial" ? (
-          <section className="rounded-[28px] border bg-white p-4 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)] sm:p-5" style={{ borderColor: "#EEE8F1" }}>
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.09)] sm:p-7" style={{ borderColor: "#EEE8F1" }}>
+            <h2 className="font-display text-[27px] font-semibold leading-tight tracking-[-0.03em] sm:text-[31px]">
+              {t("games.breathGarden.tutorialSubtitle", "Tap gently as you breathe.")}
+            </h2>
+            <p className="mx-auto mt-2 max-w-[520px] text-[15px] font-semibold leading-relaxed sm:text-[16px]" style={{ color: BRAND.muted }}>
+              {t("games.breathGarden.howItWorks", "Tap once as you breathe in, and once as you breathe out. There is no correct rhythm - just breathe your way.")}
+            </p>
+
+            <div className="mt-5">
             <TutorialGardenVisual
+              themeId={theme}
               theme={selectedTheme}
               inLabel={t("games.breathGarden.tutorialIn", "In")}
               outLabel={t("games.breathGarden.tutorialOut", "Out")}
+              growLabel={t("games.breathGarden.tutorialGrow", "Garden grows")}
             />
-            <h2 className="mt-3 font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] sm:text-[27px]">{t("games.breathGarden.title", "Breath Garden")}</h2>
-            <p className="mt-1 text-[15px] font-extrabold leading-tight sm:text-[16px]" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.tutorialSubtitle", "Tap gently as you breathe.")}
-            </p>
-
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-              {[
-                { label: t("games.breathGarden.tutorialIn", "In"), Icon: Waves },
-                { label: t("games.breathGarden.tutorialOut", "Out"), Icon: Droplets },
-                { label: t("games.breathGarden.tutorialGrow", "Garden grows"), Icon: Flower2 },
-              ].map(({ label, Icon }) => (
-                <div key={label} className="min-h-[72px] rounded-[18px] px-2 py-2.5" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
-                  <Icon className="mx-auto" size={22} aria-hidden="true" />
-                  <span className="mt-1.5 block text-[13px] font-black leading-tight sm:text-[14px]">{label}</span>
-                </div>
-              ))}
             </div>
 
-            <p className="mx-auto mt-3 max-w-[560px] text-[13px] font-bold leading-snug sm:text-[14px]" style={{ color: BRAND.muted }}>
+            <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full bg-[#F7F3F8] px-4 py-2 text-[13px] font-bold sm:text-[14px]" style={{ color: BRAND.muted }}>
+              <Flower2 size={16} style={{ color: selectedTheme.accent }} aria-hidden="true" />
               {t("games.breathGarden.tutorialPace", "Go at your own pace. There is no right or wrong.")}
-            </p>
+            </div>
 
             <button
               type="button"
               onClick={closeTutorial}
-              className="mt-4 min-h-[52px] w-full rounded-full px-6 text-[17px] font-extrabold text-white shadow-vyva-card"
+              className="mt-5 min-h-[56px] w-full rounded-full px-6 text-[18px] font-extrabold text-white shadow-vyva-card transition-transform active:scale-[0.99]"
               style={{ background: BRAND.purple }}
             >
               {t("common.continue", "Continue")}
