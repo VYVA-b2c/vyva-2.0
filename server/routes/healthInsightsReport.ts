@@ -73,6 +73,15 @@ type DailyContentRow = {
   time_of_day: string | null;
   language: string;
   rotation_weight: number;
+  moment?: string | null;
+  program_key?: string | null;
+  resource_title?: string | null;
+  duration_seconds?: number | null;
+  evidence_tags?: string[] | null;
+  safety_notes?: string | null;
+  mobility_fit?: string | null;
+  region_fit?: string | null;
+  review_status?: string | null;
 };
 
 type PreventionRefreshTrigger =
@@ -167,9 +176,12 @@ type LongevityPreventionPlan = {
 };
 
 type LongevityActionEventType = "shown" | "opened" | "done" | "too_hard" | "not_relevant";
+type LongevityMoment = "morning" | "midday" | "afternoon" | "evening";
+type LongevityMomentStatus = "past" | "now" | "later";
 type LongevityProgramStatus = "active" | "paused" | "completed";
 type LongevityProgramDayStatus = "scheduled" | "shown" | "completed" | "skipped";
 type LongevityVideoCurationStatus = "ready" | "pending" | "fallback" | "failed";
+type LongevityVideoTranscriptStatus = "pending" | "available" | "unavailable" | "manual_reviewed";
 
 type LongevityActionEventRow = {
   action_key: string;
@@ -177,6 +189,9 @@ type LongevityActionEventRow = {
   event_type: LongevityActionEventType;
   pillar: PreventionPillar | null;
   barrier: string | null;
+  moment?: LongevityMoment | null;
+  content_id?: string | null;
+  resource_id?: string | null;
   source_context: Record<string, unknown> | null;
   created_at: Date | string;
 };
@@ -234,6 +249,9 @@ type LongevityVideoResourceRow = {
   summary: string | null;
   selected_reason: string;
   safety_notes: string;
+  transcript_status?: LongevityVideoTranscriptStatus | null;
+  key_points?: string[] | null;
+  senior_takeaway?: string | null;
   curation_status: Exclude<LongevityVideoCurationStatus, "pending">;
   curator_agent: string;
   search_query: string;
@@ -282,6 +300,9 @@ type LongevityVideoResource = {
   summary: string | null;
   selectedReason: string;
   safetyNotes: string;
+  transcriptStatus: LongevityVideoTranscriptStatus;
+  keyPoints: string[];
+  seniorTakeaway: string | null;
 };
 
 type LongevityProgramLayer = {
@@ -325,6 +346,9 @@ type LongevityCompanionAction = {
   route: string | null;
   resource_label?: string | null;
   resource_url?: string | null;
+  resource_title?: string | null;
+  duration_seconds?: number | null;
+  safety_notes?: string | null;
   prompt: string;
   source: "monthly_plan" | "daily_content" | "feedback_memory" | "fallback" | "program";
   challenge?: LongevityBrainChallenge | null;
@@ -364,12 +388,32 @@ type LongevityWhyThis = {
 };
 
 type LongevityDailySession = {
+  moment?: LongevityMoment;
+  label?: string;
   sessionFocus: string;
   primaryExperience: LongevityPrimaryExperience;
   companionAction: LongevityCompanionAction;
   optionalChoices: LongevityCompanionAction[];
   coveredPillars: LongevityCoveredPillar[];
   whyThis: LongevityWhyThis;
+};
+
+type LongevityMomentSession = LongevityDailySession & {
+  moment: LongevityMoment;
+  label: string;
+  status: LongevityMomentStatus;
+  startsAt: string;
+};
+
+type LongevityTimelineItem = {
+  moment: LongevityMoment;
+  label: string;
+  status: LongevityMomentStatus;
+  startsAt: string;
+  title: string;
+  reason: string;
+  pillar: PreventionPillar | null;
+  kind: LongevityDailyExperienceKind;
 };
 
 type LongevityCompanionPayload = {
@@ -384,6 +428,10 @@ type LongevityCompanionPayload = {
     headline: string;
     summary: string;
   };
+  activeMoment: LongevityMoment;
+  todayTimeline: LongevityTimelineItem[];
+  currentMomentSession: LongevityMomentSession;
+  nextMomentPreview: LongevityTimelineItem | null;
   whyToday: string;
   dailySession: LongevityDailySession;
   primaryAction: LongevityCompanionAction;
@@ -411,6 +459,68 @@ const PREVENTION_STATUS_RANK: Record<PreventionPillarStatus, number> = {
   priority_focus: 3,
 };
 
+const LONGEVITY_MOMENT_ORDER: LongevityMoment[] = ["morning", "midday", "afternoon", "evening"];
+const LONGEVITY_MOMENT_DEFINITIONS: Record<LongevityMoment, {
+  label: string;
+  startsAt: string;
+  preferredPillars: PreventionPillar[];
+  preferredTypes: DailyContentType[];
+  focusByPillar: Record<PreventionPillar, string>;
+}> = {
+  morning: {
+    label: "Morning",
+    startsAt: "05:00",
+    preferredPillars: ["nourishment", "calm", "brain"],
+    preferredTypes: ["meal", "tip", "exercise", "natural_solution"],
+    focusByPillar: {
+      heart: "Start gently, then keep movement possible later.",
+      brain: "Begin with one light brain spark.",
+      strength: "Make the first move feel steady.",
+      nourishment: "Make breakfast do some work.",
+      calm: "Start the day with one calmer cue.",
+    },
+  },
+  midday: {
+    label: "Midday",
+    startsAt: "11:00",
+    preferredPillars: ["nourishment", "heart", "strength"],
+    preferredTypes: ["meal", "tip", "supplement", "natural_solution"],
+    focusByPillar: {
+      heart: "Use lunch as a heart-support cue.",
+      brain: "Keep the middle of the day clear and simple.",
+      strength: "Choose one practical move while energy is available.",
+      nourishment: "Make lunch easier to choose.",
+      calm: "Keep the day from getting noisy.",
+    },
+  },
+  afternoon: {
+    label: "Afternoon",
+    startsAt: "14:00",
+    preferredPillars: ["heart", "strength", "brain"],
+    preferredTypes: ["exercise", "tip", "article", "natural_solution"],
+    focusByPillar: {
+      heart: "Choose movement that fits the day.",
+      brain: "Make the afternoon mentally engaging.",
+      strength: "Use one safe, supported movement.",
+      nourishment: "Keep energy steady after lunch.",
+      calm: "Reset before the evening.",
+    },
+  },
+  evening: {
+    label: "Evening",
+    startsAt: "18:00",
+    preferredPillars: ["calm", "nourishment", "brain"],
+    preferredTypes: ["tip", "exercise", "meal", "natural_solution"],
+    focusByPillar: {
+      heart: "Keep tonight easy on tomorrow.",
+      brain: "Close the day with something familiar.",
+      strength: "Set up tomorrow's movement to feel easier.",
+      nourishment: "Make the evening simple and settled.",
+      calm: "Wind down with one clear cue.",
+    },
+  },
+};
+
 const LONGEVITY_PROGRAM_KEY = "starter_video_longevity_v1";
 const LONGEVITY_PROGRAM_TOTAL_DAYS = 14;
 const LONGEVITY_CURATOR_AGENT = "vyva-longevity-video-curator-v1";
@@ -436,8 +546,17 @@ type LongevityVideoCandidate = {
   summary: string | null;
   selectedReason: string;
   safetyNotes: string;
+  transcriptStatus?: LongevityVideoTranscriptStatus;
+  keyPoints?: string[];
+  seniorTakeaway?: string | null;
   searchQuery: string;
   curationStatus: Exclude<LongevityVideoCurationStatus, "pending">;
+};
+
+type LongevityVideoInsight = {
+  transcriptStatus: LongevityVideoTranscriptStatus;
+  keyPoints: string[];
+  seniorTakeaway: string;
 };
 
 const STARTER_PROGRAM_TEMPLATES: LongevityProgramDayTemplate[] = [
@@ -582,6 +701,188 @@ const FALLBACK_VIDEO_LIBRARY: Record<string, LongevityVideoCandidate> = {
     selectedReason: "Short, practical, and connected to the brain and nourishment parts of the Longevity program.",
     safetyNotes: "Educational only; no diagnosis or treatment claim.",
     searchQuery: "MIND diet brain health short Mayo Clinic video",
+    curationStatus: "fallback",
+  },
+  "heart-mayo-moving": {
+    videoId: "sjrEUD9RZqA",
+    url: "https://www.youtube.com/watch?v=sjrEUD9RZqA",
+    title: "Mayo Clinic Minute: A little moving goes long way for heart health",
+    channel: "Mayo Clinic",
+    durationSeconds: 60,
+    thumbnailUrl: "https://i.ytimg.com/vi/sjrEUD9RZqA/hqdefault.jpg",
+    language: "en",
+    summary: "A short visual cue that heart-supporting movement can stay small and doable.",
+    selectedReason: "A one-minute Mayo Clinic clip that makes heart movement feel doable: a little movement still counts.",
+    safetyNotes: "General wellness education only; choose comfortable movement.",
+    searchQuery: "Mayo Clinic Minute a little moving goes long way heart health video",
+    curationStatus: "fallback",
+  },
+  "nourishment-healthy-fat-mayo": {
+    videoId: "R41BXXGohsU",
+    url: "https://www.youtube.com/watch?v=R41BXXGohsU",
+    title: "Mayo Clinic Minute: How to choose a healthy fat",
+    channel: "Mayo Clinic",
+    durationSeconds: 60,
+    thumbnailUrl: "https://i.ytimg.com/vi/R41BXXGohsU/hqdefault.jpg",
+    language: "en",
+    summary: "A quick visual guide for making one meal choice easier.",
+    selectedReason: "A short Mayo Clinic food clip turns nourishment into one practical choice at the next meal.",
+    safetyNotes: "General nutrition education only; follow personal restrictions and clinician guidance.",
+    searchQuery: "Mayo Clinic Minute how to choose a healthy fat video",
+    curationStatus: "fallback",
+  },
+  "calm-daily-calm-present": {
+    videoId: "ZToicYcHIOU",
+    url: "https://www.youtube.com/watch?v=ZToicYcHIOU",
+    title: "Daily Calm | 10 Minute Mindfulness Meditation | Be Present",
+    channel: "Calm",
+    durationSeconds: 600,
+    thumbnailUrl: "https://i.ytimg.com/vi/ZToicYcHIOU/hqdefault.jpg",
+    language: "en",
+    summary: "A simple guided meditation for a calm reset.",
+    selectedReason: "A paced video is easier to follow than another written breathing instruction.",
+    safetyNotes: "Pause or stop if the exercise feels uncomfortable.",
+    searchQuery: "Daily Calm 10 Minute Mindfulness Meditation Be Present video",
+    curationStatus: "fallback",
+  },
+  "brain-mind-diet-mayo-es": {
+    videoId: "2XVQctv5WzQ",
+    url: "https://www.youtube.com/watch?v=2XVQctv5WzQ",
+    title: "El minuto de Mayo Clinic: La alimentación puede mejorar la salud cerebral",
+    channel: "Mayo Clinic",
+    durationSeconds: 70,
+    thumbnailUrl: "https://i.ytimg.com/vi/2XVQctv5WzQ/hqdefault.jpg",
+    language: "es",
+    summary: "Una explicación breve sobre cómo la alimentación puede apoyar la salud cerebral.",
+    selectedReason: "Un video breve de Mayo Clinic en español, conectado con memoria y nutrición.",
+    safetyNotes: "Educación general de bienestar; no sustituye orientación clínica.",
+    searchQuery: "salud cerebral memoria alimentación adultos mayores video español",
+    curationStatus: "fallback",
+  },
+  "heart-mayo-exercise-es": {
+    videoId: "pEki37hCX9s",
+    url: "https://www.youtube.com/watch?v=pEki37hCX9s",
+    title: "El minuto de Mayo Clinic: ¿Por qué tiene que hacer ese ejercicio que odia?",
+    channel: "Mayo Clinic",
+    durationSeconds: 70,
+    thumbnailUrl: "https://i.ytimg.com/vi/pEki37hCX9s/hqdefault.jpg",
+    language: "es",
+    summary: "Un recordatorio breve para elegir movimiento de una forma más llevadera.",
+    selectedReason: "Mayo Clinic explica en español cómo adaptar el ejercicio para que sea más fácil empezar.",
+    safetyNotes: "Mantén el movimiento cómodo y suave; detente si algo no se siente bien.",
+    searchQuery: "ejercicio corazón adultos mayores video español Mayo Clinic",
+    curationStatus: "fallback",
+  },
+  "strength-warmup-senior-es": {
+    videoId: "M0Jh5tLQRE0",
+    url: "https://www.youtube.com/watch?v=M0Jh5tLQRE0",
+    title: "Rutina de Ejercicios de CALENTAMIENTO para Adultos Mayores Activos (10 minutos)",
+    channel: "Mariana Quevedo | Fisioterapia Querétaro",
+    durationSeconds: 600,
+    thumbnailUrl: "https://i.ytimg.com/vi/M0Jh5tLQRE0/hqdefault.jpg",
+    language: "es",
+    summary: "Una rutina breve de calentamiento para empezar movimiento con más seguridad.",
+    selectedReason: "Es un video en español, específico para adultos mayores y limitado a 10 minutos.",
+    safetyNotes: "Usa apoyo cercano y haz cada movimiento más pequeño si lo necesitas.",
+    searchQuery: "ejercicios adultos mayores 10 minutos seguro español",
+    curationStatus: "fallback",
+  },
+  "nourishment-healthy-eating-es": {
+    videoId: "pBVof_fgLV4",
+    url: "https://www.youtube.com/watch?v=pBVof_fgLV4",
+    title: "Alimentación saludable en las personas mayores",
+    channel: "SaludMadrid",
+    durationSeconds: null,
+    thumbnailUrl: "https://i.ytimg.com/vi/pBVof_fgLV4/hqdefault.jpg",
+    language: "es",
+    summary: "Un recurso visual en español sobre alimentación saludable en personas mayores.",
+    selectedReason: "Está en español y se centra directamente en alimentación para personas mayores.",
+    safetyNotes: "Educación general; respeta alergias, preferencias y pautas del equipo sanitario.",
+    searchQuery: "alimentación saludable adultos mayores español",
+    curationStatus: "fallback",
+  },
+  "calm-meditation-es": {
+    videoId: "FReFf1CLf-c",
+    url: "https://www.youtube.com/watch?v=FReFf1CLf-c",
+    title: "Meditación Guiada de 10 minutos | Calma la mente y consigue paz interior",
+    channel: "Anabel Otero",
+    durationSeconds: 600,
+    thumbnailUrl: "https://i.ytimg.com/vi/FReFf1CLf-c/hqdefault.jpg",
+    language: "es",
+    summary: "Una meditación guiada corta en español para una pausa tranquila.",
+    selectedReason: "Da estructura sonora y visual a una pausa de calma de solo 10 minutos.",
+    safetyNotes: "Pausa o termina si respirar lento o cerrar los ojos no resulta cómodo.",
+    searchQuery: "meditación guiada 10 minutos español calma",
+    curationStatus: "fallback",
+  },
+  "brain-food-cognition-fr": {
+    videoId: "Uplih5Mx1uw",
+    url: "https://www.youtube.com/watch?v=Uplih5Mx1uw",
+    title: "Les meilleurs aliments pour préserver son cerveau et ses facultés le plus longtemps possible",
+    channel: "Allo Docteurs",
+    durationSeconds: null,
+    thumbnailUrl: "https://i.ytimg.com/vi/Uplih5Mx1uw/hqdefault.jpg",
+    language: "fr",
+    summary: "Un guide visuel en français sur les choix alimentaires liés au cerveau.",
+    selectedReason: "Ressource en français qui relie nutrition et santé du cerveau de façon concrète.",
+    safetyNotes: "Information générale de bien-être; respecter les conseils médicaux personnels.",
+    searchQuery: "santé du cerveau alimentation personnes âgées français",
+    curationStatus: "fallback",
+  },
+  "heart-gentle-exercise-fr": {
+    videoId: "OBn81SkwFtk",
+    url: "https://www.youtube.com/watch?v=OBn81SkwFtk",
+    title: "10 min d'exercice physique par jour pour les seniors - 1",
+    channel: "Senioriales résidences seniors",
+    durationSeconds: 600,
+    thumbnailUrl: "https://i.ytimg.com/vi/OBn81SkwFtk/hqdefault.jpg",
+    language: "fr",
+    summary: "Une courte séance en français pour garder le mouvement simple.",
+    selectedReason: "Dix minutes en français, orientées seniors, pour un pas cardio doux.",
+    safetyNotes: "Choisir une version confortable et garder un appui à proximité.",
+    searchQuery: "exercice doux personnes âgées 10 minutes français",
+    curationStatus: "fallback",
+  },
+  "strength-gym-senior-fr": {
+    videoId: "XOYqccktGxQ",
+    url: "https://www.youtube.com/watch?v=XOYqccktGxQ",
+    title: "Gym douce senior : séance complète de 10 minutes",
+    channel: "Gym Senior",
+    durationSeconds: 600,
+    thumbnailUrl: "https://i.ytimg.com/vi/XOYqccktGxQ/hqdefault.jpg",
+    language: "fr",
+    summary: "Une séance douce en français pour travailler mobilité et stabilité.",
+    selectedReason: "Séance courte, en français, pensée pour les seniors et facile à délimiter.",
+    safetyNotes: "Utiliser un appui stable et réduire l'amplitude si nécessaire.",
+    searchQuery: "gym douce senior 10 minutes français",
+    curationStatus: "fallback",
+  },
+  "nourishment-senior-food-fr": {
+    videoId: "VWH4M7j0ECk",
+    url: "https://www.youtube.com/watch?v=VWH4M7j0ECk",
+    title: "Quelle alimentation pour les seniors ? - Sénior, et alors ?",
+    channel: "mieux",
+    durationSeconds: null,
+    thumbnailUrl: "https://i.ytimg.com/vi/VWH4M7j0ECk/hqdefault.jpg",
+    language: "fr",
+    summary: "Un contenu en français sur les repères alimentaires pour seniors.",
+    selectedReason: "La vidéo traite directement l'alimentation des seniors dans la langue de l'utilisateur.",
+    safetyNotes: "Information générale; tenir compte des allergies et restrictions personnelles.",
+    searchQuery: "alimentation saine personnes âgées français",
+    curationStatus: "fallback",
+  },
+  "calm-meditation-fr": {
+    videoId: "T6VJVRmqVJ8",
+    url: "https://www.youtube.com/watch?v=T6VJVRmqVJ8",
+    title: "10 min de Calme et de Pleine conscience",
+    channel: "Cédric Michel",
+    durationSeconds: 600,
+    thumbnailUrl: "https://i.ytimg.com/vi/T6VJVRmqVJ8/hqdefault.jpg",
+    language: "fr",
+    summary: "Une méditation guidée en français pour une pause calme.",
+    selectedReason: "Dix minutes guidées en français donnent une structure claire au moment calme.",
+    safetyNotes: "Arrêter si l'exercice n'est pas confortable.",
+    searchQuery: "méditation guidée 10 minutes français calme",
     curationStatus: "fallback",
   },
   "heart-move-pledge-hhs": {
@@ -754,6 +1055,241 @@ const FALLBACK_VIDEO_LIBRARY: Record<string, LongevityVideoCandidate> = {
   },
 };
 
+const FALLBACK_VIDEO_INSIGHTS_BY_ID: Record<string, LongevityVideoInsight> = {
+  hoPg4bkKemQ: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Brain-friendly eating works best as a simple pattern, not a perfect rule.",
+      "One useful swap today is easier to keep than a full meal overhaul.",
+    ],
+    seniorTakeaway: "Use the video as a cue to choose one brain-friendly food today, then keep the memory step short.",
+  },
+  sjrEUD9RZqA: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Small amounts of movement still count when the day feels full.",
+      "The first step is choosing a comfortable movement, not chasing intensity.",
+    ],
+    seniorTakeaway: "Pick one gentle VYVA movement and treat starting as the win.",
+  },
+  R41BXXGohsU: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Healthy fats are easier to choose when they are tied to a real meal.",
+      "The useful habit is one visible plate choice, not another food rule.",
+    ],
+    seniorTakeaway: "At the next meal, choose one familiar healthier fat or protein option that already fits your routine.",
+  },
+  ZToicYcHIOU: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "A guided rhythm can make a calm pause easier to follow.",
+      "A few settled minutes are enough for today's calm step.",
+    ],
+    seniorTakeaway: "Let the video provide the pace; stop after a few minutes if that is enough.",
+  },
+  "2XVQctv5WzQ": {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "La alimentación puede apoyar la salud cerebral como parte de una rutina diaria.",
+      "Un cambio pequeño en una comida es más práctico que intentar cambiar todo.",
+    ],
+    seniorTakeaway: "Usa el video para elegir hoy un alimento familiar que apoye memoria y energía.",
+  },
+  pEki37hCX9s: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "El movimiento funciona mejor cuando se adapta a lo que la persona puede hacer hoy.",
+      "Empezar con algo cómodo ayuda más que forzar un ejercicio que se odia.",
+    ],
+    seniorTakeaway: "Escoge una versión suave y breve; la constancia importa más que hacerlo perfecto.",
+  },
+  M0Jh5tLQRE0: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Un calentamiento prepara el cuerpo antes de moverse más.",
+      "Tener una silla o apoyo cerca hace que el paso sea más seguro.",
+    ],
+    seniorTakeaway: "Haz solo el calentamiento y reduce cualquier movimiento que no se sienta cómodo.",
+  },
+  pBVof_fgLV4: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "La alimentación saludable en mayores se entiende mejor con ejemplos concretos.",
+      "El plato de hoy puede mejorar con una sola decisión visible.",
+    ],
+    seniorTakeaway: "En la próxima comida, añade agua, proteína o un alimento colorido que ya te guste.",
+  },
+  "FReFf1CLf-c": {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Una guía breve puede ayudar a calmar la mente sin complicar el día.",
+      "La pausa debe sentirse cómoda, no exigente.",
+    ],
+    seniorTakeaway: "Sigue la voz unos minutos y termina antes si cerrar los ojos o respirar lento no encaja hoy.",
+  },
+  Uplih5Mx1uw: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Les choix alimentaires peuvent soutenir le cerveau dans une routine globale.",
+      "Un repère simple au repas est plus utile qu'une liste compliquée.",
+    ],
+    seniorTakeaway: "Choisir aujourd'hui un aliment familier qui rend le repas un peu plus favorable au cerveau.",
+  },
+  OBn81SkwFtk: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Dix minutes peuvent suffire pour garder un mouvement doux dans la journée.",
+      "Le bon rythme est celui qui reste confortable et régulier.",
+    ],
+    seniorTakeaway: "Faire la version la plus douce, avec un appui proche si besoin.",
+  },
+  XOYqccktGxQ: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Une séance courte aide à travailler mobilité et stabilité sans surcharge.",
+      "Réduire l'amplitude rend l'exercice plus facile à adapter.",
+    ],
+    seniorTakeaway: "Commencer par quelques mouvements et garder une chaise stable à proximité.",
+  },
+  VWH4M7j0ECk: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Les besoins alimentaires changent avec l'âge et gagnent à rester concrets.",
+      "Le meilleur pas est une amélioration visible du prochain repas.",
+    ],
+    seniorTakeaway: "Ajouter au prochain repas une option simple qui respecte les goûts et restrictions personnelles.",
+  },
+  T6VJVRmqVJ8: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Une courte méditation donne une structure claire au moment calme.",
+      "La pause doit rester confortable et facile à arrêter.",
+    ],
+    seniorTakeaway: "Suivre quelques minutes guidées et arrêter si l'exercice ne convient pas aujourd'hui.",
+  },
+  uLLo9w4dbPA: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "A movement pledge works best when it is small and specific.",
+      "Choosing the next step lowers the friction to begin.",
+    ],
+    seniorTakeaway: "Name one movement you would actually do today, then make it smaller if needed.",
+  },
+  "q-_BWXpM-Y0": {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "A short warm-up helps movement start gradually.",
+      "Older-adult routines should stay bounded and easy to pause.",
+    ],
+    seniorTakeaway: "Use the warm-up only, with support nearby, before deciding whether to do more.",
+  },
+  BzpaQ0F49JE: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Protein can be framed as part of energy and strength support.",
+      "Breakfast is a practical anchor because it is already a daily moment.",
+    ],
+    seniorTakeaway: "Choose one familiar protein at breakfast instead of redesigning the whole diet.",
+  },
+  inpok4MKVLM: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Five guided minutes can make meditation feel approachable.",
+      "A timer and voice remove the need to decide what to do next.",
+    ],
+    seniorTakeaway: "Try the first few minutes seated comfortably; stopping early is still a useful reset.",
+  },
+  BHY0FxzoKZE: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Movement and brain health are connected through everyday habits.",
+      "The practical takeaway is to pair thinking and moving in a small way.",
+    ],
+    seniorTakeaway: "After watching, pair one light movement with a tiny memory or word challenge.",
+  },
+  "61p1OIO20wk": {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Busy days need movement that fits into the day already happening.",
+      "Short routine cues can be more useful than a separate workout plan.",
+    ],
+    seniorTakeaway: "Attach one gentle movement to something already on the calendar today.",
+  },
+  bAsTJg24gck: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Chair-based exercise can keep movement available on lower-energy days.",
+      "Seated options still support mobility when standing work is not right.",
+    ],
+    seniorTakeaway: "Use the seated version and skip any movement that feels uncomfortable.",
+  },
+  "6O_jxyC-eu0": {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Older-adult nutrition is easier to act on when tied to the next meal.",
+      "Hydration, protein, and colourful foods are practical levers.",
+    ],
+    seniorTakeaway: "Pick one plate upgrade for the meal that is easiest to change today.",
+  },
+  FJJazKtH_9I: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "A visual breathing pattern can make a calm reset concrete.",
+      "Comfort matters more than holding the breath exactly.",
+    ],
+    seniorTakeaway: "Follow the visual rhythm gently and switch to normal slow breathing if holds feel wrong.",
+  },
+  LyR0l_GEgZI: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Low-intensity movement can happen indoors when outdoor walking is not ideal.",
+      "A ten-minute limit makes the exercise easier to start and finish.",
+    ],
+    seniorTakeaway: "Start the low-intensity routine and keep the range small enough to feel steady.",
+  },
+  G1lwVhnnkoU: {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "A short older-adult workout can combine strength, balance, flexibility, and endurance.",
+      "Support nearby makes the routine easier to adapt safely.",
+    ],
+    seniorTakeaway: "Do the first few movements with a chair nearby; stop when you have done enough for today.",
+  },
+  "86HUcX8ZtAk": {
+    transcriptStatus: "manual_reviewed",
+    keyPoints: [
+      "Progressive relaxation gives calm a clear sequence to follow.",
+      "Skipping uncomfortable areas keeps the practice practical.",
+    ],
+    seniorTakeaway: "Use the guided sequence only where it feels comfortable and let that be enough.",
+  },
+};
+
+const PILLAR_VIDEO_RESOURCE_KEYS_BY_LANGUAGE: Record<string, Record<PreventionPillar, string>> = {
+  en: {
+    heart: "heart-mayo-moving",
+    brain: "brain-mind-diet-mayo",
+    strength: "strength-nia-ten",
+    nourishment: "nourishment-healthy-fat-mayo",
+    calm: "calm-daily-calm-present",
+  },
+  es: {
+    heart: "heart-mayo-exercise-es",
+    brain: "brain-mind-diet-mayo-es",
+    strength: "strength-warmup-senior-es",
+    nourishment: "nourishment-healthy-eating-es",
+    calm: "calm-meditation-es",
+  },
+  fr: {
+    heart: "heart-gentle-exercise-fr",
+    brain: "brain-food-cognition-fr",
+    strength: "strength-gym-senior-fr",
+    nourishment: "nourishment-senior-food-fr",
+    calm: "calm-meditation-fr",
+  },
+};
+
 function emptyDailyContentBundle(): LongevityCompanionPayload["dailyContent"] {
   return {
     exercise: null,
@@ -775,8 +1311,8 @@ const FALLBACK_PROFILE: ProfileSummary = {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_ZERO = "00000000-0000-0000-0000-000000000000";
 
-function isUuid(value: string | null | undefined): value is string {
-  return Boolean(value && UUID_PATTERN.test(value));
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
 function todayStart(): Date {
@@ -1022,9 +1558,57 @@ function todaySeed(timezone?: string | null): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function localHourForTimezone(timezone?: string | null, now: Date = new Date()): number {
+  try {
+    const hourPart = new Intl.DateTimeFormat("en", {
+      timeZone: timezone || "UTC",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now).find((part) => part.type === "hour")?.value;
+    const hour = Number(hourPart);
+    if (Number.isFinite(hour)) return Math.max(0, Math.min(23, hour));
+  } catch {
+    // Fall through to the host hour when a stored timezone is invalid.
+  }
+  return now.getHours();
+}
+
+export function longevityMomentForHour(hour: number): LongevityMoment {
+  if (hour >= 5 && hour < 11) return "morning";
+  if (hour >= 11 && hour < 14) return "midday";
+  if (hour >= 14 && hour < 18) return "afternoon";
+  return "evening";
+}
+
+export function activeLongevityMoment(timezone?: string | null, now: Date = new Date()): LongevityMoment {
+  return longevityMomentForHour(localHourForTimezone(timezone, now));
+}
+
+function nextLongevityMoment(moment: LongevityMoment): LongevityMoment {
+  const index = LONGEVITY_MOMENT_ORDER.indexOf(moment);
+  return LONGEVITY_MOMENT_ORDER[(index + 1) % LONGEVITY_MOMENT_ORDER.length] ?? "morning";
+}
+
+function momentStatus(moment: LongevityMoment, activeMoment: LongevityMoment): LongevityMomentStatus {
+  if (moment === activeMoment) return "now";
+  const activeIndex = LONGEVITY_MOMENT_ORDER.indexOf(activeMoment);
+  const momentIndex = LONGEVITY_MOMENT_ORDER.indexOf(moment);
+  if (activeMoment === "evening") return "past";
+  return momentIndex > activeIndex ? "later" : "past";
+}
+
+function normalizeLongevityMoment(value: unknown): LongevityMoment | null {
+  return LONGEVITY_MOMENT_ORDER.includes(value as LongevityMoment) ? value as LongevityMoment : null;
+}
+
 function normalizeLanguage(value: string | null | undefined): string {
   const language = String(value ?? "es").trim().toLowerCase().slice(0, 2);
   return language || "es";
+}
+
+function normalizeVideoLanguage(value: string | null | undefined): string {
+  const language = normalizeLanguage(value);
+  return PILLAR_VIDEO_RESOURCE_KEYS_BY_LANGUAGE[language] ? language : "en";
 }
 
 async function getRecentDailyContentIds(userId: string): Promise<string[]> {
@@ -1046,6 +1630,7 @@ async function pickDailyContentRows(input: {
   allowAllFallback: boolean;
   limit: number;
   pillarTag?: PreventionPillar | null;
+  moment?: LongevityMoment | null;
   excludeRecent?: boolean;
 }): Promise<DailyContentRow[]> {
   const tags = input.conditionTags.length > 0 ? input.conditionTags : ["__none__"];
@@ -1053,22 +1638,36 @@ async function pickDailyContentRows(input: {
   const recentIds = input.excludeRecent === false ? [] : input.recentIds;
   const rows = await optionalQuery<DailyContentRow>("longevity_daily_content", `
     select id::text, content_type, title, description, detail_text, timing_guidance, source_label, source_url,
-           condition_tags, pillar_tag, time_of_day, language, rotation_weight
+           condition_tags, pillar_tag, time_of_day, language, rotation_weight, moment, program_key,
+           resource_title, duration_seconds, evidence_tags, safety_notes, mobility_fit, region_fit, review_status
     from public.longevity_daily_content
     where content_type = any($1::text[])
       and language = $2
       and is_active = true
+      and coalesce(review_status, 'approved') = 'approved'
       and ($8::text is null or pillar_tag = $8::text)
+      and (
+        $9::text is null
+        or moment is null
+        or moment in ('any', $9::text)
+        or time_of_day is null
+        or time_of_day in ('any', $9::text)
+        or ($9::text = 'midday' and moment in ('lunch'))
+        or ($9::text = 'midday' and time_of_day in ('lunch'))
+        or ($9::text = 'evening' and moment in ('night'))
+        or ($9::text = 'evening' and time_of_day in ('night'))
+      )
       and (
         condition_tags && $3::text[]
         or ($6::boolean = true and 'all' = any(condition_tags))
       )
       and (coalesce(array_length($4::uuid[], 1), 0) = 0 or id <> all($4::uuid[]))
     order by
+      case when $9::text is not null and time_of_day = $9::text then 0 else 1 end,
       case when condition_tags && $3::text[] and not ('all' = any(condition_tags)) then 0 else 1 end,
       (abs(hashtext(id::text || $5::text))::double precision / greatest(rotation_weight, 1)) asc
     limit $7
-  `, [types, input.language, tags, recentIds, input.daySeed, input.allowAllFallback, input.limit, input.pillarTag ?? null]);
+  `, [types, input.language, tags, recentIds, input.daySeed, input.allowAllFallback, input.limit, input.pillarTag ?? null, input.moment ?? null]);
 
   if (rows.length > 0 || input.language === "es") return rows;
   return pickDailyContentRows({ ...input, language: "es" });
@@ -1090,20 +1689,20 @@ function logDailyContentShown(userId: string, rows: DailyContentRow[]): void {
   `, [userId, shownIds]);
 }
 
-async function getDailyContentBundle(userId: string, conditions: string[], profile: ProfileSummary) {
+async function getDailyContentBundle(userId: string, conditions: string[], profile: ProfileSummary, activeMoment?: LongevityMoment) {
   const [recentIds] = await Promise.all([getRecentDailyContentIds(userId)]);
   const language = normalizeLanguage(profile.language_preference);
   const conditionTags = dailyContentTagsFor(conditions, false);
   const seed = todaySeed(profile.timezone);
 
   const [exerciseRows, mealRows, tipRows, supplementRows, naturalSolutionRows, articleRows, pillarEntries] = await Promise.all([
-    pickDailyContentRowsWithRecentFallback({ type: "exercise", language, conditionTags, recentIds, daySeed: `${userId}:exercise:${seed}`, allowAllFallback: true, limit: 1 }),
-    pickDailyContentRowsWithRecentFallback({ type: "meal", language, conditionTags, recentIds, daySeed: `${userId}:meal:${seed}`, allowAllFallback: true, limit: 1 }),
-    pickDailyContentRowsWithRecentFallback({ type: "tip", language, conditionTags, recentIds, daySeed: `${userId}:tip:${seed}`, allowAllFallback: true, limit: 1 }),
-    pickDailyContentRowsWithRecentFallback({ type: "supplement", language, conditionTags, recentIds, daySeed: `${userId}:supplement:${seed}`, allowAllFallback: true, limit: 1 }),
-    pickDailyContentRowsWithRecentFallback({ type: "natural_solution", language, conditionTags, recentIds, daySeed: `${userId}:natural_solution:${seed}`, allowAllFallback: true, limit: 1 }),
+    pickDailyContentRowsWithRecentFallback({ type: "exercise", language, conditionTags, recentIds, daySeed: `${userId}:${activeMoment ?? "day"}:exercise:${seed}`, allowAllFallback: true, limit: 1, moment: activeMoment }),
+    pickDailyContentRowsWithRecentFallback({ type: "meal", language, conditionTags, recentIds, daySeed: `${userId}:${activeMoment ?? "day"}:meal:${seed}`, allowAllFallback: true, limit: 1, moment: activeMoment }),
+    pickDailyContentRowsWithRecentFallback({ type: "tip", language, conditionTags, recentIds, daySeed: `${userId}:${activeMoment ?? "day"}:tip:${seed}`, allowAllFallback: true, limit: 1, moment: activeMoment }),
+    pickDailyContentRowsWithRecentFallback({ type: "supplement", language, conditionTags, recentIds, daySeed: `${userId}:${activeMoment ?? "day"}:supplement:${seed}`, allowAllFallback: true, limit: 1, moment: activeMoment }),
+    pickDailyContentRowsWithRecentFallback({ type: "natural_solution", language, conditionTags, recentIds, daySeed: `${userId}:${activeMoment ?? "day"}:natural_solution:${seed}`, allowAllFallback: true, limit: 1, moment: activeMoment }),
     conditionTags.length > 0
-      ? pickDailyContentRowsWithRecentFallback({ type: "article", language, conditionTags, recentIds, daySeed: `${userId}:article:${seed}`, allowAllFallback: false, limit: 2 })
+      ? pickDailyContentRowsWithRecentFallback({ type: "article", language, conditionTags, recentIds, daySeed: `${userId}:${activeMoment ?? "day"}:article:${seed}`, allowAllFallback: false, limit: 2, moment: activeMoment })
       : Promise.resolve([]),
     Promise.all(PREVENTION_PILLARS.map(async (pillar) => [
       pillar,
@@ -1114,7 +1713,7 @@ async function getDailyContentBundle(userId: string, conditions: string[], profi
         recentIds,
         daySeed: `${userId}:${pillar}:${seed}`,
         allowAllFallback: true,
-        limit: 5,
+        limit: 8,
         pillarTag: pillar,
       }),
     ] as const)),
@@ -2317,6 +2916,13 @@ function mapProgramDayRow(row: LongevityProgramDayRow): LongevityProgramStep {
 }
 
 function mapVideoRow(row: LongevityVideoResourceRow): LongevityVideoResource {
+  const fallback = fallbackVideoInsightFor({
+    videoId: row.video_id,
+    summary: row.summary,
+    selectedReason: row.selected_reason,
+    curationStatus: row.curation_status,
+  });
+  const keyPoints = normalizedVideoKeyPoints(row.key_points);
   return {
     id: row.id,
     provider: row.provider,
@@ -2330,6 +2936,9 @@ function mapVideoRow(row: LongevityVideoResourceRow): LongevityVideoResource {
     summary: row.summary,
     selectedReason: row.selected_reason,
     safetyNotes: row.safety_notes,
+    transcriptStatus: normalizeVideoTranscriptStatus(row.transcript_status ?? fallback.transcriptStatus),
+    keyPoints: keyPoints.length ? keyPoints : fallback.keyPoints,
+    seniorTakeaway: sentence(row.senior_takeaway ?? fallback.seniorTakeaway),
   };
 }
 
@@ -2417,6 +3026,57 @@ function isExactYoutubeWatchUrl(url: string | null | undefined): boolean {
   return Boolean(exactYoutubeVideoId(url));
 }
 
+function normalizeVideoTranscriptStatus(value: unknown): LongevityVideoTranscriptStatus {
+  return value === "available" || value === "unavailable" || value === "manual_reviewed" || value === "pending"
+    ? value
+    : "pending";
+}
+
+function normalizedVideoKeyPoints(value: unknown): string[] {
+  return arrayOfText(value)
+    .map((item) => sentence(item))
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function fallbackVideoInsightFor(candidate: Pick<LongevityVideoCandidate, "videoId" | "summary" | "selectedReason" | "curationStatus">): LongevityVideoInsight {
+  const reviewed = FALLBACK_VIDEO_INSIGHTS_BY_ID[candidate.videoId];
+  if (reviewed) return reviewed;
+  const keyPoints = normalizedVideoKeyPoints([
+    candidate.summary,
+    candidate.selectedReason,
+  ]);
+  return {
+    transcriptStatus: candidate.curationStatus === "fallback" ? "manual_reviewed" : "pending",
+    keyPoints: keyPoints.length ? keyPoints : ["Use this as a short visual cue, then keep today's next step small."],
+    seniorTakeaway: candidate.summary || candidate.selectedReason || "Use this as a short visual cue, then keep today's next step small.",
+  };
+}
+
+function videoCandidateWithInsights(candidate: LongevityVideoCandidate): LongevityVideoCandidate {
+  const fallback = fallbackVideoInsightFor(candidate);
+  const keyPoints = normalizedVideoKeyPoints(candidate.keyPoints);
+  return {
+    ...candidate,
+    transcriptStatus: normalizeVideoTranscriptStatus(candidate.transcriptStatus ?? fallback.transcriptStatus),
+    keyPoints: keyPoints.length ? keyPoints : fallback.keyPoints,
+    seniorTakeaway: sentence(candidate.seniorTakeaway ?? fallback.seniorTakeaway),
+  };
+}
+
+function liveVideoInsightForStep(step: LongevityProgramDayRow, summary: string | null): Pick<LongevityVideoCandidate, "transcriptStatus" | "keyPoints" | "seniorTakeaway"> {
+  const keyPoints = normalizedVideoKeyPoints([
+    step.objective,
+    summary,
+    `After watching, try: ${step.action_title}.`,
+  ]);
+  return {
+    transcriptStatus: "pending",
+    keyPoints,
+    seniorTakeaway: `Use the video as today's ${PILLAR_LABELS[step.pillar]} cue, then try one small companion step.`,
+  };
+}
+
 function isoDurationToSeconds(value: unknown): number | null {
   if (typeof value !== "string") return null;
   const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
@@ -2460,20 +3120,49 @@ function suppressedVideoIds(feedbackHistory: LongevityActionEventRow[]): Set<str
   return ids;
 }
 
-function fallbackVideoCandidatesForStep(step: LongevityProgramDayRow, feedbackHistory: LongevityActionEventRow[], rotationDate: string): LongevityVideoCandidate[] {
+function reviewedVideoCandidateForPillar(pillar: PreventionPillar | null, language?: string | null): LongevityVideoCandidate | null {
+  if (!pillar) return null;
+  const normalized = normalizeVideoLanguage(language);
+  const key = PILLAR_VIDEO_RESOURCE_KEYS_BY_LANGUAGE[normalized]?.[pillar]
+    ?? PILLAR_VIDEO_RESOURCE_KEYS_BY_LANGUAGE.en[pillar];
+  const candidate = FALLBACK_VIDEO_LIBRARY[key];
+  return candidate && videoCandidateIsSafe(candidate) ? videoCandidateWithInsights(candidate) : null;
+}
+
+function localizedFallbackVideoKey(key: string, language?: string | null): string {
+  const normalized = normalizeVideoLanguage(language);
+  if (normalized === "en") return key;
+  const englishPillar = (Object.entries(PILLAR_VIDEO_RESOURCE_KEYS_BY_LANGUAGE.en) as Array<[PreventionPillar, string]>)
+    .find(([, videoKey]) => videoKey === key)?.[0] ?? null;
+  return reviewedVideoCandidateForPillar(englishPillar, normalized)
+    ? PILLAR_VIDEO_RESOURCE_KEYS_BY_LANGUAGE[normalized]?.[englishPillar] ?? key
+    : key;
+}
+
+function fallbackVideoCandidatesForStep(
+  step: LongevityProgramDayRow,
+  feedbackHistory: LongevityActionEventRow[],
+  rotationDate: string,
+  language?: string | null,
+): LongevityVideoCandidate[] {
   const suppressed = suppressedVideoIds(feedbackHistory);
-  const templateCandidate = FALLBACK_VIDEO_LIBRARY[step.fallback_video_key];
+  const normalizedLanguage = normalizeVideoLanguage(language);
+  const templateCandidate = FALLBACK_VIDEO_LIBRARY[localizedFallbackVideoKey(step.fallback_video_key, normalizedLanguage)]
+    ?? FALLBACK_VIDEO_LIBRARY[step.fallback_video_key];
   const candidates = [
     templateCandidate,
-    ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => candidate.searchQuery === step.video_query),
+    ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => candidate.language === normalizedLanguage && candidate.searchQuery === step.video_query),
+    ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => candidate.language === normalizedLanguage),
     ...Object.values(FALLBACK_VIDEO_LIBRARY).filter((candidate) => !suppressed.has(candidate.videoId)),
-  ].filter((candidate): candidate is LongevityVideoCandidate => Boolean(candidate));
+  ].filter((candidate): candidate is LongevityVideoCandidate => Boolean(candidate))
+    .map(videoCandidateWithInsights);
 
   const eligible = Array.from(new Map(candidates.map((candidate) => [candidate.videoId, candidate])).values())
     .filter((candidate) => videoCandidateIsSafe(candidate) && !suppressed.has(candidate.videoId))
     .sort((a, b) => deterministicScore(`${step.user_id}:${step.pillar}:${rotationDate}:${a.videoId}`) - deterministicScore(`${step.user_id}:${step.pillar}:${rotationDate}:${b.videoId}`));
-  const preferred = templateCandidate && videoCandidateIsSafe(templateCandidate) && !suppressed.has(templateCandidate.videoId)
-    ? [templateCandidate]
+  const preferredCandidate = templateCandidate ? videoCandidateWithInsights(templateCandidate) : null;
+  const preferred = preferredCandidate && videoCandidateIsSafe(preferredCandidate) && !suppressed.has(preferredCandidate.videoId)
+    ? [preferredCandidate]
     : [];
   return [
     ...preferred,
@@ -2531,7 +3220,8 @@ async function searchYoutubeCandidates(input: {
       if (!videoId || !title || suppressed.has(videoId)) return null;
       const summary = truncate(item.snippet?.description ?? "", 180) || null;
       const durationSeconds = isoDurationToSeconds(item.contentDetails?.duration);
-      return {
+      const insight = liveVideoInsightForStep(input.step, summary);
+      return videoCandidateWithInsights({
         videoId,
         url: exactYoutubeWatchUrl(videoId),
         title,
@@ -2542,9 +3232,12 @@ async function searchYoutubeCandidates(input: {
         summary,
         selectedReason: `Matched today's ${PILLAR_LABELS[input.step.pillar]} program step.`,
         safetyNotes: "Auto-selected with senior-friendly safety filters; user can choose a smaller version.",
+        transcriptStatus: insight.transcriptStatus,
+        keyPoints: insight.keyPoints,
+        seniorTakeaway: insight.seniorTakeaway,
         searchQuery: query,
         curationStatus: "ready",
-      };
+      });
     }).filter((candidate): candidate is LongevityVideoCandidate => Boolean(candidate) && videoCandidateIsSafe(candidate));
   } catch (err) {
     console.warn("[PreventionCompanion] YouTube curation failed; using fallback video.", err);
@@ -2561,7 +3254,7 @@ async function curateVideoCandidate(input: {
   const liveCandidates = await searchYoutubeCandidates(input);
   const live = liveCandidates[0];
   if (live) return live;
-  return fallbackVideoCandidatesForStep(input.step, input.feedbackHistory, input.rotationDate)[0] ?? null;
+  return fallbackVideoCandidatesForStep(input.step, input.feedbackHistory, input.rotationDate, input.profile.language_preference)[0] ?? null;
 }
 
 async function getOrCreateLongevityProgram(input: {
@@ -2712,16 +3405,20 @@ async function getOrCreateProgramVideo(input: {
   const inserted = await optionalQuery<LongevityVideoResourceRow>("longevity_video_resources", `
     insert into public.longevity_video_resources (
       program_day_id, user_id, provider, video_id, url, title, channel, duration_seconds, thumbnail_url,
-      language, summary, selected_reason, safety_notes, curation_status, curator_agent, search_query, expires_at
+      language, summary, selected_reason, safety_notes, transcript_status, key_points, senior_takeaway,
+      curation_status, curator_agent, search_query, expires_at
     ) values (
       $1::uuid, $2, 'youtube', $3, $4, $5, $6, $7, $8,
-      $9, $10, $11, $12, $13, $14, $15, now() + interval '30 days'
+      $9, $10, $11, $12, $13, $14::text[], $15, $16, $17, $18, now() + interval '30 days'
     )
     on conflict (program_day_id, video_id) do update
       set fetched_at = now(),
           expires_at = now() + interval '30 days',
           selected_reason = excluded.selected_reason,
-          safety_notes = excluded.safety_notes
+          safety_notes = excluded.safety_notes,
+          transcript_status = excluded.transcript_status,
+          key_points = excluded.key_points,
+          senior_takeaway = excluded.senior_takeaway
     returning *
   `, [
     input.step.id,
@@ -2736,6 +3433,9 @@ async function getOrCreateProgramVideo(input: {
     candidate.summary,
     candidate.selectedReason,
     candidate.safetyNotes,
+    candidate.transcriptStatus ?? "pending",
+    normalizedVideoKeyPoints(candidate.keyPoints),
+    candidate.seniorTakeaway ?? null,
     candidate.curationStatus,
     LONGEVITY_CURATOR_AGENT,
     candidate.searchQuery,
@@ -2756,6 +3456,9 @@ async function getOrCreateProgramVideo(input: {
     summary: candidate.summary,
     selected_reason: candidate.selectedReason,
     safety_notes: candidate.safetyNotes,
+    transcript_status: candidate.transcriptStatus ?? "pending",
+    key_points: normalizedVideoKeyPoints(candidate.keyPoints),
+    senior_takeaway: candidate.seniorTakeaway ?? null,
     curation_status: candidate.curationStatus,
     curator_agent: LONGEVITY_CURATOR_AGENT,
     search_query: candidate.searchQuery,
@@ -2779,7 +3482,7 @@ export function buildFallbackLongevityProgramLayer(input: {
   const startDate = input.startDate ?? rotationDate;
   const program = fallbackProgramRow({ userId: input.userId, profile: input.profile, priorityPillar, startDate, rotationDate });
   const stepRow = fallbackProgramDayRow({ program, priorityPillar, dayIndex: programDayIndex(startDate, rotationDate) });
-  const video = fallbackVideoCandidatesForStep(stepRow, input.feedbackHistory, rotationDate)[0] ?? null;
+  const video = fallbackVideoCandidatesForStep(stepRow, input.feedbackHistory, rotationDate, input.profile.language_preference)[0] ?? null;
   return {
     activeProgram: mapProgramRow(program),
     todayProgramStep: mapProgramDayRow(stepRow),
@@ -2796,6 +3499,9 @@ export function buildFallbackLongevityProgramLayer(input: {
       summary: video.summary,
       selectedReason: video.selectedReason,
       safetyNotes: video.safetyNotes,
+      transcriptStatus: video.transcriptStatus ?? "manual_reviewed",
+      keyPoints: normalizedVideoKeyPoints(video.keyPoints),
+      seniorTakeaway: video.seniorTakeaway ?? video.summary,
     } : null,
     videoCurationStatus: video ? video.curationStatus : "failed",
   };
@@ -2872,15 +3578,31 @@ function routeForCompanionAction(title: string, pillar: PreventionPillar | null)
 type LongevityCompanionResource = {
   resource_label: string;
   resource_url: string;
+  resource_title?: string | null;
+  duration_seconds?: number | null;
+  safety_notes?: string | null;
+  language?: string | null;
 };
 
-function resourceForCompanionAction(title: string, pillar: PreventionPillar | null): LongevityCompanionResource | null {
+function reviewedVideoResourceForPillar(pillar: PreventionPillar | null, language?: string | null): LongevityCompanionResource | null {
+  const candidate = reviewedVideoCandidateForPillar(pillar, language);
+  if (!candidate) return null;
+  return {
+    resource_label: candidate.channel ?? "Curated video",
+    resource_url: candidate.url,
+    resource_title: candidate.title,
+    duration_seconds: candidate.durationSeconds,
+    safety_notes: candidate.safetyNotes,
+    language: candidate.language,
+  };
+}
+
+function resourceForCompanionAction(title: string, pillar: PreventionPillar | null, language?: string | null): LongevityCompanionResource | null {
   const text = title.toLowerCase();
+  const pillarVideo = reviewedVideoResourceForPillar(pillar, language);
+  if (pillarVideo) return pillarVideo;
   if (text.includes("brain coach")) return { resource_label: "Brain Coach", resource_url: "/mind" };
   if (text.includes("breath") || text.includes("breathing")) return { resource_label: "Breath Garden", resource_url: "/games/breath-garden" };
-  if (text.includes("blood pressure") || text.includes("bp")) {
-      return { resource_label: "AHA BP guide", resource_url: "https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings/monitoring-your-blood-pressure-at-home" };
-    }
   if (text.includes("path") || text.includes("obstacle") || text.includes("safety")) {
     return { resource_label: "Walking route", resource_url: "/social-rooms/walking-route?source=longevity&intent=clear-walking-path" };
   }
@@ -2890,26 +3612,9 @@ function resourceForCompanionAction(title: string, pillar: PreventionPillar | nu
   if (text.includes("chair") || text.includes("strength") || text.includes("supported") || text.includes("stand once")) {
     return { resource_label: "VYVA movement", resource_url: routeForCompanionAction(title, pillar) ?? "/health/exercises/gentle-walk" };
   }
-  if (text.includes("protein") || text.includes("meal") || text.includes("food") || text.includes("snack") || text.includes("plate")) {
-    return { resource_label: "NIA food guide", resource_url: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-eating-you-age-know-your-food-groups" };
-  }
-  if (text.includes("water") || text.includes("hydration")) {
-    return { resource_label: "NIA meal planning", resource_url: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-meal-planning-tips-older-adults" };
-  }
-  if (text.includes("bedtime") || text.includes("sleep") || text.includes("wind-down") || text.includes("morning light")) {
-    return { resource_label: "NIA sleep guide", resource_url: "https://www.nia.nih.gov/health/sleep/sleep-and-older-adults" };
-  }
-  if (text.includes("quiet") || text.includes("pause") || text.includes("relax")) {
-    return { resource_label: "NIH relaxation guide", resource_url: "https://www.nccih.nih.gov/health/relaxation-techniques-what-you-need-to-know" };
-  }
-  if (text.includes("call someone") || text.includes("conversation") || text.includes("social")) {
-    return { resource_label: "NIA activities guide", resource_url: "https://www.nia.nih.gov/health/healthy-aging/participating-activities-you-enjoy-you-age" };
-  }
   if (pillar === "heart") return { resource_label: "Nearby walking ideas", resource_url: "/social-rooms/activities?source=longevity&intent=nearby-walk&format=nearby&interests=walking,nature,community,learning" };
-  if (pillar === "brain") return { resource_label: "NIA brain guide", resource_url: "https://www.nia.nih.gov/health/brain-health/cognitive-health-and-older-adults" };
-  if (pillar === "strength") return { resource_label: "NIA exercise videos", resource_url: "https://www.nia.nih.gov/toolkits/exercise" };
-  if (pillar === "nourishment") return { resource_label: "NIA food guide", resource_url: "https://www.nia.nih.gov/health/healthy-eating-nutrition-and-diet/healthy-eating-you-age-know-your-food-groups" };
-  if (pillar === "calm") return { resource_label: "NIA sleep guide", resource_url: "https://www.nia.nih.gov/health/sleep/sleep-and-older-adults" };
+  if (pillar === "brain") return { resource_label: "Brain Coach", resource_url: "/mind" };
+  if (pillar === "calm") return { resource_label: "Breath Garden", resource_url: "/games/breath-garden" };
   return null;
 }
 
@@ -3018,10 +3723,11 @@ function recommendationToAction(
   pillar: PreventionPillar | null,
   signals: LongevityCompanionSignal[],
   whyToday: string,
+  language?: string | null,
 ): LongevityCompanionAction {
   const actionSignal = bestSignalForPillar(signals, pillar);
   const detail = recommendation.why || actionSignal?.detail || whyToday;
-  const resource = resourceForCompanionAction(recommendation.action, pillar);
+  const resource = resourceForCompanionAction(recommendation.action, pillar, language);
   return {
     action_key: actionKeyFor(pillar, recommendation.action),
     title: recommendation.action,
@@ -3030,15 +3736,19 @@ function recommendationToAction(
     route: routeForCompanionAction(recommendation.action, pillar),
     resource_label: resource?.resource_label ?? null,
     resource_url: resource?.resource_url ?? null,
+    resource_title: resource?.resource_title ?? null,
+    duration_seconds: resource?.duration_seconds ?? null,
+    safety_notes: resource?.safety_notes ?? null,
     prompt: `Help me with today's longevity step: ${recommendation.action}. Context: ${whyToday}`,
     source: "monthly_plan",
   };
 }
 
-function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar | null, whyToday: string): LongevityCompanionAction {
+function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar | null, whyToday: string, language?: string | null): LongevityCompanionAction {
   const actionPillar = content.pillar_tag ?? pillar;
-  const resource = resourceForCompanionAction(content.title, actionPillar);
+  const resource = resourceForCompanionAction(content.title, actionPillar, language ?? content.language);
   const internalRoute = content.source_url?.startsWith("/") ? content.source_url : null;
+  const contentVideoUrl = isExactYoutubeWatchUrl(content.source_url) ? content.source_url : null;
   return {
     action_key: actionKeyFor(actionPillar, content.title),
     content_id: content.id,
@@ -3048,8 +3758,11 @@ function dailyContentToAction(content: DailyContentRow, pillar: PreventionPillar
     detail: sentence(content.description),
     pillar: actionPillar,
     route: internalRoute ?? routeForCompanionAction(content.title, actionPillar),
-    resource_label: content.source_label ?? resource?.resource_label ?? null,
-    resource_url: content.source_url ?? resource?.resource_url ?? null,
+    resource_label: resource?.resource_label ?? content.source_label ?? null,
+    resource_url: contentVideoUrl ?? resource?.resource_url ?? (content.source_url && !internalRoute ? content.source_url : null),
+    resource_title: resource?.resource_title ?? content.resource_title ?? null,
+    duration_seconds: resource?.duration_seconds ?? content.duration_seconds ?? null,
+    safety_notes: content.safety_notes ?? resource?.safety_notes ?? null,
     prompt: `Help me make this longevity step easy today: ${content.title}. Context: ${whyToday}`,
     source: "daily_content",
   };
@@ -3085,6 +3798,11 @@ function programStepToAction(
     detail: sentence(challenge && !recentHard ? challenge.followUp : detail),
     pillar: step.pillar,
     route: routeForProgramStep(step),
+    resource_label: video?.channel ?? null,
+    resource_url: video?.url ?? null,
+    resource_title: video?.title ?? null,
+    duration_seconds: video?.durationSeconds ?? null,
+    safety_notes: video?.safetyNotes ?? null,
     prompt: `Help me with today's Longevity program step: ${title}. ${challenge ? `Challenge: ${challenge.prompt}.` : ""} ${whyToday}.${videoContext}`,
     source: "program",
     challenge: recentHard ? null : challenge,
@@ -3092,12 +3810,27 @@ function programStepToAction(
   };
 }
 
-function dailyContentOptionsForPillar(dailyContent: LongevityCompanionPayload["dailyContent"], pillar: PreventionPillar): DailyContentRow[] {
+function contentRowMatchesMoment(row: DailyContentRow, moment?: LongevityMoment | null): boolean {
+  if (!moment) return true;
+  const value = oneLine(row.moment ?? row.time_of_day ?? "any").toLowerCase();
+  if (!value || value === "any") return true;
+  if (value === moment) return true;
+  if (moment === "midday" && value === "lunch") return true;
+  if (moment === "evening" && value === "night") return true;
+  return false;
+}
+
+function dailyContentOptionsForPillar(
+  dailyContent: LongevityCompanionPayload["dailyContent"],
+  pillar: PreventionPillar,
+  moment?: LongevityMoment | null,
+): DailyContentRow[] {
   const pillarRows = dailyContent.byPillar[pillar] ?? [];
-  const rows = pillarRows.length > 0
+  const rows = (pillarRows.length > 0
     ? pillarRows
     : [dailyContent.tip, dailyContent.exercise, dailyContent.meal, dailyContent.supplement, dailyContent.naturalSolution]
-    .filter((item): item is DailyContentRow => Boolean(item) && item.pillar_tag === pillar);
+    .filter((item): item is DailyContentRow => Boolean(item) && item.pillar_tag === pillar))
+    .filter((row) => contentRowMatchesMoment(row, moment));
   if (pillar === "heart") {
     const exerciseRows = rows.filter((row) => row.content_type === "exercise");
     return exerciseRows.length > 0 ? exerciseRows : rows;
@@ -3118,7 +3851,7 @@ function rotatedDailyContentOptions(input: {
   });
 }
 
-function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityActionEventRow, whyToday: string): LongevityCompanionAction {
+function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityActionEventRow, whyToday: string, language?: string | null): LongevityCompanionAction {
   const titleByPillar: Record<PreventionPillar, string> = {
     heart: "Make the heart step smaller",
     brain: "Make the brain challenge smaller",
@@ -3133,7 +3866,7 @@ function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityA
     nourishment: `You marked "${recentHard.action_title}" too hard, so choose the simplest version at your next meal.`,
     calm: `You marked "${recentHard.action_title}" too hard, so start with two quiet minutes only.`,
   };
-  const resource = resourceForCompanionAction(titleByPillar[pillar], pillar);
+  const resource = resourceForCompanionAction(titleByPillar[pillar], pillar, language);
   return {
     action_key: actionKeyFor(pillar, titleByPillar[pillar]),
     title: titleByPillar[pillar],
@@ -3142,6 +3875,9 @@ function smallerActionForPillar(pillar: PreventionPillar, recentHard: LongevityA
     route: routeForCompanionAction(titleByPillar[pillar], pillar),
     resource_label: resource?.resource_label ?? null,
     resource_url: resource?.resource_url ?? null,
+    resource_title: resource?.resource_title ?? null,
+    duration_seconds: resource?.duration_seconds ?? null,
+    safety_notes: resource?.safety_notes ?? null,
     prompt: `Make a smaller ${PILLAR_LABELS[pillar]} step for today. Context: ${whyToday}`,
     source: "feedback_memory",
   };
@@ -3154,6 +3890,8 @@ function buildPillarAction(input: {
   dailyContent: LongevityCompanionPayload["dailyContent"];
   feedbackHistory: LongevityActionEventRow[];
   rotationDate: string;
+  activeMoment?: LongevityMoment | null;
+  language?: string | null;
 }): LongevityCompanionAction {
   const suppressed = suppressedActionKeys(input.feedbackHistory);
   const whyForPillar = buildWhyToday(input.pillar, input.signals, input.plan);
@@ -3161,21 +3899,21 @@ function buildPillarAction(input: {
     event.event_type === "too_hard"
     && event.pillar === input.pillar
     && eventAgeDays(event) <= 7);
-  if (recentHard) return smallerActionForPillar(input.pillar, recentHard, whyForPillar);
+  if (recentHard) return smallerActionForPillar(input.pillar, recentHard, whyForPillar, input.language);
 
   const contentCandidates = rotatedDailyContentOptions({
-    rows: dailyContentOptionsForPillar(input.dailyContent, input.pillar),
+    rows: dailyContentOptionsForPillar(input.dailyContent, input.pillar, input.activeMoment),
     userId: input.plan.user_id,
     pillar: input.pillar,
-    rotationDate: input.rotationDate,
-  }).map((content) => dailyContentToAction(content, input.pillar, whyForPillar));
+    rotationDate: `${input.rotationDate}:${input.activeMoment ?? "day"}`,
+  }).map((content) => dailyContentToAction(content, input.pillar, whyForPillar, input.language));
 
   const recommendationCandidates = pillarRecommendationOptions(input.plan, input.pillar)
-    .map((recommendation) => recommendationToAction(recommendation, input.pillar, input.signals, whyForPillar));
+    .map((recommendation) => recommendationToAction(recommendation, input.pillar, input.signals, whyForPillar, input.language));
 
   const candidates = [...contentCandidates, ...recommendationCandidates];
   return candidates.find((action) => !suppressed.has(action.action_key))
-    ?? recommendationToAction(fallbackRecommendationForPillar(input.pillar), input.pillar, input.signals, whyForPillar);
+    ?? recommendationToAction(fallbackRecommendationForPillar(input.pillar), input.pillar, input.signals, whyForPillar, input.language);
 }
 
 function buildPillarActions(input: {
@@ -3184,6 +3922,8 @@ function buildPillarActions(input: {
   dailyContent: LongevityCompanionPayload["dailyContent"];
   feedbackHistory: LongevityActionEventRow[];
   rotationDate: string;
+  activeMoment?: LongevityMoment | null;
+  language?: string | null;
 }): Record<PreventionPillar, LongevityCompanionAction> {
   return Object.fromEntries(PREVENTION_PILLARS.map((pillar) => [
     pillar,
@@ -3293,16 +4033,41 @@ function ctaLabelForExperience(kind: LongevityDailyExperienceKind): string {
   return "Start";
 }
 
-function buildPrimaryExperience(action: LongevityCompanionAction, video: LongevityVideoResource | null): LongevityPrimaryExperience {
-  const kind = experienceKindForAction(action, video);
+function videoFromCompanionAction(action: LongevityCompanionAction, language?: string | null): LongevityVideoResource | null {
+  const videoId = exactYoutubeVideoId(action.resource_url);
+  if (!videoId) return null;
+  const curated = reviewedVideoCandidateForPillar(action.pillar, language);
+  const curatedMatch = curated?.videoId === videoId ? curated : null;
+  return {
+    id: action.content_id ?? action.action_key,
+    provider: "youtube",
+    videoId,
+    url: exactYoutubeWatchUrl(videoId),
+    title: action.resource_title ?? curatedMatch?.title ?? action.title,
+    channel: action.resource_label ?? curatedMatch?.channel ?? null,
+    durationSeconds: action.duration_seconds ?? curatedMatch?.durationSeconds ?? null,
+    thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    language: curatedMatch?.language ?? normalizeVideoLanguage(language),
+    summary: (action.detail || curatedMatch?.summary) ?? null,
+    selectedReason: curatedMatch?.selectedReason ?? sentence(action.detail),
+    safetyNotes: action.safety_notes ?? curatedMatch?.safetyNotes ?? "General wellness support only.",
+    transcriptStatus: curatedMatch?.transcriptStatus ?? "pending",
+    keyPoints: normalizedVideoKeyPoints(curatedMatch?.keyPoints),
+    seniorTakeaway: curatedMatch?.seniorTakeaway ?? action.detail ?? null,
+  };
+}
+
+function buildPrimaryExperience(action: LongevityCompanionAction, video: LongevityVideoResource | null, language?: string | null): LongevityPrimaryExperience {
+  const resolvedVideo = video ?? videoFromCompanionAction(action, language);
+  const kind = experienceKindForAction(action, resolvedVideo);
   return {
     kind,
-    title: video?.title ?? action.title,
-    detail: sentence(video?.selectedReason ?? action.detail),
+    title: resolvedVideo?.title ?? action.title,
+    detail: sentence(resolvedVideo?.seniorTakeaway ?? resolvedVideo?.selectedReason ?? action.detail),
     pillar: action.pillar,
     ctaLabel: ctaLabelForExperience(kind),
     action,
-    video,
+    video: resolvedVideo,
   };
 }
 
@@ -3335,8 +4100,9 @@ function buildDailySession(input: {
   headline: string;
   focusPillar: PreventionPillar | null;
   rotationDate: string;
+  language?: string | null;
 }): LongevityDailySession {
-  const primaryExperience = buildPrimaryExperience(input.primaryAction, input.todayVideo);
+  const primaryExperience = buildPrimaryExperience(input.primaryAction, input.todayVideo, input.language);
   const allCandidates = Object.values(input.pillarActions)
     .filter((action) => actionHasEnoughEvidence({ plan: input.plan, signals: input.signals, action, programStep: input.programStep }))
     .sort((a, b) =>
@@ -3371,7 +4137,7 @@ function buildDailySession(input: {
   });
   const evidence = [
     input.programStep ? `Program day ${input.programStep.dayIndex}: ${input.programStep.theme}.` : null,
-    input.todayVideo ? `Curated video: ${input.todayVideo.title}.` : null,
+    primaryExperience.video ? `Curated video: ${primaryExperience.video.title}.` : null,
     input.primaryAction.source === "feedback_memory" || companionAction.source === "feedback_memory" ? "Recent feedback asked VYVA to make this easier." : null,
     ...input.signals.slice(0, 3).map((signalItem) => `${signalItem.label}: ${signalItem.detail}`),
   ].filter((item): item is string => Boolean(item));
@@ -3445,6 +4211,270 @@ function buildTodayFocusHeadline(profile: ProfileSummary, pillar: PreventionPill
   return `${lead}start with one useful step today`;
 }
 
+const PROGRAM_PILLAR_MOMENT: Record<PreventionPillar, LongevityMoment> = {
+  heart: "afternoon",
+  brain: "afternoon",
+  strength: "afternoon",
+  nourishment: "morning",
+  calm: "evening",
+};
+
+function preferredPillarsForMoment(moment: LongevityMoment, focusPillar: PreventionPillar | null): PreventionPillar[] {
+  const preferred = LONGEVITY_MOMENT_DEFINITIONS[moment].preferredPillars;
+  return focusPillar && preferred.includes(focusPillar) && PROGRAM_PILLAR_MOMENT[focusPillar] === moment
+    ? [focusPillar, ...preferred.filter((pillar) => pillar !== focusPillar)]
+    : preferred;
+}
+
+function fallbackActionForMoment(moment: LongevityMoment, focusPillar: PreventionPillar | null, whyToday: string, language?: string | null): LongevityCompanionAction {
+  const pillar = preferredPillarsForMoment(moment, focusPillar)[0] ?? focusPillar ?? "calm";
+  const copy: Record<LongevityMoment, { title: string; detail: string; route: string | null; resourceLabel: string | null; resourceUrl: string | null }> = {
+    morning: {
+      title: "Choose one steady breakfast anchor",
+      detail: "Pick one familiar protein, water, or morning-light cue so the day starts simply.",
+      route: null,
+      resourceLabel: "Ask VYVA",
+      resourceUrl: null,
+    },
+    midday: {
+      title: "Make lunch easier to choose",
+      detail: "Choose one simple plate upgrade, then leave the rest of the plan alone.",
+      route: null,
+      resourceLabel: "Ask VYVA",
+      resourceUrl: null,
+    },
+    afternoon: {
+      title: "Start one VYVA movement",
+      detail: "Use a short guided movement or route that fits your energy and mobility today.",
+      route: "/social-rooms/morning-movement/exercises/tai-chi",
+      resourceLabel: "VYVA movement",
+      resourceUrl: "/social-rooms/morning-movement/exercises/tai-chi",
+    },
+    evening: {
+      title: "Settle tonight with one cue",
+      detail: "Choose a two-minute reset, softer light, or a simple setup for tomorrow.",
+      route: "/games/breath-garden",
+      resourceLabel: "Breath Garden",
+      resourceUrl: "/games/breath-garden",
+    },
+  };
+  const selected = copy[moment];
+  const resource = resourceForCompanionAction(selected.title, pillar, language);
+  return {
+    action_key: actionKeyFor(pillar, `${moment}:${selected.title}`),
+    title: selected.title,
+    detail: selected.detail,
+    pillar,
+    route: selected.route,
+    resource_label: resource?.resource_label ?? selected.resourceLabel,
+    resource_url: resource?.resource_url ?? selected.resourceUrl,
+    resource_title: resource?.resource_title ?? null,
+    duration_seconds: resource?.duration_seconds ?? null,
+    safety_notes: resource?.safety_notes ?? null,
+    prompt: `Help me make this ${LONGEVITY_MOMENT_DEFINITIONS[moment].label.toLowerCase()} longevity step practical. Context: ${whyToday}`,
+    source: "fallback",
+  };
+}
+
+function contentTypeScoreForMoment(type: DailyContentType, moment: LongevityMoment): number {
+  const index = LONGEVITY_MOMENT_DEFINITIONS[moment].preferredTypes.indexOf(type);
+  return index === -1 ? 0 : 18 - index * 3;
+}
+
+function momentCandidateScore(input: {
+  action: LongevityCompanionAction;
+  moment: LongevityMoment;
+  plan: LongevityPreventionPlan;
+  signals: LongevityCompanionSignal[];
+  programStep: LongevityProgramStep | null;
+  rotationDate: string;
+}): number {
+  const preferredPillars = preferredPillarsForMoment(input.moment, input.programStep?.pillar ?? priorityPillarForPlan(input.plan));
+  const preferredPillarIndex = input.action.pillar ? preferredPillars.indexOf(input.action.pillar) : -1;
+  const preferredPillarScore = preferredPillarIndex === -1 ? 0 : 60 - preferredPillarIndex * 14;
+  const contentScore = input.action.content_type ? contentTypeScoreForMoment(input.action.content_type, input.moment) : 0;
+  const signalScore = input.action.pillar && input.signals.some((signal) => signal.pillar === input.action.pillar) ? 14 : 0;
+  const statusScore = input.action.pillar ? PREVENTION_STATUS_RANK[statusForPillar(input.plan, input.action.pillar)] * 8 : 0;
+  const programScore = input.programStep && input.action.pillar === input.programStep.pillar ? 10 : 0;
+  const resourceScore = input.action.route || input.action.resource_url ? 6 : 0;
+  const freshness = deterministicScore(`${input.plan.user_id}:${input.rotationDate}:${input.moment}:${input.action.action_key}`) % 9;
+  return preferredPillarScore + contentScore + signalScore + statusScore + programScore + resourceScore + freshness;
+}
+
+function buildMomentPrimaryAction(input: {
+  moment: LongevityMoment;
+  plan: LongevityPreventionPlan;
+  signals: LongevityCompanionSignal[];
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate: string;
+  programStep: LongevityProgramStep | null;
+  programAction: LongevityCompanionAction | null;
+  programVideo: LongevityVideoResource | null;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
+  whyToday: string;
+  language?: string | null;
+}): { action: LongevityCompanionAction; video: LongevityVideoResource | null } {
+  const programMoment = input.programStep ? PROGRAM_PILLAR_MOMENT[input.programStep.pillar] : null;
+  if (input.programAction && input.moment === programMoment) {
+    return { action: input.programAction, video: input.programVideo };
+  }
+
+  const suppressed = suppressedActionKeys(input.feedbackHistory);
+  const preferred = preferredPillarsForMoment(input.moment, input.programStep?.pillar ?? priorityPillarForPlan(input.plan));
+  const contentCandidates = preferred.flatMap((pillar) =>
+    rotatedDailyContentOptions({
+      rows: dailyContentOptionsForPillar(input.dailyContent, pillar, input.moment),
+      userId: input.plan.user_id,
+      pillar,
+      rotationDate: `${input.rotationDate}:${input.moment}`,
+    }).map((content) => dailyContentToAction(content, pillar, input.whyToday, input.language)));
+  const fallbackCandidates = preferred.map((pillar) => input.pillarActions[pillar]).filter((action): action is LongevityCompanionAction => Boolean(action));
+  const feedbackMemoryCandidates = fallbackCandidates.filter((action) => action.source === "feedback_memory");
+  const candidatePool = contentCandidates.length > 0
+    ? [...feedbackMemoryCandidates, ...contentCandidates]
+    : fallbackCandidates;
+  const candidates = candidatePool
+    .filter((action) => !suppressed.has(action.action_key))
+    .filter((action) => actionHasEnoughEvidence({ plan: input.plan, signals: input.signals, action, programStep: input.programStep }))
+    .sort((a, b) =>
+      momentCandidateScore({ action: b, moment: input.moment, plan: input.plan, signals: input.signals, programStep: input.programStep, rotationDate: input.rotationDate })
+      - momentCandidateScore({ action: a, moment: input.moment, plan: input.plan, signals: input.signals, programStep: input.programStep, rotationDate: input.rotationDate }));
+
+  return { action: candidates[0] ?? fallbackActionForMoment(input.moment, input.programStep?.pillar ?? priorityPillarForPlan(input.plan), input.whyToday, input.language), video: null };
+}
+
+function buildMomentFocusSentence(input: {
+  moment: LongevityMoment;
+  profile: ProfileSummary;
+  action: LongevityCompanionAction;
+  programStep: LongevityProgramStep | null;
+}): string {
+  const lead = input.profile.first_name ? `${input.profile.first_name}, ` : "";
+  const pillar = input.action.pillar ?? input.programStep?.pillar ?? "calm";
+  const definition = LONGEVITY_MOMENT_DEFINITIONS[input.moment];
+  const focus = definition.focusByPillar[pillar] ?? definition.focusByPillar.calm;
+  return sentence(`${lead}${lowerFirstText(focus)}`);
+}
+
+function buildMomentSession(input: {
+  moment: LongevityMoment;
+  activeMoment: LongevityMoment;
+  profile: ProfileSummary;
+  plan: LongevityPreventionPlan;
+  signals: LongevityCompanionSignal[];
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate: string;
+  programStep: LongevityProgramStep | null;
+  programAction: LongevityCompanionAction | null;
+  programVideo: LongevityVideoResource | null;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
+}): LongevityMomentSession {
+  const focusPillar = input.programStep?.pillar ?? priorityPillarForPlan(input.plan);
+  const whyToday = buildWhyToday(focusPillar, input.signals, input.plan);
+  const { action, video } = buildMomentPrimaryAction({
+    moment: input.moment,
+    plan: input.plan,
+    signals: input.signals,
+    dailyContent: input.dailyContent,
+    feedbackHistory: input.feedbackHistory,
+    rotationDate: input.rotationDate,
+    programStep: input.programStep,
+    programAction: input.programAction,
+    programVideo: input.programVideo,
+    pillarActions: input.pillarActions,
+    whyToday,
+    language: input.profile.language_preference,
+  });
+  const primaryExperience = buildPrimaryExperience(action, video, input.profile.language_preference);
+  const definition = LONGEVITY_MOMENT_DEFINITIONS[input.moment];
+  const signalItem = bestSignalForPillar(input.signals, action.pillar);
+  const timing = action.timing_guidance ? `Timing: ${action.timing_guidance}.` : `${definition.label} timing fits this step.`;
+  const programEvidence = input.programStep && action.source === "program"
+    ? `Program day ${input.programStep.dayIndex}: ${input.programStep.theme}.`
+    : null;
+  const videoEvidence = primaryExperience.video ? `Curated video: ${primaryExperience.video.title}.` : null;
+  const summary = signalItem
+    ? `${definition.label} fits because ${lowerFirstText(signalItem.detail)}`
+    : `${definition.label} is a practical time for ${lowerFirstText(action.title)}.`;
+  const coveredPillars = PREVENTION_PILLARS.map((pillar) => {
+    const pillarAction = input.pillarActions[pillar];
+    const pillarSignal = bestSignalForPillar(input.signals, pillar);
+    return {
+      pillar,
+      label: PILLAR_LABELS[pillar],
+      status: statusForPillar(input.plan, pillar),
+      actionTitle: pillarAction.title,
+      reason: sentence(pillarAction.detail),
+      evidence: sentence(pillarSignal?.detail ?? `${PILLAR_LABELS[pillar]} is tracked in this monthly plan`),
+    };
+  });
+
+  return {
+    moment: input.moment,
+    label: definition.label,
+    status: momentStatus(input.moment, input.activeMoment),
+    startsAt: definition.startsAt,
+    sessionFocus: buildMomentFocusSentence({
+      moment: input.moment,
+      profile: input.profile,
+      action,
+      programStep: input.programStep,
+    }),
+    primaryExperience,
+    companionAction: action,
+    optionalChoices: [],
+    coveredPillars,
+    whyThis: {
+      summary: sentence(summary),
+      evidence: Array.from(new Set([
+        `${definition.label}: ${definition.focusByPillar[action.pillar ?? focusPillar ?? "calm"] ?? "One practical step."}`,
+        timing,
+        programEvidence,
+        videoEvidence,
+        signalItem ? `${signalItem.label}: ${signalItem.detail}` : null,
+      ].filter((item): item is string => Boolean(item)).map(sentence))).slice(0, 5),
+    },
+  };
+}
+
+function timelineItemForSession(session: LongevityMomentSession): LongevityTimelineItem {
+  return {
+    moment: session.moment,
+    label: session.label,
+    status: session.status,
+    startsAt: session.startsAt,
+    title: session.primaryExperience.title,
+    reason: session.primaryExperience.detail,
+    pillar: session.primaryExperience.pillar,
+    kind: session.primaryExperience.kind,
+  };
+}
+
+function buildMomentSessions(input: {
+  activeMoment: LongevityMoment;
+  profile: ProfileSummary;
+  plan: LongevityPreventionPlan;
+  signals: LongevityCompanionSignal[];
+  dailyContent: LongevityCompanionPayload["dailyContent"];
+  feedbackHistory: LongevityActionEventRow[];
+  rotationDate: string;
+  programStep: LongevityProgramStep | null;
+  programAction: LongevityCompanionAction | null;
+  programVideo: LongevityVideoResource | null;
+  pillarActions: Record<PreventionPillar, LongevityCompanionAction>;
+}): { sessions: LongevityMomentSession[]; timeline: LongevityTimelineItem[]; current: LongevityMomentSession; next: LongevityTimelineItem | null } {
+  const sessions = LONGEVITY_MOMENT_ORDER.map((moment) => buildMomentSession({ ...input, moment }));
+  const timeline = sessions.map(timelineItemForSession);
+  const current = sessions.find((session) => session.moment === input.activeMoment) ?? sessions[0];
+  const nextMoment = nextLongevityMoment(input.activeMoment);
+  const next = timeline.find((item) => item.moment === nextMoment && item.status === "later")
+    ?? timeline.find((item) => item.status === "later")
+    ?? null;
+  return { sessions, timeline, current, next };
+}
+
 function fallbackPreventionPlan(userId: string): LongevityPreventionPlan {
   return {
     id: null,
@@ -3489,71 +4519,72 @@ export function composeLongevityCompanionPayload(input: {
   dailyContent: LongevityCompanionPayload["dailyContent"];
   feedbackHistory: LongevityActionEventRow[];
   rotationDate?: string;
+  activeMoment?: LongevityMoment;
   programLayer?: LongevityProgramLayer | null;
 }): LongevityCompanionPayload {
   const priorityPillar = priorityPillarForPlan(input.plan);
   const signals = buildCompanionSignals(input);
   const programStep = input.programLayer?.todayProgramStep ?? null;
   const focusPillar = programStep?.pillar ?? priorityPillar;
-  const whyToday = buildWhyToday(focusPillar, signals, input.plan);
   const rotationDate = input.rotationDate ?? todaySeed(input.profile.timezone);
+  const activeMoment = input.activeMoment ?? activeLongevityMoment(input.profile.timezone);
+  const whyToday = buildWhyToday(focusPillar, signals, input.plan);
   const pillarActions = buildPillarActions({
     plan: input.plan,
     signals,
     dailyContent: input.dailyContent,
     feedbackHistory: input.feedbackHistory,
     rotationDate,
+    activeMoment,
+    language: input.profile.language_preference,
   });
   const programAction = programStep
     ? programStepToAction(programStep, input.programLayer?.todayVideo ?? null, input.feedbackHistory, whyToday)
     : null;
-  const primaryAction = programAction ?? (priorityPillar ? pillarActions[priorityPillar] : pillarActions.brain);
-  const supportPillar = [...PREVENTION_PILLARS]
-    .filter((pillar) => pillar !== primaryAction.pillar)
-    .sort((a, b) => PREVENTION_STATUS_RANK[statusForPillar(input.plan, b)] - PREVENTION_STATUS_RANK[statusForPillar(input.plan, a)])[0] ?? "heart";
-  const initialSupportAction = pillarActions[supportPillar];
-  const focusLabel = focusPillar ? PILLAR_LABELS[focusPillar] : "Longevity";
-  const strongestSignal = bestSignalForPillar(signals, focusPillar);
-  const headline = programStep
-    ? `${input.profile.first_name ? `${input.profile.first_name}, ` : ""}${lowerFirstText(programStep.theme)}`
-    : buildTodayFocusHeadline(input.profile, priorityPillar, strongestSignal);
-  const dailySession = buildDailySession({
+  const momentSessions = buildMomentSessions({
+    activeMoment,
     profile: input.profile,
     plan: input.plan,
     signals,
-    programStep,
-    todayVideo: input.programLayer?.todayVideo ?? null,
-    primaryAction,
-    supportAction: initialSupportAction,
-    pillarActions,
-    whyToday,
-    headline,
-    focusPillar,
+    dailyContent: input.dailyContent,
+    feedbackHistory: input.feedbackHistory,
     rotationDate,
+    programStep,
+    programAction,
+    programVideo: input.programLayer?.todayVideo ?? null,
+    pillarActions,
   });
+  const dailySession = momentSessions.current;
+  const primaryAction = dailySession.primaryExperience.action;
+  const currentVideo = dailySession.primaryExperience.video;
+  const focusLabel = dailySession.label;
 
   return {
     plan: input.plan,
     activeProgram: input.programLayer?.activeProgram ?? null,
     todayProgramStep: programStep,
-    todayVideo: input.programLayer?.todayVideo ?? null,
-    videoCurationStatus: input.programLayer?.videoCurationStatus ?? "pending",
+    todayVideo: currentVideo,
+    videoCurationStatus: currentVideo ? input.programLayer?.videoCurationStatus ?? "fallback" : "pending",
     todayFocus: {
-      pillar: focusPillar,
+      pillar: dailySession.primaryExperience.pillar,
       label: focusLabel,
-      headline,
-      summary: programStep?.objective ?? strongestSignal?.detail ?? whyToday,
+      headline: dailySession.sessionFocus,
+      summary: dailySession.primaryExperience.detail,
     },
-    whyToday,
+    activeMoment,
+    todayTimeline: momentSessions.timeline,
+    currentMomentSession: momentSessions.current,
+    nextMomentPreview: momentSessions.next,
+    whyToday: dailySession.whyThis.summary,
     dailySession,
     primaryAction,
     supportAction: dailySession.companionAction,
     pillarActions,
     careSummary: buildCareSummary({
       profile: input.profile,
-      whyToday,
+      whyToday: dailySession.whyThis.summary,
       programStep,
-      todayVideo: input.programLayer?.todayVideo ?? null,
+      todayVideo: currentVideo,
       primaryAction,
       pillarActions,
       dailySession,
@@ -3567,7 +4598,7 @@ export function composeLongevityCompanionPayload(input: {
 
 async function getRecentPlanActionEvents(userId: string): Promise<LongevityActionEventRow[]> {
   return optionalQuery<LongevityActionEventRow>("longevity_action_events", `
-    select action_key, action_title, event_type, pillar, barrier, source_context, created_at
+    select action_key, action_title, event_type, pillar, barrier, moment, content_id::text, resource_id::text, source_context, created_at
     from public.longevity_action_events
     where user_id = $1
       and created_at >= now() - interval '30 days'
@@ -3602,12 +4633,15 @@ async function recordLongevityActionEvent(input: {
   actionTitle: string;
   eventType: LongevityActionEventType;
   barrier: string | null;
+  moment?: LongevityMoment | null;
+  contentId?: string | null;
+  resourceId?: string | null;
   sourceContext: Record<string, unknown>;
 }): Promise<void> {
   await optionalQuery("longevity_action_events", `
     insert into public.longevity_action_events
-      (user_id, plan_id, pillar, action_key, action_title, event_type, barrier, source_context)
-    values ($1, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb)
+      (user_id, plan_id, pillar, action_key, action_title, event_type, barrier, moment, content_id, resource_id, source_context)
+    values ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9::uuid, $10::uuid, $11::jsonb)
   `, [
     input.userId,
     input.planId,
@@ -3616,7 +4650,86 @@ async function recordLongevityActionEvent(input: {
     input.actionTitle,
     input.eventType,
     input.barrier,
+    input.moment ?? null,
+    input.contentId ?? null,
+    input.resourceId ?? null,
     JSON.stringify(input.sourceContext),
+  ]);
+}
+
+function isCachedLongevityCompanionPayload(value: unknown, activeMoment: LongevityMoment): value is LongevityCompanionPayload {
+  const payload = safeJson<Partial<LongevityCompanionPayload> | null>(value, null);
+  return Boolean(
+    payload
+    && payload.plan
+    && payload.currentMomentSession
+    && payload.currentMomentSession.moment === activeMoment
+    && payload.activeMoment === activeMoment
+    && payload.primaryAction
+    && payload.todayFocus,
+  );
+}
+
+async function getCachedLongevityMomentPayload(input: {
+  userId: string;
+  rotationDate: string;
+  activeMoment: LongevityMoment;
+}): Promise<LongevityCompanionPayload | null> {
+  const rows = await optionalQuery<{ payload: unknown }>("longevity_moment_sessions", `
+    select payload
+    from public.longevity_moment_sessions session
+    where session.user_id = $1
+      and session.local_date = $2::date
+      and session.moment = $3
+      and coalesce(session.expires_at, now() + interval '1 minute') > now()
+      and not exists (
+        select 1
+        from public.longevity_action_events event
+        where event.user_id = session.user_id
+          and event.created_at > session.updated_at
+          and event.event_type in ('done','too_hard','not_relevant')
+      )
+    limit 1
+  `, [input.userId, input.rotationDate, input.activeMoment]);
+  const payload = rows[0]?.payload;
+  return isCachedLongevityCompanionPayload(payload, input.activeMoment)
+    ? safeJson<LongevityCompanionPayload>(payload, {} as LongevityCompanionPayload)
+    : null;
+}
+
+async function cacheLongevityMomentSession(input: {
+  userId: string;
+  planId: string | null;
+  rotationDate: string;
+  payload: LongevityCompanionPayload;
+}): Promise<void> {
+  const session = input.payload.currentMomentSession;
+  const action = session.primaryExperience.action;
+  const video = session.primaryExperience.video;
+  await optionalQuery("longevity_moment_sessions", `
+    insert into public.longevity_moment_sessions
+      (user_id, plan_id, local_date, moment, program_day_id, primary_action_key, content_id, resource_id, payload, expires_at)
+    values ($1, $2::uuid, $3::date, $4, $5::uuid, $6, $7::uuid, $8::uuid, $9::jsonb, now() + interval '36 hours')
+    on conflict (user_id, local_date, moment)
+    do update set
+      plan_id = excluded.plan_id,
+      program_day_id = excluded.program_day_id,
+      primary_action_key = excluded.primary_action_key,
+      content_id = excluded.content_id,
+      resource_id = excluded.resource_id,
+      payload = excluded.payload,
+      updated_at = now(),
+      expires_at = excluded.expires_at
+  `, [
+    input.userId,
+    input.planId,
+    input.rotationDate,
+    session.moment,
+    isUuid(input.payload.todayProgramStep?.id) ? input.payload.todayProgramStep?.id : null,
+    action.action_key,
+    isUuid(action.content_id) ? action.content_id : null,
+    isUuid(video?.id) ? video?.id : null,
+    JSON.stringify(input.payload),
   ]);
 }
 
@@ -3649,7 +4762,11 @@ async function logLongevityProgramVideoShown(input: {
     actionTitle: video.title,
     eventType: "shown",
     barrier: null,
+    moment: input.payload.activeMoment,
+    contentId: null,
+    resourceId: isUuid(video.id) ? video.id : null,
     sourceContext: {
+      moment: input.payload.activeMoment,
       programId: input.payload.activeProgram?.id ?? step.programId,
       programKey: input.payload.activeProgram?.programKey ?? LONGEVITY_PROGRAM_KEY,
       programDayId: step.id,
@@ -4091,8 +5208,12 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
       getSymptomSummary(userId, periodStart),
       getRecentPlanActionEvents(userId),
     ]);
-    const dailyContent = await getDailyContentBundle(userId, conditions, profile);
     const rotationDate = todaySeed(profile.timezone);
+    const activeMoment = activeLongevityMoment(profile.timezone);
+    const cachedPayload = await getCachedLongevityMomentPayload({ userId, rotationDate, activeMoment });
+    if (cachedPayload) return res.json(cachedPayload);
+
+    const dailyContent = await getDailyContentBundle(userId, conditions, profile, activeMoment);
     const programLayer = await getLongevityProgramLayer({
       userId,
       profile,
@@ -4112,11 +5233,15 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
       dailyContent,
       feedbackHistory,
       rotationDate,
+      activeMoment,
       programLayer,
     });
     logDailyContentShown(userId, dailyContentRowsForActions(dailyContent, Object.values(payload.pillarActions)));
     void logLongevityProgramVideoShown({ userId, planId: plan.id, payload }).catch((logErr) => {
       console.warn("[PreventionCompanion] Program video shown log failed; continuing.", logErr);
+    });
+    void cacheLongevityMomentSession({ userId, planId: plan.id, rotationDate, payload }).catch((cacheErr) => {
+      console.warn("[PreventionCompanion] Moment session cache failed; continuing.", cacheErr);
     });
     return res.json(payload);
   } catch (err) {
@@ -4134,6 +5259,7 @@ router.get("/prevention/companion/:userId", async (req: Request, res: Response) 
       symptoms: null,
       dailyContent: emptyDailyContentBundle(),
       feedbackHistory: [],
+      activeMoment: activeLongevityMoment(profile.timezone),
       programLayer: buildFallbackLongevityProgramLayer({
         userId,
         profile,
@@ -4155,7 +5281,7 @@ router.get("/prevention/daily-content/:userId", async (req: Request, res: Respon
       getUserConditions(userId),
       getUserProfile(userId),
     ]);
-    const dailyContent = await getDailyContentBundle(userId, conditions, profile);
+    const dailyContent = await getDailyContentBundle(userId, conditions, profile, activeLongevityMoment(profile.timezone));
     logDailyContentShown(userId, uniqueDailyContentRows([
       dailyContent.exercise,
       dailyContent.meal,
@@ -4183,6 +5309,19 @@ router.post("/prevention/feedback", async (req: Request, res: Response) => {
   const sourceContext = typeof req.body?.sourceContext === "object" && req.body.sourceContext !== null
     ? req.body.sourceContext as Record<string, unknown>
     : {};
+  const moment = normalizeLongevityMoment(req.body?.moment ?? sourceContext.moment);
+  const contentId = isUuid(req.body?.contentId)
+    ? String(req.body.contentId)
+    : isUuid(sourceContext.contentId)
+      ? String(sourceContext.contentId)
+      : null;
+  const resourceId = isUuid(req.body?.resourceId)
+    ? String(req.body.resourceId)
+    : isUuid(sourceContext.resourceId)
+      ? String(sourceContext.resourceId)
+      : isUuid(sourceContext.videoResourceId)
+        ? String(sourceContext.videoResourceId)
+        : null;
 
   if (!eventType || !actionKey || !actionTitle) {
     return res.status(400).json({ success: false, error: "Invalid feedback payload" });
@@ -4197,7 +5336,15 @@ router.post("/prevention/feedback", async (req: Request, res: Response) => {
       actionTitle: truncate(actionTitle, 180),
       eventType,
       barrier,
-      sourceContext,
+      moment,
+      contentId,
+      resourceId,
+      sourceContext: {
+        ...sourceContext,
+        moment,
+        contentId,
+        resourceId,
+      },
     });
     return res.json({ success: true });
   } catch (err) {

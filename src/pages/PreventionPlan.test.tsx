@@ -42,50 +42,83 @@ const pillarActions = {
   heart: {
     action_key: "heart:tai-chi",
     content_id: "daily-heart",
+    content_type: "exercise",
+    timing_guidance: "Afternoon",
     title: "Tai chi",
     detail: "A slow balance-friendly VYVA exercise for light movement, posture, and rhythm.",
     pillar: "heart",
     route: "/social-rooms/morning-movement/exercises/tai-chi",
+    resource_label: "Mayo Clinic",
+    resource_url: "https://www.youtube.com/watch?v=sjrEUD9RZqA",
+    resource_title: "Mayo Clinic Minute: A little moving goes long way for heart health",
+    duration_seconds: 60,
+    safety_notes: "General wellness education only; choose comfortable movement.",
     prompt: "Help me make today's heart step easy.",
     source: "daily_content",
   },
   brain: {
     action_key: "brain:word-recall-challenge",
     content_id: "daily-brain",
+    content_type: "tip",
     title: "Word recall challenge",
     detail: "Study a few words, hide them, then see what you remember.",
     pillar: "brain",
     route: "/memory-games/word_recall",
+    resource_label: "Mayo Clinic",
+    resource_url: "https://www.youtube.com/watch?v=hoPg4bkKemQ",
+    resource_title: "Mayo Clinic Minute: Can the MIND diet improve brain health?",
+    duration_seconds: 70,
+    safety_notes: "General wellness education only.",
     prompt: "Help me choose a short word recall challenge today.",
     source: "daily_content",
   },
   strength: {
     action_key: "strength:clear-one-walking-path",
     content_id: "daily-strength",
+    content_type: "tip",
+    timing_guidance: "Afternoon or before an outing",
     title: "Clear one walking path",
     detail: "One clear route at home makes movement easier and steadier.",
     pillar: "strength",
     route: "/social-rooms/walking-route?source=longevity&intent=clear-walking-path",
+    resource_label: "National Institute on Aging",
+    resource_url: "https://www.youtube.com/watch?v=G1lwVhnnkoU",
+    resource_title: "10-minute Workout for Older Adults",
+    duration_seconds: 600,
+    safety_notes: "Use support nearby and make movements smaller whenever needed.",
     prompt: "Help me make today's movement step easy.",
     source: "daily_content",
   },
   nourishment: {
     action_key: "nourishment:protein-with-the-next-meal",
     content_id: "daily-nourishment",
+    content_type: "meal",
     title: "Protein with the next meal",
     detail: "Choose one familiar protein food so nourishment does not become complicated.",
     pillar: "nourishment",
     route: null,
+    resource_label: "Mayo Clinic",
+    resource_url: "https://www.youtube.com/watch?v=R41BXXGohsU",
+    resource_title: "Mayo Clinic Minute: How to choose a healthy fat",
+    duration_seconds: 60,
+    safety_notes: "General nutrition education only; follow personal restrictions and clinician guidance.",
     prompt: "Help me make today's nourishment step easy.",
     source: "daily_content",
   },
   calm: {
     action_key: "calm:same-bedtime-tonight",
     content_id: "daily-calm",
+    content_type: "tip",
+    timing_guidance: "Evening",
     title: "Same bedtime tonight",
     detail: "A familiar evening time supports tomorrow's energy and attention.",
     pillar: "calm",
     route: "/games/breath-garden",
+    resource_label: "Calm",
+    resource_url: "https://www.youtube.com/watch?v=ZToicYcHIOU",
+    resource_title: "Daily Calm | 10 Minute Mindfulness Meditation | Be Present",
+    duration_seconds: 600,
+    safety_notes: "Pause or stop if the exercise feels uncomfortable.",
     prompt: "Help me make today's calm step easy.",
     source: "daily_content",
   },
@@ -131,6 +164,12 @@ const todayVideo = {
   summary: "A short visual guide connecting food choices with brain health.",
   selectedReason: "It is short, calm, and directly connected to today's memory-support program step.",
   safetyNotes: "General wellness education only.",
+  transcriptStatus: "manual_reviewed",
+  keyPoints: [
+    "Brain-friendly eating works best as a simple pattern, not a perfect rule.",
+    "One useful swap today is easier to keep than a full meal overhaul.",
+  ],
+  seniorTakeaway: "Use the video as a cue to choose one brain-friendly food today, then keep the memory step short.",
 } as const;
 
 const programAction = {
@@ -204,6 +243,86 @@ const companion = {
     label: "Brain and memory",
     headline: "Karim, today's memory starter",
     summary: todayProgramStep.objective,
+  },
+  activeMoment: "afternoon",
+  todayTimeline: [
+    {
+      moment: "morning",
+      label: "Morning",
+      status: "past",
+      startsAt: "05:00",
+      title: "Breakfast protein anchor",
+      reason: "A simple food cue starts the day steadier.",
+      pillar: "nourishment",
+      kind: "food",
+    },
+    {
+      moment: "midday",
+      label: "Midday",
+      status: "past",
+      startsAt: "11:00",
+      title: "Lunch plate check",
+      reason: "Lunch is the practical time for food and hydration.",
+      pillar: "nourishment",
+      kind: "food",
+    },
+    {
+      moment: "afternoon",
+      label: "Afternoon",
+      status: "now",
+      startsAt: "14:00",
+      title: todayVideo.title,
+      reason: todayVideo.selectedReason,
+      pillar: "brain",
+      kind: "video",
+    },
+    {
+      moment: "evening",
+      label: "Evening",
+      status: "later",
+      startsAt: "18:00",
+      title: "Two-minute breath garden",
+      reason: "The evening is better for a quieter reset than another task.",
+      pillar: "calm",
+      kind: "calm",
+    },
+  ],
+  currentMomentSession: {
+    moment: "afternoon",
+    label: "Afternoon",
+    status: "now",
+    startsAt: "14:00",
+    sessionFocus: "Karim, keep memory active with one short challenge today.",
+    primaryExperience: {
+      kind: "video",
+      title: todayVideo.title,
+      detail: todayVideo.selectedReason,
+      pillar: "brain",
+      ctaLabel: "Watch",
+      action: programAction,
+      video: todayVideo,
+    },
+    companionAction: programAction,
+    optionalChoices: [],
+    coveredPillars: [],
+    whyThis: {
+      summary: "Afternoon fits because no recent Brain Coach sessions are logged.",
+      evidence: [
+        "Afternoon: Make the afternoon mentally engaging.",
+        "Program day 1: Memory starter.",
+        "Curated video: Mayo Clinic Minute: Can the MIND diet improve brain health?.",
+      ],
+    },
+  },
+  nextMomentPreview: {
+    moment: "evening",
+    label: "Evening",
+    status: "later",
+    startsAt: "18:00",
+    title: "Two-minute breath garden",
+    reason: "The evening is better for a quieter reset than another task.",
+    pillar: "calm",
+    kind: "calm",
   },
   whyToday: "Brain and memory comes first today because no recent Brain Coach sessions are logged.",
   dailySession: {
@@ -335,20 +454,29 @@ describe("PreventionPlan", () => {
 
   it("renders a guided daily companion session", async () => {
     renderPlan();
-    expect(await screen.findByRole("heading", { name: "Karim, keep memory active with one short challenge today." })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Today" })).toBeVisible();
-    expect(screen.getByText("Today's video")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).toBeVisible();
-    expect(screen.getByText("Mayo Clinic")).toBeVisible();
-    expect(screen.getByText("Companion step")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "3-2-1 memory lane" })).toBeVisible();
-    expect(screen.getByText("Pick a real place. Name 3 things you see there, 2 sounds, and 1 person connected to it.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Show hint" })).toBeVisible();
-    expect(screen.getByText("Pick a game")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Memory" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Words" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Riddle" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Chess" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).toBeVisible();
+    expect(screen.getByText("Afternoon")).toBeVisible();
+    expect(screen.getByText("Curated video")).toBeVisible();
+    expect(screen.getAllByText("Brain")[0]).toBeVisible();
+    expect(screen.getByText("Mayo Clinic · 1:10")).toBeVisible();
+    expect(screen.getByText("It is short, calm, and directly connected to today's memory-support program step.")).toBeVisible();
+    expect(screen.getByText("Use the video as a cue to choose one brain-friendly food today, then keep the memory step short.")).not.toBeVisible();
+    expect(screen.getByText("Brain-friendly eating works best as a simple pattern, not a perfect rule.")).not.toBeVisible();
+    expect(screen.getByText("One useful swap today is easier to keep than a full meal overhaul.")).not.toBeVisible();
+    fireEvent.click(screen.getByText("Why this?").closest("summary")!);
+    expect(screen.getByText("From the video")).toBeVisible();
+    expect(screen.getByText("Use the video as a cue to choose one brain-friendly food today, then keep the memory step short.")).toBeVisible();
+    expect(screen.getByText("Brain-friendly eating works best as a simple pattern, not a perfect rule.")).toBeVisible();
+    expect(screen.getByText("One useful swap today is easier to keep than a full meal overhaul.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Watch" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Today" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Companion step")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "3-2-1 memory lane" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Not for me" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Later today" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Pick a game")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Memory" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Riddle" })).not.toBeInTheDocument();
     expect(screen.queryByText("Also useful today")).not.toBeInTheDocument();
     expect(screen.queryByText("Health areas checked")).not.toBeInTheDocument();
     expect(screen.queryByText("Walk after lunch")).not.toBeInTheDocument();
@@ -358,8 +486,12 @@ describe("PreventionPlan", () => {
     expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Too hard" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Not relevant" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Ask VYVA" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Ask VYVA" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ask VYVA about my plan" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Care-team summary")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Show / })).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Show Brain & memory" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Show Heart & circulation" })).toHaveAttribute("aria-pressed", "false");
     expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/companion/11111111-1111-4111-8111-111111111111");
   });
 
@@ -375,34 +507,72 @@ describe("PreventionPlan", () => {
     expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
       body: expect.stringContaining("\"videoId\":\"hoPg4bkKemQ\""),
     }));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
+      body: expect.stringContaining("\"moment\":\"afternoon\""),
+    }));
   });
 
-  it("reveals a useful hint for the brain spark", async () => {
+  it("switches the hero banner to another pillar and opens its exact video", async () => {
     renderPlan();
-    fireEvent.click(await screen.findByRole("button", { name: "Show hint" }));
-    expect(screen.getByText(/Use a place you know well/)).toBeVisible();
-  });
+    fireEvent.click(await screen.findByRole("button", { name: "Show Heart & circulation" }));
 
-  it("switches the brain spark game and records the choice", async () => {
-    renderPlan();
-    fireEvent.click(await screen.findByRole("button", { name: "Riddle" }));
+    expect(screen.getByRole("heading", { name: "Mayo Clinic Minute: A little moving goes long way for heart health" })).toBeVisible();
+    expect(screen.getByText("Curated video")).toBeVisible();
+    expect(screen.getAllByText("Heart")[0]).toBeVisible();
+    expect(screen.getByText("Mayo Clinic · 1 min")).toBeVisible();
+    expect(screen.getByText("A one-minute Mayo Clinic clip that makes heart movement feel doable: a little movement still counts.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Watch" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show Heart & circulation" })).toHaveAttribute("aria-pressed", "true");
 
+    fireEvent.click(screen.getByRole("button", { name: "Watch" }));
+
+    expect(window.open).toHaveBeenCalledWith("https://www.youtube.com/watch?v=sjrEUD9RZqA", "_blank", "noopener,noreferrer");
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
       method: "POST",
-      body: expect.stringContaining("\"eventType\":\"opened\""),
+      body: expect.stringContaining("\"actionKey\":\"heart:tai-chi\""),
     })));
-    expect(screen.getByRole("heading", { name: "Quick riddle" })).toBeVisible();
-    expect(screen.getByText("I hold stories without a shelf and open when someone asks the right question. What am I?")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Riddle" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Reveal answer" })).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Reveal answer" }));
-    expect(screen.getByText("memory")).toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
-      body: expect.stringContaining("\"actionKey\":\"program:program-1:1:brain:3-2-1-memory-lane\""),
+      body: expect.stringContaining("\"videoId\":\"sjrEUD9RZqA\""),
     }));
-    expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
-      body: expect.stringContaining("\"gameOptionId\":\"riddle\""),
-    }));
+  });
+
+  it("populates every pillar switch state with a curated video", async () => {
+    renderPlan();
+
+    const pillarStates = [
+      {
+        button: "Show Heart & circulation",
+        title: "Mayo Clinic Minute: A little moving goes long way for heart health",
+        meta: "Mayo Clinic · 1 min",
+      },
+      {
+        button: "Show Strength & stability",
+        title: "10-minute Workout for Older Adults",
+        meta: "National Institute on Aging · 10 min",
+      },
+      {
+        button: "Show Nourishment",
+        title: "Mayo Clinic Minute: How to choose a healthy fat",
+        meta: "Mayo Clinic · 1 min",
+      },
+      {
+        button: "Show Calm & recovery",
+        title: "Daily Calm | 10 Minute Mindfulness Meditation | Be Present",
+        meta: "Calm · 10 min",
+      },
+    ];
+
+    for (const state of pillarStates) {
+      fireEvent.click(await screen.findByRole("button", { name: state.button }));
+      expect(screen.getByRole("heading", { name: state.title })).toBeVisible();
+      expect(screen.getByText(state.meta)).toBeVisible();
+      expect(screen.getByRole("button", { name: "Watch" })).toBeVisible();
+    }
+
+    expect(screen.queryByText("NIA fall guide")).not.toBeInTheDocument();
+    expect(screen.queryByText("NIA sleep guide")).not.toBeInTheDocument();
+    expect(screen.queryByText("NIA food guide")).not.toBeInTheDocument();
   });
 
   it("renders representative preview data without replacing the production query path", async () => {
@@ -415,11 +585,16 @@ describe("PreventionPlan", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Karim, keep memory active with one short challenge today." })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "3-2-1 memory lane" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Memory" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Riddle" })).toBeVisible();
+    expect(screen.getByText("Afternoon")).toBeVisible();
+    expect(screen.getAllByText("Brain")[0]).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "3-2-1 memory lane" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Later today" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Today" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Companion step")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Not for me" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Memory" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Riddle" })).not.toBeInTheDocument();
     expect(screen.queryByText("Walk after lunch")).not.toBeInTheDocument();
     expect(screen.queryByText("Clear one walking path")).not.toBeInTheDocument();
     expect(screen.queryByText("Protein with the next meal")).not.toBeInTheDocument();
@@ -427,5 +602,61 @@ describe("PreventionPlan", () => {
     expect(screen.queryByRole("button", { name: /Same bedtime tonight/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("prevention-plan-screen")).toHaveAttribute("data-home-master-theme", "light");
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the local moment override to preview a different banner session", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dev/home-master/health-plan?moment=morning"]}>
+          <PreventionPlan
+            previewPlan={plan}
+            firstNameOverride="Karim"
+            backPath="/dev/home-master/health"
+            themeOverride="light"
+            momentOverride="morning"
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("Morning")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Mayo Clinic Minute: How to choose a healthy fat" })).toBeVisible();
+    expect(screen.getAllByText("Nourishment")[0]).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
+  });
+
+  it("uses the preview language override for the hero and pillar videos", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dev/home-master/health-plan?language=es"]}>
+          <PreventionPlan
+            previewPlan={plan}
+            firstNameOverride="Karim"
+            backPath="/dev/home-master/health"
+            themeOverride="light"
+            languageOverride="es"
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "El minuto de Mayo Clinic: La alimentación puede mejorar la salud cerebral" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Longevidad" })).toBeVisible();
+    expect(screen.getByText("Tarde")).toBeVisible();
+    expect(screen.getByText("Video curado")).toBeVisible();
+    expect(screen.getAllByText("Cerebro")[0]).toBeVisible();
+    expect(screen.getByText("Mayo Clinic · 1:10")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Curated video")).not.toBeInTheDocument();
+    expect(screen.queryByText("Why this?")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar Calma y descanso" }));
+
+    expect(screen.getByRole("heading", { name: "Meditación Guiada de 10 minutos | Calma la mente y consigue paz interior" })).toBeVisible();
+    expect(screen.getByText("Anabel Otero · 10 min")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Ver" }));
+    expect(window.open).toHaveBeenCalledWith("https://www.youtube.com/watch?v=FReFf1CLf-c", "_blank", "noopener,noreferrer");
   });
 });
