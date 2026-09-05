@@ -216,6 +216,48 @@ describe("SymptomCheck report service actions", () => {
     expect(screen.getByTestId("card-report-watch-highlight")).toHaveTextContent("Chest pain");
   });
 
+  it("shows interpretation, possible situations, uncertainty, timing, and plan-change triggers", () => {
+    renderReport({}, {
+      summaryOverride: {
+        interpretation: "The combined answers support monitoring for now. This is a pattern, not a diagnosis.",
+        possiblePatterns: [{
+          id: "activity_related",
+          label: "Activity-related breathing pattern",
+          explanation: "This can sometimes follow exertion or recovery.",
+          supportingAnswers: ["Mild or only with activity"],
+          clarifyingSigns: ["How quickly breathing returns to normal"],
+        }],
+        uncertainty: ["A questionnaire cannot confirm a cause."],
+        reassessmentWindow: "Recheck in 24 hours.",
+        changePlanTriggers: ["Breathing becomes difficult at rest."],
+      },
+    });
+
+    const doNow = screen.getByTestId("card-report-do-now");
+    const interpretation = screen.getByTestId("card-report-interpretation");
+    expect(interpretation).toHaveTextContent("What your answers mean");
+    expect(doNow.compareDocumentPosition(interpretation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("card-report-possible-patterns")).toHaveTextContent("Activity-related breathing pattern");
+    expect(screen.getByTestId("report-uncertainty")).toHaveTextContent("cannot confirm a cause");
+    expect(screen.getByTestId("report-reassessment-window")).toHaveTextContent("Recheck in 24 hours");
+    expect(screen.getByTestId("card-report-watch-highlight")).toHaveTextContent("Breathing becomes difficult at rest");
+  });
+
+  it("does not show possible causes for an emergency outcome", () => {
+    renderReport({}, {
+      summaryOverride: {
+        urgency: "urgent",
+        nextStepLevel: "emergency",
+        nextStepLabel: "Call emergency services now",
+        interpretation: "A warning sign is more important than identifying a cause online.",
+        possiblePatterns: [{ id: "unsafe", label: "A cause", explanation: "Do not show", supportingAnswers: [], clarifyingSigns: [] }],
+      },
+    });
+
+    expect(screen.getByTestId("card-report-interpretation")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-report-possible-patterns")).not.toBeInTheDocument();
+  });
+
   it("renders vital refinement as an action, not a passive note", () => {
     renderReport({}, {
       summaryOverride: {
