@@ -3,7 +3,15 @@ import { Check, Headphones, Loader2, Pause, Play, Volume2, VolumeX } from "lucid
 import { useLanguage } from "@/i18n";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
+import { useOptionalVyvaVoice } from "@/hooks/useVyvaVoice";
 import { apiFetch } from "@/lib/queryClient";
+import { parseBreathingVoiceText } from "@/lib/breathingVoice";
+import {
+  BREATHING_MEDITATION_AGENT_SLUG,
+  buildBreathGardenPhasePrompt,
+  buildBreathingMeditationAgentContext,
+  buildBreathingMeditationOpeningPrompt,
+} from "../../shared/breathingMeditationAgent";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -288,6 +296,8 @@ export default function BreathGarden({
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const reducedMotion = useReducedMotion();
+  const voice = useOptionalVyvaVoice();
+  const stopAgentVoice = voice?.stopVoice;
   const [screen, setScreen] = useState("loading");
   const [userState, setUserState] = useState(null);
   const [selectedDuration, setSelectedDuration] = useState(120);
@@ -297,6 +307,7 @@ export default function BreathGarden({
   const [guidanceMode, setGuidanceMode] = useState("silent");
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [audioStatus, setAudioStatus] = useState("idle");
+  const [agentStatus, setAgentStatus] = useState("idle");
   const [audioWarning, setAudioWarning] = useState("");
   const [saveWarning, setSaveWarning] = useState("");
   const [completionReason, setCompletionReason] = useState(null);
@@ -307,6 +318,8 @@ export default function BreathGarden({
   const finishingRef = useRef(false);
   const guidanceUrlsRef = useRef({ inhale: null, exhale: null });
   const guidanceAudioRef = useRef(null);
+  const agentGuidanceRef = useRef(false);
+  const handledTranscriptAtRef = useRef(0);
   const screenRef = useRef(screen);
   const durationRef = useRef(selectedDuration);
 
@@ -359,10 +372,55 @@ export default function BreathGarden({
 
   useEffect(() => () => {
     stopGuidanceAudio();
+    if (agentGuidanceRef.current) stopAgentVoice?.();
     Object.values(guidanceUrlsRef.current).forEach((url) => {
       if (url) URL.revokeObjectURL(url);
     });
-  }, [stopGuidanceAudio]);
+  }, [stopAgentVoice, stopGuidanceAudio]);
+
+  const buildAgentContext = useCallback(() => buildBreathingMeditationAgentContext({
+    activityId: "breath_garden",
+    language: gameLanguage,
+    durationSeconds: durationRef.current,
+    patternId: BREATH_GARDEN_PATTERN.id,
+    inhaleSeconds: BREATH_GARDEN_PATTERN.inhaleSeconds,
+    exhaleSeconds: BREATH_GARDEN_PATTERN.exhaleSeconds,
+    holdSeconds: 0,
+  }), [gameLanguage]);
+
+  const startAgentGuidance = useCallback(async () => {
+    if (!voice) return false;
+    const context = buildAgentContext();
+    setAgentStatus("connecting");
+    try {
+      await voice.startVoice(buildBreathingMeditationOpeningPrompt(context), undefined, {
+        agentSlug: BREATHING_MEDITATION_AGENT_SLUG,
+        autoStartListening: true,
+        dynamicVariables: context,
+      });
+      agentGuidanceRef.current = true;
+      setAgentStatus("connected");
+      voice.sendContextUpdate(`Breathing activity context: ${JSON.stringify(context)}`);
+      voice.sendText(
+        `${buildBreathingMeditationOpeningPrompt(context)} Give one welcome of no more than six words, then say: Breathe in, gently.`,
+        { invisibleInTranscript: true },
+      );
+      return true;
+    } catch (error) {
+      console.warn("Breath Garden agent guidance could not start.", error);
+      agentGuidanceRef.current = false;
+      setAgentStatus("fallback");
+      return false;
+    }
+  }, [buildAgentContext, voice]);
+
+  useEffect(() => {
+    if (!agentGuidanceRef.current || !voice?.lastError) return;
+    agentGuidanceRef.current = false;
+    setAgentStatus("fallback");
+    setAudioWarning(t("games.breathGarden.agentUnavailable", "The breathing guide is unavailable. Continuing with simple audio cues."));
+    void prepareGuidanceAudio();
+  }, [prepareGuidanceAudio, t, voice?.lastError]);
 
   const loadState = useCallback(async () => {
     if (!userId) {
@@ -451,14 +509,26 @@ export default function BreathGarden({
     } finally {
       setSaving(false);
       stopGuidanceAudio();
+      if (agentGuidanceRef.current && reason !== "exited") {
+        voice?.sendContextUpdate(`Breath Garden completed: ${JSON.stringify({
+          completion_reason: reason,
+          completed_seconds: Math.round(finalElapsed / 1000),
+          target_seconds: durationRef.current,
+        })}`);
+        voice?.sendText("Breath Garden is complete. Give one brief, warm closing sentence, then wait.", { invisibleInTranscript: true });
+      }
       finishingRef.current = false;
-      if (reason === "exited") onExit?.();
+      if (reason === "exited") {
+        if (agentGuidanceRef.current) voice?.stopVoice();
+        agentGuidanceRef.current = false;
+        onExit?.();
+      }
       else {
         setCompletionReason(reason);
         setScreen("completion");
       }
     }
-  }, [actualElapsedMs, assessmentPractice, onAssessmentPracticeComplete, onExit, saveSession, stopGuidanceAudio, t]);
+  }, [actualElapsedMs, assessmentPractice, onAssessmentPracticeComplete, onExit, saveSession, stopGuidanceAudio, t, voice]);
 
   useEffect(() => {
     if (screen !== "playing" || paused) return undefined;
@@ -476,22 +546,32 @@ export default function BreathGarden({
 
   const previousPhaseRef = useRef(null);
   useEffect(() => {
-    if (screen !== "playing" || paused || guidanceMode !== "guided" || voiceMuted || audioStatus !== "ready") {
+    if (screen !== "playing" || paused || guidanceMode !== "guided" || voiceMuted) {
       previousPhaseRef.current = null;
       return;
     }
     if (previousPhaseRef.current !== phase.phase) {
       previousPhaseRef.current = phase.phase;
-      playGuidanceCue(phase.phase);
+      if (agentGuidanceRef.current && agentStatus === "connected" && voice) {
+        voice.sendContextUpdate(`Breath Garden phase: ${JSON.stringify({
+          activity_id: "breath_garden",
+          phase: phase.phase,
+          elapsed_seconds: Math.round(elapsedMs / 1000),
+          remaining_seconds: Math.max(0, Math.ceil(durationRef.current - elapsedMs / 1000)),
+        })}`);
+        voice.sendText(buildBreathGardenPhasePrompt(phase.phase), { invisibleInTranscript: true });
+      } else if (audioStatus === "ready") {
+        playGuidanceCue(phase.phase);
+      }
     }
-  }, [audioStatus, guidanceMode, paused, phase.phase, playGuidanceCue, screen, voiceMuted]);
+  }, [agentStatus, audioStatus, elapsedMs, guidanceMode, paused, phase.phase, playGuidanceCue, screen, voice, voiceMuted]);
 
-  const startSession = () => {
+  const startSession = async () => {
     accumulatedMsRef.current = 0;
     segmentStartRef.current = Date.now();
     sessionSavedRef.current = false;
     finishingRef.current = false;
-    previousPhaseRef.current = null;
+    previousPhaseRef.current = guidanceMode === "guided" ? "inhale" : null;
     setElapsedMs(0);
     setPaused(false);
     setVoiceMuted(false);
@@ -499,13 +579,24 @@ export default function BreathGarden({
     setSaveWarning("");
     setCompletionReason(null);
     setScreen("playing");
-    if (guidanceMode === "guided") void prepareGuidanceAudio();
+    if (guidanceMode === "guided") {
+      const connected = await startAgentGuidance();
+      if (connected) previousPhaseRef.current = "inhale";
+      else {
+        previousPhaseRef.current = null;
+        void prepareGuidanceAudio();
+      }
+    }
   };
 
-  const togglePause = () => {
+  const togglePause = useCallback(() => {
     if (paused) {
       segmentStartRef.current = Date.now();
       setPaused(false);
+      if (agentGuidanceRef.current) {
+        voice?.sendContextUpdate("Breath Garden resumed. The application timer is running again.");
+        voice?.sendText("Say only: Let's continue.", { invisibleInTranscript: true });
+      }
       return;
     }
     stopGuidanceAudio();
@@ -514,7 +605,32 @@ export default function BreathGarden({
     segmentStartRef.current = null;
     setElapsedMs(nextElapsed);
     setPaused(true);
-  };
+    if (agentGuidanceRef.current) {
+      voice?.interruptAgentAudio();
+      voice?.sendContextUpdate("Breath Garden paused. Do not give another breathing phase cue until the application resumes.");
+      voice?.sendText("Say only: Paused. Take your time.", { invisibleInTranscript: true });
+    }
+  }, [actualElapsedMs, paused, stopGuidanceAudio, voice]);
+
+  useEffect(() => {
+    if (!agentGuidanceRef.current || !voice) return;
+    const latestUserEntry = [...voice.transcript].reverse().find((entry) => entry.from === "user");
+    if (!latestUserEntry || latestUserEntry.timestamp <= handledTranscriptAtRef.current) return;
+    handledTranscriptAtRef.current = latestUserEntry.timestamp;
+    const parsed = parseBreathingVoiceText(latestUserEntry.text);
+    if (parsed.safetyBlock) {
+      setAudioWarning(t("games.breathGarden.safetyStop", "Stop now and breathe normally. Seek help if breathing feels difficult, painful, dizzy, or unusual."));
+      voice.interruptAgentAudio();
+      void finishSession("finished_early");
+      return;
+    }
+    if (parsed.control === "pause" && !paused) togglePause();
+    else if (parsed.control === "resume" && paused) togglePause();
+    else if (parsed.control === "finish" || parsed.control === "stop") void finishSession("finished_early");
+    else if (parsed.control === "status") {
+      voice.sendContextUpdate(`Breath Garden status: ${Math.max(0, Math.ceil(durationRef.current - actualElapsedMs() / 1000))} seconds remain.`);
+    }
+  }, [actualElapsedMs, finishSession, paused, t, togglePause, voice]);
 
   const exitActivity = async () => {
     if (screenRef.current === "playing") await finishSession("exited");
@@ -523,6 +639,9 @@ export default function BreathGarden({
 
   const breatheAgain = () => {
     stopGuidanceAudio();
+    if (agentGuidanceRef.current) voice?.stopVoice();
+    agentGuidanceRef.current = false;
+    setAgentStatus("idle");
     setCompletionReason(null);
     setElapsedMs(0);
     accumulatedMsRef.current = 0;
@@ -557,13 +676,18 @@ export default function BreathGarden({
           onClick={() => {
             if (voiceMuted) {
               setVoiceMuted(false);
+              if (agentGuidanceRef.current) voice?.setMicrophoneMuted(false);
               previousPhaseRef.current = null;
             } else {
               stopGuidanceAudio();
+              if (agentGuidanceRef.current) {
+                voice?.interruptAgentAudio();
+                voice?.setMicrophoneMuted(true);
+              }
               setVoiceMuted(true);
             }
           }}
-          disabled={audioStatus === "loading"}
+          disabled={audioStatus === "loading" || agentStatus === "connecting"}
           className="vyva-tap grid h-10 w-10 place-items-center rounded-full bg-white text-[#6B21A8] shadow-[0_10px_24px_rgba(80,52,109,0.10)] ring-1 ring-black/[0.05]"
           aria-label={voiceMuted ? t("games.breathGarden.unmuteGuidance", "Unmute voice guidance") : t("games.breathGarden.muteGuidance", "Mute voice guidance")}
         >
@@ -633,7 +757,7 @@ export default function BreathGarden({
               </div>
             </fieldset>
             {audioWarning ? <p className="mx-auto mt-3 max-w-[500px] text-[13px] font-bold text-[#92400E]" role="status">{audioWarning}</p> : null}
-            <button type="button" onClick={startSession} className="vyva-tap mx-auto mt-5 inline-flex min-h-[54px] w-full max-w-[430px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 text-[17px] font-extrabold text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)] transition-transform active:scale-[0.99]">
+            <button type="button" onClick={() => void startSession()} className="vyva-tap mx-auto mt-5 inline-flex min-h-[54px] w-full max-w-[430px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 text-[17px] font-extrabold text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)] transition-transform active:scale-[0.99]">
               <Play size={20} fill="currentColor" aria-hidden="true" />
               {t("common.start", "Start")}
             </button>
@@ -663,7 +787,11 @@ export default function BreathGarden({
                   ? t("games.breathGarden.guidanceMuted", "Voice guidance muted")
                   : audioStatus === "loading"
                     ? t("games.breathGarden.preparingGuidance", "Preparing Marco's guidance...")
-                    : t("games.breathGarden.guidedByMarco", "Guided by Marco"))}
+                    : agentStatus === "connecting"
+                      ? t("games.breathGarden.connectingGuide", "Connecting your breathing guide...")
+                      : agentStatus === "connected"
+                        ? t("games.breathGarden.agentConnected", "Breathing guide connected")
+                        : t("games.breathGarden.guidedByMarco", "Guided by Marco"))}
               </p>
             ) : null}
             <div className="mt-6 grid grid-cols-2 gap-3">
@@ -688,7 +816,11 @@ export default function BreathGarden({
             {completionReason === "finished_early" ? <p className="mt-2 text-[14px] font-bold" style={{ color: BRAND.teal }}>{t("games.breathGarden.earlyFinishNote", "A shorter pause still counts.")}</p> : null}
             {saveWarning ? <p className="mt-4 text-[14px] font-bold text-[#92400E]">{saveWarning}</p> : null}
             <div className="mt-8 w-full max-w-[520px] space-y-3">
-              <button type="button" onClick={onExit} className="vyva-tap min-h-[56px] w-full rounded-full bg-[#6B21A8] px-6 text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(107,33,168,0.20)]">
+              <button type="button" onClick={() => {
+                if (agentGuidanceRef.current) voice?.stopVoice();
+                agentGuidanceRef.current = false;
+                onExit?.();
+              }} className="vyva-tap min-h-[56px] w-full rounded-full bg-[#6B21A8] px-6 text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(107,33,168,0.20)]">
                 {assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : t("common.done", "Done")}
               </button>
               {!assessmentPractice ? (
