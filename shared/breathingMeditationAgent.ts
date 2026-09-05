@@ -65,8 +65,12 @@ export function buildBreathingMeditationOpeningPrompt(context: ReturnType<typeof
   ].join(" ");
 }
 
-export function buildBreathGardenPhasePrompt(phase: "inhale" | "exhale") {
-  return phase === "inhale"
-    ? "Breath Garden phase cue: say only 'Breathe in, gently.'"
-    : "Breath Garden phase cue: say only 'Breathe out, slowly.'";
+export function buildBreathGardenPhasePrompt(phase: "inhale" | "exhale", language: string) {
+  return [
+    "Breath Garden phase cue requested.",
+    `Current phase: ${phase}.`,
+    `Required response language: ${language}.`,
+    `Say exactly one short, natural ${phase} cue in that language.`,
+    "Do not name the language, translate aloud, count, explain, or add anything else.",
+  ].join(" ");
 }

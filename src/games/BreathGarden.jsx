@@ -559,12 +559,12 @@ export default function BreathGarden({
           elapsed_seconds: Math.round(elapsedMs / 1000),
           remaining_seconds: Math.max(0, Math.ceil(durationRef.current - elapsedMs / 1000)),
         })}`);
-        voice.sendText(buildBreathGardenPhasePrompt(phase.phase), { invisibleInTranscript: true });
+        voice.sendText(buildBreathGardenPhasePrompt(phase.phase, language), { invisibleInTranscript: true });
       } else if (audioStatus === "ready") {
         playGuidanceCue(phase.phase);
       }
     }
-  }, [agentStatus, audioStatus, elapsedMs, guidanceMode, paused, phase.phase, playGuidanceCue, screen, voice, voiceMuted]);
+  }, [agentStatus, audioStatus, elapsedMs, guidanceMode, language, paused, phase.phase, playGuidanceCue, screen, voice, voiceMuted]);
 
   const startSession = async () => {
     accumulatedMsRef.current = 0;
