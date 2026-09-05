@@ -2322,6 +2322,10 @@ export const breathGardenSessions = pgTable("breath_garden_sessions", {
   finalPaceBreathsPerMin:   numeric("final_pace_breaths_per_min", { precision: 4, scale: 1 }),
   gardenTheme:              text("garden_theme").notNull().default("garden"),
   bloomLevelReached:        integer("bloom_level_reached").notNull().default(1),
+  targetDurationSeconds:    integer("target_duration_seconds").notNull().default(120),
+  guidedCycleCount:         integer("guided_cycle_count").notNull().default(0),
+  guidedPatternId:          text("guided_pattern_id").notNull().default("gentle_4_6"),
+  completionReason:         text("completion_reason").notNull().default("timer_complete"),
   completed:                boolean("completed").notNull().default(false),
   abandoned:                boolean("abandoned").notNull().default(false),
 }, (t) => [
@@ -2335,6 +2339,7 @@ export const breathGardenUserState = pgTable("breath_garden_user_state", {
   streakDays:     integer("streak_days").notNull().default(0),
   lastStreakDate: date("last_streak_date"),
   preferredTheme: text("preferred_theme").default("garden"),
+  preferredDurationSeconds: integer("preferred_duration_seconds").notNull().default(120),
   updatedAt:      timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -2352,7 +2357,7 @@ export const cognitiveSessionIndex = pgTable("cognitive_session_index", {
   difficultyScale: text("difficulty_scale").notNull().default("level"),
   completed:       boolean("completed").notNull().default(false),
   abandoned:       boolean("abandoned").notNull().default(false),
-  score:           integer("score").notNull().default(0),
+  score:           integer("score").default(0),
   accuracyPct:     numeric("accuracy_pct", { precision: 5, scale: 2 }),
   speedPct:        numeric("speed_pct", { precision: 5, scale: 2 }),
   durationSeconds: integer("duration_seconds").notNull().default(0),

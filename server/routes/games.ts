@@ -160,6 +160,10 @@ const breathGardenSessionSchema = z.object({
   finalPaceBreathsPerMin: z.number().min(0).max(200).nullable().optional(),
   gardenTheme: breathGardenThemeSchema.optional().default("garden"),
   bloomLevelReached: z.number().int().min(1).max(5).optional().default(1),
+  targetDurationSeconds: z.union([z.literal(60), z.literal(120), z.literal(300)]).optional().default(120),
+  guidedCycleCount: z.number().int().min(0).max(180).optional().default(0),
+  guidedPatternId: z.literal("gentle_4_6").optional().default("gentle_4_6"),
+  completionReason: z.enum(["timer_complete", "finished_early", "exited"]).optional(),
   completed: z.boolean().optional().default(false),
   abandoned: z.boolean().optional().default(false),
   language: z.string().trim().min(2).max(12).optional().default("es"),
@@ -1240,13 +1244,16 @@ function normalizeBreathGardenState(row: unknown, userId: string) {
     streak_days: toNumber(value.streakDays, 0),
     last_streak_date: typeof value.lastStreakDate === "string" ? value.lastStreakDate : value.lastStreakDate instanceof Date ? todayDateKey(value.lastStreakDate) : null,
     preferred_theme: ["garden", "tide", "stars", "ripples"].includes(preferredTheme) ? preferredTheme : "garden",
+    preferred_duration_seconds: [60, 120, 300].includes(toNumber(value.preferredDurationSeconds, 120))
+      ? toNumber(value.preferredDurationSeconds, 120)
+      : 120,
     updated_at: toIsoDate(value.updatedAt) ?? new Date().toISOString(),
   };
 }
 
 function nextBreathGardenState(
   previousState: ReturnType<typeof normalizeBreathGardenState>,
-  preferredTheme: string,
+  preferredDurationSeconds: number,
   now = new Date(),
 ) {
   const today = todayDateKey(now);
@@ -1265,7 +1272,8 @@ function nextBreathGardenState(
     last_played_at: now.toISOString(),
     streak_days: streakDays,
     last_streak_date: today,
-    preferred_theme: preferredTheme,
+    preferred_theme: "garden",
+    preferred_duration_seconds: preferredDurationSeconds,
     updated_at: now.toISOString(),
   };
 }
@@ -1282,7 +1290,7 @@ async function getOrCreateBreathGardenState(ctx: CognitiveSessionDb, userId: str
 
   const [created] = await db
     .insert(breathGardenUserState)
-    .values({ userId, preferredTheme: "garden", updatedAt: new Date() })
+    .values({ userId, preferredTheme: "garden", preferredDurationSeconds: 120, updatedAt: new Date() })
     .onConflictDoNothing()
     .returning();
 
@@ -1309,8 +1317,7 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
   const data = parsed.data;
   const userId = req.user!.id;
   const now = new Date();
-  const consistency = data.breathConsistencyIndex ?? 0;
-  const avgCycle = data.avgBreathCycleSeconds ?? 0;
+  const completionReason = data.completionReason ?? (data.completed ? "timer_complete" : "exited");
 
   try {
     const ctx = await loadCognitiveSessionDb();
@@ -1328,6 +1335,10 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
         finalPaceBreathsPerMin: data.finalPaceBreathsPerMin ?? null,
         gardenTheme: data.gardenTheme,
         bloomLevelReached: data.bloomLevelReached,
+        targetDurationSeconds: data.targetDurationSeconds,
+        guidedCycleCount: data.guidedCycleCount,
+        guidedPatternId: data.guidedPatternId,
+        completionReason,
         completed: data.completed,
         abandoned: data.abandoned,
       })
@@ -1337,11 +1348,12 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
     const previousState = await getOrCreateBreathGardenState(ctx, userId);
 
     if (data.completed) {
-      nextState = nextBreathGardenState(previousState, data.gardenTheme, now);
+      nextState = nextBreathGardenState(previousState, data.targetDurationSeconds, now);
     } else {
       nextState = {
         ...previousState,
-        preferred_theme: data.gardenTheme,
+        preferred_theme: "garden",
+        preferred_duration_seconds: data.targetDurationSeconds,
         updated_at: now.toISOString(),
       };
     }
@@ -1354,7 +1366,8 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
         lastPlayedAt: data.completed ? now : previousState.last_played_at ? new Date(previousState.last_played_at) : null,
         streakDays: nextState.streak_days,
         lastStreakDate: nextState.last_streak_date,
-        preferredTheme: data.gardenTheme,
+        preferredTheme: "garden",
+        preferredDurationSeconds: data.targetDurationSeconds,
         updatedAt: now,
       })
       .onConflictDoUpdate({
@@ -1364,7 +1377,8 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
           lastPlayedAt: data.completed ? now : previousState.last_played_at ? new Date(previousState.last_played_at) : null,
           streakDays: nextState.streak_days,
           lastStreakDate: nextState.last_streak_date,
-          preferredTheme: data.gardenTheme,
+          preferredTheme: "garden",
+          preferredDurationSeconds: data.targetDurationSeconds,
           updatedAt: now,
         },
       })
@@ -1383,9 +1397,9 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
           difficultyScale: "none",
           completed: true,
           abandoned: false,
-          score: Math.round(consistency),
+          score: null,
           accuracyPct: null,
-          speedPct: Math.min(100, Math.round(avgCycle * 10)),
+          speedPct: null,
           durationSeconds: data.sessionDurationSeconds,
           playedAt: now,
           language: normalizeGameLanguage(data.language),
@@ -1393,10 +1407,11 @@ export async function breathGardenSessionHandler(req: Request, res: Response) {
           sourceTable: "breath_garden_sessions",
           sourceSessionId: session?.id ?? null,
           metadata: {
-            gardenTheme: data.gardenTheme,
-            breathCycleCount: data.breathCycleCount,
-            avgBreathCycleSeconds: data.avgBreathCycleSeconds ?? null,
-            finalPaceBreathsPerMin: data.finalPaceBreathsPerMin ?? null,
+            scoringModel: "none",
+            targetDurationSeconds: data.targetDurationSeconds,
+            guidedCycleCount: data.guidedCycleCount,
+            guidedPatternId: data.guidedPatternId,
+            completionReason,
             bloomLevelReached: data.bloomLevelReached,
           },
         })
