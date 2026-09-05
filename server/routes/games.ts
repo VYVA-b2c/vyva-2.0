@@ -46,7 +46,20 @@ const retellSchema = z.object({
 const ttsSchema = z.object({
   text: z.string().trim().min(1).max(5000),
   language: z.string().optional(),
+  voiceProfile: z.enum(["brain", "meditation"]).optional().default("brain"),
 });
+
+function resolveGameTtsVoiceId(voiceProfile: "brain" | "meditation") {
+  if (voiceProfile === "meditation") {
+    return process.env.ELEVENLABS_MEDITATION_TTS_VOICE_ID
+      ?? process.env.ELEVENLABS_BREATH_TTS_VOICE_ID
+      ?? process.env.ELEVENLABS_BRAIN_TTS_VOICE_ID
+      ?? process.env.ELEVENLABS_VOICE_ID
+      ?? "";
+  }
+
+  return process.env.ELEVENLABS_BRAIN_TTS_VOICE_ID ?? process.env.ELEVENLABS_VOICE_ID ?? "";
+}
 
 const MEMORY_ACTIVITY_TYPES = [
   "memory_match",
@@ -519,7 +532,7 @@ export async function ttsHandler(req: Request, res: Response) {
   }
 
   const apiKey = process.env.ELEVENLABS_API_KEY ?? "";
-  const voiceId = process.env.ELEVENLABS_BRAIN_TTS_VOICE_ID ?? process.env.ELEVENLABS_VOICE_ID ?? "";
+  const voiceId = resolveGameTtsVoiceId(parsed.data.voiceProfile);
   if (!apiKey || !voiceId) {
     return res.status(503).json({ error: "ElevenLabs TTS is not configured." });
   }

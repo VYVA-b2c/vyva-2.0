@@ -68,6 +68,25 @@ describe("BreathGarden component", { timeout: 60_000 }, () => {
     expect(screen.queryByText(/Tap as you/i)).not.toBeInTheDocument();
   });
 
+  it("offers Marco-guided audio while keeping audio-free as the quiet default", async () => {
+    apiFetchMock.mockImplementation(() => new Promise(() => {}));
+    render(<BreathGarden userId="" onExit={vi.fn()} />);
+    await screen.findByRole("heading", { name: "A quiet moment to breathe" });
+
+    const guided = screen.getByRole("button", { name: /Guided audio/i });
+    const audioFree = screen.getByRole("button", { name: /Audio-free/i });
+    expect(audioFree).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(guided);
+    expect(guided).toHaveAttribute("aria-pressed", "true");
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
+    expect(apiFetchMock.mock.calls.every(([, options]) => JSON.parse(options.body).voiceProfile === "meditation")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(screen.getByRole("button", { name: "Mute voice guidance" })).toBeDisabled();
+    expect(screen.getByText("Preparing Marco's guidance...")).toBeInTheDocument();
+  });
+
   it("moves automatically from inhale to exhale and pauses without advancing", async () => {
     render(<BreathGarden userId="" onExit={vi.fn()} />);
     await screen.findByRole("heading", { name: "A quiet moment to breathe" });

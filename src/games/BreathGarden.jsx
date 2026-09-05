@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { Check, Headphones, Loader2, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
@@ -29,6 +29,11 @@ const DEFAULT_STATE = {
   last_played_at: null,
   preferred_theme: "garden",
   preferred_duration_seconds: 120,
+};
+
+const GUIDANCE_CUES = {
+  inhale: "Breathe in, gently.",
+  exhale: "Breathe out, slowly.",
 };
 
 function clamp(value, min, max) {
@@ -232,6 +237,32 @@ function DurationChoice({ seconds, selected, onSelect, t }) {
   );
 }
 
+function GuidanceChoice({ mode, selected, onSelect, title, description, icon }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className="vyva-tap flex min-h-[78px] items-center gap-3 rounded-[20px] border px-4 text-left transition-transform active:scale-[0.98]"
+      style={{
+        borderColor: selected ? BRAND.purple : BRAND.border,
+        background: selected ? "#F4EAFF" : "#FFFFFF",
+        boxShadow: selected ? "0 8px 22px rgba(107,33,168,0.10)" : "none",
+      }}
+      data-guidance-mode={mode}
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-white text-[#6B21A8] shadow-sm">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[15px] font-extrabold leading-tight" style={{ color: BRAND.ink }}>{title}</span>
+        <span className="mt-1 block text-[12px] font-semibold leading-snug" style={{ color: BRAND.muted }}>{description}</span>
+      </span>
+      {selected ? <Check className="ml-auto shrink-0 text-[#6B21A8]" size={18} strokeWidth={3} aria-hidden="true" /> : null}
+    </button>
+  );
+}
+
 export default function BreathGarden({
   userId,
   onExit,
@@ -248,7 +279,10 @@ export default function BreathGarden({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [paused, setPaused] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [soundOn, setSoundOn] = useState(false);
+  const [guidanceMode, setGuidanceMode] = useState("silent");
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const [audioStatus, setAudioStatus] = useState("idle");
+  const [audioWarning, setAudioWarning] = useState("");
   const [saveWarning, setSaveWarning] = useState("");
   const [completionReason, setCompletionReason] = useState(null);
 
@@ -256,12 +290,64 @@ export default function BreathGarden({
   const segmentStartRef = useRef(null);
   const sessionSavedRef = useRef(false);
   const finishingRef = useRef(false);
-  const audioContextRef = useRef(null);
+  const guidanceUrlsRef = useRef({ inhale: null, exhale: null });
+  const guidanceAudioRef = useRef(null);
   const screenRef = useRef(screen);
   const durationRef = useRef(selectedDuration);
 
   useEffect(() => { screenRef.current = screen; }, [screen]);
   useEffect(() => { durationRef.current = selectedDuration; }, [selectedDuration]);
+
+  const stopGuidanceAudio = useCallback(() => {
+    if (!guidanceAudioRef.current) return;
+    guidanceAudioRef.current.pause();
+    guidanceAudioRef.current.currentTime = 0;
+    guidanceAudioRef.current = null;
+  }, []);
+
+  const playGuidanceCue = useCallback((nextPhase) => {
+    const url = guidanceUrlsRef.current[nextPhase];
+    if (!url || voiceMuted) return;
+    stopGuidanceAudio();
+    const audio = new Audio(url);
+    audio.volume = 0.82;
+    guidanceAudioRef.current = audio;
+    void audio.play().catch(() => {
+      setAudioWarning(t("games.breathGarden.audioUnavailable", "Voice guidance is unavailable. Continuing audio-free."));
+      setVoiceMuted(true);
+    });
+  }, [stopGuidanceAudio, t, voiceMuted]);
+
+  const prepareGuidanceAudio = useCallback(async () => {
+    if (guidanceUrlsRef.current.inhale && guidanceUrlsRef.current.exhale) return true;
+    setAudioStatus("loading");
+    setAudioWarning("");
+    try {
+      const entries = await Promise.all(Object.entries(GUIDANCE_CUES).map(async ([cue, text]) => {
+        const response = await apiFetch("/api/games/tts", {
+          method: "POST",
+          body: JSON.stringify({ text, language: gameLanguage, voiceProfile: "meditation" }),
+        });
+        if (!response.ok) throw new Error("Voice guidance unavailable");
+        return [cue, URL.createObjectURL(await response.blob())];
+      }));
+      guidanceUrlsRef.current = Object.fromEntries(entries);
+      setAudioStatus("ready");
+      return true;
+    } catch (error) {
+      console.warn("Breath Garden voice guidance could not load.", error);
+      setAudioStatus("error");
+      setAudioWarning(t("games.breathGarden.audioUnavailable", "Voice guidance is unavailable. Continuing audio-free."));
+      return false;
+    }
+  }, [gameLanguage, t]);
+
+  useEffect(() => () => {
+    stopGuidanceAudio();
+    Object.values(guidanceUrlsRef.current).forEach((url) => {
+      if (url) URL.revokeObjectURL(url);
+    });
+  }, [stopGuidanceAudio]);
 
   const loadState = useCallback(async () => {
     if (!userId) {
@@ -349,7 +435,7 @@ export default function BreathGarden({
       setSaveWarning(t("games.breathGarden.saveWarning", "Your session is complete. Saving may need to be retried."));
     } finally {
       setSaving(false);
-      setSoundOn(false);
+      stopGuidanceAudio();
       finishingRef.current = false;
       if (reason === "exited") onExit?.();
       else {
@@ -357,7 +443,7 @@ export default function BreathGarden({
         setScreen("completion");
       }
     }
-  }, [actualElapsedMs, assessmentPractice, onAssessmentPracticeComplete, onExit, saveSession, t]);
+  }, [actualElapsedMs, assessmentPractice, onAssessmentPracticeComplete, onExit, saveSession, stopGuidanceAudio, t]);
 
   useEffect(() => {
     if (screen !== "playing" || paused) return undefined;
@@ -373,39 +459,17 @@ export default function BreathGarden({
 
   const phase = useMemo(() => getGuidedBreathPhase(elapsedMs), [elapsedMs]);
 
-  const playPhaseTone = useCallback((nextPhase) => {
-    if (typeof window === "undefined") return;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const context = audioContextRef.current ?? new AudioContext();
-    audioContextRef.current = context;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const now = context.currentTime;
-    oscillator.type = "sine";
-    oscillator.frequency.value = nextPhase === "inhale" ? 196 : 146;
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.025, now + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.8);
-  }, []);
-
   const previousPhaseRef = useRef(null);
   useEffect(() => {
-    if (screen !== "playing" || paused || !soundOn) {
+    if (screen !== "playing" || paused || guidanceMode !== "guided" || voiceMuted || audioStatus !== "ready") {
       previousPhaseRef.current = null;
       return;
     }
     if (previousPhaseRef.current !== phase.phase) {
       previousPhaseRef.current = phase.phase;
-      playPhaseTone(phase.phase);
+      playGuidanceCue(phase.phase);
     }
-  }, [paused, phase.phase, playPhaseTone, screen, soundOn]);
-
-  useEffect(() => () => { void audioContextRef.current?.close?.(); }, []);
+  }, [audioStatus, guidanceMode, paused, phase.phase, playGuidanceCue, screen, voiceMuted]);
 
   const startSession = () => {
     accumulatedMsRef.current = 0;
@@ -415,10 +479,12 @@ export default function BreathGarden({
     previousPhaseRef.current = null;
     setElapsedMs(0);
     setPaused(false);
-    setSoundOn(false);
+    setVoiceMuted(false);
+    setAudioWarning("");
     setSaveWarning("");
     setCompletionReason(null);
     setScreen("playing");
+    if (guidanceMode === "guided") void prepareGuidanceAudio();
   };
 
   const togglePause = () => {
@@ -427,6 +493,7 @@ export default function BreathGarden({
       setPaused(false);
       return;
     }
+    stopGuidanceAudio();
     const nextElapsed = actualElapsedMs();
     accumulatedMsRef.current = nextElapsed;
     segmentStartRef.current = null;
@@ -440,6 +507,7 @@ export default function BreathGarden({
   };
 
   const breatheAgain = () => {
+    stopGuidanceAudio();
     setCompletionReason(null);
     setElapsedMs(0);
     accumulatedMsRef.current = 0;
@@ -471,11 +539,20 @@ export default function BreathGarden({
       action={screen === "playing" ? (
         <button
           type="button"
-          onClick={() => setSoundOn((current) => !current)}
+          onClick={() => {
+            if (voiceMuted) {
+              setVoiceMuted(false);
+              previousPhaseRef.current = null;
+            } else {
+              stopGuidanceAudio();
+              setVoiceMuted(true);
+            }
+          }}
+          disabled={guidanceMode !== "guided" || audioStatus === "loading"}
           className="vyva-tap grid h-10 w-10 place-items-center rounded-full bg-white text-[#6B21A8] shadow-[0_10px_24px_rgba(80,52,109,0.10)] ring-1 ring-black/[0.05]"
-          aria-label={soundOn ? t("games.breathGarden.muteSound", "Mute sound") : t("games.breathGarden.enableSound", "Enable sound")}
+          aria-label={voiceMuted ? t("games.breathGarden.unmuteGuidance", "Unmute voice guidance") : t("games.breathGarden.muteGuidance", "Mute voice guidance")}
         >
-          <VyvaIcon icon={soundOn ? Volume2 : VolumeX} size={20} strokeWidth={2.45} tone="brand" />
+          <VyvaIcon icon={audioStatus === "loading" ? Loader2 : voiceMuted || guidanceMode !== "guided" ? VolumeX : Volume2} size={20} strokeWidth={2.45} tone="brand" className={audioStatus === "loading" ? "animate-spin" : ""} />
         </button>
       ) : undefined}
       showHeader={screen !== "completion"}
@@ -508,6 +585,37 @@ export default function BreathGarden({
                 ))}
               </div>
             </fieldset>
+            <fieldset className="mx-auto mt-5 max-w-[520px]">
+              <legend className="mb-3 text-[14px] font-extrabold" style={{ color: BRAND.muted }}>
+                {t("games.breathGarden.chooseGuidance", "Choose your guidance")}
+              </legend>
+              <div className="grid grid-cols-2 gap-3">
+                <GuidanceChoice
+                  mode="guided"
+                  selected={guidanceMode === "guided"}
+                  onSelect={() => {
+                    setGuidanceMode("guided");
+                    setVoiceMuted(false);
+                    void prepareGuidanceAudio();
+                  }}
+                  title={t("games.breathGarden.guidedAudio", "Guided audio")}
+                  description={t("games.breathGarden.guidedAudioDescription", "Breathe with Marco")}
+                  icon={<Headphones size={21} strokeWidth={2.4} aria-hidden="true" />}
+                />
+                <GuidanceChoice
+                  mode="silent"
+                  selected={guidanceMode === "silent"}
+                  onSelect={() => {
+                    setGuidanceMode("silent");
+                    stopGuidanceAudio();
+                  }}
+                  title={t("games.breathGarden.audioFree", "Audio-free")}
+                  description={t("games.breathGarden.audioFreeDescription", "Follow the visual")}
+                  icon={<VolumeX size={21} strokeWidth={2.4} aria-hidden="true" />}
+                />
+              </div>
+            </fieldset>
+            {audioWarning ? <p className="mx-auto mt-3 max-w-[500px] text-[13px] font-bold text-[#92400E]" role="status">{audioWarning}</p> : null}
             <button type="button" onClick={startSession} className="vyva-tap mt-6 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] transition-transform active:scale-[0.99]">
               <Play size={20} fill="currentColor" aria-hidden="true" />
               {t("common.start", "Start")}
@@ -532,6 +640,15 @@ export default function BreathGarden({
                 <div className="h-full rounded-full bg-[#6B21A8] transition-[width] duration-300 ease-linear" style={{ width: `${clamp((elapsedMs / (selectedDuration * 1000)) * 100, 0, 100)}%` }} />
               </div>
             </div>
+            {guidanceMode === "guided" ? (
+              <p className="mt-3 text-[13px] font-bold" style={{ color: audioWarning ? "#92400E" : BRAND.muted }} role="status">
+                {audioWarning || (voiceMuted
+                  ? t("games.breathGarden.guidanceMuted", "Voice guidance muted")
+                  : audioStatus === "loading"
+                    ? t("games.breathGarden.preparingGuidance", "Preparing Marco's guidance...")
+                    : t("games.breathGarden.guidedByMarco", "Guided by Marco"))}
+              </p>
+            ) : null}
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button type="button" onClick={togglePause} className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full border border-[#DCCBE9] bg-white px-5 text-[16px] font-extrabold text-[#6B21A8]">
                 {paused ? <Play size={19} fill="currentColor" aria-hidden="true" /> : <Pause size={19} fill="currentColor" aria-hidden="true" />}
