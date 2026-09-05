@@ -233,53 +233,47 @@ function GardenVisual({ phase = "rest", phaseProgress = 0, reducedMotion = false
 function DurationChoice({ seconds, selected, onSelect, t }) {
   const minutes = seconds / 60;
   const unit = minutes === 1 ? t("games.breathGarden.minute", "minute") : t("games.breathGarden.minutes", "minutes");
+  const shortUnit = t("games.breathGarden.minuteShort", "min");
   return (
     <button
       type="button"
       aria-label={`${minutes} ${unit}`}
       aria-pressed={selected}
       onClick={onSelect}
-      className="vyva-tap relative min-h-[64px] rounded-[20px] border px-3 text-center transition-transform active:scale-[0.98]"
+      className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-1.5 rounded-full border px-3 text-center transition-transform active:scale-[0.98]"
       style={{
         borderColor: selected ? BRAND.purple : BRAND.border,
-        background: selected ? "#F4EAFF" : "#FFFFFF",
-        color: selected ? BRAND.purple : BRAND.ink,
-        boxShadow: selected ? "0 8px 22px rgba(107,33,168,0.10)" : "none",
+        background: selected ? BRAND.purple : "#FFFFFF",
+        color: selected ? "#FFFFFF" : BRAND.ink,
+        boxShadow: selected ? "0 8px 18px rgba(107,33,168,0.16)" : "none",
       }}
     >
-      {selected ? (
-        <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-[#6B21A8] text-white">
-          <Check size={12} strokeWidth={3} aria-hidden="true" />
-        </span>
-      ) : null}
-      <span className="block text-[20px] font-black leading-none">{minutes}</span>
-      <span className="mt-1 block text-[12px] font-bold leading-none">{unit}</span>
+      <span className="text-[17px] font-black leading-none">{minutes}</span>
+      <span className="text-[13px] font-bold leading-none">{shortUnit}</span>
     </button>
   );
 }
 
-function GuidanceChoice({ mode, selected, onSelect, title, description, icon }) {
+function GuidanceChoice({ mode, selected, onSelect, title, accessibleLabel, accessibleDescription, icon }) {
   return (
     <button
       type="button"
+      aria-label={`${accessibleLabel}. ${accessibleDescription}`}
       aria-pressed={selected}
       onClick={onSelect}
-      className="vyva-tap flex min-h-[78px] items-center gap-3 rounded-[20px] border px-4 text-left transition-transform active:scale-[0.98]"
+      className="vyva-tap flex min-h-[54px] items-center gap-2.5 rounded-full border px-4 text-left transition-transform active:scale-[0.98]"
       style={{
         borderColor: selected ? BRAND.purple : BRAND.border,
         background: selected ? "#F4EAFF" : "#FFFFFF",
-        boxShadow: selected ? "0 8px 22px rgba(107,33,168,0.10)" : "none",
+        boxShadow: selected ? "0 8px 18px rgba(107,33,168,0.09)" : "none",
       }}
       data-guidance-mode={mode}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-white text-[#6B21A8] shadow-sm">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-[#6B21A8]">
         {icon}
       </span>
-      <span className="min-w-0">
-        <span className="block text-[15px] font-extrabold leading-tight" style={{ color: BRAND.ink }}>{title}</span>
-        <span className="mt-1 block text-[12px] font-semibold leading-snug" style={{ color: BRAND.muted }}>{description}</span>
-      </span>
-      {selected ? <Check className="ml-auto shrink-0 text-[#6B21A8]" size={18} strokeWidth={3} aria-hidden="true" /> : null}
+      <span className="min-w-0 text-[14px] font-extrabold leading-tight" style={{ color: selected ? BRAND.purple : BRAND.ink }}>{title}</span>
+      {selected ? <Check className="ml-auto shrink-0 text-[#6B21A8]" size={17} strokeWidth={3} aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -586,31 +580,31 @@ export default function BreathGarden({
     >
       <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col" style={{ color: BRAND.ink }}>
         {screen === "setup" ? (
-          <section className="rounded-[28px] border border-[#EEE8F1] bg-white p-5 text-center shadow-[0_18px_46px_rgba(54,35,78,0.09)] sm:p-7">
-            <div className="mx-auto h-[220px] w-full max-w-[590px] overflow-hidden rounded-[26px] sm:h-[270px]">
+          <section className="rounded-[28px] border border-[#EEE8F1] bg-white p-4 text-center shadow-[0_18px_46px_rgba(54,35,78,0.09)] sm:p-6">
+            <div className="mx-auto h-[160px] w-full max-w-[590px] overflow-hidden rounded-[24px] sm:h-[190px]">
               <GardenVisual />
             </div>
-            <h2 className="mt-5 font-display text-[27px] font-semibold leading-tight tracking-[-0.03em] sm:text-[31px]">
+            <h2 className="mt-4 font-display text-[25px] font-semibold leading-tight tracking-[-0.03em] sm:text-[28px]">
               {t("games.breathGarden.setupTitle", "A quiet moment to breathe")}
             </h2>
-            <p className="mx-auto mt-2 max-w-[500px] text-[15px] font-semibold leading-relaxed sm:text-[16px]" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.setupGuidance", "Follow the circle. Breathe in as it expands, and out as it settles.")}
+            <p className="mx-auto mt-1.5 max-w-[470px] text-[14px] font-semibold leading-relaxed sm:text-[15px]" style={{ color: BRAND.muted }}>
+              {t("games.breathGarden.setupGuidance", "Breathe in as the circle expands. Breathe out as it settles.")}
             </p>
-            <fieldset className="mx-auto mt-5 max-w-[420px]">
-              <legend className="mb-3 text-[14px] font-extrabold" style={{ color: BRAND.muted }}>
-                {t("games.breathGarden.chooseDuration", "Choose your time")}
+            <fieldset className="mx-auto mt-4 max-w-[360px]">
+              <legend className="mb-2 text-[13px] font-extrabold" style={{ color: BRAND.muted }}>
+                {t("games.breathGarden.chooseDuration", "Duration")}
               </legend>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {BREATH_GARDEN_DURATIONS.map((seconds) => (
                   <DurationChoice key={seconds} seconds={seconds} selected={selectedDuration === seconds} onSelect={() => setSelectedDuration(seconds)} t={t} />
                 ))}
               </div>
             </fieldset>
-            <fieldset className="mx-auto mt-5 max-w-[520px]">
-              <legend className="mb-3 text-[14px] font-extrabold" style={{ color: BRAND.muted }}>
-                {t("games.breathGarden.chooseGuidance", "Choose your guidance")}
+            <fieldset className="mx-auto mt-4 max-w-[430px]">
+              <legend className="mb-2 text-[13px] font-extrabold" style={{ color: BRAND.muted }}>
+                {t("games.breathGarden.chooseGuidance", "Guidance")}
               </legend>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <GuidanceChoice
                   mode="guided"
                   selected={guidanceMode === "guided"}
@@ -619,9 +613,10 @@ export default function BreathGarden({
                     setVoiceMuted(false);
                     void prepareGuidanceAudio();
                   }}
-                  title={t("games.breathGarden.guidedAudio", "Guided audio")}
-                  description={t("games.breathGarden.guidedAudioDescription", "Breathe with Marco")}
-                  icon={<Headphones size={21} strokeWidth={2.4} aria-hidden="true" />}
+                  title={t("games.breathGarden.guidedWithMarco", "Guided · Marco")}
+                  accessibleLabel={t("games.breathGarden.guidedAudio", "Guided audio")}
+                  accessibleDescription={t("games.breathGarden.guidedAudioDescription", "Breathe with Marco")}
+                  icon={<Headphones size={19} strokeWidth={2.4} aria-hidden="true" />}
                 />
                 <GuidanceChoice
                   mode="silent"
@@ -631,13 +626,14 @@ export default function BreathGarden({
                     stopGuidanceAudio();
                   }}
                   title={t("games.breathGarden.audioFree", "Audio-free")}
-                  description={t("games.breathGarden.audioFreeDescription", "Follow the visual")}
-                  icon={<VolumeX size={21} strokeWidth={2.4} aria-hidden="true" />}
+                  accessibleLabel={t("games.breathGarden.audioFree", "Audio-free")}
+                  accessibleDescription={t("games.breathGarden.audioFreeDescription", "Follow the visual")}
+                  icon={<VolumeX size={19} strokeWidth={2.4} aria-hidden="true" />}
                 />
               </div>
             </fieldset>
             {audioWarning ? <p className="mx-auto mt-3 max-w-[500px] text-[13px] font-bold text-[#92400E]" role="status">{audioWarning}</p> : null}
-            <button type="button" onClick={startSession} className="vyva-tap mt-6 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 text-[18px] font-extrabold text-white shadow-[0_14px_28px_rgba(107,33,168,0.22)] transition-transform active:scale-[0.99]">
+            <button type="button" onClick={startSession} className="vyva-tap mx-auto mt-5 inline-flex min-h-[54px] w-full max-w-[430px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-6 text-[17px] font-extrabold text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)] transition-transform active:scale-[0.99]">
               <Play size={20} fill="currentColor" aria-hidden="true" />
               {t("common.start", "Start")}
             </button>
