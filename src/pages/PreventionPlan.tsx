@@ -1263,7 +1263,7 @@ const PREVIEW_TODAY_VIDEO: TodayVideo = {
   thumbnailUrl: "https://i.ytimg.com/vi/hoPg4bkKemQ/hqdefault.jpg",
   language: "en",
   summary: "A short visual guide connecting food choices with brain health.",
-  selectedReason: "It is short, calm, and directly connected to today's memory-support program step.",
+  selectedReason: "Connects one simple food choice with memory and energy for today.",
   safetyNotes: "General wellness education only.",
 };
 
@@ -1280,7 +1280,7 @@ const EN_PILLAR_VIDEO_LIBRARY: Record<PreventionPillar, TodayVideo> = {
     thumbnailUrl: "https://i.ytimg.com/vi/sjrEUD9RZqA/hqdefault.jpg",
     language: "en",
     summary: "A short visual cue that heart-supporting movement can stay small and doable.",
-    selectedReason: "A one-minute Mayo Clinic clip that makes heart movement feel doable: a little movement still counts.",
+    selectedReason: "Makes heart movement feel doable by keeping the first step small.",
     safetyNotes: "General wellness education only; choose comfortable movement.",
   },
   strength: {
@@ -1294,7 +1294,7 @@ const EN_PILLAR_VIDEO_LIBRARY: Record<PreventionPillar, TodayVideo> = {
     thumbnailUrl: "https://i.ytimg.com/vi/G1lwVhnnkoU/hqdefault.jpg",
     language: "en",
     summary: "A bounded older-adult workout with strength, balance, flexibility, and endurance.",
-    selectedReason: "A clear NIA routine gives the strength pillar something visual, safe-feeling, and finite to follow.",
+    selectedReason: "Shows a bounded movement routine so starting feels clear and steady.",
     safetyNotes: "Use support nearby and make movements smaller whenever needed.",
   },
   nourishment: {
@@ -1308,7 +1308,7 @@ const EN_PILLAR_VIDEO_LIBRARY: Record<PreventionPillar, TodayVideo> = {
     thumbnailUrl: "https://i.ytimg.com/vi/R41BXXGohsU/hqdefault.jpg",
     language: "en",
     summary: "A quick visual guide for making one meal choice easier.",
-    selectedReason: "A short Mayo Clinic food clip turns nourishment into one practical choice at the next meal.",
+    selectedReason: "Turns nourishment into one practical choice at the next meal.",
     safetyNotes: "General nutrition education only; follow personal restrictions and clinician guidance.",
   },
   calm: {
@@ -1322,7 +1322,7 @@ const EN_PILLAR_VIDEO_LIBRARY: Record<PreventionPillar, TodayVideo> = {
     thumbnailUrl: "https://i.ytimg.com/vi/ZToicYcHIOU/hqdefault.jpg",
     language: "en",
     summary: "A simple guided meditation for a calm reset.",
-    selectedReason: "A paced video is easier to follow than another written breathing instruction.",
+    selectedReason: "Gives the pause a gentle pace to follow without overthinking it.",
     safetyNotes: "Pause or stop if the exercise feels uncomfortable.",
   },
 };
@@ -1341,7 +1341,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/2XVQctv5WzQ/hqdefault.jpg",
       language: "es",
       summary: "Una explicación breve sobre cómo la alimentación puede apoyar la salud cerebral.",
-      selectedReason: "Un video breve de Mayo Clinic en español, conectado con memoria y nutrición.",
+      selectedReason: "Conecta una comida sencilla con memoria y energía para elegir un cambio hoy.",
       safetyNotes: "Educación general de bienestar; no sustituye orientación clínica.",
     },
     heart: {
@@ -1355,7 +1355,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/pEki37hCX9s/hqdefault.jpg",
       language: "es",
       summary: "Un recordatorio breve para elegir movimiento de una forma más llevadera.",
-      selectedReason: "Mayo Clinic explica en español cómo adaptar el ejercicio para que sea más fácil empezar.",
+      selectedReason: "Ayuda a escoger un movimiento breve y amable para activar el día sin hacerlo pesado.",
       safetyNotes: "Mantén el movimiento cómodo y suave; detente si algo no se siente bien.",
     },
     strength: {
@@ -1369,7 +1369,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/M0Jh5tLQRE0/hqdefault.jpg",
       language: "es",
       summary: "Una rutina breve de calentamiento para empezar movimiento con más seguridad.",
-      selectedReason: "Es un video en español, específico para adultos mayores y limitado a 10 minutos.",
+      selectedReason: "Ayuda a preparar el cuerpo antes de caminar o moverse por casa con más confianza.",
       safetyNotes: "Usa apoyo cercano y haz cada movimiento más pequeño si lo necesitas.",
     },
     nourishment: {
@@ -1383,7 +1383,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/pBVof_fgLV4/hqdefault.jpg",
       language: "es",
       summary: "Un recurso visual en español sobre alimentación saludable en personas mayores.",
-      selectedReason: "Está en español y se centra directamente en alimentación para personas mayores.",
+      selectedReason: "Da ideas simples para mejorar la próxima comida sin cambiar toda la rutina.",
       safetyNotes: "Educación general; respeta alergias, preferencias y pautas del equipo sanitario.",
     },
     calm: {
@@ -1397,7 +1397,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/FReFf1CLf-c/hqdefault.jpg",
       language: "es",
       summary: "Una meditación guiada corta en español para una pausa tranquila.",
-      selectedReason: "Da estructura sonora y visual a una pausa de calma de solo 10 minutos.",
+      selectedReason: "Da estructura sonora y visual a una pausa de calma fácil de empezar.",
       safetyNotes: "Pausa o termina si respirar lento o cerrar los ojos no resulta cómodo.",
     },
   },
@@ -1413,7 +1413,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/Uplih5Mx1uw/hqdefault.jpg",
       language: "fr",
       summary: "Un guide visuel en français sur les choix alimentaires liés au cerveau.",
-      selectedReason: "Ressource en français qui relie nutrition et santé du cerveau de façon concrète.",
+      selectedReason: "Relie le repas à la mémoire avec une action simple pour aujourd'hui.",
       safetyNotes: "Information générale de bien-être; respecter les conseils médicaux personnels.",
     },
     heart: {
@@ -1427,7 +1427,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/OBn81SkwFtk/hqdefault.jpg",
       language: "fr",
       summary: "Une courte séance en français pour garder le mouvement simple.",
-      selectedReason: "Dix minutes en français, orientées seniors, pour un pas cardio doux.",
+      selectedReason: "Aide à garder un mouvement doux et réaliste dans la journée.",
       safetyNotes: "Choisir une version confortable et garder un appui à proximité.",
     },
     strength: {
@@ -1441,7 +1441,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/XOYqccktGxQ/hqdefault.jpg",
       language: "fr",
       summary: "Une séance douce en français pour travailler mobilité et stabilité.",
-      selectedReason: "Séance courte, en français, pensée pour les seniors et facile à délimiter.",
+      selectedReason: "Propose quelques mouvements pour démarrer avec plus de stabilité.",
       safetyNotes: "Utiliser un appui stable et réduire l'amplitude si nécessaire.",
     },
     nourishment: {
@@ -1455,7 +1455,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/VWH4M7j0ECk/hqdefault.jpg",
       language: "fr",
       summary: "Un contenu en français sur les repères alimentaires pour seniors.",
-      selectedReason: "La vidéo traite directement l'alimentation des seniors dans la langue de l'utilisateur.",
+      selectedReason: "Transforme les repères alimentaires en une amélioration simple du prochain repas.",
       safetyNotes: "Information générale; tenir compte des allergies et restrictions personnelles.",
     },
     calm: {
@@ -1469,7 +1469,7 @@ const PILLAR_VIDEO_LIBRARY_BY_LANGUAGE: Record<string, Record<PreventionPillar, 
       thumbnailUrl: "https://i.ytimg.com/vi/T6VJVRmqVJ8/hqdefault.jpg",
       language: "fr",
       summary: "Une méditation guidée en français pour une pause calme.",
-      selectedReason: "Dix minutes guidées en français donnent une structure claire au moment calme.",
+      selectedReason: "Donne un rythme guidé pour une pause calme facile à commencer.",
       safetyNotes: "Arrêter si l'exercice n'est pas confortable.",
     },
   },
@@ -1688,6 +1688,91 @@ const VIDEO_INSIGHTS_BY_ID: Record<string, VideoInsight> = {
 
 function cleanVideoInsightText(value: string | null | undefined): string {
   return String(value ?? "").trim().replace(/\s+/g, " ");
+}
+
+const INTERNAL_VIDEO_REASON_PATTERN = /\b(?:en español|en français|language|langue|idioma|specific|específico|especifico|spécifique|adultos mayores|personas mayores|personnes âgées|older adults|seniors?|limited|limitado|limité|reviewed|curation|curated|fallback|api|youtube|program step|auto-selected|filters?)\b|\b(?:one-minute|\d+\s*(?:minutes?|minutos?)|dix minutes)\b/i;
+
+const PUBLIC_VIDEO_REASONS: Record<string, Record<PreventionPillar, string>> = {
+  en: {
+    heart: "Offers one gentle movement cue that can fit into today without feeling heavy.",
+    brain: "Turns the idea into a small memory-friendly choice you can try today.",
+    strength: "Helps prepare the body for steadier movement at home or outside.",
+    nourishment: "Makes the next meal easier to improve with one visible choice.",
+    calm: "Gives the mind a simple pace to follow for a calmer pause.",
+  },
+  es: {
+    heart: "Ofrece una forma suave de moverte hoy sin convertirlo en una tarea pesada.",
+    brain: "Convierte la idea en una elección sencilla para apoyar memoria y energía.",
+    strength: "Ayuda a preparar el cuerpo para moverte con más confianza en casa o fuera.",
+    nourishment: "Hace más fácil mejorar la próxima comida con una sola elección visible.",
+    calm: "Da un ritmo sencillo para hacer una pausa con más calma.",
+  },
+  fr: {
+    heart: "Propose un mouvement doux qui peut entrer dans la journée sans la compliquer.",
+    brain: "Transforme l'idée en un petit choix favorable à la mémoire aujourd'hui.",
+    strength: "Aide à préparer le corps pour bouger avec plus de stabilité.",
+    nourishment: "Rend le prochain repas plus facile à améliorer avec un seul choix visible.",
+    calm: "Donne un rythme simple pour une pause plus calme.",
+  },
+};
+
+const PUBLIC_VIDEO_FIT_NOTES: Record<string, Record<PreventionPillar, string>> = {
+  en: {
+    heart: "Keep the movement gentle and choose the easiest version today.",
+    brain: "Use it as a small prompt, then keep the next step short.",
+    strength: "Use support nearby and make any movement smaller if needed.",
+    nourishment: "Follow your usual food restrictions and choose something familiar.",
+    calm: "Stop early if the pace or breathing does not feel comfortable.",
+  },
+  es: {
+    heart: "Mantén el movimiento suave y elige la versión más fácil hoy.",
+    brain: "Úsalo como una pequeña señal y deja que el siguiente paso sea breve.",
+    strength: "Ten apoyo cerca y haz cualquier movimiento más pequeño si lo necesitas.",
+    nourishment: "Respeta tus restricciones habituales y elige algo familiar.",
+    calm: "Termina antes si el ritmo o la respiración no se sienten cómodos.",
+  },
+  fr: {
+    heart: "Garder le mouvement doux et choisir la version la plus facile aujourd'hui.",
+    brain: "L'utiliser comme un petit repère, puis garder l'étape suivante courte.",
+    strength: "Garder un appui proche et réduire les mouvements si besoin.",
+    nourishment: "Respecter les restrictions habituelles et choisir quelque chose de familier.",
+    calm: "Arrêter plus tôt si le rythme ou la respiration ne convient pas.",
+  },
+};
+
+function videoReasonLooksInternal(value: string): boolean {
+  return INTERNAL_VIDEO_REASON_PATTERN.test(value);
+}
+
+function publicVideoCopy(language: string | null | undefined, pillar: PreventionPillar | null | undefined, source: typeof PUBLIC_VIDEO_REASONS): string {
+  const normalized = normalizeVideoLanguage(language);
+  const safePillar = pillar ?? "brain";
+  return source[normalized]?.[safePillar] ?? source.en[safePillar] ?? source.en.brain;
+}
+
+function publicVideoReason(video: TodayVideo | null | undefined, pillar: PreventionPillar | null | undefined, language?: string | null): string {
+  const reason = cleanVideoInsightText(video?.selectedReason);
+  return reason && !videoReasonLooksInternal(reason)
+    ? reason
+    : publicVideoCopy(language ?? video?.language, pillar, PUBLIC_VIDEO_REASONS);
+}
+
+function publicVideoTakeaway(video: TodayVideo | null | undefined, pillar: PreventionPillar | null | undefined, language?: string | null): string {
+  const takeaway = cleanVideoInsightText(video?.seniorTakeaway);
+  return takeaway && !videoReasonLooksInternal(takeaway)
+    ? takeaway
+    : publicVideoCopy(language ?? video?.language, pillar, PUBLIC_VIDEO_REASONS);
+}
+
+function publicVideoKeyPoints(video: TodayVideo | null | undefined): string[] {
+  return videoKeyPoints(video?.keyPoints).filter((point) => !videoReasonLooksInternal(point)).slice(0, 2);
+}
+
+function publicSafetyNote(value: string | null | undefined, pillar: PreventionPillar | null | undefined, language?: string | null): string {
+  const note = cleanVideoInsightText(value);
+  return note && !videoReasonLooksInternal(note)
+    ? note
+    : publicVideoCopy(language, pillar, PUBLIC_VIDEO_FIT_NOTES);
 }
 
 function videoKeyPoints(value: unknown): string[] {
@@ -1931,7 +2016,7 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
     detail: "This uses personal memory and storytelling, not a score.",
     pillar: PREVIEW_PROGRAM_STEP.pillar,
     route: null,
-    prompt: `Help me with today's Longevity program step: ${PREVIEW_PROGRAM_STEP.actionTitle}. Video: ${previewProgramVideo.title}.`,
+    prompt: `Help me with today's Longevity activity: ${PREVIEW_PROGRAM_STEP.actionTitle}. Video: ${previewProgramVideo.title}.`,
     source: "program",
     challenge: {
       kind: "memory_prompt",
@@ -2598,11 +2683,12 @@ export default function PreventionPlan({
   const heroPreview = heroPillarId ? copy.experiencePreviews[heroPillarId] : copy.experiencePreviews.brain;
   const heroActionDuration = formatDuration(heroAction.duration_seconds, copy);
   const heroTitle = heroVideo?.title ?? (heroExperienceKind === "video" ? copy.ctaLabels.video : heroAction.title);
+  const heroVideoReason = heroVideo ? publicVideoReason(heroVideo, heroPillarId, companionLanguage) : "";
   const heroDetail = heroExperienceKind === "brain_game" && activeBrainSpark
     ? activeBrainSpark.prompt
-    : heroVideo?.selectedReason ?? (heroExperienceKind === "video" ? copy.defaultWhy : heroAction.detail);
-  const heroKeyPoints = heroVideo ? videoKeyPoints(heroVideo.keyPoints).slice(0, 2) : [];
-  const heroVideoTakeaway = heroVideo ? cleanVideoInsightText(heroVideo.seniorTakeaway) : "";
+    : heroVideo ? heroVideoReason : heroExperienceKind === "video" ? copy.defaultWhy : heroAction.detail;
+  const heroKeyPoints = heroVideo ? publicVideoKeyPoints(heroVideo) : [];
+  const heroVideoTakeaway = heroVideo ? publicVideoTakeaway(heroVideo, heroPillarId, companionLanguage) : "";
   const heroMeta = heroVideo
     ? [heroVideo.channel, heroVideoDuration].filter(Boolean).join(" · ")
     : [heroAction.resource_label ?? heroPreview.label, heroActionDuration, heroTimingMeta].filter(Boolean).join(" · ");
@@ -2617,7 +2703,6 @@ export default function PreventionPlan({
   const primaryWhyEvidence = [
     heroPillarId ? `${copy.currentTheme}: ${copy.pillarLabels[heroPillarId]}.` : null,
     heroVideo ? `${copy.experienceLabels.video}: ${heroVideo.title}.` : null,
-    companion.todayProgramStep?.dayIndex ? `${copy.programDay} ${companion.todayProgramStep.dayIndex}.` : null,
   ].filter((item): item is string => Boolean(item));
   const heroWhySummary = selectedPillarAction
     ? copy.selectedPillarWhy(copy.pillarLabels[heroPillarId ?? selectedPillarAction.pillar ?? "brain"] ?? heroPillarLabel, currentMomentLabel, labelForExperienceKind(heroExperienceKind, copy), heroDetail)
@@ -2631,7 +2716,7 @@ export default function PreventionPlan({
     ? [
       heroTimingEvidence,
       heroVideo ? `${copy.videoPrefix}: ${heroVideo.title}${heroVideo.channel ? ` (${heroVideo.channel})` : ""}.` : heroAction.resource_label ? `${copy.resourcePrefix}: ${heroAction.resource_label}${heroAction.resource_title ? `, ${heroAction.resource_title}` : ""}.` : null,
-      (heroVideo?.safetyNotes ?? heroAction.safety_notes) ? `${copy.fitPrefix}: ${heroVideo?.safetyNotes ?? heroAction.safety_notes}` : null,
+      `${copy.fitPrefix}: ${publicSafetyNote(heroVideo?.safetyNotes ?? heroAction.safety_notes, heroPillarId, companionLanguage)}`,
     ].filter((item): item is string => Boolean(item))
     : primaryWhyEvidence.length ? primaryWhyEvidence : dailySession.whyThis.evidence;
   const openHeroVideo = () => {
@@ -2757,7 +2842,7 @@ export default function PreventionPlan({
         </section>
 
         <nav className="mt-3" aria-label={copy.choosePillarLabel}>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0">
             {PILLARS.map((pillar) => {
               const isSelected = heroPillarId === pillar.id;
               const pillarLabel = copy.pillarLabels[pillar.id];
@@ -2770,7 +2855,7 @@ export default function PreventionPlan({
                   title={copy.showPillarLabel(pillarLabel)}
                   onClick={() => setSelectedPillar((current) => (current === pillar.id || pillar.id === priorityPillarId ? null : pillar.id))}
                   className={[
-                    "inline-flex h-9 min-h-9 w-full items-center justify-center gap-1 rounded-full border px-1 font-body text-[10px] font-black transition sm:gap-1.5 sm:text-[11px]",
+                    "inline-flex h-9 min-h-9 min-w-[76px] flex-none items-center justify-center gap-1 rounded-full border px-2 font-body text-[10px] font-black transition sm:w-full sm:min-w-0 sm:gap-1.5 sm:px-1 sm:text-[11px]",
                     isSelected
                       ? "border-[#F59E0B] bg-[#FFF7E8] text-[#854F0B] shadow-[0_8px_18px_rgba(245,158,11,0.12)]"
                       : isDark
@@ -2779,7 +2864,7 @@ export default function PreventionPlan({
                   ].join(" ")}
                 >
                   <VyvaIcon icon={pillar.icon} accent={pillar.accent} size={15} strokeWidth={2.35} tone={isDark && !isSelected ? "inverse" : "brand"} />
-                  <span>{copy.pillarSelectorLabels[pillar.id]}</span>
+                  <span className="min-w-0 whitespace-nowrap">{copy.pillarSelectorLabels[pillar.id]}</span>
                 </button>
               );
             })}
