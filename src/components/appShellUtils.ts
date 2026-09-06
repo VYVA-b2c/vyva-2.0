@@ -87,6 +87,15 @@ export function isBrainCoachAppRoute(pathname: string) {
 }
 
 export function usesBrainCoachDocklessRoute(pathname: string) {
+  if (
+    pathname === "/brain-coach/remember" ||
+    pathname === "/brain-coach/focus" ||
+    pathname === "/brain-coach/think" ||
+    pathname === "/brain-coach/calm"
+  ) {
+    return false;
+  }
+
   return (
     STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES.includes(pathname as typeof STANDALONE_BRAIN_COACH_ACTIVITY_ROUTES[number]) ||
     pathname === "/mind-memory" ||

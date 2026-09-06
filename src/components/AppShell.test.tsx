@@ -244,10 +244,6 @@ describe("app shell route layout", () => {
 
   it.each([
     "/mind-memory",
-    "/brain-coach/remember",
-    "/brain-coach/focus",
-    "/brain-coach/think",
-    "/brain-coach/calm",
     "/brain-coach/activity/listen_closely",
     "/memory-games",
     "/memory-games/remember-later",
@@ -264,7 +260,11 @@ describe("app shell route layout", () => {
 
   it.each([
     "/mind-memory/cognitive-assessment",
-  ])("keeps the global bottom dock available on Brain Coach assessment route %s", (pathname) => {
+    "/brain-coach/remember",
+    "/brain-coach/focus",
+    "/brain-coach/think",
+    "/brain-coach/calm",
+  ])("keeps the global bottom dock available on canonical Brain Coach route %s", (pathname) => {
     expect(usesBrainCoachDocklessRoute(pathname)).toBe(false);
   });
 
