@@ -3,6 +3,7 @@ import {
   BREATHING_MEDITATION_ACTIVITY_PLAYBOOKS,
   buildBreathingMeditationAgentContext,
   buildBreathingMeditationOpeningPrompt,
+  buildBreathGardenPhasePrompt,
 } from "../../shared/breathingMeditationAgent";
 
 describe("breathing and meditation agent activity contracts", () => {
@@ -36,5 +37,14 @@ describe("breathing and meditation agent activity contracts", () => {
       timer_authority: "application",
     });
     expect(buildBreathingMeditationOpeningPrompt(context)).toContain("never invent a new phase");
+  });
+
+  it("requests phase cues in the active language without prescribing English speech", () => {
+    const prompt = buildBreathGardenPhasePrompt("inhale", "es");
+
+    expect(prompt).toContain("Current phase: inhale.");
+    expect(prompt).toContain("Required response language: es.");
+    expect(prompt).not.toContain("Breathe in, gently.");
+    expect(prompt).not.toContain("Breathe out, slowly.");
   });
 });
