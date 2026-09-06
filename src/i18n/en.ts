@@ -1824,7 +1824,7 @@
         title: "Train Reflexes",
         subtitle: "Build faster focus and response.",
       dualTask: {
-        title: "Dual Task Walk",
+        title: "Dual Task",
         description: "Count backwards while reacting to matching symbols.",
         badge: "New",
       },

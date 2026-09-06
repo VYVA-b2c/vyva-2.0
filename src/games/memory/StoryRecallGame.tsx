@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  BookOpen,
   Loader2,
   Pause,
   Play,
@@ -176,6 +175,19 @@ export default function StoryRecallGame({
   }, 0);
   const wordCount = countWords(retellText);
   const currentLevelLabel = getBrainCoachProgressLabel(plan.level);
+  const phaseHint = phase === "read"
+    ? t("storyRecall.readStoryHint", "Read or listen, then hide the story.")
+    : phase === "quiz"
+      ? t("storyRecall.quizHint", "Answer from memory.")
+      : t("storyRecall.retellHint", "Tell the story in your own words.");
+  const phaseHeader = (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <span className="rounded-full bg-[#F5EEFF] px-3 py-1.5 text-[12px] font-black text-vyva-purple">
+        {currentLevelLabel}
+      </span>
+      <p className="text-[14px] font-semibold leading-snug text-vyva-text-2">{phaseHint}</p>
+    </div>
+  );
 
   const handleListen = () => {
     setMessage(null);
@@ -377,22 +389,9 @@ export default function StoryRecallGame({
         </button>
       ) : null}
 
-      <section className="mt-4 overflow-hidden rounded-[24px] border border-[#F8D37A] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
-        <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#A3470D] shadow-sm">
-          <BookOpen size={14} />
-          {currentLevelLabel}
-        </div>
-        <p className="mt-3 max-w-[34ch] text-[17px] font-semibold leading-[1.45] text-vyva-text-2">
-          {phase === "read"
-            ? t("storyRecall.readStoryHint", "Read or listen, then hide the story.")
-            : phase === "quiz"
-              ? t("storyRecall.quizHint", "Answer from memory.")
-              : t("storyRecall.retellHint", "Tell the story in your own words.")}
-        </p>
-      </section>
-
       {phase === "read" && (
-        <section className="mt-4 rounded-[24px] border border-[#EFE7DB] bg-white p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
+        <section className="mt-4 rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
+          {phaseHeader}
           <h2 className="font-display text-[28px] leading-tight text-vyva-text-1">{localizedVariant.title}</h2>
           <p className="mt-4 rounded-[20px] bg-[#FFF9F1] px-4 py-4 text-[19px] font-semibold leading-[1.65] text-vyva-text-1">
             {payload.story}
@@ -441,7 +440,8 @@ export default function StoryRecallGame({
       )}
 
       {phase === "quiz" && currentQuestion && (
-        <section className="mt-4 rounded-[24px] border border-[#EFE7DB] bg-white p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
+        <section className="mt-4 rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
+          {phaseHeader}
           <p className="text-[13px] font-black uppercase tracking-[0.06em] text-vyva-text-2">
             {t("storyRecall.questionProgress")} {questionIndex + 1}/{questions.length}
           </p>
@@ -482,7 +482,8 @@ export default function StoryRecallGame({
       )}
 
       {phase === "retell" && (
-        <section className="mt-4 rounded-[24px] border border-[#EFE7DB] bg-white p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
+        <section className="mt-4 rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
+          {phaseHeader}
           <p className="text-[13px] font-black uppercase tracking-[0.06em] text-vyva-text-2">{t("storyRecall.recall")}</p>
           <h2 className="mt-3 font-display text-[28px] leading-tight text-vyva-text-1">{t("storyRecall.retellTitle")}</h2>
           <p className="mt-2 text-[16px] leading-[1.55] text-vyva-text-2">{t("storyRecall.retellInstruction")}</p>

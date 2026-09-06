@@ -24,6 +24,8 @@ describe("AttentionBoostersPage", () => {
     expect(screen.getByTestId("button-brain-coach-category-voice")).toBeInTheDocument();
     const listenCloselyButton = screen.getByRole("button", { name: /Listen Closely/i });
     expect(listenCloselyButton.querySelector('[data-vyva-accent="signal"]')).toBeInTheDocument();
+    expect(screen.queryByText("Attention, rhythm, and response.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Listen for gentle sounds and build calm focus.")).not.toBeInTheDocument();
 
     fireEvent.click(listenCloselyButton);
 

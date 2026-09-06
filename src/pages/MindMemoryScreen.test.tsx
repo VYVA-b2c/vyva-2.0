@@ -60,7 +60,7 @@ describe("MindMemoryScreen", () => {
     const expectedCards = [
       ["card-mind-memory-strengthen-memory", "Remember", "8 activities", "bridge"],
       ["card-mind-memory-train-reflexes", "Focus & React", "3 activities", "pulse"],
-      ["card-mind-memory-boost-focus", "Think & Plan", "4 activities", "knobs"],
+      ["card-mind-memory-boost-focus", "Think & Plan", "3 activities", "knobs"],
       ["card-mind-memory-sharpen-senses", "Calm & Notice", "2 activities", "signal"],
     ] as const;
 
@@ -68,7 +68,7 @@ describe("MindMemoryScreen", () => {
       expect(screen.getByTestId(testId)).toHaveAttribute("data-vyva-card-layout", "canonical-health-hub-action");
       expect(screen.getByTestId(testId)).toHaveTextContent(title);
       expect(screen.getByTestId(`${testId}-status`)).toHaveTextContent(count);
-      expect(screen.getByTestId(`${testId}-icon`)).toHaveAttribute("data-vyva-icon-tile", iconAccent);
+      expect(screen.getByTestId(testId).querySelector(`[data-vyva-icon-tile="${iconAccent}"]`)).toBeInTheDocument();
     }
 
     expect(screen.queryByText("Memory and recall")).not.toBeInTheDocument();

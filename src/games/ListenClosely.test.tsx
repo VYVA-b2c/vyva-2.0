@@ -46,7 +46,7 @@ describe("Listen Closely", () => {
     render(<ListenClosely userId="" onExit={onExit} />);
 
     expect(await screen.findByRole("heading", { name: "Listen, then choose." })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Listen Closely" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Listen Closely", level: 1 })).toBeInTheDocument();
     expect(
       screen.getByText(/Which sound happened more\?|Listen for/),
     ).toBeInTheDocument();

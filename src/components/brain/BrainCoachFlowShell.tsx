@@ -157,6 +157,7 @@ type BrainCoachActivityShellProps = {
   sceneKind?: string;
   sceneLayout?: string;
   state?: "default" | "loading" | "complete";
+  voiceDynamicVariables?: Record<string, string | number | boolean>;
 };
 
 export function BrainCoachActivityShell({
@@ -176,6 +177,7 @@ export function BrainCoachActivityShell({
   sceneKind = "activity",
   sceneLayout = "game",
   state = "default",
+  voiceDynamicVariables,
 }: BrainCoachActivityShellProps) {
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
@@ -235,15 +237,15 @@ export function BrainCoachActivityShell({
               >
                 <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
               </button>
-              <div className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+              <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
                 {title}
-              </div>
+              </h1>
               <div className="flex justify-end">
                 {action ?? (
                   <CanonicalVoiceButton
                     contextHint={typeof title === "string" ? `Brain Coach: ${title}` : "Brain Coach activity"}
                     agentSlug="brain-coach"
-                    dynamicVariables={{ app_entrypoint: sceneId }}
+                    dynamicVariables={{ app_entrypoint: sceneId, ...voiceDynamicVariables }}
                     testId="button-brain-coach-activity-voice"
                   />
                 )}
