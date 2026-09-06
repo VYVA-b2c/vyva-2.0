@@ -277,6 +277,11 @@ describe("longevity companion payload", () => {
     expect(payload.videoCurationStatus).toBe("fallback");
     expect(payload.todayVideo?.transcriptStatus).toBe("manual_reviewed");
     expect(payload.todayVideo?.seniorTakeaway).toContain("choose one brain-friendly food");
+    expect(payload.todayVideo?.transcriptSummary).toContain("food choices can support brain health");
+    expect(payload.todayVideo?.afterWatchAction).toContain("memory");
+    expect(payload.todayVideo?.goodFor.length).toBeGreaterThan(0);
+    expect(payload.todayVideo?.notFor.length).toBeGreaterThan(0);
+    expect(payload.todayVideo?.momentFit).toContain("afternoon");
     expect(payload.todayVideo?.keyPoints).toEqual(expect.arrayContaining([
       "Brain-friendly eating works best as a simple pattern, not a perfect rule.",
     ]));

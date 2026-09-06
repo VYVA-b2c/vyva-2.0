@@ -164,12 +164,18 @@ const todayVideo = {
   summary: "A short visual guide connecting food choices with brain health.",
   selectedReason: "Connects one simple food choice with memory and energy for today.",
   safetyNotes: "General wellness education only.",
+  pillar: "brain",
   transcriptStatus: "manual_reviewed",
   keyPoints: [
     "Brain-friendly eating works best as a simple pattern, not a perfect rule.",
     "One useful swap today is easier to keep than a full meal overhaul.",
   ],
   seniorTakeaway: "Use the video as a cue to choose one brain-friendly food today, then keep the memory step short.",
+  transcriptSummary: "The video links everyday food patterns with simple brain support.",
+  afterWatchAction: "Choose one familiar brain-friendly food today, then keep the memory step short.",
+  goodFor: ["When breakfast or lunch is the easiest meal to change."],
+  notFor: ["Respect allergies, preferences, and clinician guidance."],
+  momentFit: ["afternoon"],
 } as const;
 
 const programAction = {
@@ -472,7 +478,7 @@ describe("PreventionPlan", () => {
     expect(screen.queryByRole("heading", { name: "Today" })).not.toBeInTheDocument();
     expect(screen.queryByText("Companion step")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "3-2-1 memory lane" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Not for me" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Not for me" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Later today" })).not.toBeInTheDocument();
     expect(screen.queryByText("Pick a game")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Memory" })).not.toBeInTheDocument();
@@ -500,6 +506,11 @@ describe("PreventionPlan", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Watch" }));
 
     expect(window.open).toHaveBeenCalledWith("https://www.youtube.com/watch?v=hoPg4bkKemQ", "_blank", "noopener,noreferrer");
+    expect(screen.getByText("After watching")).toBeVisible();
+    expect(screen.getAllByText("Choose one familiar brain-friendly food today, then keep the memory step short.")[0]).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try this now" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save for later" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Make easier" })).toBeVisible();
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
       method: "POST",
       body: expect.stringContaining("\"eventType\":\"opened\""),
@@ -510,6 +521,36 @@ describe("PreventionPlan", () => {
     expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
       body: expect.stringContaining("\"moment\":\"afternoon\""),
     }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save for later" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Saved for later.");
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
+      body: expect.stringContaining("\"eventType\":\"saved\""),
+    })));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
+      body: expect.stringContaining("\"barrier\":\"save_for_later\""),
+    }));
+  });
+
+  it("asks a lightweight reason when the current video does not fit", async () => {
+    renderPlan();
+    fireEvent.click(await screen.findByRole("button", { name: "Not for me" }));
+
+    expect(screen.getByText("What did not fit?")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Too boring" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Wrong language" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Too boring" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Got it. VYVA will adjust the next suggestion.");
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
+      body: expect.stringContaining("\"eventType\":\"not_relevant\""),
+    })));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/prevention/feedback", expect.objectContaining({
+      body: expect.stringContaining("\"barrier\":\"too_boring\""),
+    }));
+    expect(screen.getByRole("heading", { name: "10-minute Workout for Older Adults" })).toBeVisible();
   });
 
   it("switches the hero banner to another pillar and opens its exact video", async () => {
@@ -592,7 +633,7 @@ describe("PreventionPlan", () => {
     expect(screen.queryByRole("heading", { name: "Later today" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Today" })).not.toBeInTheDocument();
     expect(screen.queryByText("Companion step")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Not for me" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Not for me" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Memory" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Riddle" })).not.toBeInTheDocument();
     expect(screen.queryByText("Walk after lunch")).not.toBeInTheDocument();
@@ -652,12 +693,15 @@ describe("PreventionPlan", () => {
     expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
     expect(screen.queryByText("Curated video")).not.toBeInTheDocument();
     expect(screen.queryByText("Why this?")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "No es para mí" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar Calma y descanso" }));
 
     expect(screen.getByRole("heading", { name: "Meditación Guiada de 10 minutos | Calma la mente y consigue paz interior" })).toBeVisible();
     expect(screen.getByText("Anabel Otero · 10 min")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Ver" }));
+    expect(screen.getByText("Después de verlo")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Guardar" })).toBeVisible();
     expect(window.open).toHaveBeenCalledWith("https://www.youtube.com/watch?v=FReFf1CLf-c", "_blank", "noopener,noreferrer");
   });
 });
