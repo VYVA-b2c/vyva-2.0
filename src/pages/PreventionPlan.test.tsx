@@ -692,8 +692,14 @@ describe("PreventionPlan", () => {
     expect(screen.queryByText("Es un video en español, específico para adultos mayores y limitado a 10 minutos.")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
     expect(screen.queryByText("Curated video")).not.toBeInTheDocument();
+    expect(screen.queryByText("Current theme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Program day")).not.toBeInTheDocument();
     expect(screen.queryByText("Why this?")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "No es para mí" })).toBeVisible();
+    expect(screen.getByTestId("longevity-pillar-selector-rail")).toHaveClass("no-scrollbar", "snap-x");
+
+    fireEvent.click(screen.getByText("¿Por qué esto?"));
+    expect(screen.getByRole("button", { name: "Juegos mentales VYVA" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar Calma y descanso" }));
 
@@ -728,7 +734,13 @@ describe("PreventionPlan", () => {
     expect(screen.getAllByText("Cerveau")[0]).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
     expect(screen.queryByText("Curated video")).not.toBeInTheDocument();
+    expect(screen.queryByText("Current theme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Program day")).not.toBeInTheDocument();
     expect(screen.queryByText("Why this?")).not.toBeInTheDocument();
+    expect(screen.getByTestId("longevity-pillar-selector-rail")).toHaveClass("no-scrollbar", "snap-x");
+
+    fireEvent.click(screen.getByText("Pourquoi ceci ?"));
+    expect(screen.getByRole("button", { name: "Jeux cérébraux VYVA" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Afficher Calme et récupération" }));
 

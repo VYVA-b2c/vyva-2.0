@@ -383,7 +383,7 @@ const PREVIEW_MOMENT_PILLARS: Record<LongevityMoment, PreventionPillar> = {
 
 const PREVIEW_MOMENT_COPY: Record<LongevityMoment, { focus: string; evidence: string }> = {
   morning: {
-    focus: "start with one simple food cue",
+    focus: "start with one simple food cue today",
     evidence: "Morning is the right time for breakfast, hydration, and a lighter start.",
   },
   midday: {
@@ -391,7 +391,7 @@ const PREVIEW_MOMENT_COPY: Record<LongevityMoment, { focus: string; evidence: st
     evidence: "Midday fits a short heart-supporting movement cue before afternoon fatigue builds.",
   },
   afternoon: {
-    focus: "keep memory active with one short challenge",
+    focus: "keep memory active with one short challenge today",
     evidence: "Afternoon is a practical window for a brain game, social cue, or short video.",
   },
   evening: {
@@ -399,6 +399,105 @@ const PREVIEW_MOMENT_COPY: Record<LongevityMoment, { focus: string; evidence: st
     evidence: "Evening is better for wind-down, reflection, and tomorrow setup than another big task.",
   },
 };
+
+const PREVIEW_MOMENT_COPY_BY_LANGUAGE: Record<string, Record<LongevityMoment, { focus: string; evidence: string }>> = {
+  en: PREVIEW_MOMENT_COPY,
+  es: {
+    morning: {
+      focus: "empieza con una idea sencilla para la comida",
+      evidence: "La mañana encaja con desayuno, hidratación y un comienzo ligero.",
+    },
+    midday: {
+      focus: "haz que moverte sea fácil antes de que pese el día",
+      evidence: "El mediodía encaja con una comida sencilla, hidratación y una rutina amable.",
+    },
+    afternoon: {
+      focus: "mantén activa la memoria con un reto breve",
+      evidence: "La tarde es un buen momento para un juego mental, conexión social o un video corto.",
+    },
+    evening: {
+      focus: "cierra el día con una pausa más tranquila",
+      evidence: "La noche encaja mejor con bajar el ritmo, reflexionar y preparar mañana.",
+    },
+  },
+  fr: {
+    morning: {
+      focus: "commencez par un repère simple pour le repas",
+      evidence: "Le matin convient au petit-déjeuner, à l'hydratation et à un départ léger.",
+    },
+    midday: {
+      focus: "gardez le mouvement facile avant que la journée ne pèse",
+      evidence: "Le midi convient au repas, à l'hydratation et à une routine simple.",
+    },
+    afternoon: {
+      focus: "gardez la mémoire active avec un court défi",
+      evidence: "L'après-midi convient à un jeu cognitif, un lien social ou une courte vidéo.",
+    },
+    evening: {
+      focus: "terminez la journée avec une pause plus calme",
+      evidence: "Le soir convient mieux au ralentissement, à la réflexion et à la préparation de demain.",
+    },
+  },
+  de: {
+    morning: {
+      focus: "beginnen Sie mit einem einfachen Essensimpuls",
+      evidence: "Der Morgen passt zu Frühstück, Flüssigkeit und einem leichten Start.",
+    },
+    midday: {
+      focus: "machen Sie Bewegung leicht, bevor der Tag schwerer wird",
+      evidence: "Der Mittag passt zu Essen, Flüssigkeit und einer freundlichen Routine.",
+    },
+    afternoon: {
+      focus: "halten Sie das Gedächtnis mit einer kurzen Aufgabe aktiv",
+      evidence: "Der Nachmittag passt zu Denkspielen, sozialem Kontakt oder einem kurzen Video.",
+    },
+    evening: {
+      focus: "lassen Sie den Tag mit einer ruhigeren Pause ausklingen",
+      evidence: "Der Abend passt besser zu Ruhe, Reflexion und Vorbereitung auf morgen.",
+    },
+  },
+  it: {
+    morning: {
+      focus: "inizia con un semplice spunto per il pasto",
+      evidence: "La mattina è adatta a colazione, idratazione e un inizio leggero.",
+    },
+    midday: {
+      focus: "rendi il movimento facile prima che la giornata pesi",
+      evidence: "Il mezzogiorno è adatto a pasti, idratazione e una routine delicata.",
+    },
+    afternoon: {
+      focus: "mantieni attiva la memoria con una breve sfida",
+      evidence: "Il pomeriggio è adatto a giochi mentali, contatto sociale o un breve video.",
+    },
+    evening: {
+      focus: "chiudi la giornata con una pausa più calma",
+      evidence: "La sera è più adatta a rallentare, riflettere e preparare domani.",
+    },
+  },
+  pt: {
+    morning: {
+      focus: "comece com uma ideia simples para a refeição",
+      evidence: "A manhã combina com café da manhã, hidratação e um começo leve.",
+    },
+    midday: {
+      focus: "deixe o movimento fácil antes que o dia pese",
+      evidence: "O meio-dia combina com refeição, hidratação e uma rotina leve.",
+    },
+    afternoon: {
+      focus: "mantenha a memória ativa com um desafio breve",
+      evidence: "A tarde combina com jogo mental, conexão social ou um vídeo curto.",
+    },
+    evening: {
+      focus: "encerre o dia com uma pausa mais calma",
+      evidence: "A noite combina melhor com desacelerar, refletir e preparar o amanhã.",
+    },
+  },
+};
+
+function previewMomentCopyForLanguage(language: string | null | undefined): Record<LongevityMoment, { focus: string; evidence: string }> {
+  const code = copyLanguageCode(language);
+  return PREVIEW_MOMENT_COPY_BY_LANGUAGE[code] ?? PREVIEW_MOMENT_COPY;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -440,6 +539,7 @@ type LongevityCopy = {
   ctaLabels: Record<DailyExperienceKind, string>;
   contentTypes: Record<DailyContentType, string>;
   experiencePreviews: Record<PreventionPillar, PillarExperiencePreview>;
+  activityCtaLabels: Partial<Record<PreventionPillar, string>>;
   choosePillarLabel: string;
   showPillarLabel: (pillarLabel: string) => string;
   selectedPillarWhy: (pillarLabel: string, momentLabel: string, experienceLabel: string, detail: string) => string;
@@ -542,6 +642,12 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
       natural_solution: "Natural support",
     },
     experiencePreviews: PILLAR_EXPERIENCE_PREVIEWS,
+    activityCtaLabels: {
+      heart: "Start VYVA movement",
+      brain: "Play VYVA brain games",
+      strength: "Start stability exercise",
+      calm: "Open Breath Garden",
+    },
     choosePillarLabel: "Choose a longevity pillar",
     showPillarLabel: (pillarLabel) => `Show ${pillarLabel}`,
     selectedPillarWhy: (pillarLabel, momentLabel, experienceLabel, detail) =>
@@ -681,6 +787,12 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
         chips: ["2 min", "Descanso"],
       },
     },
+    activityCtaLabels: {
+      heart: "Movimiento VYVA",
+      brain: "Juegos mentales VYVA",
+      strength: "Ejercicio de estabilidad",
+      calm: "Abrir respiración",
+    },
     choosePillarLabel: "Elegir un pilar de longevidad",
     showPillarLabel: (pillarLabel) => `Mostrar ${pillarLabel}`,
     selectedPillarWhy: (pillarLabel, momentLabel, experienceLabel, detail) =>
@@ -789,6 +901,12 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
       natural_solution: "Soutien naturel",
     },
     experiencePreviews: PILLAR_EXPERIENCE_PREVIEWS,
+    activityCtaLabels: {
+      heart: "Mouvement VYVA",
+      brain: "Jeux cérébraux VYVA",
+      strength: "Exercice de stabilité",
+      calm: "Ouvrir la respiration",
+    },
     choosePillarLabel: "Choisir un pilier de longévité",
     showPillarLabel: (pillarLabel) => `Afficher ${pillarLabel}`,
     selectedPillarWhy: (pillarLabel, momentLabel, experienceLabel, detail) =>
@@ -897,6 +1015,12 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
       natural_solution: "Natürliche Unterstützung",
     },
     experiencePreviews: PILLAR_EXPERIENCE_PREVIEWS,
+    activityCtaLabels: {
+      heart: "VYVA-Bewegung starten",
+      brain: "VYVA-Denkspiele spielen",
+      strength: "Stabilitätsübung starten",
+      calm: "Atemgarten öffnen",
+    },
     choosePillarLabel: "Langlebigkeitsbereich wählen",
     showPillarLabel: (pillarLabel) => `${pillarLabel} anzeigen`,
     selectedPillarWhy: (pillarLabel, momentLabel, experienceLabel, detail) =>
@@ -1005,6 +1129,12 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
       natural_solution: "Supporto naturale",
     },
     experiencePreviews: PILLAR_EXPERIENCE_PREVIEWS,
+    activityCtaLabels: {
+      heart: "Movimento VYVA",
+      brain: "Giochi mentali VYVA",
+      strength: "Esercizio di stabilità",
+      calm: "Apri respiro guidato",
+    },
     choosePillarLabel: "Scegli un pilastro longevità",
     showPillarLabel: (pillarLabel) => `Mostra ${pillarLabel}`,
     selectedPillarWhy: (pillarLabel, momentLabel, experienceLabel, detail) =>
@@ -1113,6 +1243,12 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
       natural_solution: "Apoio natural",
     },
     experiencePreviews: PILLAR_EXPERIENCE_PREVIEWS,
+    activityCtaLabels: {
+      heart: "Movimento VYVA",
+      brain: "Jogos mentais VYVA",
+      strength: "Exercício de estabilidade",
+      calm: "Abrir respiração",
+    },
     choosePillarLabel: "Escolher um pilar de longevidade",
     showPillarLabel: (pillarLabel) => `Mostrar ${pillarLabel}`,
     selectedPillarWhy: (pillarLabel, momentLabel, experienceLabel, detail) =>
@@ -1139,9 +1275,13 @@ const LONGEVITY_COPY: Record<string, LongevityCopy> = {
   },
 };
 
-function longevityCopyForLanguage(language: string | null | undefined): LongevityCopy {
+function copyLanguageCode(language: string | null | undefined): string {
   const code = (language ?? "en").slice(0, 2).toLowerCase();
-  return LONGEVITY_COPY[code] ?? LONGEVITY_COPY.en;
+  return LONGEVITY_COPY[code] ? code : "en";
+}
+
+function longevityCopyForLanguage(language: string | null | undefined): LongevityCopy {
+  return LONGEVITY_COPY[copyLanguageCode(language)] ?? LONGEVITY_COPY.en;
 }
 
 function statusForMoment(moment: LongevityMoment, activeMoment: LongevityMoment): LongevityMomentStatus {
@@ -1410,6 +1550,53 @@ const PREVIEW_PROGRAM_STEP: ProgramStep = {
   scheduledDate: "2026-08-01",
   status: "scheduled",
 };
+
+const PREVIEW_PROGRAM_STEP_COPY_BY_LANGUAGE: Record<string, Pick<ProgramStep, "theme" | "objective" | "actionTitle" | "actionDetail">> = {
+  en: {
+    theme: "Memory starter",
+    objective: "Watch one short visual guide, then keep memory practice familiar.",
+    actionTitle: "3-2-1 memory lane",
+    actionDetail: "Pick a real place. Name 3 things you see there, 2 sounds, and 1 person connected to it.",
+  },
+  es: {
+    theme: "Inicio de memoria",
+    objective: "Mira una guía breve y mantén la práctica de memoria familiar.",
+    actionTitle: "3-2-1 de memoria",
+    actionDetail: "Elige un lugar real. Nombra 3 cosas que ves allí, 2 sonidos y 1 persona vinculada.",
+  },
+  fr: {
+    theme: "Départ mémoire",
+    objective: "Regarder une courte vidéo, puis garder l'exercice de mémoire familier.",
+    actionTitle: "Mémoire 3-2-1",
+    actionDetail: "Choisissez un lieu réel. Nommez 3 choses vues là-bas, 2 sons et 1 personne liée.",
+  },
+  de: {
+    theme: "Gedächtnisstart",
+    objective: "Ein kurzes Video ansehen und die Gedächtnisübung vertraut halten.",
+    actionTitle: "3-2-1-Gedächtnisrunde",
+    actionDetail: "Wählen Sie einen echten Ort. Nennen Sie 3 Dinge dort, 2 Geräusche und 1 verbundene Person.",
+  },
+  it: {
+    theme: "Avvio memoria",
+    objective: "Guarda una breve guida e mantieni familiare l'esercizio di memoria.",
+    actionTitle: "Memoria 3-2-1",
+    actionDetail: "Scegli un luogo reale. Nomina 3 cose che vedi, 2 suoni e 1 persona collegata.",
+  },
+  pt: {
+    theme: "Início da memória",
+    objective: "Assista a um vídeo breve e mantenha a prática de memória familiar.",
+    actionTitle: "Memória 3-2-1",
+    actionDetail: "Escolha um lugar real. Diga 3 coisas que vê ali, 2 sons e 1 pessoa ligada a ele.",
+  },
+};
+
+function previewProgramStepForLanguage(language: string | null | undefined): ProgramStep {
+  const code = copyLanguageCode(language);
+  return {
+    ...PREVIEW_PROGRAM_STEP,
+    ...(PREVIEW_PROGRAM_STEP_COPY_BY_LANGUAGE[code] ?? PREVIEW_PROGRAM_STEP_COPY_BY_LANGUAGE.en),
+  };
+}
 
 const PREVIEW_TODAY_VIDEO: TodayVideo = {
   id: "preview-longevity-video",
@@ -1873,6 +2060,27 @@ const PUBLIC_VIDEO_REASONS: Record<string, Record<PreventionPillar, string>> = {
     nourishment: "Rend le prochain repas plus facile à améliorer avec un seul choix visible.",
     calm: "Donne un rythme simple pour une pause plus calme.",
   },
+  de: {
+    heart: "Bietet einen sanften Bewegungsimpuls, der heute leicht in den Tag passt.",
+    brain: "Macht die Idee zu einer kleinen gedächtnisfreundlichen Wahl für heute.",
+    strength: "Hilft, den Körper auf stabilere Bewegung vorzubereiten.",
+    nourishment: "Macht die nächste Mahlzeit mit einer sichtbaren Wahl leichter zu verbessern.",
+    calm: "Gibt dem Kopf einen einfachen Rhythmus für eine ruhigere Pause.",
+  },
+  it: {
+    heart: "Offre uno spunto di movimento delicato che può entrare nella giornata senza pesare.",
+    brain: "Trasforma l'idea in una piccola scelta utile per memoria ed energia.",
+    strength: "Aiuta a preparare il corpo a muoversi con più stabilità.",
+    nourishment: "Rende il prossimo pasto più facile da migliorare con una sola scelta visibile.",
+    calm: "Dà alla mente un ritmo semplice per una pausa più calma.",
+  },
+  pt: {
+    heart: "Oferece um movimento suave que cabe no dia sem pesar.",
+    brain: "Transforma a ideia em uma pequena escolha favorável à memória hoje.",
+    strength: "Ajuda a preparar o corpo para se mover com mais estabilidade.",
+    nourishment: "Torna a próxima refeição mais fácil de melhorar com uma escolha visível.",
+    calm: "Dá à mente um ritmo simples para uma pausa mais calma.",
+  },
 };
 
 const PUBLIC_VIDEO_FIT_NOTES: Record<string, Record<PreventionPillar, string>> = {
@@ -1897,6 +2105,27 @@ const PUBLIC_VIDEO_FIT_NOTES: Record<string, Record<PreventionPillar, string>> =
     nourishment: "Respecter les restrictions habituelles et choisir quelque chose de familier.",
     calm: "Arrêter plus tôt si le rythme ou la respiration ne convient pas.",
   },
+  de: {
+    heart: "Die Bewegung sanft halten und heute die einfachste Version wählen.",
+    brain: "Als kleinen Impuls nutzen und den nächsten Schritt kurz halten.",
+    strength: "Eine Stütze in der Nähe behalten und Bewegungen bei Bedarf kleiner machen.",
+    nourishment: "Gewohnte Einschränkungen beachten und etwas Vertrautes wählen.",
+    calm: "Früher aufhören, wenn Rhythmus oder Atmung nicht angenehm sind.",
+  },
+  it: {
+    heart: "Mantieni il movimento delicato e scegli oggi la versione più facile.",
+    brain: "Usalo come piccolo promemoria e tieni breve il passo successivo.",
+    strength: "Tieni un appoggio vicino e riduci il movimento se serve.",
+    nourishment: "Rispetta le tue restrizioni abituali e scegli qualcosa di familiare.",
+    calm: "Fermati prima se ritmo o respirazione non sono comodi.",
+  },
+  pt: {
+    heart: "Mantenha o movimento suave e escolha hoje a versão mais fácil.",
+    brain: "Use como um pequeno lembrete e mantenha o próximo passo curto.",
+    strength: "Mantenha apoio por perto e reduza os movimentos se precisar.",
+    nourishment: "Respeite suas restrições habituais e escolha algo familiar.",
+    calm: "Pare mais cedo se o ritmo ou a respiração não forem confortáveis.",
+  },
 };
 
 function videoReasonLooksInternal(value: string): boolean {
@@ -1904,7 +2133,7 @@ function videoReasonLooksInternal(value: string): boolean {
 }
 
 function publicVideoCopy(language: string | null | undefined, pillar: PreventionPillar | null | undefined, source: typeof PUBLIC_VIDEO_REASONS): string {
-  const normalized = normalizeVideoLanguage(language);
+  const normalized = copyLanguageCode(language);
   const safePillar = pillar ?? "brain";
   return source[normalized]?.[safePillar] ?? source.en[safePillar] ?? source.en.brain;
 }
@@ -1985,6 +2214,10 @@ function videoForPillar(pillar: PreventionPillar, language?: string | null): Tod
   return videoWithInsights(PILLAR_VIDEO_LIBRARY_BY_LANGUAGE[normalized]?.[pillar] ?? EN_PILLAR_VIDEO_LIBRARY[pillar]);
 }
 
+function videoMatchesLanguage(video: TodayVideo | null | undefined, language?: string | null): boolean {
+  return Boolean(video && normalizeVideoLanguage(video.language) === normalizeVideoLanguage(language));
+}
+
 function reviewedVideoById(videoId: string): TodayVideo | null {
   for (const library of Object.values(PILLAR_VIDEO_LIBRARY_BY_LANGUAGE)) {
     const match = Object.values(library).find((video) => video.videoId === videoId);
@@ -2037,6 +2270,25 @@ function defaultResourceForPillar(pillar: PreventionPillar | null): { label: str
   if (pillar === "nourishment") return { label: "NIA food guide", url: RESOURCE_URLS.niaFood };
   if (pillar === "calm") return { label: "NIA sleep guide", url: RESOURCE_URLS.niaSleep };
   return null;
+}
+
+type AppActivityCta = {
+  label: string;
+  route: string;
+};
+
+const APP_ACTIVITY_ROUTES_BY_PILLAR: Partial<Record<PreventionPillar, string>> = {
+  heart: "/social-rooms/morning-movement/exercises/tai-chi",
+  brain: "/memory-games",
+  strength: "/social-rooms/morning-movement/exercises/seated-strength",
+  calm: "/games/breath-garden",
+};
+
+function appActivityCtaForPillar(pillar: PreventionPillar | null | undefined, copy: LongevityCopy): AppActivityCta | null {
+  if (!pillar) return null;
+  const route = APP_ACTIVITY_ROUTES_BY_PILLAR[pillar];
+  const label = copy.activityCtaLabels[pillar];
+  return route && label ? { route, label } : null;
 }
 
 function actionDestination(action: CompanionAction): { label: string; url: string } | null {
@@ -2100,17 +2352,20 @@ function resolvePriorityDefinition(
 
 function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, language = "en", momentOverride: LongevityMoment = "afternoon"): CompanionPayload {
   const previewLanguage = normalizeVideoLanguage(language);
+  const copy = longevityCopyForLanguage(previewLanguage);
   const activeMoment = momentOverride;
   const activeMomentDetails = LONGEVITY_MOMENT_DETAILS[activeMoment];
   const activeMomentPillar = PREVIEW_MOMENT_PILLARS[activeMoment];
-  const activeMomentCopy = PREVIEW_MOMENT_COPY[activeMoment];
-  const activeMomentPillarDefinition = PILLARS.find((pillar) => pillar.id === activeMomentPillar);
-  const previewProgramVideo = videoForPillar(PREVIEW_PROGRAM_STEP.pillar, previewLanguage);
+  const activeMomentCopy = previewMomentCopyForLanguage(previewLanguage)[activeMoment];
+  const activeMomentLabel = copy.moments[activeMoment] ?? activeMomentDetails.label;
+  const activeMomentPillarLabel = copy.pillarLabels[activeMomentPillar];
+  const previewProgramStep = previewProgramStepForLanguage(previewLanguage);
+  const previewProgramVideo = videoForPillar(previewProgramStep.pillar, previewLanguage);
   const previewTodayVideo = videoForPillar(activeMomentPillar, previewLanguage);
   const previewActiveProgram: ActiveProgram = { ...PREVIEW_ACTIVE_PROGRAM, language: previewLanguage };
   const priorityDefinition = resolvePriorityDefinition(plan);
   const priorityPillar = priorityDefinition?.id ?? "brain";
-  const whyToday = `${activeMomentDetails.label}: ${activeMomentCopy.evidence}`;
+  const whyToday = `${activeMomentLabel}: ${activeMomentCopy.evidence}`;
   const actionFromContent = (pillar: PreventionPillar, content: DailyContentItem): CompanionAction => ({
     action_key: actionKeyFor(pillar, content.title),
     content_id: content.id,
@@ -2193,24 +2448,24 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
     },
   ];
   const programPrimaryAction: CompanionAction = {
-    action_key: `program:${previewActiveProgram.id}:${PREVIEW_PROGRAM_STEP.dayIndex}:${actionKeyFor(PREVIEW_PROGRAM_STEP.pillar, PREVIEW_PROGRAM_STEP.actionTitle)}`,
-    content_id: PREVIEW_PROGRAM_STEP.id,
-    title: PREVIEW_PROGRAM_STEP.actionTitle,
+    action_key: `program:${previewActiveProgram.id}:${previewProgramStep.dayIndex}:${actionKeyFor(previewProgramStep.pillar, previewProgramStep.actionTitle)}`,
+    content_id: previewProgramStep.id,
+    title: previewProgramStep.actionTitle,
     detail: "This uses personal memory and storytelling, not a score.",
-    pillar: PREVIEW_PROGRAM_STEP.pillar,
+    pillar: previewProgramStep.pillar,
     route: null,
-    prompt: `Help me with today's Longevity activity: ${PREVIEW_PROGRAM_STEP.actionTitle}. Video: ${previewProgramVideo.title}.`,
+    prompt: `${copy.askVyva}: ${previewProgramStep.actionTitle}. ${copy.experienceLabels.video}: ${previewProgramVideo.title}.`,
     source: "program",
     challenge: {
       kind: "memory_prompt",
-      prompt: PREVIEW_PROGRAM_STEP.actionDetail,
+      prompt: previewProgramStep.actionDetail,
       hint: "Use a place you know well, such as your kitchen, a favorite street, or a holiday spot.",
       answer: null,
       followUp: "This uses personal memory and storytelling, not a score.",
     },
     gameOptions: previewGameOptions,
   };
-  const primaryAction = activeMomentPillar === PREVIEW_PROGRAM_STEP.pillar ? programPrimaryAction : pillarActions[activeMomentPillar];
+  const primaryAction = activeMomentPillar === previewProgramStep.pillar ? programPrimaryAction : pillarActions[activeMomentPillar];
   const supportAction = PILLARS.map((pillar) => pillarActions[pillar.id]).find((action) => action.pillar !== activeMomentPillar) ?? pillarActions.heart;
   const signalsUsed: CompanionSignal[] = [
     {
@@ -2240,7 +2495,7 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
     const details = LONGEVITY_MOMENT_DETAILS[moment];
     return {
       moment,
-      label: details.label,
+      label: copy.moments[moment] ?? details.label,
       status: statusForMoment(moment, activeMoment),
       startsAt: details.startsAt,
       title: video.title,
@@ -2252,13 +2507,13 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
   const nextMoment = nextLongevityMoment(activeMoment);
   const nextMomentPreview = todayTimeline.find((item) => item.moment === nextMoment) ?? null;
   const dailySession: DailySession = {
-    sessionFocus: firstName ? `${firstName}, ${activeMomentCopy.focus} today.` : `${upperFirst(activeMomentCopy.focus)} today.`,
+    sessionFocus: firstName ? `${firstName}, ${activeMomentCopy.focus}.` : `${upperFirst(activeMomentCopy.focus)}.`,
     primaryExperience: {
       kind: "video",
       title: previewTodayVideo.title,
       detail: previewTodayVideo.selectedReason,
       pillar: activeMomentPillar,
-      ctaLabel: "Watch",
+      ctaLabel: copy.watch,
       action: primaryAction,
       video: previewTodayVideo,
     },
@@ -2274,16 +2529,16 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
       summary: whyToday,
       evidence: [
         activeMomentCopy.evidence,
-        `Current theme: ${activeMomentPillarDefinition?.label ?? activeMomentPillar}.`,
-        `Curated video: ${previewTodayVideo.title}.`,
-        `Program day ${PREVIEW_PROGRAM_STEP.dayIndex}: ${PREVIEW_PROGRAM_STEP.theme}.`,
+        `${copy.currentTheme}: ${activeMomentPillarLabel ?? activeMomentPillar}.`,
+        `${copy.experienceLabels.video}: ${previewTodayVideo.title}.`,
+        `${copy.programDay} ${previewProgramStep.dayIndex}: ${previewProgramStep.theme}.`,
       ],
     },
   };
   const currentMomentSession: MomentSession = {
     ...dailySession,
     moment: activeMoment,
-    label: activeMomentDetails.label,
+    label: activeMomentLabel,
     status: "now",
     startsAt: activeMomentDetails.startsAt,
   };
@@ -2291,12 +2546,12 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
   return {
     plan,
     activeProgram: previewActiveProgram,
-    todayProgramStep: PREVIEW_PROGRAM_STEP,
+    todayProgramStep: previewProgramStep,
     todayVideo: previewTodayVideo,
     videoCurationStatus: "fallback",
     todayFocus: {
       pillar: activeMomentPillar ?? priorityPillar,
-      label: activeMomentPillarDefinition?.label ?? priorityDefinition?.label ?? "Longevity",
+      label: activeMomentPillarLabel ?? priorityDefinition?.label ?? copy.title,
       headline: firstName ? `${firstName}, ${activeMomentCopy.focus}` : upperFirst(activeMomentCopy.focus),
       summary: previewTodayVideo.selectedReason,
     },
@@ -2312,18 +2567,18 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
     careSummary: {
       title: `Longevity summary for ${firstName || "this user"}`,
       bullets: [
-        `Program day ${PREVIEW_PROGRAM_STEP.dayIndex}: ${PREVIEW_PROGRAM_STEP.theme}.`,
-        `Video: ${previewTodayVideo.title}.`,
-        `Companion step: ${primaryAction.title}.`,
-        `Health areas considered: ${PILLARS.map((pillar) => pillar.label).join("; ")}.`,
+        `${copy.programDay} ${previewProgramStep.dayIndex}: ${previewProgramStep.theme}.`,
+        `${copy.videoPrefix}: ${previewTodayVideo.title}.`,
+        `${copy.experienceLabels.support}: ${primaryAction.title}.`,
+        `${copy.vyvaConsidered}: ${PILLARS.map((pillar) => copy.pillarLabels[pillar.id]).join("; ")}.`,
         signalsUsed[0].detail,
       ],
       share_text: [
         `Longevity summary for ${firstName || "this user"}`,
-        `- Program day ${PREVIEW_PROGRAM_STEP.dayIndex}: ${PREVIEW_PROGRAM_STEP.theme}.`,
-        `- Video: ${previewTodayVideo.title}.`,
-        `- Companion step: ${primaryAction.title}.`,
-        `- Health areas considered: ${PILLARS.map((pillar) => pillar.label).join("; ")}.`,
+        `- ${copy.programDay} ${previewProgramStep.dayIndex}: ${previewProgramStep.theme}.`,
+        `- ${copy.videoPrefix}: ${previewTodayVideo.title}.`,
+        `- ${copy.experienceLabels.support}: ${primaryAction.title}.`,
+        `- ${copy.vyvaConsidered}: ${PILLARS.map((pillar) => copy.pillarLabels[pillar.id]).join("; ")}.`,
       ].join("\n"),
     },
     signalsUsed,
@@ -2332,9 +2587,10 @@ function buildPreviewCompanion(plan: PreventionPlanData, firstName: string, lang
   };
 }
 
-function usePreventionCompanion(userId: string) {
+function usePreventionCompanion(userId: string, language?: string | null) {
+  const queryLanguage = normalizeVideoLanguage(language);
   return useQuery<CompanionPayload>({
-    queryKey: ["prevention-companion", userId],
+    queryKey: ["prevention-companion", userId, queryLanguage],
     enabled: Boolean(userId),
     staleTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
@@ -2435,6 +2691,10 @@ function previewRouteForAction(action: CompanionAction, fallbackUrl = ""): strin
   if (route.startsWith("/social-rooms/walking-route") || resourceUrl.startsWith("/social-rooms/walking-route")) {
     const query = (route || resourceUrl).split("?")[1];
     return `/dev/social-rooms/walking-route${query ? `?${query}` : ""}`;
+  }
+  if (route.startsWith("/social-rooms/morning-movement/exercises/") || resourceUrl.startsWith("/social-rooms/morning-movement/exercises/")) {
+    const exerciseRoute = route.startsWith("/social-rooms/morning-movement/exercises/") ? route : resourceUrl;
+    return `/dev${exerciseRoute}`;
   }
   if (route.startsWith("/social-rooms/activities") || resourceUrl.startsWith("/social-rooms/activities")) return "/dev/home-master/community";
   if (route === "/mind" || action.pillar === "brain") return "/dev/home-master/brain";
@@ -2611,6 +2871,7 @@ function youtubeVideoId(value: string | null | undefined): string | null {
 function videoFromAction(action: CompanionAction, language?: string | null): TodayVideo | null {
   const exactUrl = exactYoutubeUrl(action.resource_url ?? action.route);
   const videoId = youtubeVideoId(exactUrl);
+  const requestedLanguage = normalizeVideoLanguage(language);
   if (!exactUrl || !videoId) {
     const fallback = action.pillar ? videoForPillar(action.pillar, language) : null;
     return fallback
@@ -2622,6 +2883,9 @@ function videoFromAction(action: CompanionAction, language?: string | null): Tod
       : null;
   }
   const curatedMatch = reviewedVideoById(videoId);
+  if (action.pillar && !videoMatchesLanguage(curatedMatch, requestedLanguage)) {
+    return videoForPillar(action.pillar, requestedLanguage);
+  }
   return videoWithInsights({
     id: action.content_id ?? action.action_key,
     provider: "youtube",
@@ -2631,7 +2895,7 @@ function videoFromAction(action: CompanionAction, language?: string | null): Tod
     channel: action.resource_label ?? curatedMatch?.channel ?? null,
     durationSeconds: action.duration_seconds ?? curatedMatch?.durationSeconds ?? null,
     thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-    language: curatedMatch?.language ?? normalizeVideoLanguage(language),
+    language: curatedMatch?.language ?? requestedLanguage,
     summary: (action.detail || curatedMatch?.summary) ?? null,
     selectedReason: curatedMatch?.selectedReason ?? action.detail,
     safetyNotes: action.safety_notes ?? curatedMatch?.safetyNotes ?? "General wellness support only.",
@@ -2697,7 +2961,7 @@ export default function PreventionPlan({
   const isPreview = Boolean(previewPlan);
   const userId = isPreview ? "" : user?.id ?? "";
   const firstName = firstNameOverride ?? profileFirstName;
-  const query = usePreventionCompanion(userId);
+  const query = usePreventionCompanion(userId, profileLanguage);
   const pillarStatusQuery = usePillarStatus(userId);
   useLongevityMomentBoundaryRefresh(!isPreview && Boolean(userId), profileTimezone, query.data?.activeMoment ?? null, query.refetch);
   const companion = previewPlan ? buildPreviewCompanion(previewPlan, firstName, profileLanguage, momentOverride) : query.data;
@@ -2842,8 +3106,12 @@ export default function PreventionPlan({
   const selectedPillarAction = selectedPillar && selectedPillar !== priorityPillarId ? pillarActions[selectedPillar] : null;
   const heroAction = selectedPillarAction ?? priorityAction;
   const selectedPillarVideo = selectedPillarAction ? videoFromAction(selectedPillarAction, companionLanguage) : null;
-  const primaryVideo = primaryExperience.video && exactYoutubeUrl(primaryExperience.video.url) ? videoWithInsights(primaryExperience.video) : null;
-  const companionVideo = companion.todayVideo && exactYoutubeUrl(companion.todayVideo.url) ? videoWithInsights(companion.todayVideo) : null;
+  const primaryVideo = primaryExperience.video && exactYoutubeUrl(primaryExperience.video.url) && videoMatchesLanguage(primaryExperience.video, companionLanguage)
+    ? videoWithInsights(primaryExperience.video)
+    : null;
+  const companionVideo = companion.todayVideo && exactYoutubeUrl(companion.todayVideo.url) && videoMatchesLanguage(companion.todayVideo, companionLanguage)
+    ? videoWithInsights(companion.todayVideo)
+    : null;
   const currentVideo = primaryVideo ?? companionVideo ?? videoFromAction(priorityAction, companionLanguage);
   const heroVideo = selectedPillarAction ? selectedPillarVideo : currentVideo;
   const heroVideoUrl = exactYoutubeUrl(heroVideo?.url);
@@ -2888,6 +3156,10 @@ export default function PreventionPlan({
     ? [heroVideo.channel, heroVideoDuration].filter(Boolean).join(" · ")
     : [heroAction.resource_label ?? heroPreview.label, heroActionDuration, heroTimingMeta].filter(Boolean).join(" · ");
   const heroCtaLabel = heroVideo ? copy.watch : heroExperienceKind === "video" ? copy.askVyva : ctaLabelForExperience(heroExperienceKind, copy);
+  const rawHeroActivityCta = appActivityCtaForPillar(heroPillarId, copy);
+  const heroActivityCta = rawHeroActivityCta && (heroVideo || heroAction.route !== rawHeroActivityCta.route)
+    ? rawHeroActivityCta
+    : null;
   const heroIcon = heroPillarDefinition?.icon ?? Sparkles;
   const heroAccent = heroPillarDefinition?.accent ?? "spark";
   const heroVisualTitle = heroAction.resource_title ?? heroPreview.title;
@@ -2947,6 +3219,22 @@ export default function PreventionPlan({
       selectedPillar: heroPillarId,
     });
     openCompanionAction(heroAction);
+  };
+
+  const openHeroActivity = () => {
+    if (!heroActivityCta) return;
+    void submitFeedback(heroAction, "opened", {
+      resourceType: "app_activity",
+      openedUrl: heroActivityCta.route,
+      selectedPillar: heroPillarId,
+    });
+    openResourceUrl(heroActivityCta.route, {
+      ...heroAction,
+      title: heroActivityCta.label,
+      route: heroActivityCta.route,
+      resource_label: heroActivityCta.label,
+      resource_url: null,
+    });
   };
 
   const handleTryAfterWatching = () => {
@@ -3140,7 +3428,10 @@ export default function PreventionPlan({
         </section>
 
         <nav className="mt-3" aria-label={copy.choosePillarLabel}>
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0">
+          <div
+            data-testid="longevity-pillar-selector-rail"
+            className="-mx-2 flex snap-x gap-2 overflow-x-auto overscroll-x-contain px-2 py-1 no-scrollbar sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:py-0"
+          >
             {PILLARS.map((pillar) => {
               const isSelected = heroPillarId === pillar.id;
               const pillarLabel = copy.pillarLabels[pillar.id];
@@ -3153,7 +3444,7 @@ export default function PreventionPlan({
                   title={copy.showPillarLabel(pillarLabel)}
                   onClick={() => setSelectedPillar((current) => (current === pillar.id || pillar.id === priorityPillarId ? null : pillar.id))}
                   className={[
-                    "inline-flex h-9 min-h-9 min-w-[76px] flex-none items-center justify-center gap-1 rounded-full border px-2 font-body text-[10px] font-black transition sm:w-full sm:min-w-0 sm:gap-1.5 sm:px-1 sm:text-[11px]",
+                    "inline-flex h-8 min-h-8 min-w-[88px] snap-center flex-none items-center justify-center gap-1 rounded-full border px-2 font-body text-[10px] font-black leading-none transition sm:h-9 sm:min-h-9 sm:w-full sm:min-w-0 sm:gap-1.5 sm:px-1 sm:text-[11px]",
                     isSelected
                       ? "border-[#F59E0B] bg-[#FFF7E8] text-[#854F0B] shadow-[0_8px_18px_rgba(245,158,11,0.12)]"
                       : isDark
@@ -3162,7 +3453,7 @@ export default function PreventionPlan({
                   ].join(" ")}
                 >
                   <VyvaIcon icon={pillar.icon} accent={pillar.accent} size={15} strokeWidth={2.35} tone={isDark && !isSelected ? "inverse" : "brand"} />
-                  <span className="min-w-0 whitespace-nowrap">{copy.pillarSelectorLabels[pillar.id]}</span>
+                  <span className="min-w-0 max-w-[58px] truncate whitespace-nowrap sm:max-w-none">{copy.pillarSelectorLabels[pillar.id]}</span>
                 </button>
               );
             })}
@@ -3208,6 +3499,16 @@ export default function PreventionPlan({
                         </li>
                       ))}
                     </ul>
+                  ) : null}
+                  {heroActivityCta ? (
+                    <button
+                      type="button"
+                      onClick={openHeroActivity}
+                      className={["mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border px-4 font-body text-[13px] font-black leading-tight", isDark ? "border-white/[0.14] bg-white/[0.06] text-[#F8F2FF]" : "border-[#E9D7FF] bg-white text-[#6B21A8]"].join(" ")}
+                    >
+                      {heroActivityCta.label}
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
                   ) : null}
                 </div>
               ) : null}
