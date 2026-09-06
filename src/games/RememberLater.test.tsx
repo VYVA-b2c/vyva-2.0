@@ -422,7 +422,7 @@ describe("RememberLater component", () => {
     render(<RememberLater userId="user-1" onExit={vi.fn()} countdownStepMs={TEST_COUNTDOWN_STEP_MS} />);
 
     expect(await screen.findByRole("heading", { name: "Watch for two things." })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Remember Later" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Remember Later", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("See a circle")).toBeInTheDocument();
     expect(screen.getByText("See the bell")).toBeInTheDocument();
     expect(screen.getByText("Anything else: wait.")).toBeInTheDocument();
