@@ -18,6 +18,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 
 vi.mock("@/hooks/useVyvaVoice", () => ({
+  useOptionalVyvaVoice: () => null,
   useTtsReadout: () => ({
     speakSequence: mocks.speakSequence,
     stopTts: mocks.stopTts,

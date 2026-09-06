@@ -733,7 +733,7 @@ export default function ListenClosely({ userId, onExit }) {
         contentClassName="sm:mt-4"
       >
         <div className="mx-auto flex w-full max-w-[820px] flex-col gap-4">
-          <header className="rounded-[8px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <header className="rounded-[24px] border bg-white p-4 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h1 className="font-display text-[34px] font-bold leading-[1.05]">{t("games.listenClosely.title", "Listen Closely")}</h1>
@@ -749,7 +749,7 @@ export default function ListenClosely({ userId, onExit }) {
             </div>
           </header>
 
-          <section className="rounded-[8px] border bg-white p-5 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <section className="rounded-[28px] border bg-white p-5 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
             <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
               {isCompareMode ? t("games.listenClosely.playingLabelCompare", "Listen to both sounds") : t("games.listenClosely.targetSound", "Target sound")}
             </p>
@@ -804,8 +804,8 @@ export default function ListenClosely({ userId, onExit }) {
         sceneLayout="choice_panel"
         contentClassName="items-center justify-center"
       >
-        <section className="w-full max-w-[740px] rounded-[8px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-          <div className="mx-auto flex h-[86px] w-[86px] items-center justify-center rounded-[8px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
+        <section className="w-full max-w-[740px] rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+          <div className="mx-auto flex h-[86px] w-[86px] items-center justify-center rounded-[26px]" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
             <Headphones size={50} />
           </div>
           <h1 className="mt-5 font-display text-[42px] font-bold leading-tight">
@@ -818,7 +818,7 @@ export default function ListenClosely({ userId, onExit }) {
                 type="button"
                 onClick={() => handleComparisonChoice(sound)}
                 disabled={saving}
-                className="min-h-[104px] rounded-[8px] border-2 bg-white px-5 text-[28px] font-black shadow-sm transition-transform active:scale-[0.99]"
+                className="min-h-[104px] rounded-[22px] border bg-white px-5 text-[28px] font-black shadow-sm transition-transform active:scale-[0.99]"
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
                 {soundLabel(t, sound)}

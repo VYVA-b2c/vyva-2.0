@@ -1,6 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   BookOpen,
   Check,
   CircleHelp,
@@ -21,7 +20,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
-import { BrainCoachFullscreenActivity, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
+import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import {
   cognitiveAssessmentPracticeStateFromRoute,
@@ -598,8 +597,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     children: ReactNode,
     state: "default" | "loading" | "complete" = "default",
   ) => (
-    <BrainCoachFullscreenActivity
-      title="Brain Coach"
+    <BrainCoachActivityShell
+      title={validGameType ? getGameTitle(validGameType, language) : "Brain Coach"}
+      backLabel={t("common.exit", "Exit")}
+      onBack={() => {
+        stopTts();
+        navigate(resolvedReturnPath);
+      }}
+      showHeader={state !== "complete"}
       testId={brainTestId}
       presentationId={`${brainSceneId}.${screenKey}.touch`}
       sceneId={brainSceneId}
@@ -608,7 +613,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       state={state}
     >
       {children}
-    </BrainCoachFullscreenActivity>
+    </BrainCoachActivityShell>
   );
   const initialLevel = Number(searchParams.get("level") ?? "1");
   const initialVariantId = searchParams.get("variant") ?? "";
@@ -1542,14 +1547,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   if (!validGameType) {
     return renderBrainRunnerScreen("not_found", "error", "message", (
       <div className="px-[22px] py-8">
-        <button
-          onClick={backToList}
-          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={18} />
-          {t("common.back")}
-        </button>
-        <div className="mt-5 rounded-[24px] border border-vyva-border bg-white p-6 shadow-vyva-card">
+        <div className="rounded-[24px] border border-vyva-border bg-white p-6 shadow-vyva-card">
           <h1 className="font-display text-[28px] text-vyva-text-1">{t("memory.exerciseNotFound")}</h1>
           <p className="mt-3 text-[16px] text-vyva-text-2">{t("memory.exerciseNotFoundBody")}</p>
         </div>
@@ -1600,16 +1598,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
     return renderBrainRunnerScreen("tutorial", "tutorial", "card_example", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          type="button"
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 rounded-[24px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[28px] sm:p-5">
+        <section className="rounded-[24px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[28px] sm:p-5">
           <div className="flex items-center justify-center gap-3">
             <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple shadow-vyva-card">
               <Grid2x2 size={27} />
@@ -1706,6 +1695,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
         language={language}
         t={t}
         onBack={backToList}
+        showBackButton={false}
         onOpenRecommended={openRecommended}
         onOpenNextLevel={openNextLevel}
         onOpenSameGame={openSameGame}
@@ -1723,14 +1713,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   ) {
     return renderBrainRunnerScreen("stub", "stub", "message", (
       <div className="px-[22px] pb-6">
-        <button
-          onClick={backToList}
-          className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={18} />
-          {t("common.back")}
-        </button>
-        <div className="mt-4 rounded-[26px] bg-white p-6 shadow-vyva-card">
+        <div className="rounded-[26px] bg-white p-6 shadow-vyva-card">
           <div
             className="inline-flex h-[64px] w-[64px] items-center justify-center rounded-[20px]"
             style={gameIconStyle}
@@ -1766,15 +1749,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
     return renderBrainRunnerScreen("tutorial", "tutorial", "sequence_example", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 rounded-[22px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[26px] sm:p-5">
+        <section className="rounded-[22px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[26px] sm:p-5">
           <div className="mx-auto flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-[#FFF9F1] shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
             <div className="flex h-[48px] w-[48px] items-center justify-center rounded-[17px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
               <GameIcon size={26} />
@@ -2158,15 +2133,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   if (plan.gameType === "number_memory") {
     return renderBrainRunnerScreen(`number_memory_${numberMemoryPhase}`, "playing", `number_memory_${numberMemoryPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 overflow-hidden rounded-[24px] border border-[#BFDBFE] bg-[#F3F8FF] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
+        <section className="overflow-hidden rounded-[24px] border border-[#BFDBFE] bg-[#F3F8FF] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#2563EB] shadow-sm">
@@ -2251,15 +2218,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   if (plan.gameType === "association_memory" && associationPrompt) {
     return renderBrainRunnerScreen(`association_memory_${associationPhase}`, "playing", `association_memory_${associationPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 overflow-hidden rounded-[24px] border border-[#F8C4D0] bg-[#FFF8FA] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
+        <section className="overflow-hidden rounded-[24px] border border-[#F8C4D0] bg-[#FFF8FA] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#BE185D] shadow-sm">
@@ -2336,15 +2295,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
     return renderBrainRunnerScreen(`word_recall_${wordRecallPhase}`, "playing", `word_recall_${wordRecallPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
+        <section className="overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0">
               <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
@@ -2586,15 +2537,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
     return renderBrainRunnerScreen(`sequence_${sequencePhase}`, "playing", "sequence_grid", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <button
-          onClick={backToList}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={17} />
-          {t("common.back")}
-        </button>
-
-        <section className="mt-3 overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
+        <section className="overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
@@ -2854,16 +2797,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     (
     <div className="mx-auto w-full max-w-[1120px] px-3 pb-3 sm:px-4 sm:pb-4">
       <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
-          <button
-            onClick={backToList}
-            aria-label={t("common.back")}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#EADFD5] bg-white/95 px-3 text-[14px] font-semibold text-vyva-text-1 shadow-sm"
-          >
-            <ArrowLeft size={17} />
-            <span className="hidden sm:inline">{t("common.back")}</span>
-          </button>
-
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-[#EEE5FA] bg-white shadow-sm" style={gameIconStyle}>

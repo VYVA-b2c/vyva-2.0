@@ -57,6 +57,7 @@ type StoryRecallGameProps = {
   language: LanguageCode;
   t: (path: string, fallback?: string) => string;
   onBack: () => void;
+  showBackButton?: boolean;
   onOpenRecommended: () => void;
   onOpenNextLevel: () => void | Promise<void>;
   onOpenSameGame: (levelOverride?: number) => void | Promise<void>;
@@ -152,6 +153,7 @@ export default function StoryRecallGame({
   language,
   t,
   onBack,
+  showBackButton = true,
   onOpenRecommended,
   onOpenNextLevel,
   onOpenSameGame,
@@ -286,13 +288,15 @@ export default function StoryRecallGame({
   if (!payload.story) {
     return (
       <div className="px-[22px] py-8">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
-        >
-          <ArrowLeft size={18} />
-          {t("common.back")}
-        </button>
+        {showBackButton ? (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
+          >
+            <ArrowLeft size={18} />
+            {t("common.back")}
+          </button>
+        ) : null}
         <div className="mt-5 rounded-[24px] border border-vyva-border bg-white p-6 shadow-vyva-card">
           <h1 className="font-display text-[28px] text-vyva-text-1">{t("memory.exerciseNotFound")}</h1>
           <p className="mt-3 text-[16px] text-vyva-text-2">{t("memory.exerciseNotFoundBody")}</p>
@@ -369,13 +373,15 @@ export default function StoryRecallGame({
 
   return (
     <div className="px-[22px] pb-6">
-      <button
-        onClick={onBack}
-        className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
-      >
-        <ArrowLeft size={18} />
-        {t("common.back")}
-      </button>
+      {showBackButton ? (
+        <button
+          onClick={onBack}
+          className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
+        >
+          <ArrowLeft size={18} />
+          {t("common.back")}
+        </button>
+      ) : null}
 
       <section className="mt-4 overflow-hidden rounded-[24px] border border-[#F8D37A] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
         <div className="flex items-start justify-between gap-4">

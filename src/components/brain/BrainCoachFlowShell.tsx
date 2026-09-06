@@ -260,29 +260,6 @@ export function BrainCoachActivityShell({
   );
 }
 
-type BrainCoachFullscreenActivityProps = Omit<
-  BrainCoachActivityShellProps,
-  "frameClassName" | "contentClassName" | "showHeader"
-> & {
-  frameClassName?: string;
-  contentClassName?: string;
-};
-
-export function BrainCoachFullscreenActivity({
-  frameClassName,
-  contentClassName,
-  ...props
-}: BrainCoachFullscreenActivityProps) {
-  return (
-    <BrainCoachActivityShell
-      showHeader={false}
-      frameClassName={cn("max-w-none px-0 pb-0 pt-0 sm:max-w-none sm:px-0 lg:max-w-none", frameClassName)}
-      contentClassName={cn("mt-0 flex-1 sm:mt-0", contentClassName)}
-      {...props}
-    />
-  );
-}
-
 type BrainCoachLoadingStateProps = {
   label: ReactNode;
   title?: ReactNode;
@@ -306,6 +283,7 @@ export function BrainCoachLoadingState({
   presentationId,
   sceneId,
 }: BrainCoachLoadingStateProps) {
+  const { isDark } = useHomeMasterTheme();
   return (
     <BrainCoachActivityShell
       title={title}
@@ -320,8 +298,11 @@ export function BrainCoachLoadingState({
       sceneKind="loading"
       sceneLayout="progress"
     >
-      <section className="flex min-h-[300px] flex-1 flex-col items-center justify-center rounded-[28px] border border-[#EEE8F1] bg-white px-6 text-center text-[#241C30] shadow-[0_18px_46px_rgba(54,35,78,0.10)]">
-        <span className="grid h-16 w-16 place-items-center rounded-[20px] bg-[#F1E8FF] text-[#6B21A8]">
+      <section className={cn(
+        "flex min-h-[300px] flex-1 flex-col items-center justify-center rounded-[28px] border px-6 text-center shadow-[0_18px_46px_rgba(54,35,78,0.10)]",
+        isDark ? "border-white/[0.14] bg-white/[0.08] text-[#F7F0FF]" : "border-[#EEE8F1] bg-white text-[#241C30]",
+      )}>
+        <span className={cn("grid h-16 w-16 place-items-center rounded-[20px]", isDark ? "bg-[#493267] text-[#F7F0FF]" : "bg-[#F1E8FF] text-[#6B21A8]")}>
           <Loader2 size={30} strokeWidth={2.45} className="animate-spin" aria-hidden="true" />
         </span>
         <p className="mt-5 max-w-[22rem] font-body text-[20px] font-extrabold leading-tight">
