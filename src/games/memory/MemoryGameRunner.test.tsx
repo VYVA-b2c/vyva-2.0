@@ -191,7 +191,7 @@ describe("MemoryGameRunner word recall", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "See results" }));
     expect(await screen.findByRole("button", { name: "Next activity" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try another" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Next level/i })).not.toBeInTheDocument();
   });
 
@@ -210,7 +210,7 @@ describe("MemoryGameRunner word recall", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "See results" }));
     expect(await screen.findByRole("button", { name: "Next level 4" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try another" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next activity" })).not.toBeInTheDocument();
   });
 
