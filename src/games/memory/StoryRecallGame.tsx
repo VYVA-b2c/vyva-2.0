@@ -83,20 +83,6 @@ function asStringArray(value: unknown) {
 function isStoryQuestion(value: unknown): value is StoryChoiceQuestion {
   if (!value || typeof value !== "object") return false;
   const question = value as Partial<StoryChoiceQuestion>;
-  const phaseHint = phase === "read"
-    ? t("storyRecall.readStoryHint", "Read or listen, then hide the story.")
-    : phase === "quiz"
-      ? t("storyRecall.quizHint", "Answer from memory.")
-      : t("storyRecall.retellHint", "Tell the story in your own words.");
-  const phaseHeader = (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <span className="rounded-full bg-[#F5EEFF] px-3 py-1.5 text-[12px] font-black text-vyva-purple">
-        {currentLevelLabel}
-      </span>
-      <p className="text-[14px] font-semibold leading-snug text-vyva-text-2">{phaseHint}</p>
-    </div>
-  );
-
   return (
     typeof question.prompt === "string" &&
     Array.isArray(question.options) &&
@@ -189,6 +175,19 @@ export default function StoryRecallGame({
   }, 0);
   const wordCount = countWords(retellText);
   const currentLevelLabel = getBrainCoachProgressLabel(plan.level);
+  const phaseHint = phase === "read"
+    ? t("storyRecall.readStoryHint", "Read or listen, then hide the story.")
+    : phase === "quiz"
+      ? t("storyRecall.quizHint", "Answer from memory.")
+      : t("storyRecall.retellHint", "Tell the story in your own words.");
+  const phaseHeader = (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <span className="rounded-full bg-[#F5EEFF] px-3 py-1.5 text-[12px] font-black text-vyva-purple">
+        {currentLevelLabel}
+      </span>
+      <p className="text-[14px] font-semibold leading-snug text-vyva-text-2">{phaseHint}</p>
+    </div>
+  );
 
   const handleListen = () => {
     setMessage(null);
