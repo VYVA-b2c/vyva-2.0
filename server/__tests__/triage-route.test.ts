@@ -72,16 +72,22 @@ function completedAnswers(answers: QuickAnswer[]): QuickAnswer[] {
 }
 
 const summaryShapeKeys = [
+  "changePlanTriggers",
   "chiefComplaint",
+  "clinicalHandoff",
   "disclaimer",
+  "interpretation",
   "nextStepLabel",
   "nextStepLevel",
+  "possiblePatterns",
   "profileConsiderations",
+  "reassessmentWindow",
   "recommendations",
   "scanNotes",
   "scanResults",
   "symptoms",
   "triageReasons",
+  "uncertainty",
   "urgency",
   "vitalsNotes",
   "watchSigns",
@@ -528,6 +534,10 @@ describe("triage route wizard questions", () => {
       nextStepLevel: "monitor",
       nextStepLabel: "Monitor at home, with doctor access ready",
     });
+    expect(res.body.summary.interpretation).toContain("not a diagnosis");
+    expect(res.body.summary.reassessmentWindow).toContain("24 hours");
+    expect(res.body.summary.changePlanTriggers.length).toBeGreaterThan(0);
+    expect(res.body.summary.clinicalHandoff.keyPoints).toContain("Head or neck");
   });
 
   it("emits non-blocking telemetry without changing the route response", async () => {

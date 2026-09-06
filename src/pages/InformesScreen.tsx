@@ -70,6 +70,12 @@ type TriageReport = {
   watch_signs: string[];
   profile_considerations: string[];
   vitals_notes: string[];
+  interpretation?: string | null;
+  possible_patterns?: Array<{ id: string; label: string; explanation: string; supportingAnswers: string[]; clarifyingSigns: string[] }>;
+  uncertainty?: string[];
+  reassessment_window?: string | null;
+  change_plan_triggers?: string[];
+  clinical_handoff?: { summary: string; keyPoints: string[]; questions: string[] } | null;
   scan_results?: TriageScanResult[];
   scan_notes?: string[];
   bpm: number | null;
@@ -294,6 +300,11 @@ function reportDoctorNote(report: TriageReport, t: ReturnType<typeof useTranslat
     report.symptoms.length ? `${t("health.symptomCheck.report.symptoms", "Symptoms noted")}: ${report.symptoms.join(", ")}` : "",
     report.next_step_label ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${report.next_step_label}` : "",
     report.triage_reasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${report.triage_reasons.join(" ")}` : "",
+    report.interpretation ? `${t("health.symptomCheck.report.whatAnswersMean", "What your answers mean")}: ${report.interpretation}` : "",
+    report.possible_patterns?.length ? `${t("health.symptomCheck.report.possibleSituations", "Possible situations")}: ${report.possible_patterns.map((pattern) => `${pattern.label} — ${pattern.explanation}`).join(" ")}` : "",
+    report.uncertainty?.length ? `${t("health.symptomCheck.report.whatWeCannotTell", "What we cannot tell")}: ${report.uncertainty.join(" ")}` : "",
+    report.reassessment_window ? `${t("health.symptomCheck.report.whenToReassess", "When to reassess")}: ${report.reassessment_window}` : "",
+    report.change_plan_triggers?.length ? `${t("health.symptomCheck.report.changePlanIf", "Change the plan if")}: ${report.change_plan_triggers.join(" ")}` : "",
     report.vitals_notes?.length ? `${t("health.symptomCheck.report.vitalsUsed", "Vitals used")}: ${report.vitals_notes.join(" ")}` : "",
     report.scan_notes?.length ? `${t("health.symptomCheck.report.scanNotes", "Scan notes")}: ${report.scan_notes.join(" ")}` : "",
     report.recommendations.length ? `${t("informes.reportDetail.recommendations", "What to do next")}: ${report.recommendations.join(" ")}` : "",
@@ -338,6 +349,12 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
             watchSigns: report.watch_signs,
             profileConsiderations: report.profile_considerations,
             vitalsNotes: report.vitals_notes,
+            interpretation: report.interpretation ?? undefined,
+            possiblePatterns: report.possible_patterns ?? [],
+            uncertainty: report.uncertainty ?? [],
+            reassessmentWindow: report.reassessment_window ?? undefined,
+            changePlanTriggers: report.change_plan_triggers ?? [],
+            clinicalHandoff: report.clinical_handoff ?? undefined,
             scanResults: report.scan_results,
             scanNotes: report.scan_notes,
           }}

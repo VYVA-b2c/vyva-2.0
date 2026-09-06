@@ -97,6 +97,22 @@ interface TriageSummary {
   vitalsNotes?: string[];
   scanResults?: TriageScanResult[];
   scanNotes?: string[];
+  interpretation?: string;
+  possiblePatterns?: Array<{
+    id: string;
+    label: string;
+    explanation: string;
+    supportingAnswers: string[];
+    clarifyingSigns: string[];
+  }>;
+  uncertainty?: string[];
+  reassessmentWindow?: string;
+  changePlanTriggers?: string[];
+  clinicalHandoff?: {
+    summary: string;
+    keyPoints: string[];
+    questions: string[];
+  };
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
   contextConfidence?: {
@@ -326,6 +342,12 @@ type SavedTriageReport = {
   vitals_notes?: string[];
   scan_results?: TriageScanResult[];
   scan_notes?: string[];
+  interpretation?: string | null;
+  possible_patterns?: TriageSummary["possiblePatterns"];
+  uncertainty?: string[];
+  reassessment_window?: string | null;
+  change_plan_triggers?: string[];
+  clinical_handoff?: TriageSummary["clinicalHandoff"] | null;
   bpm?: number | null;
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
@@ -351,6 +373,12 @@ export function triageSummaryFromSavedReport(report: SavedTriageReport | null | 
     vitalsNotes: report.vitals_notes ?? [],
     scanResults: report.scan_results ?? [],
     scanNotes: report.scan_notes ?? [],
+    interpretation: report.interpretation ?? undefined,
+    possiblePatterns: report.possible_patterns ?? [],
+    uncertainty: report.uncertainty ?? [],
+    reassessmentWindow: report.reassessment_window ?? undefined,
+    changePlanTriggers: report.change_plan_triggers ?? [],
+    clinicalHandoff: report.clinical_handoff ?? undefined,
   };
 }
 
@@ -2845,6 +2873,8 @@ export function ReportScreen({
   const primaryRecommendations = visibleRecommendations.slice(0, 2);
   const remainingRecommendations = visibleRecommendations.slice(2);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
+  const visiblePatterns = (summary.possiblePatterns ?? []).slice(0, 3);
+  const visibleChangeTriggers = uniqueLines(summary.changePlanTriggers ?? summary.watchSigns ?? []).slice(0, 3);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
   const reportContextConfidence = summary.contextConfidence;
   const reportConfidenceScore = typeof reportContextConfidence?.score === "number"
@@ -2999,6 +3029,11 @@ export function ReportScreen({
     `${urgencyQualifierText}: ${urgencyStatusText}`,
     nextStepDisplayText ? `${t("health.symptomCheck.report.nextStep", "Next step")}: ${nextStepDisplayText}` : "",
     summary.triageReasons?.length ? `${t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}: ${summary.triageReasons.join(" ")}` : "",
+    summary.interpretation ? `${t("health.symptomCheck.report.whatAnswersMean", "What your answers mean")}: ${summary.interpretation}` : "",
+    visiblePatterns.length ? `${t("health.symptomCheck.report.possibleSituations", "Possible situations")}: ${visiblePatterns.map((pattern) => `${pattern.label} — ${pattern.explanation}`).join(" ")}` : "",
+    summary.uncertainty?.length ? `${t("health.symptomCheck.report.whatWeCannotTell", "What we cannot tell")}: ${summary.uncertainty.join(" ")}` : "",
+    summary.reassessmentWindow ? `${t("health.symptomCheck.report.whenToReassess", "When to reassess")}: ${summary.reassessmentWindow}` : "",
+    visibleChangeTriggers.length ? `${t("health.symptomCheck.report.changePlanIf", "Change the plan if")}: ${visibleChangeTriggers.join(" ")}` : "",
     summary.evidenceSummary ? `${t("health.symptomCheck.report.evidenceChecked", "Science-based source check")}: ${summary.evidenceSummary}` : "",
     "",
     t("health.symptomCheck.report.recommendations") + ":",
@@ -3166,6 +3201,11 @@ export function ReportScreen({
                 <p className="mt-1.5 font-body text-[14px] font-bold leading-snug text-vyva-text-2 sm:mt-2 sm:text-[15px] sm:leading-relaxed">
                   {recommendationExplanation}
                 </p>
+                {summary.reassessmentWindow ? (
+                  <p className={`mt-2 rounded-[12px] px-3 py-2 font-body text-[13px] font-black leading-snug ${isDark ? "bg-[#45325E] text-[#E9D5FF]" : "bg-[#F5F3FF] text-vyva-purple"}`} data-testid="report-reassessment-window">
+                    {t("health.symptomCheck.report.whenToReassess", "When to reassess")}: {summary.reassessmentWindow}
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -3239,21 +3279,60 @@ export function ReportScreen({
             </div>
           </details>
         </section>
+
+        {summary.interpretation ? (
+          <section className={`mt-3 rounded-[20px] border p-3 sm:p-4 ${isDark ? "border-white/[0.12] bg-[#352842]" : "border-[#E7DCF8] bg-[#F8F5FF]"}`} data-testid="card-report-interpretation">
+            <div className="flex items-start gap-3">
+              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${isDark ? "bg-[#45325E]" : "bg-white"}`}>
+                <VyvaIcon icon={Brain} accent="step" size={18} />
+              </span>
+              <div className="min-w-0">
+                <p className={`font-body text-[11px] font-extrabold uppercase tracking-[0.1em] ${isDark ? "text-[#D8B4FE]" : "text-vyva-purple"}`}>
+                  {t("health.symptomCheck.report.whatAnswersMean", "What your answers mean")}
+                </p>
+                <p className="mt-1 font-body text-[14px] font-bold leading-relaxed text-vyva-text-2 sm:text-[15px]">{summary.interpretation}</p>
+                {summary.uncertainty?.length ? (
+                  <div className={`mt-2 border-t pt-2 ${isDark ? "border-white/[0.1]" : "border-[#E7DCF8]"}`} data-testid="report-uncertainty">
+                    <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">{t("health.symptomCheck.report.whatWeCannotTell", "What we cannot tell")}</p>
+                    <p className="mt-1 font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">{summary.uncertainty.join(" ")}</p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {!isEmergency && visiblePatterns.length ? (
+          <section className={`mt-3 rounded-[20px] border p-3 sm:p-4 ${isDark ? "border-white/[0.12] bg-[#2D2038]" : "border-[#E8DED4] bg-white"}`} data-testid="card-report-possible-patterns">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">{t("health.symptomCheck.report.possibleSituations", "Possible situations")}</p>
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">{t("health.symptomCheck.report.notDiagnosis", "These are patterns your answers can sometimes fit, not a diagnosis.")}</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {visiblePatterns.map((pattern) => (
+                <article key={pattern.id} className={`rounded-[16px] border p-3 ${isDark ? "border-white/[0.1] bg-[#352842]" : "border-[#EEE5DC] bg-[#FFFCF8]"}`}>
+                  <h2 className="font-body text-[15px] font-black leading-snug text-vyva-text-1">{pattern.label}</h2>
+                  <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">{pattern.explanation}</p>
+                  {pattern.supportingAnswers.length ? <p className="mt-2 font-body text-[12px] font-bold leading-snug text-vyva-text-3">{t("health.symptomCheck.report.basedOn", "Based on")}: {pattern.supportingAnswers.join("; ")}</p> : null}
+                  {pattern.clarifyingSigns.length ? <p className={`mt-2 border-t pt-2 font-body text-[12px] font-bold leading-snug ${isDark ? "border-white/[0.1] text-[#D8CDE4]" : "border-[#EEE5DC] text-vyva-text-2"}`}>{t("health.symptomCheck.report.helpNarrow", "What would help narrow it")}: {pattern.clarifyingSigns.join("; ")}</p> : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </section>
 
       <div className="mx-auto mt-3 flex w-[calc(100%_-_28px)] max-w-[330px] flex-col gap-3 pb-[152px] sm:max-w-[760px] sm:pb-[168px]">
 
-        {!isEmergency && visibleWatchSigns.length ? (
+        {!isEmergency && visibleChangeTriggers.length ? (
           <div className={`flex items-start gap-3 rounded-[20px] border px-3 py-3 ${isDark ? "border-[#6A4B25] bg-[#2B2118] text-[#F7E4BE] shadow-[0_10px_24px_rgba(0,0,0,0.18)]" : "border-[#FED7AA] bg-[#FFF7ED] text-[#9A3412] shadow-[0_8px_20px_rgba(154,52,18,0.07)]"}`} data-testid="card-report-watch-highlight">
             <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${isDark ? "bg-[#3B2B19] text-[#F8AE1B]" : "bg-[#FFEDD5] text-[#C2410C]"}`}>
               <AlertTriangle size={17} />
             </span>
             <span className="min-w-0">
               <span className={`block font-body text-[11px] font-black uppercase tracking-[0.09em] ${isDark ? "text-[#F8AE1B]" : "text-[#C2410C]"}`}>
-                {t("health.symptomCheck.report.watchFor", "Watch for")}
+                {t("health.symptomCheck.report.changePlanIf", "Change the plan if")}
               </span>
               <span className={`mt-0.5 block font-body text-[14px] font-black leading-snug ${isDark ? "text-[#F7E4BE]" : "text-[#9A3412]"}`}>
-                {visibleWatchSigns[0]}
+                {visibleChangeTriggers.join(" ")}
               </span>
             </span>
           </div>
@@ -3438,6 +3517,24 @@ export function ReportScreen({
               <p className="mt-3 inline-flex rounded-full border border-[#BBF7D0] bg-white px-3 py-1.5 font-body text-[13px] font-black text-[#047857]">
                 {reportStatusText}
               </p>
+              {summary.clinicalHandoff ? (
+                <div className="mt-3 rounded-[16px] border border-[#BBF7D0] bg-white p-3" data-testid="report-clinical-handoff">
+                  <p className="font-body text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#047857]">
+                    {t("health.symptomCheck.report.clinicianBrief", "Clinician brief")}
+                  </p>
+                  <p className="mt-1 font-body text-[14px] font-black leading-snug text-[#052E25]">{summary.clinicalHandoff.summary}</p>
+                  {summary.clinicalHandoff.keyPoints.length ? (
+                    <ul className="mt-2 grid gap-1">
+                      {summary.clinicalHandoff.keyPoints.map((point) => <li key={point} className="font-body text-[13px] font-semibold leading-snug text-[#065F46]">• {point}</li>)}
+                    </ul>
+                  ) : null}
+                  {summary.clinicalHandoff.questions.length ? (
+                    <p className="mt-2 border-t border-[#D9F0E3] pt-2 font-body text-[13px] font-bold leading-snug text-[#065F46]">
+                      {summary.clinicalHandoff.questions.join(" ")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
           </div>
         </details>
 
@@ -4572,6 +4669,12 @@ export default function SymptomCheckScreen() {
         watch_signs: triageSummary.watchSigns ?? [],
         profile_considerations: triageSummary.profileConsiderations ?? [],
         vitals_notes: triageSummary.vitalsNotes ?? [],
+        interpretation: triageSummary.interpretation ?? null,
+        possible_patterns: triageSummary.possiblePatterns ?? [],
+        uncertainty: triageSummary.uncertainty ?? [],
+        reassessment_window: triageSummary.reassessmentWindow ?? null,
+        change_plan_triggers: triageSummary.changePlanTriggers ?? [],
+        clinical_handoff: triageSummary.clinicalHandoff ?? null,
         scan_results: triageSummary.scanResults ?? [],
         scan_notes: triageSummary.scanNotes ?? [],
         bpm: vitalOverrides?.bpm ?? bpm ?? null,

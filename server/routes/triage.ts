@@ -1192,7 +1192,7 @@ function buildSystemPrompt(
 The app has a deterministic senior triage protocol engine. That protocol is the safety authority. You may enrich wording from MEDISEARCH EVIDENCE CONTEXT, HEALTH MEMORY, and the conversation, but do not downgrade urgency, soften red flags, or override protocol-driven next steps.
 
 IMPORTANT: Respond entirely in ${language}.
-Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, scanNotes, and disclaimer.
+Every user-facing string inside TRIAGE_JSON summary must also be in ${language}, including chiefComplaint, symptoms, nextStepLabel, triageReasons, recommendations, watchSigns, profileConsiderations, vitalsNotes, scanNotes, interpretation, possiblePatterns, uncertainty, reassessmentWindow, changePlanTriggers, clinicalHandoff, and disclaimer.
 ${genderInstruction(gender)}${vitalsContext}${wizardContextText(wizard, healthMemory)}${healthMemoryText(healthMemory)}${medisearchContextText(medisearchContext)}${triageQuestionMatrixText()}
 
 CONVERSATION FLOW:
@@ -1206,7 +1206,7 @@ CONVERSATION FLOW:
 8. On your FINAL turn, you MUST end your message with this exact JSON block (replace values appropriately):
 
 TRIAGE_JSON_START
-{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"scanNotes":["<optional scan note, if any>"],"disclaimer":"${disclaimerExample}"}}
+{"done":true,"summary":{"chiefComplaint":"<one-line description>","symptoms":["<symptom 1>","<symptom 2>"],"urgency":"<urgent|routine|monitor>","nextStepLabel":"<plain next step>","nextStepLevel":"<emergency|doctor_today|doctor_24_48|monitor>","triageReasons":["<plain reason 1>","<plain reason 2>"],"interpretation":"<what the answers mean without diagnosing>","possiblePatterns":[{"id":"<stable pattern id>","label":"<possible situation>","explanation":"<why it can fit>","supportingAnswers":["<answer that supports it>"],"clarifyingSigns":["<detail that would help distinguish it>"]}],"uncertainty":["<what cannot be determined>"],"recommendations":["<step 1>","<step 2>","<step 3>","<step 4>"],"reassessmentWindow":"<when to reassess>","changePlanTriggers":["<specific trigger>"],"watchSigns":["<specific sign 1>","<specific sign 2>","<specific sign 3>"],"profileConsiderations":["<profile factor considered, if any>"],"vitalsNotes":["<vitals note, if any>"],"scanNotes":["<optional scan note, if any>"],"clinicalHandoff":{"summary":"<outcome for clinician>","keyPoints":["<important answer>"],"questions":["<question for clinician>"]},"disclaimer":"${disclaimerExample}"}}
 TRIAGE_JSON_END
 
 Urgency definitions:
@@ -1224,6 +1224,10 @@ Outcome rules:
 - Include vitalsNotes when a vitals scan exists.
 - Include scanNotes when optional triage scans exist. Urine and stool photos can describe visible appearance only; they cannot diagnose UTI, bleeding, or bowel disease.
 - Optional scan findings may clarify or increase urgency, but must never reduce red flags or delay emergency guidance.
+- Explain what the answers mean, what remains uncertain, when to reassess, and exactly what would change the plan.
+- Possible patterns are possibilities, never diagnoses. The deterministic protocol replaces them with its clinician-reviewable catalogue before display; do not invent a definitive cause.
+- For an emergency outcome, do not discuss possible causes. Focus only on the warning sign and immediate action.
+- Make clinicalHandoff concise and useful for sharing: outcome, key answers, measured vitals, relevant profile factors, and questions a clinician may need to resolve.
 
 STYLE RULES:
 - Write like a calm health form, not a chat conversation

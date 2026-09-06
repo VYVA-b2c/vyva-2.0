@@ -1,6 +1,7 @@
 import type { TriageScanResult } from "../../../shared/triageScans.js";
 import { evaluateTriageRules } from "./evaluateTriage.js";
 import { mergeTriageRecommendations } from "./recommendationDedupe.js";
+import { buildTriageInsights } from "./reportInsights.js";
 import type {
   TriageEscalationSource,
   ProfileRiskFlags,
@@ -935,6 +936,16 @@ export function evaluateTriageSafetyFloor(
     finalSummary.vitalsNotes = localizedVitalsNotes.filter((note) => !looksLikeEnglish(note));
     finalSummary.scanNotes = localizedScanNotes.filter((note) => !looksLikeEnglish(note));
   }
+
+  Object.assign(finalSummary, buildTriageInsights({
+    locale,
+    symptomId: symptom,
+    wizard,
+    risks,
+    summary: finalSummary,
+    level: finalSummary.nextStepLevel ?? "monitor",
+    watchSigns: finalSummary.watchSigns ?? [],
+  }));
 
   return {
     summary: finalSummary,
