@@ -243,7 +243,6 @@ describe("app shell route layout", () => {
   });
 
   it.each([
-    "/mind-memory",
     "/brain-coach/activity/listen_closely",
     "/memory-games",
     "/memory-games/remember-later",
@@ -260,6 +259,7 @@ describe("app shell route layout", () => {
 
   it.each([
     "/mind-memory/cognitive-assessment",
+    "/mind-memory",
     "/brain-coach/remember",
     "/brain-coach/focus",
     "/brain-coach/think",
@@ -268,7 +268,7 @@ describe("app shell route layout", () => {
     expect(usesBrainCoachDocklessRoute(pathname)).toBe(false);
   });
 
-  it("hides the bottom dock on the canonical Brain Coach main menu", () => {
+  it("shows the bottom dock on the canonical Brain Coach main menu", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
         <AppShell>
@@ -277,7 +277,7 @@ describe("app shell route layout", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByTestId("bottom-nav")).not.toBeInTheDocument();
+    expect(screen.getByTestId("bottom-nav")).toBeInTheDocument();
   });
 
   it("hides the bottom dock inside Brain Coach module hubs", () => {

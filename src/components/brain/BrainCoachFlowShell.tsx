@@ -177,6 +177,7 @@ export function BrainCoachActivityShell({
   sceneLayout = "game",
   state = "default",
 }: BrainCoachActivityShellProps) {
+  const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
   const backAriaLabel = typeof backLabel === "string" ? backLabel : "Back";
 
@@ -184,11 +185,14 @@ export function BrainCoachActivityShell({
     <section
       aria-label={typeof title === "string" ? title : "Brain Coach"}
       className={cn(
-        "prototype-shell relative min-h-[100dvh] w-full overflow-x-hidden bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
+        "prototype-shell relative min-h-[100dvh] w-full overflow-x-hidden",
+        isDark
+          ? "bg-[radial-gradient(circle_at_50%_0%,#2C1E58_0%,#160F24_52%,#080611_100%)] text-[#F7F0FF]"
+          : "bg-[radial-gradient(circle_at_50%_0%,#F4EAFB_0%,#FFF9F3_74%)] text-[#241C30]",
         className,
       )}
       data-testid={testId}
-      data-home-master-theme="light"
+      data-home-master-theme={isDark ? "dark" : "light"}
       data-vyva-text-size={readableTextSize}
       {...getBrainCoachPresentationAttributes({
         presentationId,
@@ -204,7 +208,10 @@ export function BrainCoachActivityShell({
         frameClassName,
       )}>
         {showHeader ? (
-          <div>
+          <div className={cn(
+            "sticky top-0 z-40 -mx-3 px-3 py-1 backdrop-blur-xl",
+            isDark ? "bg-[#1A1122]/95" : "bg-[#F8EEFF]/90",
+          )}>
             <header className="grid grid-cols-[40px_1fr_40px] items-center gap-3">
               <button
                 type="button"
@@ -219,14 +226,28 @@ export function BrainCoachActivityShell({
                     window.location.assign(backTo);
                   }
                 }}
-                className="vyva-tap grid h-10 !min-h-10 w-10 place-items-center rounded-full bg-white text-vyva-purple shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05] transition-colors duration-150"
+                className={cn(
+                  "vyva-tap grid h-10 !min-h-10 w-10 place-items-center rounded-full transition-colors duration-150",
+                  isDark
+                    ? "bg-white/[0.07] text-[#F7F0FF] ring-1 ring-inset ring-white/[0.18]"
+                    : "bg-white text-[#6B5173] shadow-[0_14px_32px_rgba(80,52,109,0.12)] ring-1 ring-black/[0.05]",
+                )}
               >
                 <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
               </button>
-              <div className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-[#241C30]">
+              <div className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
                 {title}
               </div>
-              <div className="flex justify-end">{action}</div>
+              <div className="flex justify-end">
+                {action ?? (
+                  <CanonicalVoiceButton
+                    contextHint={typeof title === "string" ? `Brain Coach: ${title}` : "Brain Coach activity"}
+                    agentSlug="brain-coach"
+                    dynamicVariables={{ app_entrypoint: sceneId }}
+                    testId="button-brain-coach-activity-voice"
+                  />
+                )}
+              </div>
             </header>
           </div>
         ) : null}

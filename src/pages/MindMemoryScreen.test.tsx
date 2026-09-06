@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MindMemoryScreen from "./MindMemoryScreen";
+import { HOME_MASTER_THEME_STORAGE_KEY } from "@/hooks/useHomeMasterTheme";
 
 const guardPathMock = vi.hoisted(() => vi.fn());
 
@@ -15,9 +16,9 @@ vi.mock("@/hooks/useServiceGate", () => ({
   useServiceGate: () => ({ guardPath: guardPathMock }),
 }));
 
-vi.mock("@/components/VyvaSessionCta", () => ({
-  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
-    <button type="button" data-testid={testId} className={className}>
+vi.mock("@/components/CanonicalDetailFlowShell", () => ({
+  CanonicalVoiceButton: ({ label, testId }: { label?: string; testId?: string }) => (
+    <button type="button" data-testid={testId}>
       {label}
     </button>
   ),
@@ -42,6 +43,7 @@ function renderMindMemory() {
 describe("MindMemoryScreen", () => {
   beforeEach(() => {
     guardPathMock.mockClear();
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "light");
   });
 
   it("uses the canonical health-hub structure for Brain Coach", () => {
@@ -69,6 +71,14 @@ describe("MindMemoryScreen", () => {
       expect(screen.getByTestId(`${testId}-status`)).toHaveTextContent(count);
       expect(screen.getByTestId(`${testId}-icon`)).toHaveAttribute("data-vyva-icon-tile", iconAccent);
     }
+  });
+
+  it("uses the canonical dark surfaces when the saved theme is dark", () => {
+    window.localStorage.setItem(HOME_MASTER_THEME_STORAGE_KEY, "dark");
+    renderMindMemory();
+
+    expect(screen.getByTestId("mind-memory-master-layout")).toHaveAttribute("data-home-master-theme", "dark");
+    expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveClass("bg-white/[0.08]");
   });
 
   it.each([
