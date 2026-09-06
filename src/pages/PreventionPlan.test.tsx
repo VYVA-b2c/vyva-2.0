@@ -162,7 +162,7 @@ const todayVideo = {
   thumbnailUrl: "https://i.ytimg.com/vi/hoPg4bkKemQ/hqdefault.jpg",
   language: "en",
   summary: "A short visual guide connecting food choices with brain health.",
-  selectedReason: "It is short, calm, and directly connected to today's memory-support program step.",
+  selectedReason: "Connects one simple food choice with memory and energy for today.",
   safetyNotes: "General wellness education only.",
   transcriptStatus: "manual_reviewed",
   keyPoints: [
@@ -179,7 +179,7 @@ const programAction = {
   detail: "This uses personal memory and storytelling, not a score.",
   pillar: "brain",
   route: null,
-  prompt: "Help me with today's Longevity program step.",
+  prompt: "Help me with today's Longevity activity.",
   source: "program",
   challenge: {
     kind: "memory_prompt",
@@ -459,7 +459,7 @@ describe("PreventionPlan", () => {
     expect(screen.getByText("Curated video")).toBeVisible();
     expect(screen.getAllByText("Brain")[0]).toBeVisible();
     expect(screen.getByText("Mayo Clinic · 1:10")).toBeVisible();
-    expect(screen.getByText("It is short, calm, and directly connected to today's memory-support program step.")).toBeVisible();
+    expect(screen.getByText("Connects one simple food choice with memory and energy for today.")).toBeVisible();
     expect(screen.getByText("Use the video as a cue to choose one brain-friendly food today, then keep the memory step short.")).not.toBeVisible();
     expect(screen.getByText("Brain-friendly eating works best as a simple pattern, not a perfect rule.")).not.toBeVisible();
     expect(screen.getByText("One useful swap today is easier to keep than a full meal overhaul.")).not.toBeVisible();
@@ -520,7 +520,7 @@ describe("PreventionPlan", () => {
     expect(screen.getByText("Curated video")).toBeVisible();
     expect(screen.getAllByText("Heart")[0]).toBeVisible();
     expect(screen.getByText("Mayo Clinic · 1 min")).toBeVisible();
-    expect(screen.getByText("A one-minute Mayo Clinic clip that makes heart movement feel doable: a little movement still counts.")).toBeVisible();
+    expect(screen.getByText("Makes heart movement feel doable by keeping the first step small.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Watch" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show Heart & circulation" })).toHaveAttribute("aria-pressed", "true");
@@ -648,6 +648,7 @@ describe("PreventionPlan", () => {
     expect(screen.getByText("Video curado")).toBeVisible();
     expect(screen.getAllByText("Cerebro")[0]).toBeVisible();
     expect(screen.getByText("Mayo Clinic · 1:10")).toBeVisible();
+    expect(screen.queryByText("Es un video en español, específico para adultos mayores y limitado a 10 minutos.")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
     expect(screen.queryByText("Curated video")).not.toBeInTheDocument();
     expect(screen.queryByText("Why this?")).not.toBeInTheDocument();
