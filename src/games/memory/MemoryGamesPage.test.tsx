@@ -80,7 +80,7 @@ describe("MemoryGamesPage", () => {
     expect(within(choices as HTMLElement).queryByText("Curious Minds")).not.toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Remember Later")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByRole("button", { name: /Remember Later/i }).querySelector('[data-vyva-accent="calendar"]')).toBeInTheDocument();
-    expect(within(choices as HTMLElement).getByText("Association")).toBeInTheDocument();
+    expect(within(choices as HTMLElement).getByText("Connections")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Word Recall")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Story Recall")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Number Memory")).toBeInTheDocument();

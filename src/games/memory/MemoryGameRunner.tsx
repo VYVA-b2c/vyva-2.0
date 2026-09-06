@@ -55,6 +55,7 @@ import type { GameResult, MemoryGameType, Recommendation } from "./types";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
 import StoryRecallGame from "./StoryRecallGame";
+import ConnectionsGame from "./ConnectionsGame";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
@@ -270,53 +271,6 @@ function getNumberRecallScore(expected: string, actual: string) {
   return Math.round((correctDigits / normalizedExpected.length) * 100);
 }
 
-function getAssociationPrompt(payload: Record<string, unknown>) {
-  const pair = Array.isArray(payload.pair) ? payload.pair.map(String) : null;
-
-  if (pair && pair.length >= 2) {
-    return {
-      cueLabel: "Remember this pair",
-      cueValue: pair[0],
-      answer: pair[1],
-      icon: typeof payload.icon === "string" ? payload.icon : "",
-    };
-  }
-
-  if (typeof payload.name === "string" && typeof payload.object === "string") {
-    return {
-      cueLabel: "Who had this object?",
-      cueValue: payload.object,
-      answer: payload.name,
-      icon: typeof payload.icon === "string" ? payload.icon : "",
-    };
-  }
-
-  if (typeof payload.person === "string" && typeof payload.routine === "string") {
-    return {
-      cueLabel: "Who follows this routine?",
-      cueValue: payload.routine,
-      answer: payload.person,
-      icon: typeof payload.icon === "string" ? payload.icon : "",
-    };
-  }
-
-  if (typeof payload.icon === "string" && typeof payload.name === "string") {
-    return {
-      cueLabel: "Who matches this symbol?",
-      cueValue: payload.icon,
-      answer: payload.name,
-      icon: payload.icon,
-    };
-  }
-
-  return {
-    cueLabel: "What goes with this?",
-    cueValue: String(payload.left ?? ""),
-    answer: String(payload.right ?? ""),
-    icon: typeof payload.icon === "string" ? payload.icon : "",
-  };
-}
-
 function getPayloadString(payload: Record<string, unknown>, key: string, fallback = "") {
   const value = payload[key];
   return typeof value === "string" && value.trim().length > 0 ? value : fallback;
@@ -325,10 +279,6 @@ function getPayloadString(payload: Record<string, unknown>, key: string, fallbac
 function getPayloadNumber(payload: Record<string, unknown>, key: string, fallback: number) {
   const value = Number(payload[key]);
   return Number.isFinite(value) ? value : fallback;
-}
-
-function getAssociationChoiceCount(payload: Record<string, unknown>) {
-  return Math.max(2, Math.min(4, Math.round(getPayloadNumber(payload, "choiceCount", 4))));
 }
 
 function getMemoryGameIcon(gameType: MemoryGameType) {
@@ -649,9 +599,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const [wordRecallVoiceMessage, setWordRecallVoiceMessage] = useState<string | null>(null);
   const [numberMemoryPhase, setNumberMemoryPhase] = useState<"study" | "recall">("study");
   const [numberMemoryInput, setNumberMemoryInput] = useState("");
-  const [associationPhase, setAssociationPhase] = useState<"study" | "recall">("study");
-  const [associationChoice, setAssociationChoice] = useState<string | null>(null);
-  const [associationOptionsSeed, setAssociationOptionsSeed] = useState(0);
   const [isMemoryAudioMuted, setIsMemoryAudioMuted] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(MEMORY_AUDIO_STORAGE_KEY) === "true";
@@ -772,9 +719,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       setWordRecallVoiceMessage(null);
       setNumberMemoryPhase("study");
       setNumberMemoryInput("");
-      setAssociationPhase("study");
-      setAssociationChoice(null);
-      setAssociationOptionsSeed((current) => current + 1);
       setShowSequenceTutorial(nextPlan.gameType === "sequence_memory" && !readSequenceTutorialSeen(userId));
       const hasSeenVisualMemoryTutorial = readVisualMemoryTutorialSeen(userId);
       setHideVisualMemoryInstructionsAfterStart(true);
@@ -858,24 +802,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       ? numberMemoryDigits.split("").reverse().join("")
       : numberMemoryDigits;
   }, [localizedVariant, numberMemoryDigits]);
-
-  const associationPrompt = useMemo(() => {
-    if (!plan || plan.gameType !== "association_memory" || !localizedVariant) return null;
-    return getAssociationPrompt(localizedVariant.payload);
-  }, [localizedVariant, plan]);
-
-  const associationOptions = useMemo(() => {
-    void associationOptionsSeed;
-    if (!plan || plan.gameType !== "association_memory" || !associationPrompt || !definition) return [];
-
-    const candidateAnswers = definition.levels
-      .flatMap((levelConfig) => levelConfig.variants)
-      .map((entry) => getAssociationPrompt(getVariantContent(entry, language).payload).answer)
-      .filter((answer) => answer && answer !== associationPrompt.answer);
-    const choiceCount = getAssociationChoiceCount(localizedVariant.payload);
-    const shuffledDistractors = shuffleItems([...new Set(candidateAnswers)], associationOptionsSeed).slice(0, choiceCount - 1);
-    return shuffleItems([associationPrompt.answer, ...shuffledDistractors], associationOptionsSeed + 11);
-  }, [associationOptionsSeed, associationPrompt, definition, language, localizedVariant?.payload, plan]);
 
   const wordRecallCoachSegments = useMemo(() => {
     if (plan?.gameType !== "word_recall") return [];
@@ -1395,7 +1321,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       };
     }
 
-    if (["word_recall", "number_memory", "association_memory"].includes(plan.gameType) && completionMetrics && !finished) {
+    if (["word_recall", "number_memory"].includes(plan.gameType) && completionMetrics && !finished) {
       async function completeGame() {
         setSaving(true);
         setFinished(true);
@@ -1698,6 +1624,22 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
         showBackButton={false}
         onOpenRecommended={openRecommended}
         onOpenNextLevel={openNextLevel}
+        onOpenSameGame={openSameGame}
+        actionLoading={actionLoading}
+      />
+    ));
+  }
+
+  if (plan.gameType === "association_memory") {
+    return renderBrainRunnerScreen("connections", "playing", "connections", (
+      <ConnectionsGame
+        plan={plan}
+        localizedVariant={localizedVariant}
+        cognitiveDomain={definition.cognitiveDomain}
+        userId={userId}
+        language={language}
+        onBack={backToList}
+        onOpenRecommended={openRecommended}
         onOpenSameGame={openSameGame}
         actionLoading={actionLoading}
       />
@@ -2106,30 +2048,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     });
   };
 
-  const continueAssociationMemory = () => {
-    setStartedAt(Date.now());
-    setAssociationPhase("recall");
-  };
-
-  const finishAssociationMemory = (choice: string) => {
-    if (!associationPrompt) return;
-    const correct = choice === associationPrompt.answer;
-    const accuracy = correct ? 100 : 0;
-    const nextDurationSeconds = getDurationSeconds(startedAt);
-    setAssociationChoice(choice);
-    setCompletionDetails({
-      cueLabel: `${associationPrompt.cueLabel}: ${associationPrompt.cueValue}`,
-      expectedAnswer: associationPrompt.answer,
-      givenAnswer: choice,
-    });
-    setCompletionMetrics({
-      score: getScore(plan.level, accuracy, correct ? 0 : 1, nextDurationSeconds),
-      accuracy,
-      mistakes: correct ? 0 : 1,
-      durationSeconds: nextDurationSeconds,
-    });
-  };
-
   if (plan.gameType === "number_memory") {
     return renderBrainRunnerScreen(`number_memory_${numberMemoryPhase}`, "playing", `number_memory_${numberMemoryPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
@@ -2209,81 +2127,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                 {t("memory.checkAnswer", "Check answer")}
               </button>
             </form>
-          )}
-        </section>
-      </div>
-    ));
-  }
-
-  if (plan.gameType === "association_memory" && associationPrompt) {
-    return renderBrainRunnerScreen(`association_memory_${associationPhase}`, "playing", `association_memory_${associationPhase}`, (
-      <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <section className="overflow-hidden rounded-[24px] border border-[#F8C4D0] bg-[#FFF8FA] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#BE185D] shadow-sm">
-                {currentLevelLabel}
-              </p>
-              <h1 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[38px]">{gameTitle}</h1>
-              <p className="mt-2 max-w-[34ch] text-[17px] font-semibold leading-[1.45] text-vyva-text-2 sm:text-[19px]">
-                {associationPhase === "study" ? t("memory.associationStudyGoal", "Remember one link.") : t("memory.associationRecallGoal", "Choose what belongs with the cue.")}
-              </p>
-            </div>
-            <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[22px] bg-white text-[#BE185D] shadow-vyva-card">
-              <Link2 size={32} />
-            </div>
-          </div>
-
-          {associationPhase === "study" ? (
-            <>
-              <div className="mx-auto mt-5 max-w-[620px] rounded-[24px] border border-[#F8C4D0] bg-white p-4 shadow-sm sm:p-5">
-                <p className="text-[14px] font-black uppercase tracking-[0.06em] text-vyva-text-2">{t("memory.studyLink", "Study this link")}</p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch">
-                  <div className="flex min-h-[124px] flex-col justify-center rounded-[20px] bg-[#FFF1F2] px-5 py-4">
-                    <p className="text-[13px] font-black uppercase tracking-[0.06em] text-[#9F1239]">{associationPrompt.cueLabel}</p>
-                    <p className="mt-2 text-[29px] font-black leading-tight text-vyva-text-1">{associationPrompt.cueValue}</p>
-                  </div>
-                  <div className="grid min-h-14 place-items-center text-[38px] font-black text-[#BE185D]">
-                    {associationPrompt.icon || "+"}
-                  </div>
-                  <div className="flex min-h-[124px] flex-col justify-center rounded-[20px] bg-[#FFF7ED] px-5 py-4">
-                    <p className="text-[13px] font-black uppercase tracking-[0.06em] text-[#9A3412]">{t("memory.rememberAnswer", "Remember")}</p>
-                    <p className="mt-2 text-[29px] font-black leading-tight text-vyva-text-1">{associationPrompt.answer}</p>
-                  </div>
-                </div>
-                <p className="mt-4 text-[15px] font-semibold leading-snug text-vyva-text-2">
-                  {t("memory.associationNoRush", "Take a moment, then hide the answer.")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={continueAssociationMemory}
-                className="mt-5 min-h-[62px] w-full rounded-full bg-vyva-purple px-6 text-[22px] font-black text-white shadow-vyva-card"
-              >
-                {t("memory.readyToChoose", "Ready to choose")}
-              </button>
-            </>
-          ) : (
-            <div className="mx-auto mt-5 max-w-[620px]">
-              <div className="rounded-[22px] border border-[#F8C4D0] bg-white px-5 py-5 shadow-sm">
-                <p className="text-[15px] font-black uppercase tracking-[0.06em] text-vyva-text-2">{t("memory.whatMatches", "What matches this?")}</p>
-                <p className="mt-2 text-[30px] font-black leading-tight text-vyva-text-1">{associationPrompt.cueValue}</p>
-              </div>
-              <div className={`mt-3 grid gap-3 ${associationOptions.length > 2 ? "sm:grid-cols-2" : ""}`}>
-                {associationOptions.map((choice) => (
-                  <button
-                    key={choice}
-                    type="button"
-                    onClick={() => finishAssociationMemory(choice)}
-                    className="min-h-[84px] rounded-[20px] border border-[#F8C4D0] bg-white px-4 text-[22px] font-black leading-tight text-vyva-text-1 shadow-sm transition active:scale-[0.99]"
-                    aria-pressed={associationChoice === choice}
-                    data-testid="association-choice"
-                  >
-                    {choice}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
         </section>
       </div>

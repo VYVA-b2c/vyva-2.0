@@ -152,25 +152,42 @@ describe("MemoryGameRunner word recall", () => {
     }));
   });
 
-  it("uses fewer Association choices in Foundation and more in Challenge", async () => {
-    const { unmount } = renderMemoryGame("/memory-games/association_memory?level=1&variant=association_memory-l1-v1");
+  it("runs Connections through study, neutral reset, deferred recall, and review", async () => {
+    vi.mocked(saveGameResult).mockResolvedValueOnce();
+    renderMemoryGame("/memory-games/association_memory?level=3&variant=association_memory-l3-v1");
 
-    expect(await screen.findByText("Remember one link.")).toBeInTheDocument();
-    expect(screen.getByText("apple")).toBeInTheDocument();
-    expect(screen.getByText("fruit")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ready to choose" }));
+    expect((await screen.findAllByText("Connections")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Remember these plans")).toBeInTheDocument();
+    expect(screen.getByText("red folder")).toBeInTheDocument();
+    expect(screen.getByText("striped umbrella")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start recall" }));
 
-    expect(await screen.findByText("What matches this?")).toBeInTheDocument();
-    expect(screen.getAllByTestId("association-choice")).toHaveLength(2);
+    expect(screen.getByText("Clear your mind")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "11" }));
+    fireEvent.click(screen.getByRole("button", { name: "15" }));
+    fireEvent.click(screen.getByRole("button", { name: "18" }));
 
-    unmount();
-    renderMemoryGame("/memory-games/association_memory?level=11&variant=association_memory-l11-v1");
+    expect(screen.getByText(/Question 1\/4/)).toBeInTheDocument();
+    expect(screen.queryByText("Correct connection")).not.toBeInTheDocument();
+    for (let index = 0; index < 4; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Not sure" }));
+    }
 
-    expect(await screen.findByText("Level 11 - Challenge")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ready to choose" }));
-
-    expect(await screen.findByText("What matches this?")).toBeInTheDocument();
-    expect(screen.getAllByTestId("association-choice")).toHaveLength(4);
+    expect(await screen.findByText("Review")).toBeInTheDocument();
+    expect(screen.getAllByText("Correct connection")).toHaveLength(4);
+    expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
+      gameType: "association_memory",
+      score: 0,
+      accuracy: 0,
+      metadata: expect.objectContaining({
+        roundVersion: "connections_v2",
+        associationCount: 3,
+        questionCount: 4,
+        correctCount: 0,
+        questionsAnswered: 0,
+        resetKind: "number_order",
+      }),
+    }));
   });
 
   it("shows Number Memory order and level mode before recall", async () => {
