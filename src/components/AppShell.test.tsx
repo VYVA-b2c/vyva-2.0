@@ -293,6 +293,26 @@ describe("app shell route layout", () => {
   });
 
   it.each([
+    ["/mind-memory", false],
+    ["/brain-coach/remember", false],
+    ["/brain-coach/activity/remember_later", true],
+    ["/memory-games", true],
+  ] as const)("starts the owned Brain Coach surface flush with the viewport on %s", (path, dockless) => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+        <AppShell>
+          <div>Brain Coach page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    const content = screen.getByTestId("app-shell-scroll");
+    expect(content).toHaveClass("pt-0");
+    expect(content).not.toHaveClass("pt-6");
+    expect(content).toHaveClass(dockless ? "pb-0" : "pb-[112px]");
+  });
+
+  it.each([
     "/menu",
     "/health",
     "/health/symptom-check",
