@@ -102,7 +102,6 @@ export default function MindMemoryScreen() {
             const activityCount = getBrainCoachActivitiesForModule(module.id).length;
             const chip = MODULE_CHIPS[module.id];
             const titleSize = isLarge ? "text-[22px] lg:text-[25px]" : "text-[20px] lg:text-[24px]";
-            const subtitleSize = isLarge ? "text-[15px] lg:text-[16px]" : "text-[13.5px] lg:text-[14px]";
             const metaSize = isLarge ? "text-[12px] lg:text-[13px]" : "text-[11px] lg:text-[12px]";
 
             return (
@@ -140,16 +139,6 @@ export default function MindMemoryScreen() {
                 <span className="min-w-0 self-center lg:self-start">
                   <span className={`block font-display font-semibold leading-[1.03] tracking-[-0.025em] ${titleSize}`}>
                     {t(module.titleKey, module.title)}
-                  </span>
-                  <span
-                    data-testid={`${module.testId}-detail`}
-                    className={cn(
-                      "mt-1 line-clamp-2 font-body font-bold leading-snug",
-                      isDark ? "text-[#D8CDE4]" : "text-[#8A8095]",
-                      subtitleSize,
-                    )}
-                  >
-                    {t(module.summaryKey, module.summary)}
                   </span>
                 </span>
 

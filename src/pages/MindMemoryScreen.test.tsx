@@ -58,19 +58,23 @@ describe("MindMemoryScreen", () => {
     expect(screen.queryByText("Cognitive Assessment")).not.toBeInTheDocument();
 
     const expectedCards = [
-      ["card-mind-memory-strengthen-memory", "Remember", "Memory and recall", "8 activities", "bridge"],
-      ["card-mind-memory-train-reflexes", "Focus & React", "Attention and response", "3 activities", "pulse"],
-      ["card-mind-memory-boost-focus", "Think & Plan", "Planning and rules", "4 activities", "knobs"],
-      ["card-mind-memory-sharpen-senses", "Calm & Notice", "Calm and sensory awareness", "2 activities", "signal"],
+      ["card-mind-memory-strengthen-memory", "Remember", "8 activities", "bridge"],
+      ["card-mind-memory-train-reflexes", "Focus & React", "3 activities", "pulse"],
+      ["card-mind-memory-boost-focus", "Think & Plan", "4 activities", "knobs"],
+      ["card-mind-memory-sharpen-senses", "Calm & Notice", "2 activities", "signal"],
     ] as const;
 
-    for (const [testId, title, detail, count, iconAccent] of expectedCards) {
+    for (const [testId, title, count, iconAccent] of expectedCards) {
       expect(screen.getByTestId(testId)).toHaveAttribute("data-vyva-card-layout", "canonical-health-hub-action");
       expect(screen.getByTestId(testId)).toHaveTextContent(title);
-      expect(screen.getByTestId(`${testId}-detail`)).toHaveTextContent(detail);
       expect(screen.getByTestId(`${testId}-status`)).toHaveTextContent(count);
       expect(screen.getByTestId(`${testId}-icon`)).toHaveAttribute("data-vyva-icon-tile", iconAccent);
     }
+
+    expect(screen.queryByText("Memory and recall")).not.toBeInTheDocument();
+    expect(screen.queryByText("Attention and response")).not.toBeInTheDocument();
+    expect(screen.queryByText("Planning and rules")).not.toBeInTheDocument();
+    expect(screen.queryByText("Calm and sensory awareness")).not.toBeInTheDocument();
   });
 
   it("uses the canonical dark surfaces when the saved theme is dark", () => {
