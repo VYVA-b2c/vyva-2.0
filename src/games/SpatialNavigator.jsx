@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Route } from "lucide-react";
 import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
-import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
@@ -851,9 +849,6 @@ export default function SpatialNavigator({ userId, onExit }) {
 
       {screen === "intro" && (
         <section className="spatial-panel spatial-intro">
-          <div className="spatial-hero-icon" aria-hidden="true">
-            <VyvaIcon icon={Route} accent="path" size={42} strokeWidth={2.45} tone="brand" />
-          </div>
           <p className="spatial-subtitle">{text.subtitle}</p>
           <div className="spatial-badge">{text.level} {map?.difficulty_tier ?? 1}</div>
 
@@ -866,14 +861,13 @@ export default function SpatialNavigator({ userId, onExit }) {
           <button className="spatial-primary-button" type="button" onClick={beginMemorise}>
             {text.start}
           </button>
-          <p className="spatial-hint">{text.introHint}</p>
         </section>
       )}
 
       {(screen === "memorise" || screen === "draw") && (
         <section className="spatial-panel spatial-play">
           <header className="spatial-play-header">
-            <h1>{screen === "memorise" ? text.memoriseTitle : text.drawTitle}</h1>
+            <h2>{screen === "memorise" ? text.memoriseTitle : text.drawTitle}</h2>
           </header>
 
           <div className="spatial-canvas-wrap">
@@ -978,6 +972,11 @@ const spatialStyles = `
     min-height: 0;
     display: flex;
     flex-direction: column;
+    border: 1px solid #EEE8F1;
+    border-radius: 28px;
+    background: #FFFFFF;
+    padding: 24px;
+    box-shadow: 0 14px 32px rgba(80, 52, 109, 0.10);
   }
 
   .spatial-result-screen .spatial-panel {
@@ -1030,19 +1029,8 @@ const spatialStyles = `
     box-shadow: 0 10px 22px rgba(43, 31, 24, 0.08);
   }
 
-  .spatial-hero-icon,
   .spatial-result-icon {
     margin-top: 12px;
-  }
-
-  .spatial-hero-icon {
-    width: 76px;
-    height: 76px;
-    border-radius: 24px;
-    display: grid;
-    place-items: center;
-    background: #F1E8FF;
-    color: ${PURPLE};
   }
 
   .spatial-title {
@@ -1159,7 +1147,7 @@ const spatialStyles = `
     text-align: center;
   }
 
-  .spatial-play-header h1 {
+  .spatial-play-header h2 {
     margin: 0;
     font-size: clamp(30px, 5vw, 44px);
     line-height: 1.05;

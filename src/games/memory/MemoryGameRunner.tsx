@@ -2,7 +2,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   Check,
   CircleHelp,
-  Grid2x2,
   Mic,
   RotateCcw,
   Route,
@@ -576,7 +575,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const [sequenceTutorialSeen, setSequenceTutorialSeen] = useState(() => readSequenceTutorialSeen(userId));
   const [showSequenceTutorial, setShowSequenceTutorial] = useState(false);
   const [showVisualMemoryTutorial, setShowVisualMemoryTutorial] = useState(false);
-  const [hideVisualMemoryInstructionsAfterStart, setHideVisualMemoryInstructionsAfterStart] = useState(true);
   const timeoutRef = useRef<number | null>(null);
   const sequenceStatusTimeoutRef = useRef<number | null>(null);
   const sequenceProgressRef = useRef(0);
@@ -689,7 +687,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       setWordRecallVoiceMessage(null);
       setShowSequenceTutorial(nextPlan.gameType === "sequence_memory" && !readSequenceTutorialSeen(userId));
       const hasSeenVisualMemoryTutorial = readVisualMemoryTutorialSeen(userId);
-      setHideVisualMemoryInstructionsAfterStart(true);
       setShowVisualMemoryTutorial(
         nextPlan.gameType === "memory_match" && nextPlan.level === 1 && !hasSeenVisualMemoryTutorial,
       );
@@ -1128,12 +1125,10 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   }, [stopTts]);
 
   const closeVisualMemoryInstructions = useCallback(() => {
-    if (hideVisualMemoryInstructionsAfterStart) {
-      writeVisualMemoryTutorialSeen(userId);
-    }
+    writeVisualMemoryTutorialSeen(userId);
     setShowVisualMemoryTutorial(false);
     setStartedAt(Date.now());
-  }, [hideVisualMemoryInstructionsAfterStart, userId]);
+  }, [userId]);
 
   useEffect(() => {
     if (!plan || plan.gameType !== "sequence_memory" || !sequenceTiles.length || !expectedSequence.length || finished || showSequenceTutorial) return;
@@ -1479,17 +1474,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return renderBrainRunnerScreen("tutorial", "tutorial", "card_example", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
         <section className="rounded-[24px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[28px] sm:p-5">
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple shadow-vyva-card">
-              <Grid2x2 size={27} />
-            </div>
-            <p className="inline-flex rounded-full bg-[#FEF3C7] px-4 py-2 text-[16px] font-black text-[#92400E]">
-              {getBrainCoachProgressLabel(plan.level)}
-            </p>
-          </div>
-          <h1 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[36px]">
+          <p className="inline-flex rounded-full bg-[#FEF3C7] px-4 py-2 text-[16px] font-black text-[#92400E]">
+            {getBrainCoachProgressLabel(plan.level)}
+          </p>
+          <h2 className="mt-3 font-display text-[32px] leading-tight text-vyva-text-1 sm:text-[36px]">
             {t("memory.visualTutorialTitle", "Find the pairs")}
-          </h1>
+          </h2>
           <p className="mx-auto mt-1 max-w-[38ch] text-[17px] font-semibold leading-snug text-vyva-text-2 sm:text-[18px]">
             {t("memory.visualTutorialLead", "Turn over two cards at a time.")}
           </p>
@@ -1529,31 +1519,15 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-3 rounded-[18px] bg-[#FFF7ED] px-4 py-2.5 text-left text-[15px] font-black leading-snug text-[#92400E]">
-            <RotateCcw size={22} className="shrink-0" />
-            <span>{t("memory.visualTutorialMismatch", "Different pictures? Both cards turn back. Try another pair.")}</span>
-          </div>
-
-          <div className="mt-2 rounded-[18px] bg-[#ECFDF5] px-4 py-2.5 text-[15px] font-black text-[#0F766E]">
+          <div className="mt-3 rounded-[18px] bg-[#ECFDF5] px-4 py-2.5 text-[15px] font-black text-[#0F766E]">
             {t("memory.visualTutorialGoal", "Find all {count} pairs to finish. There is no timer.", { count: tutorialPairs.length })}
           </div>
-
-          <label className="mx-auto mt-3 flex w-fit cursor-pointer items-center gap-3 rounded-full border border-[#EADFF8] bg-white px-4 py-2.5 text-left text-[15px] font-extrabold text-vyva-text-2 shadow-sm">
-            <input
-              type="checkbox"
-              checked={hideVisualMemoryInstructionsAfterStart}
-              onChange={(event) => setHideVisualMemoryInstructionsAfterStart(event.target.checked)}
-              className="h-6 w-6 shrink-0 rounded-lg border-2"
-            />
-            <span>{t("memory.hideVisualInstructions", "Do not show these instructions again.")}</span>
-          </label>
 
           <button
             type="button"
             onClick={closeVisualMemoryInstructions}
-            className="mt-4 inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-full bg-vyva-purple px-6 text-[21px] font-black text-white shadow-vyva-card"
+            className="mt-4 inline-flex min-h-[60px] w-full items-center justify-center rounded-full bg-vyva-purple px-6 text-[21px] font-black text-white shadow-vyva-card"
           >
-            <Check size={26} />
             {t("memory.startVisualLevel", "Start Level {level}", { level: plan.level })}
           </button>
         </section>

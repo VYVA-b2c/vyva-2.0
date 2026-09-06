@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Users } from "lucide-react";
+import { Check } from "lucide-react";
 import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
-import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import FaceAvatar from "./FaceAvatar";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
@@ -32,6 +31,7 @@ const FACE_NAME_SCENE_ID = "brain_coach.activity_session.memory.face_name_match"
 function FaceNameScreen({
   children,
   onExit,
+  title = "Face-Name Match",
   backLabel = "Exit",
   showHeader = true,
   sceneKey = "playing",
@@ -41,7 +41,7 @@ function FaceNameScreen({
 }) {
   return (
     <BrainCoachActivityShell
-      title="Face-Name Match"
+      title={title}
       backLabel={backLabel}
       onBack={onExit}
       showHeader={showHeader}
@@ -66,7 +66,7 @@ function GameHeader({ title, meta, timer, pulse = false }) {
     <header className="rounded-[24px] border bg-white/90 px-4 py-3 shadow-vyva-card backdrop-blur" style={{ borderColor: BORDER }}>
       <div className="flex min-h-[56px] items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate font-display text-[25px] font-bold leading-tight text-vyva-text-1">{title}</h1>
+          <h2 className="truncate font-display text-[25px] font-bold leading-tight text-vyva-text-1">{title}</h2>
           {meta && <p className="mt-1 truncate text-[17px] font-semibold text-vyva-text-2">{meta}</p>}
         </div>
         {timer && (
@@ -806,18 +806,11 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   if (screen === "intro") {
     return (
-      <FaceNameScreen onExit={handleExit} backLabel={text.back} sceneKey="intro" sceneKind="intro" sceneLayout="people_preview">
+      <FaceNameScreen title={text.title} onExit={handleExit} backLabel={text.back} sceneKey="intro" sceneKind="intro" sceneLayout="people_preview">
 
         <main className="flex min-h-0 flex-1 flex-col py-4">
           <section className="rounded-[28px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BORDER }}>
-            <div className="flex items-center gap-4">
-              <div className="flex h-[76px] w-[76px] flex-shrink-0 items-center justify-center rounded-[24px]" style={{ background: "#F3E8FF", color: PURPLE }}>
-                <VyvaIcon icon={Users} accent="id" size={42} strokeWidth={2.45} tone="brand" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[22px] font-bold leading-[1.3] text-vyva-text-2">{text.subtitle}</p>
-              </div>
-            </div>
+            <p className="text-center text-[22px] font-bold leading-[1.3] text-vyva-text-2">{text.subtitle}</p>
 
             {loadNote && (
               <div className="mt-4 rounded-[20px] px-4 py-3 text-[20px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>
@@ -843,20 +836,17 @@ export default function FaceNameMatch({ userId, onExit }) {
               ))}
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={beginStudy}
+              className="mt-5 min-h-[72px] w-full rounded-full px-8 text-[27px] font-extrabold text-white shadow-vyva-card"
+              style={{ background: PURPLE }}
+            >
+              {text.start}
+            </button>
           </section>
         </main>
-
-        <div className="mt-auto pb-1">
-          <button
-            type="button"
-            onClick={beginStudy}
-            className="min-h-[72px] w-full rounded-[22px] px-8 text-[27px] font-extrabold text-white shadow-vyva-card"
-            style={{ background: PURPLE }}
-          >
-            {text.start}
-          </button>
-          <p className="mt-3 text-center text-[19px] font-medium leading-[1.35] text-vyva-text-2">{text.introHint}</p>
-        </div>
       </FaceNameScreen>
     );
   }
@@ -867,7 +857,7 @@ export default function FaceNameMatch({ userId, onExit }) {
     const studyGridCols = personas.length <= 4 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3";
 
     return (
-      <FaceNameScreen onExit={handleExit} backLabel={text.back} sceneKey="study" sceneKind="study" sceneLayout="people_study_grid">
+      <FaceNameScreen title={text.title} onExit={handleExit} backLabel={text.back} sceneKey="study" sceneKind="study" sceneLayout="people_study_grid">
         <GameHeader
           title={text.studyTitle}
           meta={`${faceCount} ${text.people}`}
@@ -911,7 +901,7 @@ export default function FaceNameMatch({ userId, onExit }) {
     const options = isNameToFace ? faceOptions : nameOptions;
 
     return (
-      <FaceNameScreen onExit={handleExit} backLabel={text.exit} sceneKey="recall" sceneKind="playing" sceneLayout="face_name_recall">
+      <FaceNameScreen title={text.title} onExit={handleExit} backLabel={text.exit} sceneKey="recall" sceneKind="playing" sceneLayout="face_name_recall">
         <GameHeader
           title={`${text.question} ${questionNumber} ${text.of} ${totalQuestions}`}
           meta={isNameToFace ? text.whichFace : text.faceQuestion}
@@ -1013,7 +1003,7 @@ export default function FaceNameMatch({ userId, onExit }) {
       : getBrainCoachSupportiveProgressCopy({ advanced: false, level: currentTier });
 
   return (
-    <FaceNameScreen onExit={handleExit} showHeader={false} sceneKey="result" sceneKind="completion" sceneLayout="modal_actions" state="complete">
+    <FaceNameScreen title={text.title} onExit={handleExit} showHeader={false} sceneKey="result" sceneKind="completion" sceneLayout="modal_actions" state="complete">
       <BrainGameCompletionDialog
         title={resultToneGreat ? text.resultGreat : text.resultTry}
         summary={resultSummary}
