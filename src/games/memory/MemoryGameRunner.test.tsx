@@ -188,6 +188,30 @@ describe("MemoryGameRunner word recall", () => {
         resetKind: "number_order",
       }),
     }));
+
+    fireEvent.click(screen.getByRole("button", { name: "See results" }));
+    expect(await screen.findByRole("button", { name: "Next activity" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try another" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Next level/i })).not.toBeInTheDocument();
+  });
+
+  it("makes the next level explicit after reaching the 80 percent threshold", async () => {
+    vi.mocked(saveGameResult).mockResolvedValueOnce();
+    renderMemoryGame("/memory-games/association_memory?level=3&variant=association_memory-l3-v1");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start recall" }));
+    fireEvent.click(screen.getByRole("button", { name: "11" }));
+    fireEvent.click(screen.getByRole("button", { name: "15" }));
+    fireEvent.click(screen.getByRole("button", { name: "18" }));
+    fireEvent.click(screen.getByRole("button", { name: "library" }));
+    fireEvent.click(screen.getByRole("button", { name: "Daniel" }));
+    fireEvent.click(screen.getByRole("button", { name: "green notebook" }));
+    fireEvent.click(screen.getByRole("button", { name: "Maya" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "See results" }));
+    expect(await screen.findByRole("button", { name: "Next level 4" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try another" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next activity" })).not.toBeInTheDocument();
   });
 
   it("shows Number Memory order and level mode before recall", async () => {
