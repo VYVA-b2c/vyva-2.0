@@ -4,17 +4,16 @@ import { memoryGameRegistry } from "./memoryGameRegistry";
 import type { ConnectionsPayload } from "./connectionsData";
 import type { MemoryGameType, MemoryGameVariant } from "./types";
 
-const visibleLeveledGames: MemoryGameType[] = [
+const visibleTwentyLevelGames: MemoryGameType[] = [
   "memory_match",
   "association_memory",
   "word_recall",
   "story_recall",
-  "number_memory",
   "sequence_memory",
 ];
 
 describe("memory game registry", () => {
-  it.each(visibleLeveledGames)("provides 20 levels for %s", (gameType) => {
+  it.each(visibleTwentyLevelGames)("provides 20 levels for %s", (gameType) => {
     const definition = memoryGameRegistry[gameType];
 
     expect(definition.levels).toHaveLength(BRAIN_COACH_MAX_LEVEL);
@@ -88,6 +87,12 @@ describe("memory game registry", () => {
     });
   });
 
+  it("provides 30 levels and 12 variants per level for Number Memory only", () => {
+    expect(memoryGameRegistry.number_memory.levels).toHaveLength(30);
+    expect(memoryGameRegistry.number_memory.levels.map((level) => level.level)).toEqual(Array.from({ length: 30 }, (_, index) => index + 1));
+    expect(memoryGameRegistry.number_memory.levels.every((level) => level.variants.length === 12)).toBe(true);
+  });
+
   it("localizes every Connections variant in all supported languages", () => {
     const languages = ["en", "es", "fr", "de", "it", "pt"] as const;
     memoryGameRegistry.association_memory.levels.forEach((level) => {
@@ -103,13 +108,15 @@ describe("memory game registry", () => {
     });
   });
 
-  it("provides English Number Memory prompts for order modes", () => {
+  it("provides localized Number Memory prompts for all order modes", () => {
     const levelOne = memoryGameRegistry.number_memory.levels[0].variants[0].content.en;
-    const levelSix = memoryGameRegistry.number_memory.levels[5].variants[0].content.en;
+    const levelEleven = memoryGameRegistry.number_memory.levels[10].variants[0].content.en;
+    const levelTwentyOne = memoryGameRegistry.number_memory.levels[20].variants[0].content.en;
 
-    expect(levelOne?.title).toBe("Numbers 1");
-    expect(levelOne?.prompt).toBe("Remember 3 digits in order.");
-    expect(levelSix?.prompt).toBe("Remember 4 digits and enter them in reverse order.");
+    expect(levelOne?.title).toBe("Number Memory");
+    expect(levelOne?.prompt).toContain("same order");
+    expect(levelEleven?.prompt).toContain("reverse order");
+    expect(levelTwentyOne?.prompt).toContain("lowest to highest");
   });
 });
 

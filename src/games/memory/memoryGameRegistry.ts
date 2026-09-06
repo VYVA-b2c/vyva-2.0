@@ -13,6 +13,7 @@ import type {
   MemoryGameVariantContent,
 } from "./types";
 import { buildConnectionsLevels } from "./connectionsData";
+import { buildNumberMemoryLevels } from "./numberMemoryData";
 
 type LocalizedValue<T> = Partial<Record<LanguageCode, T>> & { es: T };
 
@@ -451,69 +452,6 @@ function buildSequenceLevels(templates: readonly SequenceTemplate[]): MemoryGame
       }, {} as LocalizedValue<MemoryGameVariantContent>);
 
       return createVariant(`sequence_memory-l${spec.level}-v${index + 1}`, spec.level, content);
-    }),
-  }));
-}
-
-function buildNumberDigits(set: readonly string[], templateIndex: number, level: number, targetLength: number) {
-  const source = set[(level - 1) % set.length] ?? set[0] ?? "123";
-  if (source.length >= targetLength) return source.slice(0, targetLength);
-
-  let digits = source;
-  let seed = (templateIndex + 1) * 41 + level * 67;
-  while (digits.length < targetLength) {
-    seed = (seed * 9301 + 49297) % 233280;
-    digits += String(seed % 10);
-  }
-
-  return digits;
-}
-
-function getNumberMemoryTitle(language: LanguageCode, index: number) {
-  return language === "es" ? `Números ${index + 1}` : `Numbers ${index + 1}`;
-}
-
-function getNumberMemoryPrompt(language: LanguageCode, count: number, reverse: boolean) {
-  if (language === "es") {
-    return reverse
-      ? `Recuerda ${count} digitos y repitelos en orden inverso.`
-      : `Recuerda ${count} digitos en orden.`;
-  }
-
-  return reverse
-    ? `Remember ${count} digits and enter them in reverse order.`
-    : `Remember ${count} digits in order.`;
-}
-
-function buildNumberLevels(numberTemplates: readonly string[][]): MemoryGameLevel[] {
-  const levelSpecs = MEMORY_GAME_LEVELS.map((level) => {
-    const count = Math.min(8, 3 + Math.floor((level - 1) / 3));
-    const reverse = level >= 6 && level % 2 === 0;
-    return {
-      level,
-      count,
-      reverse,
-    };
-  });
-
-  return levelSpecs.map((spec) => ({
-    level: spec.level,
-    variants: numberTemplates.map((set, index) => {
-      const digits = buildNumberDigits(set, index, spec.level, spec.count);
-      const content = GAME_CONTENT_LANGUAGES.reduce((accumulator, language) => {
-        accumulator[language] = {
-          title: getNumberMemoryTitle(language, index),
-          prompt: getNumberMemoryPrompt(language, spec.count, spec.reverse),
-          payload: {
-            digits,
-            reverse: spec.reverse,
-            levelBand: getBrainCoachLevelBand(spec.level).label,
-          },
-        };
-        return accumulator;
-      }, {} as LocalizedValue<MemoryGameVariantContent>);
-
-      return createVariant(`number_memory-l${spec.level}-v${index + 1}`, spec.level, content);
     }),
   }));
 }
@@ -1194,19 +1132,6 @@ const wordRecallSets: WordRecallSet[] = [
   },
 ];
 
-const numberTemplates = [
-  ["318", "4827", "56091", "704126", "381204"],
-  ["245", "6718", "53942", "186405", "297531"],
-  ["907", "1245", "68319", "452781", "640215"],
-  ["156", "9084", "37162", "824903", "915742"],
-  ["482", "3159", "74018", "193684", "258470"],
-  ["639", "2704", "85213", "470925", "613580"],
-  ["571", "8462", "20954", "315870", "462193"],
-  ["824", "1937", "68420", "951306", "704281"],
-  ["260", "7815", "43092", "286417", "539162"],
-  ["714", "5628", "14730", "820564", "381947"],
-] as const;
-
 const routineTemplates: RoutineTemplate[] = [
   { title: "Mañana tranquila", activities: ["despertarse", "lavarse la cara", "desayunar", "salir a caminar", "leer el periódico"] },
   { title: "Visita al médico", activities: ["desayunar", "tomar medicación", "coger la tarjeta", "ir a la consulta", "volver a casa"] },
@@ -1631,7 +1556,7 @@ const wordRecallLevels = buildListLevels(
 );
 
 const wordRecallPlayableLevels = buildWordRecallLevels(wordRecallSets);
-const numberMemoryLevels = buildNumberLevels(numberTemplates);
+const numberMemoryLevels = buildNumberMemoryLevels();
 const routineLevels = buildRoutineLevels(routineTemplates);
 const associationLevels = buildConnectionsLevels();
 const storyLevels = buildStoryLevels(storyTemplates);

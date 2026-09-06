@@ -214,16 +214,17 @@ describe("MemoryGameRunner word recall", () => {
     expect(screen.queryByRole("button", { name: "Next activity" })).not.toBeInTheDocument();
   });
 
-  it("shows Number Memory order and level mode before recall", async () => {
+  it("shows Number Memory guidance before the first three-round session", async () => {
     renderMemoryGame("/memory-games/number_memory?level=6&variant=number_memory-l6-v1");
 
-    expect(await screen.findByText("Level 6 - Build")).toBeInTheDocument();
-    expect(screen.getByText("Reverse order")).toBeInTheDocument();
-    expect(screen.getByText("4 digits")).toBeInTheDocument();
+    expect(await screen.findByText("Level 6")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Same order" })).toBeInTheDocument();
+    expect(screen.getByText("Example: 4 · 7 · 2 → 4 7 2")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide digits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByLabelText("Type the digits in reverse")).toBeInTheDocument();
+    expect(await screen.findByText("Round 1 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show numbers" })).toBeInTheDocument();
   });
 
   it("shows Rhythm Tap instructions once and reopens them from the icon", async () => {

@@ -56,6 +56,7 @@ import { useSpeechRecognition } from "./useSpeechRecognition";
 import { isSequenceTileMatch } from "./sequenceScoring";
 import StoryRecallGame from "./StoryRecallGame";
 import ConnectionsGame from "./ConnectionsGame";
+import NumberMemoryGame from "./NumberMemoryGame";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
@@ -258,17 +259,6 @@ function dedupeWords(words: string[]) {
     }
   });
   return unique;
-}
-
-function getNumberRecallScore(expected: string, actual: string) {
-  const normalizedExpected = expected.replace(/\D/g, "");
-  const normalizedActual = actual.replace(/\D/g, "");
-  if (!normalizedExpected) return 0;
-
-  const correctDigits = normalizedExpected
-    .split("")
-    .filter((digit, index) => normalizedActual[index] === digit).length;
-  return Math.round((correctDigits / normalizedExpected.length) * 100);
 }
 
 function getPayloadString(payload: Record<string, unknown>, key: string, fallback = "") {
@@ -540,12 +530,20 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const resolvedReturnPath = returnPath ?? getBrainCoachModule(catalogActivity?.moduleId ?? "memory").route;
   const brainSceneId = getMemoryRunnerBrainSceneId(validGameType);
   const brainTestId = getMemoryRunnerBrainTestId(validGameType);
+  const [numberMemoryVoiceContext, setNumberMemoryVoiceContext] = useState<Record<string, string | number | boolean>>({
+    activity: "number_memory",
+    level: 1,
+    round: 1,
+    mode: "forward",
+    phase: "ready",
+  });
   const renderBrainRunnerScreen = (
     screenKey: string,
     sceneKind: string,
     sceneLayout: string,
     children: ReactNode,
     state: "default" | "loading" | "complete" = "default",
+    voiceDynamicVariables?: Record<string, string | number | boolean>,
   ) => (
     <BrainCoachActivityShell
       title={validGameType ? getGameTitle(validGameType, language) : "Brain Coach"}
@@ -561,6 +559,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       sceneKind={sceneKind}
       sceneLayout={sceneLayout}
       state={state}
+      voiceDynamicVariables={voiceDynamicVariables}
     >
       {children}
     </BrainCoachActivityShell>
@@ -597,8 +596,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const [wordRecallChoicesSeed, setWordRecallChoicesSeed] = useState(0);
   const [wordRecallMessage, setWordRecallMessage] = useState<string | null>(null);
   const [wordRecallVoiceMessage, setWordRecallVoiceMessage] = useState<string | null>(null);
-  const [numberMemoryPhase, setNumberMemoryPhase] = useState<"study" | "recall">("study");
-  const [numberMemoryInput, setNumberMemoryInput] = useState("");
   const [isMemoryAudioMuted, setIsMemoryAudioMuted] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(MEMORY_AUDIO_STORAGE_KEY) === "true";
@@ -717,8 +714,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       setWordRecallChoicesSeed((current) => current + 1);
       setWordRecallMessage(null);
       setWordRecallVoiceMessage(null);
-      setNumberMemoryPhase("study");
-      setNumberMemoryInput("");
       setShowSequenceTutorial(nextPlan.gameType === "sequence_memory" && !readSequenceTutorialSeen(userId));
       const hasSeenVisualMemoryTutorial = readVisualMemoryTutorialSeen(userId);
       setHideVisualMemoryInstructionsAfterStart(true);
@@ -790,18 +785,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     if (plan?.gameType !== "word_recall") return [];
     return shuffleItems([...wordRecallWords, ...wordRecallDistractors], wordRecallChoicesSeed);
   }, [plan?.gameType, wordRecallChoicesSeed, wordRecallDistractors, wordRecallWords]);
-
-  const numberMemoryDigits = useMemo(() => {
-    if (!plan || plan.gameType !== "number_memory" || !localizedVariant) return "";
-    return String(localizedVariant.payload.digits ?? "");
-  }, [localizedVariant, plan]);
-
-  const numberMemoryTarget = useMemo(() => {
-    if (!numberMemoryDigits) return "";
-    return localizedVariant?.payload.reverse
-      ? numberMemoryDigits.split("").reverse().join("")
-      : numberMemoryDigits;
-  }, [localizedVariant, numberMemoryDigits]);
 
   const wordRecallCoachSegments = useMemo(() => {
     if (plan?.gameType !== "word_recall") return [];
@@ -1321,7 +1304,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
       };
     }
 
-    if (["word_recall", "number_memory"].includes(plan.gameType) && completionMetrics && !finished) {
+    if (plan.gameType === "word_recall" && completionMetrics && !finished) {
       async function completeGame() {
         setSaving(true);
         setFinished(true);
@@ -1641,6 +1624,22 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
         actionLoading={actionLoading}
       />
     ));
+  }
+
+  if (plan.gameType === "number_memory") {
+    return renderBrainRunnerScreen("number_memory", "playing", "number_memory", (
+      <NumberMemoryGame
+        plan={plan}
+        localizedVariant={localizedVariant}
+        cognitiveDomain={definition.cognitiveDomain}
+        userId={userId}
+        language={language}
+        onBack={backToList}
+        onOpenSameGame={openSameGame}
+        actionLoading={actionLoading}
+        onVoiceContextChange={setNumberMemoryVoiceContext}
+      />
+    ), "default", numberMemoryVoiceContext);
   }
 
   if (
@@ -2016,104 +2015,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     }
     setWordRecallMessage(t("wordRecall.tryAgain"));
   };
-
-  const continueNumberMemory = () => {
-    setStartedAt(Date.now());
-    setNumberMemoryPhase("recall");
-  };
-
-  const finishNumberMemory = () => {
-    const givenAnswer = numberMemoryInput.trim();
-    const accuracy = getNumberRecallScore(numberMemoryTarget, givenAnswer);
-    const nextDurationSeconds = getDurationSeconds(startedAt);
-    setCompletionDetails({
-      expectedAnswer: numberMemoryTarget,
-      givenAnswer: givenAnswer || t("memory.noAnswerGiven", "No answer given"),
-    });
-    setCompletionMetrics({
-      score: getScore(plan.level, accuracy, accuracy === 100 ? 0 : 1, nextDurationSeconds),
-      accuracy,
-      mistakes: accuracy === 100 ? 0 : 1,
-      durationSeconds: nextDurationSeconds,
-    });
-  };
-
-  if (plan.gameType === "number_memory") {
-    return renderBrainRunnerScreen(`number_memory_${numberMemoryPhase}`, "playing", `number_memory_${numberMemoryPhase}`, (
-      <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <section className="overflow-hidden rounded-[24px] border border-[#BFDBFE] bg-[#F3F8FF] p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
-          <p className="inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#2563EB] shadow-sm">
-            {currentLevelLabel}
-          </p>
-          <h2 className="mt-3 max-w-[34ch] font-display text-[25px] leading-tight text-vyva-text-1 sm:text-[29px]">
-            {numberMemoryPhase === "study"
-              ? t("memory.numberStudyGoal", "Study the digits, then hide them.")
-              : localizedVariant.payload.reverse
-                ? t("memory.numberRecallReverseGoal", "Enter the digits backwards.")
-                : t("memory.numberRecallGoal", "Enter the digits in the same order.")}
-          </h2>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-vyva-text-1 shadow-sm">
-              {localizedVariant.payload.reverse ? t("memory.reverseOrder", "Reverse order") : t("memory.sameOrder", "Same order")}
-            </span>
-            <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-vyva-text-1 shadow-sm">
-              {`${numberMemoryDigits.length} ${t("memory.digits", "digits")}`}
-            </span>
-          </div>
-
-          {numberMemoryPhase === "study" ? (
-            <>
-              <div className="mx-auto mt-5 max-w-[560px] rounded-[22px] border border-[#BFDBFE] bg-white px-5 py-8 shadow-sm">
-                <p className="text-[15px] font-black uppercase tracking-[0.06em] text-vyva-text-2">{t("memory.rememberThis", "Remember this")}</p>
-                <p className="mt-3 font-mono text-[42px] font-black tracking-[0.14em] text-vyva-text-1 sm:text-[58px]">{numberMemoryDigits}</p>
-              </div>
-              <button
-                type="button"
-                onClick={continueNumberMemory}
-                className="mt-5 min-h-[62px] w-full rounded-full bg-vyva-purple px-6 text-[22px] font-black text-white shadow-vyva-card"
-              >
-                {t("memory.hideDigits", "Hide digits")}
-              </button>
-            </>
-          ) : (
-            <form
-              className="mx-auto mt-5 max-w-[560px]"
-              onSubmit={(event) => {
-                event.preventDefault();
-                finishNumberMemory();
-              }}
-            >
-              <label className="block text-left text-[15px] font-black uppercase tracking-[0.06em] text-vyva-text-2" htmlFor="number-memory-answer">
-                {localizedVariant.payload.reverse
-                  ? t("memory.typeReverseDigits", "Type the digits in reverse")
-                  : t("memory.typeDigits", "Type the digits")}
-              </label>
-              <div className="mt-3 flex min-h-[70px] items-center gap-3 rounded-[22px] border border-[#BFDBFE] bg-white px-4 shadow-sm">
-                <Type size={24} className="shrink-0 text-[#2563EB]" />
-                <input
-                  id="number-memory-answer"
-                  value={numberMemoryInput}
-                  onChange={(event) => setNumberMemoryInput(event.target.value)}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  className="min-w-0 flex-1 bg-transparent font-mono text-[32px] font-black tracking-[0.12em] text-vyva-text-1 outline-none"
-                  autoFocus
-                />
-              </div>
-              <button
-                type="submit"
-                className="mt-5 inline-flex min-h-[62px] w-full items-center justify-center gap-3 rounded-full bg-vyva-purple px-6 text-[22px] font-black text-white shadow-vyva-card"
-              >
-                <Check size={24} />
-                {t("memory.checkAnswer", "Check answer")}
-              </button>
-            </form>
-          )}
-        </section>
-      </div>
-    ));
-  }
 
   if (plan.gameType === "word_recall") {
     const rememberedCount = dedupeWords([...wordRecallSelectedWords, ...wordRecallTypedWords]).length;

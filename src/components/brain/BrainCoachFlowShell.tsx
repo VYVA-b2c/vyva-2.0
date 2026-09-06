@@ -157,6 +157,7 @@ type BrainCoachActivityShellProps = {
   sceneKind?: string;
   sceneLayout?: string;
   state?: "default" | "loading" | "complete";
+  voiceDynamicVariables?: Record<string, string | number | boolean>;
 };
 
 export function BrainCoachActivityShell({
@@ -176,6 +177,7 @@ export function BrainCoachActivityShell({
   sceneKind = "activity",
   sceneLayout = "game",
   state = "default",
+  voiceDynamicVariables,
 }: BrainCoachActivityShellProps) {
   const { isDark } = useHomeMasterTheme();
   const { size: readableTextSize } = useReadableTextSize();
@@ -243,7 +245,7 @@ export function BrainCoachActivityShell({
                   <CanonicalVoiceButton
                     contextHint={typeof title === "string" ? `Brain Coach: ${title}` : "Brain Coach activity"}
                     agentSlug="brain-coach"
-                    dynamicVariables={{ app_entrypoint: sceneId }}
+                    dynamicVariables={{ app_entrypoint: sceneId, ...voiceDynamicVariables }}
                     testId="button-brain-coach-activity-voice"
                   />
                 )}
