@@ -216,18 +216,19 @@ function memoryActivity(
   gameType: MemoryGameType,
   config: Omit<BrainCoachActivityDefinition, "moduleId" | "kind" | "status" | "runner" | "route" | "titleKey" | "descriptionKey" | "iconBg" | "iconColor" | "progression" | "memoryGameType"> & {
     moduleId?: BrainCoachModuleId;
+    status?: BrainCoachActivityStatus;
     title?: string;
     description?: string;
     progression?: BrainCoachActivityProgression;
   },
 ): BrainCoachActivityDefinition {
   const definition = MEMORY_GAME_META[gameType];
-  const { moduleId = "memory", ...activityConfig } = config;
+  const { moduleId = "memory", status = "active", ...activityConfig } = config;
 
   return {
     moduleId,
     kind: "game",
-    status: "active",
+    status,
     runner: { type: "memory-engine", gameType },
     route: `/memory-games/${gameType}`,
     titleKey: definition.titleKey,
@@ -385,10 +386,10 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
     runner: { type: "component", componentId: "dual-task-walk" },
     route: "/dual-task-walk",
     testId: "brain-coach-activity-dual-task-walk",
-    titleKey: "brainGames.attentionBoosters.dualTask.title",
-    title: "Dual Task Walk",
-    descriptionKey: "brainGames.attentionBoosters.dualTask.description",
-    description: "Count backwards while reacting to matching symbols.",
+    titleKey: "brainGames.dualTask.title",
+    title: "Dual Task",
+    descriptionKey: "brainGames.dualTask.subtitle",
+    description: "Count and react at the same time.",
     trainsKey: "brainCoach.activities.dualTaskWalk.trains",
     trains: "Split attention",
     durationKey: "brainCoach.activities.dualTaskWalk.duration",
@@ -411,10 +412,10 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
     runner: { type: "memory-engine", gameType: "sequence_memory" },
     route: "/attention-boosters/rhythm-tap",
     testId: "brain-coach-activity-rhythm-sequence",
-    titleKey: "brainCoach.activities.rhythmSequence.title",
-    title: "Rhythm Sequence",
-    descriptionKey: "brainCoach.activities.rhythmSequence.description",
-    description: "Watch a pattern, then tap it back in order.",
+    titleKey: "memoryGames.sequenceMemory.title",
+    title: "Sequences",
+    descriptionKey: "memoryGames.sequenceMemory.description",
+    description: "Remember the order of colours, numbers, or objects.",
     trainsKey: "brainCoach.activities.rhythmSequence.trains",
     trains: "Fast focus",
     durationKey: "brainCoach.activities.rhythmSequence.duration",
@@ -458,6 +459,7 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
   memoryActivity("routine_memory", {
     id: "routine_memory",
     moduleId: "thinking",
+    status: "hidden",
     cognitiveDomains: ["executive_function", "prospective_memory"],
     testId: "brain-coach-activity-routine-memory",
     title: "Routine Memory",

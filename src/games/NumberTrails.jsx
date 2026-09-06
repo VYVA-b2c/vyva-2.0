@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MousePointer2, Play, Route, Smile, Sparkles, Timer, Zap } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
-import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
@@ -1223,15 +1222,11 @@ export default function NumberTrails({
         sceneKind="intro"
         sceneLayout="trail_preview"
       >
-        <main className="pb-6">
+        <main className="pb-6" data-testid="number-trails-intro">
         <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5">
           <section className="rounded-[28px] border bg-white p-6 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <h1 className="sr-only">{text.title}</h1>
             <div className="flex flex-col items-center text-center">
-              <div className="flex h-[92px] w-[92px] items-center justify-center rounded-[26px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-                <VyvaIcon icon={Route} accent="path" size={46} strokeWidth={2.45} tone="brand" />
-              </div>
-              <p className="mt-5 text-[24px] font-bold leading-[1.3]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
+              <p className="text-[24px] font-bold leading-[1.3]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
 
               <div className="mt-5 flex flex-wrap justify-center gap-3">
                 <span className="rounded-full px-5 py-3 text-[22px] font-extrabold" style={{ background: "#FEF3C7", color: "#92400E" }}>

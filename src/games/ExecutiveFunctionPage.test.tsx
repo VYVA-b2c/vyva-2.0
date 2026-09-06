@@ -25,6 +25,8 @@ describe("ExecutiveFunctionPage", () => {
     expect(screen.getByTestId("button-brain-coach-category-voice")).toBeInTheDocument();
     const numberTrailsButton = screen.getByRole("button", { name: /Number Trails/i });
     expect(numberTrailsButton.querySelector('[data-vyva-accent="path"]')).toBeInTheDocument();
+    expect(screen.queryByText("Planning, rules, and flexible thinking.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connect numbers in order while the path grows.")).not.toBeInTheDocument();
 
     fireEvent.click(numberTrailsButton);
 

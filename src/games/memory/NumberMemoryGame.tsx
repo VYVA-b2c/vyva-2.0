@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Delete, Eye, Hash, RotateCcw } from "lucide-react";
+import { Check, Delete, Eye, RotateCcw } from "lucide-react";
 import type { LanguageCode } from "@/i18n/languages";
 import { useHomeMasterTheme } from "@/hooks/useHomeMasterTheme";
 import { cn } from "@/lib/utils";
@@ -209,16 +209,15 @@ export default function NumberMemoryGame({ plan, localizedVariant, cognitiveDoma
 
   return (
     <div className="mx-auto w-full max-w-[720px] px-1 pb-5 pt-2 sm:px-4">
-      <section className={cn("overflow-hidden rounded-[26px] border p-5 shadow-vyva-card sm:p-7", isDark ? "border-white/10 bg-white/[0.07]" : "border-[#E7DCEF] bg-white")}> 
+      <section className={cn("overflow-hidden rounded-[28px] border p-5 shadow-vyva-card sm:p-7", isDark ? "border-white/10 bg-white/[0.07]" : "border-[#EEE8F1] bg-white")}>
         <div className="flex items-center justify-between gap-3">
           <p className={cn("text-[13px] font-black uppercase tracking-[0.05em]", isDark ? "text-[#DCC8F8]" : "text-vyva-purple")}>{copy.level} {plan.level}</p>
           {phase !== "guidance" && phase !== "review" ? <p className={cn("text-[14px] font-bold", isDark ? "text-[#CFC5D8]" : "text-vyva-text-2")}>{copy.round} {roundIndex + 1} {copy.of} 3</p> : null}
         </div>
 
         {phase === "guidance" ? (
-          <div className="py-5 text-center">
-            <span className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-[#F1E8FF] text-vyva-purple"><Hash size={30} strokeWidth={2.3} /></span>
-            <h2 className="mt-5 font-display text-[28px] font-semibold">{copy[guidanceMode]}</h2>
+          <div className="pb-5 pt-3 text-center">
+            <h2 className="font-display text-[28px] font-semibold">{copy[guidanceMode]}</h2>
             <p className={cn("mx-auto mt-3 max-w-[34rem] text-[18px] font-semibold leading-relaxed", isDark ? "text-[#D8CDDF]" : "text-vyva-text-2")}>{copy[`${guidanceMode}Guide` as const]}</p>
             <p className={cn("mx-auto mt-5 rounded-[18px] px-4 py-4 font-mono text-[17px] font-bold", isDark ? "bg-white/[0.08]" : "bg-[#FAF6FF]")}>{copy[`${guidanceMode}Example` as const]}</p>
             <button type="button" onClick={startAfterGuidance} className="mt-6 min-h-[60px] w-full rounded-full bg-vyva-purple px-6 text-[20px] font-black text-white shadow-vyva-card">{copy.begin}</button>

@@ -1067,7 +1067,7 @@ export default function CategorySort({
         sceneLayout="rule_preview"
       >
         <div className="pb-6" data-testid="category-sort-intro">
-        <div className="mx-auto grid w-full max-w-[760px] gap-5">
+        <div className="mx-auto grid w-full max-w-[760px] gap-5 rounded-[28px] border border-[#EEE8F1] bg-white p-5 shadow-vyva-card sm:p-6">
           <header className="flex shrink-0 justify-center">
             <div className="flex min-h-[48px] shrink-0 items-center rounded-full bg-[#FEF3C7] px-4 text-[18px] font-bold text-[#92400E] sm:min-h-[58px] sm:px-5 sm:text-[21px]">
               {text.level} {currentSequence.difficulty_tier} - {currentBand.label}
@@ -1075,7 +1075,6 @@ export default function CategorySort({
           </header>
 
           <main className="flex min-h-0 flex-col justify-start gap-4 sm:gap-5">
-            <h1 className="sr-only">{text.title}</h1>
             <div className="text-center">
               <p className="mx-auto max-w-[34ch] text-[19px] font-bold leading-[1.3] sm:text-[23px]" style={{ color: BRAND.muted }}>{text.subtitle}</p>
               {loadNote && (
@@ -1162,16 +1161,8 @@ export default function CategorySort({
         )}
 
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[52px] shrink-0 items-center justify-between gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
+          <header className="flex min-h-[52px] shrink-0 items-center gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
             <h1 className="min-w-0 text-[22px] font-bold leading-[1.1] sm:text-[26px]">{text.tutorialTitle}</h1>
-            <button
-              type="button"
-              onClick={startRound}
-              className="min-h-[48px] shrink-0 rounded-full px-4 text-[19px] font-bold sm:px-5 sm:text-[21px]"
-              style={{ background: BRAND.softPurple, color: BRAND.purple }}
-            >
-              {text.skip}
-            </button>
           </header>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center gap-2 py-2">

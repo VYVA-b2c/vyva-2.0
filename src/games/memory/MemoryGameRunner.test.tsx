@@ -264,7 +264,7 @@ describe("MemoryGameRunner word recall", () => {
     renderMemoryGame("/memory-games/memory_match?level=2&variant=memory_match-l2-v1");
 
     expect(await screen.findByRole("heading", { name: /matching pairs/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /Visual memory/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: /Visual memory/i })).toHaveLength(1);
     expect(screen.queryByText("Tap two cards to find the pair.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Instructions" })).toBeInTheDocument();
   });

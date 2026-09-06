@@ -1,15 +1,9 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen,
   Check,
   CircleHelp,
-  Clock3,
   Grid2x2,
-  Hash,
-  Layers3,
-  Link2,
   Mic,
-  NotebookPen,
   RotateCcw,
   Route,
   Type,
@@ -269,27 +263,6 @@ function getPayloadString(payload: Record<string, unknown>, key: string, fallbac
 function getPayloadNumber(payload: Record<string, unknown>, key: string, fallback: number) {
   const value = Number(payload[key]);
   return Number.isFinite(value) ? value : fallback;
-}
-
-function getMemoryGameIcon(gameType: MemoryGameType) {
-  switch (gameType) {
-    case "memory_match":
-      return Grid2x2;
-    case "sequence_memory":
-      return Route;
-    case "word_recall":
-      return NotebookPen;
-    case "number_memory":
-      return Hash;
-    case "routine_memory":
-      return Clock3;
-    case "association_memory":
-      return Link2;
-    case "story_recall":
-      return BookOpen;
-    default:
-      return Layers3;
-  }
 }
 
 function getSpeechLanguage(language: string) {
@@ -1483,8 +1456,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
   const summaryMistakes = plan.gameType === "sequence_memory" ? sequenceTotalMistakes : mistakes;
   const gameTitle = getGameTitle(plan.gameType, language);
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
-  const GameIcon = getMemoryGameIcon(plan.gameType);
-  const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
   const currentLevelLabel = getBrainCoachProgressLabel(plan.level);
   const voiceGameContextPanel = (
     <VoiceActionFulfillmentPanel
@@ -1681,12 +1652,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     return renderBrainRunnerScreen("tutorial", "tutorial", "sequence_example", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
         <section className="rounded-[22px] border border-[#EFE7DB] bg-white p-4 text-center shadow-vyva-card sm:rounded-[26px] sm:p-5">
-          <div className="mx-auto flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-[#FFF9F1] shadow-vyva-card sm:h-[76px] sm:w-[76px] sm:rounded-[22px]">
-            <div className="flex h-[48px] w-[48px] items-center justify-center rounded-[17px] sm:h-[54px] sm:w-[54px]" style={gameIconStyle}>
-              <GameIcon size={26} />
-            </div>
-          </div>
-          <h1 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1 sm:text-[36px]">{t("memory.sequenceTutorialTitle", "How it works")}</h1>
+          <h1 className="font-display text-[30px] leading-tight text-vyva-text-1 sm:text-[36px]">{t("memory.sequenceTutorialTitle", "How it works")}</h1>
 
           <div className="mx-auto mt-4 grid max-w-[360px] grid-cols-2 gap-3">
             {previewTiles.map((tile, index) => (
@@ -1695,8 +1661,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                 className="flex min-h-[88px] flex-col items-center justify-center rounded-[18px] text-white shadow-vyva-card sm:min-h-[104px] sm:rounded-[22px]"
                 style={{ background: tile.color }}
               >
-                <span className="text-[28px] leading-none sm:text-[34px]">{tile.emoji}</span>
-                <span className="mt-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-white/20 px-2 text-[14px] font-black">
+                <span className="flex h-11 min-w-11 items-center justify-center rounded-full border border-white/35 bg-white/15 px-3 text-[24px] font-black sm:h-12 sm:min-w-12 sm:text-[27px]">
                   {index + 1}
                 </span>
               </div>
@@ -2021,12 +1986,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
     return renderBrainRunnerScreen(`word_recall_${wordRecallPhase}`, "playing", `word_recall_${wordRecallPhase}`, (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <section className="overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
-          <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
-            <NotebookPen size={14} />
-            <span>{wordRecallPhase === "memorize" ? t("wordRecall.memorizeLabel", "Remember words") : t("wordRecall.recall", "Recall")}</span>
-          </div>
-          <h2 className="mt-3 max-w-[28ch] font-display text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[27px]">
+        <section className="overflow-hidden rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
+          <h2 className="max-w-[28ch] font-display text-[24px] font-semibold leading-tight text-vyva-text-1 sm:text-[27px]">
             {wordRecallPhase === "memorize"
               ? t("wordRecall.studyHint", "Study the words. Hide them when you are ready.")
               : wordRecallPhase === "distraction"
@@ -2253,7 +2214,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
 
     return renderBrainRunnerScreen(`sequence_${sequencePhase}`, "playing", "sequence_grid", (
       <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2">
-        <section className="overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[26px] sm:p-5">
+        <section className="overflow-hidden rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-vyva-purple shadow-sm sm:text-[12px]">
@@ -2381,15 +2342,9 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
                       }}
                     >
                       <div className="flex h-full flex-col items-center justify-center">
-                        <span className="mb-2 inline-flex h-[26px] min-w-[26px] items-center justify-center rounded-full bg-white/18 px-2 text-[12px] font-semibold text-white sm:mb-3 sm:h-[28px] sm:min-w-[28px] sm:text-[13px]">
+                        <span className="inline-flex h-14 min-w-14 items-center justify-center rounded-full border border-white/30 bg-white/15 px-3 text-[28px] font-black text-white sm:h-16 sm:min-w-16 sm:text-[32px]">
                           {index + 1}
                         </span>
-                        <span className="text-[34px] leading-none sm:text-[42px]">{tile.emoji}</span>
-                        {isWatching && isActive && (
-                          <span className="mt-2 rounded-full bg-white/18 px-3 py-1 text-[14px] font-semibold text-white sm:mt-3 sm:text-[15px]">
-                            {index + 1}
-                          </span>
-                        )}
                       </div>
                     </button>
                   );
@@ -2506,7 +2461,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath }: MemoryGameRunnerProps)
     "card_grid",
     (
     <div className="mx-auto w-full max-w-[1120px] px-3 pb-3 sm:px-4 sm:pb-4">
-      <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
+      <section className="mt-2 overflow-hidden rounded-[28px] border border-[#EEE8F1] bg-white p-4 shadow-vyva-card sm:p-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="min-w-0">
             <h2 className="truncate font-display text-[20px] font-semibold leading-tight text-vyva-text-1 sm:text-[25px]">

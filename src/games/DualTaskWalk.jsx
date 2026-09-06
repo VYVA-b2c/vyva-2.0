@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { BrainCoachActivityShell, BrainCoachLoadingState } from "@/components/brain/BrainCoachFlowShell";
-import { VyvaIcon } from "@/components/brand/VyvaIcon";
 import { gameData } from "./shared/gameDataApi";
 import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
@@ -821,8 +820,8 @@ export default function DualTaskWalk({ userId, onExit }) {
         sceneKind="intro"
         sceneLayout="dual_task_preview"
       >
-        <div className="pb-6">
-        <div className="mx-auto flex w-full max-w-[820px] flex-col">
+        <div className="pb-6" data-testid="dual-task-intro">
+        <div className="mx-auto flex w-full max-w-[820px] flex-col rounded-[28px] border border-[#EEE8F1] bg-white p-5 shadow-vyva-card sm:p-6">
           <div className="flex shrink-0 items-center justify-center gap-3">
             <div className="flex min-h-[56px] items-center rounded-full bg-[#FEF3C7] px-5 text-[21px] font-bold text-[#92400E]">
               {text.level} {currentSequence.difficulty_tier} - {currentBand.label}
@@ -841,12 +840,8 @@ export default function DualTaskWalk({ userId, onExit }) {
           </div>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center py-5">
-            <h1 className="sr-only">{text.title}</h1>
             <div className="text-center">
-              <span className="mx-auto flex h-[76px] w-[76px] items-center justify-center rounded-[24px] bg-[#F1E8FF] text-vyva-purple">
-                <VyvaIcon icon={Brain} accent="pulse" size={42} strokeWidth={2.45} tone="brand" />
-              </span>
-              <p className="mx-auto mt-4 max-w-[26ch] text-[22px] font-bold leading-[1.35] text-[#5B4B71]">{text.subtitle}</p>
+              <p className="mx-auto max-w-[26ch] text-[22px] font-bold leading-[1.35] text-[#5B4B71]">{text.subtitle}</p>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 md:mt-7">
@@ -893,16 +888,8 @@ export default function DualTaskWalk({ userId, onExit }) {
       >
         <div className="pb-6">
         <div className="mx-auto flex w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3">
+          <header className="flex min-h-[64px] shrink-0 items-center gap-3">
             <h1 className="min-w-0 font-display text-[34px] font-bold leading-tight sm:text-[40px]">{text.tutorialTitle}</h1>
-            <button
-              type="button"
-              onClick={closeTutorial}
-              className="min-h-[64px] shrink-0 rounded-full px-5 text-[22px] font-bold sm:px-6 sm:text-[24px]"
-              style={{ background: BRAND.softPurple, color: BRAND.purple }}
-            >
-              {text.skip}
-            </button>
           </header>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center py-3">

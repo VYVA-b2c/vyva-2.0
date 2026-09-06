@@ -62,6 +62,7 @@ export function CanonicalBrainCoachActivityCard({
       style={style}
       data-scene-kind="activity_card"
       data-card-variant={variant}
+      data-vyva-card-layout="canonical-health-hub-action"
       data-container-contract={BRAIN_COACH_SHELL_CONTRACT.containerId}
       {...props}
     >

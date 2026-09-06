@@ -237,9 +237,9 @@ export function BrainCoachActivityShell({
               >
                 <VyvaIcon icon={ArrowLeft} size={18} strokeWidth={2.45} tone="brand" />
               </button>
-              <div className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
+              <h1 className="truncate text-center font-display text-[24px] font-semibold leading-tight tracking-[-0.03em] text-inherit">
                 {title}
-              </div>
+              </h1>
               <div className="flex justify-end">
                 {action ?? (
                   <CanonicalVoiceButton

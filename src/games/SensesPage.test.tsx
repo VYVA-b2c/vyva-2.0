@@ -29,6 +29,8 @@ describe("SensesPage", () => {
     expect(screen.queryByRole("button", { name: /Listen Closely/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Association/i })).not.toBeInTheDocument();
     expect(container.querySelector(".xl\\:grid-cols-4")).not.toBeInTheDocument();
+    expect(screen.queryByText("Listen, breathe, notice, and recall sensory details.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Use calm breathing to bring a garden to life.")).not.toBeInTheDocument();
   });
 
   it("opens Scent Memory from the Sharpen Senses hub", () => {
