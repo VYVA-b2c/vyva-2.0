@@ -682,6 +682,43 @@ test("the complete mobile Touch flow reaches a saved and shareable report", asyn
   expect(browserErrors).toEqual([]);
 });
 
+test("the mobile checking loader follows the selected light and dark theme", async ({ page }) => {
+  test.setTimeout(75_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installSymptomAssessmentApi(page);
+
+  const browserErrors = collectBrowserErrors(page);
+  for (const theme of ["light", "dark"] as const) {
+    await page.goto(`/dev/home-master/ask-dr-ai-checking?theme=${theme}&lang=en`);
+    await page.locator("#vyva-launch").waitFor({ state: "hidden", timeout: 20_000 });
+
+    const loader = page.getByTestId("symptom-presentation-checking-touch");
+    await expect(loader).toBeVisible();
+    await expect(loader).toHaveAttribute("data-theme-surface", `canonical-${theme}`);
+    await expect(loader.getByRole("progressbar")).toHaveAttribute("aria-valuenow", /[1-4]/);
+    await expect(page.locator(".vite-error-overlay")).toHaveCount(0);
+
+    const loaderBox = await loader.boundingBox();
+    const progressBox = await loader.getByRole("progressbar").boundingBox();
+    const initialHeading = await loader.getByRole("heading").innerText();
+    expect(loaderBox?.width).toBeLessThanOrEqual(360);
+    expect(loaderBox?.height).toBeLessThanOrEqual(380);
+
+    await expect.poll(() => loader.getByRole("heading").innerText()).not.toBe(initialHeading);
+    const rotatedLoaderBox = await loader.boundingBox();
+    const rotatedProgressBox = await loader.getByRole("progressbar").boundingBox();
+    expect(rotatedLoaderBox).toEqual(loaderBox);
+    expect(rotatedProgressBox).toEqual(progressBox);
+
+    await page.screenshot({
+      path: path.resolve(`artifacts/symptom-assessment-checking-${theme}-390.png`),
+      fullPage: false,
+    });
+  }
+
+  expect(browserErrors).toEqual([]);
+});
+
 test("an urgent Touch answer renders the emergency escalation scene", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const responses = [
