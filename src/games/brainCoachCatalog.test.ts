@@ -64,6 +64,10 @@ describe("brainCoachCatalog", () => {
       kind: "levels",
       maxLevel: 5,
     });
+    expect(BRAIN_COACH_ACTIVITY_CATALOG.find(({ id }) => id === "number_memory")?.progression).toEqual({
+      kind: "levels",
+      maxLevel: 30,
+    });
   });
 
   it("creates one stable public path for every activity", () => {

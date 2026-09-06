@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { VyvaIconAccent } from "@/components/brand/VyvaIcon";
+import { NUMBER_MEMORY_MAX_LEVEL } from "./memory/numberMemoryData";
 import { BRAIN_COACH_MAX_LEVEL } from "./shared/brainCoachProgression";
 import type { CognitiveDomain, MemoryGameType } from "./memory/types";
 
@@ -337,7 +338,7 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
     cognitiveDomains: ["working_memory", "attention"],
     testId: "brain-coach-activity-number-memory",
     title: "Number Memory",
-    description: "Study digits, hide them, then enter the order.",
+    description: "Watch one digit at a time, then recall the sequence.",
     trainsKey: "brainCoach.activities.numberMemory.trains",
     trains: "Working memory",
     durationKey: "brainCoach.activities.numberMemory.duration",
@@ -347,6 +348,7 @@ export const BRAIN_COACH_ACTIVITY_CATALOG: BrainCoachActivityDefinition[] = [
     icon: Hash,
     iconAccent: "dot",
     borderColor: "#BFDBFE",
+    progression: { kind: "levels", maxLevel: NUMBER_MEMORY_MAX_LEVEL },
   }),
   {
     id: "spatial_navigator",
