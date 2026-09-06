@@ -704,4 +704,35 @@ describe("PreventionPlan", () => {
     expect(screen.getByRole("button", { name: "Guardar" })).toBeVisible();
     expect(window.open).toHaveBeenCalledWith("https://www.youtube.com/watch?v=FReFf1CLf-c", "_blank", "noopener,noreferrer");
   });
+
+  it("uses French video resources and copy for a French user language", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dev/home-master/health-plan?language=fr"]}>
+          <PreventionPlan
+            previewPlan={plan}
+            firstNameOverride="Karim"
+            backPath="/dev/home-master/health"
+            themeOverride="light"
+            languageOverride="fr"
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Les meilleurs aliments pour préserver son cerveau et ses facultés le plus longtemps possible" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Longévité" })).toBeVisible();
+    expect(screen.getByText("Après-midi")).toBeVisible();
+    expect(screen.getByText("Vidéo choisie")).toBeVisible();
+    expect(screen.getAllByText("Cerveau")[0]).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Mayo Clinic Minute: Can the MIND diet improve brain health?" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Curated video")).not.toBeInTheDocument();
+    expect(screen.queryByText("Why this?")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Afficher Calme et récupération" }));
+
+    expect(screen.getByRole("heading", { name: "10 min de Calme et de Pleine conscience" })).toBeVisible();
+    expect(screen.getByText("Cédric Michel · 10 min")).toBeVisible();
+  });
 });

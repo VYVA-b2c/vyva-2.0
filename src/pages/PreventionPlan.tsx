@@ -2687,7 +2687,8 @@ export default function PreventionPlan({
   const optionalProfile = useOptionalProfile();
   const { language: appLanguage } = useLanguage();
   const profileFirstName = optionalProfile?.firstName ?? "";
-  const profileLanguage = languageOverride ?? optionalProfile?.profile?.languagePreference ?? optionalProfile?.profile?.language ?? appLanguage ?? "en";
+  const userPreferredLanguage = languageOverride ?? optionalProfile?.profile?.languagePreference ?? optionalProfile?.profile?.language ?? null;
+  const profileLanguage = userPreferredLanguage ?? appLanguage ?? "en";
   const pageCopy = longevityCopyForLanguage(profileLanguage);
   const profileTimezone = optionalProfile?.profile?.timezone ?? null;
   const { isDark: preferredIsDark } = useHomeMasterTheme();
@@ -2819,7 +2820,7 @@ export default function PreventionPlan({
 
   const liveStatuses = pillarStatusQuery.data?.statuses;
   const livePriority = pillarStatusQuery.data?.priority_pillar;
-  const companionLanguage = languageOverride ?? companion.activeProgram?.language ?? companion.todayVideo?.language ?? profileLanguage;
+  const companionLanguage = userPreferredLanguage ?? companion.todayVideo?.language ?? companion.activeProgram?.language ?? appLanguage ?? "en";
   const copy = longevityCopyForLanguage(companionLanguage);
   const pillarActions = resolvePillarActions(companion, plan);
   const dailySession = companion.currentMomentSession ?? companion.dailySession ?? fallbackDailySession(companion, plan, firstName, pillarActions);
